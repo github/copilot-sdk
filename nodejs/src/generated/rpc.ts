@@ -1162,6 +1162,8 @@ export type FactoryRunStatus =
   | "completed"
   /** The run was interrupted while resource budget remained. */
   | "halted"
+  /** The current attempt stopped intentionally and the run may be resumed. */
+  | "paused"
   /** The run was cancelled before completion. */
   | "cancelled"
   /** The factory body failed or reached a cumulative resource ceiling. */
@@ -1180,6 +1182,10 @@ export type FactoryRunFailure =
        * Approved effective ceiling that was reached.
        */
       value: number;
+      /**
+       * Suggested larger ceiling when the runtime can derive one safely.
+       */
+      suggestedValue?: number;
       /**
        * Factory run identifier.
        */
@@ -1257,6 +1263,30 @@ export type FactoryRunFailureKind =
   /** The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no headroom remained for another subagent. */
   | "maxAiCredits";
 /**
+ * Durable metadata describing who initiated a factory pause.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseInfo".
+ */
+/** @experimental */
+export type FactoryPauseInfo =
+  | {
+      /**
+       * Factory pause initiator discriminator.
+       */
+      type: "user";
+    }
+  | {
+      /**
+       * Stable author-defined checkpoint key that initiated the pause.
+       */
+      key: string;
+      /**
+       * Factory pause initiator discriminator.
+       */
+      type: "checkpoint";
+    };
+/**
  * Kind of factory progress line.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1268,6 +1298,18 @@ export type FactoryLogLineKind =
   | "log"
   /** A named factory phase marker. */
   | "phase";
+/**
+ * Action the runtime selected for a durable factory pause checkpoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseCheckpointAction".
+ */
+/** @experimental */
+export type FactoryPauseCheckpointAction =
+  /** The checkpoint was committed by a prior paused attempt, so execution may continue. */
+  | "continue"
+  /** This attempt claimed the checkpoint and must cooperatively stop. */
+  | "pause";
 /**
  * Derived lifecycle state of a factory phase.
  *
@@ -2983,6 +3025,20 @@ export type RemoteSessionMetadataTaskType =
   | "cca"
   /** CLI remote task. */
   | "cli";
+/**
+ * Provider-native structured output format. JSON Schema is forwarded without rewriting or validating the schema or the generated output.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ResponseFormat".
+ */
+/** @experimental */
+export type ResponseFormat = {
+  jsonSchema: JsonSchemaResponseFormat;
+  /**
+   * Output format discriminator. Currently only json_schema is supported.
+   */
+  type: "json_schema";
+};
 /**
  * Origin of the sandbox choice supplied by an internal client.
  *
@@ -4845,6 +4901,10 @@ export interface AgentInfo {
    * Whether the agent can be selected directly by the user. Agents marked `false` are subagent-only.
    */
   userInvocable?: boolean;
+  /**
+   * Whether model-driven invocation is disabled for this agent.
+   */
+  disableModelInvocation?: boolean;
   /**
    * Allowed tool names for this agent. Empty array means none; omitted means inherit defaults.
    */
@@ -7818,6 +7878,10 @@ export interface FactoryAbortRequest {
    * Factory run identifier.
    */
   runId: string;
+  /**
+   * Opaque token identifying the execution attempt to abort.
+   */
+  executionToken: string;
 }
 /**
  * Acknowledgement that a factory request was accepted.
@@ -7848,12 +7912,12 @@ export interface FactoryAgentOptions {
    */
   model?: string;
   /**
-   * Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+   * Optional reasoning effort override for the subagent.
    */
   reasoningEffort?: string;
   contextTier?: ContextTier;
   /**
-   * Optional custom agent name for the subagent. This field is accepted but not yet honored.
+   * Optional built-in or custom agent name whose definition configures the subagent.
    */
   agent?: string;
 }
@@ -8284,6 +8348,10 @@ export interface FactoryRunSummary {
    * Terminal run outcome, or null while nonterminal.
    */
   terminal: FactoryRunTerminal | null;
+  /**
+   * Whether the durable run state currently passes runtime resume eligibility checks.
+   */
+  canResume: boolean;
 }
 /**
  * Durable factory resource consumption.
@@ -8327,6 +8395,10 @@ export interface FactoryRunTerminal {
    * Prompt-safe preview of the completed result.
    */
   resultPreview?: string;
+  /**
+   * Pause initiator metadata, or null when the run did not pause.
+   */
+  pauseInfo: FactoryPauseInfo | null;
 }
 /**
  * One ordered factory progress line.
@@ -8366,6 +8438,45 @@ export interface FactoryLogRequest {
    * Ordered progress lines to append.
    */
   lines: FactoryLogLine[];
+}
+/**
+ * Parameters for an owned durable pause checkpoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseCheckpointRequest".
+ */
+/** @experimental */
+export interface FactoryPauseCheckpointRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  /**
+   * Opaque token identifying the execution attempt that reached the checkpoint.
+   */
+  executionToken: string;
+  /**
+   * Stable author-defined checkpoint key.
+   */
+  key: string;
+}
+
+/** @experimental */
+export interface FactoryPauseCheckpointResult {
+  action: FactoryPauseCheckpointAction;
+}
+/**
+ * Parameters for pausing a running factory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseRequest".
+ */
+/** @experimental */
+export interface FactoryPauseRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
 }
 /**
  * Durable lifecycle and timing for one factory phase.
@@ -8521,19 +8632,19 @@ export interface FactoryRunLimits {
   /**
    * Maximum number of factory subagents that may run concurrently.
    */
-  maxConcurrentSubagents?: number;
+  maxConcurrentSubagents?: number | null;
   /**
    * Maximum total number of factory subagents that may be admitted.
    */
-  maxTotalSubagents?: number;
+  maxTotalSubagents?: number | null;
   /**
    * Maximum accumulated active-execution time in seconds. Active execution includes the entire extension body, subprocess waits, queued-agent waits, and sleeps; time between resumed attempts is not counted.
    */
-  timeoutSeconds?: number;
+  timeoutSeconds?: number | null;
   /**
    * Maximum AI credits consumed by factory subagents and their descendants. The post-paid ceiling is soft: parallel turns can settle beyond it before the run stops.
    */
-  maxAiCredits?: number;
+  maxAiCredits?: number | null;
 }
 /**
  * Resolved persisted factory identity and resumed run envelope.
@@ -8583,6 +8694,7 @@ export interface FactoryRunResult {
    * Partial journal and progress snapshot for a halted, cancelled, or errored run.
    */
   snapshot?: JsonValue;
+  pauseInfo?: FactoryPauseInfo;
 }
 /**
  * Full factory run observability detail.
@@ -8659,6 +8771,10 @@ export interface FactoryRunDetail {
    * Terminal run outcome, or null while nonterminal.
    */
   terminal: FactoryRunTerminal | null;
+  /**
+   * Whether the durable run state currently passes runtime resume eligibility checks.
+   */
+  canResume: boolean;
   /**
    * Lifecycle and timing observations for each factory phase.
    */
@@ -9706,6 +9822,31 @@ export interface InterruptMainTurnResult {
    * Whether an in-flight main agent turn was interrupted. False when the main loop was not processing.
    */
   interrupted: boolean;
+}
+/**
+ * A JSON Schema output contract. OpenAI receives the name, description, schema and strict setting; Anthropic receives the schema in output_config.format and always uses its native strict enforcement.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "JsonSchemaResponseFormat".
+ */
+/** @experimental */
+export interface JsonSchemaResponseFormat {
+  /**
+   * Name of the output schema, subject to the provider's naming restrictions.
+   */
+  name: string;
+  /**
+   * JSON Schema passed unchanged to the inference provider. Supported keywords and schema restrictions are determined by that provider.
+   */
+  schema: JsonValue;
+  /**
+   * Optional description passed to OpenAI providers.
+   */
+  description?: string;
+  /**
+   * Optional strict enforcement setting for OpenAI providers. Omitted uses the provider default. Anthropic always enforces its supported schema subset.
+   */
+  strict?: boolean;
 }
 /**
  * HTTP headers as a map from lowercased header name to a list of values. Multi-valued headers (e.g. Set-Cookie) preserve all values.
@@ -13010,6 +13151,44 @@ export interface ModelPickerSettingsContext {
   environment: {};
 }
 /**
+ * Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are intersected with repository `.github/allowed_models.txt` policy; provider-qualified IDs remain exempt from repository-only policy but are restricted by this host list. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected. Validation and pre-selection fallback failures preserve the previous restriction. Failures after a fallback selection commits retain the new restriction and selected model; callers should inspect current session state after such an error.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelSetAllowedModelsRequest".
+ */
+/** @experimental */
+export interface ModelSetAllowedModelsRequest {
+  /**
+   * Exact model IDs to permit, or null to clear the host restriction.
+   */
+  allowedModels?: string[] | null;
+}
+/**
+ * The applied host allowlist and effective session model policy after intersection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelSetAllowedModelsResult".
+ */
+/** @experimental */
+export interface ModelSetAllowedModelsResult {
+  /**
+   * Normalized host allowlist. Omitted when the host restriction was cleared, or when a relay client does not return the host policy.
+   */
+  allowedModels?: string[];
+  /**
+   * Effective exact IDs or repository policy patterns after applying the host restriction. Omitted by relay clients that do not return the host policy.
+   */
+  effectiveAllowedModels?: string[];
+  /**
+   * Effective deterministic fallback model, when the policy defines one.
+   */
+  fallbackModel?: string;
+  /**
+   * Selected session model after reconciling a now-disallowed concrete selection.
+   */
+  modelId?: string;
+}
+/**
  * Reasoning effort level to apply to the currently selected model.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -15174,7 +15353,7 @@ export interface PluginsBuiltinSetRequest {
   paths: string[];
 }
 /**
- * Plugin names (or specs) to disable.
+ * Plugin names (or specs) to disable, plus the optional working directory the repository-controlled guard is evaluated against.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PluginsDisableRequest".
@@ -15185,9 +15364,13 @@ export interface PluginsDisableRequest {
    * Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.
    */
   names: string[];
+  /**
+   * Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.
+   */
+  workingDirectory?: string;
 }
 /**
- * Plugin names (or specs) to enable.
+ * Plugin names (or specs) to enable, plus the optional working directory the repository-controlled guard is evaluated against.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PluginsEnableRequest".
@@ -15198,6 +15381,10 @@ export interface PluginsEnableRequest {
    * Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.
    */
   names: string[];
+  /**
+   * Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.
+   */
+  workingDirectory?: string;
 }
 /**
  * Plugin source and optional working directory for relative-path resolution.
@@ -17131,6 +17318,37 @@ export interface SandboxConfigAuth {
   gh?: boolean;
 }
 /**
+ * Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxDisableForSessionRequest".
+ */
+/** @experimental */
+export interface SandboxDisableForSessionRequest {
+  /**
+   * Identifier of the exact pending sandbox-bypass permission request that authorized the session opt-out.
+   */
+  requestId: string;
+  decisionContext?: PermissionDecisionContext;
+}
+/**
+ * Result of attempting to disable sandboxing for the current session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxDisableForSessionResult".
+ */
+/** @experimental */
+export interface SandboxDisableForSessionResult {
+  /**
+   * Whether this call resolved the pending request and applied the session opt-out.
+   */
+  success: boolean;
+  /**
+   * The authoritative sandbox enabled state after the operation.
+   */
+  enabled: boolean;
+}
+/**
  * Managed sandbox enforcement state for a session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17480,6 +17698,7 @@ export interface SendMessagesRequest {
   requestHeaders?: {
     [k: string]: string | undefined;
   };
+  responseFormat?: ResponseFormat;
   /**
    * W3C Trace Context traceparent header for distributed tracing of this agent turn
    */
@@ -17552,6 +17771,7 @@ export interface SendRequest {
   requestHeaders?: {
     [k: string]: string | undefined;
   };
+  responseFormat?: ResponseFormat;
   /**
    * W3C Trace Context traceparent header for distributed tracing of this agent turn
    */
@@ -23579,6 +23799,11 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
 }
 
 /** @experimental */
+export interface SessionFactoryPauseAtCheckpointResult {
+  action: FactoryPauseCheckpointAction;
+}
+
+/** @experimental */
 export interface SessionModelListRequest {
   /**
    * If true, bypasses the per-session model list cache and re-fetches from CAPI.
@@ -23981,14 +24206,14 @@ export function createServerRpc(connection: MessageConnection) {
             /**
              * Enables installed plugins for new sessions.
              *
-             * @param params Plugin names (or specs) to enable.
+             * @param params Plugin names (or specs) to enable, plus the optional working directory the repository-controlled guard is evaluated against.
              */
             enable: async (params: PluginsEnableRequest): Promise<void> =>
                 connection.sendRequest("plugins.enable", params),
             /**
              * Disables installed plugins for new sessions.
              *
-             * @param params Plugin names (or specs) to disable.
+             * @param params Plugin names (or specs) to disable, plus the optional working directory the repository-controlled guard is evaluated against.
              */
             disable: async (params: PluginsDisableRequest): Promise<void> =>
                 connection.sendRequest("plugins.disable", params),
@@ -24592,6 +24817,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             getEnforcementStatus: async (): Promise<SandboxEnforcementStatus> =>
                 connection.sendRequest("session.sandbox.getEnforcementStatus", { sessionId }),
+            /**
+             * Disables sandboxing for the remainder of the current session and approves the referenced pending sandbox-bypass permission request. The request is rejected unless the exact request is still pending and the effective sandbox policy permits bypass.
+             *
+             * @param params Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
+             *
+             * @returns Result of attempting to disable sandboxing for the current session.
+             */
+            disableForSession: async (params: SandboxDisableForSessionRequest): Promise<SandboxDisableForSessionResult> =>
+                connection.sendRequest("session.sandbox.disableForSession", { sessionId, ...params }),
         },
         /**
          * Aborts the current agent turn.
@@ -24775,6 +25009,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             cancel: async (params: FactoryCancelRequest): Promise<FactoryRunResult> =>
                 connection.sendRequest("session.factory.cancel", { sessionId, ...params }),
             /**
+             * Pauses a running factory and returns its settled run envelope.
+             *
+             * @param params Parameters for pausing a running factory.
+             *
+             * @returns Complete current or terminal factory run envelope.
+             */
+            pause: async (params: FactoryPauseRequest): Promise<FactoryRunResult> =>
+                connection.sendRequest("session.factory.pause", { sessionId, ...params }),
+            /**
              * Records a batch of ordered factory progress lines.
              *
              * @param params Parameters for recording factory progress.
@@ -24841,6 +25084,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             switchAutoTier: async (params: ModelSwitchAutoTierRequest): Promise<ModelSwitchAutoTierResult> =>
                 connection.sendRequest("session.model.switchAutoTier", { sessionId, ...params }),
+            /**
+             * Replaces or clears the host-supplied model allowlist for a running session.
+             *
+             * @param params Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are intersected with repository `.github/allowed_models.txt` policy; provider-qualified IDs remain exempt from repository-only policy but are restricted by this host list. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected. Validation and pre-selection fallback failures preserve the previous restriction. Failures after a fallback selection commits retain the new restriction and selected model; callers should inspect current session state after such an error.
+             *
+             * @returns The applied host allowlist and effective session model policy after intersection.
+             */
+            setAllowedModels: async (params: ModelSetAllowedModelsRequest): Promise<ModelSetAllowedModelsResult> =>
+                connection.sendRequest("session.model.setAllowedModels", { sessionId, ...params }),
             /**
              * Updates the session's reasoning effort without changing the selected model.
              *
@@ -26647,6 +26899,13 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
              */
             resumeFromTool: async (params: FactoryToolResumeRequest): Promise<FactoryResumeResult> =>
                 connection.sendRequest("session.factory.resumeFromTool", { sessionId, ...params }),
+            /**
+             * Atomically pauses an owned factory attempt at a durable checkpoint.
+             *
+             * @param params Parameters for an owned durable pause checkpoint.
+             */
+            pauseAtCheckpoint: async (params: FactoryPauseCheckpointRequest): Promise<SessionFactoryPauseAtCheckpointResult> =>
+                connection.sendRequest("session.factory.pauseAtCheckpoint", { sessionId, ...params }),
         },
         /** @experimental */
         model: {

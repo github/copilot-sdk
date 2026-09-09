@@ -23,6 +23,7 @@ import type {
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
+import { isResponseSchema, toJsonSchema } from "./schema.js";
 import { isAttributedPermissionResult } from "./types.js";
 import type {
     CommandHandler,
@@ -39,6 +40,7 @@ import type {
     BearerTokenProvider,
     UiInputOptions,
     MessageOptions,
+    ResponseSchema,
     McpAuthHandler,
     McpAuthRequest,
     PermissionHandler,
@@ -442,6 +444,7 @@ export class CopilotSession {
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
     private disconnected = false;
+    private readonly pendingStructuredWaits = new Set<(error: Error) => void>();
     private disconnecting = false;
     private onDisconnected?: () => void;
 
@@ -725,6 +728,18 @@ export class CopilotSession {
             mode: options.mode,
             agentMode: options.agentMode,
             requestHeaders: options.requestHeaders,
+            ...(options.responseSchema
+                ? {
+                      responseFormat: {
+                          type: "json_schema",
+                          jsonSchema: {
+                              name: "response",
+                              strict: true,
+                              schema: toJsonSchema(options.responseSchema),
+                          },
+                      },
+                  }
+                : {}),
         });
 
         return (response as { messageId: string }).messageId;
@@ -738,6 +753,9 @@ export class CopilotSession {
      * assistant has finished processing the message.
      *
      * Events are still delivered to handlers registered via {@link on} while waiting.
+     * With a schema as the second argument, returns its parsed, validated result.
+     * Structured waits select only root-agent output originating from this send;
+     * other queued work may delay session.idle but cannot replace the result.
      *
      * @param options - The message options including the prompt and optional attachments
      * @param timeout - Timeout in milliseconds (default: 60000). Controls how long to wait; does not abort in-flight agent work.
@@ -754,17 +772,46 @@ export class CopilotSession {
      * ```
      */
     async sendAndWait(prompt: string, timeout?: number): Promise<AssistantMessageEvent | undefined>;
+    async sendAndWait<TResult>(
+        options: MessageOptions | string,
+        responseSchema: ResponseSchema<TResult>,
+        timeout?: number
+    ): Promise<TResult>;
     async sendAndWait(
         options: MessageOptions,
         timeout?: number
     ): Promise<AssistantMessageEvent | undefined>;
     async sendAndWait(
         optionsOrPrompt: MessageOptions | string,
+        schemaOrTimeout?: ResponseSchema | number,
         timeout?: number
-    ): Promise<AssistantMessageEvent | undefined> {
+    ): Promise<unknown> {
         const options: MessageOptions =
             typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
-        const effectiveTimeout = timeout ?? 60_000;
+        const typedSchema = isResponseSchema(schemaOrTimeout) ? schemaOrTimeout : undefined;
+        const effectiveTimeout =
+            (typeof schemaOrTimeout === "number" ? schemaOrTimeout : timeout) ?? 60_000;
+
+        if (typedSchema && options.responseSchema) {
+            throw new Error(
+                "Do not specify responseSchema in options when requesting a typed response."
+            );
+        }
+        if (typedSchema || options.responseSchema) {
+            const message = await this.sendAndWaitForStructuredMessage(
+                typedSchema ? { ...options, responseSchema: typedSchema } : options,
+                effectiveTimeout
+            );
+            if (typedSchema) {
+                if (!message) {
+                    throw new Error(
+                        "The requested run completed without a structured assistant response."
+                    );
+                }
+                return typedSchema.parse(JSON.parse(message.data.content));
+            }
+            return message;
+        }
 
         type SessionOutcome = { kind: "idle" } | { kind: "error"; error: Error };
         let resolveOutcome: (outcome: SessionOutcome) => void;
@@ -817,12 +864,114 @@ export class CopilotSession {
         }
     }
 
+    private async sendAndWaitForStructuredMessage(
+        options: MessageOptions,
+        timeout: number
+    ): Promise<AssistantMessageEvent | undefined> {
+        if (this.disconnected) {
+            throw new Error("Session is disconnected");
+        }
+        type Outcome =
+            | { kind: "idle"; message: AssistantMessageEvent | undefined }
+            | { kind: "error"; error: Error };
+        let resolveOutcome!: (outcome: Outcome) => void;
+        const outcomePromise = new Promise<Outcome>((resolve) => {
+            resolveOutcome = resolve;
+        });
+        const fail = (error: Error) => resolveOutcome({ kind: "error", error });
+        let messageId: string | undefined;
+        let consumed = false;
+        let lastMessage: AssistantMessageEvent | undefined;
+        const buffered: SessionEvent[] = [];
+        const observe = (event: SessionEvent) => {
+            if (event.agentId) return;
+            if (event.type === "user.message" && event.data.messageId === messageId) {
+                consumed = true;
+            } else if (
+                event.type === "assistant.message" &&
+                event.data.originatingMessageId === messageId
+            ) {
+                consumed = true;
+                lastMessage = event.data.toolRequests?.length ? undefined : event;
+            } else if (
+                consumed &&
+                event.type === "session.idle" &&
+                event.data.mode !== "autopilot"
+            ) {
+                if (event.data.aborted) {
+                    fail(
+                        new Error(
+                            "The requested run was aborted before a structured result was completed."
+                        )
+                    );
+                } else {
+                    resolveOutcome({ kind: "idle", message: lastMessage });
+                }
+            } else if (consumed && event.type === "session.error") {
+                const error = new Error(event.data.message);
+                error.stack = event.data.stack;
+                fail(error);
+            }
+        };
+        const unsubscribe = this.on((event) => {
+            if (
+                event.type !== "user.message" &&
+                event.type !== "assistant.message" &&
+                event.type !== "session.idle" &&
+                event.type !== "session.error"
+            ) {
+                return;
+            }
+            if (messageId === undefined) {
+                buffered.push(event);
+            } else {
+                observe(event);
+            }
+        });
+        this.pendingStructuredWaits.add(fail);
+        const timer = setTimeout(
+            () => fail(new Error(`Timeout after ${timeout}ms waiting for the structured response`)),
+            timeout
+        );
+        try {
+            const sendOutcome = this.send(options).then(
+                (id) => {
+                    if (!id) {
+                        throw new Error(
+                            "The runtime did not return a message ID for the structured send."
+                        );
+                    }
+                    messageId = id;
+                    for (const event of buffered) observe(event);
+                    buffered.length = 0;
+                    return outcomePromise;
+                },
+                (error: unknown): Outcome => ({
+                    kind: "error",
+                    error: error instanceof Error ? error : new Error(String(error)),
+                })
+            );
+            const outcome = await Promise.race([sendOutcome, outcomePromise]);
+            if (outcome.kind === "error") throw outcome.error;
+            return outcome.message;
+        } finally {
+            clearTimeout(timer);
+            buffered.length = 0;
+            unsubscribe();
+            this.pendingStructuredWaits.delete(fail);
+        }
+    }
+
     /** @internal */
     _markDisconnected(): void {
         if (this.disconnected) {
             return;
         }
         this.disconnected = true;
+        for (const fail of this.pendingStructuredWaits) {
+            fail(new Error("Session disconnected while waiting for a structured response"));
+        }
+        this.pendingStructuredWaits.clear();
         for (const controller of this.pendingExternalTools.values()) {
             controller.abort();
         }

@@ -1693,6 +1693,13 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
     if (nullableInner) {
         return resolveRpcType(nullableInner, false, parentClassName, propName, classes);
     }
+    const unionVariants = schema.anyOf ?? schema.oneOf;
+    if (unionVariants?.length === 1 && typeof unionVariants[0] === "object") {
+        return resolveRpcType(
+            { ...schema, anyOf: undefined, oneOf: undefined, ...unionVariants[0], title: schema.title ?? unionVariants[0].title },
+            isRequired, parentClassName, propName, classes,
+        );
+    }
     // Discriminated union: anyOf with multiple variants sharing a const discriminator
     if (schema.anyOf && Array.isArray(schema.anyOf)) {
         const nonNull = schema.anyOf.filter((s) => typeof s === "object" && s !== null && (s as JSONSchema7).type !== "null");
@@ -2602,7 +2609,7 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>, 
     return lines;
 }
 
-function generateRpcCode(
+export function generateRpcCode(
     schema: ApiSchema,
     externalJsonSerializableRefs: Map<string, Set<string>> = new Map(),
     externalValueTypes: Set<string> = new Set()

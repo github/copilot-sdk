@@ -44,6 +44,61 @@ Setup, build, and test instructions are maintained with each SDK:
 - [Rust](rust/README.md#development)
 - [Java](java/README.md#development-setup)
 
+### Testing an unreleased runtime API
+
+The runtime's Rust contracts under `src/native/sdk-contract` produce both
+`generated/api.schema.json` (RPC methods) and
+`generated/session-events.schema.json` (event payloads). In a local checkout of
+`github/copilot-agent-runtime`, build the runtime and emit these schemas:
+
+```bash
+pnpm run build
+pnpm bazel build //src/native/schema-codegen:schema-codegen
+bazel-bin/src/native/schema-codegen/schema-codegen emit \
+  --api "$PWD/generated/api.schema.json" \
+  --session-events "$PWD/generated/session-events.schema.json"
+```
+
+The SDK generators normally download schemas from the pinned CLI release. To
+use the local schemas instead, pass the event-schema path followed by the
+RPC-schema path. From this repository's `scripts/codegen` directory:
+
+```bash
+npm ci
+for language in typescript csharp python go rust; do
+  node --import tsx "$language.ts" \
+    "$RUNTIME_ROOT/generated/session-events.schema.json" \
+    "$RUNTIME_ROOT/generated/api.schema.json"
+done
+```
+
+Set `RUNTIME_ROOT` to the absolute path of the runtime checkout. Java's generator
+at `java/scripts/codegen/java.ts` reads these files from
+`java/scripts/codegen/target/schemas` instead of accepting positional arguments;
+stage the local schemas there before running it. Do not hand-edit generated
+wrappers. Regenerating against a newer runtime
+also includes any other contract changes since the SDK's pinned release.
+
+Set `COPILOT_CLI_PATH` to the built runtime's `dist-cli/index.js` to run SDK E2Es
+against that checkout rather than the packaged runtime. For example:
+
+```bash
+export COPILOT_CLI_PATH="$RUNTIME_ROOT/dist-cli/index.js"
+# Supply GITHUB_TOKEN with Copilot access when recording new provider responses.
+cd nodejs
+npm test -- test/e2e/structured_output.e2e.test.ts
+cd ../dotnet
+dotnet test test/GitHub.Copilot.SDK.Test.csproj \
+  --filter FullyQualifiedName~StructuredOutputE2ETests
+```
+
+The shared harness records real inference responses under `test/snapshots`.
+Record new captures with `GITHUB_TOKEN` set and `GITHUB_ACTIONS` unset;
+never author model responses by hand. Rerun with `GITHUB_ACTIONS=true` and real
+provider credentials removed to require replay instead of forwarding cache
+misses upstream. A draft targeting an unreleased runtime should document the
+required runtime revision; update the pinned release only after it ships.
+
 ## Submitting a Pull Request
 
 1. Fork and clone the repository

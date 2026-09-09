@@ -17,7 +17,7 @@ using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
 
-public sealed class ClientSessionLifetimeTests
+public sealed partial class ClientSessionLifetimeTests
 {
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
 
@@ -2201,6 +2201,11 @@ public sealed class ClientSessionLifetimeTests
         private bool _failRuntimeShutdown;
         private bool _failSessionCreate;
         private bool _failSessionSend;
+        private int _nextMessageId;
+
+        public bool UniqueMessageIds { get; set; }
+
+        public Func<string, Task>? BeforeSendResponse { get; set; }
 
         private FakeCopilotServer(TcpListener listener)
         {
@@ -2297,7 +2302,7 @@ public sealed class ClientSessionLifetimeTests
             return await completion.Task.WaitAsync(_cts.Token);
         }
 
-        public Task SendSessionEventAsync(string sessionId, string type, Dictionary<string, object?> data)
+        public Task SendSessionEventAsync(string sessionId, string type, Dictionary<string, object?> data, string? agentId = null)
         {
             var stream = _stream ?? throw new InvalidOperationException("Client is not connected.");
             return WriteMessageAsync(stream, new Dictionary<string, object?>
@@ -2312,6 +2317,7 @@ public sealed class ClientSessionLifetimeTests
                         ["id"] = Guid.NewGuid().ToString(),
                         ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
                         ["parentId"] = null,
+                        ["agentId"] = agentId,
                         ["type"] = type,
                         ["data"] = data
                     }
@@ -2437,6 +2443,11 @@ public sealed class ClientSessionLifetimeTests
                 }, cancellationToken);
                 return;
             }
+            var sendMessageId = method == "session.send" && UniqueMessageIds ? $"message-{Interlocked.Increment(ref _nextMessageId)}" : "message-1";
+            if (method == "session.send" && BeforeSendResponse is { } beforeSendResponse)
+            {
+                await beforeSendResponse(sendMessageId);
+            }
             object? result = method switch
             {
                 "connect" => new Dictionary<string, object?>
@@ -2453,7 +2464,11 @@ public sealed class ClientSessionLifetimeTests
                 },
                 "session.send" => new Dictionary<string, object?>
                 {
-                    ["messageId"] = "message-1"
+                    ["messageId"] = sendMessageId
+                },
+                "session.sendMessages" => new Dictionary<string, object?>
+                {
+                    ["messageIds"] = new[] { sendMessageId }
                 },
                 "session.options.update" => new Dictionary<string, object?>
                 {

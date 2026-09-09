@@ -1689,10 +1689,74 @@ func (r FactoryRunFailureFactoryResumeDeclined) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func unmarshalFactoryPauseInfo(data []byte) (FactoryPauseInfo, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Type FactoryPauseInfoType `json:"type"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Type {
+	case FactoryPauseInfoTypeCheckpoint:
+		var d FactoryPauseInfoCheckpoint
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case FactoryPauseInfoTypeUser:
+		var d FactoryPauseInfoUser
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawFactoryPauseInfoData{Discriminator: raw.Type, Raw: data}, nil
+	}
+}
+
+func (r RawFactoryPauseInfoData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Type FactoryPauseInfoType `json:"type"`
+	}{
+		Type: r.Discriminator,
+	})
+}
+
+func (r FactoryPauseInfoCheckpoint) MarshalJSON() ([]byte, error) {
+	type alias FactoryPauseInfoCheckpoint
+	return json.Marshal(struct {
+		Type FactoryPauseInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r FactoryPauseInfoUser) MarshalJSON() ([]byte, error) {
+	type alias FactoryPauseInfoUser
+	return json.Marshal(struct {
+		Type FactoryPauseInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
 func (r *FactoryRunTerminal) UnmarshalJSON(data []byte) error {
 	type rawFactoryRunTerminal struct {
 		Error         *string         `json:"error,omitempty"`
 		Failure       json.RawMessage `json:"failure,omitempty"`
+		PauseInfo     json.RawMessage `json:"pauseInfo"`
 		Reason        *string         `json:"reason,omitempty"`
 		ResultPreview *string         `json:"resultPreview,omitempty"`
 	}
@@ -1708,6 +1772,13 @@ func (r *FactoryRunTerminal) UnmarshalJSON(data []byte) error {
 		}
 		r.Failure = value
 	}
+	if raw.PauseInfo != nil {
+		value, err := unmarshalFactoryPauseInfo(raw.PauseInfo)
+		if err != nil {
+			return err
+		}
+		r.PauseInfo = value
+	}
 	r.Reason = raw.Reason
 	r.ResultPreview = raw.ResultPreview
 	return nil
@@ -1715,14 +1786,15 @@ func (r *FactoryRunTerminal) UnmarshalJSON(data []byte) error {
 
 func (r *FactoryRunResult) UnmarshalJSON(data []byte) error {
 	type rawFactoryRunResult struct {
-		Attempt  *int64           `json:"attempt,omitempty"`
-		Error    *string          `json:"error,omitempty"`
-		Failure  json.RawMessage  `json:"failure,omitempty"`
-		Reason   *string          `json:"reason,omitempty"`
-		Result   any              `json:"result,omitempty"`
-		RunID    string           `json:"runId"`
-		Snapshot any              `json:"snapshot,omitempty"`
-		Status   FactoryRunStatus `json:"status"`
+		Attempt   *int64           `json:"attempt,omitempty"`
+		Error     *string          `json:"error,omitempty"`
+		Failure   json.RawMessage  `json:"failure,omitempty"`
+		PauseInfo json.RawMessage  `json:"pauseInfo,omitempty"`
+		Reason    *string          `json:"reason,omitempty"`
+		Result    any              `json:"result,omitempty"`
+		RunID     string           `json:"runId"`
+		Snapshot  any              `json:"snapshot,omitempty"`
+		Status    FactoryRunStatus `json:"status"`
 	}
 	var raw rawFactoryRunResult
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1736,6 +1808,13 @@ func (r *FactoryRunResult) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		r.Failure = value
+	}
+	if raw.PauseInfo != nil {
+		value, err := unmarshalFactoryPauseInfo(raw.PauseInfo)
+		if err != nil {
+			return err
+		}
+		r.PauseInfo = value
 	}
 	r.Reason = raw.Reason
 	r.Result = raw.Result
@@ -5112,6 +5191,7 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 		Prompt         string            `json:"prompt"`
 		RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
 		RequiredTool   *string           `json:"requiredTool,omitempty"`
+		ResponseFormat *ResponseFormat   `json:"responseFormat,omitempty"`
 		Source         *string           `json:"source,omitempty"`
 		Traceparent    *string           `json:"traceparent,omitempty"`
 		Tracestate     *string           `json:"tracestate,omitempty"`
@@ -5139,6 +5219,7 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 	r.Prompt = raw.Prompt
 	r.RequestHeaders = raw.RequestHeaders
 	r.RequiredTool = raw.RequiredTool
+	r.ResponseFormat = raw.ResponseFormat
 	r.Source = raw.Source
 	r.Traceparent = raw.Traceparent
 	r.Tracestate = raw.Tracestate

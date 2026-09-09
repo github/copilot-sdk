@@ -211,6 +211,8 @@ pub mod rpc_methods {
     pub const SESSION_SENDMESSAGES: &str = "session.sendMessages";
     /// `session.sandbox.getEnforcementStatus`
     pub const SESSION_SANDBOX_GETENFORCEMENTSTATUS: &str = "session.sandbox.getEnforcementStatus";
+    /// `session.sandbox.disableForSession`
+    pub const SESSION_SANDBOX_DISABLEFORSESSION: &str = "session.sandbox.disableForSession";
     /// `session.sendSystemNotification`
     pub const SESSION_SENDSYSTEMNOTIFICATION: &str = "session.sendSystemNotification";
     /// `session.abort`
@@ -276,6 +278,10 @@ pub mod rpc_methods {
     pub const SESSION_FACTORY_GETRUNPROGRESS: &str = "session.factory.getRunProgress";
     /// `session.factory.cancel`
     pub const SESSION_FACTORY_CANCEL: &str = "session.factory.cancel";
+    /// `session.factory.pause`
+    pub const SESSION_FACTORY_PAUSE: &str = "session.factory.pause";
+    /// `session.factory.pauseAtCheckpoint`
+    pub const SESSION_FACTORY_PAUSEATCHECKPOINT: &str = "session.factory.pauseAtCheckpoint";
     /// `session.factory.log`
     pub const SESSION_FACTORY_LOG: &str = "session.factory.log";
     /// `session.factory.agent`
@@ -292,6 +298,8 @@ pub mod rpc_methods {
     pub const SESSION_MODEL_SWITCHAUTOTIER: &str = "session.model.switchAutoTier";
     /// `session.model.applyStartupOverlay`
     pub const SESSION_MODEL_APPLYSTARTUPOVERLAY: &str = "session.model.applyStartupOverlay";
+    /// `session.model.setAllowedModels`
+    pub const SESSION_MODEL_SETALLOWEDMODELS: &str = "session.model.setAllowedModels";
     /// `session.model.setReasoningEffort`
     pub const SESSION_MODEL_SETREASONINGEFFORT: &str = "session.model.setReasoningEffort";
     /// `session.model.list`
@@ -1574,6 +1582,9 @@ pub struct AgentDiscoveryPathList {
 pub struct AgentInfo {
     /// Description of the agent's purpose
     pub description: String,
+    /// Whether model-driven invocation is disabled for this agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
     /// Human-readable display name
     pub display_name: String,
     /// Stable identifier for selection. For most agents this is the same as `name`; for plugin/builtin agents it may differ. Always populated; defaults to `name` when no distinct id was assigned.
@@ -3115,7 +3126,7 @@ pub struct CanvasProviderUnregisterRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapiSessionOptions {
-    /// Routing preference for sessions whose model is `auto`. On create or cold resume, this establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold resume, the runtime restores the last committed preference. On resident resume, a different value requests a safe switch after resume succeeds and cannot change an in-flight turn. Successful switches are persisted for later cold resume. When no preference is supplied or restored, CAPI default routing is used.
+    /// Routing preference for sessions whose model is `auto`. On create or cold resume, this establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold resume, the runtime restores the last committed preference. On resident resume, a different value requests a safe switch after resume succeeds and cannot change an in-flight turn. Successful switches are persisted for later cold resume. When no preference is supplied or restored, CAPI default routing is used. `fast` is an integrator-only latency preset, not a first-party GitHub Copilot product preference.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_tier: Option<AutoTier>,
     /// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
@@ -5141,6 +5152,8 @@ pub struct FactoryAbortRequest {
     pub session_id: SessionId,
     /// Factory run identifier.
     pub run_id: String,
+    /// Opaque token identifying the execution attempt to abort.
+    pub execution_token: String,
 }
 
 /// Acknowledgement that a factory request was accepted.
@@ -5166,10 +5179,10 @@ pub struct FactoryAckResult {}
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FactoryAgentOptions {
-    /// Optional custom agent name for the subagent. This field is accepted but not yet honored.
+    /// Optional built-in or custom agent name whose definition configures the subagent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
-    /// Optional context tier for the subagent. This field is accepted but not yet honored.
+    /// Optional context tier override for the subagent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_tier: Option<ContextTier>,
     /// Optional label distinguishing otherwise identical memoized agent calls.
@@ -5178,7 +5191,7 @@ pub struct FactoryAgentOptions {
     /// Optional model identifier for the subagent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    /// Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+    /// Optional reasoning effort override for the subagent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Optional JSON Schema for structured agent output.
@@ -5524,6 +5537,8 @@ pub struct FactoryRunTerminal {
     /// Machine-readable terminal failure.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<serde_json::Value>,
+    /// Pause initiator metadata, or null when the run did not pause.
+    pub pause_info: Option<serde_json::Value>,
     /// Human-readable terminal reason.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -5547,6 +5562,8 @@ pub struct FactoryRunSummary {
     pub active_segment_started_at: Option<i64>,
     /// Approved effective resource ceilings, or null until approved.
     pub approved: Option<FactoryDeclaredLimits>,
+    /// Whether the durable run state currently passes runtime resume eligibility checks.
+    pub can_resume: bool,
     /// Epoch milliseconds when the run completed, or null while nonterminal.
     pub completed_at: Option<i64>,
     /// Durable resource consumption.
@@ -5644,6 +5661,54 @@ pub struct FactoryLogRequest {
     pub execution_token: String,
     /// Ordered progress lines to append.
     pub lines: Vec<FactoryLogLine>,
+    /// Factory run identifier.
+    pub run_id: String,
+}
+
+/// Parameters for an owned durable pause checkpoint.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FactoryPauseCheckpointRequest {
+    /// Opaque token identifying the execution attempt that reached the checkpoint.
+    pub execution_token: String,
+    /// Stable author-defined checkpoint key.
+    pub key: String,
+    /// Factory run identifier.
+    pub run_id: String,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FactoryPauseCheckpointResult {
+    /// Whether this execution attempt must pause or may continue.
+    pub action: FactoryPauseCheckpointAction,
+}
+
+/// Parameters for pausing a running factory.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FactoryPauseRequest {
     /// Factory run identifier.
     pub run_id: String,
 }
@@ -5809,6 +5874,9 @@ pub struct FactoryRunResult {
     /// Machine-readable failure details for a halted or errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<serde_json::Value>,
+    /// Structured pause initiator metadata for a paused attempt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_info: Option<serde_json::Value>,
     /// Reason for a halted or cancelled run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -5858,6 +5926,8 @@ pub struct FactoryRunDetail {
     pub agents: Vec<FactoryAgentSummary>,
     /// Approved effective resource ceilings, or null until approved.
     pub approved: Option<FactoryDeclaredLimits>,
+    /// Whether the durable run state currently passes runtime resume eligibility checks.
+    pub can_resume: bool,
     /// Epoch milliseconds when the run completed, or null while nonterminal.
     pub completed_at: Option<i64>,
     /// Durable resource consumption.
@@ -6978,6 +7048,29 @@ pub struct InterruptMainTurnRequest {
 pub struct InterruptMainTurnResult {
     /// Whether an in-flight main agent turn was interrupted. False when the main loop was not processing.
     pub interrupted: bool,
+}
+
+/// A JSON Schema output contract. OpenAI receives the name, description, schema and strict setting; Anthropic receives the schema in output_config.format and always uses its native strict enforcement.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JsonSchemaResponseFormat {
+    /// Optional description passed to OpenAI providers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Name of the output schema, subject to the provider's naming restrictions.
+    pub name: String,
+    /// JSON Schema passed unchanged to the inference provider. Supported keywords and schema restrictions are determined by that provider.
+    pub schema: serde_json::Value,
+    /// Optional strict enforcement setting for OpenAI providers. Omitted uses the provider default. Anthropic always enforces its supported schema subset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strict: Option<bool>,
 }
 
 /// A request body chunk or cancellation signal.
@@ -10628,6 +10721,47 @@ pub struct ModelPickerPersistenceRequest {
     pub settings_context: ModelPickerSettingsContext,
 }
 
+/// Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are intersected with repository `.github/allowed_models.txt` policy; provider-qualified IDs remain exempt from repository-only policy but are restricted by this host list. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected. Validation and pre-selection fallback failures preserve the previous restriction. Failures after a fallback selection commits retain the new restriction and selected model; callers should inspect current session state after such an error.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelSetAllowedModelsRequest {
+    /// Exact model IDs to permit, or null to clear the host restriction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_models: Option<Vec<String>>,
+}
+
+/// The applied host allowlist and effective session model policy after intersection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelSetAllowedModelsResult {
+    /// Normalized host allowlist. Omitted when the host restriction was cleared, or when a relay client does not return the host policy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_models: Option<Vec<String>>,
+    /// Effective exact IDs or repository policy patterns after applying the host restriction. Omitted by relay clients that do not return the host policy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_allowed_models: Option<Vec<String>>,
+    /// Effective deterministic fallback model, when the policy defines one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_model: Option<String>,
+    /// Selected session model after reconciling a now-disallowed concrete selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+}
+
 /// Reasoning effort level to apply to the currently selected model.
 ///
 /// <div class="warning">
@@ -12974,7 +13108,7 @@ pub struct PluginsBuiltinSetRequest {
     pub paths: Vec<String>,
 }
 
-/// Plugin names (or specs) to disable.
+/// Plugin names (or specs) to disable, plus the optional working directory the repository-controlled guard is evaluated against.
 ///
 /// <div class="warning">
 ///
@@ -12987,9 +13121,12 @@ pub struct PluginsBuiltinSetRequest {
 pub struct PluginsDisableRequest {
     /// Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.
     pub names: Vec<String>,
+    /// Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<String>,
 }
 
-/// Plugin names (or specs) to enable.
+/// Plugin names (or specs) to enable, plus the optional working directory the repository-controlled guard is evaluated against.
 ///
 /// <div class="warning">
 ///
@@ -13002,6 +13139,9 @@ pub struct PluginsDisableRequest {
 pub struct PluginsEnableRequest {
     /// Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.
     pub names: Vec<String>,
+    /// Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<String>,
 }
 
 /// Plugin source and optional working directory for relative-path resolution.
@@ -14869,6 +15009,23 @@ pub struct RemoteSessionRepository {
     pub owner: String,
 }
 
+/// Provider-native structured output format. JSON Schema is forwarded without rewriting or validating the schema or the generated output.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResponseFormat {
+    /// JSON Schema and provider options for the turn's output.
+    pub json_schema: JsonSchemaResponseFormat,
+    /// Output format discriminator. Currently only json_schema is supported.
+    pub r#type: ResponseFormatType,
+}
+
 /// Credential-injection capability flags applied while the sandbox is enabled. For the same capability independent of sandboxing, and matched to the credential's GitHub host, see `shell.credentials`; the two are additive.
 ///
 /// <div class="warning">
@@ -15071,6 +15228,41 @@ pub struct SandboxConfig {
     /// User-managed sandbox policy fragment merged into the auto-discovered base policy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_policy: Option<SandboxConfigUserPolicy>,
+}
+
+/// Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxDisableForSessionRequest {
+    /// Optional attribution for the permission decision.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision_context: Option<PermissionDecisionContext>,
+    /// Identifier of the exact pending sandbox-bypass permission request that authorized the session opt-out.
+    pub request_id: RequestId,
+}
+
+/// Result of attempting to disable sandboxing for the current session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxDisableForSessionResult {
+    /// The authoritative sandbox enabled state after the operation.
+    pub enabled: bool,
+    /// Whether this call resolved the pending request and applied the session opt-out.
+    pub success: bool,
 }
 
 /// Managed sandbox enforcement state for a session.
@@ -15399,6 +15591,15 @@ pub struct SendMessageItem {
     pub(crate) source: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendMessagesRequestResponseFormat {
+    /// JSON Schema and provider options for the turn's output.
+    pub json_schema: JsonSchemaResponseFormat,
+    /// Output format discriminator. Currently only json_schema is supported.
+    pub r#type: SendMessagesRequestResponseFormatType,
+}
+
 /// Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
 ///
 /// <div class="warning">
@@ -15424,6 +15625,9 @@ pub struct SendMessagesRequest {
     /// Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_headers: Option<HashMap<String, String>>,
+    /// Provider-native output format for the whole turn, including an empty message batch and all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<SendMessagesRequestResponseFormat>,
     /// W3C Trace Context traceparent header for distributed tracing of this agent turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traceparent: Option<String>,
@@ -15448,6 +15652,15 @@ pub struct SendMessagesRequest {
 pub struct SendMessagesResult {
     /// Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
     pub message_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendRequestResponseFormat {
+    /// JSON Schema and provider options for the turn's output.
+    pub json_schema: JsonSchemaResponseFormat,
+    /// Output format discriminator. Currently only json_schema is supported.
+    pub r#type: SendRequestResponseFormatType,
 }
 
 /// Parameters for sending a user message to the session
@@ -15487,6 +15700,9 @@ pub struct SendRequest {
     /// If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required_tool: Option<String>,
+    /// Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<SendRequestResponseFormat>,
     /// Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -22791,6 +23007,23 @@ pub struct SessionSandboxGetEnforcementStatusResult {
     pub required: bool,
 }
 
+/// Result of attempting to disable sandboxing for the current session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSandboxDisableForSessionResult {
+    /// The authoritative sandbox enabled state after the operation.
+    pub enabled: bool,
+    /// Whether this call resolved the pending request and applied the session opt-out.
+    pub success: bool,
+}
+
 /// Result of aborting the current turn
 ///
 /// <div class="warning">
@@ -23132,6 +23365,9 @@ pub struct SessionFactoryRunResult {
     /// Machine-readable failure details for a halted or errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<serde_json::Value>,
+    /// Structured pause initiator metadata for a paused attempt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_info: Option<serde_json::Value>,
     /// Reason for a halted or cancelled run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -23184,6 +23420,9 @@ pub struct SessionFactoryRunFromToolResult {
     /// Machine-readable failure details for a halted or errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<serde_json::Value>,
+    /// Structured pause initiator metadata for a paused attempt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_info: Option<serde_json::Value>,
     /// Reason for a halted or cancelled run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -23236,6 +23475,9 @@ pub struct SessionFactoryGetRunResult {
     /// Machine-readable failure details for a halted or errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<serde_json::Value>,
+    /// Structured pause initiator metadata for a paused attempt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_info: Option<serde_json::Value>,
     /// Reason for a halted or cancelled run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -23295,6 +23537,8 @@ pub struct SessionFactoryGetRunDetailResult {
     pub agents: Vec<FactoryAgentSummary>,
     /// Approved effective resource ceilings, or null until approved.
     pub approved: Option<FactoryDeclaredLimits>,
+    /// Whether the durable run state currently passes runtime resume eligibility checks.
+    pub can_resume: bool,
     /// Epoch milliseconds when the run completed, or null while nonterminal.
     pub completed_at: Option<i64>,
     /// Durable resource consumption.
@@ -23380,6 +23624,9 @@ pub struct SessionFactoryCancelResult {
     /// Machine-readable failure details for a halted or errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<serde_json::Value>,
+    /// Structured pause initiator metadata for a paused attempt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_info: Option<serde_json::Value>,
     /// Reason for a halted or cancelled run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -23393,6 +23640,58 @@ pub struct SessionFactoryCancelResult {
     pub snapshot: Option<serde_json::Value>,
     /// Current or terminal factory run status.
     pub status: FactoryRunStatus,
+}
+
+/// Complete current or terminal factory run envelope.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFactoryPauseResult {
+    /// One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attempt: Option<i64>,
+    /// Error message for an errored run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Machine-readable failure details for a halted or errored run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure: Option<serde_json::Value>,
+    /// Structured pause initiator metadata for a paused attempt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_info: Option<serde_json::Value>,
+    /// Reason for a halted or cancelled run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Completed factory result.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+    /// Factory run identifier.
+    pub run_id: String,
+    /// Partial journal and progress snapshot for a halted, cancelled, or errored run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<serde_json::Value>,
+    /// Current or terminal factory run status.
+    pub status: FactoryRunStatus,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFactoryPauseAtCheckpointResult {
+    /// Whether this execution attempt must pause or may continue.
+    pub action: FactoryPauseCheckpointAction,
 }
 
 /// Acknowledgement that a factory request was accepted.
@@ -23604,6 +23903,31 @@ pub struct SessionModelApplyStartupOverlayResult {
     /// User-facing warning produced while applying the model switch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub warning: Option<String>,
+}
+
+/// The applied host allowlist and effective session model policy after intersection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModelSetAllowedModelsResult {
+    /// Normalized host allowlist. Omitted when the host restriction was cleared, or when a relay client does not return the host policy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_models: Option<Vec<String>>,
+    /// Effective exact IDs or repository policy patterns after applying the host restriction. Omitted by relay clients that do not return the host policy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_allowed_models: Option<Vec<String>>,
+    /// Effective deterministic fallback model, when the policy defines one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_model: Option<String>,
+    /// Selected session model after reconciling a now-disallowed concrete selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
 }
 
 /// Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime stores the effort on the session and applies it to subsequent turns.
@@ -30292,6 +30616,9 @@ pub enum FactoryRunStatus {
     /// The run was interrupted while resource budget remained.
     #[serde(rename = "halted")]
     Halted,
+    /// The current attempt stopped intentionally and the run may be resumed.
+    #[serde(rename = "paused")]
+    Paused,
     /// The run was cancelled before completion.
     #[serde(rename = "cancelled")]
     Cancelled,
@@ -30320,6 +30647,28 @@ pub enum FactoryLogLineKind {
     /// A named factory phase marker.
     #[serde(rename = "phase")]
     Phase,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Action the runtime selected for a durable factory pause checkpoint.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FactoryPauseCheckpointAction {
+    /// The checkpoint was committed by a prior paused attempt, so execution may continue.
+    #[serde(rename = "continue")]
+    Continue,
+    /// This attempt claimed the checkpoint and must cooperatively stop.
+    #[serde(rename = "pause")]
+    Pause,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -33239,6 +33588,14 @@ pub enum RemoteSessionMetadataTaskType {
     Unknown,
 }
 
+/// Output format discriminator. Currently only json_schema is supported.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ResponseFormatType {
+    #[serde(rename = "json_schema")]
+    #[default]
+    JsonSchema,
+}
+
 /// Origin of the sandbox choice supplied by an internal client.
 ///
 /// <div class="warning">
@@ -33274,6 +33631,22 @@ pub enum SandboxConfigSource {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Output format discriminator. Currently only json_schema is supported.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SendMessagesRequestResponseFormatType {
+    #[serde(rename = "json_schema")]
+    #[default]
+    JsonSchema,
+}
+
+/// Output format discriminator. Currently only json_schema is supported.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SendRequestResponseFormatType {
+    #[serde(rename = "json_schema")]
+    #[default]
+    JsonSchema,
 }
 
 /// Session capability enabled for this session

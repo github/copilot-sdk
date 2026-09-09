@@ -128,8 +128,11 @@ const (
 	// that may change or be removed.
 	SessionEventTypeSessionAutoModeResolved          SessionEventType = "session.auto_mode_resolved"
 	SessionEventTypeSessionAutopilotObjectiveChanged SessionEventType = "session.autopilot_objective_changed"
-	SessionEventTypeSessionAutoTierSwitchFailed      SessionEventType = "session.auto_tier_switch_failed"
-	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
+	// Experimental: SessionEventTypeSessionAutoTierRecommendation identifies an experimental
+	// event that may change or be removed.
+	SessionEventTypeSessionAutoTierRecommendation SessionEventType = "session.auto_tier_recommendation"
+	SessionEventTypeSessionAutoTierSwitchFailed   SessionEventType = "session.auto_tier_switch_failed"
+	SessionEventTypeSessionBackgroundTasksChanged SessionEventType = "session.background_tasks_changed"
 	// Experimental: SessionEventTypeSessionBinaryAsset identifies an experimental event that
 	// may change or be removed.
 	SessionEventTypeSessionBinaryAsset SessionEventType = "session.binary_asset"
@@ -383,6 +386,8 @@ type AssistantMessageData struct {
 	MessageID string `json:"messageId"`
 	// Model that produced this assistant message, if known
 	Model *string `json:"model,omitempty"`
+	// Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations and steering messages. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
+	OriginatingMessageID *string `json:"originatingMessageId,omitempty"`
 	// Actual output token count from the API response (completion_tokens), used for accurate token accounting
 	OutputTokens *int64 `json:"outputTokens,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -583,6 +588,9 @@ func (*SessionContextClearedData) Type() SessionEventType {
 
 // Conversation compaction results including success status, metrics, and optional error details
 type SessionCompactionCompleteData struct {
+	// Authoritative active-factory reminder appended to the compacted context
+	// Internal: ActiveFactorySummary is part of the SDK's internal API surface and is not intended for external use.
+	ActiveFactorySummary *string `json:"activeFactorySummary,omitempty"`
 	// Canonical model identifier used for model-specific behavior when replaying compaction
 	BehaviorModelID *string `json:"behaviorModelId,omitempty"`
 	// Checkpoint snapshot number created for recovery
@@ -1483,6 +1491,18 @@ func (*AssistantServerToolProgressData) Type() SessionEventType {
 	return SessionEventTypeAssistantServerToolProgress
 }
 
+// Live-only Auto preference recommendation from Copilot API after a successful Auto model call.
+// Experimental: SessionAutoTierRecommendationData is part of an experimental API and may change or be removed.
+type SessionAutoTierRecommendationData struct {
+	// Recommended Auto preference.
+	RecommendedAutoTier RecommendedAutoTier `json:"recommendedAutoTier"`
+}
+
+func (*SessionAutoTierRecommendationData) sessionEventData() {}
+func (*SessionAutoTierRecommendationData) Type() SessionEventType {
+	return SessionEventTypeSessionAutoTierRecommendation
+}
+
 // MCP App view called a tool on a connected MCP server (SEP-1865)
 type MCPAppToolCallCompleteData struct {
 	// Arguments passed to the tool by the app view, if any
@@ -1985,10 +2005,10 @@ type SessionPermissionsChangedData struct {
 	AssistedApprovalModel *string `json:"assistedApprovalModel,omitempty"`
 	// Permission mode after the change
 	// Experimental: Mode is part of an experimental API and may change or be removed.
-	Mode PermissionMode `json:"mode"`
+	Mode *PermissionMode `json:"mode,omitempty"`
 	// Permission mode before the change
 	// Experimental: PreviousMode is part of an experimental API and may change or be removed.
-	PreviousMode PermissionMode `json:"previousMode"`
+	PreviousMode *PermissionMode `json:"previousMode,omitempty"`
 }
 
 func (*SessionPermissionsChangedData) sessionEventData() {}
@@ -2642,6 +2662,8 @@ type SubagentStartedData struct {
 	ParentID *string `json:"parentId,omitempty"`
 	// Whether this sub-agent can be resumed. Currently always false.
 	Resumable *bool `json:"resumable,omitempty"`
+	// Where the model input for this sub-agent came from. Present when the task planner resolved the launch (the task tool and factory agents); absent for sub-agents created through other runtime paths.
+	TaskModelSource *SubagentTaskModelSource `json:"taskModelSource,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
 }
@@ -2977,6 +2999,8 @@ type AssistantMessageToolRequestCaller struct {
 
 // Per-request cost and usage data from the CAPI copilot_usage response field
 type AssistantUsageCopilotUsage struct {
+	// Default billing model for token details that do not identify their own model
+	Model *string `json:"model,omitempty"`
 	// Itemized token usage breakdown
 	// Internal: TokenDetails is part of the SDK's internal API surface and is not intended for external use.
 	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails,omitzero"`
@@ -2990,6 +3014,8 @@ type AssistantUsageCopilotUsageTokenDetail struct {
 	BatchSize int64 `json:"batchSize"`
 	// Cost per batch of tokens
 	CostPerBatch int64 `json:"costPerBatch"`
+	// Model responsible for this billing entry
+	Model *string `json:"model,omitempty"`
 	// Total token count for this entry
 	TokenCount int64 `json:"tokenCount"`
 	// Token category (e.g., "input", "output")
@@ -3225,6 +3251,9 @@ type CompactionCompleteCompactionTokensUsed struct {
 // Per-request cost and usage data from the CAPI copilot_usage response field
 // Internal: CompactionCompleteCompactionTokensUsedCopilotUsage is an internal SDK API and is not part of the public surface.
 type CompactionCompleteCompactionTokensUsedCopilotUsage struct {
+	// Default billing model for token details that do not identify their own model
+	// Internal: Model is part of the SDK's internal API surface and is not intended for external use.
+	Model *string `json:"model,omitempty"`
 	// Itemized token usage breakdown
 	// Internal: TokenDetails is part of the SDK's internal API surface and is not intended for external use.
 	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails,omitzero"`
@@ -3238,6 +3267,8 @@ type CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail struct {
 	BatchSize int64 `json:"batchSize"`
 	// Cost per batch of tokens
 	CostPerBatch int64 `json:"costPerBatch"`
+	// Model responsible for this billing entry
+	Model *string `json:"model,omitempty"`
 	// Total token count for this entry
 	TokenCount int64 `json:"tokenCount"`
 	// Token category (e.g., "input", "output")
@@ -3268,6 +3299,8 @@ type CompletionReceiptFinalTool struct {
 type CustomAgentsUpdatedAgent struct {
 	// Description of what the agent does
 	Description string `json:"description"`
+	// Whether model-driven invocation is disabled for this agent.
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
 	// Human-readable display name
 	DisplayName string `json:"displayName"`
 	// Unique identifier for the agent
@@ -3582,6 +3615,12 @@ type PermissionPromptRequestCommands struct {
 	Intention string `json:"intention"`
 	// Whether managed policy requires a human response and forbids host auto-approval
 	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
+	// True when the shell command is requesting sandbox escalation. This is a request, not a grant.
+	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
+	// Reason for the sandbox escalation request.
+	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
+	// True when the escalation is a permissive retry that keeps the sandbox and network policy attached while recording file and process accesses instead of blocking them.
+	RequestSandboxPermissive *bool `json:"requestSandboxPermissive,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Optional warning message about risks of running this command
@@ -4126,6 +4165,8 @@ type PermissionRequestShell struct {
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
 	// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
+	// True when the requested escalation is a permissive retry rather than a full bypass: the command re-runs inside the sandbox with its file and process restrictions recording instead of blocking, while the network policy stays enforced. Always accompanied by requestSandboxBypass, so hosts that do not recognize this field still treat the request as the escalation it is. Hosts that do recognize it must not describe the command as running outside the sandbox, which would overstate the privilege being granted.
+	RequestSandboxPermissive *bool `json:"requestSandboxPermissive,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Optional warning message about risks of running this command
@@ -4597,6 +4638,8 @@ type SystemNotificationFactoryCompleted struct {
 	FactoryName string `json:"factoryName"`
 	// Machine-readable terminal failure details, when present.
 	Failure any `json:"failure,omitempty"`
+	// Pause initiator metadata when this attempt settled as paused.
+	PauseInfo SystemNotificationFactoryPauseInfo `json:"pauseInfo,omitempty"`
 	// Bounded prompt-safe preview of the completed result.
 	ResultPreview *string `json:"resultPreview,omitempty"`
 	// Actionable run_factory resume guidance for a resource-limit failure.
@@ -4683,6 +4726,40 @@ type SystemNotificationUnclassified struct {
 func (SystemNotificationUnclassified) systemNotification() {}
 func (SystemNotificationUnclassified) Type() SystemNotificationType {
 	return SystemNotificationTypeUnclassified
+}
+
+// Durable metadata describing who initiated a factory pause.
+type SystemNotificationFactoryPauseInfo interface {
+	systemNotificationFactoryPauseInfo()
+	Type() SystemNotificationFactoryPauseInfoType
+}
+
+type RawSystemNotificationFactoryPauseInfo struct {
+	Discriminator SystemNotificationFactoryPauseInfoType
+	Raw           json.RawMessage
+}
+
+func (RawSystemNotificationFactoryPauseInfo) systemNotificationFactoryPauseInfo() {}
+func (r RawSystemNotificationFactoryPauseInfo) Type() SystemNotificationFactoryPauseInfoType {
+	return r.Discriminator
+}
+
+type SystemNotificationFactoryPauseInfoCheckpoint struct {
+	// Stable author-defined checkpoint key that initiated the pause.
+	Key string `json:"key"`
+}
+
+func (SystemNotificationFactoryPauseInfoCheckpoint) systemNotificationFactoryPauseInfo() {}
+func (SystemNotificationFactoryPauseInfoCheckpoint) Type() SystemNotificationFactoryPauseInfoType {
+	return SystemNotificationFactoryPauseInfoTypeCheckpoint
+}
+
+type SystemNotificationFactoryPauseInfoUser struct {
+}
+
+func (SystemNotificationFactoryPauseInfoUser) systemNotificationFactoryPauseInfo() {}
+func (SystemNotificationFactoryPauseInfoUser) Type() SystemNotificationFactoryPauseInfoType {
+	return SystemNotificationFactoryPauseInfoTypeUser
 }
 
 // A content block within a tool result, which may be text, terminal output, image, audio, or a resource
@@ -5365,6 +5442,8 @@ const (
 	FactoryRunSettledStatusError FactoryRunSettledStatus = "error"
 	// The run was stopped by a limit, an approval refusal or another policy decision.
 	FactoryRunSettledStatusHalted FactoryRunSettledStatus = "halted"
+	// The attempt paused intentionally while preserving resumable run state.
+	FactoryRunSettledStatusPaused FactoryRunSettledStatus = "paused"
 )
 
 // Conversation scope in which a HydraFusion phase executes.
@@ -5796,6 +5875,18 @@ const (
 	PlanChangedOperationUpdate PlanChangedOperation = "update"
 )
 
+// Auto preferences that Copilot API can recommend.
+type RecommendedAutoTier string
+
+const (
+	// Balance efficiency and intelligence.
+	RecommendedAutoTierBalance RecommendedAutoTier = "balance"
+	// Optimize for efficiency.
+	RecommendedAutoTierEfficiency RecommendedAutoTier = "efficiency"
+	// Optimize for intelligence.
+	RecommendedAutoTierIntelligence RecommendedAutoTier = "intelligence"
+)
+
 // Who created the schedule: `user` (an explicit user action such as `/every` or `/after`) or `model` (the agent via the `manage_schedule` tool). Gates whether a scheduled skill that opted out of model invocation may fire: only user-created schedules may.
 type ScheduleOrigin string
 
@@ -5832,6 +5923,20 @@ const (
 	SkillInvokedTriggerUserInvoked SkillInvokedTrigger = "user-invoked"
 )
 
+// Where the model input for a task-tool sub-agent came from.
+type SubagentTaskModelSource string
+
+const (
+	// The task omitted a model and the user-defined custom agent's definition supplied one.
+	SubagentTaskModelSourceCustomAgentDefinition SubagentTaskModelSource = "custom_agent_definition"
+	// The task omitted a model and the per-sub-agent settings entry supplied a concrete one.
+	SubagentTaskModelSourceSubagentConfiguration SubagentTaskModelSource = "subagent_configuration"
+	// The spawning agent supplied the task tool's model argument.
+	SubagentTaskModelSourceTaskArgument SubagentTaskModelSource = "task_argument"
+	// Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model.
+	SubagentTaskModelSourceUnset SubagentTaskModelSource = "unset"
+)
+
 // Message role: "system" for system prompts, "developer" for developer-injected instructions
 type SystemMessageRole string
 
@@ -5864,6 +5969,16 @@ const (
 	SystemNotificationFactoryCompletedStatusError SystemNotificationFactoryCompletedStatus = "error"
 	// The factory was halted.
 	SystemNotificationFactoryCompletedStatusHalted SystemNotificationFactoryCompletedStatus = "halted"
+	// The factory attempt paused intentionally.
+	SystemNotificationFactoryCompletedStatusPaused SystemNotificationFactoryCompletedStatus = "paused"
+)
+
+// Type discriminator for SystemNotificationFactoryPauseInfo.
+type SystemNotificationFactoryPauseInfoType string
+
+const (
+	SystemNotificationFactoryPauseInfoTypeCheckpoint SystemNotificationFactoryPauseInfoType = "checkpoint"
+	SystemNotificationFactoryPauseInfoTypeUser       SystemNotificationFactoryPauseInfoType = "user"
 )
 
 // Type discriminator for SystemNotification.
