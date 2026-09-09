@@ -127,6 +127,109 @@ class TestBuiltinPluginDirectories:
             )
 
 
+class TestClientStart:
+    @staticmethod
+    def _create_client() -> CopilotClient:
+        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+        client._verify_protocol_version = AsyncMock()
+        return client
+
+    @pytest.mark.asyncio
+    async def test_concurrent_callers_share_one_startup(self):
+        client = self._create_client()
+        connect_started = asyncio.Event()
+        allow_connect = asyncio.Event()
+
+        async def connect():
+            connect_started.set()
+            await allow_connect.wait()
+
+        client._connect_to_server = AsyncMock(side_effect=connect)
+
+        first_start = asyncio.create_task(client.start())
+        await connect_started.wait()
+        second_start = asyncio.create_task(client.start())
+        await asyncio.sleep(0)
+        allow_connect.set()
+
+        try:
+            await asyncio.gather(first_start, second_start)
+            assert client._state == "connected"
+        finally:
+            await client.force_stop()
+
+        client._connect_to_server.assert_awaited_once()
+        client._verify_protocol_version.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_failed_start_cleans_up_before_retry(self):
+        client = self._create_client()
+        failed_transport = Mock()
+        failed_transport.poll.return_value = None
+        attempts = 0
+
+        async def connect():
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                client._process = failed_transport
+                raise RuntimeError("first startup failed")
+
+        client._connect_to_server = AsyncMock(side_effect=connect)
+
+        with pytest.raises(RuntimeError, match="first startup failed"):
+            await client.start()
+
+        assert client._process is None
+        assert client._state == "error"
+        failed_transport.terminate.assert_called_once()
+
+        try:
+            await client.start()
+            assert client._state == "connected"
+        finally:
+            await client.force_stop()
+
+        assert attempts == 2
+        assert client._state == "disconnected"
+
+    @pytest.mark.asyncio
+    async def test_cancelled_start_cleans_up_before_retry(self):
+        client = self._create_client()
+        cancelled_transport = Mock()
+        connect_started = asyncio.Event()
+        attempts = 0
+
+        async def connect():
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                client._process = cancelled_transport
+                connect_started.set()
+                await asyncio.Future()
+
+        client._connect_to_server = AsyncMock(side_effect=connect)
+
+        first_start = asyncio.create_task(client.start())
+        await connect_started.wait()
+        first_start.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await first_start
+
+        assert client._process is None
+        assert client._state == "error"
+        cancelled_transport.terminate.assert_called_once()
+
+        try:
+            await client.start()
+            assert client._state == "connected"
+        finally:
+            await client.force_stop()
+
+        assert attempts == 2
+        assert client._state == "disconnected"
+
+
 class TestClientShutdown:
     @pytest.mark.asyncio
     async def test_stop_requests_runtime_shutdown_for_owned_process(self):
