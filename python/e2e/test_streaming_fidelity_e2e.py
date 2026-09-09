@@ -15,6 +15,20 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 RESUME_LOCK_TIMEOUT = 60.0
 
 
+async def _wait_for_session_lock_release(ctx: E2ETestContext, session_id: str) -> None:
+    async def session_lock_is_released() -> bool:
+        result = await ctx.client.rpc.sessions.check_in_use(
+            SessionsCheckInUseRequest(session_ids=[session_id])
+        )
+        return session_id not in result.in_use
+
+    await wait_for_condition(
+        session_lock_is_released,
+        timeout=RESUME_LOCK_TIMEOUT,
+        timeout_message=f"Timed out waiting for session '{session_id}' to release its lock.",
+    )
+
+
 class TestStreamingFidelity:
     async def test_should_produce_delta_events_when_streaming_is_enabled(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
@@ -77,17 +91,7 @@ class TestStreamingFidelity:
         await session.send_and_wait("What is 3 + 6?")
         await session.disconnect()
 
-        async def session_lock_is_released() -> bool:
-            result = await ctx.client.rpc.sessions.check_in_use(
-                SessionsCheckInUseRequest(session_ids=[session_id])
-            )
-            return session_id not in result.in_use
-
-        await wait_for_condition(
-            session_lock_is_released,
-            timeout=RESUME_LOCK_TIMEOUT,
-            timeout_message=f"Timed out waiting for session '{session_id}' to release its lock.",
-        )
+        await _wait_for_session_lock_release(ctx, session_id)
 
         # Resume using a new client
         github_token = (
@@ -141,6 +145,8 @@ class TestStreamingFidelity:
         await session.send_and_wait("What is 3 + 6?")
         session_id = session.session_id
         await session.disconnect()
+
+        await _wait_for_session_lock_release(ctx, session_id)
 
         # Resume with streaming disabled
         new_client = CopilotClient(
