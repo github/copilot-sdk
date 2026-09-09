@@ -3986,7 +3986,7 @@ export type WorkspacesWorkspaceDetailsHostType =
  */
 /** @experimental */
 /** @internal */
-export type AppExtensionContributionPoint = "sessionBadges" | "canvases" | "forgeProvider" | "mediatedFetch";
+export type AppExtensionContributionPoint = "sessionBadges" | "canvases" | "forgeProvider";
 /**
  * List of all authenticated users
  *

@@ -33,8 +33,6 @@ pub enum AppExtensionContributionPoint {
     Canvases,
     /// Future forge-provider contribution.
     ForgeProvider,
-    /// Future mediated-fetch contribution.
-    MediatedFetch,
 }
 
 /// Runtime-authenticated identity of one statically declared contribution.
@@ -236,7 +234,6 @@ fn parse_registration(result: WireRegisterResult) -> Result<AppExtensionRegistra
             WireContributionPoint::SessionBadges => AppExtensionContributionPoint::SessionBadges,
             WireContributionPoint::Canvases => AppExtensionContributionPoint::Canvases,
             WireContributionPoint::ForgeProvider => AppExtensionContributionPoint::ForgeProvider,
-            WireContributionPoint::MediatedFetch => AppExtensionContributionPoint::MediatedFetch,
             WireContributionPoint::Unknown => {
                 return Err(invalid_registration(
                     "unsupported app extension contribution point".to_string(),
@@ -387,6 +384,28 @@ mod tests {
             "contributions": [{
                 "contributionPoint": "sessionBadges",
                 "contributionId": "github-pr"
+            }]
+        }))
+        .unwrap();
+
+        assert!(parse_registration(result).is_err());
+    }
+
+    #[test]
+    fn registration_rejects_capabilities_as_contribution_points() {
+        let result: WireRegisterResult = serde_json::from_value(json!({
+            "protocolVersion": 1,
+            "principal": {
+                "packageId": "package",
+                "activationId": "activation"
+            },
+            "capabilities": {
+                "forgeProvider": true,
+                "mediatedFetch": true
+            },
+            "contributions": [{
+                "contributionPoint": "mediatedFetch",
+                "contributionId": "fetch"
             }]
         }))
         .unwrap();

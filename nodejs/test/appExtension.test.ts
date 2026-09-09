@@ -442,6 +442,30 @@ describe("defineAppExtension", () => {
         );
     });
 
+    it("rejects mediatedFetch as a contribution identity", async () => {
+        arrange();
+        vi.mocked(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).mockResolvedValueOnce(
+            {
+                protocolVersion: 1,
+                principal: {
+                    packageId: "bundled:github-app:provider",
+                    activationId: "activation-fetch",
+                },
+                capabilities: { forgeProvider: true, mediatedFetch: true },
+                contributions: [
+                    {
+                        contributionPoint: "mediatedFetch" as never,
+                        contributionId: "fetch",
+                    },
+                ],
+            }
+        );
+
+        await expect(defineAppExtension(() => undefined)).rejects.toThrow(
+            "contributions[0].contributionPoint is not supported"
+        );
+    });
+
     it("surfaces client stop errors from explicit disposal", async () => {
         arrange();
         vi.mocked(CopilotClient.prototype.stop).mockResolvedValue([

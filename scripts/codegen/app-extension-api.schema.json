@@ -62,7 +62,7 @@
             "description": "Capability contribution point declared by a trusted app-extension manifest.",
             "visibility": "internal",
             "type": "string",
-            "enum": ["sessionBadges", "canvases", "forgeProvider", "mediatedFetch"]
+            "enum": ["sessionBadges", "canvases", "forgeProvider"]
         },
         "AppExtensionDeclaredContribution": {
             "title": "AppExtensionDeclaredContribution",

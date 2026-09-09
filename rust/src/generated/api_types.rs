@@ -34984,8 +34984,6 @@ pub enum AppExtensionContributionPoint {
     Canvases,
     #[serde(rename = "forgeProvider")]
     ForgeProvider,
-    #[serde(rename = "mediatedFetch")]
-    MediatedFetch,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

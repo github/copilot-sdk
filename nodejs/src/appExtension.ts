@@ -35,8 +35,7 @@ export type AppExtensionContributionId = string & {
 };
 
 /** Capability contribution point declared by a trusted app-extension manifest. */
-export type AppExtensionContributionPoint =
-    "sessionBadges" | "canvases" | "forgeProvider" | "mediatedFetch";
+export type AppExtensionContributionPoint = "sessionBadges" | "canvases" | "forgeProvider";
 
 /** Runtime-authenticated identity of one statically declared contribution. */
 export interface AppExtensionDeclaredContribution {
@@ -77,17 +76,9 @@ export interface AppForgeProviderContributionDeclaration {
     readonly protocolVersion: 1;
 }
 
-/** Future mediated-fetch declaration. Raw fetch and credentials are never exposed. */
-export interface AppMediatedFetchContributionDeclaration {
-    readonly contributionPoint: "mediatedFetch";
-    readonly protocolVersion: 1;
-}
-
 /** Extensible declaration union for capability-specific registration APIs. */
 export type AppExtensionContributionDeclaration =
-    | AppCanvasContributionDeclaration
-    | AppForgeProviderContributionDeclaration
-    | AppMediatedFetchContributionDeclaration;
+    AppCanvasContributionDeclaration | AppForgeProviderContributionDeclaration;
 
 /** Principal-aware callback for replacement badge snapshots. */
 export type AppSessionBadgesRegistrationHandler = (
@@ -511,8 +502,7 @@ function parseContributions(contributions: unknown): readonly AppExtensionDeclar
             if (
                 contributionPoint !== "sessionBadges" &&
                 contributionPoint !== "canvases" &&
-                contributionPoint !== "forgeProvider" &&
-                contributionPoint !== "mediatedFetch"
+                contributionPoint !== "forgeProvider"
             ) {
                 throw new TypeError(`contributions[${index}].contributionPoint is not supported`);
             }
