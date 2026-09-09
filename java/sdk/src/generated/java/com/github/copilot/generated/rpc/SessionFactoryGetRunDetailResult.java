@@ -63,8 +63,6 @@ public record SessionFactoryGetRunDetailResult(
     @JsonProperty("activeSegmentStartedAt") Long activeSegmentStartedAt,
     /** Terminal run outcome, or null while nonterminal. */
     @JsonProperty("terminal") FactoryRunTerminal terminal,
-    /** Whether the durable run state currently passes runtime resume eligibility checks. */
-    @JsonProperty("canResume") Boolean canResume,
     /** Lifecycle and timing observations for each factory phase. */
     @JsonProperty("phases") List<FactoryPhaseObservation> phases,
     /** Durable identities and live statuses for direct factory agents. */

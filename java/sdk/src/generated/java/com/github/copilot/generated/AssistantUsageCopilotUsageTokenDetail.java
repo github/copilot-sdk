@@ -25,8 +25,6 @@ public record AssistantUsageCopilotUsageTokenDetail(
     @JsonProperty("batchSize") Long batchSize,
     /** Cost per batch of tokens */
     @JsonProperty("costPerBatch") Long costPerBatch,
-    /** Model responsible for this billing entry */
-    @JsonProperty("model") String model,
     /** Total token count for this entry */
     @JsonProperty("tokenCount") Long tokenCount,
     /** Token category (e.g., "input", "output") */

@@ -24,8 +24,6 @@ public enum FactoryRunStatus {
     COMPLETED("completed"),
     /** The {@code halted} variant. */
     HALTED("halted"),
-    /** The {@code paused} variant. */
-    PAUSED("paused"),
     /** The {@code cancelled} variant. */
     CANCELLED("cancelled"),
     /** The {@code error} variant. */

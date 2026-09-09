@@ -10,7 +10,7 @@ package com.github.copilot.generated;
 import javax.annotation.processing.Generated;
 
 /**
- * Routing preference used when the session model is `auto`. `fast` is an integrator-only latency preset and is not a first-party GitHub Copilot product preference.
+ * Routing preference used when the session model is `auto`.
  *
  * @since 1.0.0
  */
@@ -21,9 +21,7 @@ public enum AutoTier {
     /** The {@code balance} variant. */
     BALANCE("balance"),
     /** The {@code intelligence} variant. */
-    INTELLIGENCE("intelligence"),
-    /** The {@code fast} variant. */
-    FAST("fast");
+    INTELLIGENCE("intelligence");
 
     private final String value;
     AutoTier(String value) { this.value = value; }

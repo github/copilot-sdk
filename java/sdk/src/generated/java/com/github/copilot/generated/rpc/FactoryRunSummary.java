@@ -58,8 +58,6 @@ public record FactoryRunSummary(
     /** Epoch milliseconds when the current active segment started, or null while inactive. */
     @JsonProperty("activeSegmentStartedAt") Long activeSegmentStartedAt,
     /** Terminal run outcome, or null while nonterminal. */
-    @JsonProperty("terminal") FactoryRunTerminal terminal,
-    /** Whether the durable run state currently passes runtime resume eligibility checks. */
-    @JsonProperty("canResume") Boolean canResume
+    @JsonProperty("terminal") FactoryRunTerminal terminal
 ) {
 }

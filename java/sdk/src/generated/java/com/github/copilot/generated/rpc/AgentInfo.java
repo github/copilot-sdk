@@ -37,8 +37,6 @@ public record AgentInfo(
     @JsonProperty("source") AgentInfoSource source,
     /** Whether the agent can be selected directly by the user. Agents marked `false` are subagent-only. */
     @JsonProperty("userInvocable") Boolean userInvocable,
-    /** Whether model-driven invocation is disabled for this agent. */
-    @JsonProperty("disableModelInvocation") Boolean disableModelInvocation,
     /** Allowed tool names for this agent. Empty array means none; omitted means inherit defaults. */
     @JsonProperty("tools") List<String> tools,
     /** Authored preferred model id for this agent. Runtime model selection may choose a different model; omitted means no authored preference. */

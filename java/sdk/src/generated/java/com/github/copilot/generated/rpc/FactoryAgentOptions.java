@@ -27,11 +27,11 @@ public record FactoryAgentOptions(
     @JsonProperty("schema") Object schema,
     /** Optional model identifier for the subagent. */
     @JsonProperty("model") String model,
-    /** Optional reasoning effort override for the subagent. */
+    /** Optional reasoning effort for the subagent. This field is accepted but not yet honored. */
     @JsonProperty("reasoningEffort") String reasoningEffort,
-    /** Optional context tier override for the subagent. */
+    /** Optional context tier for the subagent. This field is accepted but not yet honored. */
     @JsonProperty("contextTier") ContextTier contextTier,
-    /** Optional built-in or custom agent name whose definition configures the subagent. */
+    /** Optional custom agent name for the subagent. This field is accepted but not yet honored. */
     @JsonProperty("agent") String agent
 ) {
 }

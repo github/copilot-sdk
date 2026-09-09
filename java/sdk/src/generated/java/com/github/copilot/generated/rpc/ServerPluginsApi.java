@@ -89,7 +89,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Plugin names (or specs) to enable, plus the optional working directory the repository-controlled guard is evaluated against.
+     * Plugin names (or specs) to enable.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -100,7 +100,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Plugin names (or specs) to disable, plus the optional working directory the repository-controlled guard is evaluated against.
+     * Plugin names (or specs) to disable.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
