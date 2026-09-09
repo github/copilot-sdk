@@ -9,14 +9,17 @@ use async_trait::async_trait;
 use serde::Serialize;
 
 pub use crate::generated::api_types::{
-    AppCanvasContext, AppCanvasOpenResult, AppCanvasProjectContext, AppMediatedFetchHttpRequest,
-    AppMediatedFetchHttpRequestMethod, AppMediatedFetchResponse,
+    AppCanvasActionDescriptor, AppCanvasActionDescriptorVariant, AppCanvasContext,
+    AppCanvasOpenResult, AppCanvasProjectContext, AppMediatedFetchHttpRequest,
+    AppMediatedFetchHttpRequestMethod, AppMediatedFetchResponse, AppSessionActionResult,
+    AppSessionPresentationTarget,
 };
 use crate::generated::api_types::{
     AppCanvasHostActionRequest, AppCanvasHostCloseRequest, AppCanvasHostOpenRequest,
     AppExtensionContributionPoint as WireContributionPoint, AppExtensionRegisterRequest,
     AppExtensionRegisterResult as WireRegisterResult, AppForgeHostInvokeRequest,
-    AppMediatedFetchHostRequest as WireMediatedFetchHostRequest, rpc_methods,
+    AppMediatedFetchHostRequest as WireMediatedFetchHostRequest, AppSessionActionHostRequest,
+    AppSessionPullRequestActionInvocation, AppSessionPullRequestActionInvocationKind, rpc_methods,
 };
 use crate::session::Session;
 use crate::types::SessionId;
@@ -31,6 +34,7 @@ const MAX_FETCH_HEADERS: usize = 64;
 const MAX_FETCH_HEADER_BYTES: usize = 32 * 1024;
 const MAX_FETCH_BODY_BYTES: usize = 256 * 1024;
 const MAX_FETCH_RESPONSE_BODY_BYTES: usize = 1024 * 1024;
+const MAX_ACTION_PROMPT_BYTES: usize = 32 * 1024;
 
 /// Constrained HTTP method accepted by mediated fetch.
 pub type AppMediatedFetchMethod = AppMediatedFetchHttpRequestMethod;
@@ -160,6 +164,17 @@ pub struct AppForgeInvokeRequest {
     pub account_id: Option<String>,
     /// Optional serializable operation input.
     pub input: Option<serde_json::Value>,
+}
+
+/// Typed request for invoking a Create Pull Request action.
+#[derive(Debug, Clone)]
+pub struct AppSessionBadgeActionRequest {
+    /// Runtime-authenticated session-badge contribution identity.
+    pub target: AppExtensionContributionIdentity,
+    /// Exact app-visible target from the current eligible-session snapshot.
+    pub session: AppSessionPresentationTarget,
+    /// Whether the user selected draft pull request creation.
+    pub draft: bool,
 }
 
 /// Validated mediated-fetch effect delivered to the trusted app host.
@@ -433,6 +448,40 @@ impl AppExtensionsHost {
             })
             .await
     }
+
+    /// Invoke one Create Pull Request action on an app-session badge contribution.
+    pub async fn invoke_session_badge_action(
+        &self,
+        request: AppSessionBadgeActionRequest,
+    ) -> Result<Option<AppSessionActionResult>, Error> {
+        validate_target(&request.target.principal, &request.target.contribution_id)?;
+        validate_session_presentation_target(&request.session)?;
+        let value = self
+            .client
+            .rpc()
+            .extensions()
+            .app_session_badges()
+            .action()
+            .invoke(AppSessionActionHostRequest {
+                action: AppSessionPullRequestActionInvocation {
+                    draft: request.draft,
+                    kind: AppSessionPullRequestActionInvocationKind::CreatePullRequest,
+                },
+                activation_id: request.target.principal.activation_id.0,
+                app_session_id: self.app_session_id.to_string(),
+                contribution_id: request.target.contribution_id.0,
+                package_id: request.target.principal.package_id.0,
+                protocol_version: serde_json::json!(PROTOCOL_VERSION),
+                target: request.session,
+            })
+            .await?;
+        if value.is_null() {
+            return Ok(None);
+        }
+        let result: AppSessionActionResult = serde_json::from_value(value)?;
+        validate_session_action_result(&result)?;
+        Ok(Some(result))
+    }
 }
 
 impl Session {
@@ -581,6 +630,56 @@ fn validate_target(
         MAX_ID_LENGTH,
     )?;
     validate_bounded(contribution_id.as_str(), "contributionId", MAX_ID_LENGTH)
+}
+
+fn validate_session_presentation_target(
+    target: &AppSessionPresentationTarget,
+) -> Result<(), Error> {
+    validate_bounded(&target.workspace_id, "workspaceId", MAX_ID_LENGTH)?;
+    validate_bounded(target.session_id.as_str(), "sessionId", MAX_ID_LENGTH)?;
+    validate_bounded(
+        &target.repository_path,
+        "repositoryPath",
+        MAX_ACTION_PROMPT_BYTES,
+    )?;
+    validate_bounded(
+        &target.worktree_path,
+        "worktreePath",
+        MAX_ACTION_PROMPT_BYTES,
+    )?;
+    if target
+        .branch
+        .as_ref()
+        .is_some_and(|branch| branch.len() > 4096)
+    {
+        return Err(invalid_registration(
+            "branch must be at most 4096 bytes".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_session_action_result(result: &AppSessionActionResult) -> Result<(), Error> {
+    validate_bounded(&result.prompt, "prompt", MAX_ACTION_PROMPT_BYTES)?;
+    if result.prompt.lines().next() != Some("# Pull Request Creation") {
+        return Err(invalid_registration(
+            "prompt must start with the exact \"# Pull Request Creation\" header".to_string(),
+        ));
+    }
+    validate_bounded(&result.required_tool, "requiredTool", MAX_OPERATION_LENGTH)?;
+    if !result
+        .required_tool
+        .bytes()
+        .enumerate()
+        .all(|(index, byte)| {
+            byte.is_ascii_alphanumeric() || (index > 0 && matches!(byte, b'_' | b'.' | b':' | b'-'))
+        })
+    {
+        return Err(invalid_registration(
+            "requiredTool is not a valid tool identifier".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_non_empty(value: &str, name: &str) -> Result<(), Error> {
@@ -1096,8 +1195,14 @@ mod tests {
             principal.clone(),
             AppExtensionContributionId::new("repository-overview"),
         );
-        let forge =
-            AppForgeProviderTarget::new(principal, AppExtensionContributionId::new("github"));
+        let forge = AppForgeProviderTarget::new(
+            principal.clone(),
+            AppExtensionContributionId::new("github"),
+        );
+        let badges = AppExtensionContributionIdentity {
+            principal,
+            contribution_id: AppExtensionContributionId::new("github-pr"),
+        };
         let server = tokio::spawn(async move {
             let open = read_framed(&mut server_read).await;
             assert_eq!(open["method"], "extensions.appCanvas.open");
@@ -1174,6 +1279,45 @@ mod tests {
                 }),
             )
             .await;
+
+            let create_pr = read_framed(&mut server_read).await;
+            assert_eq!(
+                create_pr["method"],
+                "extensions.appSessionBadges.action.invoke"
+            );
+            assert_eq!(
+                create_pr["params"],
+                json!({
+                    "appSessionId": "hidden-app-session",
+                    "protocolVersion": 1,
+                    "packageId": "package",
+                    "activationId": "activation",
+                    "contributionId": "github-pr",
+                    "target": {
+                        "workspaceId": "workspace-1",
+                        "sessionId": "product-session-1",
+                        "repositoryPath": r"C:\src\repo",
+                        "worktreePath": r"C:\src\worktree",
+                        "branch": "feature"
+                    },
+                    "action": {
+                        "kind": "createPullRequest",
+                        "draft": true
+                    }
+                })
+            );
+            write_framed(
+                &mut server_write,
+                &json!({
+                    "jsonrpc": "2.0",
+                    "id": create_pr["id"],
+                    "result": {
+                        "prompt": "# Pull Request Creation\nCreate the fake pull request.",
+                        "requiredTool": "create_ado_pull_request"
+                    }
+                }),
+            )
+            .await;
         });
 
         let opened = host
@@ -1218,7 +1362,55 @@ mod tests {
             .unwrap(),
             json!({"number": 2574})
         );
+        let action = host
+            .invoke_session_badge_action(AppSessionBadgeActionRequest {
+                target: badges,
+                session: AppSessionPresentationTarget {
+                    branch: Some("feature".to_string()),
+                    repository_path: r"C:\src\repo".to_string(),
+                    session_id: SessionId::new("product-session-1"),
+                    workspace_id: "workspace-1".to_string(),
+                    worktree_path: r"C:\src\worktree".to_string(),
+                },
+                draft: true,
+            })
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            action.prompt,
+            "# Pull Request Creation\nCreate the fake pull request."
+        );
+        assert_eq!(action.required_tool, "create_ado_pull_request");
         server.await.unwrap();
+    }
+
+    #[test]
+    fn session_action_result_validation_rejects_malformed_values() {
+        assert!(
+            validate_session_action_result(&AppSessionActionResult {
+                prompt: "Missing header".to_string(),
+                required_tool: "create_ado_pull_request".to_string(),
+            })
+            .is_err()
+        );
+        assert!(
+            validate_session_action_result(&AppSessionActionResult {
+                prompt: "# Pull Request Creation\nCreate it.".to_string(),
+                required_tool: "invalid tool".to_string(),
+            })
+            .is_err()
+        );
+        assert!(
+            validate_session_action_result(&AppSessionActionResult {
+                prompt: format!(
+                    "# Pull Request Creation\n{}",
+                    "x".repeat(MAX_ACTION_PROMPT_BYTES)
+                ),
+                required_tool: "create_ado_pull_request".to_string(),
+            })
+            .is_err()
+        );
     }
 
     struct EchoMediatedFetch;

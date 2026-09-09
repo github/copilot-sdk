@@ -541,6 +541,9 @@ impl Session {
         if let Some(display_prompt) = opts.display_prompt {
             params["displayPrompt"] = serde_json::to_value(display_prompt)?;
         }
+        if let Some(required_tool) = opts.required_tool {
+            params["requiredTool"] = serde_json::to_value(required_tool)?;
+        }
         let trace_ctx = if opts.traceparent.is_some() || opts.tracestate.is_some() {
             TraceContext {
                 traceparent: opts.traceparent,

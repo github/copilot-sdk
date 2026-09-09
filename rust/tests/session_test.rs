@@ -1979,6 +1979,42 @@ async fn send_omits_display_prompt_when_unset() {
 }
 
 #[tokio::test]
+async fn send_serializes_required_tool_only_when_set() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send(
+                    MessageOptions::new("Create the pull request")
+                        .with_required_tool("create_ado_pull_request"),
+                )
+                .await
+        }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(request["params"]["requiredTool"], "create_ado_pull_request");
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.send(MessageOptions::new("plain")).await }
+    });
+    let request = server.read_request().await;
+    assert!(
+        request["params"].get("requiredTool").is_none(),
+        "requiredTool should be omitted when unset, got: {}",
+        request["params"]
+    );
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
 async fn session_rpc_methods_send_correct_method_names() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);

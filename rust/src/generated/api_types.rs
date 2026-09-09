@@ -70,6 +70,15 @@ pub mod rpc_methods {
     pub const EXTENSIONS_DISABLE: &str = "extensions.disable";
     /// `extensions.appExtension.register`
     pub const EXTENSIONS_APPEXTENSION_REGISTER: &str = "extensions.appExtension.register";
+    /// `extensions.appSessionBadges.setPresentation`
+    pub const EXTENSIONS_APPSESSIONBADGES_SETPRESENTATION: &str =
+        "extensions.appSessionBadges.setPresentation";
+    /// `extensions.appSessionBadges.setPresentations`
+    pub const EXTENSIONS_APPSESSIONBADGES_SETPRESENTATIONS: &str =
+        "extensions.appSessionBadges.setPresentations";
+    /// `extensions.appSessionBadges.action.invoke`
+    pub const EXTENSIONS_APPSESSIONBADGES_ACTION_INVOKE: &str =
+        "extensions.appSessionBadges.action.invoke";
     /// `extensions.appCanvas.register`
     pub const EXTENSIONS_APPCANVAS_REGISTER: &str = "extensions.appCanvas.register";
     /// `extensions.appCanvas.unregister`
@@ -815,6 +824,8 @@ pub mod rpc_methods {
     pub const CANVAS_CLOSE: &str = "canvas.close";
     /// `canvas.action.invoke`
     pub const CANVAS_ACTION_INVOKE: &str = "canvas.action.invoke";
+    /// `appSessionBadges.action.invoke`
+    pub const APPSESSIONBADGES_ACTION_INVOKE: &str = "appSessionBadges.action.invoke";
     /// `appCanvas.open`
     pub const APPCANVAS_OPEN: &str = "appCanvas.open";
     /// `appCanvas.close`
@@ -22244,6 +22255,217 @@ pub(crate) struct AppExtensionContributionTarget {
     pub package_id: String,
 }
 
+/// Exact app-visible session target from the current eligible-session snapshot.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionPresentationTarget {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    pub repository_path: String,
+    pub session_id: SessionId,
+    pub workspace_id: String,
+    pub worktree_path: String,
+}
+
+/// Constrained pull-request identity presentation contributed for one eligible app session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionBadgePresentation {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    pub state: AppSessionBadgePresentationState,
+}
+
+/// Constrained Create Pull Request action state contributed for one eligible app session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionPullRequestAction {
+    pub kind: AppSessionPullRequestActionKind,
+    pub state: AppSessionPullRequestActionState,
+    pub supports_draft: bool,
+}
+
+/// Atomic extension-provided badge and Create Pull Request action presentation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionPresentation {
+    pub action: Option<AppSessionPullRequestAction>,
+    pub badge: Option<AppSessionBadgePresentation>,
+}
+
+/// One ordered atomic presentation replacement for an eligible app session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionPresentationUpdate {
+    pub presentation: AppSessionPresentation,
+    pub session_id: SessionId,
+    pub workspace_id: String,
+}
+
+/// Publishes one atomic badge and action presentation for an eligible app session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AppSessionSetPresentationRequest {
+    pub presentation: AppSessionPresentation,
+    pub protocol_version: serde_json::Value,
+    pub session_id: SessionId,
+    pub workspace_id: String,
+}
+
+/// Publishes an ordered batch of atomic badge and action presentations.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AppSessionSetPresentationsRequest {
+    pub protocol_version: serde_json::Value,
+    pub updates: Vec<AppSessionPresentationUpdate>,
+}
+
+/// Create Pull Request action selected by the app host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionPullRequestActionInvocation {
+    pub draft: bool,
+    pub kind: AppSessionPullRequestActionInvocationKind,
+}
+
+/// Create Pull Request callback routed to the owning app extension.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionActionCallbackRequest {
+    pub action: AppSessionPullRequestActionInvocation,
+    pub contribution_id: String,
+    pub protocol_version: serde_json::Value,
+    pub session_id: SessionId,
+    pub target: AppSessionPresentationTarget,
+}
+
+/// Bounded extension-authored prompt and required session tool for a Create Pull Request action.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionActionResult {
+    pub prompt: String,
+    pub required_tool: String,
+}
+
+/// Trusted app-host request to invoke a Create Pull Request action on its owning extension contribution.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AppSessionActionHostRequest {
+    pub action: AppSessionPullRequestActionInvocation,
+    pub activation_id: String,
+    pub app_session_id: String,
+    pub contribution_id: String,
+    pub package_id: String,
+    pub protocol_version: serde_json::Value,
+    pub target: AppSessionPresentationTarget,
+}
+
+/// Authenticated provider presentation update emitted on the retained hidden app session. A null presentation resets provider state.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionPresentationChangedEventData {
+    pub activation_id: String,
+    pub contribution_id: String,
+    pub extension_id: String,
+    pub package_id: String,
+    pub presentation: Option<AppSessionPresentation>,
+    pub protocol_version: serde_json::Value,
+    pub session_id: SessionId,
+    pub workspace_id: String,
+}
+
+/// Bounded generic action descriptor rendered by the trusted app host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppCanvasActionDescriptor {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled: Option<bool>,
+    /// Serializable action input returned when the action is selected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    pub label: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variant: Option<AppCanvasActionDescriptorVariant>,
+}
+
 /// Trusted project context supplied by the app host to an app-scoped canvas.
 ///
 /// <div class="warning">
@@ -22356,6 +22578,8 @@ pub struct AppCanvasCloseCallbackRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppCanvasOpenResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actions: Option<Vec<AppCanvasActionDescriptor>>,
     /// Serializable initial canvas state.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state: Option<serde_json::Value>,
@@ -22665,6 +22889,8 @@ pub(crate) struct ExtensionsAppExtensionRegisterResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionsAppCanvasOpenResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actions: Option<Vec<AppCanvasActionDescriptor>>,
     /// Serializable initial canvas state.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state: Option<serde_json::Value>,
@@ -35421,6 +35647,62 @@ pub enum AppExtensionContributionPoint {
     Canvases,
     #[serde(rename = "forgeProvider")]
     ForgeProvider,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AppSessionBadgePresentationState {
+    #[serde(rename = "draft")]
+    Draft,
+    #[serde(rename = "open")]
+    Open,
+    #[serde(rename = "merged")]
+    Merged,
+    #[serde(rename = "closed")]
+    Closed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AppSessionPullRequestActionKind {
+    #[serde(rename = "createPullRequest")]
+    #[default]
+    CreatePullRequest,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AppSessionPullRequestActionState {
+    #[serde(rename = "available")]
+    Available,
+    #[serde(rename = "inProgress")]
+    InProgress,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AppSessionPullRequestActionInvocationKind {
+    #[serde(rename = "createPullRequest")]
+    #[default]
+    CreatePullRequest,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AppCanvasActionDescriptorVariant {
+    #[serde(rename = "default")]
+    Default,
+    #[serde(rename = "primary")]
+    Primary,
+    #[serde(rename = "danger")]
+    Danger,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

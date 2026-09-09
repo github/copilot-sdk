@@ -210,6 +210,125 @@ describe("AppSessionBadgesExtension", () => {
         ]);
     });
 
+    it("publishes ordered atomic presentations while legacy badges omit action changes", async () => {
+        const { connection, requests } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+
+        await contribution.setPresentations([
+            {
+                workspaceId: "workspace-2",
+                sessionId: "session-2",
+                presentation: {
+                    badge: { state: "draft", label: "Draft" },
+                    action: {
+                        kind: "createPullRequest",
+                        state: "inProgress",
+                        supportsDraft: true,
+                    },
+                },
+            },
+            {
+                workspaceId: "workspace-1",
+                sessionId: "session-1",
+                presentation: {
+                    badge: null,
+                    action: {
+                        kind: "createPullRequest",
+                        state: "available",
+                        supportsDraft: false,
+                    },
+                },
+            },
+        ]);
+        await contribution.setBadge(
+            { workspaceId: "workspace-1", sessionId: "session-1" },
+            { state: "open" }
+        );
+
+        expect(requests.slice(1)).toEqual([
+            {
+                method: "extensions.appSessionBadges.setPresentations",
+                params: {
+                    protocolVersion: 1,
+                    updates: [
+                        {
+                            workspaceId: "workspace-2",
+                            sessionId: "session-2",
+                            presentation: {
+                                badge: { state: "draft", label: "Draft" },
+                                action: {
+                                    kind: "createPullRequest",
+                                    state: "inProgress",
+                                    supportsDraft: true,
+                                },
+                            },
+                        },
+                        {
+                            workspaceId: "workspace-1",
+                            sessionId: "session-1",
+                            presentation: {
+                                badge: null,
+                                action: {
+                                    kind: "createPullRequest",
+                                    state: "available",
+                                    supportsDraft: false,
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                method: "extensions.appSessionBadges.setBadge",
+                params: {
+                    protocolVersion: 1,
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    badge: { state: "open" },
+                },
+            },
+        ]);
+    });
+
+    it("validates complete presentations before transport", async () => {
+        const { connection, requests } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+
+        await expect(
+            contribution.setPresentation({ workspaceId: "workspace-1", sessionId: "session-1" }, {
+                badge: null,
+                action: {
+                    kind: "createPullRequest",
+                    state: "queued",
+                    supportsDraft: true,
+                },
+            } as never)
+        ).rejects.toThrow("Unsupported app session action state");
+        await expect(
+            contribution.setPresentations([
+                {
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    presentation: { badge: null, action: null },
+                },
+                {
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    presentation: { badge: null, action: null },
+                },
+            ])
+        ).rejects.toThrow("updates contains duplicate target");
+        await contribution.setPresentations([]);
+
+        expect(requests).toHaveLength(1);
+    });
+
     it("validates an entire batch before sending and rejects duplicate targets", async () => {
         const { connection, requests } = createConnection();
         const contribution = await AppSessionBadgesExtension.register(

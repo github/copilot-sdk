@@ -17,6 +17,7 @@ use crate::{Client, Error, ErrorKind};
 const PROTOCOL_VERSION: u8 = 1;
 const UPDATE_SNAPSHOT_METHOD: &str = "extensions.appSessionBadges.updateSnapshot";
 const BADGE_CHANGED_EVENT: &str = "session.extensions.app_session_badge_changed";
+const PRESENTATION_CHANGED_EVENT: &str = "session.extensions.app_session_presentation_changed";
 
 /// Constrained visual state for an extension-provided workspace badge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,6 +42,54 @@ pub struct AppSessionBadge {
     /// Optional text label displayed with the constrained state.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+}
+
+/// Availability state for a contributed Create Pull Request action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AppSessionPullRequestActionState {
+    /// The action can be selected.
+    Available,
+    /// The extension is currently handling the action.
+    InProgress,
+}
+
+/// Constrained Create Pull Request action presentation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionPullRequestAction {
+    kind: AppSessionPullRequestActionKind,
+    /// Current action availability.
+    pub state: AppSessionPullRequestActionState,
+    /// Whether the extension supports a draft choice.
+    pub supports_draft: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum AppSessionPullRequestActionKind {
+    CreatePullRequest,
+}
+
+impl AppSessionPullRequestAction {
+    /// Create a Create Pull Request action presentation.
+    pub fn new(state: AppSessionPullRequestActionState, supports_draft: bool) -> Self {
+        Self {
+            kind: AppSessionPullRequestActionKind::CreatePullRequest,
+            state,
+            supports_draft,
+        }
+    }
+}
+
+/// Atomic badge and Create Pull Request action presentation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionPresentation {
+    /// Constrained badge, or `None` to clear only the badge.
+    pub badge: Option<AppSessionBadge>,
+    /// Create Pull Request action, or `None` to clear only the action.
+    pub action: Option<AppSessionPullRequestAction>,
 }
 
 impl AppSessionBadge {
@@ -134,6 +183,34 @@ pub struct AppSessionBadgeChanged {
     pub badge: Option<AppSessionBadge>,
 }
 
+/// Authenticated provider presentation update emitted on the retained hidden session.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSessionPresentationChanged {
+    protocol_version: u8,
+    /// Legacy runtime extension identity retained for compatibility.
+    pub extension_id: String,
+    /// Runtime-authenticated package identity.
+    pub package_id: String,
+    /// Runtime-authenticated activation identity.
+    pub activation_id: String,
+    /// Runtime-authenticated contribution identity.
+    pub contribution_id: String,
+    /// Stable app workspace/sidebar identity.
+    pub workspace_id: String,
+    /// Active app session linked to the workspace.
+    pub session_id: String,
+    /// New presentation, or `None` when provider lifecycle state was reset.
+    pub presentation: Option<AppSessionPresentation>,
+}
+
+impl AppSessionPresentationChanged {
+    /// Protocol version carried by the event.
+    pub fn protocol_version(&self) -> u8 {
+        self.protocol_version
+    }
+}
+
 impl AppSessionBadgeChanged {
     /// Protocol version carried by the event.
     pub fn protocol_version(&self) -> u8 {
@@ -183,6 +260,51 @@ pub fn decode_app_session_badge_changed(
     Ok(Some(changed))
 }
 
+/// Decode a generic hidden-session event when it is an app-session presentation change.
+pub fn decode_app_session_presentation_changed(
+    event: &SessionEvent,
+) -> Result<Option<AppSessionPresentationChanged>, AppSessionBadgeDecodeError> {
+    if event.event_type != PRESENTATION_CHANGED_EVENT {
+        return Ok(None);
+    }
+    let changed: AppSessionPresentationChanged = serde_json::from_value(event.data.clone())
+        .map_err(|error| AppSessionBadgeDecodeError {
+            message: format!("invalid {PRESENTATION_CHANGED_EVENT} payload: {error}"),
+        })?;
+    if changed.protocol_version != PROTOCOL_VERSION {
+        return Err(AppSessionBadgeDecodeError {
+            message: format!(
+                "unsupported app session badges protocol version: {}",
+                changed.protocol_version
+            ),
+        });
+    }
+    for (value, name) in [
+        (&changed.extension_id, "extensionId"),
+        (&changed.package_id, "packageId"),
+        (&changed.activation_id, "activationId"),
+        (&changed.contribution_id, "contributionId"),
+        (&changed.workspace_id, "workspaceId"),
+        (&changed.session_id, "sessionId"),
+    ] {
+        validate_non_empty(value, name).map_err(|error| AppSessionBadgeDecodeError {
+            message: error.to_string(),
+        })?;
+    }
+    if changed
+        .presentation
+        .as_ref()
+        .and_then(|presentation| presentation.badge.as_ref())
+        .and_then(|badge| badge.label.as_ref())
+        .is_some_and(|label| label.len() > 512)
+    {
+        return Err(AppSessionBadgeDecodeError {
+            message: "badge.label must be at most 512 bytes".to_string(),
+        });
+    }
+    Ok(Some(changed))
+}
+
 /// Receive error for a typed app-session badge event subscription.
 #[derive(Debug)]
 pub enum AppSessionBadgeSubscriptionError {
@@ -206,6 +328,32 @@ impl std::error::Error for AppSessionBadgeSubscriptionError {}
 /// Typed subscription that skips unrelated hidden-session events.
 pub struct AppSessionBadgeSubscription {
     inner: EventSubscription,
+}
+
+/// Typed subscription for authenticated app-session presentation updates.
+pub struct AppSessionPresentationSubscription {
+    inner: EventSubscription,
+}
+
+impl AppSessionPresentationSubscription {
+    /// Receive the next authenticated presentation update.
+    pub async fn recv(
+        &mut self,
+    ) -> Result<AppSessionPresentationChanged, AppSessionBadgeSubscriptionError> {
+        loop {
+            let event = self
+                .inner
+                .recv()
+                .await
+                .map_err(AppSessionBadgeSubscriptionError::Receive)?;
+            match decode_app_session_presentation_changed(&event)
+                .map_err(AppSessionBadgeSubscriptionError::Decode)?
+            {
+                Some(changed) => return Ok(changed),
+                None => continue,
+            }
+        }
+    }
 }
 
 impl AppSessionBadgeSubscription {
@@ -260,6 +408,13 @@ impl Session {
     /// Subscribe to provider-attributed badge changes on this hidden session.
     pub fn subscribe_app_session_badges(&self) -> AppSessionBadgeSubscription {
         AppSessionBadgeSubscription {
+            inner: self.subscribe(),
+        }
+    }
+
+    /// Subscribe to authenticated provider presentation updates on this hidden session.
+    pub fn subscribe_app_session_presentations(&self) -> AppSessionPresentationSubscription {
+        AppSessionPresentationSubscription {
             inner: self.subscribe(),
         }
     }
@@ -452,6 +607,54 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .badge,
+            None
+        );
+    }
+
+    #[test]
+    fn presentation_decoder_preserves_authenticated_identity_and_reset() {
+        let mut event = session_event(json!({
+            "protocolVersion": 1,
+            "extensionId": "project:badges",
+            "packageId": "package",
+            "activationId": "activation-7",
+            "contributionId": "github-pr",
+            "workspaceId": "workspace-1",
+            "sessionId": "session-1",
+            "presentation": {
+                "badge": {"state": "draft", "label": "Draft"},
+                "action": {
+                    "kind": "createPullRequest",
+                    "state": "available",
+                    "supportsDraft": true
+                }
+            }
+        }));
+        event.event_type = PRESENTATION_CHANGED_EVENT.to_string();
+        let changed = decode_app_session_presentation_changed(&event)
+            .unwrap()
+            .unwrap();
+        assert_eq!(changed.protocol_version(), 1);
+        assert_eq!(changed.package_id, "package");
+        assert_eq!(changed.activation_id, "activation-7");
+        assert_eq!(changed.contribution_id, "github-pr");
+        assert_eq!(
+            changed.presentation,
+            Some(AppSessionPresentation {
+                badge: Some(AppSessionBadge::new(AppSessionBadgeState::Draft).with_label("Draft")),
+                action: Some(AppSessionPullRequestAction::new(
+                    AppSessionPullRequestActionState::Available,
+                    true,
+                )),
+            })
+        );
+
+        event.data["presentation"] = Value::Null;
+        assert_eq!(
+            decode_app_session_presentation_changed(&event)
+                .unwrap()
+                .unwrap()
+                .presentation,
             None
         );
     }

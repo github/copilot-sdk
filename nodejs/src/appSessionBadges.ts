@@ -9,7 +9,11 @@ const APP_SESSION_BADGES_PROTOCOL_VERSION = 1 as const;
 const REGISTER_METHOD = "extensions.appSessionBadges.register";
 const SET_BADGE_METHOD = "extensions.appSessionBadges.setBadge";
 const SET_BADGES_METHOD = "extensions.appSessionBadges.setBadges";
+const SET_PRESENTATION_METHOD = "extensions.appSessionBadges.setPresentation";
+const SET_PRESENTATIONS_METHOD = "extensions.appSessionBadges.setPresentations";
 const SNAPSHOT_NOTIFICATION = "appSessionBadges.snapshot";
+const MAX_BADGE_LABEL_LENGTH = 512;
+const MAX_PRESENTATION_UPDATES = 1024;
 
 /** Badge states an app-level extension can contribute for a workspace. */
 export type AppSessionBadgeState = "draft" | "open" | "merged" | "closed";
@@ -18,6 +22,19 @@ export type AppSessionBadgeState = "draft" | "open" | "merged" | "closed";
 export interface AppSessionBadge {
     state: AppSessionBadgeState;
     label?: string;
+}
+
+/** Create Pull Request action state contributed for an eligible app session. */
+export interface AppSessionPullRequestAction {
+    readonly kind: "createPullRequest";
+    readonly state: "available" | "inProgress";
+    readonly supportsDraft: boolean;
+}
+
+/** Atomic extension-provided badge and action presentation. */
+export interface AppSessionPresentation {
+    readonly badge: AppSessionBadge | null;
+    readonly action: AppSessionPullRequestAction | null;
 }
 
 /** An app-visible session that is eligible for an extension-provided badge. */
@@ -47,6 +64,13 @@ export interface AppSessionBadgeUpdate {
     readonly workspaceId: string;
     readonly sessionId: string;
     readonly badge: AppSessionBadge | null;
+}
+
+/** One ordered atomic presentation replacement. */
+export interface AppSessionPresentationUpdate {
+    readonly workspaceId: string;
+    readonly sessionId: string;
+    readonly presentation: AppSessionPresentation;
 }
 
 /** Callback invoked for each full eligible-session snapshot. */
@@ -117,6 +141,37 @@ export class AppSessionBadgesExtension {
         }
 
         await this.connection.sendRequest(SET_BADGES_METHOD, {
+            protocolVersion: APP_SESSION_BADGES_PROTOCOL_VERSION,
+            updates: normalizedUpdates,
+        });
+    }
+
+    /** Replace the complete badge and action presentation for one eligible target. */
+    async setPresentation(
+        target: AppSessionBadgeTargetIdentity,
+        presentation: AppSessionPresentation
+    ): Promise<void> {
+        const update = normalizePresentationUpdate({ ...target, presentation }, 0);
+
+        await this.connection.sendRequest(SET_PRESENTATION_METHOD, {
+            protocolVersion: APP_SESSION_BADGES_PROTOCOL_VERSION,
+            ...update,
+        });
+    }
+
+    /**
+     * Atomically replace complete presentations for multiple eligible targets.
+     *
+     * Updates retain caller order. The complete batch is validated before one
+     * request is sent, and duplicate workspace/session target pairs are rejected.
+     */
+    async setPresentations(updates: readonly AppSessionPresentationUpdate[]): Promise<void> {
+        const normalizedUpdates = normalizePresentationUpdates(updates);
+        if (normalizedUpdates.length === 0) {
+            return;
+        }
+
+        await this.connection.sendRequest(SET_PRESENTATIONS_METHOD, {
             protocolVersion: APP_SESSION_BADGES_PROTOCOL_VERSION,
             updates: normalizedUpdates,
         });
@@ -246,9 +301,88 @@ function normalizeBadge(badge: AppSessionBadge | null): AppSessionBadge | null {
     if (badge.label !== undefined && typeof badge.label !== "string") {
         throw new TypeError("badge.label must be a string when provided");
     }
+    if (badge.label !== undefined && badge.label.length > MAX_BADGE_LABEL_LENGTH) {
+        throw new TypeError(`badge.label must be at most ${MAX_BADGE_LABEL_LENGTH} characters`);
+    }
     return badge.label === undefined
         ? { state: badge.state as AppSessionBadgeState }
         : { state: badge.state as AppSessionBadgeState, label: badge.label };
+}
+
+function normalizePresentation(presentation: AppSessionPresentation): AppSessionPresentation {
+    if (!isRecord(presentation)) {
+        throw new TypeError("presentation must be an object");
+    }
+    const action = normalizePullRequestAction(presentation.action);
+    return {
+        badge: normalizeBadge(presentation.badge),
+        action,
+    };
+}
+
+function normalizePullRequestAction(
+    action: AppSessionPullRequestAction | null
+): AppSessionPullRequestAction | null {
+    if (action === null) {
+        return null;
+    }
+    if (!isRecord(action)) {
+        throw new TypeError("presentation.action must be an object or null");
+    }
+    if (action.kind !== "createPullRequest") {
+        throw new TypeError(`Unsupported app session action kind: ${String(action.kind)}`);
+    }
+    if (action.state !== "available" && action.state !== "inProgress") {
+        throw new TypeError(`Unsupported app session action state: ${String(action.state)}`);
+    }
+    if (typeof action.supportsDraft !== "boolean") {
+        throw new TypeError("presentation.action.supportsDraft must be a boolean");
+    }
+    return {
+        kind: "createPullRequest",
+        state: action.state,
+        supportsDraft: action.supportsDraft,
+    };
+}
+
+function normalizePresentationUpdates(
+    updates: readonly AppSessionPresentationUpdate[]
+): AppSessionPresentationUpdate[] {
+    if (!Array.isArray(updates)) {
+        throw new TypeError("updates must be an array");
+    }
+    if (updates.length > MAX_PRESENTATION_UPDATES) {
+        throw new TypeError(`updates must contain at most ${MAX_PRESENTATION_UPDATES} items`);
+    }
+
+    const targetIds = new Set<string>();
+    return updates.map((update, index) => {
+        const normalized = normalizePresentationUpdate(update, index);
+        const targetId = `${normalized.workspaceId}\0${normalized.sessionId}`;
+        if (targetIds.has(targetId)) {
+            throw new TypeError(
+                `updates contains duplicate target: ${normalized.workspaceId}/${normalized.sessionId}`
+            );
+        }
+        targetIds.add(targetId);
+        return normalized;
+    });
+}
+
+function normalizePresentationUpdate(
+    update: AppSessionPresentationUpdate,
+    index: number
+): AppSessionPresentationUpdate {
+    if (!isRecord(update)) {
+        throw new TypeError(`updates[${index}] must be an object`);
+    }
+    assertNonEmptyString(update.workspaceId, `updates[${index}].workspaceId`);
+    assertNonEmptyString(update.sessionId, `updates[${index}].sessionId`);
+    return {
+        workspaceId: update.workspaceId,
+        sessionId: update.sessionId,
+        presentation: normalizePresentation(update.presentation),
+    };
 }
 
 function normalizeBadgeUpdates(updates: readonly AppSessionBadgeUpdate[]): AppSessionBadgeUpdate[] {

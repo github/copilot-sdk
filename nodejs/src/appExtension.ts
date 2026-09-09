@@ -15,13 +15,17 @@ import type {
     AppForgeInvokeCallbackRequest,
     AppMediatedFetchRequest as WireAppMediatedFetchRequest,
     AppMediatedFetchResponse as WireAppMediatedFetchResponse,
+    AppSessionActionCallbackRequest,
 } from "./generated/rpc.js";
 import {
     type AppSessionBadge,
+    type AppSessionBadgeTarget,
     type AppSessionBadgesSnapshot,
     type AppSessionBadgeTargetIdentity,
     type AppSessionBadgeUpdate,
     type AppSessionBadgesExtension,
+    type AppSessionPresentation,
+    type AppSessionPresentationUpdate,
 } from "./appSessionBadges.js";
 import {
     onExtensionTransportClosedSymbol,
@@ -40,7 +44,9 @@ const MAX_CONTRIBUTION_ID_LENGTH = 256;
 const MAX_OPERATION_NAME_LENGTH = 256;
 const MAX_CANVAS_INSTANCE_ID_LENGTH = 256;
 const MAX_CANVAS_METADATA_LENGTH = 512;
+const MAX_CANVAS_ACTIONS = 32;
 const MAX_JSON_PAYLOAD_BYTES = 256 * 1024;
+const MAX_ACTION_PROMPT_BYTES = 32 * 1024;
 const MAX_FETCH_PATH_LENGTH = 8192;
 const MAX_FETCH_HEADERS = 64;
 const MAX_FETCH_HEADER_BYTES = 32 * 1024;
@@ -153,11 +159,21 @@ export interface AppCanvasCloseRequest {
     readonly signal: AbortSignal;
 }
 
+/** Bounded generic action rendered by the trusted app canvas host. */
+export interface AppCanvasActionDescriptor {
+    readonly name: string;
+    readonly label: string;
+    readonly input?: JsonValue;
+    readonly variant?: "default" | "primary" | "danger";
+    readonly disabled?: boolean;
+}
+
 /** Bounded state and display metadata returned when a canvas opens. */
 export interface AppCanvasOpenResult {
     readonly state?: JsonValue;
     readonly title?: string;
     readonly status?: string;
+    readonly actions?: readonly AppCanvasActionDescriptor[];
 }
 
 /** Handlers for one statically declared app-canvas contribution. */
@@ -166,7 +182,9 @@ export interface AppCanvasRegistrationOptions {
     readonly onOpen: (
         request: AppCanvasOpenRequest
     ) => AppCanvasOpenResult | Promise<AppCanvasOpenResult>;
-    readonly onAction: (request: AppCanvasActionRequest) => JsonValue | Promise<JsonValue>;
+    readonly onAction: (
+        request: AppCanvasActionRequest
+    ) => JsonValue | AppCanvasOpenResult | Promise<JsonValue | AppCanvasOpenResult>;
     readonly onClose?: (request: AppCanvasCloseRequest) => void | Promise<void>;
 }
 
@@ -246,9 +264,29 @@ export type AppSessionBadgesRegistrationHandler = (
     identity: AppExtensionContributionIdentity<"sessionBadges">
 ) => void | Promise<void>;
 
+/** Create Pull Request action request routed to the registered badge contribution. */
+export interface AppSessionBadgesActionRequest {
+    readonly target: AppSessionBadgeTarget;
+    readonly kind: "createPullRequest";
+    readonly draft: boolean;
+    readonly signal: AbortSignal;
+}
+
+/** Extension-authored prompt and required session tool for a Create Pull Request action. */
+export interface AppSessionBadgesActionResult {
+    readonly prompt: string;
+    readonly requiredTool: string;
+}
+
+/** Callback invoked when the app selects a contributed Create Pull Request action. */
+export type AppSessionBadgesActionHandler = (
+    request: AppSessionBadgesActionRequest
+) => AppSessionBadgesActionResult | null | Promise<AppSessionBadgesActionResult | null>;
+
 /** Options for registering the activation's single badge contribution. */
 export interface AppSessionBadgesRegistration {
     readonly onSnapshot?: AppSessionBadgesRegistrationHandler;
+    readonly onAction?: AppSessionBadgesActionHandler;
 }
 
 /** Capability-limited badge contribution owned by an app-extension principal. */
@@ -258,6 +296,11 @@ export interface AppSessionBadgesContribution {
     onSnapshot(handler: AppSessionBadgesRegistrationHandler): () => void;
     setBadge(target: AppSessionBadgeTargetIdentity, badge: AppSessionBadge | null): Promise<void>;
     setBadges(updates: readonly AppSessionBadgeUpdate[]): Promise<void>;
+    setPresentation(
+        target: AppSessionBadgeTargetIdentity,
+        presentation: AppSessionPresentation
+    ): Promise<void>;
+    setPresentations(updates: readonly AppSessionPresentationUpdate[]): Promise<void>;
     clearBadge(target: AppSessionBadgeTargetIdentity): Promise<void>;
     dispose(): void;
 }
@@ -304,12 +347,14 @@ class SessionBadgesContribution implements AppSessionBadgesContribution {
     readonly identity: AppExtensionContributionIdentity<"sessionBadges">;
     #delegate: AppSessionBadgesExtension;
     #subscriptions = new Set<() => void>();
+    #controllers = new Set<AbortController>();
     #disposed = false;
 
     constructor(
         principal: AppExtensionPrincipal,
         contributionId: AppExtensionContributionId,
-        delegate: AppSessionBadgesExtension
+        delegate: AppSessionBadgesExtension,
+        private readonly onAction?: AppSessionBadgesActionHandler
     ) {
         this.identity = Object.freeze({
             principal,
@@ -355,6 +400,19 @@ class SessionBadgesContribution implements AppSessionBadgesContribution {
         await this.#delegate.setBadges(updates);
     }
 
+    async setPresentation(
+        target: AppSessionBadgeTargetIdentity,
+        presentation: AppSessionPresentation
+    ): Promise<void> {
+        this.assertActive();
+        await this.#delegate.setPresentation(target, presentation);
+    }
+
+    async setPresentations(updates: readonly AppSessionPresentationUpdate[]): Promise<void> {
+        this.assertActive();
+        await this.#delegate.setPresentations(updates);
+    }
+
     async clearBadge(target: AppSessionBadgeTargetIdentity): Promise<void> {
         this.assertActive();
         await this.#delegate.clearBadge(target);
@@ -367,7 +425,57 @@ class SessionBadgesContribution implements AppSessionBadgesContribution {
             unsubscribe();
         }
         this.#subscriptions.clear();
+        for (const controller of this.#controllers) {
+            controller.abort();
+        }
+        this.#controllers.clear();
         this.#delegate.dispose();
+    }
+
+    async invokeAction(
+        params: AppSessionActionCallbackRequest,
+        cancellation?: CancellationToken
+    ): Promise<JsonValue> {
+        this.assertActive();
+        assertProtocolVersion(params.protocolVersion);
+        if (params.contributionId !== this.identity.contributionId) {
+            throw new Error(
+                `App session badge action contribution mismatch: ${params.contributionId}`
+            );
+        }
+        const target = validateAppSessionBadgeTarget(params.target);
+        if (params.action.kind !== "createPullRequest") {
+            throw new TypeError(`Unsupported app session action kind: ${params.action.kind}`);
+        }
+        if (typeof params.action.draft !== "boolean") {
+            throw new TypeError("app session action draft must be a boolean");
+        }
+        if (!this.onAction) {
+            return null;
+        }
+
+        const controller = new AbortController();
+        this.#controllers.add(controller);
+        const subscription = cancellation?.onCancellationRequested(() => controller.abort());
+        if (this.#disposed || cancellation?.isCancellationRequested) {
+            controller.abort();
+        }
+        try {
+            const result = await this.onAction(
+                Object.freeze({
+                    target,
+                    kind: "createPullRequest",
+                    draft: params.action.draft,
+                    signal: controller.signal,
+                })
+            );
+            const validated = validateAppSessionActionResult(result);
+            assertJsonPayload(validated, "session badge onAction result");
+            return validated;
+        } finally {
+            subscription?.dispose();
+            this.#controllers.delete(controller);
+        }
     }
 
     deferSnapshotHandler(handler: AppSessionBadgesRegistrationHandler): void {
@@ -389,6 +497,7 @@ class SessionBadgesContribution implements AppSessionBadgesContribution {
 }
 
 class SessionBadgesRegistrar implements AppSessionBadgesHost {
+    readonly #handler: NonNullable<CopilotSession["clientSessionApis"]["appSessionBadges"]>;
     #registration: SessionBadgesContribution | undefined;
     #registering = false;
     #disposed = false;
@@ -397,8 +506,20 @@ class SessionBadgesRegistrar implements AppSessionBadgesHost {
         private readonly principal: AppExtensionPrincipal,
         private readonly granted: boolean,
         private readonly declaredContributions: readonly AppExtensionDeclaredContribution[],
-        private readonly registerDelegate: () => Promise<AppSessionBadgesExtension>
-    ) {}
+        private readonly registerDelegate: () => Promise<AppSessionBadgesExtension>,
+        private readonly session: CopilotSession
+    ) {
+        this.#handler = {
+            invoke: (params, cancellation) => {
+                const registration = this.#registration;
+                if (!registration) {
+                    throw new Error("No app session badge contribution is registered");
+                }
+                return registration.invokeAction(params, cancellation);
+            },
+        };
+        this.session.clientSessionApis.appSessionBadges = this.#handler;
+    }
 
     async register(
         options: AppSessionBadgesRegistration = {}
@@ -411,6 +532,9 @@ class SessionBadgesRegistrar implements AppSessionBadgesHost {
         }
         if (options.onSnapshot !== undefined && typeof options.onSnapshot !== "function") {
             throw new TypeError("sessionBadges.register onSnapshot must be a function");
+        }
+        if (options.onAction !== undefined && typeof options.onAction !== "function") {
+            throw new TypeError("sessionBadges.register onAction must be a function");
         }
         if (!this.granted) {
             throw new Error("The app extension principal was not granted sessionBadges");
@@ -441,7 +565,8 @@ class SessionBadgesRegistrar implements AppSessionBadgesHost {
             contribution = new SessionBadgesContribution(
                 this.principal,
                 declarations[0]!.contributionId,
-                delegate
+                delegate,
+                options.onAction
             );
             this.#registration = contribution;
             if (options.onSnapshot) {
@@ -466,6 +591,9 @@ class SessionBadgesRegistrar implements AppSessionBadgesHost {
     dispose(): void {
         if (this.#disposed) return;
         this.#disposed = true;
+        if (this.session.clientSessionApis.appSessionBadges === this.#handler) {
+            delete this.session.clientSessionApis.appSessionBadges;
+        }
         this.#registration?.dispose();
         this.#registration = undefined;
     }
@@ -552,6 +680,11 @@ class CanvasRegistration implements AppCanvasRegistration {
                 ),
             cancellation
         );
+        if (isCanvasOpenResultShape(result)) {
+            const refreshed = validateCanvasOpenResult(result);
+            assertJsonPayload(refreshed, "canvas action result");
+            return refreshed;
+        }
         assertJsonPayload(result, "canvas action result");
         return result;
     }
@@ -1144,7 +1277,8 @@ export async function defineAppExtension(
             principal,
             capabilities.sessionBadges === true,
             contributions,
-            () => client[registerPrivateAppSessionBadgesSymbol](session)
+            () => client[registerPrivateAppSessionBadgesSymbol](session),
+            session
         );
         const canvases = new CanvasesRegistrar(
             principal,
@@ -1398,10 +1532,151 @@ function validateCanvasOpenResult(result: AppCanvasOpenResult): WireAppCanvasOpe
     if (result.state !== undefined) {
         assertJsonPayload(result.state, "canvas state");
     }
-    return {
+    const actions = validateCanvasActions(result.actions);
+    const validated = {
         ...(result.state === undefined ? {} : { state: result.state }),
         ...(result.title === undefined ? {} : { title: result.title }),
         ...(result.status === undefined ? {} : { status: result.status }),
+        ...(actions === undefined ? {} : { actions }),
+    };
+    assertJsonPayload(validated, "canvas open result");
+    return validated;
+}
+
+/** Return whether a value is a valid bounded app-canvas open result. */
+export function isAppCanvasOpenResult(value: unknown): value is AppCanvasOpenResult {
+    if (!isCanvasOpenResultShape(value)) {
+        return false;
+    }
+    try {
+        validateCanvasOpenResult(value);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function isCanvasOpenResultShape(value: unknown): value is AppCanvasOpenResult {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+    const keys = Object.keys(value);
+    return keys.every(
+        (key) => key === "state" || key === "title" || key === "status" || key === "actions"
+    );
+}
+
+function validateCanvasActions(
+    actions: readonly AppCanvasActionDescriptor[] | undefined
+): WireAppCanvasOpenResult["actions"] {
+    if (actions === undefined) {
+        return undefined;
+    }
+    if (!Array.isArray(actions)) {
+        throw new TypeError("canvas actions must be an array");
+    }
+    if (actions.length > MAX_CANVAS_ACTIONS) {
+        throw new TypeError(`canvas actions must contain at most ${MAX_CANVAS_ACTIONS} items`);
+    }
+    const names = new Set<string>();
+    return actions.map((action, index) => {
+        if (action === null || typeof action !== "object" || Array.isArray(action)) {
+            throw new TypeError(`canvas actions[${index}] must be an object`);
+        }
+        assertBoundedString(
+            action.name,
+            `canvas actions[${index}].name`,
+            MAX_OPERATION_NAME_LENGTH
+        );
+        assertBoundedString(
+            action.label,
+            `canvas actions[${index}].label`,
+            MAX_CANVAS_METADATA_LENGTH
+        );
+        if (names.has(action.name)) {
+            throw new TypeError(`canvas actions contains duplicate name: ${action.name}`);
+        }
+        names.add(action.name);
+        if (
+            action.variant !== undefined &&
+            action.variant !== "default" &&
+            action.variant !== "primary" &&
+            action.variant !== "danger"
+        ) {
+            throw new TypeError(
+                `canvas actions[${index}].variant must be default, primary, or danger`
+            );
+        }
+        if (action.disabled !== undefined && typeof action.disabled !== "boolean") {
+            throw new TypeError(`canvas actions[${index}].disabled must be a boolean`);
+        }
+        if (action.input !== undefined) {
+            assertJsonPayload(action.input, `canvas actions[${index}].input`);
+        }
+        return {
+            name: action.name,
+            label: action.label,
+            ...(action.input === undefined ? {} : { input: action.input }),
+            ...(action.variant === undefined ? {} : { variant: action.variant }),
+            ...(action.disabled === undefined ? {} : { disabled: action.disabled }),
+        };
+    });
+}
+
+function validateAppSessionBadgeTarget(value: unknown): AppSessionBadgeTarget {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        throw new TypeError("app session action target must be an object");
+    }
+    const target = value as Record<string, unknown>;
+    assertBoundedString(target.workspaceId, "target.workspaceId", MAX_CONTRIBUTION_ID_LENGTH);
+    assertBoundedString(target.sessionId, "target.sessionId", MAX_CONTRIBUTION_ID_LENGTH);
+    assertBoundedString(target.repositoryPath, "target.repositoryPath", MAX_ACTION_PROMPT_BYTES);
+    assertBoundedString(target.worktreePath, "target.worktreePath", MAX_ACTION_PROMPT_BYTES);
+    if (target.branch !== undefined && typeof target.branch !== "string") {
+        throw new TypeError("target.branch must be a string when provided");
+    }
+    return Object.freeze({
+        workspaceId: target.workspaceId,
+        sessionId: target.sessionId,
+        repositoryPath: target.repositoryPath,
+        worktreePath: target.worktreePath,
+        ...(target.branch === undefined ? {} : { branch: target.branch }),
+    });
+}
+
+function validateAppSessionActionResult(
+    result: AppSessionBadgesActionResult | null
+): AppSessionBadgesActionResult | null {
+    if (result === null) {
+        return null;
+    }
+    if (result === undefined || typeof result !== "object" || Array.isArray(result)) {
+        throw new TypeError("session badge onAction result must be an object or null");
+    }
+    if (typeof result.prompt !== "string" || result.prompt.length === 0) {
+        throw new TypeError("session badge onAction prompt must be a non-empty string");
+    }
+    if (Buffer.byteLength(result.prompt, "utf8") > MAX_ACTION_PROMPT_BYTES) {
+        throw new TypeError(
+            `session badge onAction prompt must not exceed ${MAX_ACTION_PROMPT_BYTES} bytes`
+        );
+    }
+    if (result.prompt.split(/\r?\n/, 1)[0] !== "# Pull Request Creation") {
+        throw new TypeError(
+            'session badge onAction prompt must start with the exact "# Pull Request Creation" header'
+        );
+    }
+    assertBoundedString(
+        result.requiredTool,
+        "session badge onAction requiredTool",
+        MAX_OPERATION_NAME_LENGTH
+    );
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(result.requiredTool)) {
+        throw new TypeError("session badge onAction requiredTool is not a valid tool identifier");
+    }
+    return {
+        prompt: result.prompt,
+        requiredTool: result.requiredTool,
     };
 }
 

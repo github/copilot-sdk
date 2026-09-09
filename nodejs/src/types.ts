@@ -3377,6 +3377,13 @@ export interface MessageOptions {
      * If provided, this is shown in the timeline instead of `prompt`.
      */
     displayPrompt?: string;
+
+    /**
+     * Require this tool to be available for the turn.
+     *
+     * The request fails before execution when the named tool is unavailable.
+     */
+    requiredTool?: string;
 }
 
 /**

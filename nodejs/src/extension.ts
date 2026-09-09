@@ -15,6 +15,9 @@ export {
     type AppSessionBadgeTarget,
     type AppSessionBadgeTargetIdentity,
     type AppSessionBadgeUpdate,
+    type AppSessionPresentation,
+    type AppSessionPresentationUpdate,
+    type AppSessionPullRequestAction,
     type AppSessionBadgesSnapshot,
     type AppSessionBadgesSnapshotHandler,
 } from "./appSessionBadges.js";

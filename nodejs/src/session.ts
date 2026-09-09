@@ -720,6 +720,7 @@ export class CopilotSession {
             sessionId: this.sessionId,
             prompt: options.prompt,
             displayPrompt: options.displayPrompt,
+            requiredTool: options.requiredTool,
             attachments: options.attachments,
             mode: options.mode,
             agentMode: options.agentMode,

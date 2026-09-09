@@ -143,8 +143,26 @@ describe("defineAppExtension", () => {
             state: { selected: 1 },
             title: "Repository",
             status: "Ready",
+            actions: [
+                {
+                    name: "create",
+                    label: "Create pull request",
+                    input: { draft: false },
+                    variant: "primary",
+                },
+            ],
         });
-        const onAction = vi.fn().mockReturnValue({ selected: 2 });
+        const onAction = vi.fn().mockReturnValue({
+            state: { selected: 2 },
+            status: "Creating",
+            actions: [
+                {
+                    name: "create",
+                    label: "Creating pull request",
+                    disabled: true,
+                },
+            ],
+        });
         const onClose = vi.fn();
         let host: AppExtensionHost | undefined;
         const activation = await defineAppExtension(async (value) => {
@@ -182,6 +200,14 @@ describe("defineAppExtension", () => {
             state: { selected: 1 },
             title: "Repository",
             status: "Ready",
+            actions: [
+                {
+                    name: "create",
+                    label: "Create pull request",
+                    input: { draft: false },
+                    variant: "primary",
+                },
+            ],
         });
         expect(onOpen).toHaveBeenCalledWith({
             instanceId: "canvas-1",
@@ -201,7 +227,17 @@ describe("defineAppExtension", () => {
                 input: 2,
                 context,
             })
-        ).resolves.toEqual({ selected: 2 });
+        ).resolves.toEqual({
+            state: { selected: 2 },
+            status: "Creating",
+            actions: [
+                {
+                    name: "create",
+                    label: "Creating pull request",
+                    disabled: true,
+                },
+            ],
+        });
         await session.clientSessionApis.appCanvas!.close({
             sessionId: "hidden-app-session",
             protocolVersion: 1,
@@ -249,6 +285,7 @@ describe("defineAppExtension", () => {
                 body: '{"number":2574}',
                 truncated: false,
             });
+
         let host: AppExtensionHost | undefined;
         const activation = await defineAppExtension(async (value) => {
             host = value;
@@ -336,6 +373,65 @@ describe("defineAppExtension", () => {
             CopilotClient.prototype[unregisterPrivateAppForgeProviderSymbol]
         ).toHaveBeenCalledWith("github");
         expect(session.clientSessionApis.appForgeProvider).toBeUndefined();
+    });
+
+    it("rejects malformed and oversized generic canvas action descriptors", async () => {
+        const { session } = arrange();
+        vi.mocked(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).mockResolvedValueOnce(
+            {
+                protocolVersion: 1,
+                principal: {
+                    packageId: "bundled:github-app:canvas",
+                    activationId: "activation-canvas",
+                },
+                capabilities: { canvases: true },
+                contributions: [
+                    {
+                        contributionPoint: "canvases",
+                        contributionId: "repository-overview",
+                    },
+                ],
+            }
+        );
+        const onOpen = vi
+            .fn()
+            .mockReturnValueOnce({
+                actions: [
+                    { name: "create", label: "Create" },
+                    { name: "create", label: "Duplicate" },
+                ],
+            })
+            .mockReturnValueOnce({
+                actions: [{ name: "create", label: "x".repeat(513) }],
+            })
+            .mockReturnValue({
+                actions: [{ name: "create", label: "Create", variant: "primary" }],
+            });
+        const activation = await defineAppExtension(async (host) => {
+            await host.canvases.register({
+                contributionId: host.contributions[0]!.contributionId,
+                onOpen,
+                onAction: () => null,
+            });
+        });
+        const params = {
+            sessionId: "hidden-app-session",
+            protocolVersion: 1 as const,
+            contributionId: "repository-overview",
+            instanceId: "canvas-1",
+        };
+
+        await expect(session.clientSessionApis.appCanvas!.open(params)).rejects.toThrow(
+            "duplicate name"
+        );
+        await expect(session.clientSessionApis.appCanvas!.open(params)).rejects.toThrow(
+            "at most 512 characters"
+        );
+        await expect(session.clientSessionApis.appCanvas!.open(params)).resolves.toEqual({
+            actions: [{ name: "create", label: "Create", variant: "primary" }],
+        });
+
+        await activation.dispose();
     });
 
     it("requires a live forge registration and aborts in-flight provider callbacks", async () => {
@@ -542,6 +638,8 @@ describe("defineAppExtension", () => {
             }),
             setBadge: vi.fn().mockResolvedValue(undefined),
             setBadges: vi.fn().mockResolvedValue(undefined),
+            setPresentation: vi.fn().mockResolvedValue(undefined),
+            setPresentations: vi.fn().mockResolvedValue(undefined),
             clearBadge: vi.fn().mockResolvedValue(undefined),
             dispose: vi.fn(),
         } as unknown as AppSessionBadgesExtension;
@@ -567,6 +665,17 @@ describe("defineAppExtension", () => {
                     badge: null,
                 },
             ]);
+            await registered.setPresentation(
+                { workspaceId: "workspace-1", sessionId: "session-1" },
+                {
+                    badge: null,
+                    action: {
+                        kind: "createPullRequest",
+                        state: "available",
+                        supportsDraft: true,
+                    },
+                }
+            );
             contribution = registered;
         });
 
@@ -578,12 +687,188 @@ describe("defineAppExtension", () => {
                 badge: null,
             },
         ]);
+        expect(delegate.setPresentation).toHaveBeenCalledWith(
+            { workspaceId: "workspace-1", sessionId: "session-1" },
+            {
+                badge: null,
+                action: {
+                    kind: "createPullRequest",
+                    state: "available",
+                    supportsDraft: true,
+                },
+            }
+        );
         expect(contribution).not.toHaveProperty("session");
         expect(contribution).not.toHaveProperty("connection");
         await vi.waitFor(() => expect(snapshotHandler).toHaveBeenCalledOnce());
         await activation.dispose();
         expect(unsubscribe).toHaveBeenCalledOnce();
         expect(delegate.dispose).toHaveBeenCalledOnce();
+    });
+
+    it("routes bounded Create PR actions without exposing session authority", async () => {
+        const { session } = arrange();
+        const delegate = {
+            snapshot: undefined,
+            onSnapshot: vi.fn(() => vi.fn()),
+            dispose: vi.fn(),
+        } as unknown as AppSessionBadgesExtension;
+        vi.spyOn(CopilotClient.prototype, "registerAppSessionBadges").mockResolvedValue(delegate);
+        const onAction = vi.fn().mockReturnValue({
+            prompt: "# Pull Request Creation\nCreate a fake Azure DevOps pull request.",
+            requiredTool: "create_ado_pull_request",
+        });
+        const activation = await defineAppExtension(async (host) => {
+            await host.sessionBadges.register({ onAction });
+        });
+
+        await expect(
+            session.clientSessionApis.appSessionBadges!.invoke({
+                sessionId: "hidden-app-session",
+                protocolVersion: 1,
+                contributionId: "github-pr",
+                target: {
+                    workspaceId: "workspace-1",
+                    sessionId: "product-session-1",
+                    repositoryPath: "C:\\src\\repo",
+                    worktreePath: "C:\\src\\worktree",
+                    branch: "feature",
+                },
+                action: { kind: "createPullRequest", draft: true },
+            })
+        ).resolves.toEqual({
+            prompt: "# Pull Request Creation\nCreate a fake Azure DevOps pull request.",
+            requiredTool: "create_ado_pull_request",
+        });
+        expect(onAction).toHaveBeenCalledWith({
+            target: {
+                workspaceId: "workspace-1",
+                sessionId: "product-session-1",
+                repositoryPath: "C:\\src\\repo",
+                worktreePath: "C:\\src\\worktree",
+                branch: "feature",
+            },
+            kind: "createPullRequest",
+            draft: true,
+            signal: expect.any(AbortSignal),
+        });
+        expect(onAction.mock.calls[0]![0]).not.toHaveProperty("appSessionId");
+
+        await activation.dispose();
+        expect(session.clientSessionApis.appSessionBadges).toBeUndefined();
+    });
+
+    it("rejects malformed action results and continues serving later callbacks", async () => {
+        const { session } = arrange();
+        const delegate = {
+            snapshot: undefined,
+            onSnapshot: vi.fn(() => vi.fn()),
+            dispose: vi.fn(),
+        } as unknown as AppSessionBadgesExtension;
+        vi.spyOn(CopilotClient.prototype, "registerAppSessionBadges").mockResolvedValue(delegate);
+        const onAction = vi
+            .fn()
+            .mockImplementationOnce(() => {
+                throw new Error("sync failure");
+            })
+            .mockRejectedValueOnce(new Error("async failure"))
+            .mockReturnValueOnce({
+                prompt: `# Pull Request Creation\n${"x".repeat(32 * 1024)}`,
+                requiredTool: "create_ado_pull_request",
+            })
+            .mockReturnValueOnce({
+                prompt: "# Pull Request Creation\nCreate it.",
+                requiredTool: "not a valid tool",
+            })
+            .mockReturnValue({
+                prompt: "# Pull Request Creation\nCreate it.",
+                requiredTool: "create_ado_pull_request",
+            });
+        const activation = await defineAppExtension(async (host) => {
+            await host.sessionBadges.register({ onAction });
+        });
+        const invoke = () =>
+            session.clientSessionApis.appSessionBadges!.invoke({
+                sessionId: "hidden-app-session",
+                protocolVersion: 1,
+                contributionId: "github-pr",
+                target: {
+                    workspaceId: "workspace-1",
+                    sessionId: "product-session-1",
+                    repositoryPath: "C:\\src\\repo",
+                    worktreePath: "C:\\src\\worktree",
+                },
+                action: { kind: "createPullRequest", draft: false },
+            });
+
+        await expect(invoke()).rejects.toThrow("sync failure");
+        await expect(invoke()).rejects.toThrow("async failure");
+        await expect(invoke()).rejects.toThrow("must not exceed 32768 bytes");
+        await expect(invoke()).rejects.toThrow("not a valid tool identifier");
+        await expect(invoke()).resolves.toEqual({
+            prompt: "# Pull Request Creation\nCreate it.",
+            requiredTool: "create_ado_pull_request",
+        });
+
+        await activation.dispose();
+    });
+
+    it("cancels badge actions on peer cancellation and activation disposal", async () => {
+        const { session } = arrange();
+        const delegate = {
+            snapshot: undefined,
+            onSnapshot: vi.fn(() => vi.fn()),
+            dispose: vi.fn(),
+        } as unknown as AppSessionBadgesExtension;
+        vi.spyOn(CopilotClient.prototype, "registerAppSessionBadges").mockResolvedValue(delegate);
+        const signals: AbortSignal[] = [];
+        const resolvers: Array<() => void> = [];
+        const activation = await defineAppExtension(async (host) => {
+            await host.sessionBadges.register({
+                onAction: ({ signal }) =>
+                    new Promise((resolve) => {
+                        signals.push(signal);
+                        resolvers.push(() =>
+                            resolve({
+                                prompt: "# Pull Request Creation\nCreate it.",
+                                requiredTool: "create_ado_pull_request",
+                            })
+                        );
+                    }),
+            });
+        });
+        const params = {
+            sessionId: "hidden-app-session",
+            protocolVersion: 1 as const,
+            contributionId: "github-pr",
+            target: {
+                workspaceId: "workspace-1",
+                sessionId: "product-session-1",
+                repositoryPath: "C:\\src\\repo",
+                worktreePath: "C:\\src\\worktree",
+            },
+            action: { kind: "createPullRequest" as const, draft: false },
+        };
+        const cancellation = new CancellationTokenSource();
+        const first = session.clientSessionApis.appSessionBadges!.invoke(
+            params,
+            cancellation.token
+        );
+        await vi.waitFor(() => expect(signals).toHaveLength(1));
+        cancellation.cancel();
+        expect(signals[0]!.aborted).toBe(true);
+        resolvers[0]!();
+        await expect(first).resolves.toBeDefined();
+        cancellation.dispose();
+
+        const second = session.clientSessionApis.appSessionBadges!.invoke(params);
+        await vi.waitFor(() => expect(signals).toHaveLength(2));
+        const disposal = activation.dispose();
+        expect(signals[1]!.aborted).toBe(true);
+        resolvers[1]!();
+        await expect(second).resolves.toBeDefined();
+        await disposal;
+        expect(session.clientSessionApis.appSessionBadges).toBeUndefined();
     });
 
     it("aborts cancellation and runs cleanup once on explicit disposal", async () => {
@@ -664,6 +949,9 @@ describe("defineAppExtension", () => {
 
         await expect(badgesHost!.register({ onSnapshot: "invalid" } as never)).rejects.toThrow(
             "onSnapshot must be a function"
+        );
+        await expect(badgesHost!.register({ onAction: "invalid" } as never)).rejects.toThrow(
+            "onAction must be a function"
         );
         expect(registerDelegate).not.toHaveBeenCalled();
 
@@ -942,5 +1230,22 @@ describe("defineAppExtension", () => {
         expect(packageJson.exports["./private/app-extension"]).toBeDefined();
         expect(packageJson.exports["."]).not.toHaveProperty("defineAppExtension");
         expect(packageJson.exports["./extension"]).not.toHaveProperty("defineAppExtension");
+    });
+
+    it("generates the exact private presentation and action RPC names", () => {
+        const generated = readFileSync(
+            resolve(import.meta.dirname, "..", "src", "generated", "rpc.ts"),
+            "utf8"
+        );
+
+        for (const method of [
+            "extensions.appSessionBadges.setPresentation",
+            "extensions.appSessionBadges.setPresentations",
+            "extensions.appSessionBadges.action.invoke",
+            "appSessionBadges.action.invoke",
+        ]) {
+            expect(generated).toContain(`"${method}"`);
+        }
+        expect(generated).toContain("export interface AppSessionPresentationChangedEventData");
     });
 });

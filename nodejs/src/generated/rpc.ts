@@ -3996,6 +3996,14 @@ export type AppExtensionContributionPoint = "sessionBadges" | "canvases" | "forg
 /** @experimental */
 export type AccountGetAllUsersResult = AccountAllUsers[];
 /**
+ * AppSessionActionResult or null when the extension declines the action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionsAppSessionBadgesActionInvokeResult".
+ */
+/** @experimental */
+export type ExtensionsAppSessionBadgesActionInvokeResult = JsonValue;
+/**
  * Serializable action result.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4043,6 +4051,14 @@ export type SessionGitHubAuthLogoutResult = boolean;
  */
 /** @experimental */
 export type SessionGitHubAuthLogoutUserResult = boolean;
+/**
+ * AppSessionActionResult or null when the extension declines the action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionBadgesActionInvokeResult".
+ */
+/** @experimental */
+export type AppSessionBadgesActionInvokeResult = JsonValue;
 /**
  * Serializable action result.
  *
@@ -23723,6 +23739,181 @@ export interface AppExtensionContributionTarget {
   contributionId: string;
 }
 /**
+ * Exact app-visible session target from the current eligible-session snapshot.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPresentationTarget".
+ */
+/** @experimental */
+export interface AppSessionPresentationTarget {
+  workspaceId: string;
+  sessionId: string;
+  repositoryPath: string;
+  worktreePath: string;
+  branch?: string;
+}
+/**
+ * Constrained pull-request identity presentation contributed for one eligible app session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionBadgePresentation".
+ */
+/** @experimental */
+export interface AppSessionBadgePresentation {
+  state: "draft" | "open" | "merged" | "closed";
+  label?: string;
+}
+/**
+ * Constrained Create Pull Request action state contributed for one eligible app session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPullRequestAction".
+ */
+/** @experimental */
+export interface AppSessionPullRequestAction {
+  kind: "createPullRequest";
+  state: "available" | "inProgress";
+  supportsDraft: boolean;
+}
+/**
+ * Atomic extension-provided badge and Create Pull Request action presentation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPresentation".
+ */
+/** @experimental */
+export interface AppSessionPresentation {
+  badge: AppSessionBadgePresentation | null;
+  action: AppSessionPullRequestAction | null;
+}
+/**
+ * One ordered atomic presentation replacement for an eligible app session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPresentationUpdate".
+ */
+/** @experimental */
+export interface AppSessionPresentationUpdate {
+  workspaceId: string;
+  sessionId: string;
+  presentation: AppSessionPresentation;
+}
+/**
+ * Publishes one atomic badge and action presentation for an eligible app session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionSetPresentationRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppSessionSetPresentationRequest {
+  protocolVersion: 1;
+  workspaceId: string;
+  sessionId: string;
+  presentation: AppSessionPresentation;
+}
+/**
+ * Publishes an ordered batch of atomic badge and action presentations.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionSetPresentationsRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppSessionSetPresentationsRequest {
+  protocolVersion: 1;
+  /**
+   * @minItems 1
+   * @maxItems 1024
+   */
+  updates: [AppSessionPresentationUpdate, ...AppSessionPresentationUpdate[]];
+}
+/**
+ * Create Pull Request action selected by the app host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPullRequestActionInvocation".
+ */
+/** @experimental */
+export interface AppSessionPullRequestActionInvocation {
+  kind: "createPullRequest";
+  draft: boolean;
+}
+/**
+ * Create Pull Request callback routed to the owning app extension.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionActionCallbackRequest".
+ */
+/** @experimental */
+export interface AppSessionActionCallbackRequest {
+  sessionId: string;
+  protocolVersion: 1;
+  contributionId: string;
+  target: AppSessionPresentationTarget;
+  action: AppSessionPullRequestActionInvocation;
+}
+/**
+ * Bounded extension-authored prompt and required session tool for a Create Pull Request action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionActionResult".
+ */
+export interface AppSessionActionResult {
+  prompt: string;
+  requiredTool: string;
+}
+/**
+ * Trusted app-host request to invoke a Create Pull Request action on its owning extension contribution.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionActionHostRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppSessionActionHostRequest {
+  appSessionId: string;
+  protocolVersion: 1;
+  packageId: string;
+  activationId: string;
+  contributionId: string;
+  target: AppSessionPresentationTarget;
+  action: AppSessionPullRequestActionInvocation;
+}
+/**
+ * Authenticated provider presentation update emitted on the retained hidden app session. A null presentation resets provider state.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPresentationChangedEventData".
+ */
+export interface AppSessionPresentationChangedEventData {
+  protocolVersion: 1;
+  extensionId: string;
+  packageId: string;
+  activationId: string;
+  contributionId: string;
+  workspaceId: string;
+  sessionId: string;
+  presentation: AppSessionPresentation | null;
+}
+/**
+ * Bounded generic action descriptor rendered by the trusted app host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasActionDescriptor".
+ */
+/** @experimental */
+export interface AppCanvasActionDescriptor {
+  name: string;
+  label: string;
+  /**
+   * Serializable action input returned when the action is selected.
+   */
+  input?: JsonValue;
+  variant?: "default" | "primary" | "danger";
+  disabled?: boolean;
+}
+/**
  * Trusted project context supplied by the app host to an app-scoped canvas.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -23814,6 +24005,10 @@ export interface AppCanvasOpenResult {
   state?: JsonValue;
   title?: string;
   status?: string;
+  /**
+   * @maxItems 32
+   */
+  actions?: AppCanvasActionDescriptor[];
 }
 /**
  * Trusted app-host request to open an app-extension canvas.
@@ -24889,6 +25084,35 @@ export function createInternalServerRpc(connection: MessageConnection) {
                  */
                 register: async (params: AppExtensionRegisterRequest): Promise<AppExtensionRegisterResult> =>
                     connection.sendRequest("extensions.appExtension.register", params),
+            },
+            /** @experimental */
+            appSessionBadges: {
+                /**
+                 * Publishes one atomic badge and Create Pull Request action presentation.
+                 *
+                 * @param params Publishes one atomic badge and action presentation for an eligible app session.
+                 */
+                setPresentation: async (params: AppSessionSetPresentationRequest): Promise<void> =>
+                    connection.sendRequest("extensions.appSessionBadges.setPresentation", params),
+                /**
+                 * Publishes an ordered atomic batch of badge and Create Pull Request action presentations.
+                 *
+                 * @param params Publishes an ordered batch of atomic badge and action presentations.
+                 */
+                setPresentations: async (params: AppSessionSetPresentationsRequest): Promise<void> =>
+                    connection.sendRequest("extensions.appSessionBadges.setPresentations", params),
+                /** @experimental */
+                action: {
+                    /**
+                     * Routes a trusted app-host Create Pull Request action to its owning extension contribution.
+                     *
+                     * @param params Trusted app-host request to invoke a Create Pull Request action on its owning extension contribution.
+                     *
+                     * @returns AppSessionActionResult or null when the extension declines the action.
+                     */
+                    invoke: async (params: AppSessionActionHostRequest): Promise<ExtensionsAppSessionBadgesActionInvokeResult> =>
+                        connection.sendRequest("extensions.appSessionBadges.action.invoke", params),
+                },
             },
             /** @experimental */
             appCanvas: {
@@ -27529,6 +27753,19 @@ export interface CanvasHandler {
     invoke(params: CanvasProviderInvokeActionRequest): Promise<CanvasActionInvokeResult>;
 }
 
+/** Handler for `appSessionBadges` client session API methods. */
+/** @experimental */
+export interface AppSessionBadgesHandler {
+    /**
+     * Invokes a Create Pull Request action on the owning app-extension contribution.
+     *
+     * @param params Create Pull Request callback routed to the owning app extension.
+     *
+     * @returns AppSessionActionResult or null when the extension declines the action.
+     */
+    invoke(params: AppSessionActionCallbackRequest, cancellation?: CancellationToken): Promise<AppSessionBadgesActionInvokeResult>;
+}
+
 /** Handler for `appCanvas` client session API methods. */
 /** @experimental */
 export interface AppCanvasHandler {
@@ -27589,6 +27826,7 @@ export interface ClientSessionApiHandlers {
     tasks?: TasksHandler;
     sessionFs?: SessionFsHandler;
     canvas?: CanvasHandler;
+    appSessionBadges?: AppSessionBadgesHandler;
     appCanvas?: AppCanvasHandler;
     appForgeProvider?: AppForgeProviderHandler;
     appForgeHost?: AppForgeHostHandler;
@@ -27703,6 +27941,11 @@ export function registerClientSessionApiHandlers(
         const handler = getHandlers(params.sessionId).canvas;
         if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
         return handler.invoke(params);
+    });
+    connection.onRequest("appSessionBadges.action.invoke", async (params: AppSessionActionCallbackRequest, cancellation: CancellationToken) => {
+        const handler = getHandlers(params.sessionId).appSessionBadges;
+        if (!handler) throw new Error(`No appSessionBadges handler registered for session: ${params.sessionId}`);
+        return handler.invoke(params, cancellation);
     });
     connection.onRequest("appCanvas.open", async (params: AppCanvasOpenCallbackRequest, cancellation: CancellationToken) => {
         const handler = getHandlers(params.sessionId).appCanvas;

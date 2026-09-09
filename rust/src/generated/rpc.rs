@@ -611,6 +611,13 @@ impl<'a> ClientRpcExtensions<'a> {
         }
     }
 
+    /// `extensions.appSessionBadges.*` sub-namespace.
+    pub fn app_session_badges(&self) -> ClientRpcExtensionsAppSessionBadges<'a> {
+        ClientRpcExtensionsAppSessionBadges {
+            client: self.client,
+        }
+    }
+
     /// Discovers user and enabled installed-plugin extensions from persisted Copilot home state, including enablement preferences. Launch-scoped additional plugins are not included.
     ///
     /// Wire method: `extensions.discover`.
@@ -1017,6 +1024,123 @@ impl<'a> ClientRpcExtensionsAppForge<'a> {
         let _value = self
             .client
             .call(rpc_methods::EXTENSIONS_APPFORGE_FETCH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `extensions.appSessionBadges.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcExtensionsAppSessionBadges<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcExtensionsAppSessionBadges<'a> {
+    /// `appSessionBadges.action.*` sub-namespace.
+    pub fn action(&self) -> ClientRpcExtensionsAppSessionBadgesAction<'a> {
+        ClientRpcExtensionsAppSessionBadgesAction {
+            client: self.client,
+        }
+    }
+
+    /// Publishes one atomic badge and Create Pull Request action presentation.
+    ///
+    /// Wire method: `extensions.appSessionBadges.setPresentation`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Publishes one atomic badge and action presentation for an eligible app session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn set_presentation(
+        &self,
+        params: AppSessionSetPresentationRequest,
+    ) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPSESSIONBADGES_SETPRESENTATION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Publishes an ordered atomic batch of badge and Create Pull Request action presentations.
+    ///
+    /// Wire method: `extensions.appSessionBadges.setPresentations`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Publishes an ordered batch of atomic badge and action presentations.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn set_presentations(
+        &self,
+        params: AppSessionSetPresentationsRequest,
+    ) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPSESSIONBADGES_SETPRESENTATIONS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+}
+
+/// `appSessionBadges.action.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcExtensionsAppSessionBadgesAction<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcExtensionsAppSessionBadgesAction<'a> {
+    /// Routes a trusted app-host Create Pull Request action to its owning extension contribution.
+    ///
+    /// Wire method: `extensions.appSessionBadges.action.invoke`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Trusted app-host request to invoke a Create Pull Request action on its owning extension contribution.
+    ///
+    /// # Returns
+    ///
+    /// AppSessionActionResult or null when the extension declines the action.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn invoke(
+        &self,
+        params: AppSessionActionHostRequest,
+    ) -> Result<serde_json::Value, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPSESSIONBADGES_ACTION_INVOKE,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

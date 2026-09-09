@@ -35,9 +35,16 @@ try {
                 }
                 if (snapshot.sessions.length > 0 && process.env.APP_EXTENSION_BADGE_UPDATES) {
                     await badges.setBadges(JSON.parse(process.env.APP_EXTENSION_BADGE_UPDATES));
+                    await badges.setPresentations(
+                        JSON.parse(process.env.APP_EXTENSION_PRESENTATION_UPDATES)
+                    );
                     record(process.env.APP_EXTENSION_BATCH_SENT_FILE, "sent");
                 }
             },
+            onAction: ({ target, draft }) => ({
+                prompt: `# Pull Request Creation\nCreate a fake${draft ? " draft" : ""} pull request for ${target.branch ?? target.workspaceId}.`,
+                requiredTool: "create_ado_pull_request",
+            }),
         });
         const canvas = await host.canvases.register({
             contributionId: contributionId("canvases"),
@@ -45,6 +52,14 @@ try {
                 state: { instanceId, input, context },
                 title: "Repository overview",
                 status: "Ready",
+                actions: [
+                    {
+                        name: "create",
+                        label: "Create pull request",
+                        input: { draft: false },
+                        variant: "primary",
+                    },
+                ],
             }),
             onAction: ({ actionName, input }) => ({ actionName, input }),
         });

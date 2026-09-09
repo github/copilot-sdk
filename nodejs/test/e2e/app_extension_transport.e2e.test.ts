@@ -59,6 +59,20 @@ it("transports private app extension badges, canvases, forge operations, and med
             badge: null,
         },
     ];
+    const presentationUpdates = [
+        {
+            workspaceId: "workspace-0",
+            sessionId: "visible-session-0",
+            presentation: {
+                badge: { state: "open", label: "Open" },
+                action: {
+                    kind: "createPullRequest",
+                    state: "available",
+                    supportsDraft: true,
+                },
+            },
+        },
+    ];
     const child = spawn(process.execPath, [FIXTURE], {
         stdio: ["pipe", "pipe", "pipe"],
         env: {
@@ -70,6 +84,7 @@ it("transports private app extension badges, canvases, forge operations, and med
             APP_EXTENSION_ERROR_FILE: errorFile,
             APP_EXTENSION_BATCH_SENT_FILE: batchSentFile,
             APP_EXTENSION_BADGE_UPDATES: JSON.stringify(badgeUpdates),
+            APP_EXTENSION_PRESENTATION_UPDATES: JSON.stringify(presentationUpdates),
         },
     });
     const stderr: string[] = [];
@@ -120,6 +135,10 @@ it("transports private app extension badges, canvases, forge operations, and med
     });
     connection.onRequest("extensions.appSessionBadges.setBadges", (params: unknown) => {
         requests.push({ method: "extensions.appSessionBadges.setBadges", params });
+        return null;
+    });
+    connection.onRequest("extensions.appSessionBadges.setPresentations", (params: unknown) => {
+        requests.push({ method: "extensions.appSessionBadges.setPresentations", params });
         return null;
     });
     connection.onRequest("extensions.appCanvas.register", (params: unknown) => {
@@ -225,6 +244,14 @@ it("transports private app extension badges, canvases, forge operations, and med
             },
             title: "Repository overview",
             status: "Ready",
+            actions: [
+                {
+                    name: "create",
+                    label: "Create pull request",
+                    input: { draft: false },
+                    variant: "primary",
+                },
+            ],
         });
         await expect(
             connection.sendRequest("appCanvas.action.invoke", {
@@ -239,6 +266,18 @@ it("transports private app extension badges, canvases, forge operations, and med
         ).resolves.toEqual({
             actionName: "select",
             input: { number: 2574 },
+        });
+        await expect(
+            connection.sendRequest("appSessionBadges.action.invoke", {
+                sessionId: "hidden-app-session",
+                protocolVersion: 1,
+                contributionId: "github-pr",
+                target: snapshot.sessions[0],
+                action: { kind: "createPullRequest", draft: true },
+            })
+        ).resolves.toEqual({
+            prompt: `# Pull Request Creation\nCreate a fake draft pull request for ${snapshot.sessions[0]!.branch}.`,
+            requiredTool: "create_ado_pull_request",
         });
         await expect(
             connection.sendRequest("appForge.invoke", {
@@ -271,6 +310,10 @@ it("transports private app extension badges, canvases, forge operations, and med
                 expect(requests).toContainEqual({
                     method: "extensions.appSessionBadges.setBadges",
                     params: { protocolVersion: 1, updates: badgeUpdates },
+                });
+                expect(requests).toContainEqual({
+                    method: "extensions.appSessionBadges.setPresentations",
+                    params: { protocolVersion: 1, updates: presentationUpdates },
                 });
                 expect(requests).toContainEqual({
                     method: "extensions.appForge.fetch",
@@ -316,7 +359,7 @@ it("transports private app extension badges, canvases, forge operations, and med
                 "signal",
             ],
             contributions: {
-                badges: ["identity"],
+                badges: ["identity", "onAction"],
                 canvas: ["identity"],
                 forge: ["identity", "operations"],
             },

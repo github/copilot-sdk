@@ -5489,6 +5489,10 @@ pub struct MessageOptions {
     pub tracestate: Option<String>,
     /// If provided, this is shown in the timeline instead of `prompt`.
     pub display_prompt: Option<String>,
+    /// Require this tool to be available for the turn.
+    ///
+    /// The request fails before execution when the named tool is unavailable.
+    pub required_tool: Option<String>,
 }
 
 impl MessageOptions {
@@ -5504,6 +5508,7 @@ impl MessageOptions {
             traceparent: None,
             tracestate: None,
             display_prompt: None,
+            required_tool: None,
         }
     }
 
@@ -5568,6 +5573,12 @@ impl MessageOptions {
     /// Set the display prompt shown in the timeline instead of `prompt`.
     pub fn with_display_prompt(mut self, display_prompt: impl Into<String>) -> Self {
         self.display_prompt = Some(display_prompt.into());
+        self
+    }
+
+    /// Require this tool to be available for the turn.
+    pub fn with_required_tool(mut self, required_tool: impl Into<String>) -> Self {
+        self.required_tool = Some(required_tool.into());
         self
     }
 }
