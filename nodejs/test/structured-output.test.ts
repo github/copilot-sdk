@@ -230,6 +230,31 @@ describe("structured output", () => {
         await assertion;
     });
 
+    it("does not treat a final-reply flag as successful completion", async () => {
+        const { session, sends } = controlledSession();
+        const pending = session.sendAndWait("question", answer);
+        const assertion = expect(pending).rejects.toThrow("post-response failure");
+        await sent(sends);
+        session._dispatchEvent(user("one"));
+        session._dispatchEvent(
+            event("assistant.message", {
+                messageId: "final-reply",
+                originatingMessageId: "one",
+                isFinalReply: true,
+                content: '{"answer":42}',
+            })
+        );
+        session._dispatchEvent(
+            event("session.error", {
+                errorType: "query",
+                message: "post-response failure",
+            })
+        );
+        session._dispatchEvent(event("session.idle", {}));
+        sends[0].resolve({ messageId: "one" });
+        await assertion;
+    });
+
     it("rejects promptly when the session disconnects", async () => {
         const { session, sends } = controlledSession();
         const pending = session.sendAndWait("question", answer);

@@ -74,7 +74,7 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
         var completion = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = session.On<AssistantMessageEvent>(message =>
         {
-            if (message.Data.ToolRequests is not { Length: > 0 })
+            if (message.Data.IsFinalReply == true)
             {
                 completion.TrySetResult(message);
             }
@@ -97,6 +97,7 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
         using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         var message = await completion.Task.WaitAsync(cts.Token);
         Assert.Equal(accepted.MessageIds.Last(), message.Data.OriginatingMessageId);
+        Assert.True(message.Data.IsFinalReply);
         var result = JsonSerializer.Deserialize(message.Data.Content, StructuredOutputE2EJsonContext.Default.Inventory);
         Assert.NotNull(result);
         Assert.Equal(42, result.Count);
@@ -108,10 +109,84 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
             ResponseSchema = schema.RootElement.Clone(),
         }, TimeSpan.FromMinutes(3));
         Assert.NotNull(raw);
+        Assert.True(raw.Data.IsFinalReply);
         var updated = JsonSerializer.Deserialize(raw.Data.Content, StructuredOutputE2EJsonContext.Default.Inventory);
         Assert.NotNull(updated);
         Assert.Equal(21, updated.Count);
         Assert.Equal("blue", updated.Color);
+    }
+
+    [Fact]
+    public async Task Send_Exposes_Final_Reply_Before_Stop_Hook_Completes()
+    {
+        var hookEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseHook = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var config = StructuredSessionConfig();
+        config.Tools =
+        [
+            CopilotTool.DefineTool(() => "The inventory contains 42 red widgets.",
+                factoryOptions: new() { Name = "read_inventory", Description = "Read the current widget count and color." }),
+        ];
+        config.Hooks = new SessionHooks
+        {
+            OnAgentStop = async (_, _) =>
+            {
+                hookEntered.TrySetResult();
+                await releaseHook.Task;
+                return null;
+            },
+        };
+        var session = await CreateSessionAsync(config);
+        var replyReceived = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var idleReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var replies = new System.Collections.Concurrent.ConcurrentQueue<AssistantMessageEvent>();
+        using var subscription = session.On<SessionEvent>(evt =>
+        {
+            if (!string.IsNullOrEmpty(evt.AgentId)) return;
+            switch (evt)
+            {
+                case AssistantMessageEvent message:
+                    replies.Enqueue(message);
+                    if (message.Data.IsFinalReply == true) replyReceived.TrySetResult(message);
+                    break;
+                case SessionErrorEvent error:
+                    replyReceived.TrySetException(new InvalidOperationException(error.Data.Message));
+                    break;
+                case SessionIdleEvent:
+                    idleReceived.TrySetResult();
+                    break;
+            }
+        });
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        using var schema = JsonDocument.Parse(
+            """{"type":"object","properties":{"count":{"type":"integer"},"color":{"type":"string"}},"required":["count","color"],"additionalProperties":false}""");
+        try
+        {
+            var messageId = await session.SendAsync(new MessageOptions
+            {
+                Prompt = "Call read_inventory once, then report the current widget count and color.",
+                ResponseSchema = schema.RootElement.Clone(),
+            }, cts.Token);
+            var reply = await replyReceived.Task.WaitAsync(cts.Token);
+            await hookEntered.Task.WaitAsync(cts.Token);
+            Assert.Equal(messageId, reply.Data.OriginatingMessageId);
+            var result = JsonSerializer.Deserialize(reply.Data.Content, StructuredOutputE2EJsonContext.Default.Inventory);
+            Assert.NotNull(result);
+            Assert.Equal(42, result.Count);
+            Assert.Equal("red", result.Color);
+            Assert.False(idleReceived.Task.IsCompleted);
+            Assert.Same(reply, Assert.Single(replies, message => message.Data.IsFinalReply == true));
+            Assert.Contains(replies, message => message.Data.ToolRequests is { Length: > 0 });
+            Assert.Empty(reply.Data.ToolRequests ?? []);
+
+            releaseHook.TrySetResult();
+            await idleReceived.Task.WaitAsync(cts.Token);
+            Assert.Same(reply, replies.Last());
+        }
+        finally
+        {
+            releaseHook.TrySetResult();
+        }
     }
 
     [Fact]

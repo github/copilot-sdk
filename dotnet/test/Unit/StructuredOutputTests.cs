@@ -383,6 +383,36 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task StructuredOutput_Final_Reply_Does_Not_Hide_Later_Session_Errors()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var task = session.SendAndWaitAsync<StructuredAnswer>("Answer", StructuredOutputJsonContext.Default.Options);
+        await WaitForRequestAsync(server, "session.send");
+        await server.SendSessionEventAsync(session.SessionId, "user.message", new()
+        {
+            ["messageId"] = "message-1",
+            ["content"] = "Answer",
+        });
+        await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+        {
+            ["messageId"] = "final-reply",
+            ["originatingMessageId"] = "message-1",
+            ["isFinalReply"] = true,
+            ["content"] = """{"answer_text":"correct","count":42}""",
+        });
+        await server.SendSessionEventAsync(session.SessionId, "session.error", new()
+        {
+            ["errorType"] = "query",
+            ["message"] = "post-response failure",
+        });
+        await server.SendSessionEventAsync(session.SessionId, "session.idle", new());
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Contains("post-response failure", error.Message);
+    }
+
+    [Fact]
     public async Task StructuredOutput_Can_Correlate_Without_User_Message_Event()
     {
         await using var server = await FakeCopilotServer.StartAsync();

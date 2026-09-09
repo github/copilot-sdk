@@ -333,6 +333,15 @@ unchanged with the name `response` and `strict: true`. The untyped
 or deserialize the response. Schema-bearing waits use the same message
 correlation as typed waits; unformatted waits retain their existing behavior.
 
+With `SendAsync`, consume `AssistantMessageEvent` events whose
+`Data.IsFinalReply == true` and `Data.OriginatingMessageId` matches the returned
+message ID. This identifies the final reply to parse without waiting for idle.
+Subscribe before sending because events can precede the send acknowledgement.
+Tool-call messages are not marked final, and only the last message of a
+multi-message terminal response is marked. This optional flag does not guarantee
+successful completion: hooks and other processing can still produce a later
+`SessionErrorEvent`. `SendAndWaitAsync` retains its wait-for-idle behavior.
+
 ```csharp
 using var schema = System.Text.Json.JsonDocument.Parse("""
     {"type":"object","properties":{"count":{"type":"integer"}},"required":["count"],"additionalProperties":false}
