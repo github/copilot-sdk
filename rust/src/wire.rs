@@ -75,6 +75,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_extensions: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_extension_package_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_sdk_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_info: Option<ExtensionInfo>,
@@ -234,6 +236,8 @@ pub(crate) struct SessionResumeWire {
     pub request_canvas_renderer: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_extensions: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_extension_package_ids: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_sdk_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

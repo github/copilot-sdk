@@ -147,6 +147,7 @@ fn extracted_program(_use_runtime_wrapper: bool) -> Option<PathBuf> {
     None
 }
 
+#[cfg(any(feature = "bundled-cli", has_extracted_cli, test))]
 fn validate_runtime_pair(wrapper: &Path) -> Result<(), Error> {
     let wrapper_valid = wrapper
         .metadata()

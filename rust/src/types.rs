@@ -1977,6 +1977,10 @@ pub struct SessionConfig {
     pub request_canvas_renderer: Option<bool>,
     /// Request extension tools and dispatch for this connection.
     pub request_extensions: Option<bool>,
+    /// Package IDs whose trusted app-scoped activations may run in this
+    /// session. Intended for app hosts that discover bundled packages.
+    #[doc(hidden)]
+    pub app_extension_package_ids: Option<Vec<String>>,
     /// Optional override path to a `copilot-sdk/` folder to inject into
     /// extension subprocesses for this session. Invalid paths fall back
     /// to the bundled SDK; takes precedence over the host's default.
@@ -2310,6 +2314,7 @@ impl std::fmt::Debug for SessionConfig {
             )
             .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("request_extensions", &self.request_extensions)
+            .field("app_extension_package_ids", &self.app_extension_package_ids)
             .field("extension_sdk_path", &self.extension_sdk_path)
             .field("extension_info", &self.extension_info)
             .field("canvas_provider", &self.canvas_provider)
@@ -2450,6 +2455,7 @@ impl Default for SessionConfig {
             canvas_handler: None,
             request_canvas_renderer: None,
             request_extensions: None,
+            app_extension_package_ids: None,
             extension_sdk_path: None,
             extension_info: None,
             canvas_provider: None,
@@ -2619,6 +2625,7 @@ impl SessionConfig {
             canvases: wire_canvases,
             request_canvas_renderer: self.request_canvas_renderer,
             request_extensions: self.request_extensions,
+            app_extension_package_ids: self.app_extension_package_ids,
             extension_sdk_path: self.extension_sdk_path,
             extension_info: self.extension_info,
             canvas_provider: self.canvas_provider,
@@ -2897,6 +2904,17 @@ impl SessionConfig {
     /// Request extension tools and dispatch for this connection.
     pub fn with_request_extensions(mut self, request: bool) -> Self {
         self.request_extensions = Some(request);
+        self
+    }
+
+    /// Set trusted app-extension package IDs available to this session.
+    #[doc(hidden)]
+    pub fn with_app_extension_package_ids<I, S>(mut self, package_ids: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.app_extension_package_ids = Some(package_ids.into_iter().map(Into::into).collect());
         self
     }
 
@@ -3417,6 +3435,9 @@ pub struct ResumeSessionConfig {
     pub request_canvas_renderer: Option<bool>,
     /// Request extension tools and dispatch for this connection.
     pub request_extensions: Option<bool>,
+    /// Re-supply trusted app-extension package IDs on resume.
+    #[doc(hidden)]
+    pub app_extension_package_ids: Option<Vec<String>>,
     /// Optional override path to a `copilot-sdk/` folder to inject into
     /// extension subprocesses for this session on resume. See
     /// `SessionConfig::extension_sdk_path`.
@@ -3663,6 +3684,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("open_canvases", &self.open_canvases)
             .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("request_extensions", &self.request_extensions)
+            .field("app_extension_package_ids", &self.app_extension_package_ids)
             .field("extension_sdk_path", &self.extension_sdk_path)
             .field("extension_info", &self.extension_info)
             .field("canvas_provider", &self.canvas_provider)
@@ -3845,6 +3867,7 @@ impl ResumeSessionConfig {
             open_canvases: self.open_canvases,
             request_canvas_renderer: self.request_canvas_renderer,
             request_extensions: self.request_extensions,
+            app_extension_package_ids: self.app_extension_package_ids,
             extension_sdk_path: self.extension_sdk_path,
             extension_info: self.extension_info,
             canvas_provider: self.canvas_provider,
@@ -3954,6 +3977,7 @@ impl ResumeSessionConfig {
             open_canvases: None,
             request_canvas_renderer: None,
             request_extensions: None,
+            app_extension_package_ids: None,
             extension_sdk_path: None,
             extension_info: None,
             canvas_provider: None,
@@ -4209,6 +4233,17 @@ impl ResumeSessionConfig {
     /// Request extension tools and dispatch for this connection on resume.
     pub fn with_request_extensions(mut self, request: bool) -> Self {
         self.request_extensions = Some(request);
+        self
+    }
+
+    /// Re-supply trusted app-extension package IDs on resume.
+    #[doc(hidden)]
+    pub fn with_app_extension_package_ids<I, S>(mut self, package_ids: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.app_extension_package_ids = Some(package_ids.into_iter().map(Into::into).collect());
         self
     }
 
@@ -6466,6 +6501,64 @@ mod tests {
     }
 
     #[test]
+    fn app_extension_package_ids_serialize_on_create_and_resume() {
+        let package_ids = ["github.app.pr-badges", "github.app.checks"];
+        assert_eq!(SessionConfig::default().app_extension_package_ids, None);
+        assert_eq!(
+            ResumeSessionConfig::new(SessionId::from("default-resume")).app_extension_package_ids,
+            None
+        );
+
+        let create_config = SessionConfig::default().with_app_extension_package_ids(package_ids);
+        assert!(format!("{create_config:?}").contains("app_extension_package_ids"));
+        let create = create_config
+            .into_wire(Some(SessionId::from("create-app-extensions")))
+            .expect("create config has no duplicate handlers")
+            .0;
+        let create_json = serde_json::to_value(&create).unwrap();
+        assert_eq!(
+            create_json["appExtensionPackageIds"],
+            json!(["github.app.pr-badges", "github.app.checks"])
+        );
+
+        let resume_config = ResumeSessionConfig::new(SessionId::from("resume-app-extensions"))
+            .with_app_extension_package_ids(package_ids);
+        assert!(format!("{resume_config:?}").contains("app_extension_package_ids"));
+        let resume = resume_config
+            .into_wire()
+            .expect("resume config has no duplicate handlers")
+            .0;
+        let resume_json = serde_json::to_value(&resume).unwrap();
+        assert_eq!(
+            resume_json["appExtensionPackageIds"],
+            json!(["github.app.pr-badges", "github.app.checks"])
+        );
+
+        let unset_create = SessionConfig::default()
+            .into_wire(Some(SessionId::from("create-without-app-extensions")))
+            .expect("create config has no duplicate handlers")
+            .0;
+        assert!(
+            serde_json::to_value(&unset_create)
+                .unwrap()
+                .get("appExtensionPackageIds")
+                .is_none()
+        );
+
+        let unset_resume =
+            ResumeSessionConfig::new(SessionId::from("resume-without-app-extensions"))
+                .into_wire()
+                .expect("resume config has no duplicate handlers")
+                .0;
+        assert!(
+            serde_json::to_value(&unset_resume)
+                .unwrap()
+                .get("appExtensionPackageIds")
+                .is_none()
+        );
+    }
+
+    #[test]
     fn session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
         let cfg = SessionConfig::default().with_enable_mcp_apps(true);
         assert_eq!(cfg.enable_mcp_apps, Some(true));
@@ -7039,6 +7132,7 @@ mod tests {
             .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(false)
+            .with_app_extension_package_ids(["github.app.pr-badges"])
             .with_extension_info(ExtensionInfo::new("github-app", "counter"));
 
         assert_eq!(cfg.session_id.as_ref().map(|s| s.as_str()), Some("sess-1"));
@@ -7088,6 +7182,10 @@ mod tests {
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
         assert_eq!(
+            cfg.app_extension_package_ids.as_deref(),
+            Some(&["github.app.pr-badges".to_string()][..])
+        );
+        assert_eq!(
             cfg.extension_info,
             Some(ExtensionInfo::new("github-app", "counter"))
         );
@@ -7122,6 +7220,7 @@ mod tests {
             .with_include_sub_agent_streaming_events(true)
             .with_suppress_resume_event(true)
             .with_continue_pending_work(true)
+            .with_app_extension_package_ids(["github.app.pr-badges"])
             .with_extension_info(ExtensionInfo::new("github-app", "counter"));
 
         assert_eq!(cfg.session_id.as_str(), "sess-2");
@@ -7170,6 +7269,10 @@ mod tests {
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
         assert_eq!(cfg.suppress_resume_event, Some(true));
         assert_eq!(cfg.continue_pending_work, Some(true));
+        assert_eq!(
+            cfg.app_extension_package_ids.as_deref(),
+            Some(&["github.app.pr-badges".to_string()][..])
+        );
         assert_eq!(
             cfg.extension_info,
             Some(ExtensionInfo::new("github-app", "counter"))
