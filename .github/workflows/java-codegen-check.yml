@@ -10,6 +10,7 @@ on:
       - 'java/sdk/src/generated/**'
       - '.github/workflows/java-codegen-check.yml'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'nodejs/package.json'
       - 'java/scripts/codegen/**'
@@ -70,18 +71,18 @@ jobs:
             echo "✅ Generated files are up-to-date"
           fi
 
-      # --- On push to main: fail if generated files are stale (existing behavior) ---
-      - name: Fail on stale generated files (push to main)
-        if: steps.check-changes.outputs.changed == 'true' && github.event_name != 'pull_request'
+      # Drafts may intentionally target an unreleased schema; report drift without rewriting them.
+      - name: Fail on stale generated files without automatic updates
+        if: steps.check-changes.outputs.changed == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == true)
         run: |
           echo "::error::Generated files are out of date. Run 'cd java/scripts/codegen && npm run generate' and commit the changes."
           git diff
           exit 1
 
-      # --- On PR: commit regenerated files back and verify build ---
+      # --- On ready PRs: commit regenerated files back and verify build ---
       - name: Commit and push regenerated files to PR branch
         id: push-regen
-        if: steps.check-changes.outputs.changed == 'true' && github.event_name == 'pull_request'
+        if: steps.check-changes.outputs.changed == 'true' && github.event_name == 'pull_request' && github.event.pull_request.draft == false
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
