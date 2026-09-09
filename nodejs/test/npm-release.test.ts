@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
     assertPackageSetVersionAbsent,
-    assertPublishedIntegrity,
     assertVersionAbsent,
     publishManifest,
     publishTarball,
@@ -29,18 +28,12 @@ describe("npm release preflight", () => {
         ).resolves.toBeUndefined();
     });
 
-    it("accepts an existing package only when integrity matches", async () => {
-        const matching = vi.fn().mockResolvedValue(result(0, JSON.stringify(integrity)));
-        await expect(
-            assertPublishedIntegrity(packageName, version, integrity, registry, matching)
-        ).resolves.toBe("matching");
-
-        const conflicting = vi
-            .fn()
-            .mockResolvedValue(result(0, JSON.stringify("sha512-conflicting")));
-        await expect(
-            assertPublishedIntegrity(packageName, version, integrity, registry, conflicting)
-        ).rejects.toThrow("has integrity sha512-conflicting");
+    it("rejects an existing package version without reading registry integrity", async () => {
+        const existing = vi.fn().mockResolvedValue(result(0, JSON.stringify(version)));
+        await expect(assertVersionAbsent(packageName, version, registry, existing)).rejects.toThrow(
+            "already exists"
+        );
+        expect(existing.mock.calls[0][1][2]).toBe("version");
     });
 
     it("does not treat malformed or transient failures as absence", async () => {
@@ -65,37 +58,41 @@ describe("npm release preflight", () => {
 });
 
 describe("npm release publishing", () => {
-    it("verifies registry integrity after a normal publish", async () => {
-        const runner = vi
-            .fn()
-            .mockResolvedValueOnce(result(0))
-            .mockResolvedValueOnce(result(0, JSON.stringify(integrity)));
+    it("treats a successful publish as success without registry metadata", async () => {
+        const runner = vi.fn().mockResolvedValue(result(0));
         await expect(
             publishTarball("package.tgz", "unstable", registry, "public", identity, runner)
         ).resolves.toBeUndefined();
+        expect(runner).toHaveBeenCalledTimes(1);
     });
 
-    it("recovers a publication conflict only when registry integrity matches", async () => {
-        const runner = vi
-            .fn()
-            .mockResolvedValueOnce(result(1, "", "EPUBLISHCONFLICT"))
-            .mockResolvedValueOnce(result(0, JSON.stringify(integrity)));
+    it("accepts recognized immutable-version conflicts without registry integrity", async () => {
+        const runner = vi.fn().mockResolvedValue(result(1, "", "npm error code EPUBLISHCONFLICT"));
         await expect(
             publishTarball("package.tgz", "unstable", registry, "public", identity, runner)
         ).resolves.toBeUndefined();
+
+        runner.mockResolvedValue(
+            result(
+                1,
+                "",
+                "npm error 403 https://pkgs.dev.azure.com/example - The feed 'copilot-canary' already contains file 'package.tgz' in package '@github/copilot-sdk'."
+            )
+        );
+        await expect(
+            publishTarball("package.tgz", "canary", registry, "azure", identity, runner)
+        ).resolves.toBeUndefined();
+        expect(runner).toHaveBeenCalledTimes(2);
     });
 
-    it("fails a publication conflict with different content", async () => {
-        const runner = vi
-            .fn()
-            .mockResolvedValueOnce(result(1, "", "EPUBLISHCONFLICT"))
-            .mockResolvedValueOnce(result(0, JSON.stringify("sha512-other")));
+    it("rejects unrecognized publication failures", async () => {
+        const runner = vi.fn().mockResolvedValue(result(1, "", "npm error E500"));
         await expect(
             publishTarball("package.tgz", "unstable", registry, "public", identity, runner)
-        ).rejects.toThrow("sha512-other");
+        ).rejects.toThrow("npm publish failed");
     });
 
-    it("preflights all packages, publishes platforms before the umbrella, and tags last", async () => {
+    it("validates all packages, publishes platforms before the umbrella, and tags last", async () => {
         const directory = mkdtempSync(join(tmpdir(), "copilot-sdk-npm-release-"));
         mkdirSync(directory, { recursive: true });
         const packages = [
@@ -130,23 +127,7 @@ describe("npm release publishing", () => {
         const runner = vi.fn(async (_command: string, args: string[]) => {
             calls.push(args);
             if (args[0] === "view") {
-                const name = args[1].slice(0, args[1].lastIndexOf("@"));
-                const packed = packages.find((candidate) => candidate.name === name);
-                if (args[2] === "version") {
-                    return result(0, JSON.stringify(version));
-                }
-                return result(
-                    calls
-                        .filter((call) => call[0] === "publish")
-                        .some((call) => call[1].includes(packed!.filename))
-                        ? 0
-                        : 1,
-                    calls
-                        .filter((call) => call[0] === "publish")
-                        .some((call) => call[1].includes(packed!.filename))
-                        ? JSON.stringify(packed!.integrity)
-                        : JSON.stringify({ error: { code: "E404" } })
-                );
+                return result(0, JSON.stringify(version));
             }
             return result(0);
         });
@@ -157,13 +138,7 @@ describe("npm release publishing", () => {
             expect(publishCalls).toHaveLength(9);
             expect(publishCalls.at(-1)?.[1]).toContain("package-0.tgz");
             expect(calls.filter((args) => args[0] === "dist-tag")).toHaveLength(0);
-            expect(
-                Math.max(
-                    ...calls.map((args, index) =>
-                        args[0] === "view" && args[2] === "version" ? index : -1
-                    )
-                )
-            ).toBeGreaterThan(calls.map((args) => args[0]).lastIndexOf("publish"));
+            expect(calls.some((args) => args.includes("dist.integrity"))).toBe(false);
 
             const staleTagRunner = vi.fn(async (_command: string, args: string[]) => {
                 const name = args[1].slice(0, args[1].lastIndexOf("@"));
@@ -193,12 +168,32 @@ describe("npm release publishing", () => {
                     staleTagRunner
                 )
             ).rejects.toThrow("refusing to rewind");
+            const azureConflictRunner = vi.fn(async (_command: string, args: string[]) =>
+                args[0] === "view"
+                    ? result(0, JSON.stringify(version))
+                    : result(
+                          1,
+                          "",
+                          "npm error 403 https://pkgs.dev.azure.com/example - The feed 'copilot-canary' already contains file 'package.tgz' in package '@github/copilot-sdk'."
+                      )
+            );
+            await expect(
+                publishManifest(
+                    manifestPath,
+                    directory,
+                    "unstable",
+                    registry,
+                    "azure",
+                    azureConflictRunner
+                )
+            ).resolves.toBeUndefined();
+            expect(
+                azureConflictRunner.mock.calls.some(([, args]) => args.includes("dist.integrity"))
+            ).toBe(false);
             const missingTagRunner = vi.fn(async (_command: string, args: string[]) => {
-                const name = args[1].slice(0, args[1].lastIndexOf("@"));
-                const packed = packages.find((candidate) => candidate.name === name)!;
-                return args[2] === "version"
+                return args[0] === "view"
                     ? result(1, JSON.stringify({ error: { code: "E404" } }))
-                    : result(0, JSON.stringify(packed.integrity));
+                    : result(0);
             });
             await expect(
                 publishManifest(

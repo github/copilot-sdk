@@ -11,6 +11,15 @@ const runtimeDispatchLedger = readFileSync(
     join(repositoryRoot, "nodejs", "scripts", "runtime-dispatch-ledger.ts"),
     "utf8"
 );
+const acquisitionJob = runtimeSdk.slice(
+    runtimeSdk.indexOf("  acquire-runtime:"),
+    runtimeSdk.indexOf("  test:")
+);
+const internalPublicationJob = runtimeSdk.slice(
+    runtimeSdk.indexOf("  publish-internal:"),
+    runtimeSdk.indexOf("  publish-public:")
+);
+const publicPublicationJob = runtimeSdk.slice(runtimeSdk.indexOf("  publish-public:"));
 
 describe("normal publishing workflow contract", () => {
     it("remains the stable and prerelease entry without runtime handoff inputs", () => {
@@ -55,12 +64,10 @@ describe("runtime-driven Node SDK entry contract", () => {
     it("owns both strict runtime handoff matrices", () => {
         expect(runtimeSdk).toContain("name: Runtime-driven Node SDK");
         expect(runtimeSdk).toContain("runtime_run_id:");
-        expect(runtimeSdk).toContain("runtime_source:");
+        expect(runtimeSdk).not.toContain("runtime_source:");
         expect(runtimeDispatchLedger).toContain('expected.channel === "canary"');
-        expect(runtimeDispatchLedger).toContain('expected.runtimeSource === "azure"');
-        expect(runtimeDispatchLedger).toMatch(
-            /expected\.runtimeSource === "github-packages"\s+&&\s+expected\.mode === "internal"/
-        );
+        expect(runtimeDispatchLedger).toContain('source: "github-packages"');
+        expect(runtimeDispatchLedger).not.toContain("runtimeSource");
     });
 
     it("serializes and durably claims each runtime run", () => {
@@ -103,14 +110,23 @@ describe("runtime-backed Node release implementation", () => {
     it("enforces the channel, source, and mode matrix", () => {
         expect(runtimeDispatchLedger).toContain('expected.mode === "tests-only"');
         expect(runtimeDispatchLedger).toContain('expected.mode === "internal"');
-        expect(runtimeDispatchLedger).toContain(
-            "Invalid channel, runtime source, or mode combination"
-        );
+        expect(runtimeDispatchLedger).toContain("Invalid channel or mode combination");
     });
 
     it("owns acquisition, cross-platform tests, packaging, and internal verification", () => {
         expect(runtimeSdk).toContain("os: [ubuntu-latest, macos-latest, windows-latest]");
         expect(runtimeSdk).toContain("npm run acquire:runtime-packages");
+        expect(acquisitionJob).toContain("packages: read");
+        expect(acquisitionJob).toContain("NODE_AUTH_TOKEN: ${{ github.token }}");
+        expect(acquisitionJob).toContain("--registry https://npm.pkg.github.com");
+        expect(acquisitionJob).not.toContain("azure/login");
+        expect(acquisitionJob).not.toContain("FEED_URL");
+        expect(internalPublicationJob).toContain("azure/login");
+        expect(internalPublicationJob).toContain('"$FEED_URL" azure');
+        expect(internalPublicationJob).not.toContain("registry.npmjs.org");
+        expect(publicPublicationJob).toContain("https://registry.npmjs.org public");
+        expect(publicPublicationJob).not.toContain("azure/login");
+        expect(publicPublicationJob).not.toContain("FEED_URL");
         expect(runtimeSdk).toContain("npm run verify:release-packages");
         expect(runtimeSdk).toContain("publish-manifest");
         expect(runtimeSdk.match(/preflight-package-set/g)).toHaveLength(2);

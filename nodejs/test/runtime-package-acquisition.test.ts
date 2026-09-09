@@ -155,6 +155,37 @@ describe("runtime npm package acquisition", () => {
         }
     });
 
+    it("requires GitHub Packages and strict registry integrity", async () => {
+        const root = temporaryRoot("copilot-runtime-registry-");
+        const runner = vi
+            .fn()
+            .mockResolvedValue({ status: 0, stdout: JSON.stringify("sha1-invalid"), stderr: "" });
+        await expect(
+            acquireRuntimePackages(
+                {
+                    outputDirectory: join(root, "output"),
+                    registry: "https://pkgs.dev.azure.com/example/npm/registry/",
+                    runtimeSha,
+                    runtimeVersion,
+                },
+                runner
+            )
+        ).rejects.toThrow("must come from GitHub Packages");
+        expect(runner).not.toHaveBeenCalled();
+
+        await expect(
+            acquireRuntimePackages(
+                {
+                    outputDirectory: join(root, "output"),
+                    registry: "https://npm.pkg.github.com",
+                    runtimeSha,
+                    runtimeVersion,
+                },
+                runner
+            )
+        ).rejects.toThrow("Invalid registry integrity");
+    });
+
     it("rejects mismatched source identity metadata", async () => {
         const root = temporaryRoot("copilot-runtime-identity-");
         await createRuntimePackage(root, "linux-x64");

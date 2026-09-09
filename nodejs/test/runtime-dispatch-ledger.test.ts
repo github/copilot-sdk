@@ -13,7 +13,6 @@ const expected: ExpectedDispatch = {
     mode: "internal",
     runtimeRunId: "100",
     runtimeSha: "a".repeat(40),
-    runtimeSource: "github-packages",
     runtimeVersion: "1.2.3-unstable.4",
     sdkRef: "refs/heads/main",
     sdkSha: "b".repeat(40),
@@ -59,6 +58,7 @@ describe("runtime dispatch ledger", () => {
         const marker = createRuntimeDispatchMarker(expected);
         expect(marker.canonicalRunId).toBe("200");
         expect(marker.runtime.runId).toBe("100");
+        expect(marker.runtime.source).toBe("github-packages");
         expect(marker).not.toHaveProperty("sdk.version");
     });
 

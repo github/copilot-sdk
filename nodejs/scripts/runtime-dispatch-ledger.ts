@@ -13,7 +13,7 @@ export interface RuntimeDispatchMarker {
         repository: "github/copilot-agent-runtime";
         runId: string;
         sha: string;
-        source: "azure" | "github-packages";
+        source: "github-packages";
         version: string;
     };
     schemaVersion: 1;
@@ -51,7 +51,6 @@ export interface ExpectedDispatch {
     mode: RuntimeDispatchMarker["mode"];
     runtimeRunId: string;
     runtimeSha: string;
-    runtimeSource: RuntimeDispatchMarker["runtime"]["source"];
     runtimeVersion: string;
     sdkRef: string;
     sdkSha: string;
@@ -111,12 +110,9 @@ function validateInputs(expected: ExpectedDispatch): void {
     assert(expected.sdkRef.length > 0, "SDK ref is required");
     assert(
         expected.channel === "canary"
-            ? expected.runtimeSource === "azure" &&
-                  (expected.mode === "tests-only" || expected.mode === "internal")
-            : expected.channel === "unstable" &&
-                  expected.runtimeSource === "github-packages" &&
-                  expected.mode === "internal",
-        "Invalid channel, runtime source, or mode combination"
+            ? expected.mode === "tests-only" || expected.mode === "internal"
+            : expected.channel === "unstable" && expected.mode === "internal",
+        "Invalid channel or mode combination"
     );
     assert(
         expected.channel !== "canary" || expected.versionOverride === "",
@@ -135,7 +131,7 @@ export function createRuntimeDispatchMarker(expected: ExpectedDispatch): Runtime
             repository: "github/copilot-agent-runtime",
             runId: expected.runtimeRunId,
             sha: expected.runtimeSha,
-            source: expected.runtimeSource,
+            source: "github-packages",
             version: expected.runtimeVersion,
         },
         sdk: {
@@ -190,7 +186,7 @@ export function validateRuntimeDispatchMarker(
                 repository: "github/copilot-agent-runtime",
                 runId: expected.runtimeRunId,
                 sha: expected.runtimeSha,
-                source: expected.runtimeSource,
+                source: "github-packages",
                 version: expected.runtimeVersion,
             },
             sdk: {
@@ -290,7 +286,6 @@ function expectedFromEnvironment(): ExpectedDispatch {
         mode: requiredEnvironment("MODE") as ExpectedDispatch["mode"],
         runtimeRunId: requiredEnvironment("RUNTIME_RUN_ID"),
         runtimeSha: requiredEnvironment("RUNTIME_SHA"),
-        runtimeSource: requiredEnvironment("RUNTIME_SOURCE") as ExpectedDispatch["runtimeSource"],
         runtimeVersion: requiredEnvironment("RUNTIME_VERSION"),
         sdkRef: requiredEnvironment("SDK_REF"),
         sdkSha: requiredEnvironment("SDK_SHA"),

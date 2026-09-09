@@ -136,7 +136,11 @@ export async function acquireRuntimePackages(
     runner: CommandRunner = runCommand
 ): Promise<void> {
     assert.match(options.runtimeSha, /^[0-9a-f]{40}$/, "Runtime SHA must be lowercase full SHA");
-    assert.match(options.registry, /^https:\/\//, "Runtime registry must use HTTPS");
+    assert.equal(
+        options.registry,
+        "https://npm.pkg.github.com",
+        "Runtime packages must come from GitHub Packages"
+    );
     assert(
         options.outputDirectory.trim().length > 0,
         "Runtime package output directory is required"
