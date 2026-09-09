@@ -432,6 +432,7 @@ func (s *Session) Send(ctx context.Context, options MessageOptions) (string, err
 	req := sessionSendRequest{
 		SessionID:      s.SessionID,
 		Prompt:         options.Prompt,
+		Source:         options.Source,
 		DisplayPrompt:  options.DisplayPrompt,
 		Attachments:    options.Attachments,
 		Mode:           options.Mode,

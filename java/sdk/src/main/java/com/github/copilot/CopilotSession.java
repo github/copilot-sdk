@@ -561,6 +561,7 @@ public final class CopilotSession implements AutoCloseable {
         request.setPrompt(options.getPrompt());
         request.setAttachments(options.getAttachments());
         request.setMode(options.getMode());
+        request.setSource(options.getSource());
         request.setAgentMode(options.getAgentMode());
         request.setRequestHeaders(options.getRequestHeaders());
         request.setDisplayPrompt(options.getDisplayPrompt());

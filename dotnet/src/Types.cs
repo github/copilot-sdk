@@ -2134,6 +2134,58 @@ public enum AgentMode
 }
 
 /// <summary>
+/// Identifies the origin of a message sent to a session.
+/// </summary>
+[JsonConverter(typeof(MessageSource.Converter))]
+public sealed record MessageSource
+{
+    /// <summary>The message originates from user input.</summary>
+    public static MessageSource User { get; } = new("user");
+
+    /// <summary>The message provides application-generated context.</summary>
+    public static MessageSource System { get; } = new("system");
+
+    /// <summary>The string value used in JSON serialization.</summary>
+    public string Value { get; }
+
+    private MessageSource(string value) => Value = value;
+
+    /// <summary>Identifies a message from an agent.</summary>
+    /// <param name="id">The opaque agent identifier, preserved exactly after <c>agent-</c>.</param>
+    /// <returns>The agent message source.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="id"/> is null.</exception>
+    public static MessageSource Agent(string id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return new("agent-" + id);
+    }
+
+    /// <inheritdoc/>
+    public override string ToString() => Value;
+
+    /// <summary>Converts message sources to and from their wire strings.</summary>
+    public sealed class Converter : JsonConverter<MessageSource>
+    {
+        /// <inheritdoc/>
+        public override MessageSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            var value = GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert);
+            return value switch
+            {
+                "user" => User,
+                "system" => System,
+                _ when value.StartsWith("agent-", StringComparison.Ordinal) => new MessageSource(value),
+                _ => throw new JsonException($"Unknown MessageSource value: {value}")
+            };
+        }
+
+        /// <inheritdoc/>
+        public override void Write(Utf8JsonWriter writer, MessageSource value, JsonSerializerOptions options) =>
+            writer.WriteStringValue(value.Value);
+    }
+}
+
+/// <summary>
 /// Specifies the operation to perform on a system message section.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SectionOverrideAction>))]
@@ -4029,6 +4081,7 @@ public sealed class MessageOptions
         Attachments = other.Attachments is not null ? [.. other.Attachments] : null;
         Mode = other.Mode;
         AgentMode = other.AgentMode;
+        Source = other.Source;
         Prompt = other.Prompt;
         DisplayPrompt = other.DisplayPrompt;
         RequestHeaders = other.RequestHeaders is not null
@@ -4054,6 +4107,11 @@ public sealed class MessageOptions
     /// Defaults to the session's current mode when unset.
     /// </summary>
     public AgentMode? AgentMode { get; set; }
+    /// <summary>
+    /// The message's origin. When unset, the field is omitted and the runtime defaults to user input.
+    /// This tags message provenance; it does not replace the session's system prompt or change delivery mode.
+    /// </summary>
+    public MessageSource? Source { get; set; }
     /// <summary>
     /// Custom per-turn HTTP headers for outbound model requests.
     /// </summary>

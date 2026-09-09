@@ -19,7 +19,7 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    OpenCanvasInstance,
+    OpenCanvasInstance, SendAgentMode, SendMode, SendRequest,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -33,7 +33,9 @@ use github_copilot_sdk::types::{
     PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, RequestId,
     SessionConfig, SessionId, SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
-use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
+use github_copilot_sdk::{
+    AgentMode, Attachment, Client, ContextTier, ErrorKind, MessageSource, ProtocolErrorKind, tool,
+};
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::sync::Notify;
@@ -1865,6 +1867,224 @@ async fn send_injects_session_id() {
     timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
 }
 
+#[test]
+fn message_options_source_is_opt_in() {
+    let prompt = "hello".to_string();
+    for options in [
+        MessageOptions::new(&prompt),
+        MessageOptions::from(prompt.as_str()),
+        MessageOptions::from(prompt.clone()),
+        MessageOptions::from(&prompt),
+    ] {
+        assert_eq!(options.source, None);
+        assert_eq!(
+            options
+                .with_source(MessageSource::System)
+                .with_source(MessageSource::User)
+                .source,
+            Some(MessageSource::User)
+        );
+    }
+    for (source, wire) in [
+        (MessageSource::User, "user"),
+        (MessageSource::System, "system"),
+        (MessageSource::Agent("sender-id".into()), "agent-sender-id"),
+    ] {
+        assert_eq!(serde_json::to_value(&source).unwrap(), wire);
+        assert_eq!(
+            serde_json::from_value::<MessageSource>(serde_json::json!(wire)).unwrap(),
+            source
+        );
+    }
+}
+
+#[test]
+fn agent_source_preserves_opaque_ids() {
+    for id in ["", "agent-sender", "Sender / \"review\""] {
+        let source = MessageSource::Agent(id.into());
+        let wire = format!("agent-{id}");
+        assert_eq!(serde_json::to_value(&source).unwrap(), wire);
+        assert_eq!(
+            serde_json::from_value::<MessageSource>(serde_json::json!(wire)).unwrap(),
+            source
+        );
+        assert_eq!(
+            serde_json::to_value(SendRequest::default().with_source(source.clone())).unwrap()["source"],
+            wire
+        );
+        let options = MessageOptions::new("hello").with_source(source.clone());
+        assert_eq!(options.clone().source, Some(source));
+    }
+    for invalid in ["unknown", "USER", "Agent-sender"] {
+        assert!(serde_json::from_value::<MessageSource>(serde_json::json!(invalid)).is_err());
+    }
+}
+
+#[tokio::test]
+async fn send_source_is_optional_and_preserves_other_options() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("context.txt");
+
+    for (source, wire_source) in [
+        (None, None),
+        (Some(MessageSource::User), Some("user")),
+        (Some(MessageSource::System), Some("system")),
+        (
+            Some(MessageSource::Agent("sender-id".into())),
+            Some("agent-sender-id"),
+        ),
+    ] {
+        for (mode, wire_mode) in [
+            (None, None),
+            (Some(DeliveryMode::Enqueue), Some("enqueue")),
+            (Some(DeliveryMode::Immediate), Some("immediate")),
+        ] {
+            for include_options in [false, true] {
+                let mut options = MessageOptions::new("hello");
+                let mut expected = serde_json::json!({
+                    "sessionId": server.session_id,
+                    "prompt": "hello",
+                });
+                if let Some(source) = source.clone() {
+                    options = options.with_source(source);
+                    expected["source"] = serde_json::json!(wire_source.unwrap());
+                }
+                if let Some(mode) = mode {
+                    options = options.with_mode(mode);
+                    expected["mode"] = serde_json::json!(wire_mode.unwrap());
+                }
+                if include_options {
+                    options = options
+                        .with_agent_mode(AgentMode::Plan)
+                        .with_attachments(vec![Attachment::File {
+                            path: path.clone(),
+                            display_name: None,
+                            line_range: None,
+                        }])
+                        .with_display_prompt("Context updated")
+                        .with_request_headers(HashMap::from([("X-Tag".into(), "context".into())]))
+                        .with_traceparent("00-source-trace-01")
+                        .with_tracestate("vendor=source")
+                        .with_wait_timeout(Duration::from_secs(10));
+                    expected["agentMode"] = serde_json::json!("plan");
+                    expected["attachments"] = serde_json::json!([{
+                        "type": "file", "path": path, "displayName": "context.txt",
+                    }]);
+                    expected["displayPrompt"] = serde_json::json!("Context updated");
+                    expected["requestHeaders"] = serde_json::json!({"X-Tag": "context"});
+                    expected["traceparent"] = serde_json::json!("00-source-trace-01");
+                    expected["tracestate"] = serde_json::json!("vendor=source");
+                }
+
+                let handle = tokio::spawn({
+                    let session = session.clone();
+                    async move { session.send(options).await }
+                });
+                let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+                assert_eq!(request["method"], "session.send");
+                assert_eq!(request["params"], expected);
+                server
+                    .respond(&request, serde_json::json!({"messageId": "source-message"}))
+                    .await;
+                assert_eq!(
+                    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap(),
+                    "source-message"
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn rpc_send_source_is_optional_and_preserves_other_options() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    for (source, wire_source) in [
+        (None, None),
+        (Some(MessageSource::User), Some("user")),
+        (Some(MessageSource::System), Some("system")),
+        (
+            Some(MessageSource::Agent("sender-id".into())),
+            Some("agent-sender-id"),
+        ),
+    ] {
+        for (mode, wire_mode) in [
+            (None, None),
+            (Some(SendMode::Enqueue), Some("enqueue")),
+            (Some(SendMode::Immediate), Some("immediate")),
+        ] {
+            for include_options in [false, true] {
+                let mut options = SendRequest::default();
+                options.prompt = "hello".into();
+                options.mode = mode.clone();
+                let mut expected = serde_json::json!({
+                    "sessionId": server.session_id,
+                    "prompt": "hello",
+                });
+                if let Some(source) = source.clone() {
+                    options = options
+                        .with_source(MessageSource::System)
+                        .with_source(source);
+                    expected["source"] = serde_json::json!(wire_source.unwrap());
+                }
+                if let Some(wire_mode) = wire_mode {
+                    expected["mode"] = serde_json::json!(wire_mode);
+                }
+                if include_options {
+                    let attachment = serde_json::json!({
+                        "type": "extension-context",
+                        "data": {"extensionId": "project:example", "context": ["updated"]},
+                    });
+                    options.agent_mode = Some(SendAgentMode::Plan);
+                    options.attachments = Some(vec![attachment.clone()]);
+                    options.display_prompt = Some("Context updated".into());
+                    options.request_headers =
+                        Some(HashMap::from([("X-Tag".into(), "context".into())]));
+                    options.traceparent = Some("00-source-trace-01".into());
+                    options.tracestate = Some("vendor=source".into());
+                    options.billable = Some(true);
+                    options.prepend = Some(false);
+                    options.required_tool = Some("read_file".into());
+                    options.wait = Some(false);
+                    expected["agentMode"] = serde_json::json!("plan");
+                    expected["attachments"] = serde_json::json!([attachment]);
+                    expected["displayPrompt"] = serde_json::json!("Context updated");
+                    expected["requestHeaders"] = serde_json::json!({"X-Tag": "context"});
+                    expected["traceparent"] = serde_json::json!("00-source-trace-01");
+                    expected["tracestate"] = serde_json::json!("vendor=source");
+                    expected["billable"] = serde_json::json!(true);
+                    expected["prepend"] = serde_json::json!(false);
+                    expected["requiredTool"] = serde_json::json!("read_file");
+                    expected["wait"] = serde_json::json!(false);
+                }
+
+                let handle = tokio::spawn({
+                    let session = session.clone();
+                    async move { session.rpc().send(options).await }
+                });
+                let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+                assert_eq!(request["method"], "session.send");
+                assert_eq!(request["params"], expected);
+                server
+                    .respond(&request, serde_json::json!({"messageId": "source-message"}))
+                    .await;
+                assert_eq!(
+                    timeout(TIMEOUT, handle)
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .unwrap()
+                        .message_id,
+                    "source-message"
+                );
+            }
+        }
+    }
+}
+
 #[tokio::test]
 async fn send_serializes_request_headers() {
     use std::collections::HashMap;
@@ -3461,6 +3681,163 @@ async fn send_and_wait_returns_last_assistant_message_on_idle() {
     let event = result.expect("should have captured assistant.message");
     assert_eq!(event.event_type, "assistant.message");
     assert_eq!(event.data["message"], "Hello back!");
+}
+
+#[tokio::test]
+async fn send_and_wait_agent_source_preserves_mode_and_optional_reply() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    for mode in [
+        None,
+        Some(DeliveryMode::Enqueue),
+        Some(DeliveryMode::Immediate),
+    ] {
+        for has_reply in [false, true] {
+            let handle = tokio::spawn({
+                let session = session.clone();
+                async move {
+                    let mut options = MessageOptions::new("Review complete")
+                        .with_source(MessageSource::Agent("sender-id".into()))
+                        .with_wait_timeout(TIMEOUT);
+                    options.mode = mode;
+                    session.send_and_wait(options).await
+                }
+            });
+            let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+            let mut expected = serde_json::json!({
+                "sessionId": server.session_id,
+                "prompt": "Review complete",
+                "source": "agent-sender-id",
+            });
+            if let Some(mode) = mode {
+                expected["mode"] = serde_json::to_value(mode).unwrap();
+            }
+            assert_eq!(request["params"], expected);
+            server
+                .respond(&request, serde_json::json!({"messageId": "agent-message"}))
+                .await;
+            if has_reply {
+                server
+                    .send_event(
+                        "assistant.message",
+                        serde_json::json!({"content": "Acknowledged"}),
+                    )
+                    .await;
+            }
+            server
+                .send_event("session.idle", serde_json::json!({}))
+                .await;
+            let reply = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+            assert_eq!(reply.is_some(), has_reply);
+            if let Some(reply) = reply {
+                assert_eq!(reply.data["content"], "Acknowledged");
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn send_and_wait_system_source_returns_none_on_idle_without_assistant() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send_and_wait(
+                    MessageOptions::new("Context updated")
+                        .with_source(MessageSource::System)
+                        .with_wait_timeout(TIMEOUT),
+                )
+                .await
+        }
+    });
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(request["params"]["source"], "system");
+    server
+        .respond(&request, serde_json::json!({"messageId": "system-message"}))
+        .await;
+    server
+        .send_event("session.idle", serde_json::json!({}))
+        .await;
+    assert!(
+        timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap()
+            .is_none()
+    );
+
+    let handle = tokio::spawn(async move { session.send("human follow-up").await });
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert!(request["params"].get("source").is_none());
+    server
+        .respond(&request, serde_json::json!({"messageId": "human-message"}))
+        .await;
+    assert_eq!(
+        timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap(),
+        "human-message"
+    );
+}
+
+#[tokio::test]
+async fn send_and_wait_source_preserves_errors() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    for (source, wire_source) in [
+        (MessageSource::System, "system"),
+        (MessageSource::Agent("sender-id".into()), "agent-sender-id"),
+    ] {
+        for rpc_error in [true, false] {
+            let handle = tokio::spawn({
+                let session = session.clone();
+                let source = source.clone();
+                async move {
+                    session
+                        .send_and_wait(
+                            MessageOptions::new("Context updated")
+                                .with_source(source)
+                                .with_wait_timeout(TIMEOUT),
+                        )
+                        .await
+                }
+            });
+            let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+            assert_eq!(request["params"]["source"], wire_source);
+            if rpc_error {
+                server.respond_error(&request, -32603, "send failed").await;
+            } else {
+                server
+                    .respond(&request, serde_json::json!({"messageId": "source-message"}))
+                    .await;
+                server
+                    .send_event(
+                        "session.error",
+                        serde_json::json!({"message": "agent failed"}),
+                    )
+                    .await;
+            }
+            let error = timeout(TIMEOUT, handle)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap_err();
+            if rpc_error {
+                assert!(matches!(error.kind(), ErrorKind::Rpc { code: -32603, .. }));
+                assert!(error.to_string().contains("send failed"));
+            } else {
+                assert!(matches!(
+                    error.kind(),
+                    ErrorKind::Session(github_copilot_sdk::SessionErrorKind::AgentError)
+                ));
+                assert!(error.to_string().contains("agent failed"));
+            }
+        }
+    }
 }
 
 #[tokio::test]
@@ -6182,20 +6559,26 @@ async fn on_get_trace_context_called_on_session_send() {
     let baseline = calls.load(Ordering::Relaxed);
     assert_eq!(baseline, 1, "create_session should call the provider once");
 
-    let send_handle = tokio::spawn({
-        let session = session.clone();
-        async move { session.send(MessageOptions::new("hi")).await }
-    });
-    let send_req = server.read_request().await;
-    assert_eq!(send_req["method"], "session.send");
-    assert_eq!(send_req["params"]["traceparent"], "00-send-trace-01");
-    server.respond(&send_req, serde_json::json!({})).await;
-    timeout(TIMEOUT, send_handle)
-        .await
-        .unwrap()
-        .unwrap()
-        .unwrap();
-    assert_eq!(calls.load(Ordering::Relaxed), baseline + 1);
+    for source in [None, Some(MessageSource::System)] {
+        let send_handle = tokio::spawn({
+            let session = session.clone();
+            async move {
+                let mut options = MessageOptions::new("hi");
+                options.source = source;
+                session.send(options).await
+            }
+        });
+        let send_req = server.read_request().await;
+        assert_eq!(send_req["method"], "session.send");
+        assert_eq!(send_req["params"]["traceparent"], "00-send-trace-01");
+        server.respond(&send_req, serde_json::json!({})).await;
+        timeout(TIMEOUT, send_handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+    }
+    assert_eq!(calls.load(Ordering::Relaxed), baseline + 2);
 }
 
 #[tokio::test]
@@ -6233,27 +6616,27 @@ async fn message_options_trace_context_overrides_callback() {
 
     let baseline = calls.load(Ordering::Relaxed);
 
-    let send_handle = tokio::spawn({
-        let session = session.clone();
-        async move {
-            session
-                .send(
-                    MessageOptions::new("hi")
-                        .with_traceparent("00-override-01")
-                        .with_tracestate("vendor=override"),
-                )
-                .await
-        }
-    });
-    let send_req = server.read_request().await;
-    assert_eq!(send_req["params"]["traceparent"], "00-override-01");
-    assert_eq!(send_req["params"]["tracestate"], "vendor=override");
-    server.respond(&send_req, serde_json::json!({})).await;
-    timeout(TIMEOUT, send_handle)
-        .await
-        .unwrap()
-        .unwrap()
-        .unwrap();
+    for source in [None, Some(MessageSource::System)] {
+        let send_handle = tokio::spawn({
+            let session = session.clone();
+            async move {
+                let mut options = MessageOptions::new("hi")
+                    .with_traceparent("00-override-01")
+                    .with_tracestate("vendor=override");
+                options.source = source;
+                session.send(options).await
+            }
+        });
+        let send_req = server.read_request().await;
+        assert_eq!(send_req["params"]["traceparent"], "00-override-01");
+        assert_eq!(send_req["params"]["tracestate"], "vendor=override");
+        server.respond(&send_req, serde_json::json!({})).await;
+        timeout(TIMEOUT, send_handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+    }
 
     // Callback must NOT have been invoked when MessageOptions carried an override.
     assert_eq!(

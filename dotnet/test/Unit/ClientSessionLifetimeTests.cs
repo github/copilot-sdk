@@ -1478,6 +1478,246 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task SendAsync_MessageSource_Is_Omitted_By_Default()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var options = new MessageOptions { Prompt = "User input" };
+        Assert.Null(options.Source);
+        Assert.Null(options.Clone().Source);
+
+        await session.SendAsync(options);
+        await session.SendAsync("More user input");
+
+        var requests = server.Requests.Where(request => request.Method == "session.send").ToArray();
+        Assert.Equal(2, requests.Length);
+        Assert.All(requests, request => AssertMessageSource(request.Params, null));
+    }
+
+    [Theory]
+    [MemberData(nameof(SerializationTests.MessageSources), MemberType = typeof(SerializationTests))]
+    public async Task SendAsync_MessageSource_Preserves_Other_Options(MessageSource? source, string? wireSource)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var options = new MessageOptions { Prompt = "Background context", Source = source };
+
+        Assert.Equal("message-1", await session.SendAsync(options));
+        var request = Assert.Single(server.Requests, request => request.Method == "session.send").Params;
+        AssertMessageSource(request, wireSource);
+        foreach (var property in new[] { "mode", "agentMode", "attachments", "displayPrompt", "requestHeaders" })
+        {
+            Assert.False(request.TryGetProperty(property, out _));
+        }
+
+        using var activity = new Activity("message-source-test").SetIdFormat(ActivityIdFormat.W3C);
+        activity.TraceStateString = "test=message-source";
+        activity.Start();
+
+        foreach (var mode in new[] { "enqueue", "immediate" })
+        {
+            server.ClearRequests();
+            options.Mode = mode;
+            options.AgentMode = AgentMode.Plan;
+            options.DisplayPrompt = "Background update";
+            options.Attachments = [new AttachmentFile { Path = "/context.txt", DisplayName = "context.txt" }];
+            options.RequestHeaders = new Dictionary<string, string> { ["X-Test"] = "source-parity" };
+
+            Assert.Equal("message-1", await session.SendAsync(options));
+
+            request = Assert.Single(server.Requests, request => request.Method == "session.send").Params;
+            AssertMessageSource(request, wireSource);
+            Assert.Equal(session.SessionId, request.GetProperty("sessionId").GetString());
+            Assert.Equal(options.Prompt, request.GetProperty("prompt").GetString());
+            Assert.Equal(mode, request.GetProperty("mode").GetString());
+            Assert.Equal("plan", request.GetProperty("agentMode").GetString());
+            Assert.Equal(options.DisplayPrompt, request.GetProperty("displayPrompt").GetString());
+            Assert.Equal("source-parity", request.GetProperty("requestHeaders").GetProperty("X-Test").GetString());
+            var attachment = Assert.Single(request.GetProperty("attachments").EnumerateArray());
+            Assert.Equal("file", attachment.GetProperty("type").GetString());
+            Assert.Equal("/context.txt", attachment.GetProperty("path").GetString());
+            Assert.Equal("context.txt", attachment.GetProperty("displayName").GetString());
+            Assert.Equal(activity.Id, request.GetProperty("traceparent").GetString());
+            Assert.Equal(activity.TraceStateString, request.GetProperty("tracestate").GetString());
+            Assert.Equal(source, options.Source);
+        }
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("user")]
+    [InlineData("system")]
+    [InlineData("agent-Reviewer-7")]
+    public async Task Raw_SendAsync_MessageSource_Remains_Available(string? source)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+
+        var result = await session.Rpc.SendAsync("Context", source: source);
+
+        Assert.Equal("message-1", result.MessageId);
+        AssertMessageSource(Assert.Single(server.Requests, request => request.Method == "session.send").Params, source);
+    }
+
+    public static IEnumerable<object?[]> MessageSourcesAndOutcomes
+    {
+        get
+        {
+            foreach (var row in SerializationTests.MessageSources)
+            {
+                yield return [row[0], row[1], false, null];
+                yield return [row[0], row[1], true, null];
+            }
+            yield return [MessageSource.Agent("Reviewer-7"), "agent-Reviewer-7", false, "enqueue"];
+            yield return [MessageSource.Agent("Reviewer-7"), "agent-Reviewer-7", true, "enqueue"];
+            yield return [MessageSource.Agent("Reviewer-7"), "agent-Reviewer-7", false, "immediate"];
+            yield return [MessageSource.Agent("Reviewer-7"), "agent-Reviewer-7", true, "immediate"];
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(MessageSourcesAndOutcomes))]
+    public async Task SendAndWaitAsync_MessageSource_Completes_On_Idle(MessageSource? source, string? wireSource, bool hasAssistantMessage, string? mode)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var assistantReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = session.On<AssistantMessageEvent>(_ => assistantReceived.TrySetResult());
+
+        var sendTask = session.SendAndWaitAsync(new MessageOptions { Prompt = "Context", Source = source, Mode = mode });
+        var request = await WaitForRequestAsync(server, "session.send");
+        AssertMessageSource(request.Params, wireSource);
+        if (mode is null)
+        {
+            Assert.False(request.Params.TryGetProperty("mode", out _));
+        }
+        else
+        {
+            Assert.Equal(mode, request.Params.GetProperty("mode").GetString());
+        }
+
+        if (hasAssistantMessage)
+        {
+            await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+            {
+                ["messageId"] = "assistant-1",
+                ["content"] = "Acknowledged"
+            });
+            await assistantReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        Assert.False(sendTask.IsCompleted);
+
+        await server.SendSessionEventAsync(session.SessionId, "session.idle", new());
+        var result = await sendTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        if (hasAssistantMessage)
+        {
+            Assert.NotNull(result);
+            Assert.Equal("Acknowledged", result.Data.Content);
+        }
+        else
+        {
+            Assert.Null(result);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(MessageSourcesAndOutcomes))]
+    public async Task SendAndWaitAsync_MessageSource_Propagates_Errors(MessageSource? source, string? wireSource, bool rpcError, string? mode)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        if (rpcError)
+        {
+            server.FailSessionSend();
+        }
+
+        var sendTask = session.SendAndWaitAsync(new MessageOptions { Prompt = "Context", Source = source, Mode = mode });
+        var request = await WaitForRequestAsync(server, "session.send");
+        AssertMessageSource(request.Params, wireSource);
+        if (mode is null)
+        {
+            Assert.False(request.Params.TryGetProperty("mode", out _));
+        }
+        else
+        {
+            Assert.Equal(mode, request.Params.GetProperty("mode").GetString());
+        }
+
+        if (rpcError)
+        {
+            var error = await Assert.ThrowsAsync<IOException>(() => sendTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Contains("session send failed", error.Message);
+        }
+        else
+        {
+            await server.SendSessionEventAsync(session.SessionId, "session.error", new()
+            {
+                ["errorType"] = "query",
+                ["message"] = "model request failed"
+            });
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => sendTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal("Session error: model request failed", error.Message);
+        }
+    }
+
+    public static TheoryData<MessageSource, bool> MessageSourcesAndCancellation => new()
+    {
+        { MessageSource.System, false },
+        { MessageSource.System, true },
+        { MessageSource.Agent("Reviewer-7"), false },
+        { MessageSource.Agent("Reviewer-7"), true },
+    };
+
+    [Theory]
+    [MemberData(nameof(MessageSourcesAndCancellation))]
+    public async Task SendAndWaitAsync_MessageSource_Preserves_Timeout_And_Cancellation(MessageSource source, bool cancel)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        using var cancellation = new CancellationTokenSource();
+
+        var sendTask = session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "Context", Source = source },
+            timeout: cancel ? TimeSpan.FromSeconds(30) : TimeSpan.FromMilliseconds(50),
+            cancellationToken: cancellation.Token);
+        var request = await WaitForRequestAsync(server, "session.send");
+        AssertMessageSource(request.Params, source.Value);
+
+        if (cancel)
+        {
+            cancellation.Cancel();
+            var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sendTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal(cancellation.Token, error.CancellationToken);
+        }
+        else
+        {
+            var error = await Assert.ThrowsAsync<TimeoutException>(() => sendTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Contains("SendAndWaitAsync timed out", error.Message);
+        }
+    }
+
+    private static void AssertMessageSource(JsonElement request, string? source)
+    {
+        if (source is null)
+        {
+            Assert.False(request.TryGetProperty("source", out _));
+        }
+        else
+        {
+            Assert.Equal(source, request.GetProperty("source").GetString());
+        }
+        Assert.False(request.TryGetProperty("billable", out _));
+        Assert.False(request.TryGetProperty("wait", out _));
+    }
+
+    [Fact]
     public async Task SendAndWaitAsync_Skips_Autopilot_Continuation_Idle()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -1960,6 +2200,7 @@ public sealed class ClientSessionLifetimeTests
         private bool _delayDestroy;
         private bool _failRuntimeShutdown;
         private bool _failSessionCreate;
+        private bool _failSessionSend;
 
         private FakeCopilotServer(TcpListener listener)
         {
@@ -2026,6 +2267,11 @@ public sealed class ClientSessionLifetimeTests
             _failSessionCreate = true;
         }
 
+        public void FailSessionSend()
+        {
+            _failSessionSend = true;
+        }
+
         public void CloseConnection()
         {
             _stream?.Dispose();
@@ -2049,6 +2295,28 @@ public sealed class ClientSessionLifetimeTests
                 ["params"] = parameters
             }, _cts.Token);
             return await completion.Task.WaitAsync(_cts.Token);
+        }
+
+        public Task SendSessionEventAsync(string sessionId, string type, Dictionary<string, object?> data)
+        {
+            var stream = _stream ?? throw new InvalidOperationException("Client is not connected.");
+            return WriteMessageAsync(stream, new Dictionary<string, object?>
+            {
+                ["jsonrpc"] = "2.0",
+                ["method"] = "session.event",
+                ["params"] = new Dictionary<string, object?>
+                {
+                    ["sessionId"] = sessionId,
+                    ["event"] = new Dictionary<string, object?>
+                    {
+                        ["id"] = Guid.NewGuid().ToString(),
+                        ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
+                        ["parentId"] = null,
+                        ["type"] = type,
+                        ["data"] = data
+                    }
+                }
+            }, _cts.Token);
         }
 
         public async ValueTask DisposeAsync()
@@ -2150,6 +2418,21 @@ public sealed class ClientSessionLifetimeTests
                     {
                         ["code"] = -32000,
                         ["message"] = "session create failed"
+                    }
+                }, cancellationToken);
+                return;
+            }
+            if (method == "session.send" && _failSessionSend)
+            {
+                _failSessionSend = false;
+                await WriteMessageAsync(stream, new Dictionary<string, object?>
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["id"] = id,
+                    ["error"] = new Dictionary<string, object?>
+                    {
+                        ["code"] = -32000,
+                        ["message"] = "session send failed"
                     }
                 }, cancellationToken);
                 return;
