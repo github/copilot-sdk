@@ -1258,10 +1258,83 @@ internal sealed class SecretsAddFilterValuesRequest
     public IList<string> Values { get => field ??= []; set; }
 }
 
+/// <summary>Concrete configuration file containing an MCP server declaration.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpSourceFile
+{
+    /// <summary>RFC 6901 JSON Pointer to the server declaration, when known.</summary>
+    [JsonPropertyName("jsonPointer")]
+    public string? JsonPointer { get; set; }
+
+    /// <summary>Canonical file URI for the configuration document.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+}
+
+/// <summary>Plugin identity associated with an MCP server declaration.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpSourcePlugin
+{
+    /// <summary>Canonical plugin identity.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Human-readable plugin name, when available.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>Plugin version, when available.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("version")]
+    public string? Version { get; set; }
+}
+
+/// <summary>Canonical identity and location of the effective MCP server declaration. The declaration is uniquely addressed by this source id together with the discovered server name.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpSourceRef
+{
+    /// <summary>Open semantic editability identifier. Known values are editable and read-only.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("editability")]
+    public string Editability { get; set; } = string.Empty;
+
+    /// <summary>Configuration file location, when the declaration is file-backed.</summary>
+    [JsonPropertyName("file")]
+    public McpSourceFile? File { get; set; }
+
+    /// <summary>Opaque stable identity for the configuration source. Clients must not parse this value.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Open source-kind identifier. Known values include user, workspace, invocation, plugin, builtin, and device-registry.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>Plugin identity, when the declaration is plugin-provided.</summary>
+    [JsonPropertyName("plugin")]
+    public McpSourcePlugin? Plugin { get; set; }
+}
+
 /// <summary>MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class DiscoveredMcpServer
 {
+    /// <summary>Canonical identity and location of the effective server declaration.</summary>
+    [JsonPropertyName("effectiveSource")]
+    public McpSourceRef? EffectiveSource { get; set; }
+
     /// <summary>Whether the server is enabled (not in the disabled list).</summary>
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
@@ -1303,6 +1376,10 @@ public sealed class McpDiscoverResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpDiscoverRequest
 {
+    /// <summary>Whether to include canonical effectiveSource metadata for each discovered server. Callers must opt in so protocol-3 clients retain the legacy closed response shape.</summary>
+    [JsonPropertyName("includeEffectiveSource")]
+    public bool? IncludeEffectiveSource { get; set; }
+
     /// <summary>Working directory used as context for discovery (e.g., plugin resolution).</summary>
     [JsonPropertyName("workingDirectory")]
     public string? WorkingDirectory { get; set; }
@@ -7996,6 +8073,7 @@ internal sealed class ModelSwitchAutoTierRequest
 {
     /// <summary>Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing.</summary>
     [JsonPropertyName("autoTier")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public AutoTier? AutoTier { get; set; }
 
     /// <summary>Target session identifier.</summary>
@@ -32040,11 +32118,12 @@ public sealed class ServerMcpApi
 
     /// <summary>Discovers MCP servers from user, workspace, plugin, and builtin sources.</summary>
     /// <param name="workingDirectory">Working directory used as context for discovery (e.g., plugin resolution).</param>
+    /// <param name="includeEffectiveSource">Whether to include canonical effectiveSource metadata for each discovered server. Callers must opt in so protocol-3 clients retain the legacy closed response shape.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>MCP servers discovered from user, workspace, plugin, and built-in sources.</returns>
-    public async Task<McpDiscoverResult> DiscoverAsync(string? workingDirectory = null, CancellationToken cancellationToken = default)
+    public async Task<McpDiscoverResult> DiscoverAsync(string? workingDirectory = null, bool? includeEffectiveSource = null, CancellationToken cancellationToken = default)
     {
-        var request = new McpDiscoverRequest { WorkingDirectory = workingDirectory };
+        var request = new McpDiscoverRequest { WorkingDirectory = workingDirectory, IncludeEffectiveSource = includeEffectiveSource };
         return await CopilotClient.InvokeRpcAsync<McpDiscoverResult>(_rpc, "mcp.discover", [request], cancellationToken);
     }
 
@@ -38782,6 +38861,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpServerNeedsAuthInfo))]
 [JsonSerializable(typeof(McpSetEnvValueModeParams))]
 [JsonSerializable(typeof(McpSetEnvValueModeResult))]
+[JsonSerializable(typeof(McpSourceFile))]
+[JsonSerializable(typeof(McpSourcePlugin))]
+[JsonSerializable(typeof(McpSourceRef))]
 [JsonSerializable(typeof(McpStartServerRequest))]
 [JsonSerializable(typeof(McpStartServersResult))]
 [JsonSerializable(typeof(McpStopServerRequest))]

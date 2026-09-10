@@ -3327,6 +3327,7 @@ public abstract class SessionConfigBase
                 : new Dictionary<string, McpServerConfig>(other.McpServers))
             : null;
         McpOAuthTokenStorage = other.McpOAuthTokenStorage;
+        AuthClientIdMetadataUrl = other.AuthClientIdMetadataUrl;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
         OnAutoModeSwitchRequest = other.OnAutoModeSwitchRequest;
@@ -3720,6 +3721,12 @@ public abstract class SessionConfigBase
     /// Default: <see cref="McpOAuthTokenStorageMode.InMemory"/> for safe multitenant behavior.
     /// </summary>
     public McpOAuthTokenStorageMode? McpOAuthTokenStorage { get; set; }
+
+    /// <summary>
+    /// OAuth Client ID Metadata Document URL identifying the host for MCP authorization.
+    /// When unset, no host identity is supplied.
+    /// </summary>
+    public string? AuthClientIdMetadataUrl { get; set; }
 
     /// <summary>Custom agent configurations for the session.</summary>
     public IList<CustomAgentConfig>? CustomAgents { get; set; }

@@ -33,6 +33,20 @@ We are generally **not** looking for:
 - Additional documentation
 - **SDKs for other languages** — if you want to create a Copilot SDK for another language, we'd love to hear from you and may offer to link to your SDK from our repo. However we do not plan to add further language-specific SDKs to this repo in the short term, since we need to retain our maintenance capacity for moving forwards quickly with the existing language set. For other languages, please consider running your own external project.
 
+## Microsoft Contributor Setup
+
+Microsoft contributors who need recent builds of `@github`-scoped packages from the internal Azure Artifacts feed can run this command from PowerShell at the repository root:
+
+```powershell
+node .\scripts\npm-auth-refresh.mjs --run
+```
+
+Alternatively, on any platform, run `npm run auth:refresh` from the `nodejs` directory.
+
+The command creates or updates scoped registry configurations at `nodejs/.npmrc`, `test/harness/.npmrc`, and `java/scripts/codegen/.npmrc`, preserving unrelated settings. Each configuration routes only the `@github` scope through the `copilot-canary` feed's `@Local` view, so you can then use the normal dependency installation commands. Credentials remain in your user-level npm configuration rather than in project files. On Windows, the command uses `vsts-npm-auth`; on Linux and macOS, it uses the Microsoft Azure Artifacts npm credential provider. Both paths force a credential refresh.
+
+Run `node .\scripts\npm-auth-refresh.mjs --run` from PowerShell at the repository root again after an Azure Artifacts 401 or 403 response, or rerun `npm run auth:refresh` from `nodejs`. To return to your previous registry behavior, remove the `@github:registry` entry from each of the three `.npmrc` files, or restore its previous value if you had a custom entry. Delete a file only if it contains no other settings. Public contributors do not need this setup and are unaffected.
+
 ## Developing an SDK
 
 Setup, build, and test instructions are maintained with each SDK:
@@ -78,6 +92,31 @@ at `java/scripts/codegen/java.ts` reads these files from
 stage the local schemas there before running it. Do not hand-edit generated
 wrappers. Regenerating against a newer runtime
 also includes any other contract changes since the SDK's pinned release.
+
+If the SDK's pinned release is newer than the runtime feature branch, preserve
+the released APIs rather than overwriting them with older local schemas.
+Three-way merge each feature schema with its runtime-base schema and the pinned
+package's schema, then pass the merged files to the generators. For example,
+with `RUNTIME_BASE` set to the feature branch's base commit and
+`PINNED_SCHEMAS_DIR` pointing to the released package's `schemas` directory:
+
+```bash
+MERGED_SCHEMAS_DIR=$(mktemp -d)
+for name in api session-events; do
+  git -C "$RUNTIME_ROOT" show "$RUNTIME_BASE:generated/$name.schema.json" \
+    > "$MERGED_SCHEMAS_DIR/base-$name.schema.json"
+  git merge-file -p "$RUNTIME_ROOT/generated/$name.schema.json" \
+    "$MERGED_SCHEMAS_DIR/base-$name.schema.json" \
+    "$PINNED_SCHEMAS_DIR/$name.schema.json" \
+    > "$MERGED_SCHEMAS_DIR/$name.schema.json" || break
+done
+```
+
+Resolve any schema conflicts before generating. The existing
+`getApiSchemaPath()` and `getSessionEventsSchemaPath()` helpers in
+`scripts/codegen/utils.ts` locate schemas for the current pin. This approach
+preserves newer released contracts while adding the exact runtime feature delta;
+generated SDK wrappers should never be merged by dropping unrelated APIs.
 
 Set `COPILOT_CLI_PATH` to the built runtime's `dist-cli/index.js` to run SDK E2Es
 against that checkout rather than the packaged runtime. For example:

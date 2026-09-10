@@ -66,6 +66,13 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         var proxy = new ReplayProxy();
         var proxyUrl = await proxy.StartAsync();
+        // Creating an in-process fixture applies this URL before its first
+        // test-specific configuration is posted, so early runtime requests need
+        // an empty but valid replay state.
+        await proxy.ConfigureAsync(
+            Path.Combine(workDir, "__unconfigured__.yaml"),
+            workDir,
+            "capi");
         await proxy.SetCopilotUserByTokenAsync(DefaultGitHubToken, new CopilotUserConfig(
             Login: "e2e-test-user",
             CopilotPlan: "individual_pro",

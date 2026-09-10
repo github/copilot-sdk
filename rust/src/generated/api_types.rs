@@ -4572,6 +4572,70 @@ pub struct DiscoveredHook {
     pub source: Option<String>,
 }
 
+/// Concrete configuration file containing an MCP server declaration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpSourceFile {
+    /// RFC 6901 JSON Pointer to the server declaration, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub json_pointer: Option<String>,
+    /// Canonical file URI for the configuration document
+    pub uri: String,
+}
+
+/// Plugin identity associated with an MCP server declaration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpSourcePlugin {
+    /// Canonical plugin identity
+    pub id: String,
+    /// Human-readable plugin name, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Plugin version, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+/// Canonical identity and location of the effective MCP server declaration. The declaration is uniquely addressed by this source id together with the discovered server name.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpSourceRef {
+    /// Open semantic editability identifier. Known values are editable and read-only.
+    pub editability: String,
+    /// Configuration file location, when the declaration is file-backed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file: Option<McpSourceFile>,
+    /// Opaque stable identity for the configuration source. Clients must not parse this value.
+    pub id: String,
+    /// Open source-kind identifier. Known values include user, workspace, invocation, plugin, builtin, and device-registry.
+    pub kind: String,
+    /// Plugin identity, when the declaration is plugin-provided.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin: Option<McpSourcePlugin>,
+}
+
 /// MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.
 ///
 /// <div class="warning">
@@ -4583,6 +4647,9 @@ pub struct DiscoveredHook {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredMcpServer {
+    /// Canonical identity and location of the effective server declaration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_source: Option<McpSourceRef>,
     /// Whether the server is enabled (not in the disabled list)
     pub enabled: bool,
     /// Server name (config key)
@@ -8030,6 +8097,9 @@ pub struct McpDisableRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpDiscoverRequest {
+    /// Whether to include canonical effectiveSource metadata for each discovered server. Callers must opt in so protocol-3 clients retain the legacy closed response shape.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_effective_source: Option<bool>,
     /// Working directory used as context for discovery (e.g., plugin resolution)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,

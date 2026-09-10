@@ -62,6 +62,64 @@ describe("approveAll", () => {
 });
 
 describe("CopilotClient", () => {
+    it("start() is single-flight: concurrent callers share one startup", async () => {
+        const client = new CopilotClient({ autoStart: false });
+        onTestFinished(() => client.forceStop());
+
+        // Stub the underlying startup (doStart) that the single-flight guard
+        // dedupes. Transport-independent: this is the same regardless of the
+        // stdio vs in-process connection path. The delay makes all three
+        // start() calls overlap; on success it marks the client connected like
+        // the real doStart does.
+        const doStart = vi.fn().mockImplementation(
+            () =>
+                new Promise<void>((resolve) =>
+                    setTimeout(() => {
+                        (client as any).state = "connected";
+                        resolve();
+                    }, 50)
+                )
+        );
+        (client as any).doStart = doStart;
+
+        // Before the fix, each concurrent caller ran startup (and spawned its own
+        // CLI, orphaning all but the last). With single-flight they share one.
+        await Promise.all([client.start(), client.start(), client.start()]);
+
+        expect(doStart).toHaveBeenCalledTimes(1);
+        expect((client as any).state).toBe("connected");
+
+        // Once connected, a further start() is a no-op (no extra startup).
+        await client.start();
+        expect(doStart).toHaveBeenCalledTimes(1);
+    });
+
+    it("start() retries after a failed attempt (single-flight guard is cleared)", async () => {
+        const client = new CopilotClient({ autoStart: false });
+        onTestFinished(() => client.forceStop());
+
+        // Stub the underlying startup: fail once, then succeed. Transport-
+        // independent (does not depend on the stdio vs in-process path).
+        const doStart = vi
+            .fn()
+            .mockImplementationOnce(async () => {
+                (client as any).state = "error";
+                throw new Error("boom");
+            })
+            .mockImplementationOnce(async () => {
+                (client as any).state = "connected";
+            });
+        (client as any).doStart = doStart;
+
+        await expect(client.start()).rejects.toThrow(/boom/);
+        expect((client as any).state).toBe("error");
+
+        // The guard must have cleared so a later start() can retry.
+        await client.start();
+        expect(doStart).toHaveBeenCalledTimes(2);
+        expect((client as any).state).toBe("connected");
+    });
+
     it.each([
         {
             source: "connection path",

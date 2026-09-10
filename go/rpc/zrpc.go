@@ -2717,6 +2717,8 @@ type DiscoveredHook struct {
 // Experimental: DiscoveredMCPServer is part of an experimental API and may change or be
 // removed.
 type DiscoveredMCPServer struct {
+	// Canonical identity and location of the effective server declaration.
+	EffectiveSource *MCPSourceRef `json:"effectiveSource,omitempty"`
 	// Whether the server is enabled (not in the disabled list)
 	Enabled bool `json:"enabled"`
 	// Server name (config key)
@@ -5372,6 +5374,9 @@ type MCPDisableRequest struct {
 // Experimental: MCPDiscoverRequest is part of an experimental API and may change or be
 // removed.
 type MCPDiscoverRequest struct {
+	// Whether to include canonical effectiveSource metadata for each discovered server. Callers
+	// must opt in so protocol-3 clients retain the legacy closed response shape.
+	IncludeEffectiveSource *bool `json:"includeEffectiveSource,omitempty"`
 	// Working directory used as context for discovery (e.g., plugin resolution)
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
@@ -6880,6 +6885,43 @@ type MCPSetEnvValueModeParams struct {
 type MCPSetEnvValueModeResult struct {
 	// Mode recorded on the session after the update
 	Mode MCPSetEnvValueModeDetails `json:"mode"`
+}
+
+// Concrete configuration file containing an MCP server declaration.
+// Experimental: MCPSourceFile is part of an experimental API and may change or be removed.
+type MCPSourceFile struct {
+	// RFC 6901 JSON Pointer to the server declaration, when known
+	JSONPointer *string `json:"jsonPointer,omitempty"`
+	// Canonical file URI for the configuration document
+	URI string `json:"uri"`
+}
+
+// Plugin identity associated with an MCP server declaration.
+// Experimental: MCPSourcePlugin is part of an experimental API and may change or be removed.
+type MCPSourcePlugin struct {
+	// Canonical plugin identity
+	ID string `json:"id"`
+	// Human-readable plugin name, when available
+	Name *string `json:"name,omitempty"`
+	// Plugin version, when available
+	Version *string `json:"version,omitempty"`
+}
+
+// Canonical identity and location of the effective MCP server declaration. The declaration
+// is uniquely addressed by this source id together with the discovered server name.
+// Experimental: MCPSourceRef is part of an experimental API and may change or be removed.
+type MCPSourceRef struct {
+	// Open semantic editability identifier. Known values are editable and read-only.
+	Editability string `json:"editability"`
+	// Configuration file location, when the declaration is file-backed.
+	File *MCPSourceFile `json:"file,omitempty"`
+	// Opaque stable identity for the configuration source. Clients must not parse this value.
+	ID string `json:"id"`
+	// Open source-kind identifier. Known values include user, workspace, invocation, plugin,
+	// builtin, and device-registry.
+	Kind string `json:"kind"`
+	// Plugin identity, when the declaration is plugin-provided.
+	Plugin *MCPSourcePlugin `json:"plugin,omitempty"`
 }
 
 // Server name and optional configuration for an individual MCP server start. Omit `config`

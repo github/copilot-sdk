@@ -7393,10 +7393,72 @@ export interface DiscoveredMcpServer {
    * Plugin version that provided this server, when source is plugin.
    */
   sourcePluginVersion?: string;
+  effectiveSource?: McpSourceRef;
   /**
    * Whether the server is enabled (not in the disabled list)
    */
   enabled: boolean;
+}
+/**
+ * Canonical identity and location of the effective MCP server declaration. The declaration is uniquely addressed by this source id together with the discovered server name.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpSourceRef".
+ */
+/** @experimental */
+export interface McpSourceRef {
+  /**
+   * Open source-kind identifier. Known values include user, workspace, invocation, plugin, builtin, and device-registry.
+   */
+  kind: string;
+  /**
+   * Opaque stable identity for the configuration source. Clients must not parse this value.
+   */
+  id: string;
+  /**
+   * Open semantic editability identifier. Known values are editable and read-only.
+   */
+  editability: string;
+  file?: McpSourceFile;
+  plugin?: McpSourcePlugin;
+}
+/**
+ * Concrete configuration file containing an MCP server declaration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpSourceFile".
+ */
+/** @experimental */
+export interface McpSourceFile {
+  /**
+   * Canonical file URI for the configuration document
+   */
+  uri: string;
+  /**
+   * RFC 6901 JSON Pointer to the server declaration, when known
+   */
+  jsonPointer?: string;
+}
+/**
+ * Plugin identity associated with an MCP server declaration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpSourcePlugin".
+ */
+/** @experimental */
+export interface McpSourcePlugin {
+  /**
+   * Canonical plugin identity
+   */
+  id: string;
+  /**
+   * Human-readable plugin name, when available
+   */
+  name?: string;
+  /**
+   * Plugin version, when available
+   */
+  version?: string;
 }
 /**
  * Slash-prefixed command string to enqueue for FIFO processing.
@@ -11090,6 +11152,10 @@ export interface McpDiscoverRequest {
    * Working directory used as context for discovery (e.g., plugin resolution)
    */
   workingDirectory?: string;
+  /**
+   * Whether to include canonical effectiveSource metadata for each discovered server. Callers must opt in so protocol-3 clients retain the legacy closed response shape.
+   */
+  includeEffectiveSource?: boolean;
 }
 /**
  * MCP servers discovered from user, workspace, plugin, and built-in sources.
