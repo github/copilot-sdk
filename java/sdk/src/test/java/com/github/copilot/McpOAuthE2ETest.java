@@ -114,9 +114,10 @@ public class McpOAuthE2ETest {
 
     @Test
     void testShouldRequestReplacementTokensAcrossMcpOauthLifecycle() throws Exception {
-        try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot())) {
+        try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot(), true)) {
             var serverName = "oauth-lifecycle-mcp";
             var observedReasons = new CopyOnWriteArrayList<McpOauthRequestReason>();
+            var observedRequest = new AtomicReference<McpAuthRequest>();
             var refreshCount = new java.util.concurrent.atomic.AtomicInteger();
 
             try (var client = ctx.createClient();
@@ -124,6 +125,7 @@ public class McpOAuthE2ETest {
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setOnMcpAuthRequest((request, invocation) -> {
                                 assertNotNull(invocation);
+                                observedRequest.set(request);
                                 observedReasons.add(request.reason());
                                 var result = switch (request.reason()) {
                                     case REFRESH -> {
@@ -150,8 +152,8 @@ public class McpOAuthE2ETest {
                             }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
                                     .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                             .get()) {
-                waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED,
-                        new java.util.concurrent.atomic.AtomicReference<>());
+                oauthServer.releaseInitialChallenge();
+                waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest);
                 callWhoami(session, serverName, "refresh");
                 callWhoami(session, serverName, "upscope");
                 callWhoami(session, serverName, "reauth");
@@ -306,9 +308,16 @@ public class McpOAuthE2ETest {
 
     private record OAuthMcpServer(Process process, String url) implements AutoCloseable {
         static OAuthMcpServer start(Path repoRoot) throws Exception {
+            return start(repoRoot, false);
+        }
+
+        static OAuthMcpServer start(Path repoRoot, boolean deferInitialChallenge) throws Exception {
             var script = repoRoot.resolve("test").resolve("harness").resolve("test-mcp-oauth-server.mjs");
             var processBuilder = new ProcessBuilder(resolveExecutable("node"), script.toString());
             processBuilder.environment().put("EXPECTED_TOKEN", EXPECTED_TOKEN);
+            if (deferInitialChallenge) {
+                processBuilder.environment().put("DEFER_INITIAL_CHALLENGE", "true");
+            }
             var process = processBuilder.start();
             var stderr = new StringBuilder();
             Thread stderrThread = new Thread(() -> {
@@ -334,6 +343,15 @@ public class McpOAuthE2ETest {
             }
             process.destroyForcibly();
             throw new AssertionError("Timed out waiting for OAuth MCP server: " + stderr);
+        }
+
+        void releaseInitialChallenge() throws Exception {
+            var client = HttpClient.newHttpClient();
+            var response = client.send(
+                    HttpRequest.newBuilder(URI.create(url + "/__release-initial-challenge"))
+                            .timeout(Duration.ofSeconds(10)).POST(HttpRequest.BodyPublishers.noBody()).build(),
+                    HttpResponse.BodyHandlers.discarding());
+            assertEquals(204, response.statusCode());
         }
 
         List<OAuthMcpRequest> requests() throws Exception {
