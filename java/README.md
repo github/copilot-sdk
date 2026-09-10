@@ -671,16 +671,17 @@ Releasing is intentionally a **read-only** operation that never mutates the repo
 - `.github/workflows/java-publish-maven.yml` builds every native classifier and the primary artifact from a single immutable source commit and publishes to Maven Central. It creates no commits, no branch-protection bypass, and requires no elevated repository token.
 - The `java/vX.Y.Z` traceability tag and the cross-language `vX.Y.Z` GitHub Release are created by `publish.yml` **after** publication succeeds, pointing at the original release commit.
 
-Because there is no `maven-release-plugin` and no `release:prepare` ceremony, the POM deliberately does not track the "next" release version. To cut a release locally for validation, resolve `${revision}` explicitly:
+Because there is no `maven-release-plugin` and no `release:prepare` ceremony, the POM deliberately does not track the "next" release version. To validate a build with an explicit version locally, without publishing:
 
 ```bash
-# Build/deploy with an explicit release version, without touching the POM
-mvn -Prelease deploy -Drevision=1.2.3 -DskipTests
+# Build and verify with an explicit version, without touching the POM
+mvn clean verify -Drevision=1.2.3
 
-# Confirm the flattened, published POM carries the literal version (no ${revision})
-mvn -pl sdk process-resources -Drevision=1.2.3 -DskipTests
-cat sdk/.flattened-pom.xml
+# Inspect the generated flattened POMs for the literal version (no ${revision})
+cat sdk/.flattened-pom.xml copilot-native/.flattened-pom.xml
 ```
+
+These commands do not upload artifacts. Do not use `deploy` for local validation: the Central publishing plugin is configured with `autoPublish=true`.
 
 `flatten-maven-plugin` (ossrh mode) resolves `${revision}` into the installed and published POMs, so downstream consumers never see the unresolved property. Documentation version references are updated through a normal reviewed pull request (see `scripts/update-documentation-versions.sh`), not as a side effect of publishing.
 
