@@ -16,6 +16,7 @@ import {
 } from "../src/runtimeArtifacts.js";
 import { COPILOT_CLI_USE_NPM_PACKAGE, COPILOT_CLI_VERSION } from "../src/cliVersion.js";
 import { ensureCopilotPackage } from "../scripts/releaseArtifacts.js";
+import { getLegacyCliPathForTests } from "./e2e/harness/sdkTestContext.js";
 
 describe("defaultRuntimeCacheRoot", () => {
     it.each([
@@ -283,6 +284,104 @@ describe("release package acquisition", () => {
             })
         ).resolves.toBe(packageRoot);
         expect(fetcher).not.toHaveBeenCalled();
+    });
+
+    it("uses an ambient acquired package only for its exact runtime version", async () => {
+        const root = mkdtempSync(join(tmpdir(), "copilot-runtime-environment-"));
+        const platform = "linux-x64";
+        const packageRoot = join(root, platform);
+        const prebuilds = join(packageRoot, "prebuilds", platform);
+        mkdirSync(prebuilds, { recursive: true });
+        writeFileSync(
+            join(packageRoot, "package.json"),
+            JSON.stringify({ version: COPILOT_CLI_VERSION })
+        );
+        writeFileSync(join(packageRoot, "app.js"), "legacy CLI");
+        writeFileSync(join(prebuilds, "runtime.node"), "runtime");
+        const fetcher = vi.fn(() => {
+            throw new Error("matching ambient runtime resolution must not fetch");
+        });
+        const environment = {
+            ...process.env,
+            COPILOT_SDK_RUNTIME_PACKAGE_DIR: root,
+        };
+
+        await expect(
+            ensureCopilotPackage(COPILOT_CLI_VERSION, {
+                environment,
+                fetch: fetcher,
+                platform,
+            })
+        ).resolves.toBe(packageRoot);
+        expect(readFileSync(join(packageRoot, "app.js"), "utf8")).toBe("legacy CLI");
+        expect(fetcher).not.toHaveBeenCalled();
+    });
+
+    it("resolves the legacy E2E CLI from the matching acquired package", async () => {
+        const root = mkdtempSync(join(tmpdir(), "copilot-legacy-runtime-"));
+        const platform = getRuntimePlatform();
+        const packageRoot = join(root, platform);
+        mkdirSync(join(packageRoot, "prebuilds", platform), { recursive: true });
+        writeFileSync(
+            join(packageRoot, "package.json"),
+            JSON.stringify({ version: COPILOT_CLI_VERSION })
+        );
+        writeFileSync(join(packageRoot, "app.js"), "legacy CLI");
+        writeFileSync(join(packageRoot, "prebuilds", platform, "runtime.node"), "runtime");
+        vi.stubEnv("COPILOT_SDK_RUNTIME_PACKAGE_DIR", root);
+
+        try {
+            await expect(getLegacyCliPathForTests()).resolves.toBe(join(packageRoot, "app.js"));
+        } finally {
+            vi.unstubAllEnvs();
+        }
+    });
+
+    it("ignores an ambient acquired package for a different requested version", async () => {
+        const sourceRoot = mkdtempSync(join(tmpdir(), "copilot-runtime-version-guard-"));
+        const acquiredRoot = join(sourceRoot, "acquired");
+        const platform = "linux-x64";
+        const acquiredPackageRoot = join(acquiredRoot, platform);
+        const acquiredPrebuilds = join(acquiredPackageRoot, "prebuilds", platform);
+        mkdirSync(acquiredPrebuilds, { recursive: true });
+        writeFileSync(
+            join(acquiredPackageRoot, "package.json"),
+            JSON.stringify({ version: COPILOT_CLI_VERSION })
+        );
+        writeFileSync(join(acquiredPrebuilds, "runtime.node"), "acquired runtime");
+
+        const packageRoot = join(sourceRoot, "package");
+        const prebuilds = join(packageRoot, "prebuilds", platform);
+        mkdirSync(prebuilds, { recursive: true });
+        writeFileSync(join(prebuilds, "runtime.node"), "controlled runtime");
+        mkdirSync(join(packageRoot, "schemas"), { recursive: true });
+        writeFileSync(join(packageRoot, "schemas", "api.schema.json"), "{}");
+
+        const archivePath = join(sourceRoot, "runtime.tgz");
+        await createTar({ cwd: sourceRoot, file: archivePath, gzip: true }, ["package"]);
+        const archive = readFileSync(archivePath);
+        const version = "1.2.3-controlled.1";
+        const assetName = getRuntimeReleaseAssetName(version, platform);
+        const checksum = createHash("sha256").update(archive).digest("hex");
+        const fetcher = vi.fn(async (input: string | URL | Request) =>
+            String(input).endsWith("/SHA256SUMS.txt")
+                ? new Response(`${checksum}  ${assetName}\n`)
+                : new Response(archive)
+        );
+
+        const resolved = await ensureCopilotPackage(version, {
+            cacheRoot: join(sourceRoot, "cache"),
+            environment: {
+                ...process.env,
+                COPILOT_SDK_RUNTIME_PACKAGE_DIR: acquiredRoot,
+            },
+            fetch: fetcher,
+            platform,
+        });
+
+        expect(resolved).not.toBe(acquiredPackageRoot);
+        expect(readFileSync(join(resolved, "schemas", "api.schema.json"), "utf8")).toBe("{}");
+        expect(fetcher).toHaveBeenCalledTimes(2);
     });
 
     it("downloads, verifies, and caches a release package for packaging", async () => {
