@@ -11033,8 +11033,11 @@ type SendMessagesRequest struct {
 	// The UI mode the agent was in when these messages were sent. Defaults to the session's
 	// current mode.
 	AgentMode *SendAgentMode `json:"agentMode,omitempty"`
-	// The user messages to append to the conversation, in order. May be empty, in which case a
-	// single turn runs over the existing history with no new user message.
+	// The user messages to append to the conversation, in order, before running one agent loop.
+	// When the batch starts a run, its final message is the primary initiating message; earlier
+	// messages provide context, not separate runs or replies. May be empty, in which case a
+	// single turn runs over the existing history with no new user message or
+	// originatingMessageId.
 	Messages []SendMessageItem `json:"messages"`
 	// How to deliver the messages. `enqueue` (default) appends to the message queue.
 	// `immediate` interjects during an in-progress turn.
@@ -11071,8 +11074,11 @@ type SendMessagesRequest struct {
 // Experimental: SendMessagesResult is part of an experimental API and may change or be
 // removed.
 type SendMessagesResult struct {
-	// Unique identifiers assigned to the messages, one per provided message in order. Empty
-	// when no messages were provided.
+	// Unique identifiers assigned to the messages, one per provided message in order. For a
+	// batch that starts a run, assistant messages use the final ID as originatingMessageId
+	// throughout that run, including tool iterations and stop-hook corrections. Immediate
+	// steering does not replace the active run's origin. Empty when no messages were provided;
+	// that run has no originatingMessageId.
 	MessageIDs []string `json:"messageIds"`
 }
 

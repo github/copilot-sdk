@@ -4125,7 +4125,10 @@ public sealed class MessageOptions
     /// <summary>
     /// Optional provider-native JSON Schema for this turn, including tool continuations.
     /// The schema is passed unchanged with the name "response" and strict enforcement requested.
-    /// An immediate steering message inherits the active turn's schema and must not specify its own.
+    /// Ordinary immediate steering retains the active run's schema and origin even when promoted
+    /// to a follow-up after the model request finishes. An immediate message must not specify its
+    /// own schema, even while idle. Independent sends and context resets do not inherit this schema;
+    /// it is not a persisted session default.
     /// Use <see cref="CopilotSession.Rpc"/> for advanced response-format options.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]

@@ -696,13 +696,14 @@ export class CopilotSession {
     }
 
     /**
-     * Sends a message to this session and waits for the response.
+     * Sends a message to this session and returns once it is admitted.
      *
      * The message is processed asynchronously. Subscribe to events via {@link on}
      * to receive streaming responses and other session events.
      *
      * @param options - The message options including the prompt and optional attachments
-     * @returns A promise that resolves with the message ID of the response
+     * @returns The submitted user message's ID, not an assistant response ID.
+     *          When this send starts a run, root assistant messages carry it as originatingMessageId.
      * @throws Error if the session has been disconnected or the connection fails
      *
      * @example
@@ -789,6 +790,12 @@ export class CopilotSession {
         const options: MessageOptions =
             typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
         const typedSchema = isResponseSchema(schemaOrTimeout) ? schemaOrTimeout : undefined;
+        if (schemaOrTimeout !== undefined && typeof schemaOrTimeout !== "number" && !typedSchema) {
+            throw new TypeError(
+                "The second argument must be a timeout or a schema with toJSONSchema() and parse(). " +
+                    "Pass raw JSON Schema in options.responseSchema instead."
+            );
+        }
         const effectiveTimeout =
             (typeof schemaOrTimeout === "number" ? schemaOrTimeout : timeout) ?? 60_000;
 

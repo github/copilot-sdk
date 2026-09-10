@@ -10534,8 +10534,11 @@ class SendMessagesResult:
     """Result of sending zero or more user messages"""
 
     message_ids: list[str]
-    """Unique identifiers assigned to the messages, one per provided message in order. Empty
-    when no messages were provided.
+    """Unique identifiers assigned to the messages, one per provided message in order. For a
+    batch that starts a run, assistant messages use the final ID as originatingMessageId
+    throughout that run, including tool iterations and stop-hook corrections. Immediate
+    steering does not replace the active run's origin. Empty when no messages were provided;
+    that run has no originatingMessageId.
     """
 
     @staticmethod
@@ -29134,8 +29137,11 @@ class SendMessagesRequest:
     error.
     """
     messages: list[SendMessageItem]
-    """The user messages to append to the conversation, in order. May be empty, in which case a
-    single turn runs over the existing history with no new user message.
+    """The user messages to append to the conversation, in order, before running one agent loop.
+    When the batch starts a run, its final message is the primary initiating message; earlier
+    messages provide context, not separate runs or replies. May be empty, in which case a
+    single turn runs over the existing history with no new user message or
+    originatingMessageId.
     """
     agent_mode: SendAgentMode | None = None
     """The UI mode the agent was in when these messages were sent. Defaults to the session's

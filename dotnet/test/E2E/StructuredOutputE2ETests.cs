@@ -227,6 +227,50 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
     }
 
     [Fact]
+    public async Task Typed_Wait_Returns_Late_Steering_Response()
+    {
+        var stops = 0;
+        string? steeringId = null;
+        CopilotSession? session = null;
+        var config = StructuredSessionConfig();
+        config.Hooks = new SessionHooks
+        {
+            OnAgentStop = async (_, _) =>
+            {
+                if (Interlocked.Increment(ref stops) == 1)
+                {
+                    // The final model request has finished, but this run still admits steering.
+                    steeringId = await session!.SendAsync(new MessageOptions
+                    {
+                        Prompt = "Change the answer to 99. Do not use tools.",
+                        Mode = "immediate",
+                    });
+                }
+                return null;
+            },
+        };
+        session = await CreateSessionAsync(config);
+        var replies = new System.Collections.Concurrent.ConcurrentQueue<AssistantMessageEvent>();
+        using var subscription = session.On<AssistantMessageEvent>(message =>
+        {
+            if (string.IsNullOrEmpty(message.AgentId)) replies.Enqueue(message);
+        });
+        var result = await session.SendAndWaitAsync<CorrectionResult>(
+            "What is 19 + 23? Do not use tools.",
+            StructuredOutputE2EJsonContext.Default.Options,
+            TimeSpan.FromMinutes(3));
+        Assert.Equal(99, result.Answer);
+        Assert.Equal(2, stops);
+        Assert.Equal(2, replies.Count);
+        Assert.False(string.IsNullOrEmpty(steeringId));
+        Assert.False(string.IsNullOrEmpty(replies.First().Data.OriginatingMessageId));
+        Assert.NotEqual(steeringId, replies.First().Data.OriginatingMessageId);
+        Assert.Equal(replies.First().Data.OriginatingMessageId, replies.Last().Data.OriginatingMessageId);
+        Assert.Equal([42, 99], replies.Select(message =>
+            JsonSerializer.Deserialize(message.Data.Content, StructuredOutputE2EJsonContext.Default.CorrectionResult)!.Answer));
+    }
+
+    [Fact]
     public async Task Concurrent_Typed_Sends_Return_Their_Own_Results()
     {
         var toolEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

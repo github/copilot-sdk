@@ -15642,7 +15642,7 @@ pub struct SendMessagesRequest {
     /// The UI mode the agent was in when these messages were sent. Defaults to the session's current mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_mode: Option<SendAgentMode>,
-    /// The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.
+    /// The user messages to append to the conversation, in order, before running one agent loop. When the batch starts a run, its final message is the primary initiating message; earlier messages provide context, not separate runs or replies. May be empty, in which case a single turn runs over the existing history with no new user message or originatingMessageId.
     pub messages: Vec<SendMessageItem>,
     /// How to deliver the messages. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -15678,7 +15678,7 @@ pub struct SendMessagesRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SendMessagesResult {
-    /// Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
+    /// Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId.
     pub message_ids: Vec<String>,
 }
 
@@ -23017,7 +23017,7 @@ pub struct SessionSendResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSendMessagesResult {
-    /// Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
+    /// Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId.
     pub message_ids: Vec<String>,
 }
 

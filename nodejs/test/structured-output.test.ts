@@ -168,6 +168,18 @@ describe("structured output", () => {
         expect(sendRequest).not.toHaveBeenCalled();
     });
 
+    it.each([{ type: "object" }, { toJSONSchema: () => ({ type: "object" }) }, null])(
+        "rejects an invalid second argument instead of sending an unformatted request: %j",
+        async (schema) => {
+            const { session, sendRequest } = controlledSession();
+            await expect(
+                // @ts-expect-error Exercise malformed arguments from JavaScript callers.
+                session.sendAndWait("question", schema)
+            ).rejects.toThrow("Pass raw JSON Schema in options.responseSchema instead.");
+            expect(sendRequest).not.toHaveBeenCalled();
+        }
+    );
+
     it("does not return a partial result after abort", async () => {
         const { session, sends } = controlledSession();
         const pending = session.sendAndWait("question", answer);

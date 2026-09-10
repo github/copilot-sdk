@@ -28,7 +28,7 @@ import javax.annotation.processing.Generated;
 public record SessionSendMessagesParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message. */
+    /** The user messages to append to the conversation, in order, before running one agent loop. When the batch starts a run, its final message is the primary initiating message; earlier messages provide context, not separate runs or replies. May be empty, in which case a single turn runs over the existing history with no new user message or originatingMessageId. */
     @JsonProperty("messages") List<SendMessageItem> messages,
     /** How to deliver the messages. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn. */
     @JsonProperty("mode") SendMode mode,

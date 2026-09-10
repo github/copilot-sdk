@@ -5482,7 +5482,7 @@ internal sealed class SendRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class SendMessagesResult
 {
-    /// <summary>Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.</summary>
+    /// <summary>Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId.</summary>
     [JsonPropertyName("messageIds")]
     public IList<string> MessageIds { get => field ??= []; set; }
 }
@@ -5527,7 +5527,7 @@ internal sealed class SendMessagesRequest
     [JsonPropertyName("agentMode")]
     public SendAgentMode? AgentMode { get; set; }
 
-    /// <summary>The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.</summary>
+    /// <summary>The user messages to append to the conversation, in order, before running one agent loop. When the batch starts a run, its final message is the primary initiating message; earlier messages provide context, not separate runs or replies. May be empty, in which case a single turn runs over the existing history with no new user message or originatingMessageId.</summary>
     [JsonPropertyName("messages")]
     public IList<SendMessageItem> Messages { get => field ??= []; set; }
 
@@ -33489,7 +33489,7 @@ public sealed class SessionRpc
     }
 
     /// <summary>Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.</summary>
-    /// <param name="messages">The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.</param>
+    /// <param name="messages">The user messages to append to the conversation, in order, before running one agent loop. When the batch starts a run, its final message is the primary initiating message; earlier messages provide context, not separate runs or replies. May be empty, in which case a single turn runs over the existing history with no new user message or originatingMessageId.</param>
     /// <param name="mode">How to deliver the messages. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.</param>
     /// <param name="prepend">If true, adds the messages to the front of the queue instead of the end.</param>
     /// <param name="agentMode">The UI mode the agent was in when these messages were sent. Defaults to the session's current mode.</param>

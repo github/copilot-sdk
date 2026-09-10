@@ -3400,8 +3400,10 @@ export interface MessageOptions {
 
     /**
      * JSON Schema or a Zod schema for this run's output, including requests after tool calls.
-     * Later sends do not inherit it. Ordinary immediate steering inherits the active schema;
-     * specifying a schema with mode "immediate" is rejected.
+     * Independent sends do not inherit it. Ordinary immediate steering retains the active
+     * schema and origin, even when promoted to a follow-up after the model request finishes.
+     * Specifying a schema with mode "immediate" is rejected, even while idle.
+     * This is not a persisted session default and does not survive a context reset.
      *
      * sendAndWait still returns an assistant message event. For a typed result, pass a
      * Zod-compatible schema as sendAndWait's second argument instead.

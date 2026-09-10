@@ -336,12 +336,22 @@ using the typed overload.
 The schema belongs to the submitted run, including its tool-call iterations.
 Internally generated stop-hook corrections retain the schema and originating
 message ID, so the wait returns the corrected answer. Independent subsequent
-sends do not inherit it. Ordinary immediate steering inherits the
-active schema; specifying a schema with `mode: "immediate"` is rejected.
+sends do not inherit it. Ordinary immediate steering inherits the active schema
+and originating message ID, even when it arrives too late for the current model
+request and is promoted into a follow-up run. Specifying a schema with
+`mode: "immediate"` is rejected, even while idle.
 The generated `session.rpc.send` and `session.rpc.sendMessages` wrappers expose
 the full `responseFormat` contract when you need to set its name, description,
 or strict option rather than using the convenience defaults (`name: "response"`,
 `strict: true`).
+Each batch starts one run: the final returned message ID is its origin, preceding
+messages are context, and an empty batch has no origin. An immediate batch
+steers the active run instead and retains its origin.
+The schema is not a persisted session default: autonomous resume-pending work
+after a restart does not restore it. A terminal tool that clears context ends
+the old run; its fresh seed does not inherit the schema or origin. Such a run
+can finish without a structured result, in which case the typed wait throws.
+Remote sessions and HydraFusion routes reject response formats.
 
 Structured waits select the last root-agent message whose `originatingMessageId`
 matches the ID returned by their send, then return at a non-autopilot
