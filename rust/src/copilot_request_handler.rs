@@ -28,7 +28,7 @@ use std::sync::{Arc, LazyLock, OnceLock, Weak};
 use async_trait::async_trait;
 use base64::Engine;
 use bytes::Bytes;
-use futures_util::{SinkExt, Stream, StreamExt};
+use futures_util::{SinkExt, Stream, StreamExt, TryStreamExt};
 use http::HeaderMap;
 use http::header::{HeaderName, HeaderValue};
 use parking_lot::Mutex;
@@ -371,11 +371,22 @@ fn strip_forbidden_headers(headers: &mut HeaderMap) {
     }
 }
 
-static SHARED_HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
-    reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
+type SharedHttpClient = hyper_util::client::legacy::Client<
+    hyper_tls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>,
+    http_body_util::Full<Bytes>,
+>;
+
+/// Native-TLS client with ALPN so upstreams can negotiate HTTP/2. Redirects are
+/// left to the caller (not followed here).
+static SHARED_HTTP_CLIENT: LazyLock<SharedHttpClient> = LazyLock::new(|| {
+    let mut http = hyper_util::client::legacy::connect::HttpConnector::new();
+    http.enforce_http(false);
+    let tls = native_tls::TlsConnector::builder()
+        .request_alpns(&["h2", "http/1.1"])
         .build()
-        .expect("default reqwest client must build")
+        .expect("default native-tls connector must build");
+    let https = hyper_tls::HttpsConnector::from((http, tls.into()));
+    hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new()).build(https)
 });
 
 /// Forward an HTTP request to its real upstream and stream the response back.
@@ -385,32 +396,35 @@ static SHARED_HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
 pub async fn forward_http(
     request: CopilotHttpRequest,
 ) -> Result<CopilotHttpResponse, CopilotRequestError> {
-    let method = reqwest::Method::from_bytes(request.method.as_bytes())
+    let method = http::Method::from_bytes(request.method.as_bytes())
         .map_err(|e| CopilotRequestError::InvalidState(format!("invalid HTTP method: {e}")))?;
 
     let mut headers = request.headers;
     strip_forbidden_headers(&mut headers);
 
-    let mut builder = SHARED_HTTP_CLIENT
-        .request(method, &request.url)
-        .headers(headers);
-    if !request.body.is_empty() {
-        builder = builder.body(request.body);
+    let mut builder = http::Request::builder().method(method).uri(&request.url);
+    if let Some(dst) = builder.headers_mut() {
+        *dst = headers;
     }
+    let req = builder
+        .body(http_body_util::Full::new(Bytes::from(request.body)))
+        .map_err(|e| CopilotRequestError::InvalidState(format!("invalid request: {e}")))?;
 
     let response = tokio::select! {
         _ = request.cancel.cancelled() => {
             return Err(CopilotRequestError::message("Request cancelled by runtime"));
         }
-        result = builder.send() => result.map_err(|e| CopilotRequestError::Upstream(e.to_string()))?,
+        result = SHARED_HTTP_CLIENT.request(req) => {
+            result.map_err(|e| CopilotRequestError::Upstream(e.to_string()))?
+        }
     };
 
     let status = response.status().as_u16();
     let status_text = response.status().canonical_reason().map(str::to_string);
     let headers = response.headers().clone();
-    let body = response
-        .bytes_stream()
-        .map(|item| item.map_err(|e| CopilotRequestError::Upstream(e.to_string())));
+    let body = http_body_util::BodyStream::new(response.into_body())
+        .try_filter_map(|frame| async move { Ok(frame.into_data().ok()) })
+        .map_err(|e| CopilotRequestError::Upstream(e.to_string()));
 
     Ok(CopilotHttpResponse {
         status,
