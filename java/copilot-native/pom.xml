@@ -885,30 +885,6 @@
             </build>
         </profile>
         <!--
-            Keep the end-to-end local deployment check entirely local while
-            exercising the same deploy lifecycle used by releases.
-        -->
-        <profile>
-            <id>local-publication-validation</id>
-            <activation>
-                <property>
-                    <name>copilot.native.test.local.publication</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.sonatype.central</groupId>
-                        <artifactId>central-publishing-maven-plugin</artifactId>
-                        <configuration>
-                            <skipPublishing>true</skipPublishing>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <!--
             Skip the npm download when building offline or when only the
             placeholder JAR is needed: mvn -Dcopilot.native.skip.download=true
         -->

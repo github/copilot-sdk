@@ -10,6 +10,8 @@ env:
 # the repository. The cross-language `vX.Y.Z` GitHub Release and the
 # `java/vX.Y.Z` traceability tag are created by .github/workflows/publish.yml
 # only after publication succeeds.
+# Dispatches can select a different source SHA than the workflow's branch.
+# Keep dependency caches disabled so that source cannot poison branch caches.
 
 on:
   workflow_dispatch:
@@ -98,7 +100,6 @@ jobs:
         with:
           java-version: "25"
           distribution: "microsoft"
-          cache: "maven"
 
       - name: Determine release version
         id: versions
@@ -145,11 +146,11 @@ jobs:
         with:
           java-version: "25"
           distribution: "microsoft"
-          cache: "maven"
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 22
+          package-manager-cache: false
 
       - name: Build and validate linux-arm64 classifier
         run: |
@@ -204,11 +205,11 @@ jobs:
         with:
           java-version: "25"
           distribution: "microsoft"
-          cache: "maven"
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 22
+          package-manager-cache: false
 
       - name: Build and validate win32-x64 classifier
         run: |
@@ -261,11 +262,11 @@ jobs:
         with:
           java-version: "25"
           distribution: "microsoft"
-          cache: "maven"
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 22
+          package-manager-cache: false
 
       - name: Build and validate win32-arm64 classifier
         run: |
@@ -318,11 +319,11 @@ jobs:
         with:
           java-version: "25"
           distribution: "microsoft"
-          cache: "maven"
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 22
+          package-manager-cache: false
 
       - name: Build and validate darwin-arm64 classifier
         run: |
@@ -383,13 +384,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-copilot
-
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
           java-version: "25"
           distribution: "microsoft"
-          cache: "maven"
           server-id: central
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
@@ -399,6 +397,7 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 22
+          package-manager-cache: false
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:

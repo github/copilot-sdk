@@ -361,7 +361,7 @@ jobs:
           name: java-native-publication-darwin-arm64-${{ github.run_id }}
           path: ${{ github.workspace }}/java/native-publication-input/darwin
 
-      - name: Verify native inputs and deploy the complete local release
+      - name: Verify native inputs and install the complete local release
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ needs.java-native-publication-linux-arm64.outputs.source_sha }}"
@@ -409,11 +409,9 @@ jobs:
             --quick-generate-key 'Copilot SDK local validation <local-validation@example.invalid>' rsa2048 sign 1d
           LOCAL_REPOSITORY="$GITHUB_WORKSPACE/java/copilot-native/target/local-publication-repository"
           rm -rf "$LOCAL_REPOSITORY"
-          mvn -B -pl copilot-native deploy -Prelease -DskipTests \
+          mvn -B -pl copilot-native install -Prelease -DskipTests \
             "-Drevision=$VERSION" \
             -Dcopilot.native.libc=glibc \
-            -Dcopilot.native.test.local.publication=true \
-            -DskipPublishing=true \
             "-Dcopilot.native.external.linux.arm64.classifier.path=$LINUX_ARM64_JAR" \
             "-Dcopilot.native.external.win32.classifier.path=$WINDOWS_JAR" \
             "-Dcopilot.native.external.win32.arm64.classifier.path=$WINDOWS_ARM64_JAR" \
@@ -423,7 +421,6 @@ jobs:
             "$LOCAL_REPOSITORY" copilot-sdk-java-runtime "$VERSION" .. --signatures
           mvn -B -pl sdk install -Prelease -DskipTests \
             "-Drevision=$VERSION" \
-            -DskipPublishing=true \
             "-Dmaven.repo.local=$LOCAL_REPOSITORY"
           node copilot-native/scripts/validate-local-publication.mjs \
             "$LOCAL_REPOSITORY" copilot-sdk-java "$VERSION" .. --signatures
