@@ -38,6 +38,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"runtime"
 	"strings"
 	"sync"
@@ -356,7 +357,9 @@ func (h *Host) tryFinalizeCleanupLocked() bool {
 
 	serverID := h.serverID
 	if serverID != 0 {
-		h.lib.hostShutdown(serverID)
+		if !h.lib.hostShutdown(serverID) {
+			log.Printf("FfiRuntimeHost: host_shutdown did not recognize server %d", serverID)
+		}
 		h.serverID = 0
 		if h.cliEntrypoint != "" {
 			// A legacy host may restore its saved SIGCHLD action during shutdown.
