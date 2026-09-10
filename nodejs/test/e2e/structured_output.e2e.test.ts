@@ -240,6 +240,53 @@ describe("Structured output", async () => {
         }
     });
 
+    it("typed_wait_returns_late_steering_response", async () => {
+        let stops = 0;
+        let steeringId: string | undefined;
+        let session: CopilotSession;
+        const replies: AssistantMessageEvent[] = [];
+        const schema = z.object({ answer: z.number().int() });
+        session = await client.createSession({
+            model: "gpt-4.1",
+            provider,
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            onEvent: (event) => {
+                if (event.type === "assistant.message" && !event.agentId) replies.push(event);
+            },
+            hooks: {
+                onAgentStop: async () => {
+                    if (++stops === 1) {
+                        // The final model request has finished, but this run still admits steering.
+                        steeringId = await session.send({
+                            prompt: "Change the answer to 99. Do not use tools.",
+                            mode: "immediate",
+                        });
+                    }
+                },
+            },
+        });
+        const result = await session.sendAndWait("What is 19 + 23? Do not use tools.", schema);
+        expect(result).toEqual({ answer: 99 });
+        expect(stops).toBe(2);
+        expect(replies.map((reply): unknown => JSON.parse(reply.data.content))).toEqual([
+            { answer: 42 },
+            { answer: 99 },
+        ]);
+        expect(steeringId).toBeTruthy();
+        expect(replies[0].data.originatingMessageId).toBeTruthy();
+        expect(replies[0].data.originatingMessageId).not.toBe(steeringId);
+        expect(replies[1].data.originatingMessageId).toBe(replies[0].data.originatingMessageId);
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges).toHaveLength(2);
+        for (const exchange of exchanges) {
+            expect(exchange.request).toHaveProperty(
+                "response_format.json_schema.schema",
+                schema.toJSONSchema()
+            );
+        }
+    });
+
     it("node_concurrent_typed_sends_return_their_own_results", async () => {
         let markToolEntered!: () => void;
         let releaseTool!: () => void;

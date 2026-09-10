@@ -289,7 +289,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     /// <param name="options">Options for the message to be sent, including the prompt and optional attachments.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
-    /// <returns>A task that resolves with the ID of the response message, which can be used to correlate events.</returns>
+    /// <returns>The submitted user message's ID, not an assistant response ID. When this send starts
+    /// a run, root assistant messages carry it as <c>OriginatingMessageId</c>.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the session has been disposed.</exception>
     /// <remarks>
     /// <para>

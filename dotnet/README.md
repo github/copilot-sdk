@@ -335,8 +335,8 @@ correlation as typed waits; unformatted waits retain their existing behavior.
 
 With `SendAsync`, collect root `AssistantMessageEvent` events whose
 `Data.OriginatingMessageId` matches the returned message ID, then select the last
-one when the session becomes idle. Subscribe before sending because events can
-precede the send acknowledgement, and handle `SessionErrorEvent` normally.
+one without tool requests when the session becomes idle. Subscribe before sending
+because events can precede the send acknowledgement, and handle `SessionErrorEvent` normally.
 There is no final-message flag: stop hooks can reject an initial answer and
 request a correction. Those corrections retain the original schema and
 originating message ID, so `SendAndWaitAsync` selects the corrected response at
@@ -382,9 +382,19 @@ await session.Rpc.SendMessagesAsync(
 
 Raw schemas and outputs are passed through without validation or rewriting.
 Provider support and schema restrictions apply. The format persists through
-tool continuations in that turn, not subsequent turns. An ordinary
-`Mode = "immediate"` steering message inherits the active format; specifying
-a new format on an immediate message is rejected.
+tool continuations in that run, not independent subsequent runs. An ordinary
+`Mode = "immediate"` steering message inherits the active format and originating
+message ID, even if it arrives after the final model request and is promoted
+into a follow-up run. Specifying a new format on an immediate message is rejected,
+even while idle.
+Each batch starts one run: the final returned message ID is its origin, preceding
+messages are context, and an empty batch has no origin. An immediate batch
+steers the active run instead and retains its origin.
+The schema is not a persisted session default: autonomous resume-pending work
+after a restart does not restore it. A terminal tool that clears context ends
+the old run; its fresh seed does not inherit the schema or origin. Such a run
+can finish without a structured result, in which case the typed wait throws.
+Remote sessions and HydraFusion routes reject response formats.
 Use a provider route that enforces JSON Schema: an API-compatible gateway can
 ignore unsupported format fields, and the Claude Chat-completions compatibility
 route is not equivalent to Anthropic's native Messages endpoint. This preview

@@ -1,0 +1,14 @@
+models:
+  - gpt-4.1
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 19 + 23? Do not use tools.
+      - role: assistant
+        content: '{"answer":42}'
+      - role: user
+        content: Change the answer to 99. Do not use tools.
+      - role: assistant
+        content: '{"answer":99}'
