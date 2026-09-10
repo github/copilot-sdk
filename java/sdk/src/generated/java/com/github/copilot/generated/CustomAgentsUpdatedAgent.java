@@ -36,6 +36,8 @@ public record CustomAgentsUpdatedAgent(
     @JsonProperty("tools") List<String> tools,
     /** Whether the agent can be selected by the user */
     @JsonProperty("userInvocable") Boolean userInvocable,
+    /** Whether model-driven invocation is disabled for this agent. */
+    @JsonProperty("disableModelInvocation") Boolean disableModelInvocation,
     /** Model override for this agent, if set */
     @JsonProperty("model") String model,
     /** Authored model ids in priority order, if configured */

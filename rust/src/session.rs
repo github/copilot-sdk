@@ -522,6 +522,9 @@ impl Session {
             "sessionId": self.id,
             "prompt": opts.prompt,
         });
+        if let Some(source) = opts.source {
+            params["source"] = serde_json::to_value(source)?;
+        }
         if let Some(m) = opts.mode {
             params["mode"] = serde_json::to_value(m)?;
         }

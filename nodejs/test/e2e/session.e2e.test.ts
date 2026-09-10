@@ -103,6 +103,10 @@ describe("Sessions", () => {
             workingDirectory: workDir,
             env,
             connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            // Explicit token (matches createClient()/other passing resume tests): without it,
+            // useLoggedInUser defaults to true and the runtime falls back to ambient env-var
+            // auto-detection for the model call, which flakes on some hosts (e.g. Alpine ARM64).
+            gitHubToken: isCI ? DEFAULT_GITHUB_TOKEN : undefined,
         });
         onTestFinished(async () => {
             try {
@@ -127,6 +131,7 @@ describe("Sessions", () => {
             workingDirectory: workDir,
             env,
             connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            gitHubToken: isCI ? DEFAULT_GITHUB_TOKEN : undefined,
         });
         onTestFinished(async () => {
             try {

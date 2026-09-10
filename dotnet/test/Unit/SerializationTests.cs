@@ -17,6 +17,66 @@ namespace GitHub.Copilot.Test.Unit;
 /// </summary>
 public class SerializationTests
 {
+    public static IEnumerable<object?[]> MessageSources =>
+    [
+        new object?[] { null, null },
+        new object?[] { MessageSource.User, "user" },
+        new object?[] { MessageSource.System, "system" },
+        new object?[] { MessageSource.Agent("Reviewer-7"), "agent-Reviewer-7" },
+        new object?[] { MessageSource.Agent("agent-Worker"), "agent-agent-Worker" },
+        new object?[] { MessageSource.Agent(" Team/α "), "agent- Team/α " },
+        new object?[] { MessageSource.Agent(""), "agent-" },
+    ];
+
+    [Theory]
+    [MemberData(nameof(MessageSources))]
+    public void MessageSource_RoundTrips_And_Omits_Null(MessageSource? source, string? wireSource)
+    {
+        var options = GetSerializerOptions();
+        var json = JsonSerializer.Serialize(new MessageOptions { Prompt = "hello", Source = source }, options);
+        using var document = JsonDocument.Parse(json);
+        if (wireSource is null)
+        {
+            Assert.False(document.RootElement.TryGetProperty("source", out _));
+        }
+        else
+        {
+            Assert.Equal(wireSource, document.RootElement.GetProperty("source").GetString());
+        }
+        Assert.Equal(source, JsonSerializer.Deserialize<MessageOptions>(json, options)!.Source);
+        Assert.Null(JsonSerializer.Deserialize<MessageOptions>("{\"prompt\":\"hello\",\"source\":null}", options)!.Source);
+    }
+
+    [Theory]
+    [InlineData("\"unknown\"")]
+    [InlineData("\"USER\"")]
+    [InlineData("\"SYSTEM\"")]
+    [InlineData("\"Agent-worker\"")]
+    [InlineData("\"agent\"")]
+    [InlineData("\"\"")]
+    [InlineData("0")]
+    [InlineData("true")]
+    [InlineData("{}")]
+    [InlineData("[]")]
+    public void MessageSource_Rejects_Invalid_Json(string sourceJson)
+    {
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<MessageOptions>(
+            "{\"prompt\":\"hello\",\"source\":" + sourceJson + "}", GetSerializerOptions()));
+    }
+
+    [Fact]
+    public void MessageSource_Agent_Uses_CaseSensitive_Value_Equality()
+    {
+        var source = MessageSource.Agent("Reviewer");
+        var same = MessageSource.Agent("Reviewer");
+        Assert.Equal(source, same);
+        Assert.True(source == same);
+        Assert.Equal(source.GetHashCode(), same.GetHashCode());
+        Assert.NotEqual(source, MessageSource.Agent("reviewer"));
+        Assert.NotEqual(source, MessageSource.System);
+        Assert.Throws<ArgumentNullException>(() => MessageSource.Agent(null!));
+    }
+
     [Fact]
     public void SandboxConfig_RoundtripsAllowBypass_AndOmitsWhenAbsent()
     {
@@ -1174,6 +1234,35 @@ public class SerializationTests
         }
     }
 #pragma warning restore GHCP001
+
+    [Fact]
+    public void ModelSwitchRequests_DistinguishRequiredNullFromOmittedOptionalValue()
+    {
+        var options = GetSerializerOptions();
+        var assembly = typeof(CopilotClient).Assembly;
+
+        var switchAutoTierType = assembly.GetType("GitHub.Copilot.Rpc.ModelSwitchAutoTierRequest");
+        Assert.NotNull(switchAutoTierType);
+        var switchAutoTierRequest = CreateInternalRequest(
+            switchAutoTierType!,
+            ("SessionId", "session-id"),
+            ("AutoTier", null));
+        using var switchAutoTierDocument = JsonDocument.Parse(
+            JsonSerializer.Serialize(switchAutoTierRequest, switchAutoTierType!, options));
+        Assert.True(switchAutoTierDocument.RootElement.TryGetProperty("autoTier", out var requiredAutoTier));
+        Assert.Equal(JsonValueKind.Null, requiredAutoTier.ValueKind);
+
+        var switchToType = assembly.GetType("GitHub.Copilot.Rpc.ModelSwitchToRequest");
+        Assert.NotNull(switchToType);
+        var switchToRequest = CreateInternalRequest(
+            switchToType!,
+            ("SessionId", "session-id"),
+            ("ModelId", "auto"),
+            ("AutoTier", null));
+        using var switchToDocument = JsonDocument.Parse(
+            JsonSerializer.Serialize(switchToRequest, switchToType!, options));
+        Assert.False(switchToDocument.RootElement.TryGetProperty("autoTier", out _));
+    }
 
     private static JsonSerializerOptions GetSerializerOptions()
     {

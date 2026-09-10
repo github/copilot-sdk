@@ -17,6 +17,21 @@ import (
 // Mirrors dotnet/test/RpcServerTests.cs (snapshot category "rpc_server").
 // Tests server-scoped (non-session) RPCs.
 func TestRPCServerE2E(t *testing.T) {
+	t.Run("should clear the managed settings cache", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		ctx.ConfigureForTest(t)
+		client := ctx.NewClient()
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+
+		if _, err := client.RPC.ManagedSettings.ClearCache(t.Context()); err != nil {
+			t.Fatalf("ManagedSettings.ClearCache failed: %v", err)
+		}
+	})
+
 	t.Run("should call rpc ping with typed params and result", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureForTest(t)

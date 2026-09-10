@@ -818,6 +818,42 @@ let client = Client::start(opts).await?;
 
 The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TYPE`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, ...) into the spawned CLI process. The SDK takes no OpenTelemetry dependency; the CLI itself owns the exporter pipeline. Caller-supplied `ClientOptions::env` entries override telemetry-injected values.
 
+### Message Source
+
+Use `MessageSource::System` for automated messages sent by your application. Ordinary human sends leave `source` unset, so the field is omitted from the request. Use `MessageSource::User` when you need to set it explicitly.
+
+For messages from another agent, use `MessageSource::Agent("sender-id".into())` with the trusted sender ID. It serializes as `"agent-sender-id"` and works with both `MessageOptions::with_source` and `rpc::SendRequest::with_source`. Unlike internal system context, an identified agent message retains agent provenance.
+
+```rust,no_run
+use github_copilot_sdk::{MessageOptions, MessageSource, session::Session};
+
+# async fn example(session: &Session) -> Result<(), github_copilot_sdk::Error> {
+session
+    .send(MessageOptions::new("Context updated").with_source(MessageSource::System))
+    .await?;
+# Ok(())
+# }
+```
+
+The raw RPC path supports the same builder, including requests with JSON attachments:
+
+```rust,no_run
+use github_copilot_sdk::{MessageSource, rpc::SendRequest, session::Session};
+
+# async fn example(session: &Session) -> Result<(), github_copilot_sdk::Error> {
+let mut request = SendRequest::default().with_source(MessageSource::System);
+request.prompt = "Context updated".into();
+request.attachments = Some(vec![serde_json::json!({
+    "type": "github_url",
+    "url": "https://github.com/github/copilot-sdk"
+})]);
+session.rpc().send(request).await?;
+# Ok(())
+# }
+```
+
+Both paths use ordinary `session.send`. Source does not select a delivery mode or set billing flags; the runtime applies its existing source behavior. `send_and_wait` still completes on `session.idle` and may return `Ok(None)` when no assistant message was emitted. Genuine errors still propagate.
+
 ### Progress Reporting (`send_and_wait`)
 
 For fire-and-forget messaging where you need to block until the agent finishes:

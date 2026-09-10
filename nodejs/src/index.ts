@@ -116,6 +116,7 @@ export type {
     DefaultAgentConfig,
     BearerTokenProvider,
     MessageOptions,
+    MessageSource,
     ManagedSettings,
     ManagedSettingsPermissions,
     ModelBilling,

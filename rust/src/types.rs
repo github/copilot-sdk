@@ -5333,6 +5333,51 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
     }
 }
 
+/// Provenance of a message sent through `session.send`.
+///
+/// Source is independent of delivery mode. Leaving [`MessageOptions::source`]
+/// unset omits the field and preserves the runtime's default for user messages.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum MessageSource {
+    /// A message from a human user.
+    User,
+    /// An automated message from the integrating application.
+    System,
+    /// A message from the agent with this opaque sender ID.
+    Agent(String),
+}
+
+impl std::fmt::Display for MessageSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::User => f.write_str("user"),
+            Self::System => f.write_str("system"),
+            Self::Agent(id) => write!(f, "agent-{id}"),
+        }
+    }
+}
+
+impl Serialize for MessageSource {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for MessageSource {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "user" => Ok(Self::User),
+            "system" => Ok(Self::System),
+            value => value
+                .strip_prefix("agent-")
+                .map(|id| Self::Agent(id.to_owned()))
+                .ok_or_else(|| serde::de::Error::custom("expected user, system, or agent-<id>")),
+        }
+    }
+}
+
 /// Message delivery mode for [`MessageOptions::mode`].
 ///
 /// Controls how a prompt is delivered relative to in-flight session work.
@@ -5398,6 +5443,9 @@ pub enum AgentMode {
 pub struct MessageOptions {
     /// The user prompt to send.
     pub prompt: String,
+    /// Optional message provenance. When `None`, the field is omitted,
+    /// preserving the runtime's default for user messages.
+    pub source: Option<MessageSource>,
     /// Optional message delivery mode for this turn.
     ///
     /// Controls whether the prompt is queued behind in-flight work
@@ -5437,6 +5485,7 @@ impl MessageOptions {
     pub fn new(prompt: impl Into<String>) -> Self {
         Self {
             prompt: prompt.into(),
+            source: None,
             mode: None,
             agent_mode: None,
             attachments: None,
@@ -5446,6 +5495,12 @@ impl MessageOptions {
             tracestate: None,
             display_prompt: None,
         }
+    }
+
+    /// Set the message provenance without changing its delivery mode.
+    pub fn with_source(mut self, source: MessageSource) -> Self {
+        self.source = Some(source);
+        self
     }
 
     /// Set the message delivery mode for this turn.
