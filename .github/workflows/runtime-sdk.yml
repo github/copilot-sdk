@@ -184,8 +184,12 @@ jobs:
           path: ${{ runner.temp }}/runtime-package-artifact
       - name: Extract validated runtime packages
         run: |
-          rm -rf "$RUNNER_TEMP/runtime-packages"
-          tar -xzf "$RUNNER_TEMP/runtime-package-artifact/runtime-packages.tar.gz" -C "$RUNNER_TEMP"
+          runner_temp="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then
+            runner_temp="$(cygpath -u "$runner_temp")"
+          fi
+          rm -rf "$runner_temp/runtime-packages"
+          tar -xzf "$runner_temp/runtime-package-artifact/runtime-packages.tar.gz" -C "$runner_temp"
       - name: Select the acquired runtime
         env:
           COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
@@ -229,8 +233,12 @@ jobs:
           path: ${{ runner.temp }}/runtime-package-artifact
       - name: Extract validated runtime packages
         run: |
-          rm -rf "$RUNNER_TEMP/runtime-packages"
-          tar -xzf "$RUNNER_TEMP/runtime-package-artifact/runtime-packages.tar.gz" -C "$RUNNER_TEMP"
+          runner_temp="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then
+            runner_temp="$(cygpath -u "$runner_temp")"
+          fi
+          rm -rf "$runner_temp/runtime-packages"
+          tar -xzf "$runner_temp/runtime-package-artifact/runtime-packages.tar.gz" -C "$runner_temp"
       - name: Build and verify exact package set
         env:
           COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages

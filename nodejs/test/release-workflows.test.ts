@@ -174,8 +174,13 @@ describe("runtime-backed Node release implementation", () => {
 
         for (const consumer of [testJob, packageJob]) {
             expect(consumer).toContain("path: ${{ runner.temp }}/runtime-package-artifact");
+            expect(consumer).toContain("if command -v cygpath >/dev/null 2>&1; then");
+            expect(consumer).toContain('runner_temp="$(cygpath -u "$runner_temp")"');
             expect(consumer).toContain(
-                'tar -xzf "$RUNNER_TEMP/runtime-package-artifact/runtime-packages.tar.gz" -C "$RUNNER_TEMP"'
+                'tar -xzf "$runner_temp/runtime-package-artifact/runtime-packages.tar.gz" -C "$runner_temp"'
+            );
+            expect(consumer).not.toContain(
+                'tar -xzf "$RUNNER_TEMP/runtime-package-artifact/runtime-packages.tar.gz"'
             );
             expect(consumer).not.toContain("path: ${{ runner.temp }}/runtime-packages\n");
         }
