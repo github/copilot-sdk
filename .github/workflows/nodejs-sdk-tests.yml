@@ -21,8 +21,8 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           cache: "npm"
           cache-dependency-path: "./nodejs/package-lock.json"
@@ -64,8 +64,8 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           cache: "npm"
           cache-dependency-path: "./nodejs/package-lock.json"
@@ -109,7 +109,7 @@ jobs:
       matrix:
         transport: ["default", "inprocess"]
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7
       - name: Run Alpine ARM64 tests (${{ matrix.transport }})
         uses: ./.github/actions/run-alpine-tests
         env:
