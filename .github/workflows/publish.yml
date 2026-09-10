@@ -383,11 +383,11 @@ jobs:
     if: github.event.inputs.dist-tag != 'unstable' && github.ref == 'refs/heads/main'
     needs: version
     permissions:
-      contents: write
-      id-token: write
+      contents: read
     uses: ./.github/workflows/java-publish-maven.yml
     with:
       releaseVersion: ${{ needs.version.outputs.version }}
+      sourceSha: ${{ github.sha }}
       prerelease: ${{ github.event.inputs.dist-tag == 'prerelease' }}
     secrets: inherit
 
@@ -485,3 +485,44 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag Java SDK
+        # Language-scoped traceability tag for the Maven Central release,
+        # created only after publication succeeded and pointing at the original
+        # release commit. Java is included in the cross-language `vX.Y.Z`
+        # GitHub Release.
+        if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch --tags
+          VERSION="${{ needs.version.outputs.version }}"
+          TAG_NAME="java/v${VERSION}"
+          if git tag "$TAG_NAME" ${{ github.sha }} 2>/dev/null; then
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git "$TAG_NAME"
+            echo "Created and pushed tag $TAG_NAME"
+          else
+            echo "Tag $TAG_NAME already exists, skipping tag push"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Trigger Java documentation site deploy
+        # Runs after the java/vX.Y.Z tag exists so the standalone site repo can
+        # check out the monorepo at that tag.
+        if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
+        run: |
+          set -e
+          VERSION="${{ needs.version.outputs.version }}"
+          TAG="java/v${VERSION}"
+          PUBLISH_AS_LATEST=true
+          if [ "${{ github.event.inputs.dist-tag }}" = "prerelease" ]; then
+            PUBLISH_AS_LATEST=false
+          fi
+          echo "Triggering site deployment for version ${VERSION} (tag: ${TAG})"
+          gh workflow run deploy-site.yml \
+            --repo github/copilot-sdk-java \
+            -f version="${VERSION}" \
+            -f publish_as_latest="${PUBLISH_AS_LATEST}" \
+            -f monorepo_tag="${TAG}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
