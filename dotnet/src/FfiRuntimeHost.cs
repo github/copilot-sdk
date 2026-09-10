@@ -308,14 +308,11 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         {
             try
             {
-                if (!_hostShutdown(_serverId))
+                if (!_hostShutdown(_serverId) && _logger.IsEnabled(LogLevel.Debug))
                 {
-                    if (_logger.IsEnabled(LogLevel.Debug))
-                    {
-                        _logger.LogDebug(
-                            "FfiRuntimeHost: host_shutdown did not recognize server {ServerId}",
-                            _serverId);
-                    }
+                    _logger.LogDebug(
+                        "FfiRuntimeHost: host_shutdown did not recognize server {ServerId}",
+                        _serverId);
                 }
             }
             catch (Exception ex)

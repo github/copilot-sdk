@@ -32,7 +32,7 @@ public sealed class FfiRuntimeHostLifetimeTests
         var hostType = typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.FfiRuntimeHost", throwOnError: true)!;
         var constructor = hostType.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic)
             .Single(candidate => candidate.GetParameters().Length == 8);
-        var host = (IDisposable)constructor.Invoke(
+        using var host = (IDisposable)constructor.Invoke(
             [
                 "test-runtime",
                 null,
@@ -81,7 +81,7 @@ public sealed class FfiRuntimeHostLifetimeTests
         var hostType = typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.FfiRuntimeHost", throwOnError: true)!;
         var constructor = hostType.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic)
             .Single(candidate => candidate.GetParameters().Length == 8);
-        var host = (IDisposable)constructor.Invoke(
+        using var host = (IDisposable)constructor.Invoke(
             [
                 "test-runtime",
                 null,
