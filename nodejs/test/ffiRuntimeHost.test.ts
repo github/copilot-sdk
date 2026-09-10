@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ffi = vi.hoisted(() => {
     let registeredCallback:
-        ((userData: unknown, bytesPtr: unknown, bytesLen: number) => void) | undefined;
+        | ((userData: unknown, bytesPtr: unknown, bytesLen: number) => void)
+        | undefined;
     const callbackToken = {};
     const hostStart = Object.assign(vi.fn(), {
         async: vi.fn(
