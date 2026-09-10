@@ -446,7 +446,7 @@ class RpcServerE2ETest {
             var skillName = "server-rpc-skill-" + UUID.randomUUID().toString().replace("-", "");
             var skillDirectory = createSkillDirectory(skillName, "Skill discovered by server-scoped RPC tests.");
 
-            var mcp = client.getRpc().mcp.discover(new McpDiscoverParams(workDir)).get(TIMEOUT_SECONDS,
+            var mcp = client.getRpc().mcp.discover(new McpDiscoverParams(workDir, null)).get(TIMEOUT_SECONDS,
                     TimeUnit.SECONDS);
             assertNotNull(mcp.servers());
 

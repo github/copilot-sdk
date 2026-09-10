@@ -243,6 +243,7 @@ async fn should_discover_server_mcp_and_skills() {
                     .rpc()
                     .mcp()
                     .discover(McpDiscoverRequest {
+                        include_effective_source: None,
                         working_directory: Some(project_path.clone()),
                     })
                     .await
