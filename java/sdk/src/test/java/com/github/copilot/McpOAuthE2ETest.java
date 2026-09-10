@@ -74,12 +74,13 @@ public class McpOAuthE2ETest {
     void testUsesCimdUrlInsteadOfDynamicRegistration() throws Exception {
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot(), false, true);
                 var client = ctx.createClient();
-                var session = client.createSession(new SessionConfig().setAuthClientIdMetadataUrl(CIMD_URL)
+                var session = client.createSession(new SessionConfig()
+                        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setAuthClientIdMetadataUrl(CIMD_URL)
                         .setMcpServers(Map.of("oauth-cimd-mcp",
                                 new McpHttpServerConfig().setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                         .get()) {
             waitForMcpServerStatus(session, "oauth-cimd-mcp", McpServerStatus.NEEDS_AUTH, new AtomicReference<>());
-            var result = session.getRpc().mcp.oauth().login(new SessionMcpOauthLoginParams(session.getSessionId(),
+            var result = session.getRpc().mcp.oauth.login(new SessionMcpOauthLoginParams(session.getSessionId(),
                     "oauth-cimd-mcp", null, null, null, null, null, null, null)).get(30, TimeUnit.SECONDS);
             assertNotNull(result.authorizationUrl());
             var clientId = List.of(URI.create(result.authorizationUrl()).getQuery().split("&")).stream()
