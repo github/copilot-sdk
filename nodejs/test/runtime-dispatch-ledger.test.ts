@@ -205,6 +205,45 @@ describe("runtime dispatch ledger", () => {
         ).toThrow("Invalid channel");
     });
 
+    it.each([
+        ["canary", "1.2.4-canary.7.gdef5678.signed"],
+        ["canary", "1.2.4-canary.8.gdef5678.unsigned"],
+        ["canary", "9.9.9-canary.test"],
+        ["unstable", "1.0.83-5.unstable.123.gabcdef0"],
+        ["unstable", "9.9.9-unstable.test"],
+        ["unstable", "1.0.83-5.unstable.123.gabcdef0+build.42"],
+    ] satisfies [ExpectedDispatch["channel"], string][])(
+        "accepts a %s runtime version with valid producer suffixes: %s",
+        (channel, runtimeVersion) => {
+            expect(() =>
+                createRuntimeDispatchMarker({
+                    ...expected,
+                    channel,
+                    mode: channel === "canary" ? "tests-only" : "internal",
+                    runtimeVersion,
+                })
+            ).not.toThrow();
+        }
+    );
+
+    it.each([
+        ["unstable", "1.2.4-canary.7.gdef5678.signed"],
+        ["canary", "1.0.83-5.unstable.123.gabcdef0"],
+        ["canary", "1.2.4-canaryish.7.gdef5678"],
+    ] satisfies [ExpectedDispatch["channel"], string][])(
+        "rejects a runtime version outside the %s channel: %s",
+        (channel, runtimeVersion) => {
+            expect(() =>
+                createRuntimeDispatchMarker({
+                    ...expected,
+                    channel,
+                    mode: channel === "canary" ? "tests-only" : "internal",
+                    runtimeVersion,
+                })
+            ).toThrow(`does not belong to the '${channel}' channel`);
+        }
+    );
+
     it("rejects non-canonical raw identity values", () => {
         for (const changed of [
             { runtimeRunId: "0" },

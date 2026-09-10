@@ -8,6 +8,7 @@ import { globSync } from "glob";
 import * as semver from "semver";
 import { x as extractTar } from "tar";
 import { getRuntimePackageName, RUNTIME_PLATFORMS } from "../src/runtimeArtifacts.js";
+import { validateRuntimeVersionChannel } from "./runtime-release-identity.js";
 
 export interface ReleaseManifestPackage {
     filename: string;
@@ -90,6 +91,7 @@ export async function createReleaseManifest(
 ): Promise<ReleaseManifest> {
     validateFullSha(metadata.sdkSha, "SDK SHA");
     validateFullSha(metadata.runtimeSha, "Runtime SHA");
+    validateRuntimeVersionChannel(metadata.runtimeVersion, metadata.channel);
     assert(Number.isFinite(Date.parse(metadata.createdAt)), "Workflow creation time is invalid");
     const packages: ReleaseManifestPackage[] = [];
     for (const archive of globSync("github-copilot-sdk-*.tgz", {
@@ -148,7 +150,7 @@ export function verifyReleaseManifest(manifest: ReleaseManifest, packageDirector
     validateFullSha(manifest.sdk.sha, "SDK SHA");
     validateFullSha(manifest.runtime.sha, "Runtime SHA");
     assert(semver.valid(manifest.sdk.version), "Invalid SDK version");
-    assert(semver.valid(manifest.runtime.version), "Invalid runtime version");
+    validateRuntimeVersionChannel(manifest.runtime.version, manifest.channel);
     assert.match(manifest.workflow.runId, /^[0-9]+$/, "Invalid SDK workflow run ID");
     assert.match(manifest.workflow.runNumber, /^[0-9]+$/, "Invalid SDK workflow run number");
     assert.match(manifest.runtime.runId, /^[0-9]+$/, "Invalid runtime workflow run ID");
