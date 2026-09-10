@@ -145,12 +145,21 @@ let client = Client::start(options).await?;
 <!-- docs-validate: skip -->
 
 ```java
-CopilotClientOptions options = new CopilotClientOptions()
-    .setConnection(RuntimeConnection.forInProcess());
+import com.github.copilot.AllowCopilotExperimental;
 
-CopilotClient client = new CopilotClient(options);
-client.start().join();
+@AllowCopilotExperimental
+public class Example {
+    public void run() throws Exception {
+        CopilotClientOptions options = new CopilotClientOptions()
+            .setConnection(RuntimeConnection.forInProcess());
+
+        CopilotClient client = new CopilotClient(options);
+        client.start().join();
+    }
+}
 ```
+
+`RuntimeConnection.forInProcess()` is `@CopilotExperimental`, so the consuming class or method must opt in with `@AllowCopilotExperimental` (or compile with `-Acopilot.experimental.allowed=true`). See [Using experimental APIs](../../java/README.md#using-experimental-apis).
 
 </details>
 
