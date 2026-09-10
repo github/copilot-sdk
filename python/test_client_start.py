@@ -74,7 +74,7 @@ async def test_cancelling_waiting_start_does_not_cancel_active_start(client):
         await asyncio.sleep(0)
         second.cancel()
         with pytest.raises(asyncio.CancelledError):
-            await second
+            _ = await second
         assert not first.done()
     finally:
         release.set()
