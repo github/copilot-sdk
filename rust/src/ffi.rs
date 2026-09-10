@@ -19,7 +19,7 @@ use std::task::{Context, Poll};
 use libloading::Library;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{Error, ErrorKind};
 
@@ -98,24 +98,52 @@ impl FfiShared {
         if !state.is_null() {
             unsafe { &*state }.closing.store(true, Ordering::SeqCst);
         }
-        let conn = self.connection_id.swap(0, Ordering::SeqCst);
+        let conn = self.connection_id.load(Ordering::SeqCst);
         if conn != 0 {
-            unsafe { (self.connection_close)(conn) };
+            let quiesced = unsafe { (self.connection_close)(conn) };
+            if !quiesced {
+                let conn = self.connection_id.swap(0, Ordering::SeqCst);
+                let server = self.server_id.swap(0, Ordering::SeqCst);
+                let state =
+                    self.callback_state
+                        .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
+                let connection_close = self.connection_close;
+                let host_shutdown = self.host_shutdown;
+                let library_path = self.library_path.clone();
+                if let Err(error) = std::thread::Builder::new()
+                    .name("copilot-ffi-cleanup".to_owned())
+                    .spawn(move || {
+                        while !unsafe { connection_close(conn) } {
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                        }
+                        release_callback_state(state);
+                        if server != 0 {
+                            while !unsafe { host_shutdown(server) } {
+                                std::thread::sleep(std::time::Duration::from_millis(100));
+                            }
+                        }
+                        debug!(library = %library_path.display(), "FFI runtime connection closed");
+                    })
+                {
+                    warn!(
+                        error = %error,
+                        library = %self.library_path.display(),
+                        "failed to start deferred FFI cleanup thread; callback state retained"
+                    );
+                }
+                return;
+            }
+            self.connection_id.store(0, Ordering::SeqCst);
         }
         let server = self.server_id.swap(0, Ordering::SeqCst);
-        if server != 0 {
-            unsafe { (self.host_shutdown)(server) };
-        }
-        // Free the callback state only after the connection is closed and the
-        // host is shut down, so native can no longer invoke the callback.
         let state = self
             .callback_state
-            .swap(std::ptr::null_mut(), Ordering::SeqCst);
-        if !state.is_null() {
-            while unsafe { &*state }.active_callbacks.load(Ordering::SeqCst) != 0 {
-                std::thread::yield_now();
+            .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
+        release_callback_state(state);
+        if server != 0 {
+            if !unsafe { (self.host_shutdown)(server) } {
+                schedule_host_shutdown_retry(self.host_shutdown, server, self.library_path.clone());
             }
-            drop(unsafe { Box::from_raw(state) });
         }
         debug!(library = %self.library_path.display(), "FFI runtime connection closed");
     }
@@ -125,11 +153,43 @@ impl FfiShared {
         if self.closed.load(Ordering::SeqCst) {
             return false;
         }
+
         let conn = self.connection_id.load(Ordering::SeqCst);
         if conn == 0 {
             return false;
         }
         unsafe { (self.connection_write)(conn, frame.as_ptr(), frame.len()) }
+    }
+}
+
+fn release_callback_state(state: usize) {
+    if state == 0 {
+        return;
+    }
+    let state = state as *mut CallbackState;
+    while unsafe { &*state }.active_callbacks.load(Ordering::SeqCst) != 0 {
+        std::thread::yield_now();
+    }
+    drop(unsafe { Box::from_raw(state) });
+}
+
+fn schedule_host_shutdown_retry(host_shutdown: HostShutdownFn, server: u32, library_path: PathBuf) {
+    let thread_library_path = library_path.clone();
+    if let Err(error) = std::thread::Builder::new()
+        .name("copilot-ffi-cleanup".to_owned())
+        .spawn(move || {
+            while !unsafe { host_shutdown(server) } {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            debug!(library = %thread_library_path.display(), "FFI runtime host shut down");
+        })
+    {
+        warn!(
+            error = %error,
+            library = %library_path.display(),
+            server_id = server,
+            "failed to start deferred FFI host shutdown thread"
+        );
     }
 }
 

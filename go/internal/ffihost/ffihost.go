@@ -42,6 +42,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -150,7 +151,8 @@ type Host struct {
 	connectionID uint32
 	disposed     bool
 	// activeCallbacks counts outbound native callbacks currently executing.
-	activeCallbacks int
+	activeCallbacks  int
+	cleanupScheduled bool
 
 	recv *receiveBuffer
 
@@ -315,9 +317,8 @@ func (h *Host) writeFrame(frame []byte) (int, error) {
 	return len(frame), nil
 }
 
-// Dispose closes the FFI connection, shuts down the native host, and releases
-// resources. It is idempotent and waits for any in-flight outbound callback to
-// finish before closing the receive buffer.
+// Dispose closes the receive side immediately and releases native resources
+// after connectionClose confirms that outbound callbacks are quiescent.
 func (h *Host) Dispose() {
 	h.lifecycleMu.Lock()
 	defer h.lifecycleMu.Unlock()
@@ -327,45 +328,74 @@ func (h *Host) Dispose() {
 		h.mu.Unlock()
 		return
 	}
-	// Publish disposed under the same lock onOutbound uses to check it, so no new
-	// callback can pass the check and increment activeCallbacks after the drain
-	// loop below observes zero.
 	h.disposed = true
-	connID := h.connectionID
-	serverID := h.serverID
-	callbackToken := h.callbackToken
-	h.connectionID = 0
-	h.serverID = 0
-	h.callbackToken = 0
 	h.mu.Unlock()
 
+	h.recv.Close()
+	if !h.tryFinalizeCleanupLocked() {
+		h.scheduleCleanupRetryLocked()
+	}
+}
+
+func (h *Host) tryFinalizeCleanupLocked() bool {
+	h.mu.Lock()
+	connID := h.connectionID
+	h.mu.Unlock()
+
+	if connID != 0 {
+		if !h.lib.connectionClose(connID) {
+			return false
+		}
+		h.mu.Lock()
+		h.connectionID = 0
+		h.mu.Unlock()
+	}
+
+	h.mu.Lock()
+	callbackToken := h.callbackToken
+	h.callbackToken = 0
+	h.mu.Unlock()
 	if callbackToken != 0 {
 		outboundTargets.Delete(callbackToken)
 	}
 
-	// Stop accepting new callbacks and wait for in-flight ones to drain before
-	// closing the receive buffer they feed.
-	for {
-		h.mu.Lock()
-		if h.activeCallbacks == 0 {
-			h.mu.Unlock()
-			break
-		}
-		h.mu.Unlock()
-		runtime.Gosched()
-	}
-
-	if connID != 0 {
-		h.lib.connectionClose(connID)
-	}
+	h.mu.Lock()
+	serverID := h.serverID
+	h.mu.Unlock()
 	if serverID != 0 {
-		h.lib.hostShutdown(serverID)
+		if !h.lib.hostShutdown(serverID) {
+			return false
+		}
+		h.mu.Lock()
+		h.serverID = 0
+		h.mu.Unlock()
 		if h.cliEntrypoint != "" {
 			// A legacy host may restore its saved SIGCHLD action during shutdown.
 			rearmForeignSignalHandlers(h.lib.handle)
 		}
 	}
-	h.recv.Close()
+	return true
+}
+
+func (h *Host) scheduleCleanupRetryLocked() {
+	if h.cleanupScheduled {
+		return
+	}
+	h.cleanupScheduled = true
+	go func() {
+		timer := time.NewTimer(100 * time.Millisecond)
+		defer timer.Stop()
+		for range timer.C {
+			h.lifecycleMu.Lock()
+			if h.tryFinalizeCleanupLocked() {
+				h.cleanupScheduled = false
+				h.lifecycleMu.Unlock()
+				return
+			}
+			h.lifecycleMu.Unlock()
+			timer.Reset(100 * time.Millisecond)
+		}
+	}()
 }
 
 // hostWriter adapts Host into the io.WriteCloser jsonrpc2 writes request frames to.

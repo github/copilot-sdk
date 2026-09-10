@@ -41,13 +41,13 @@ import logging
 import os
 import sys
 import threading
-import time
 from collections.abc import Sequence
 from pathlib import Path
 
 logger = logging.getLogger("copilot.ffi")
 
 _SYMBOL_PREFIX = "copilot_runtime_"
+_CLEANUP_RETRY_INTERVAL_SECONDS = 0.1
 
 # The C ABI outbound callback: void(void *user_data, uint8 *bytes, size_t len).
 _OutboundCallback = ctypes.CFUNCTYPE(
@@ -354,6 +354,9 @@ class FfiRuntimeHost:
         self._connection_id = 0
         self._disposed = False
         self._dispose_lock = threading.Lock()
+        self._operation_lock = threading.Lock()
+        self._cleanup_timer: threading.Timer | None = None
+        self._starting = False
 
         self._receive_buffer = _ReceiveBuffer()
         # Keep a strong reference to the ctypes callback for its whole lifetime;
@@ -415,32 +418,47 @@ class FfiRuntimeHost:
 
         Must be run off the event loop (e.g. via :func:`asyncio.to_thread`).
         """
+        with self._dispose_lock:
+            if self._disposed:
+                raise RuntimeError("The in-process runtime host is disposed.")
+            self._starting = True
+
         argv = self._build_argv()
         env = self._build_env()
 
-        self._server_id = self._lib.host_start(argv, len(argv), env, len(env) if env else 0)
-        if not self._server_id:
-            raise RuntimeError(
-                f"copilot_runtime_host_start failed (library '{self._library_path}')."
-            )
+        try:
+            self._server_id = self._lib.host_start(argv, len(argv), env, len(env) if env else 0)
+            if not self._server_id:
+                raise RuntimeError(
+                    f"copilot_runtime_host_start failed (library '{self._library_path}')."
+                )
+            with self._dispose_lock:
+                if self._disposed:
+                    raise RuntimeError("The in-process runtime host was disposed during startup.")
 
-        self._outbound_callback = _OutboundCallback(self._on_outbound)
-        self._connection_id = self._lib.connection_open(
-            self._server_id,
-            self._outbound_callback,
-            None,
-            None,
-            0,
-            None,
-            0,
-            None,
-            0,
-        )
-        if not self._connection_id:
-            self._outbound_callback = None
-            self._lib.host_shutdown(self._server_id)
-            self._server_id = 0
-            raise RuntimeError("copilot_runtime_connection_open failed.")
+            self._outbound_callback = _OutboundCallback(self._on_outbound)
+            self._connection_id = self._lib.connection_open(
+                self._server_id,
+                self._outbound_callback,
+                None,
+                None,
+                0,
+                None,
+                0,
+                None,
+                0,
+            )
+            if not self._connection_id:
+                self._outbound_callback = None
+                self._lib.host_shutdown(self._server_id)
+                self._server_id = 0
+                raise RuntimeError("copilot_runtime_connection_open failed.")
+        finally:
+            with self._dispose_lock:
+                self._starting = False
+                disposed = self._disposed
+            if disposed:
+                self._try_finalize_cleanup()
 
     def _on_outbound(
         self,
@@ -469,47 +487,63 @@ class FfiRuntimeHost:
                 self._active_callbacks -= 1
 
     def _write_frame(self, frame: bytes) -> None:
-        if self._disposed or not self._connection_id:
-            raise RuntimeError("The in-process runtime connection is closed.")
-        ok = self._lib.connection_write(self._connection_id, frame, len(frame))
-        if not ok:
-            raise RuntimeError("Failed to write a frame to the in-process runtime connection.")
+        with self._operation_lock:
+            if self._disposed or not self._connection_id:
+                raise RuntimeError("The in-process runtime connection is closed.")
+            ok = self._lib.connection_write(self._connection_id, frame, len(frame))
+            if not ok:
+                raise RuntimeError("Failed to write a frame to the in-process runtime connection.")
 
     def dispose(self) -> None:
         """Close the FFI connection, shut down the native host, release resources.
 
-        Idempotent. Waits for any in-flight outbound callback to finish before
-        dropping the callback reference to avoid a use-after-free.
+        Idempotent. Callback state remains rooted until connection_close reports
+        that native callbacks are quiescent.
         """
         with self._dispose_lock:
             if self._disposed:
                 return
             self._disposed = True
 
-        # Stop accepting new callbacks and wait for in-flight ones to drain.
-        with self._callback_lock:
-            pass  # _disposed is set; new callbacks bail out immediately.
-        while True:
-            with self._callback_lock:
-                if self._active_callbacks == 0:
-                    break
-            time.sleep(0.001)
-
-        try:
-            if self._connection_id:
-                self._lib.connection_close(self._connection_id)
-                self._connection_id = 0
-        except Exception:  # noqa: BLE001
-            logger.debug("Error closing in-process FFI connection", exc_info=True)
-
-        try:
-            if self._server_id:
-                self._lib.host_shutdown(self._server_id)
-                self._server_id = 0
-        except Exception:  # noqa: BLE001
-            logger.debug("Error shutting down in-process FFI host", exc_info=True)
-
         self._receive_buffer.close()
-        # Safe to drop now: no native code can invoke the callback after
-        # connection_close, and all in-flight callbacks have drained.
-        self._outbound_callback = None
+        with self._dispose_lock:
+            starting = self._starting
+        if not starting:
+            self._try_finalize_cleanup()
+
+    def _try_finalize_cleanup(self) -> None:
+        with self._dispose_lock:
+            self._cleanup_timer = None
+            with self._operation_lock:
+                if self._connection_id:
+                    try:
+                        closed = self._lib.connection_close(self._connection_id)
+                    except Exception:  # noqa: BLE001
+                        logger.debug("Error closing in-process FFI connection", exc_info=True)
+                        self._schedule_cleanup_retry()
+                        return
+                    if not closed:
+                        self._schedule_cleanup_retry()
+                        return
+                    self._connection_id = 0
+                    self._outbound_callback = None
+
+                if self._server_id:
+                    try:
+                        shut_down = self._lib.host_shutdown(self._server_id)
+                    except Exception:  # noqa: BLE001
+                        logger.debug("Error shutting down in-process FFI host", exc_info=True)
+                        self._schedule_cleanup_retry()
+                        return
+                    if not shut_down:
+                        self._schedule_cleanup_retry()
+                        return
+                    self._server_id = 0
+
+    def _schedule_cleanup_retry(self) -> None:
+        if self._cleanup_timer is not None:
+            return
+        timer = threading.Timer(_CLEANUP_RETRY_INTERVAL_SECONDS, self._try_finalize_cleanup)
+        timer.daemon = True
+        self._cleanup_timer = timer
+        timer.start()

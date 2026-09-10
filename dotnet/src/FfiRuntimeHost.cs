@@ -35,14 +35,25 @@ namespace GitHub.Copilot;
 /// </remarks>
 internal sealed partial class FfiRuntimeHost : IDisposable
 {
+    private enum NativeCleanupResult
+    {
+        Complete,
+        Retry,
+    }
+
     /// <summary>Logical name the native interop layer binds the cdylib to.</summary>
     private const string LibraryName = "copilot_runtime";
+    private const int CleanupRetryDelayMilliseconds = 100;
 
     private readonly ILogger _logger;
     private readonly string? _cliEntrypoint;
     private readonly string _libraryPath;
     private readonly IReadOnlyDictionary<string, string>? _environment;
     private readonly IReadOnlyList<string> _args;
+    private readonly Func<uint, bool> _connectionClose;
+    private readonly Func<uint, bool> _hostShutdown;
+    private readonly Action _releaseNativeCallback;
+    private readonly object _lifecycleLock = new();
 
     private readonly CallbackReceiveStream _receiveStream = new();
     private CallbackSendStream? _sendStream;
@@ -50,14 +61,31 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private uint _serverId;
     private uint _connectionId;
     private bool _disposed;
+    private bool _cleanupRetryScheduled;
 
     private FfiRuntimeHost(string libraryPath, string? cliEntrypoint, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
+        : this(libraryPath, cliEntrypoint, environment, args, logger, null, null, null)
+    {
+    }
+
+    private FfiRuntimeHost(
+        string libraryPath,
+        string? cliEntrypoint,
+        IReadOnlyDictionary<string, string>? environment,
+        IReadOnlyList<string> args,
+        ILogger logger,
+        Func<uint, bool>? connectionClose,
+        Func<uint, bool>? hostShutdown,
+        Action? releaseNativeCallback)
     {
         _libraryPath = libraryPath;
         _cliEntrypoint = cliEntrypoint;
         _environment = environment;
         _args = args;
         _logger = logger;
+        _connectionClose = connectionClose ?? NativeConnectionClose;
+        _hostShutdown = hostShutdown ?? NativeHostShutdown;
+        _releaseNativeCallback = releaseNativeCallback ?? DisposeNativeCallback;
     }
 
     /// <summary>The stream JSON-RPC reads server→client frames from.</summary>
@@ -109,23 +137,36 @@ internal sealed partial class FfiRuntimeHost : IDisposable
             var argvJson = BuildArgvJson(_cliEntrypoint, _args);
             var envJson = BuildEnvJson(_environment);
 
-            _serverId = NativeHostStart(argvJson, envJson);
-            if (_serverId == 0)
+            var serverId = NativeHostStart(argvJson, envJson);
+            if (serverId == 0)
             {
                 throw new InvalidOperationException(
                     $"copilot_runtime_host_start failed (library '{_libraryPath}').");
             }
 
-            _connectionId = NativeOpenConnection(_serverId);
-            if (_connectionId == 0)
+            var connectionId = NativeOpenConnection(serverId);
+            if (connectionId == 0)
             {
-                DisposeNativeCallback();
-                NativeHostShutdown(_serverId);
-                _serverId = 0;
+                _releaseNativeCallback();
+                NativeHostShutdown(serverId);
                 throw new InvalidOperationException("copilot_runtime_connection_open failed.");
             }
 
-            _sendStream = new CallbackSendStream(SendFrame);
+            lock (_lifecycleLock)
+            {
+                _serverId = serverId;
+                _connectionId = connectionId;
+                _sendStream = new CallbackSendStream(SendFrame);
+                if (_disposed)
+                {
+                    if (TryFinalizeNativeCleanup() == NativeCleanupResult.Retry)
+                    {
+                        ScheduleNativeCleanupRetry();
+                    }
+                    throw new InvalidOperationException(
+                        "FfiRuntimeHost was disposed during startup.");
+                }
+            }
         }, cancellationToken).ConfigureAwait(false);
 
         if (_logger.IsEnabled(LogLevel.Debug))
@@ -189,11 +230,14 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private bool SendFrame(ReadOnlySpan<byte> frame)
     {
-        if (_disposed || _connectionId == 0)
+        lock (_lifecycleLock)
         {
-            return false;
+            if (_disposed || _connectionId == 0)
+            {
+                return false;
+            }
+            return NativeConnectionWrite(_connectionId, frame);
         }
-        return NativeConnectionWrite(_connectionId, frame);
     }
 
     private void FeedInbound(IntPtr bytesPtr, UIntPtr bytesLen)
@@ -206,40 +250,97 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        lock (_lifecycleLock)
         {
-            return;
-        }
-        _disposed = true;
-
-        try
-        {
-            if (_connectionId != 0)
+            if (_disposed)
             {
-                NativeConnectionClose(_connectionId);
-                _connectionId = 0;
+                return;
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "FfiRuntimeHost: connection_close failed");
-        }
-
-        try
-        {
-            if (_serverId != 0)
-            {
-                NativeHostShutdown(_serverId);
-                _serverId = 0;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "FfiRuntimeHost: host_shutdown failed");
+            _disposed = true;
         }
 
         _receiveStream.Complete();
-        DisposeNativeCallback();
+
+        lock (_lifecycleLock)
+        {
+            if (TryFinalizeNativeCleanup() == NativeCleanupResult.Retry)
+            {
+                ScheduleNativeCleanupRetry();
+            }
+        }
+    }
+
+    private NativeCleanupResult TryFinalizeNativeCleanup()
+    {
+        if (_connectionId != 0)
+        {
+            bool closed;
+            try
+            {
+                closed = _connectionClose(_connectionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "FfiRuntimeHost: connection_close failed");
+                return NativeCleanupResult.Retry;
+            }
+            if (!closed)
+            {
+                return NativeCleanupResult.Retry;
+            }
+
+            _connectionId = 0;
+            _releaseNativeCallback();
+        }
+
+        if (_serverId != 0)
+        {
+            bool shutDown;
+            try
+            {
+                shutDown = _hostShutdown(_serverId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "FfiRuntimeHost: host_shutdown failed");
+                return NativeCleanupResult.Retry;
+            }
+            if (!shutDown)
+            {
+                return NativeCleanupResult.Retry;
+            }
+
+            _serverId = 0;
+        }
+
+        return NativeCleanupResult.Complete;
+    }
+
+    private void ScheduleNativeCleanupRetry()
+    {
+        if (_cleanupRetryScheduled)
+        {
+            return;
+        }
+        _cleanupRetryScheduled = true;
+        _ = RetryNativeCleanupAsync();
+    }
+
+    private async Task RetryNativeCleanupAsync()
+    {
+        while (true)
+        {
+            await Task.Delay(CleanupRetryDelayMilliseconds).ConfigureAwait(false);
+            lock (_lifecycleLock)
+            {
+                var result = TryFinalizeNativeCleanup();
+                if (result != NativeCleanupResult.Retry)
+                {
+                    _cleanupRetryScheduled = false;
+                    return;
+                }
+            }
+        }
     }
 
     /// <summary>Length as the native pointer-sized unsigned integer the ABI expects.</summary>

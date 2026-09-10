@@ -18,6 +18,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,11 +40,17 @@ public final class FfiRuntimeHost implements AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(FfiRuntimeHost.class.getName());
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ScheduledExecutorService CLEANUP_EXECUTOR = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread thread = new Thread(r, "copilot-ffi-cleanup");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     private final NativeBinding nativeBinding;
     private final QueueInputStream receiveStream;
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final AtomicBoolean disposed = new AtomicBoolean(false);
+    private final AtomicBoolean cleanupScheduled = new AtomicBoolean(false);
     private final AtomicInteger serverId = new AtomicInteger(0);
     private final AtomicInteger connectionId = new AtomicInteger(0);
     private final AtomicInteger activeCallbacks = new AtomicInteger(0);
@@ -163,38 +170,66 @@ public final class FfiRuntimeHost implements AutoCloseable {
 
         closing.set(true);
 
-        operationLock.lock();
-        try {
-            int connHandle = connectionId.getAndSet(0);
-            if (connHandle != 0) {
-                try {
-                    nativeBinding.connectionClose(connHandle);
-                } catch (Throwable t) {
-                    LOG.log(Level.FINE, "Failed to close FFI connection", t);
-                }
-            }
-        } finally {
-            operationLock.unlock();
-        }
-
-        drainActiveCallbacks();
-
-        int hostHandle = serverId.getAndSet(0);
-        if (hostHandle != 0) {
-            try {
-                nativeBinding.hostShutdown(hostHandle);
-            } catch (Throwable t) {
-                LOG.log(Level.FINE, "Failed to shut down FFI host", t);
-            }
-        }
-
         try {
             receiveStream.close();
         } catch (Throwable ignored) {
             // never throw from close
         }
 
-        callbackRef = null;
+        if (!tryFinalizeCleanup()) {
+            scheduleCleanupRetry();
+        }
+    }
+
+    private boolean tryFinalizeCleanup() {
+        operationLock.lock();
+        try {
+            int connHandle = connectionId.get();
+            if (connHandle != 0) {
+                try {
+                    if (!nativeBinding.connectionClose(connHandle)) {
+                        return false;
+                    }
+                } catch (Throwable t) {
+                    LOG.log(Level.FINE, "Failed to close FFI connection", t);
+                    return false;
+                }
+                connectionId.set(0);
+                drainActiveCallbacks();
+                callbackRef = null;
+            }
+
+            int hostHandle = serverId.get();
+            if (hostHandle != 0) {
+                try {
+                    if (!nativeBinding.hostShutdown(hostHandle)) {
+                        return false;
+                    }
+                } catch (Throwable t) {
+                    LOG.log(Level.FINE, "Failed to shut down FFI host", t);
+                    return false;
+                }
+                serverId.set(0);
+            }
+            return true;
+        } finally {
+            operationLock.unlock();
+        }
+    }
+
+    private void scheduleCleanupRetry() {
+        if (!cleanupScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        CLEANUP_EXECUTOR.schedule(this::retryCleanup, 100, TimeUnit.MILLISECONDS);
+    }
+
+    private void retryCleanup() {
+        if (tryFinalizeCleanup()) {
+            cleanupScheduled.set(false);
+            return;
+        }
+        CLEANUP_EXECUTOR.schedule(this::retryCleanup, 100, TimeUnit.MILLISECONDS);
     }
 
     private void drainActiveCallbacks() {
