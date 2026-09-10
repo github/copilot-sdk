@@ -42,16 +42,16 @@ import java.util.logging.Logger;
  * <p>
  * The {@link #activeCallbacks} counter is incremented when the native runtime
  * enters the outbound callback and decremented when the callback returns. It is
- * retained for diagnostics and tests; a successful {@link #connectionClose}
- * is the authoritative callback-quiescence barrier.
+ * retained for diagnostics and tests; a successful {@link #connectionClose} is
+ * the authoritative callback-quiescence barrier.
  *
  * <h2>Callback lifetime</h2>
  * <p>
  * The native runtime can still be inside an outbound callback when
  * {@link #connectionClose} returns {@code false}. Each JNA callback wrapper is
- * therefore retained for the lifetime of the JVM. After connection close reports
- * quiescence, its Java delegate is detached so the wrapper no longer retains the
- * complete host object graph.
+ * therefore retained for the lifetime of the JVM. After connection close
+ * reports quiescence, its Java delegate is detached so the wrapper no longer
+ * retains the complete host object graph.
  *
  * <h2>GraalVM Native Image</h2>
  * <p>
