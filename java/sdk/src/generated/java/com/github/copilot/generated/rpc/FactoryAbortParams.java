@@ -27,6 +27,8 @@ public record FactoryAbortParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Factory run identifier. */
-    @JsonProperty("runId") String runId
+    @JsonProperty("runId") String runId,
+    /** Opaque token identifying the execution attempt to abort. */
+    @JsonProperty("executionToken") String executionToken
 ) {
 }

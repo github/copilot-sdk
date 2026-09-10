@@ -37,6 +37,15 @@ pub enum SessionEventType {
     SessionWarning,
     #[serde(rename = "session.model_change")]
     SessionModelChange,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.auto_tier_recommendation")]
+    SessionAutoTierRecommendation,
     #[serde(rename = "session.auto_tier_switch_failed")]
     SessionAutoTierSwitchFailed,
     #[serde(rename = "session.mode_changed")]
@@ -346,6 +355,8 @@ pub enum SessionEventType {
     SessionToolsUpdated,
     #[serde(rename = "session.background_tasks_changed")]
     SessionBackgroundTasksChanged,
+    #[serde(rename = "session.activity_changed")]
+    SessionActivityChanged,
     ///
     /// <div class="warning">
     ///
@@ -489,6 +500,15 @@ pub enum SessionEventData {
     SessionWarning(SessionWarningData),
     #[serde(rename = "session.model_change")]
     SessionModelChange(SessionModelChangeData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.auto_tier_recommendation")]
+    SessionAutoTierRecommendation(SessionAutoTierRecommendationData),
     #[serde(rename = "session.auto_tier_switch_failed")]
     SessionAutoTierSwitchFailed(SessionAutoTierSwitchFailedData),
     #[serde(rename = "session.mode_changed")]
@@ -791,6 +811,8 @@ pub enum SessionEventData {
     SessionToolsUpdated(SessionToolsUpdatedData),
     #[serde(rename = "session.background_tasks_changed")]
     SessionBackgroundTasksChanged(SessionBackgroundTasksChangedData),
+    #[serde(rename = "session.activity_changed")]
+    SessionActivityChanged(SessionActivityChangedData),
     ///
     /// <div class="warning">
     ///
@@ -1289,6 +1311,21 @@ pub struct SessionModelChangeData {
     pub verbosity: Option<Verbosity>,
 }
 
+/// Session event "session.auto_tier_recommendation". Live-only Auto preference recommendation from Copilot API after a successful Auto model call.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAutoTierRecommendationData {
+    /// Recommended Auto preference.
+    pub recommended_auto_tier: RecommendedAutoTier,
+}
+
 /// Session event "session.auto_tier_switch_failed". A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1360,7 +1397,8 @@ pub struct SessionPermissionsChangedData {
     /// and may change or be removed in future SDK or CLI releases.
     ///
     /// </div>
-    pub mode: PermissionMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<PermissionMode>,
     /// Permission mode before the change
     ///
     /// <div class="warning">
@@ -1369,7 +1407,8 @@ pub struct SessionPermissionsChangedData {
     /// and may change or be removed in future SDK or CLI releases.
     ///
     /// </div>
-    pub previous_mode: PermissionMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_mode: Option<PermissionMode>,
 }
 
 /// Session event "session.plan_changed". Plan file operation details indicating what changed
@@ -1769,6 +1808,9 @@ pub struct CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
     pub batch_size: i64,
     /// Cost per batch of tokens
     pub cost_per_batch: i64,
+    /// Model responsible for this billing entry
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Total token count for this entry
     pub token_count: i64,
     /// Token category (e.g., "input", "output")
@@ -1779,6 +1821,10 @@ pub struct CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CompactionCompleteCompactionTokensUsedCopilotUsage {
+    /// Default billing model for token details that do not identify their own model
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) model: Option<String>,
     /// Itemized token usage breakdown
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1820,6 +1866,10 @@ pub struct CompactionCompleteCompactionTokensUsed {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCompactionCompleteData {
+    /// Authoritative active-factory reminder appended to the compacted context
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) active_factory_summary: Option<String>,
     /// Canonical model identifier used for model-specific behavior when replaying compaction
     #[serde(skip_serializing_if = "Option::is_none")]
     pub behavior_model_id: Option<String>,
@@ -2931,6 +2981,9 @@ pub struct AssistantUsageCopilotUsageTokenDetail {
     pub batch_size: i64,
     /// Cost per batch of tokens
     pub cost_per_batch: i64,
+    /// Model responsible for this billing entry
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Total token count for this entry
     pub token_count: i64,
     /// Token category (e.g., "input", "output")
@@ -2941,6 +2994,9 @@ pub struct AssistantUsageCopilotUsageTokenDetail {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantUsageCopilotUsage {
+    /// Default billing model for token details that do not identify their own model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Itemized token usage breakdown
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4131,6 +4187,9 @@ pub struct SubagentStartedData {
     /// Whether this sub-agent can be resumed. Currently always false.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resumable: Option<bool>,
+    /// Where the model input for this sub-agent came from. Present when the task planner resolved the launch (the task tool and factory agents); absent for sub-agents created through other runtime paths.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_model_source: Option<SubagentTaskModelSource>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
     pub tool_call_id: String,
 }
@@ -4186,6 +4245,9 @@ pub struct SubagentCompletedData {
     /// Why an explicit task-call model did not become the effective model
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_override_reason: Option<String>,
+    /// Authority or runtime mechanism responsible for sub-agent model selection
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_selection_source: Option<SubagentModelSelectionSource>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed by the sub-agent
@@ -4230,6 +4292,9 @@ pub struct SubagentFailedData {
     /// Why an explicit task-call model did not become the effective model
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_override_reason: Option<String>,
+    /// Authority or runtime mechanism responsible for sub-agent model selection
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_selection_source: Option<SubagentModelSelectionSource>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed before the sub-agent failed
@@ -4442,6 +4507,9 @@ pub struct PermissionRequestShell {
     /// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass_reason: Option<String>,
+    /// True when the requested escalation is a permissive retry rather than a full bypass: the command re-runs inside the sandbox with its file and process restrictions recording instead of blocking, while the network policy stays enforced. Always accompanied by requestSandboxBypass, so hosts that do not recognize this field still treat the request as the escalation it is. Hosts that do recognize it must not describe the command as running outside the sandbox, which would overstate the privilege being granted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_permissive: Option<bool>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -4827,6 +4895,15 @@ pub struct PermissionPromptRequestCommands {
     /// Whether managed policy requires a human response and forbids host auto-approval
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
+    /// True when the shell command is requesting sandbox escalation. This is a request, not a grant.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Reason for the sandbox escalation request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
+    /// True when the escalation is a permissive retry that keeps the sandbox and network policy attached while recording file and process accesses instead of blocking them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_permissive: Option<bool>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -6096,6 +6173,69 @@ pub struct SessionToolsUpdatedData {
 #[serde(rename_all = "camelCase")]
 pub struct SessionBackgroundTasksChangedData {}
 
+/// Counts for background agents owned by the session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionBackgroundAgentActivity {
+    /// Running agents accepted by the scoped background-agent cancellation operation.
+    pub cancelable: i64,
+    /// Live multi-turn agents parked for another message.
+    pub idle: i64,
+    /// Agents currently executing.
+    pub running: i64,
+}
+
+/// Current main-agent state.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMainAgentActivity {
+    /// Whether the current main-agent turn can be interrupted without cancelling background agents or processes.
+    pub abortable: bool,
+    /// Whether the main agent is executing, blocked on interaction, or idle.
+    pub state: SessionMainAgentState,
+    /// Why the main agent is waiting. Permission takes precedence when multiple prompt types are pending.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait_reason: Option<SessionMainAgentWaitReason>,
+}
+
+/// Counts for live shell processes.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionProcessActivity {
+    /// Live shell processes visible to the session.
+    pub running: i64,
+    /// Live processes the runtime can terminate during scoped process control or shutdown.
+    pub terminable: i64,
+}
+
+/// Session event "session.activity_changed". Authoritative operational activity snapshot for the session. This describes agent execution, interactive waits, and process liveness; it does not measure token usage or spending.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActivityChangedData {
+    /// Legacy broad abortability flag retained for compatibility. New consumers should use mainAgent.abortable and scoped cancellation methods instead.
+    pub abortable: bool,
+    /// Opaque identifier for the current live runtime incarnation of this session. A changed epoch is ordered only when received from the current connection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activity_epoch: Option<String>,
+    /// Background-agent activity counts. Idle multi-turn agents remain live but are not active work.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background_agents: Option<SessionBackgroundAgentActivity>,
+    /// Activity contract version. Presence with value 1 is the capability signal for this contract; absence means unsupported, not idle.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contract_version: Option<i64>,
+    /// Compatibility aggregate that is true when the main agent is working or at least one background agent is running. Process liveness and idle-but-live agents do not make this true.
+    pub has_active_work: bool,
+    /// Main-agent execution or interactive-wait state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub main_agent: Option<SessionMainAgentActivity>,
+    /// Live shell/process counts, reported separately from agent work.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub processes: Option<SessionProcessActivity>,
+    /// Monotonically increasing revision within activityEpoch. Equal revisions are idempotent; lower revisions are stale.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revision: Option<i64>,
+}
+
 /// Session event "factory.run_updated". Ephemeral invalidation signal for a changed factory run.
 ///
 /// <div class="warning">
@@ -6197,6 +6337,9 @@ pub struct SessionSkillsLoadedData {
 pub struct CustomAgentsUpdatedAgent {
     /// Description of what the agent does
     pub description: String,
+    /// Whether model-driven invocation is disabled for this agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
     /// Human-readable display name
     pub display_name: String,
     /// Unique identifier for the agent
@@ -6602,7 +6745,7 @@ pub struct McpAppToolCallCompleteData {
     pub tool_name: String,
 }
 
-/// Routing preference used when the session model is `auto`.
+/// Routing preference used when the session model is `auto`. `fast` is an integrator-only latency preset and is not a first-party GitHub Copilot product preference.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutoTier {
     /// Optimize for efficiency.
@@ -6614,6 +6757,9 @@ pub enum AutoTier {
     /// Optimize for intelligence.
     #[serde(rename = "intelligence")]
     Intelligence,
+    /// Integrator-only preset that optimizes for latency.
+    #[serde(rename = "fast")]
+    Fast,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -6818,6 +6964,24 @@ pub enum ModelChangeSource {
     /// An SDK or RPC caller selected the model.
     #[serde(rename = "sdk")]
     Sdk,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Auto preferences that Copilot API can recommend.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RecommendedAutoTier {
+    /// Optimize for efficiency.
+    #[serde(rename = "efficiency")]
+    Efficiency,
+    /// Balance efficiency and intelligence.
+    #[serde(rename = "balance")]
+    Balance,
+    /// Optimize for intelligence.
+    #[serde(rename = "intelligence")]
+    Intelligence,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -7697,6 +7861,57 @@ pub enum SkillInvokedTrigger {
     /// Skill content loaded as part of another context, such as a configured custom agent or subagent.
     #[serde(rename = "context-load")]
     ContextLoad,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Where the model input for a task-tool sub-agent came from.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SubagentTaskModelSource {
+    /// The spawning agent supplied the task tool's model argument.
+    #[serde(rename = "task_argument")]
+    TaskArgument,
+    /// The task omitted a model and the per-sub-agent settings entry supplied a concrete one.
+    #[serde(rename = "subagent_configuration")]
+    SubagentConfiguration,
+    /// The task omitted a model and the user-defined custom agent's definition supplied one.
+    #[serde(rename = "custom_agent_definition")]
+    CustomAgentDefinition,
+    /// Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model.
+    #[serde(rename = "unset")]
+    Unset,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Authority or runtime mechanism responsible for sub-agent model selection.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SubagentModelSelectionSource {
+    /// Explicit model supplied by the parent agent on the task call and selected for dispatch.
+    #[serde(rename = "explicit_override")]
+    ExplicitOverride,
+    /// Required model policy configured for the sub-agent.
+    #[serde(rename = "configured_required")]
+    ConfiguredRequired,
+    /// Non-required model preference configured for the sub-agent.
+    #[serde(rename = "configured_preference")]
+    ConfiguredPreference,
+    /// Complementary-model default selected for the sub-agent.
+    #[serde(rename = "complementary_default")]
+    ComplementaryDefault,
+    /// Model inherited from the parent session.
+    #[serde(rename = "session_inheritance")]
+    SessionInheritance,
+    /// Default model declared by the agent definition.
+    #[serde(rename = "agent_definition_default")]
+    AgentDefinitionDefault,
+    /// Runtime policy, Auto mode, or an experiment selected the model.
+    #[serde(rename = "runtime_policy")]
+    RuntimePolicy,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -8607,6 +8822,39 @@ pub enum ExitPlanModeAction {
     Unknown,
 }
 
+/// Whether the main agent is executing, blocked on interactive input, or idle.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionMainAgentState {
+    /// The main agent is actively executing.
+    #[serde(rename = "working")]
+    Working,
+    /// The main agent is blocked on a permission or user-input response.
+    #[serde(rename = "waiting")]
+    Waiting,
+    /// The main agent is not executing and is not blocked on an interactive response.
+    #[serde(rename = "idle")]
+    Idle,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Interactive condition blocking the main agent.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionMainAgentWaitReason {
+    /// A permission decision is pending.
+    #[serde(rename = "permission")]
+    Permission,
+    /// A user-input response is pending.
+    #[serde(rename = "user_input")]
+    UserInput,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Terminal status a factory run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FactoryRunSettledStatus {
@@ -8616,6 +8864,9 @@ pub enum FactoryRunSettledStatus {
     /// The run was stopped by a limit, an approval refusal or another policy decision.
     #[serde(rename = "halted")]
     Halted,
+    /// The attempt paused intentionally while preserving resumable run state.
+    #[serde(rename = "paused")]
+    Paused,
     /// The run was cancelled by its caller or by session disposal.
     #[serde(rename = "cancelled")]
     Cancelled,

@@ -48,6 +48,34 @@ test('requires both schema files', (t) => {
   assert.match(result.stderr, /must contain exactly one package\/schemas\/session-events\.schema\.json/);
 });
 
+test('fetches schemas from a pinned runtime commit', (t) => {
+  const fixture = createFixture(t);
+  const outputDir = path.join(fixture.root, 'output');
+  const result = spawnSync(process.execPath, [scriptPath], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      COPILOT_RUNTIME_CONTRACT_COMMIT: '0123456789abcdef',
+      COPILOT_RUNTIME_API_SCHEMA_URL:
+        'data:application/json,%7B%22title%22%3A%22Commit%20API%22%7D',
+      COPILOT_RUNTIME_SESSION_EVENTS_SCHEMA_URL:
+        'data:application/json,%7B%22title%22%3A%22Commit%20Events%22%7D',
+      COPILOT_CLI_SCHEMA_OUTPUT: outputDir,
+      GH_TOKEN: 'test-token',
+    },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.join(outputDir, 'api.schema.json'), 'utf8')),
+    { title: 'Commit API' },
+  );
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.join(outputDir, 'session-events.schema.json'), 'utf8')),
+    { title: 'Commit Events' },
+  );
+});
+
 function createFixture(t, { includeEvents = true } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-java-schemas-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -72,6 +100,7 @@ function runFetch(fixture, outputDir) {
       COPILOT_CLI_RELEASE_TARBALL: fixture.archivePath,
       COPILOT_CLI_RELEASE_SHA256: fixture.hash,
       COPILOT_CLI_SCHEMA_OUTPUT: outputDir,
+      COPILOT_RUNTIME_CONTRACT_COMMIT: '',
     },
   });
 }

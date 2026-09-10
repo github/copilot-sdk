@@ -76,6 +76,10 @@ pub enum ProtocolErrorKind {
         /// Newly reported version.
         current: u32,
     },
+
+    /// The runtime claimed session activity contract version 1 but returned an
+    /// incomplete or invalid version 1 snapshot.
+    InvalidSessionActivity,
 }
 
 impl fmt::Display for ProtocolErrorKind {
@@ -105,6 +109,9 @@ impl fmt::Display for ProtocolErrorKind {
             }
             ProtocolErrorKind::VersionChanged { previous, current } => {
                 write!(f, "version changed: was {previous}, now {current}")
+            }
+            ProtocolErrorKind::InvalidSessionActivity => {
+                write!(f, "invalid session activity version 1")
             }
         }
     }

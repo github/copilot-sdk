@@ -227,6 +227,41 @@ session
 session.disconnect().await?;
 ```
 
+#### Session activity
+
+`session.activity()` returns the authoritative operational activity snapshot
+when the connected runtime supports contract version 1. Subscribe before
+querying, then pass the query result and every ephemeral
+`session.activity_changed` event through one
+`SessionActivityReducer` scoped to that runtime connection. The reducer rejects
+results from superseded connections, ignores lower revisions in the same
+epoch, treats equal revisions as idempotent, and replaces state when the
+current connection reports a new epoch.
+
+Capability detection is structural. Only `contractVersion == 1` is supported.
+A missing RPC method, the legacy two-boolean response, or an unknown contract
+version is returned as `SessionActivitySupport::Unsupported`; none means an
+all-idle snapshot. A malformed version 1 response is an error.
+
+Working state comes only from `main_agent.state == Working` or
+`background_agents.running > 0`. A waiting main agent, idle-but-live
+background agents, and shell-only liveness are not active work. Processes are
+reported separately so applications can keep them visible and controllable.
+See [`examples/session_activity.rs`](examples/session_activity.rs) for the
+subscribe-before-query pattern.
+
+Cancellation remains explicitly scoped:
+
+- `session.rpc().interrupt_main_turn()` affects only the current main-agent
+  turn.
+- `session.rpc().cancel_all_background_agents()` affects task-registry and
+  sidekick agents, preserving processes.
+- `session.rpc().shell().kill(...)` terminates one selected SDK shell process
+  group or job; runtime-shell controls terminate selected runtime shells.
+- `session.abort()` is broad legacy behavior and may terminate attached
+  processes. The top-level activity `abortable` flag does not select a safe
+  cancellation scope.
+
 #### Typed RPC namespace
 
 High-level helpers are convenience wrappers over a fully-typed

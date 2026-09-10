@@ -74,6 +74,8 @@ jobs:
 
       - name: Run codegen
         working-directory: ./scripts/codegen
+        env:
+          RUNTIME_TRIAGE_TOKEN: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
         run: npm run generate
 
       - name: Format generated code
@@ -89,6 +91,8 @@ jobs:
 
       - name: Run Java codegen
         working-directory: ./java
+        env:
+          RUNTIME_TRIAGE_TOKEN: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
         run: mvn generate-sources -Pcodegen
 
       - name: Create pull request

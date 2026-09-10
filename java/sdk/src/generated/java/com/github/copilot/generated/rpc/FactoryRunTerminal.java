@@ -28,6 +28,8 @@ public record FactoryRunTerminal(
     /** Human-readable terminal error. */
     @JsonProperty("error") String error,
     /** Prompt-safe preview of the completed result. */
-    @JsonProperty("resultPreview") String resultPreview
+    @JsonProperty("resultPreview") String resultPreview,
+    /** Pause initiator metadata, or null when the run did not pause. */
+    @JsonProperty("pauseInfo") Object pauseInfo
 ) {
 }

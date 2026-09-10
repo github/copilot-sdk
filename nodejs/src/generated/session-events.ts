@@ -23,6 +23,7 @@ export type SessionEvent =
   | InfoEvent
   | WarningEvent
   | ModelChangeEvent
+  | AutoTierRecommendationEvent
   | AutoTierSwitchFailedEvent
   | ModeChangedEvent
   | ModeNoticeDeliveredEvent
@@ -120,6 +121,7 @@ export type SessionEvent =
   | ExitPlanModeCompletedEvent
   | ToolsUpdatedEvent
   | BackgroundTasksChangedEvent
+  | ActivityChangedEvent
   | FactoryRunUpdatedEvent
   | FactoryRunStartedEvent
   | FactoryRunSettledEvent
@@ -142,7 +144,7 @@ export type SessionEvent =
   | ExtensionsAttachmentsPushedEvent
   | McpAppToolCallCompleteEvent;
 /**
- * Routing preference used when the session model is `auto`.
+ * Routing preference used when the session model is `auto`. `fast` is an integrator-only latency preset and is not a first-party GitHub Copilot product preference.
  */
 export type AutoTier =
   /** Optimize for efficiency. */
@@ -150,7 +152,9 @@ export type AutoTier =
   /** Balance efficiency and intelligence. */
   | "balance"
   /** Optimize for intelligence. */
-  | "intelligence";
+  | "intelligence"
+  /** Integrator-only preset that optimizes for latency. */
+  | "fast";
 /**
  * Hosting platform type of the repository (github or ado)
  */
@@ -267,6 +271,16 @@ export type ModelChangeSource =
   | "automatic"
   /** An SDK or RPC caller selected the model. */
   | "sdk";
+/**
+ * Auto preferences that Copilot API can recommend.
+ */
+export type RecommendedAutoTier =
+  /** Optimize for efficiency. */
+  | "efficiency"
+  /** Balance efficiency and intelligence. */
+  | "balance"
+  /** Optimize for intelligence. */
+  | "intelligence";
 /**
  * Terminal reason an Auto preference activation failed.
  */
@@ -707,6 +721,36 @@ export type SkillInvokedTrigger =
   /** Skill content loaded as part of another context, such as a configured custom agent or subagent. */
   | "context-load";
 /**
+ * Where the model input for a task-tool sub-agent came from.
+ */
+export type SubagentTaskModelSource =
+  /** The spawning agent supplied the task tool's model argument. */
+  | "task_argument"
+  /** The task omitted a model and the per-sub-agent settings entry supplied a concrete one. */
+  | "subagent_configuration"
+  /** The task omitted a model and the user-defined custom agent's definition supplied one. */
+  | "custom_agent_definition"
+  /** Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model. */
+  | "unset";
+/**
+ * Authority or runtime mechanism responsible for sub-agent model selection.
+ */
+export type SubagentModelSelectionSource =
+  /** Explicit model supplied by the parent agent on the task call and selected for dispatch. */
+  | "explicit_override"
+  /** Required model policy configured for the sub-agent. */
+  | "configured_required"
+  /** Non-required model preference configured for the sub-agent. */
+  | "configured_preference"
+  /** Complementary-model default selected for the sub-agent. */
+  | "complementary_default"
+  /** Model inherited from the parent session. */
+  | "session_inheritance"
+  /** Default model declared by the agent definition. */
+  | "agent_definition_default"
+  /** Runtime policy, Auto mode, or an experiment selected the model. */
+  | "runtime_policy";
+/**
  * Binary asset type discriminator. Use "image" for images and "resource" otherwise.
  */
 export type BinaryAssetType =
@@ -743,6 +787,26 @@ export type SystemNotificationAgentCompletedStatus =
   /** The agent failed. */
   | "failed";
 /**
+ * Durable metadata describing who initiated a factory pause.
+ */
+export type SystemNotificationFactoryPauseInfo =
+  | {
+      /**
+       * Factory pause initiator discriminator.
+       */
+      type: "user";
+    }
+  | {
+      /**
+       * Stable author-defined checkpoint key that initiated the pause.
+       */
+      key: string;
+      /**
+       * Factory pause initiator discriminator.
+       */
+      type: "checkpoint";
+    };
+/**
  * Terminal status reached by a factory execution attempt.
  */
 export type SystemNotificationFactoryCompletedStatus =
@@ -750,6 +814,8 @@ export type SystemNotificationFactoryCompletedStatus =
   | "completed"
   /** The factory was halted. */
   | "halted"
+  /** The factory attempt paused intentionally. */
+  | "paused"
   /** The factory was cancelled. */
   | "cancelled"
   /** The factory failed. */
@@ -1055,6 +1121,24 @@ export type ExitPlanModeAction =
   /** Exit plan mode and continue with parallel autonomous workers. */
   | "autopilot_fleet";
 /**
+ * Whether the main agent is executing, blocked on interactive input, or idle.
+ */
+export type SessionMainAgentState =
+  /** The main agent is actively executing. */
+  | "working"
+  /** The main agent is blocked on a permission or user-input response. */
+  | "waiting"
+  /** The main agent is not executing and is not blocked on an interactive response. */
+  | "idle";
+/**
+ * Interactive condition blocking the main agent.
+ */
+export type SessionMainAgentWaitReason =
+  /** A permission decision is pending. */
+  | "permission"
+  /** A user-input response is pending. */
+  | "user_input";
+/**
  * Terminal status a factory run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.
  */
 export type FactoryRunSettledStatus =
@@ -1062,6 +1146,8 @@ export type FactoryRunSettledStatus =
   | "completed"
   /** The run was stopped by a limit, an approval refusal or another policy decision. */
   | "halted"
+  /** The attempt paused intentionally while preserving resumable run state. */
+  | "paused"
   /** The run was cancelled by its caller or by session disposal. */
   | "cancelled"
   /** The run failed, with `failureType` carrying the class when it has one. */
@@ -1951,6 +2037,44 @@ export interface ModelChangeData {
   verbosity?: Verbosity;
 }
 /**
+ * Session event "session.auto_tier_recommendation". Live-only Auto preference recommendation from Copilot API after a successful Auto model call.
+ */
+/** @experimental */
+export interface AutoTierRecommendationEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AutoTierRecommendationData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.auto_tier_recommendation".
+   */
+  type: "session.auto_tier_recommendation";
+}
+/**
+ * Live-only Auto preference recommendation from Copilot API after a successful Auto model call.
+ */
+/** @experimental */
+export interface AutoTierRecommendationData {
+  recommendedAutoTier: RecommendedAutoTier;
+}
+/**
  * Session event "session.auto_tier_switch_failed". A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
  */
 export interface AutoTierSwitchFailedEvent {
@@ -2154,13 +2278,13 @@ export interface PermissionsChangedData {
    *
    * @experimental
    */
-  mode: PermissionMode;
+  mode?: PermissionMode;
   /**
    * Permission mode before the change
    *
    * @experimental
    */
-  previousMode: PermissionMode;
+  previousMode?: PermissionMode;
 }
 /**
  * Session event "session.plan_changed". Plan file operation details indicating what changed
@@ -2990,6 +3114,12 @@ export interface CompactionCompleteEvent {
  */
 export interface CompactionCompleteData {
   /**
+   * Authoritative active-factory reminder appended to the compacted context
+   *
+   * @internal
+   */
+  activeFactorySummary?: string;
+  /**
    * Canonical model identifier used for model-specific behavior when replaying compaction
    */
   behaviorModelId?: string;
@@ -3109,6 +3239,12 @@ export interface CompactionCompleteCompactionTokensUsed {
 /** @internal */
 export interface CompactionCompleteCompactionTokensUsedCopilotUsage {
   /**
+   * Default billing model for token details that do not identify their own model
+   *
+   * @internal
+   */
+  model?: string;
+  /**
    * Itemized token usage breakdown
    *
    * @internal
@@ -3131,6 +3267,10 @@ export interface CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
    * Cost per batch of tokens
    */
   costPerBatch: number;
+  /**
+   * Model responsible for this billing entry
+   */
+  model?: string;
   /**
    * Total token count for this entry
    */
@@ -5631,6 +5771,10 @@ export interface AssistantUsageData {
  */
 export interface AssistantUsageCopilotUsage {
   /**
+   * Default billing model for token details that do not identify their own model
+   */
+  model?: string;
+  /**
    * Itemized token usage breakdown
    *
    * @internal
@@ -5653,6 +5797,10 @@ export interface AssistantUsageCopilotUsageTokenDetail {
    * Cost per batch of tokens
    */
   costPerBatch: number;
+  /**
+   * Model responsible for this billing entry
+   */
+  model?: string;
   /**
    * Total token count for this entry
    */
@@ -7015,6 +7163,7 @@ export interface SubagentStartedData {
    * Whether this sub-agent can be resumed. Currently always false.
    */
   resumable?: boolean;
+  taskModelSource?: SubagentTaskModelSource;
   /**
    * Tool call ID of the parent tool invocation that spawned this sub-agent
    */
@@ -7149,6 +7298,7 @@ export interface SubagentCompletedData {
    * Why an explicit task-call model did not become the effective model
    */
   modelOverrideReason?: string;
+  modelSelectionSource?: SubagentModelSelectionSource;
   /**
    * Tool call ID of the parent tool invocation that spawned this sub-agent
    */
@@ -7240,6 +7390,7 @@ export interface SubagentFailedData {
    * Why an explicit task-call model did not become the effective model
    */
   modelOverrideReason?: string;
+  modelSelectionSource?: SubagentModelSelectionSource;
   /**
    * Tool call ID of the parent tool invocation that spawned this sub-agent
    */
@@ -7839,6 +7990,7 @@ export interface SystemNotificationFactoryCompleted {
    * Machine-readable terminal failure details, when present.
    */
   failure?: JsonValue;
+  pauseInfo?: SystemNotificationFactoryPauseInfo;
   /**
    * Bounded prompt-safe preview of the completed result.
    */
@@ -7972,6 +8124,10 @@ export interface PermissionRequestShell {
    * What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
    */
   requestSandboxBypassReason?: string;
+  /**
+   * True when the requested escalation is a permissive retry rather than a full bypass: the command re-runs inside the sandbox with its file and process restrictions recording instead of blocking, while the network policy stays enforced. Always accompanied by requestSandboxBypass, so hosts that do not recognize this field still treat the request as the escalation it is. Hosts that do recognize it must not describe the command as running outside the sandbox, which would overstate the privilege being granted.
+   */
+  requestSandboxPermissive?: boolean;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -8460,6 +8616,18 @@ export interface PermissionPromptRequestCommands {
    * Whether managed policy requires a human response and forbids host auto-approval
    */
   managedApprovalRequired?: boolean;
+  /**
+   * True when the shell command is requesting sandbox escalation. This is a request, not a grant.
+   */
+  requestSandboxBypass?: boolean;
+  /**
+   * Reason for the sandbox escalation request.
+   */
+  requestSandboxBypassReason?: string;
+  /**
+   * True when the escalation is a permissive retry that keeps the sandbox and network policy attached while recording file and process accesses instead of blocking them.
+   */
+  requestSandboxPermissive?: boolean;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -10842,6 +11010,105 @@ export interface BackgroundTasksChangedEvent {
  */
 export interface BackgroundTasksChangedData {}
 /**
+ * Session event "session.activity_changed". Authoritative operational activity snapshot for the session. This describes agent execution, interactive waits, and process liveness; it does not measure token usage or spending.
+ */
+export interface ActivityChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: SessionActivity;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.activity_changed".
+   */
+  type: "session.activity_changed";
+}
+/**
+ * Authoritative operational activity snapshot for the session. This describes agent execution, interactive waits, and process liveness; it does not measure token usage or spending.
+ */
+export interface SessionActivity {
+  /**
+   * Legacy broad abortability flag retained for compatibility. New consumers should use mainAgent.abortable and scoped cancellation methods instead.
+   */
+  abortable: boolean;
+  /**
+   * Opaque identifier for the current live runtime incarnation of this session. A changed epoch is ordered only when received from the current connection.
+   */
+  activityEpoch?: string;
+  backgroundAgents?: SessionBackgroundAgentActivity;
+  /**
+   * Activity contract version. Presence with value 1 is the capability signal for this contract; absence means unsupported, not idle.
+   */
+  contractVersion?: 1;
+  /**
+   * Compatibility aggregate that is true when the main agent is working or at least one background agent is running. Process liveness and idle-but-live agents do not make this true.
+   */
+  hasActiveWork: boolean;
+  mainAgent?: SessionMainAgentActivity;
+  processes?: SessionProcessActivity;
+  /**
+   * Monotonically increasing revision within activityEpoch. Equal revisions are idempotent; lower revisions are stale.
+   */
+  revision?: number;
+}
+/**
+ * Counts for background agents owned by the session.
+ */
+export interface SessionBackgroundAgentActivity {
+  /**
+   * Running agents accepted by the scoped background-agent cancellation operation.
+   */
+  cancelable: number;
+  /**
+   * Live multi-turn agents parked for another message.
+   */
+  idle: number;
+  /**
+   * Agents currently executing.
+   */
+  running: number;
+}
+/**
+ * Current main-agent state.
+ */
+export interface SessionMainAgentActivity {
+  /**
+   * Whether the current main-agent turn can be interrupted without cancelling background agents or processes.
+   */
+  abortable: boolean;
+  state: SessionMainAgentState;
+  waitReason?: SessionMainAgentWaitReason;
+}
+/**
+ * Counts for live shell processes.
+ */
+export interface SessionProcessActivity {
+  /**
+   * Live shell processes visible to the session.
+   */
+  running: number;
+  /**
+   * Live processes the runtime can terminate during scoped process control or shutdown.
+   */
+  terminable: number;
+}
+/**
  * Session event "factory.run_updated". Ephemeral invalidation signal for a changed factory run.
  */
 /** @experimental */
@@ -11121,6 +11388,10 @@ export interface CustomAgentsUpdatedAgent {
    * Description of what the agent does
    */
   description: string;
+  /**
+   * Whether model-driven invocation is disabled for this agent.
+   */
+  disableModelInvocation?: boolean;
   /**
    * Human-readable display name
    */

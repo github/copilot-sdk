@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '../../..');
 const packagePath = path.join(repoRoot, 'nodejs', 'package.json');
+const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const outputDir = path.resolve(
   process.env.COPILOT_CLI_SCHEMA_OUTPUT ?? path.join(scriptDir, 'target', 'schemas'),
 );
@@ -20,10 +21,28 @@ const outputDir = path.resolve(
 const platform = process.env.COPILOT_CLI_SCHEMA_PLATFORM ?? 'linux-x64';
 const version =
   process.env.COPILOT_CLI_VERSION ??
-  JSON.parse(fs.readFileSync(packagePath, 'utf8')).copilotCliVersion;
+  packageJson.copilotCliVersion;
+const contractCommit =
+  process.env.COPILOT_RUNTIME_CONTRACT_COMMIT ??
+  packageJson.copilotRuntimeContractCommit;
 
-if (!version) {
+if (!version && !contractCommit) {
   throw new Error(`Could not find copilotCliVersion in ${packagePath}`);
+}
+
+if (contractCommit) {
+  const token =
+    process.env.RUNTIME_TRIAGE_TOKEN ??
+    process.env.GH_TOKEN ??
+    process.env.GITHUB_TOKEN;
+  if (!token) {
+    throw new Error(
+      `RUNTIME_TRIAGE_TOKEN, GH_TOKEN, or GITHUB_TOKEN is required to fetch runtime schemas at ${contractCommit}`,
+    );
+  }
+  await stageContractCommitSchemas(contractCommit, token);
+  console.log(`Staged Copilot runtime schemas at commit ${contractCommit} in ${outputDir}`);
+  process.exit(0);
 }
 
 const assetName = `github-copilot-${version}-${platform}.tgz`;
@@ -124,4 +143,48 @@ function findChecksum(checksums, expectedAssetName) {
     }
   }
   throw new Error(`SHA256SUMS.txt does not contain ${expectedAssetName}`);
+}
+
+async function stageContractCommitSchemas(commit, token) {
+  const schemaNames = ['api.schema.json', 'session-events.schema.json'];
+  const outputParent = path.dirname(outputDir);
+  fs.mkdirSync(outputParent, { recursive: true });
+  const stagingDir = fs.mkdtempSync(path.join(outputParent, '.schemas-'));
+
+  try {
+    for (const schemaName of schemaNames) {
+      const overrideName =
+        schemaName === 'api.schema.json'
+          ? 'COPILOT_RUNTIME_API_SCHEMA_URL'
+          : 'COPILOT_RUNTIME_SESSION_EVENTS_SCHEMA_URL';
+      const overrideUrl = process.env[overrideName];
+      const url =
+        overrideUrl ??
+        `https://api.github.com/repos/github/copilot-agent-runtime/contents/generated/${schemaName}?ref=${commit}`;
+      const headers = overrideUrl
+        ? undefined
+        : {
+            Accept: 'application/vnd.github.raw+json',
+            Authorization: `Bearer ${token}`,
+            'User-Agent': 'github-copilot-sdk-java-codegen',
+          };
+      const response = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(600_000),
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch ${schemaName} at ${commit}: ${response.status} ${response.statusText}`,
+        );
+      }
+      const contents = Buffer.from(await response.arrayBuffer());
+      JSON.parse(contents.toString('utf8'));
+      fs.writeFileSync(path.join(stagingDir, schemaName), contents);
+    }
+
+    fs.rmSync(outputDir, { recursive: true, force: true });
+    fs.renameSync(stagingDir, outputDir);
+  } finally {
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+  }
 }

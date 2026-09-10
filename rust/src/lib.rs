@@ -42,6 +42,8 @@ pub(crate) mod resolve;
 mod router;
 /// Session management — create, resume, send messages, and interact with the agent.
 pub mod session;
+/// Versioned session activity snapshots and connection-scoped ordering.
+pub mod session_activity;
 /// Custom session filesystem provider (virtualizable filesystem layer).
 pub mod session_fs;
 mod session_fs_dispatch;

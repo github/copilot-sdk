@@ -65,12 +65,20 @@ jobs:
         run: npm ci
 
       - name: Run codegen
+        if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]')
         working-directory: ./scripts/codegen
+        env:
+          RUNTIME_TRIAGE_TOKEN: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
         run: npm run generate
 
       - name: Apply nightly rustfmt to generated Rust output
+        if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]')
         working-directory: ./rust
         run: cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml
+
+      - name: Note unavailable private runtime schemas
+        if: github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]')
+        run: echo "::notice::Skipping regeneration because this pull request cannot access the pinned private runtime schemas."
 
       - name: Check for uncommitted changes
         run: |
