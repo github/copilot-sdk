@@ -226,10 +226,13 @@ jobs:
             --sha "$RUNTIME_SHA" \
             --registry https://npm.pkg.github.com \
             --output "$RUNNER_TEMP/runtime-packages"
-      - uses: actions/upload-artifact@v7.0.0
+      - name: Archive validated runtime packages
+        run: tar -czf "$RUNNER_TEMP/runtime-packages.tar.gz" -C "$RUNNER_TEMP" runtime-packages
+      - name: Upload validated runtime packages
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: runtime-${{ inputs.channel }}-${{ inputs.runtime_version }}-${{ inputs.runtime_sha }}
-          path: ${{ runner.temp }}/runtime-packages
+          path: ${{ runner.temp }}/runtime-packages.tar.gz
           if-no-files-found: error
           retention-days: 7
 
@@ -259,10 +262,15 @@ jobs:
       - name: Install test harness dependencies
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
-      - uses: actions/download-artifact@v8.0.0
+      - name: Download validated runtime packages
+        uses: actions/download-artifact@v8.0.0
         with:
           name: runtime-${{ inputs.channel }}-${{ inputs.runtime_version }}-${{ inputs.runtime_sha }}
-          path: ${{ runner.temp }}/runtime-packages
+          path: ${{ runner.temp }}/runtime-package-artifact
+      - name: Extract validated runtime packages
+        run: |
+          rm -rf "$RUNNER_TEMP/runtime-packages"
+          tar -xzf "$RUNNER_TEMP/runtime-package-artifact/runtime-packages.tar.gz" -C "$RUNNER_TEMP"
       - name: Select the acquired runtime
         env:
           COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
@@ -270,6 +278,7 @@ jobs:
         run: |
           node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
           runtime_path="$(npm run --silent prepare:runtime -- --print-path)"
+          echo "COPILOT_SDK_RUNTIME_PACKAGE_DIR=$COPILOT_SDK_RUNTIME_PACKAGE_DIR" >> "$GITHUB_ENV"
           echo "COPILOT_CLI_PATH=$runtime_path" >> "$GITHUB_ENV"
       - run: npm run build
       - name: Warm up PowerShell
@@ -298,10 +307,15 @@ jobs:
           cache-dependency-path: ./nodejs/package-lock.json
           node-version: 22
       - run: npm ci --ignore-scripts
-      - uses: actions/download-artifact@v8.0.0
+      - name: Download validated runtime packages
+        uses: actions/download-artifact@v8.0.0
         with:
           name: runtime-${{ inputs.channel }}-${{ inputs.runtime_version }}-${{ inputs.runtime_sha }}
-          path: ${{ runner.temp }}/runtime-packages
+          path: ${{ runner.temp }}/runtime-package-artifact
+      - name: Extract validated runtime packages
+        run: |
+          rm -rf "$RUNNER_TEMP/runtime-packages"
+          tar -xzf "$RUNNER_TEMP/runtime-package-artifact/runtime-packages.tar.gz" -C "$RUNNER_TEMP"
       - name: Build and verify exact package set
         env:
           COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
