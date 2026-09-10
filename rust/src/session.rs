@@ -12,8 +12,10 @@ use tracing::{Instrument, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, PermissionDecisionRequest,
-    RegisterEventInterestParams, ToolsGetCurrentMetadataResult, rpc_methods,
+    ListMessageableSessionsRequest, ListMessageableSessionsResult, LogRequest,
+    ModelSwitchToRequest, OpenCanvasInstance, PermissionDecisionRequest,
+    RegisterEventInterestParams, SendSessionMessageRequest, SendSessionMessageResult,
+    ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
@@ -39,14 +41,52 @@ use crate::types::{
     UiInputOptions, ensure_attachment_display_names,
 };
 use crate::{
-    Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification,
-    error_codes,
+    Client, Error, ErrorKind, JsonRpcResponse, SendSessionMessageErrorCode, SessionErrorKind,
+    SessionEventNotification, error_codes,
 };
 
 /// Fixed name of the runtime's built-in tool-search tool. A client can replace
 /// its behavior by registering a tool with this exact name and
 /// `overrides_built_in_tool` set to `true`.
 const TOOL_SEARCH_TOOL_NAME: &str = "tool_search_tool";
+
+fn parse_send_session_message_error_data(
+    data: Option<&Value>,
+) -> Option<(SendSessionMessageErrorCode, Option<String>)> {
+    let envelope = data?.as_object()?;
+    let kind = envelope.get("kind")?.as_str()?;
+    let runtime_code = envelope.get("code")?.as_str()?;
+    let message_id = match envelope.get("messageId") {
+        Some(value) => Some(value.as_str()?.to_string()),
+        None => None,
+    };
+
+    let code = match kind {
+        "session_message_refused"
+            if matches!(
+                runtime_code,
+                "target-not-active"
+                    | "target-generation-changed"
+                    | "source-not-active"
+                    | "self-send"
+                    | "request-invalid"
+                    | "recipient-refused"
+                    | "transport-unavailable"
+            ) =>
+        {
+            SendSessionMessageErrorCode::Refused
+        }
+        "session_message_not_delivered" if runtime_code == "not-delivered" => {
+            SendSessionMessageErrorCode::NotDelivered
+        }
+        "session_message_ambiguous" if runtime_code == "ambiguous" => {
+            SendSessionMessageErrorCode::Ambiguous
+        }
+        _ => return None,
+    };
+
+    Some((code, message_id))
+}
 
 /// Bundle of the per-session callbacks the SDK dispatches to. Built from a
 /// [`SessionConfig`] / [`ResumeSessionConfig`] at
@@ -371,6 +411,50 @@ impl Session {
             return Err(ErrorKind::Session(SessionErrorKind::SendWhileWaiting).into());
         }
         self.send_inner(opts.into()).await
+    }
+
+    /// Lists active local sessions available for exact-ID cross-session messaging.
+    ///
+    /// The runtime derives the source identity from this bound session. Pass
+    /// `None` to list all messageable sessions or a request containing an
+    /// exact-name filter. Discovery grants no delivery authority.
+    pub async fn list_messageable_sessions(
+        &self,
+        params: Option<ListMessageableSessionsRequest>,
+    ) -> Result<ListMessageableSessionsResult, Error> {
+        self.rpc()
+            .list_messageable_sessions(params.unwrap_or_default())
+            .await
+    }
+
+    /// Sends one authenticated non-user message to an exact active local session.
+    ///
+    /// The runtime derives the source identity from this bound session. Success
+    /// reports recipient admission, not completion of delegated work. An
+    /// [`SendSessionMessageErrorCode::Ambiguous`] error means delivery may have
+    /// started and must not be retried automatically.
+    pub async fn send_session_message(
+        &self,
+        params: SendSessionMessageRequest,
+    ) -> Result<SendSessionMessageResult, Error> {
+        match self.rpc().send_session_message(params).await {
+            Ok(result) => Ok(result),
+            Err(error) => {
+                let Some((code, message_id)) =
+                    parse_send_session_message_error_data(error.rpc_data())
+                else {
+                    return Err(error);
+                };
+                let message = error
+                    .message()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| error.to_string());
+                Err(Error::with_message(
+                    ErrorKind::Session(SessionErrorKind::SendSessionMessage { code, message_id }),
+                    message,
+                ))
+            }
+        }
     }
 
     async fn send_inner(&self, opts: MessageOptions) -> Result<String, Error> {

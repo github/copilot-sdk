@@ -17,7 +17,8 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    OpenCanvasInstance,
+    ListMessageableSessionsRequest, OpenCanvasInstance, SendMode, SendSessionMessageRequest,
+    SessionMessageDelivery,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -33,7 +34,10 @@ use github_copilot_sdk::types::{
     PermissionDecisionSurface, RequestId, SessionConfig, SessionId, SetModelOptions, Tool,
     ToolInvocation, ToolResult,
 };
-use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
+use github_copilot_sdk::{
+    Client, ContextTier, ErrorKind, ProtocolErrorKind, SendSessionMessageErrorCode,
+    SessionErrorKind, tool,
+};
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::time::timeout;
@@ -157,6 +161,20 @@ impl FakeServer {
     async fn respond(&mut self, request: &Value, result: Value) {
         let id = request["id"].as_u64().unwrap();
         let response = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result });
+        write_framed(&mut self.write, &serde_json::to_vec(&response).unwrap()).await;
+    }
+
+    async fn respond_error(&mut self, request: &Value, message: &str, data: Value) {
+        let id = request["id"].as_u64().unwrap();
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": {
+                "code": -32603,
+                "message": message,
+                "data": data,
+            },
+        });
         write_framed(&mut self.write, &serde_json::to_vec(&response).unwrap()).await;
     }
 
@@ -1913,6 +1931,245 @@ async fn admit_authenticated_cross_session_input_propagates_runtime_errors() {
             .contains("authenticated cross-session input admission is local-host only"),
         "unexpected error: {error}"
     );
+}
+
+#[tokio::test]
+async fn list_messageable_sessions_stamps_bound_source_and_preserves_exact_name() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .list_messageable_sessions(Some(ListMessageableSessionsRequest {
+                    name: Some("  ReSeArCh  ".to_string()),
+                }))
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.listMessageableSessions");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({
+            "sessionId": server.session_id,
+            "name": "  ReSeArCh  ",
+        })
+    );
+    server
+        .respond(
+            &request,
+            serde_json::json!({
+                "sessions": [
+                    {
+                        "sessionId": "target-session",
+                        "name": "Research",
+                        "summary": "Inspect the runtime."
+                    }
+                ]
+            }),
+        )
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert_eq!(result.sessions.len(), 1);
+    assert_eq!(result.sessions[0].session_id, "target-session");
+    assert_eq!(result.sessions[0].name.as_deref(), Some("Research"));
+    assert_eq!(
+        result.sessions[0].summary.as_deref(),
+        Some("Inspect the runtime.")
+    );
+}
+
+#[tokio::test]
+async fn list_messageable_sessions_omits_absent_name() {
+    let (session, mut server) = create_session_pair().await;
+    let handle = tokio::spawn(async move { session.list_messageable_sessions(None).await });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.listMessageableSessions");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({ "sessionId": server.session_id })
+    );
+    server
+        .respond(&request, serde_json::json!({ "sessions": [] }))
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert!(result.sessions.is_empty());
+}
+
+#[tokio::test]
+async fn send_session_message_stamps_bound_source_and_returns_admission_result() {
+    let (session, mut server) = create_session_pair().await;
+    let handle = tokio::spawn(async move {
+        session
+            .send_session_message(SendSessionMessageRequest {
+                target_session_id: "target-session".to_string(),
+                content: "Please inspect this.".to_string(),
+                delivery: None,
+            })
+            .await
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.sendSessionMessage");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({
+            "sessionId": server.session_id,
+            "targetSessionId": "target-session",
+            "content": "Please inspect this.",
+        })
+    );
+    server
+        .respond(
+            &request,
+            serde_json::json!({
+                "messageId": "message-1",
+                "delivery": "idle",
+            }),
+        )
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert_eq!(result.message_id, "message-1");
+    assert_eq!(result.delivery, SessionMessageDelivery::Idle);
+}
+
+#[tokio::test]
+async fn send_session_message_forwards_explicit_delivery() {
+    let (session, mut server) = create_session_pair().await;
+    let handle = tokio::spawn(async move {
+        session
+            .send_session_message(SendSessionMessageRequest {
+                target_session_id: "target-session".to_string(),
+                content: "Please inspect this.".to_string(),
+                delivery: Some(SendMode::Immediate),
+            })
+            .await
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.sendSessionMessage");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({
+            "sessionId": server.session_id,
+            "targetSessionId": "target-session",
+            "content": "Please inspect this.",
+            "delivery": "immediate",
+        })
+    );
+    server
+        .respond(
+            &request,
+            serde_json::json!({
+                "messageId": "message-immediate",
+                "delivery": "steering",
+            }),
+        )
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert_eq!(result.message_id, "message-immediate");
+    assert_eq!(result.delivery, SessionMessageDelivery::Steering);
+}
+
+#[tokio::test]
+async fn send_session_message_preserves_typed_terminal_outcomes_and_message_ids() {
+    for (kind, runtime_code, expected_code) in [
+        (
+            "session_message_refused",
+            "target-not-active",
+            SendSessionMessageErrorCode::Refused,
+        ),
+        (
+            "session_message_not_delivered",
+            "not-delivered",
+            SendSessionMessageErrorCode::NotDelivered,
+        ),
+        (
+            "session_message_ambiguous",
+            "ambiguous",
+            SendSessionMessageErrorCode::Ambiguous,
+        ),
+    ] {
+        let (session, mut server) = create_session_pair().await;
+        let handle = tokio::spawn(async move {
+            session
+                .send_session_message(SendSessionMessageRequest {
+                    target_session_id: "target-session".to_string(),
+                    content: "Please inspect this.".to_string(),
+                    delivery: Some(SendMode::Enqueue),
+                })
+                .await
+        });
+
+        let request = server.read_request().await;
+        server
+            .respond_error(
+                &request,
+                "cross-session send failed",
+                serde_json::json!({
+                    "kind": kind,
+                    "code": runtime_code,
+                    "messageId": "message-terminal",
+                }),
+            )
+            .await;
+
+        let error = timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        let ErrorKind::Session(SessionErrorKind::SendSessionMessage { code, message_id }) =
+            error.kind()
+        else {
+            panic!("unexpected error kind: {:?}", error.kind());
+        };
+        assert_eq!(*code, expected_code);
+        assert_eq!(message_id.as_deref(), Some("message-terminal"));
+        assert_eq!(error.message(), Some("cross-session send failed"));
+    }
+}
+
+#[tokio::test]
+async fn send_session_message_leaves_unrecognized_error_envelopes_as_rpc_errors() {
+    let (session, mut server) = create_session_pair().await;
+    let handle = tokio::spawn(async move {
+        session
+            .send_session_message(SendSessionMessageRequest {
+                target_session_id: "target-session".to_string(),
+                content: "Please inspect this.".to_string(),
+                delivery: None,
+            })
+            .await
+    });
+
+    let request = server.read_request().await;
+    server
+        .respond_error(
+            &request,
+            "raw runtime failure",
+            serde_json::json!({
+                "kind": "session_message_ambiguous",
+                "code": "not-delivered",
+                "messageId": "message-mismatched",
+            }),
+        )
+        .await;
+
+    let error = timeout(TIMEOUT, handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(error.rpc_code(), Some(-32603));
+    assert_eq!(error.message(), Some("raw runtime failure"));
 }
 
 #[tokio::test]

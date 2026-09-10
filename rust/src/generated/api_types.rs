@@ -201,6 +201,10 @@ pub mod rpc_methods {
     pub const SESSION_SUSPEND: &str = "session.suspend";
     /// `session.send`
     pub const SESSION_SEND: &str = "session.send";
+    /// `session.sendSessionMessage`
+    pub const SESSION_SENDSESSIONMESSAGE: &str = "session.sendSessionMessage";
+    /// `session.listMessageableSessions`
+    pub const SESSION_LISTMESSAGEABLESESSIONS: &str = "session.listMessageableSessions";
     /// `session.sendMessages`
     pub const SESSION_SENDMESSAGES: &str = "session.sendMessages";
     /// `session.sandbox.getEnforcementStatus`
@@ -6765,6 +6769,58 @@ pub struct InterruptMainTurnRequest {
 pub struct InterruptMainTurnResult {
     /// Whether an in-flight main agent turn was interrupted. False when the main loop was not processing.
     pub interrupted: bool,
+}
+
+/// Optional exact-name query for active local messageable sessions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListMessageableSessionsRequest {
+    /// Optional exact session name query. Matching semantics are owned by the local host.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+/// Sanitized active local session available for exact-ID messaging selection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageableSession {
+    /// Current session name when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Stable session ID to provide to session.sendSessionMessage.
+    pub session_id: SessionId,
+    /// Current session summary when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+}
+
+/// Sanitized active local sessions available for exact-ID messaging selection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListMessageableSessionsResult {
+    /// Messageable sessions in deterministic session-ID order.
+    pub sessions: Vec<MessageableSession>,
 }
 
 /// A request body chunk or cancellation signal.
@@ -15221,6 +15277,43 @@ pub struct SendResult {
     pub message_id: String,
 }
 
+/// Parameters for sending one authenticated non-user message from the current bound session to an exact active local session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendSessionMessageRequest {
+    /// Natural-language message content.
+    pub content: String,
+    /// Requested delivery mode. The host applies its existing default when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<SendMode>,
+    /// Exact active local recipient session ID.
+    pub target_session_id: String,
+}
+
+/// Recipient admission result for an authenticated cross-session message.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendSessionMessageResult {
+    /// Actual recipient delivery class at admission.
+    pub delivery: SessionMessageDelivery,
+    /// Unique identifier assigned to the admitted message.
+    pub message_id: String,
+}
+
 /// Internal request for sending a system notification.
 ///
 /// <div class="warning">
@@ -22019,6 +22112,38 @@ pub struct SessionSuspendParams {
 pub struct SessionSendResult {
     /// Unique identifier assigned to the message
     pub message_id: String,
+}
+
+/// Recipient admission result for an authenticated cross-session message.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSendSessionMessageResult {
+    /// Actual recipient delivery class at admission.
+    pub delivery: SessionMessageDelivery,
+    /// Unique identifier assigned to the admitted message.
+    pub message_id: String,
+}
+
+/// Sanitized active local sessions available for exact-ID messaging selection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionListMessageableSessionsResult {
+    /// Messageable sessions in deterministic session-ID order.
+    pub sessions: Vec<MessageableSession>,
 }
 
 /// Result of sending zero or more user messages
@@ -32280,6 +32405,31 @@ pub enum SandboxConfigSource {
     Unknown,
 }
 
+/// Actual recipient delivery class for an admitted cross-session message.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionMessageDelivery {
+    /// The recipient was idle and the message started a turn.
+    #[serde(rename = "idle")]
+    Idle,
+    /// The message entered the active turn's safe steering boundary.
+    #[serde(rename = "steering")]
+    Steering,
+    /// The message was admitted to the recipient queue.
+    #[serde(rename = "queued")]
+    Queued,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Session capability enabled for this session
 ///
 /// <div class="warning">
@@ -32317,6 +32467,9 @@ pub enum SessionCapability {
     /// Cross-session history tools and session-store SQL prompt/tool metadata.
     #[serde(rename = "session-store")]
     SessionStore,
+    /// First-party local cross-session messaging tool for a root CLI session.
+    #[serde(rename = "cross-session-messaging")]
+    CrossSessionMessaging,
     /// MCP Apps UI passthrough.
     #[serde(rename = "mcp-apps")]
     McpApps,

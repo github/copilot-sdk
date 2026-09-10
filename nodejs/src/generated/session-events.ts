@@ -396,6 +396,14 @@ export type AttachmentGitHubReferenceType =
   /** GitHub discussion reference. */
   | "discussion";
 /**
+ * Integrity classification retained for replay. Authenticated cross-session content is untrusted even when its sender identity was authenticated by the host.
+ */
+export type UserMessageInputIntegrity = "untrusted";
+/**
+ * Non-human input origin retained for replay. This enum is intentionally narrow; authenticated sender identity and routing authority remain private runtime state.
+ */
+export type UserMessageInputOrigin = "authenticated-cross-session";
+/**
  * How this user message was delivered to the agentic loop, relative to whether the loop was already running. This is the timing axis only; the message's origin (human vs. system/command/schedule/skill/etc.) is carried separately by `source`. A system-injected message has a delivery too — e.g. a background-task notification waking an idle agent is `idle`, the same mechanism as a human starting a fresh turn.
  */
 export type UserMessageDelivery =
@@ -3428,7 +3436,7 @@ export interface FusionCompletedData {
   turnId: string;
 }
 /**
- * Session event "user.message". Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
+ * Session event "user.message". Payload of `user.message` with displayed and public transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
  */
 export interface UserMessageEvent {
   /**
@@ -3458,7 +3466,7 @@ export interface UserMessageEvent {
   type: "user.message";
 }
 /**
- * Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
+ * Payload of `user.message` with displayed and public transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
  */
 export interface UserMessageData {
   agentMode?: UserMessageAgentMode;
@@ -3470,6 +3478,7 @@ export interface UserMessageData {
    * The user's message text as displayed in the timeline
    */
   content: string;
+  crossSession?: UserMessageCrossSessionLabel;
   delivery?: UserMessageDelivery;
   /**
    * CAPI interaction ID for correlating this user message with its turn
@@ -3496,7 +3505,7 @@ export interface UserMessageData {
    */
   supportedNativeDocumentMimeTypes?: string[];
   /**
-   * Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching
+   * Public transformed message content with timestamps and other ordinary augmentations. Private authenticated cross-session envelope metadata is excluded.
    */
   transformedContent?: string;
   /**
@@ -3941,6 +3950,17 @@ export interface AttachmentExtensionContext {
    * Attachment type discriminator
    */
   type: "extension_context";
+}
+/**
+ * Minimal replay label for authenticated cross-session input. It carries no sender, principal, reply target, message identifier, continuation target, requested mode, or presentation metadata.
+ */
+export interface UserMessageCrossSessionLabel {
+  integrity: UserMessageInputIntegrity;
+  origin: UserMessageInputOrigin;
+  /**
+   * Replay-label schema version.
+   */
+  version: 1;
 }
 /**
  * Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed

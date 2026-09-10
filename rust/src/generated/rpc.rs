@@ -3320,6 +3320,75 @@ impl<'a> SessionRpc<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Sends one authenticated non-user message from the current bound session to an exact active local session. Success reports recipient admission, not delegated-work completion.
+    ///
+    /// Wire method: `session.sendSessionMessage`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for sending one authenticated non-user message from the current bound session to an exact active local session.
+    ///
+    /// # Returns
+    ///
+    /// Recipient admission result for an authenticated cross-session message.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn send_session_message(
+        &self,
+        params: SendSessionMessageRequest,
+    ) -> Result<SendSessionMessageResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SENDSESSIONMESSAGE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Lists active local sessions that the current bound session may select by exact ID for cross-session messaging. This discovery result grants no delivery authority.
+    ///
+    /// Wire method: `session.listMessageableSessions`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional exact-name query for active local messageable sessions.
+    ///
+    /// # Returns
+    ///
+    /// Sanitized active local sessions available for exact-ID messaging selection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list_messageable_sessions(
+        &self,
+        params: ListMessageableSessionsRequest,
+    ) -> Result<ListMessageableSessionsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_LISTMESSAGEABLESESSIONS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.
     ///
     /// Wire method: `session.sendMessages`.
