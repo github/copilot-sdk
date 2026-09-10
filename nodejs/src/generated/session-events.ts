@@ -5075,10 +5075,6 @@ export interface AssistantMessageData {
    */
   interactionId?: string;
   /**
-   * True when this is the last assistant reply for the originatingMessageId. Does not indicate successful completion of hooks or cleanup; session.error or abort events may still follow.
-   */
-  isFinalReply?: boolean;
-  /**
    * Unique identifier for this assistant message
    */
   messageId: string;

@@ -383,7 +383,7 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     [Fact]
-    public async Task StructuredOutput_Final_Reply_Does_Not_Hide_Later_Session_Errors()
+    public async Task StructuredOutput_Response_Does_Not_Hide_Later_Session_Errors()
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
@@ -399,7 +399,6 @@ public sealed partial class ClientSessionLifetimeTests
         {
             ["messageId"] = "final-reply",
             ["originatingMessageId"] = "message-1",
-            ["isFinalReply"] = true,
             ["content"] = """{"answer_text":"correct","count":42}""",
         });
         await server.SendSessionEventAsync(session.SessionId, "session.error", new()
