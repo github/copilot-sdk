@@ -72,22 +72,18 @@ public class McpOAuthE2ETest {
 
     @Test
     void testUsesCimdUrlInsteadOfDynamicRegistration() throws Exception {
-        try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot(), true);
+        try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot(), false, true);
                 var client = ctx.createClient();
-                var session = client.createSession(new SessionConfig()
-                        .setAuthClientIdMetadataUrl(CIMD_URL)
+                var session = client.createSession(new SessionConfig().setAuthClientIdMetadataUrl(CIMD_URL)
                         .setMcpServers(Map.of("oauth-cimd-mcp",
                                 new McpHttpServerConfig().setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                         .get()) {
             waitForMcpServerStatus(session, "oauth-cimd-mcp", McpServerStatus.NEEDS_AUTH, new AtomicReference<>());
-            var result = session.getRpc().mcp.oauth()
-                    .login(new SessionMcpOauthLoginParams(session.getSessionId(), "oauth-cimd-mcp", null, null,
-                            null, null, null, null, null))
-                    .get(30, TimeUnit.SECONDS);
+            var result = session.getRpc().mcp.oauth().login(new SessionMcpOauthLoginParams(session.getSessionId(),
+                    "oauth-cimd-mcp", null, null, null, null, null, null, null)).get(30, TimeUnit.SECONDS);
             assertNotNull(result.authorizationUrl());
             var clientId = List.of(URI.create(result.authorizationUrl()).getQuery().split("&")).stream()
-                    .filter(part -> part.startsWith("client_id="))
-                    .findFirst()
+                    .filter(part -> part.startsWith("client_id=")).findFirst()
                     .map(part -> URLDecoder.decode(part.substring("client_id=".length()), StandardCharsets.UTF_8))
                     .orElseThrow();
             assertEquals(CIMD_URL, clientId);
@@ -143,9 +139,10 @@ public class McpOAuthE2ETest {
 
     @Test
     void testShouldRequestReplacementTokensAcrossMcpOauthLifecycle() throws Exception {
-        try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot())) {
+        try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot(), true)) {
             var serverName = "oauth-lifecycle-mcp";
             var observedReasons = new CopyOnWriteArrayList<McpOauthRequestReason>();
+            var observedRequest = new AtomicReference<McpAuthRequest>();
             var refreshCount = new java.util.concurrent.atomic.AtomicInteger();
 
             try (var client = ctx.createClient();
@@ -153,6 +150,7 @@ public class McpOAuthE2ETest {
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setOnMcpAuthRequest((request, invocation) -> {
                                 assertNotNull(invocation);
+                                observedRequest.set(request);
                                 observedReasons.add(request.reason());
                                 var result = switch (request.reason()) {
                                     case REFRESH -> {
@@ -179,8 +177,8 @@ public class McpOAuthE2ETest {
                             }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
                                     .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                             .get()) {
-                waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED,
-                        new java.util.concurrent.atomic.AtomicReference<>());
+                oauthServer.releaseInitialChallenge();
+                waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest);
                 callWhoami(session, serverName, "refresh");
                 callWhoami(session, serverName, "upscope");
                 callWhoami(session, serverName, "reauth");
@@ -338,11 +336,21 @@ public class McpOAuthE2ETest {
             return start(repoRoot, false);
         }
 
-        static OAuthMcpServer start(Path repoRoot, boolean cimdSupported) throws Exception {
+        static OAuthMcpServer start(Path repoRoot, boolean deferInitialChallenge) throws Exception {
+            return start(repoRoot, deferInitialChallenge, false);
+        }
+
+        static OAuthMcpServer start(Path repoRoot, boolean deferInitialChallenge, boolean cimdSupported)
+                throws Exception {
             var script = repoRoot.resolve("test").resolve("harness").resolve("test-mcp-oauth-server.mjs");
             var processBuilder = new ProcessBuilder(resolveExecutable("node"), script.toString());
             processBuilder.environment().put("EXPECTED_TOKEN", EXPECTED_TOKEN);
-            processBuilder.environment().put("CIMD_SUPPORTED", Boolean.toString(cimdSupported));
+            if (deferInitialChallenge) {
+                processBuilder.environment().put("DEFER_INITIAL_CHALLENGE", "true");
+            }
+            if (cimdSupported) {
+                processBuilder.environment().put("CIMD_SUPPORTED", "true");
+            }
             var process = processBuilder.start();
             var stderr = new StringBuilder();
             Thread stderrThread = new Thread(() -> {
@@ -368,6 +376,15 @@ public class McpOAuthE2ETest {
             }
             process.destroyForcibly();
             throw new AssertionError("Timed out waiting for OAuth MCP server: " + stderr);
+        }
+
+        void releaseInitialChallenge() throws Exception {
+            var client = HttpClient.newHttpClient();
+            var response = client.send(
+                    HttpRequest.newBuilder(URI.create(url + "/__release-initial-challenge"))
+                            .timeout(Duration.ofSeconds(10)).POST(HttpRequest.BodyPublishers.noBody()).build(),
+                    HttpResponse.BodyHandlers.discarding());
+            assertEquals(204, response.statusCode());
         }
 
         List<OAuthMcpRequest> requests() throws Exception {

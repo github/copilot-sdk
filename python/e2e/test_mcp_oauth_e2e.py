@@ -16,7 +16,7 @@ from copilot.generated.rpc import (
     MCPOauthLoginRequest,
     MCPOauthPendingRequestResponse,
 )
-from copilot.session import MCPServerConfig, PermissionHandler
+from copilot.session import MCPHTTPServerConfig, MCPServerConfig, PermissionHandler
 from copilot.session_events import McpServerStatus
 
 from .testharness import E2ETestContext, wait_for_condition
@@ -33,7 +33,9 @@ CIMD_URL = "https://github.com/copilot/cli/client-metadata.json"
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
-async def _start_oauth_mcp_server(cimd_supported: bool = False) -> tuple[str, asyncio.subprocess.Process]:
+async def _start_oauth_mcp_server(
+    cimd_supported: bool = False,
+) -> tuple[str, asyncio.subprocess.Process]:
     process = await asyncio.create_subprocess_exec(
         "node",
         TEST_MCP_OAUTH_SERVER,
@@ -115,7 +117,7 @@ class TestMcpOAuth:
                 on_permission_request=PermissionHandler.approve_all,
                 auth_client_id_metadata_url=CIMD_URL,
                 mcp_servers={
-                    server_name: MCPServerConfig(
+                    server_name: MCPHTTPServerConfig(
                         type="http",
                         url=f"{url}/mcp",
                         tools=["*"],
@@ -161,6 +163,7 @@ class TestMcpOAuth:
                 on_mcp_auth_request=on_mcp_auth_request,
                 mcp_servers=mcp_servers,
             ) as session:
+                await session.rpc.mcp.reload()
                 await _wait_for_mcp_server_status(session, server_name)
 
                 tools = await session.rpc.mcp.list_tools(
@@ -197,13 +200,11 @@ class TestMcpOAuth:
     ):
         url, process = await _start_oauth_mcp_server()
         server_name = "oauth-direct-rpc-mcp"
-        loop = asyncio.get_running_loop()
-        observed_request = loop.create_future()
+        observed_requests = asyncio.Queue()
         release_handler = asyncio.Event()
 
         async def on_mcp_auth_request(request, _invocation):
-            if not observed_request.done():
-                observed_request.set_result(request)
+            observed_requests.put_nowait(request)
             await release_handler.wait()
             return {"kind": "token", "accessToken": EXPECTED_TOKEN}
 
@@ -223,9 +224,29 @@ class TestMcpOAuth:
                 mcp_servers=mcp_servers,
                 enable_mcp_apps=True,
             ) as session:
+                # session.create can begin MCP startup before the SDK registers OAuth
+                # event interest. Reload after registration so this test cannot lose
+                # the initial challenge to that race.
+                reload_task = asyncio.create_task(session.rpc.mcp.reload())
                 connected = asyncio.create_task(_wait_for_mcp_server_status(session, server_name))
                 try:
-                    request = await asyncio.wait_for(observed_request, timeout=30.0)
+                    request = await asyncio.wait_for(observed_requests.get(), timeout=30.0)
+                    while True:
+                        handled = await session.rpc.mcp.oauth.handle_pending_request(
+                            MCPOauthHandlePendingRequest(
+                                request_id=request["requestId"],
+                                result=MCPOauthPendingRequestResponse(
+                                    kind=GitHubTokenAcquireResultKind.TOKEN,
+                                    access_token=EXPECTED_TOKEN,
+                                    token_type="Bearer",
+                                    expires_in=3600,
+                                ),
+                            )
+                        )
+                        if handled.success:
+                            break
+                        request = await asyncio.wait_for(observed_requests.get(), timeout=30.0)
+
                     assert request["serverName"] == server_name
                     assert request["serverUrl"] == f"{url}/mcp"
                     assert request["reason"] == "initial"
@@ -235,19 +256,8 @@ class TestMcpOAuth:
                         "error": "invalid_token",
                     }
 
-                    handled = await session.rpc.mcp.oauth.handle_pending_request(
-                        MCPOauthHandlePendingRequest(
-                            request_id=request["requestId"],
-                            result=MCPOauthPendingRequestResponse(
-                                kind=GitHubTokenAcquireResultKind.TOKEN,
-                                access_token=EXPECTED_TOKEN,
-                                token_type="Bearer",
-                                expires_in=3600,
-                            ),
-                        )
-                    )
-                    assert handled.success is True
-
+                    release_handler.set()
+                    await asyncio.wait_for(reload_task, timeout=60.0)
                     connected_result = await asyncio.wait_for(connected, timeout=60.0)
                     assert connected_result is None
                     tools = await session.rpc.mcp.list_tools(
@@ -258,6 +268,9 @@ class TestMcpOAuth:
                     release_handler.set()
                     if not connected.done():
                         connected.cancel()
+                    if not reload_task.done():
+                        reload_task.cancel()
+                    await asyncio.gather(connected, reload_task, return_exceptions=True)
         finally:
             await _stop_process(process)
 
@@ -303,7 +316,11 @@ class TestMcpOAuth:
                 mcp_servers=mcp_servers,
                 enable_mcp_apps=True,
             ) as session:
+                # Re-run startup after OAuth event interest is registered to avoid
+                # racing the initial challenge emitted during session.create.
+                await session.rpc.mcp.reload()
                 await _wait_for_mcp_server_status(session, server_name)
+                refresh_count = 0
 
                 for scenario in ("refresh", "upscope", "reauth"):
                     result = await session.rpc.mcp.apps.call_tool(
@@ -316,8 +333,9 @@ class TestMcpOAuth:
                     )
                     assert result["content"] == [{"type": "text", "text": "oauth-test-user"}]
 
-            assert [request["reason"] for request in observed_requests] == [
-                "initial",
+            assert [
+                request["reason"] for request in observed_requests if request["reason"] != "initial"
+            ] == [
                 "refresh",
                 "upscope",
                 "refresh",
@@ -357,6 +375,7 @@ class TestMcpOAuth:
                 on_mcp_auth_request=on_mcp_auth_request,
                 mcp_servers=mcp_servers,
             ) as session:
+                await session.rpc.mcp.reload()
                 await _wait_for_mcp_server_status(session, server_name, McpServerStatus.NEEDS_AUTH)
 
                 # The MCP connection is kicked off by session.create, but the SDK only registers

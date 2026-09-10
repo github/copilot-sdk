@@ -8,6 +8,20 @@ To use the SDK, you'll need:
 
 - Node.js ^20.19.0 or >=22.12.0
 
+The SDK uses an optional `@github/copilot-sdk-<platform>` package containing the
+Copilot CLI runtime for the host platform. These packages are built from
+verified `github/copilot-cli` release assets when the SDK is published, so
+starting the SDK performs no runtime download. Set `COPILOT_CLI_PATH` to use an
+existing installation instead.
+
+The checked-in release pin is `copilotCliVersion` in `package.json`. Run
+`npm run set:cli-version -- <version>` to update it and regenerate the compiled
+metadata in `src/cliVersion.ts`. Packaging verifies release assets against the
+release's `SHA256SUMS.txt`.
+
+`npm run pack:release` builds the main package and all platform packages. Set
+`COPILOT_CLI_DOWNLOAD_BASE_URL` to use a release mirror while packaging.
+
 ## Installation
 
 ```bash
@@ -22,6 +36,7 @@ Try the interactive chat sample (from the repo root):
 cd nodejs
 npm ci
 npm run build
+export COPILOT_CLI_PATH="$(npm run --silent prepare:runtime -- --print-path)"
 cd samples
 npm install
 npm start
@@ -252,10 +267,25 @@ Send a message to the session. Returns immediately after the message is queued; 
 **Options:**
 
 - `prompt: string` - The message/prompt to send
+- `source?: MessageSource` - `"user"`, `"system"`, or `` `agent-${string}` `` provenance; omitted by default
 - `attachments?: Array<{type, path, displayName}>` - File attachments
 - `mode?: "enqueue" | "immediate"` - Delivery mode
 
 Returns the message ID.
+
+Use `source: "system"` for automated messages from your application:
+
+```typescript
+await session.send({ prompt: "Context updated", source: "system" });
+```
+
+For a message from another agent, use its trusted sender ID:
+
+```typescript
+await session.send({ prompt: "Review complete", source: "agent-reviewer-id" });
+```
+
+Source is independent of delivery mode. Leaving it unset preserves the existing human-message payload; it does not set billing flags or use the notification API.
 
 ##### `sendAndWait(options: MessageOptions, timeout?: number): Promise<AssistantMessageEvent | undefined>`
 
@@ -264,6 +294,7 @@ Send a message and wait until the session becomes idle.
 **Options:**
 
 - `prompt: string` - The message/prompt to send
+- `source?: MessageSource` - Same optional provenance as `send`
 - `attachments?: Array<{type, path, displayName}>` - File attachments
 - `mode?: "enqueue" | "immediate"` - Delivery mode
 - `timeout?: number` - Optional timeout in milliseconds
@@ -303,6 +334,32 @@ const unsubscribe = session.on((event) => {
 // Later...
 unsubscribe();
 ```
+
+##### `setModel(model: string, options?): Promise<void>`
+
+Change the model for this session. The new model takes effect for the next message; conversation history is preserved.
+
+**Options:**
+
+- `reasoningEffort?: string` - Reasoning effort level
+- `autoTier?: AutoTier | null` - Auto routing preference to stage together with selecting `auto`. Pass `null` to return to the provider's default Auto routing; omit it to leave the current preference unchanged.
+
+##### `setAutoTier(autoTier: AutoTier | null): Promise<ModelSwitchAutoTierResult>`
+
+Change the Auto routing preference without changing the selected model. Pass `null` to return to the provider's default Auto routing.
+
+The runtime does not apply the preference immediately. It records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure, and read the authoritative state at any time with `session.rpc.model.getCurrent()`.
+
+```typescript
+const result = await session.setAutoTier("intelligence");
+if (result.status === "pending") {
+    // Accepted, but not yet in effect.
+}
+```
+
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 
 ##### `abort(): Promise<void>`
 
@@ -936,15 +993,15 @@ const session = await client.createSession({
 
 The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-result" }`). Approval scopes are present-tense — they describe the decision to apply, not the outcome reported back on session events:
 
-| Kind                     | Meaning                                                                                      | Extra fields                                                            |
-| ------------------------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `"approve-once"`         | Allow this single request                                                                    | —                                                                       |
-| `"approve-for-session"`  | Allow this request and remember the approval for the rest of the session                     | `approval?` (rule to remember), `domain?` (for URL approvals)           |
-| `"approve-for-location"` | Allow this request and persist the approval for this project location (git root or cwd)      | `approval` (rule to persist), `locationKey` (location to persist under) |
-| `"approve-permanently"`  | Allow this request and persist the approval across sessions (currently used for URL domains) | `domain` (URL domain to approve)                                        |
-| `"reject"`               | Deny the request                                                                             | `feedback?` (optional string surfaced to the agent)                     |
-| `"user-not-available"`   | Deny the request because no user is available to confirm it                                  | —                                                                       |
-| `"no-result"`            | Suppress this SDK client's response so another connected client can answer the pending request | —                                                                     |
+| Kind                     | Meaning                                                                                        | Extra fields                                                            |
+| ------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `"approve-once"`         | Allow this single request                                                                      | —                                                                       |
+| `"approve-for-session"`  | Allow this request and remember the approval for the rest of the session                       | `approval?` (rule to remember), `domain?` (for URL approvals)           |
+| `"approve-for-location"` | Allow this request and persist the approval for this project location (git root or cwd)        | `approval` (rule to persist), `locationKey` (location to persist under) |
+| `"approve-permanently"`  | Allow this request and persist the approval across sessions (currently used for URL domains)   | `domain` (URL domain to approve)                                        |
+| `"reject"`               | Deny the request                                                                               | `feedback?` (optional string surfaced to the agent)                     |
+| `"user-not-available"`   | Deny the request because no user is available to confirm it                                    | —                                                                       |
+| `"no-result"`            | Suppress this SDK client's response so another connected client can answer the pending request | —                                                                       |
 
 ### Resuming Sessions
 

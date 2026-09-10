@@ -84,6 +84,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionLimitsExhaustedCompletedEvent), "session_limits_exhausted.completed")]
 [JsonDerivedType(typeof(SessionLimitsExhaustedRequestedEvent), "session_limits_exhausted.requested")]
 [JsonDerivedType(typeof(SessionAutoModeResolvedEvent), "session.auto_mode_resolved")]
+[JsonDerivedType(typeof(SessionAutoTierSwitchFailedEvent), "session.auto_tier_switch_failed")]
 [JsonDerivedType(typeof(SessionAutopilotObjectiveChangedEvent), "session.autopilot_objective_changed")]
 [JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
 [JsonDerivedType(typeof(SessionBinaryAssetEvent), "session.binary_asset")]
@@ -112,6 +113,8 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionInfoEvent), "session.info")]
 [JsonDerivedType(typeof(SessionManagedSettingsEnforcedEvent), "session.managed_settings_enforced")]
 [JsonDerivedType(typeof(SessionManagedSettingsResolvedEvent), "session.managed_settings_resolved")]
+[JsonDerivedType(typeof(SessionMcpServerNeedsReconnectEvent), "session.mcp_server_needs_reconnect")]
+[JsonDerivedType(typeof(SessionMcpServerRemovedEvent), "session.mcp_server_removed")]
 [JsonDerivedType(typeof(SessionMcpServerStatusChangedEvent), "session.mcp_server_status_changed")]
 [JsonDerivedType(typeof(SessionMcpServersLoadedEvent), "session.mcp_servers_loaded")]
 [JsonDerivedType(typeof(SessionModeChangedEvent), "session.mode_changed")]
@@ -366,6 +369,19 @@ public sealed partial class SessionModelChangeEvent : SessionEvent
     /// <summary>The <c>session.model_change</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionModelChangeData Data { get; set; }
+}
+
+/// <summary>A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.</summary>
+/// <remarks>Represents the <c>session.auto_tier_switch_failed</c> event.</remarks>
+public sealed partial class SessionAutoTierSwitchFailedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.auto_tier_switch_failed";
+
+    /// <summary>The <c>session.auto_tier_switch_failed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionAutoTierSwitchFailedData Data { get; set; }
 }
 
 /// <summary>Agent mode change details including previous and new modes.</summary>
@@ -1790,6 +1806,32 @@ public sealed partial class SessionMcpServerStatusChangedEvent : SessionEvent
     public required SessionMcpServerStatusChangedData Data { get; set; }
 }
 
+/// <summary>Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.</summary>
+/// <remarks>Represents the <c>session.mcp_server_removed</c> event.</remarks>
+public sealed partial class SessionMcpServerRemovedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.mcp_server_removed";
+
+    /// <summary>The <c>session.mcp_server_removed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionMcpServerRemovedData Data { get; set; }
+}
+
+/// <summary>Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.</summary>
+/// <remarks>Represents the <c>session.mcp_server_needs_reconnect</c> event.</remarks>
+public sealed partial class SessionMcpServerNeedsReconnectEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.mcp_server_needs_reconnect";
+
+    /// <summary>The <c>session.mcp_server_needs_reconnect</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionMcpServerNeedsReconnectData Data { get; set; }
+}
+
 /// <summary>Payload identifying the MCP server associated with a list change.</summary>
 /// <remarks>Represents the <c>mcp.tools.list_changed</c> event.</remarks>
 public sealed partial class McpToolsListChangedEvent : SessionEvent
@@ -2147,6 +2189,11 @@ public sealed partial class SessionErrorData
     [JsonPropertyName("providerCallId")]
     public string? ProviderCallId { get; set; }
 
+    /// <summary>What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("remediation")]
+    public RemediationAction? Remediation { get; set; }
+
     /// <summary>Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("serviceRequestId")]
@@ -2310,6 +2357,11 @@ public sealed partial class SessionWarningData
     [JsonPropertyName("message")]
     public required string Message { get; set; }
 
+    /// <summary>What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("remediation")]
+    public RemediationAction? Remediation { get; set; }
+
     /// <summary>Optional URL associated with this warning that the user can open in a browser.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("url")]
@@ -2323,6 +2375,11 @@ public sealed partial class SessionWarningData
 /// <summary>Model change details including previous and new model identifiers.</summary>
 public sealed partial class SessionModelChangeData
 {
+    /// <summary>Committed Auto preference after the model configuration change, when applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
+
     /// <summary>Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cause")]
@@ -2336,6 +2393,11 @@ public sealed partial class SessionModelChangeData
     /// <summary>Newly selected model identifier.</summary>
     [JsonPropertyName("newModel")]
     public required string NewModel { get; set; }
+
+    /// <summary>Previously committed Auto preference, when one was explicitly selected.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("previousAutoTier")]
+    public AutoTier? PreviousAutoTier { get; set; }
 
     /// <summary>Model that was previously selected, if any.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2376,6 +2438,23 @@ public sealed partial class SessionModelChangeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("verbosity")]
     public Verbosity? Verbosity { get; set; }
+}
+
+/// <summary>A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.</summary>
+public sealed partial class SessionAutoTierSwitchFailedData
+{
+    /// <summary>Auto preference that remains effective after the failed request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("effectiveAutoTier")]
+    public AutoTier? EffectiveAutoTier { get; set; }
+
+    /// <summary>Low-cardinality failure outcome reported by Auto resolution.</summary>
+    [JsonPropertyName("reason")]
+    public required AutoTierSwitchFailureReason Reason { get; set; }
+
+    /// <summary>Auto preference that failed to activate, or null when returning to provider-default routing failed.</summary>
+    [JsonPropertyName("requestedAutoTier")]
+    public AutoTier? RequestedAutoTier { get; set; }
 }
 
 /// <summary>Agent mode change details including previous and new modes.</summary>
@@ -5855,6 +5934,22 @@ public sealed partial class SessionMcpServerStatusChangedData
     public required McpServerStatus Status { get; set; }
 }
 
+/// <summary>Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.</summary>
+public sealed partial class SessionMcpServerRemovedData
+{
+    /// <summary>Name of the MCP server that was removed from the graph.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.</summary>
+public sealed partial class SessionMcpServerNeedsReconnectData
+{
+    /// <summary>Name of the MCP server that needs to reconnect.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
 /// <summary>Payload identifying the MCP server associated with a list change.</summary>
 public sealed partial class McpToolsListChangedData
 {
@@ -7610,6 +7705,11 @@ public sealed partial class ToolExecutionCompleteError
     /// <summary>Human-readable error message.</summary>
     [JsonPropertyName("message")]
     public required string Message { get; set; }
+
+    /// <summary>What the user must do to recover, when the runtime knows of an action. Set on sandbox policy denials, where `message` names the rule that blocked the call but never the client affordance that relaxes it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("remediation")]
+    public RemediationAction? Remediation { get; set; }
 }
 
 /// <summary>Binary result returned by a tool for the model.</summary>
@@ -8752,12 +8852,12 @@ public sealed partial class PermissionRequestShell : PermissionRequest
     [JsonPropertyName("possibleUrls")]
     public required PermissionRequestShellPossibleUrl[] PossibleUrls { get; set; }
 
-    /// <summary>True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    /// <summary>True when the tool is asking to run this command outside the sandbox, either because the command detaches and cannot be sandboxed at all, or because a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypass")]
     public bool? RequestSandboxBypass { get; set; }
 
-    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    /// <summary>What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
@@ -8852,12 +8952,12 @@ public sealed partial class PermissionRequestRead : PermissionRequest
     [JsonPropertyName("path")]
     public required string Path { get; set; }
 
-    /// <summary>True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    /// <summary>True when the tool is asking to re-run this search outside the sandbox, after a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypass")]
     public bool? RequestSandboxBypass { get; set; }
 
-    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    /// <summary>What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
@@ -8935,12 +9035,12 @@ public sealed partial class PermissionRequestUrl : PermissionRequest
     [JsonPropertyName("redirectedFrom")]
     public string? RedirectedFrom { get; set; }
 
-    /// <summary>True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    /// <summary>True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypass")]
     public bool? RequestSandboxBypass { get; set; }
 
-    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    /// <summary>What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
@@ -9489,12 +9589,12 @@ public sealed partial class PermissionPromptRequestUrl : PermissionPromptRequest
     [JsonPropertyName("redirectedFrom")]
     public string? RedirectedFrom { get; set; }
 
-    /// <summary>True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    /// <summary>True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypass")]
     public bool? RequestSandboxBypass { get; set; }
 
-    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    /// <summary>What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
@@ -10418,6 +10518,15 @@ public sealed partial class CustomAgentsUpdatedAgent
     public required bool UserInvocable { get; set; }
 }
 
+/// <summary>Server-advertised metadata learned through modern discovery or legacy initialization.</summary>
+/// <remarks>Nested data type for <c>McpServerMetadata</c>.</remarks>
+public sealed partial class McpServerMetadata
+{
+    /// <summary>Non-empty natural-language guidance for using the server, or null when the server omitted instructions or advertised an empty string.</summary>
+    [JsonPropertyName("instructions")]
+    public string? Instructions { get; set; }
+}
+
 /// <summary>A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata.</summary>
 /// <remarks>Nested data type for <c>McpServersLoadedServer</c>.</remarks>
 public sealed partial class McpServersLoadedServer
@@ -10440,6 +10549,11 @@ public sealed partial class McpServersLoadedServer
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("pluginVersion")]
     public string? PluginVersion { get; set; }
+
+    /// <summary>Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("serverMetadata")]
+    public McpServerMetadata? ServerMetadata { get; set; }
 
     /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -10889,6 +11003,76 @@ public readonly struct Verbosity : IEquatable<Verbosity>
     }
 }
 
+/// <summary>What the user must do to recover from a failure, named as an action rather than as one client's affordance. The runtime cannot know which affordance a client offers — a slash command, a settings pane, a link — so the accompanying message stays host-agnostic and each client renders its own copy from this value. Absent when the runtime knows of no action the user can take.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct RemediationAction : IEquatable<RemediationAction>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="RemediationAction"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="RemediationAction"/>.</param>
+    [JsonConstructor]
+    public RemediationAction(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="RemediationAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Authenticate again with the Copilot backend. The current credential is absent, expired, or rejected.</summary>
+    public static RemediationAction SignIn { get; } = new("sign_in");
+
+    /// <summary>Authenticate as a different account. The current account exists but lacks access to the requested resource.</summary>
+    public static RemediationAction SwitchAccount { get; } = new("switch_account");
+
+    /// <summary>Inspect which account is currently authenticated before deciding what to change.</summary>
+    public static RemediationAction ShowAccount { get; } = new("show_account");
+
+    /// <summary>Review or widen the sandbox policy. The blocked path or host is named by the accompanying message or by the tool result the action arrived with.</summary>
+    public static RemediationAction ReviewSandboxPolicy { get; } = new("review_sandbox_policy");
+
+    /// <summary>Permit outbound network access in the sandbox policy.</summary>
+    public static RemediationAction AllowSandboxOutbound { get; } = new("allow_sandbox_outbound");
+
+    /// <summary>Returns a value indicating whether two <see cref="RemediationAction"/> instances are equivalent.</summary>
+    public static bool operator ==(RemediationAction left, RemediationAction right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="RemediationAction"/> instances are not equivalent.</summary>
+    public static bool operator !=(RemediationAction left, RemediationAction right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is RemediationAction other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(RemediationAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{RemediationAction}"/> for serializing <see cref="RemediationAction"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<RemediationAction>
+    {
+        /// <inheritdoc />
+        public override RemediationAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, RemediationAction value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(RemediationAction));
+        }
+    }
+}
+
 /// <summary>The session mode the agent is operating in.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -11229,6 +11413,73 @@ public readonly struct ModelChangeSource : IEquatable<ModelChangeSource>
         public override void Write(Utf8JsonWriter writer, ModelChangeSource value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelChangeSource));
+        }
+    }
+}
+
+/// <summary>Terminal reason an Auto preference activation failed.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutoTierSwitchFailureReason : IEquatable<AutoTierSwitchFailureReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutoTierSwitchFailureReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutoTierSwitchFailureReason"/>.</param>
+    [JsonConstructor]
+    public AutoTierSwitchFailureReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutoTierSwitchFailureReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The candidate model was rejected by model policy.</summary>
+    public static AutoTierSwitchFailureReason PolicyRejected { get; } = new("policy_rejected");
+
+    /// <summary>The Auto routing request failed or returned an unusable response.</summary>
+    public static AutoTierSwitchFailureReason RequestFailed { get; } = new("request_failed");
+
+    /// <summary>The runtime could not prepare the Auto routing request.</summary>
+    public static AutoTierSwitchFailureReason SetupFailed { get; } = new("setup_failed");
+
+    /// <summary>The provider does not support Auto routing.</summary>
+    public static AutoTierSwitchFailureReason Unsupported { get; } = new("unsupported");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoTierSwitchFailureReason"/> instances are equivalent.</summary>
+    public static bool operator ==(AutoTierSwitchFailureReason left, AutoTierSwitchFailureReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoTierSwitchFailureReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutoTierSwitchFailureReason left, AutoTierSwitchFailureReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutoTierSwitchFailureReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutoTierSwitchFailureReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutoTierSwitchFailureReason}"/> for serializing <see cref="AutoTierSwitchFailureReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutoTierSwitchFailureReason>
+    {
+        /// <inheritdoc />
+        public override AutoTierSwitchFailureReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutoTierSwitchFailureReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoTierSwitchFailureReason));
         }
     }
 }
@@ -16236,6 +16487,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(McpPromptsListChangedEvent))]
 [JsonSerializable(typeof(McpResourcesListChangedData))]
 [JsonSerializable(typeof(McpResourcesListChangedEvent))]
+[JsonSerializable(typeof(McpServerMetadata))]
 [JsonSerializable(typeof(McpServersLoadedServer))]
 [JsonSerializable(typeof(McpToolsListChangedData))]
 [JsonSerializable(typeof(McpToolsListChangedEvent))]
@@ -16307,6 +16559,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SandboxDecisionEvent))]
 [JsonSerializable(typeof(SessionAutoModeResolvedData))]
 [JsonSerializable(typeof(SessionAutoModeResolvedEvent))]
+[JsonSerializable(typeof(SessionAutoTierSwitchFailedData))]
+[JsonSerializable(typeof(SessionAutoTierSwitchFailedEvent))]
 [JsonSerializable(typeof(SessionAutopilotObjectiveChangedData))]
 [JsonSerializable(typeof(SessionAutopilotObjectiveChangedEvent))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedData))]
@@ -16370,6 +16624,10 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionManagedSettingsEnforcedEvent))]
 [JsonSerializable(typeof(SessionManagedSettingsResolvedData))]
 [JsonSerializable(typeof(SessionManagedSettingsResolvedEvent))]
+[JsonSerializable(typeof(SessionMcpServerNeedsReconnectData))]
+[JsonSerializable(typeof(SessionMcpServerNeedsReconnectEvent))]
+[JsonSerializable(typeof(SessionMcpServerRemovedData))]
+[JsonSerializable(typeof(SessionMcpServerRemovedEvent))]
 [JsonSerializable(typeof(SessionMcpServerStatusChangedData))]
 [JsonSerializable(typeof(SessionMcpServerStatusChangedEvent))]
 [JsonSerializable(typeof(SessionMcpServersLoadedData))]

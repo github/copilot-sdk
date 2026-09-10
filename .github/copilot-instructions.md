@@ -28,9 +28,9 @@
   - Go: `cd go && go test ./...`
   - .NET: `cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj`
   - **.NET testing note:** Never add `InternalsVisibleTo` to any project file when writing tests. Tests must only access public APIs.
-  - Java: `cd java && mvn clean verify` (full build + tests), `mvn spotless:apply` (format code before commit)
+  - Java: `cd java && mvn clean verify` (full build + tests), `mvn -pl sdk spotless:apply` (format code)
   - Java single test: `cd java && mvn test -Dtest=CopilotClientTest` | single method: `mvn test -Dtest=ToolsTest#testToolInvocation`
-  - Java format check only: `mvn spotless:check` | Build without tests: `mvn clean package -DskipTests`
+  - Java formatting and Javadoc checks: `mvn -pl sdk spotless:check checkstyle:check` | Build without tests: `mvn clean package -DskipTests`
   - **Java testing note:** Always use `mvn verify` without `-q` and without piping through `grep`. Never add `InternalsVisibleTo` equivalent — tests must only access public APIs.
 - Use configured LSPs for supported operations like finding references instead of pattern matching, renaming symbols, etc.
 
@@ -47,7 +47,7 @@
 - Tools: each SDK has helper APIs to expose functions as tools; prefer the language's `DefineTool`/`@define_tool`/`CopilotTool.DefineTool` patterns (see language READMEs).
 - Infinite sessions are enabled by default and persist workspace state to `~/.copilot/session-state/{sessionId}`; compaction events are emitted (`session.compaction_start`, `session.compaction_complete`). See language READMEs for usage.
 - Streaming: when `streaming`/`Streaming=true` you receive delta events (`assistant.message_delta`, `assistant.reasoning_delta`) and final events (`assistant.message`, `assistant.reasoning`) — tests expect this behavior.
-- Type generation is centralized in `nodejs/scripts/generate-session-types.ts` and requires the `@github/copilot` schema to be present (often via `npm link` or installed package).
+- Type generation is centralized in `scripts/codegen/` and downloads schemas from the pinned `github/copilot-cli` release.
 - Java code style: 4-space indent (Spotless + Eclipse formatter), fluent setter pattern for config classes, Javadoc required on public APIs (enforced by Checkstyle, except `json`/`events` packages).
 - Java handlers return `CompletableFuture` (the Java equivalent of C# `async/await`). When porting from .NET: convert properties → getters/fluent setters, use Jackson (`ObjectMapper`, `@JsonProperty`) for serialization.
 
@@ -57,14 +57,14 @@
 - Some scripts (typegen, formatting) call external tools: `gofmt`, `dotnet format`, `tsx` (available via npm), `quicktype`/`quicktype-core` (used by the Node typegen script), and `prettier` (provided as an npm devDependency). Most of these are available through the repo's package scripts or devDependencies—run `just install` (and `cd nodejs && npm ci`) to install them. Ensure the required tools are available in CI / developer machines.
 - Tests may assume `node >= 18`, `python >= 3.9`, platform differences handled (Windows uses `shell=True` for npx in harness).
 - Java requires JDK 17+ and Maven 3.9+. Java E2E tests also require Node.js (for the replay proxy).
-- Java pre-commit hook runs `mvn spotless:check`. Enable with `git config core.hooksPath .githooks` (auto-enabled in Copilot coding agent environment via `copilot-setup-steps.yml`).
+- Java formatting and Javadoc checks use `just format-java` and `just lint-java` from the repository root, and are included in `just format` and `just lint`. CI enforces Spotless and Checkstyle; `mvn verify` alone does not run Spotless.
 
 ## Where to add new code or tests 🧭
 
 - SDK code: `nodejs/src`, `python/copilot`, `go`, `dotnet/src`, `rust/src`, `java/sdk/src/main/java`
 - Unit tests: `nodejs/test`, `python/*`, `go/*`, `dotnet/test`, `rust/tests`, `java/sdk/src/test/java`
 - E2E tests: `*/e2e/` folders that use the shared replay proxy and `test/snapshots/`, `java/sdk/src/test/java/**/e2e/`
-- Generated types: update schema in `@github/copilot` then run `cd nodejs && npm run generate:session-types` and commit generated files in `src/generated` or language generated location. Java generated types: `java/sdk/src/generated/java`
+- Generated types: update the pinned Copilot CLI version, run `cd nodejs && npm run generate`, and commit generated files in each language's generated location. Java generated types: `java/sdk/src/generated/java`
 
 ## Boundaries — files you must NOT hand-edit ⛔
 

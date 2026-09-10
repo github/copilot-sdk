@@ -56,7 +56,7 @@ func TestMCPOAuthE2E(t *testing.T) {
 		if parsed.Query().Get("client_id") != "https://github.com/copilot/cli/client-metadata.json" {
 			t.Fatalf("Expected CIMD client_id, got %q", parsed.Query().Get("client_id"))
 		}
-		for _, request := range getOAuthMCPRequests(t, baseURL) {
+		for _, request := range fetchOAuthMCPRequests(t, baseURL) {
 			if request.Path == "/register" {
 				t.Fatal("Runtime should not dynamically register when CIMD is supported")
 			}
@@ -199,16 +199,21 @@ func TestMCPOAuthE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { session.Disconnect() })
 
+		if _, err := session.RPC.MCP.Reload(t.Context()); err != nil {
+			t.Fatalf("Failed to reload MCP servers: %v", err)
+		}
 		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
 		callWhoami(t, session, serverName, "refresh")
 		callWhoami(t, session, serverName, "upscope")
 		callWhoami(t, session, serverName, "reauth")
 
 		mu.Lock()
+		observedReasons = slices.DeleteFunc(observedReasons, func(reason copilot.MCPOauthRequestReason) bool {
+			return reason == copilot.MCPOauthRequestReasonInitial
+		})
 		reasons := append([]copilot.MCPOauthRequestReason(nil), observedReasons...)
 		mu.Unlock()
 		expectedReasons := []copilot.MCPOauthRequestReason{
-			copilot.MCPOauthRequestReasonInitial,
 			copilot.MCPOauthRequestReasonRefresh,
 			copilot.MCPOauthRequestReasonUpscope,
 			copilot.MCPOauthRequestReasonRefresh,
@@ -292,6 +297,7 @@ func TestMCPOAuthE2E(t *testing.T) {
 	})
 
 	t.Run("resolve pending MCP OAuth request through RPC", func(t *testing.T) {
+		testharness.SkipIfInProcess(t, "blocked on github/copilot-agent-runtime#18961 MCP OAuth connection stall")
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureWithoutSnapshot(t)
 		client := ctx.NewClient()
@@ -382,19 +388,6 @@ func startOAuthMCPServer(t *testing.T, cimdSupported ...bool) string {
 		t.Fatalf("Failed to pipe OAuth MCP server stdout: %v", err)
 	}
 
-	func getOAuthMCPRequests(t *testing.T, baseURL string) []oauthMCPRequest {
-		t.Helper()
-		response, err := http.Get(baseURL + "/__requests")
-		if err != nil {
-			t.Fatalf("Failed to fetch OAuth MCP requests: %v", err)
-		}
-		defer response.Body.Close()
-		var requests []oauthMCPRequest
-		if err := json.NewDecoder(response.Body).Decode(&requests); err != nil {
-			t.Fatalf("Failed to decode OAuth MCP requests: %v", err)
-		}
-		return requests
-	}
 	var stderr syncBuffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {

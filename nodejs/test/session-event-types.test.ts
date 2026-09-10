@@ -22,6 +22,9 @@ import type {
     // The aggregate union; must still resolve via the package root.
     SessionEvent,
     AutoTier,
+    AutoTierSwitchFailedData,
+    AutoTierSwitchFailedEvent,
+    AutoTierSwitchFailureReason,
     CapiSessionOptions,
     PermissionRequest,
     PermissionRequestedData,
@@ -154,6 +157,46 @@ describe("Session event type exports (#1156)", () => {
             expect(JSON.parse(JSON.stringify(start))).not.toHaveProperty("autoTier");
             expect(JSON.parse(JSON.stringify(resume))).not.toHaveProperty("autoTier");
         }
+    });
+
+    it.each([
+        "policy_rejected",
+        "request_failed",
+        "setup_failed",
+        "unsupported",
+    ] satisfies AutoTierSwitchFailureReason[])(
+        "exposes the Auto tier switch failure event with reason %s",
+        (reason) => {
+            const data: AutoTierSwitchFailedData = {
+                reason,
+                requestedAutoTier: "intelligence",
+                effectiveAutoTier: "balance",
+            };
+            const event: AutoTierSwitchFailedEvent = {
+                type: "session.auto_tier_switch_failed",
+                id: "event-1",
+                parentId: null,
+                timestamp: "2026-09-02T00:00:00Z",
+                ephemeral: true,
+                data,
+            };
+
+            // The failure event must be reachable through the aggregate union so
+            // consumers can narrow on it in a single event handler.
+            const asSessionEvent: SessionEvent = event;
+            expect(asSessionEvent.type).toBe("session.auto_tier_switch_failed");
+            expect(data.reason).toBe(reason);
+            expect(data.requestedAutoTier).toBe("intelligence");
+        }
+    );
+
+    it("allows a null requested Auto tier when returning to default routing fails", () => {
+        const data: AutoTierSwitchFailedData = {
+            reason: "unsupported",
+            requestedAutoTier: null,
+        };
+        expect(data.requestedAutoTier).toBeNull();
+        expect(data.effectiveAutoTier).toBeUndefined();
     });
 
     it("exposes the headline ToolExecutionStartData type with a usable shape", () => {

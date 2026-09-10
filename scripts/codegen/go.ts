@@ -84,6 +84,11 @@ const goIdentifierCasingOverrides = new Map<string, string>([
 ]);
 const goCommentTextWrapLength = 90;
 const wrapGoCommentText = wordwrap(goCommentTextWrapLength);
+const optionalNullableGoProperties = new Set([
+    "ModelSwitchToRequest.autoTier",
+    "TaskClientUpdateProgress.percentage",
+    "TaskClientUpdateProgress.phase",
+]);
 
 function goIdentifierWord(word: string, normalizeRest = false): string {
     const lower = word.toLowerCase();
@@ -394,6 +399,10 @@ function goJSONOmitSuffix(required: boolean, goType: string): string {
 
 function goJSONTag(jsonName: string, required: boolean, goType: string): string {
     return `json:"${jsonName}${goJSONOmitSuffix(required, goType)}"`;
+}
+
+function preserveOptionalNullableGoProperty(typeName: string, propName: string, goType: string): string {
+    return optionalNullableGoProperties.has(`${typeName}.${propName}`) ? `*${goType}` : goType;
 }
 
 async function formatGoFile(filePath: string): Promise<void> {
@@ -1221,7 +1230,11 @@ function emitGoStruct(
         const prop = propSchema as JSONSchema7;
         const isReq = required.has(propName);
         const goName = toGoFieldName(propName);
-        const goType = resolveGoPropertyType(prop, typeName, propName, isReq, ctx);
+        const goType = preserveOptionalNullableGoProperty(
+            typeName,
+            propName,
+            resolveGoPropertyType(prop, typeName, propName, isReq, ctx)
+        );
 
         if (prop.description) {
             pushGoCommentForContext(lines, prop.description, ctx, "\t");
@@ -1947,7 +1960,11 @@ function emitGoFlatDiscriminatedUnion(
                     continue;
                 }
                 const goName = toGoFieldName(propName);
-                const goType = resolveGoPropertyType(prop, variantTypeName, propName, required.has(propName), ctx);
+                const goType = preserveOptionalNullableGoProperty(
+                    variantTypeName,
+                    propName,
+                    resolveGoPropertyType(prop, variantTypeName, propName, required.has(propName), ctx)
+                );
                 if (prop.description) {
                     pushGoCommentForContext(lines, prop.description, ctx, "\t");
                 }

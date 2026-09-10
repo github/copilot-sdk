@@ -7,7 +7,7 @@ Session lifecycle hooks let you respond to session start and end events. Use the
 * Track session metrics and analytics
 * Configure session behavior dynamically
 
-## Session start hook {#session-start}
+## Session start hook
 
 The `onSessionStart` hook is called when a session begins (new or resumed).
 
@@ -250,7 +250,7 @@ const session = await client.createSession({
 });
 ```
 
-## Session end hook {#session-end}
+## Session end hook
 
 The `onSessionEnd` hook is called when a session ends.
 
@@ -540,7 +540,7 @@ Session Summary:
 });
 ```
 
-## Agent stop hook {#agent-stop}
+## Agent stop hook
 
 The agent stop hook runs when the top-level agent naturally reaches the end of a turn. It is separate from `onSessionEnd`: the session remains active, and the hook can request another agent turn.
 

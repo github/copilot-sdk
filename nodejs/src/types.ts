@@ -74,6 +74,11 @@ export type SessionEvent =
     | Exclude<GeneratedSessionEvent, { type: "permission.requested" }>
     | PermissionRequestedEvent;
 export type { AutoTier, ReasoningSummary } from "./generated/session-events.js";
+export type {
+    CurrentModel,
+    ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus,
+} from "./generated/rpc.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
@@ -687,6 +692,8 @@ export interface ToolInvocation {
     traceparent?: string;
     /** W3C Trace Context tracestate from the CLI's execute_tool span. */
     tracestate?: string;
+    /** Aborted when the runtime completes this request or the session disconnects. */
+    signal?: AbortSignal;
 }
 
 export type ToolHandler<TArgs = unknown> = (
@@ -2176,9 +2183,13 @@ export interface CapiSessionOptions {
      * Requires a runtime with Auto tier support and V2 Auto routing.
      *
      * When omitted on create, the runtime uses its default routing behavior.
-     * The runtime persists this preference across cold resume; an explicit tier
-     * on cold resume overrides the persisted value. For an already-resident
-     * session, omission preserves the current tier and a different tier is rejected.
+     * The runtime persists this preference across cold resume; when omitted on
+     * cold resume, it restores the last committed preference. On resident
+     * resume, a different tier requests a safe switch that takes effect after
+     * resume succeeds, and never disturbs a turn that is already running.
+     *
+     * To change the preference on a live session, call
+     * {@link CopilotSession.setAutoTier} instead.
      */
     autoTier?: AutoTier;
 
@@ -3312,11 +3323,23 @@ export interface ProviderModelConfig {
      */
     capabilities?: ModelCapabilitiesOverride;
 }
+/**
+ * Message provenance, independent of delivery mode.
+ */
+export type MessageSource = "user" | "system" | `agent-${string}`;
+
 export interface MessageOptions {
     /**
      * The prompt/message to send
      */
     prompt: string;
+
+    /**
+     * Optional message provenance. Omitted by default to preserve the runtime's
+     * default for user messages. Use "system" for application-generated context
+     * or `agent-${id}` for messages originating from an identified agent.
+     */
+    source?: MessageSource;
 
     /**
      * File, directory, selection, or blob attachments

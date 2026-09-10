@@ -29,6 +29,8 @@ public record McpServersLoadedServer(
     @JsonProperty("source") McpServerSource source,
     /** Error message if the server failed to connect */
     @JsonProperty("error") String error,
+    /** Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured. */
+    @JsonProperty("serverMetadata") McpServerMetadata serverMetadata,
     /** Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server) */
     @JsonProperty("transport") McpServerTransport transport,
     /** Name of the plugin that supplied the effective MCP server config, only when source is plugin */

@@ -869,6 +869,10 @@ function handleMessage(message) {
     writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
     return;
   }
+  if (message.method === "session.detach") {
+    writeResponse(message.id, { success: true });
+    return;
+  }
   if (message.method === "session.resume") {
     const sessionId = (message.params && message.params.sessionId) || "fake-session";
     writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });

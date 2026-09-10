@@ -35,9 +35,9 @@ describe("Event Fidelity", async () => {
         const assistantIdx = types.lastIndexOf("assistant.message");
         expect(userIdx).toBeLessThan(assistantIdx);
 
-        // session.idle should be last
+        // session.idle completes the conversational turn; metadata may follow it.
         const idleIdx = types.lastIndexOf("session.idle");
-        expect(idleIdx).toBe(types.length - 1);
+        expect(assistantIdx).toBeLessThan(idleIdx);
 
         await session.disconnect();
     });

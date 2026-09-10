@@ -48,6 +48,101 @@ public class SessionEventSerializationTests
         }
     }
 
+    [Theory]
+    [InlineData("message-1")]
+    [InlineData(null)]
+    public void UserMessageEvent_MessageId_UsesCamelCaseAndIsOptional(string? messageId)
+    {
+        var messageIdProperty = messageId is null ? "" : $""", "messageId": "{messageId}" """;
+        var json = $$"""
+            {
+                "id": "11111111-1111-1111-1111-111111111111",
+                "timestamp": "2026-08-28T00:00:00Z",
+                "parentId": null,
+                "type": "user.message",
+                "data": {
+                    "content": "hello"
+                    {{messageIdProperty}}
+                }
+            }
+            """;
+
+        var sessionEvent = Assert.IsType<UserMessageEvent>(SessionEvent.FromJson(json));
+        Assert.Equal(messageId, sessionEvent.Data.MessageId);
+
+        using var document = JsonDocument.Parse(sessionEvent.ToJson());
+        var data = document.RootElement.GetProperty("data");
+        if (messageId is null)
+        {
+            Assert.False(data.TryGetProperty("messageId", out _));
+        }
+        else
+        {
+            Assert.Equal(messageId, data.GetProperty("messageId").GetString());
+        }
+    }
+
+    public static TheoryData<string> AutoTierSwitchFailureReasons =>
+    [
+        "policy_rejected",
+        "request_failed",
+        "setup_failed",
+        "unsupported",
+    ];
+
+    [Theory]
+    [MemberData(nameof(AutoTierSwitchFailureReasons))]
+    public void SessionEvent_Deserializes_AutoTierSwitchFailed(string wireReason)
+    {
+        var json = $$"""
+            {
+                "id": "11111111-1111-1111-1111-111111111111",
+                "timestamp": "2026-08-28T00:00:00Z",
+                "parentId": null,
+                "type": "session.auto_tier_switch_failed",
+                "data": {
+                    "effectiveAutoTier": "balance",
+                    "requestedAutoTier": "intelligence",
+                    "reason": "{{wireReason}}"
+                }
+            }
+            """;
+
+        var sessionEvent = SessionEvent.FromJson(json);
+
+        var data = Assert.IsType<SessionAutoTierSwitchFailedEvent>(sessionEvent).Data;
+        Assert.Equal(new AutoTierSwitchFailureReason(wireReason), data.Reason);
+        Assert.Equal(AutoTier.Balance, data.EffectiveAutoTier);
+        Assert.Equal(AutoTier.Intelligence, data.RequestedAutoTier);
+    }
+
+    [Fact]
+    public void SessionEvent_Deserializes_AutoTierSwitchFailed_WithNullRequestedTier()
+    {
+        // A null requested tier means the attempt to return to provider-default
+        // Auto routing is what failed.
+        var json = """
+            {
+                "id": "11111111-1111-1111-1111-111111111111",
+                "timestamp": "2026-08-28T00:00:00Z",
+                "parentId": null,
+                "type": "session.auto_tier_switch_failed",
+                "data": {
+                    "effectiveAutoTier": "efficiency",
+                    "requestedAutoTier": null,
+                    "reason": "unsupported"
+                }
+            }
+            """;
+
+        var sessionEvent = SessionEvent.FromJson(json);
+
+        var data = Assert.IsType<SessionAutoTierSwitchFailedEvent>(sessionEvent).Data;
+        Assert.Null(data.RequestedAutoTier);
+        Assert.Equal(AutoTier.Efficiency, data.EffectiveAutoTier);
+        Assert.Equal(AutoTierSwitchFailureReason.Unsupported, data.Reason);
+    }
+
     public static TheoryData<SessionEvent, string> JsonElementBackedEvents => new()
     {
         {

@@ -40,6 +40,8 @@ public record SessionModelApplyStartupOverlayResult(
     /** User-facing warning produced while applying the model switch. */
     @JsonProperty("warning") String warning,
     /** Deprecation warnings associated with the selected model or options. */
-    @JsonProperty("deprecationWarnings") List<String> deprecationWarnings
+    @JsonProperty("deprecationWarnings") List<String> deprecationWarnings,
+    /** Authoritative model and Auto preference state after an immediate switch. For deferred switches this remains the current state until the queued change drains. */
+    @JsonProperty("modelState") CurrentModel modelState
 ) {
 }

@@ -7,6 +7,12 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+## [v1.0.13](https://github.com/github/copilot-sdk/releases/tag/v1.0.13) (2026-09-04)
+
+### Feature: cancellation for host-owned external tools
+
+Host-owned external tool callbacks are now cancelled when their runtime request completes or their SDK session terminates. The cancellation primitive is idiomatic per SDK: .NET passes a request token to `AIFunction`, Node.js exposes `ToolInvocation.signal`, Go cancels `ToolInvocation.TraceContext`, Java cancels the returned `CompletableFuture`, Python cancels the handler task, and Rust drops the handler future. Go handlers that retain `TraceContext` for background work must derive a separate lifetime because the invocation context is cancelled when the request ends.
+
 ### Feature: declare application identity with client info
 
 Client options now accept optional client info (application name and version, integration name and version) across all six SDKs, exposed idiomatically per language (`clientInfo` in Node.js, `client_info` in Python and Rust, `ClientInfo` in Go and .NET, `setClientInfo` in Java). When set, the SDK forwards it on the `server.connect` handshake so the telemetry the runtime emits on the connection is attributed to the application and its Copilot integration instead of the runtime's own build. All fields are optional, and leaving client info unset keeps the runtime's default attribution. See [Client info](./docs/features/client-info.md).
@@ -44,6 +50,28 @@ const session = await joinSession({
 const token = process.env.GITHUB_TOKEN;
 ```
 
+### Feature: early session-event subscription (Rust)
+
+The Rust SDK can now observe every event routed to a session, starting with that session's very first routed event. `Client::prepare_session` and `Client::prepare_resume_session` return an inert `PreparedSession` that owns the session's event channel, so a subscription can be installed *before* any protocol activity begins:
+
+```rust
+let prepared = client.prepare_session(
+    SessionConfig::default().with_event_buffer_capacity(2048),
+)?;
+let mut events = prepared.subscribe();
+let session = prepared.start().await?;
+```
+
+Previously, `Session::subscribe` could only be called on the returned session, so events the runtime emitted while `session.create` / `session.resume` was still in flight were broadcast with no receiver installed and dropped. Ephemeral events such as `session.idle` are not persisted, so they could not be recovered with `getMessages` either.
+
+The guarantee is scoped to *routed* events. For cloud sessions where the server assigns the session ID, the SDK cannot route notifications until the `session.create` response arrives and the ID is known, so events emitted before that point are not routable to any session. Pin `session_id` on the config to get router registration before the RPC, and with it complete pre-response coverage.
+
+`prepare_*` is synchronous and inert: it validates the buffer capacity and allocates a local channel, and performs no router registration, task spawn, or wire activity until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is not `Clone`, so a prepared session can never produce two event loops. Dropping an unstarted handle leaves no state behind; dropping a polled `start()` future cancels the startup and unregisters the session, so a retry with the same session ID succeeds. Session registrations now carry an ownership identity, so cleanup removes only the exact registration it owns and an abandoned startup can never evict a same-ID retry (or a session that replaced it).
+
+Both `SessionConfig` and `ResumeSessionConfig` gained a runtime-only `event_buffer_capacity` option (default 512, `Some(0)` rejected as an invalid config). The buffer is finite, so slow subscribers observe `Lagged` rather than applying backpressure; consumers that need a lossless view of a large startup burst must size the buffer accordingly or drain concurrently with `start()`.
+
+`create_session` and `resume_session` are unchanged wrappers over `prepare_*(...)?.start()` with identical RPC sequences and error kinds.
+
 ### Feature: host-injected managed settings permissions
 
 Session create and resume accept a new optional `managedSettings` option that injects an enterprise permissions policy at session startup, alongside the existing `enableManagedSettings` self-fetch flag. The current contract is permissions-only: `disableBypassPermissionsMode` (the literal `"disable"`), plus `deny`, `ask`, and `allow` rule lists. The layer composes restrictively with any server- or device-level managed settings (deny/ask are unioned, every present allow list must admit a tool, and `disableBypassPermissionsMode` is deny-wins).
@@ -78,6 +106,44 @@ var session = await client.CreateSessionAsync(new SessionConfig
     },
 });
 ```
+
+### Feature: Auto model routing tier controls
+
+Sessions can now steer `auto` model routing toward efficiency, balance, or intelligence. An Auto tier can be set at session creation, and a new `setAutoTier` (and equivalent `setModel` option) lets sessions stage or reset a tier preference afterward, since the runtime only commits a staged preference on the next successful `auto` model turn. ([#2437](https://github.com/github/copilot-sdk/pull/2437), [#2514](https://github.com/github/copilot-sdk/pull/2514))
+
+```py
+await session.set_auto_tier("efficiency")
+```
+
+### Feature: sandbox bypass and non-object external tool arguments
+
+Sandbox configuration now exposes `allowBypass` across all six SDKs. External tool overrides such as `apply_patch` can also receive non-object JSON argument values, which previously failed before reaching the host handler in .NET. ([#2372](https://github.com/github/copilot-sdk/pull/2372), [#2496](https://github.com/github/copilot-sdk/pull/2496))
+
+### Feature: host-resolved feature flag overrides
+
+Session create and resume now accept a `featureFlags` map across all six SDKs, forwarding host-resolved overrides while preserving the distinction between an unset map and an explicitly empty one. ([#2451](https://github.com/github/copilot-sdk/pull/2451))
+
+### Other changes
+
+- feature: use `session.detach` instead of `session.destroy` for SDK session cleanup so disconnecting one client no longer tears down a shared session for other owners ([#2307](https://github.com/github/copilot-sdk/pull/2307))
+- bugfix: **[Rust]** answer the request ID when a tool handler panics ([#2311](https://github.com/github/copilot-sdk/pull/2311))
+- bugfix: **[Go]** close failed session event loops ([#2360](https://github.com/github/copilot-sdk/pull/2360))
+- bugfix: support bracketed IPv6 runtime URLs ([#2200](https://github.com/github/copilot-sdk/pull/2200))
+- bugfix: **[Python]** serialize native values in tool results ([#2374](https://github.com/github/copilot-sdk/pull/2374))
+- bugfix: **[Rust]** prevent orphaned CLI processes ([#2292](https://github.com/github/copilot-sdk/pull/2292))
+- improvement: **[Rust]** default `ClientMode::Empty` to no built-in skills ([#2410](https://github.com/github/copilot-sdk/pull/2410))
+- improvement: **[Go]** auto-detect bundler package name and avoid duplicate license downloads ([#2452](https://github.com/github/copilot-sdk/pull/2452), [#2453](https://github.com/github/copilot-sdk/pull/2453))
+
+### New contributors
+
+- @lukehoban made their first contribution in [#2292](https://github.com/github/copilot-sdk/pull/2292)
+- @scordio made their first contribution in [#2382](https://github.com/github/copilot-sdk/pull/2382)
+- @OllieinCanada made their first contribution in [#2374](https://github.com/github/copilot-sdk/pull/2374)
+- @gimenete made their first contribution in [#2458](https://github.com/github/copilot-sdk/pull/2458)
+- @gwwar made their first contribution in [#2464](https://github.com/github/copilot-sdk/pull/2464)
+- @Pybsama made their first contribution in [#2163](https://github.com/github/copilot-sdk/pull/2163)
+- @green3sf made their first contribution in [#2360](https://github.com/github/copilot-sdk/pull/2360)
+- @gokhanarkan made their first contribution in [#2532](https://github.com/github/copilot-sdk/pull/2532)
 
 ## [v1.0.7](https://github.com/github/copilot-sdk/releases/tag/v1.0.7) (2026-07-16)
 

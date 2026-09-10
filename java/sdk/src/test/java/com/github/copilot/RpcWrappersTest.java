@@ -206,7 +206,7 @@ class RpcWrappersTest {
 
         // switchTo takes extra params beyond sessionId
         var switchParams = new SessionModelSwitchToParams(null, "gpt-5", null, null, null, null, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         session.model.switchTo(switchParams);
 
         assertEquals(1, stub.calls.size());
