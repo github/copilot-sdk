@@ -1258,10 +1258,83 @@ internal sealed class SecretsAddFilterValuesRequest
     public IList<string> Values { get => field ??= []; set; }
 }
 
+/// <summary>Concrete configuration file containing an MCP server declaration.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpSourceFile
+{
+    /// <summary>RFC 6901 JSON Pointer to the server declaration, when known.</summary>
+    [JsonPropertyName("jsonPointer")]
+    public string? JsonPointer { get; set; }
+
+    /// <summary>Canonical file URI for the configuration document.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+}
+
+/// <summary>Plugin identity associated with an MCP server declaration.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpSourcePlugin
+{
+    /// <summary>Canonical plugin identity.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Human-readable plugin name, when available.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>Plugin version, when available.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("version")]
+    public string? Version { get; set; }
+}
+
+/// <summary>Canonical identity and location of the effective MCP server declaration. The declaration is uniquely addressed by this source id together with the discovered server name.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpSourceRef
+{
+    /// <summary>Open semantic editability identifier. Known values are editable and read-only.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("editability")]
+    public string Editability { get; set; } = string.Empty;
+
+    /// <summary>Configuration file location, when the declaration is file-backed.</summary>
+    [JsonPropertyName("file")]
+    public McpSourceFile? File { get; set; }
+
+    /// <summary>Opaque stable identity for the configuration source. Clients must not parse this value.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Open source-kind identifier. Known values include user, workspace, invocation, plugin, builtin, and device-registry.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>Plugin identity, when the declaration is plugin-provided.</summary>
+    [JsonPropertyName("plugin")]
+    public McpSourcePlugin? Plugin { get; set; }
+}
+
 /// <summary>MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class DiscoveredMcpServer
 {
+    /// <summary>Canonical identity and location of the effective server declaration.</summary>
+    [JsonPropertyName("effectiveSource")]
+    public McpSourceRef? EffectiveSource { get; set; }
+
     /// <summary>Whether the server is enabled (not in the disabled list).</summary>
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
@@ -1303,6 +1376,10 @@ public sealed class McpDiscoverResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpDiscoverRequest
 {
+    /// <summary>Whether to include canonical effectiveSource metadata for each discovered server. Callers must opt in so protocol-3 clients retain the legacy closed response shape.</summary>
+    [JsonPropertyName("includeEffectiveSource")]
+    public bool? IncludeEffectiveSource { get; set; }
+
     /// <summary>Working directory used as context for discovery (e.g., plugin resolution).</summary>
     [JsonPropertyName("workingDirectory")]
     public string? WorkingDirectory { get; set; }
@@ -3021,22 +3098,30 @@ public sealed class PluginUpdateAllResult
     public IList<PluginUpdateAllEntry> Results { get => field ??= []; set; }
 }
 
-/// <summary>Plugin names (or specs) to enable.</summary>
+/// <summary>Plugin names (or specs) to enable, plus the optional working directory the repository-controlled guard is evaluated against.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class PluginsEnableRequest
 {
     /// <summary>Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.</summary>
     [JsonPropertyName("names")]
     public IList<string> Names { get => field ??= []; set; }
+
+    /// <summary>Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.</summary>
+    [JsonPropertyName("workingDirectory")]
+    public string? WorkingDirectory { get; set; }
 }
 
-/// <summary>Plugin names (or specs) to disable.</summary>
+/// <summary>Plugin names (or specs) to disable, plus the optional working directory the repository-controlled guard is evaluated against.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class PluginsDisableRequest
 {
     /// <summary>Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.</summary>
     [JsonPropertyName("names")]
     public IList<string> Names { get => field ??= []; set; }
+
+    /// <summary>Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.</summary>
+    [JsonPropertyName("workingDirectory")]
+    public string? WorkingDirectory { get; set; }
 }
 
 /// <summary>Trusted built-in plugin directories to use for this runtime process.</summary>
@@ -3331,6 +3416,10 @@ public sealed class AgentInfo
     /// <summary>Description of the agent's purpose.</summary>
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
+
+    /// <summary>Whether model-driven invocation is disabled for this agent.</summary>
+    [JsonPropertyName("disableModelInvocation")]
+    public bool? DisableModelInvocation { get; set; }
 
     /// <summary>Human-readable display name.</summary>
     [JsonPropertyName("displayName")]
@@ -4319,6 +4408,115 @@ internal sealed class SessionsGetMetadataRequest
     /// <summary>Session ID to inspect.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Client metadata outcome for one requested local session.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>status</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "status",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SessionsClientMetadataEntryOk), "ok")]
+[JsonDerivedType(typeof(SessionsClientMetadataEntryNotFound), "notFound")]
+[JsonDerivedType(typeof(SessionsClientMetadataEntryCorrupt), "corrupt")]
+[JsonDerivedType(typeof(SessionsClientMetadataEntryUnsupportedVersion), "unsupportedVersion")]
+[JsonDerivedType(typeof(SessionsClientMetadataEntryUnavailable), "unavailable")]
+public partial class SessionsClientMetadataEntry
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("status")]
+    public virtual string Status { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>ok</c> variant of <see cref="SessionsClientMetadataEntry"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class SessionsClientMetadataEntryOk : SessionsClientMetadataEntry
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "ok";
+
+    /// <summary>Validated client metadata, possibly empty or projected to requested keys.</summary>
+    [JsonPropertyName("metadata")]
+    public required IDictionary<string, string> Metadata { get; set; }
+
+    /// <summary>Requested session ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>The <c>notFound</c> variant of <see cref="SessionsClientMetadataEntry"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class SessionsClientMetadataEntryNotFound : SessionsClientMetadataEntry
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "notFound";
+
+    /// <summary>Requested session ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>The <c>corrupt</c> variant of <see cref="SessionsClientMetadataEntry"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class SessionsClientMetadataEntryCorrupt : SessionsClientMetadataEntry
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "corrupt";
+
+    /// <summary>Requested session ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>The <c>unsupportedVersion</c> variant of <see cref="SessionsClientMetadataEntry"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class SessionsClientMetadataEntryUnsupportedVersion : SessionsClientMetadataEntry
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "unsupportedVersion";
+
+    /// <summary>Requested session ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>The <c>unavailable</c> variant of <see cref="SessionsClientMetadataEntry"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class SessionsClientMetadataEntryUnavailable : SessionsClientMetadataEntry
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "unavailable";
+
+    /// <summary>Filesystem or provider error code. Clients should not assume every provider uses operating-system error codes.</summary>
+    [JsonPropertyName("code")]
+    public required string Code { get; set; }
+
+    /// <summary>Human-readable diagnostic message. Not stable for programmatic matching.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Requested session ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>Bounded batch request for client-owned metadata from persisted local sessions.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionsGetClientMetadataRequest
+{
+    /// <summary>Case-sensitive keys to project from each valid bag. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Omit to return every entry.</summary>
+    [JsonPropertyName("keys")]
+    public IList<string>? Keys { get; set; }
+
+    /// <summary>Session IDs to inspect. Results preserve this order.</summary>
+    [JsonPropertyName("sessionIds")]
+    public IList<string> SessionIds { get => field ??= []; set; }
 }
 
 /// <summary>Batch of session events returned by a read, with cursor and continuation metadata.</summary>
@@ -5566,6 +5764,57 @@ internal sealed class SessionSandboxGetEnforcementStatusRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Result of attempting to disable sandboxing for the current session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SandboxDisableForSessionResult
+{
+    /// <summary>The authoritative sandbox enabled state after the operation.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Whether this call resolved the pending request and applied the session opt-out.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>Optional informational context describing how and where the permission decision was made. This does not affect permission behavior.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PermissionDecisionContext
+{
+    /// <summary>Disposition of the permission request as observed by the responding client.</summary>
+    [JsonPropertyName("outcome")]
+    public PermissionDecisionOutcome Outcome { get; set; }
+
+    /// <summary>Whether the responding client could ask a user interactively, was running headlessly, or had no response path. Omit when the client cannot determine this authoritatively.</summary>
+    [JsonPropertyName("responseCapability")]
+    public PermissionResponseCapability? ResponseCapability { get; set; }
+
+    /// <summary>Controlled reason or actor responsible for the response.</summary>
+    [JsonPropertyName("source")]
+    public PermissionDecisionSource Source { get; set; }
+
+    /// <summary>Client surface that submitted the response.</summary>
+    [JsonPropertyName("surface")]
+    public PermissionDecisionSurface Surface { get; set; }
+}
+
+/// <summary>Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SandboxDisableForSessionRequest
+{
+    /// <summary>Optional attribution for the permission decision.</summary>
+    [JsonPropertyName("decisionContext")]
+    public PermissionDecisionContext? DecisionContext { get; set; }
+
+    /// <summary>Identifier of the exact pending sandbox-bypass permission request that authorized the session opt-out.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Authentication status and account metadata for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionAuthStatus
@@ -6416,6 +6665,11 @@ public partial class FactoryRunFailureFactoryLimitReached : FactoryRunFailure
     [JsonPropertyName("runId")]
     public required string RunId { get; set; }
 
+    /// <summary>Suggested larger ceiling when the runtime can derive one safely.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("suggestedValue")]
+    public double? SuggestedValue { get; set; }
+
     /// <summary>Approved effective ceiling that was reached.</summary>
     [JsonPropertyName("value")]
     public required double Value { get; set; }
@@ -6491,6 +6745,44 @@ public partial class FactoryRunFailureFactoryProviderDisconnected : FactoryRunFa
     public required string RunId { get; set; }
 }
 
+/// <summary>Durable metadata describing who initiated a factory pause.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "type",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(FactoryPauseInfoUser), "user")]
+[JsonDerivedType(typeof(FactoryPauseInfoCheckpoint), "checkpoint")]
+public partial class FactoryPauseInfo
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("type")]
+    public virtual string Type { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>user</c> variant of <see cref="FactoryPauseInfo"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class FactoryPauseInfoUser : FactoryPauseInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "user";
+}
+
+/// <summary>The <c>checkpoint</c> variant of <see cref="FactoryPauseInfo"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class FactoryPauseInfoCheckpoint : FactoryPauseInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "checkpoint";
+
+    /// <summary>Stable author-defined checkpoint key that initiated the pause.</summary>
+    [JsonPropertyName("key")]
+    public required string Key { get; set; }
+}
+
 /// <summary>Complete current or terminal factory run envelope.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryRunResult
@@ -6506,6 +6798,10 @@ public sealed class FactoryRunResult
     /// <summary>Machine-readable failure details for a halted or errored run.</summary>
     [JsonPropertyName("failure")]
     public FactoryRunFailure? Failure { get; set; }
+
+    /// <summary>Structured pause initiator metadata for a paused attempt.</summary>
+    [JsonPropertyName("pauseInfo")]
+    public FactoryPauseInfo? PauseInfo { get; set; }
 
     /// <summary>Reason for a halted or cancelled run.</summary>
     [JsonPropertyName("reason")]
@@ -6764,6 +7060,10 @@ public sealed class FactoryRunTerminal
     [JsonPropertyName("failure")]
     public FactoryRunFailure? Failure { get; set; }
 
+    /// <summary>Pause initiator metadata, or null when the run did not pause.</summary>
+    [JsonPropertyName("pauseInfo")]
+    public FactoryPauseInfo? PauseInfo { get; set; }
+
     /// <summary>Human-readable terminal reason.</summary>
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
@@ -6784,6 +7084,10 @@ public sealed class FactoryRunSummary
     /// <summary>Approved effective resource ceilings, or null until approved.</summary>
     [JsonPropertyName("approved")]
     public FactoryDeclaredLimits? Approved { get; set; }
+
+    /// <summary>Whether the durable run state currently passes runtime resume eligibility checks.</summary>
+    [JsonPropertyName("canResume")]
+    public bool CanResume { get; set; }
 
     /// <summary>Epoch milliseconds when the run completed, or null while nonterminal.</summary>
     [JsonPropertyName("completedAt")]
@@ -7092,6 +7396,10 @@ public sealed class FactoryRunDetail
     [JsonPropertyName("approved")]
     public FactoryDeclaredLimits? Approved { get; set; }
 
+    /// <summary>Whether the durable run state currently passes runtime resume eligibility checks.</summary>
+    [JsonPropertyName("canResume")]
+    public bool CanResume { get; set; }
+
     /// <summary>Epoch milliseconds when the run completed, or null while nonterminal.</summary>
     [JsonPropertyName("completedAt")]
     public long? CompletedAt { get; set; }
@@ -7211,6 +7519,49 @@ internal sealed class FactoryCancelRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Parameters for pausing a running factory.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class FactoryPauseRequest
+{
+    /// <summary>Factory run identifier.</summary>
+    [JsonPropertyName("runId")]
+    public string RunId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionFactoryPauseAtCheckpoint operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionFactoryPauseAtCheckpointResult
+{
+    /// <summary>Whether this execution attempt must pause or may continue.</summary>
+    [JsonPropertyName("action")]
+    public FactoryPauseCheckpointAction Action { get; set; }
+}
+
+/// <summary>Parameters for an owned durable pause checkpoint.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class FactoryPauseCheckpointRequest
+{
+    /// <summary>Opaque token identifying the execution attempt that reached the checkpoint.</summary>
+    [JsonPropertyName("executionToken")]
+    public string ExecutionToken { get; set; } = string.Empty;
+
+    /// <summary>Stable author-defined checkpoint key.</summary>
+    [JsonPropertyName("key")]
+    public string Key { get; set; } = string.Empty;
+
+    /// <summary>Factory run identifier.</summary>
+    [JsonPropertyName("runId")]
+    public string RunId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Acknowledgement that a factory request was accepted.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryAckResult
@@ -7268,11 +7619,11 @@ public sealed class FactoryAgentResult
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryAgentOptions
 {
-    /// <summary>Optional custom agent name for the subagent. This field is accepted but not yet honored.</summary>
+    /// <summary>Optional built-in or custom agent name whose definition configures the subagent.</summary>
     [JsonPropertyName("agent")]
     public string? Agent { get; set; }
 
-    /// <summary>Optional context tier for the subagent. This field is accepted but not yet honored.</summary>
+    /// <summary>Optional context tier override for the subagent.</summary>
     [JsonPropertyName("contextTier")]
     public ContextTier? ContextTier { get; set; }
 
@@ -7284,7 +7635,7 @@ public sealed class FactoryAgentOptions
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
-    /// <summary>Optional reasoning effort for the subagent. This field is accepted but not yet honored.</summary>
+    /// <summary>Optional reasoning effort override for the subagent.</summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
 
@@ -7727,6 +8078,40 @@ internal sealed class ModelApplyStartupOverlayRequest
     /// <summary>Model required by server-managed policy, when configured.</summary>
     [JsonPropertyName("serverManagedModel")]
     public string? ServerManagedModel { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>The applied host allowlist and effective session model policy after intersection.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ModelSetAllowedModelsResult
+{
+    /// <summary>Normalized host allowlist. Omitted when the host restriction was cleared, or when a relay client does not return the host policy.</summary>
+    [JsonPropertyName("allowedModels")]
+    public IList<string>? AllowedModels { get; set; }
+
+    /// <summary>Effective exact IDs or repository policy patterns after applying the host restriction. Omitted by relay clients that do not return the host policy.</summary>
+    [JsonPropertyName("effectiveAllowedModels")]
+    public IList<string>? EffectiveAllowedModels { get; set; }
+
+    /// <summary>Effective deterministic fallback model, when the policy defines one.</summary>
+    [JsonPropertyName("fallbackModel")]
+    public string? FallbackModel { get; set; }
+
+    /// <summary>Selected session model after reconciling a now-disallowed concrete selection.</summary>
+    [JsonPropertyName("modelId")]
+    public string? ModelId { get; set; }
+}
+
+/// <summary>Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are intersected with repository `.github/allowed_models.txt` policy; provider-qualified IDs remain exempt from repository-only policy but are restricted by this host list. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected. Validation and pre-selection fallback failures preserve the previous restriction. Failures after a fallback selection commits retain the new restriction and selected model; callers should inspect current session state after such an error.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ModelSetAllowedModelsRequest
+{
+    /// <summary>Exact model IDs to permit, or null to clear the host restriction.</summary>
+    [JsonPropertyName("allowedModels")]
+    public IList<string>? AllowedModels { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -11751,7 +12136,7 @@ public sealed class OptionsUpdateAdditionalContentExclusionPolicy
 [Experimental(Diagnostics.Experimental)]
 public sealed class CapiSessionOptions
 {
-    /// <summary>Routing preference for sessions whose model is `auto`. On create or cold resume, this establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold resume, the runtime restores the last committed preference. On resident resume, a different value requests a safe switch after resume succeeds and cannot change an in-flight turn. Successful switches are persisted for later cold resume. When no preference is supplied or restored, CAPI default routing is used.</summary>
+    /// <summary>Routing preference for sessions whose model is `auto`. On create or cold resume, this establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold resume, the runtime restores the last committed preference. On resident resume, a different value requests a safe switch after resume succeeds and cannot change an in-flight turn. Successful switches are persisted for later cold resume. When no preference is supplied or restored, CAPI default routing is used. `fast` is an integrator-only latency preset, not a first-party GitHub Copilot product preference.</summary>
     [JsonPropertyName("autoTier")]
     public AutoTier? AutoTier { get; set; }
 
@@ -13728,10 +14113,14 @@ public sealed class ToolsUpdateSubagentSettingsResult
 {
 }
 
-/// <summary>Subagent model, reasoning effort, and context tier settings.</summary>
+/// <summary>Subagent model, reasoning effort, context tier, and auto-invocation settings.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SubagentSettingsEntry
 {
+    /// <summary>Whether this agent's runtime-defined proactive invocation prompting is enabled, if supported. Currently consumed by the built-in rubber-duck agent.</summary>
+    [JsonPropertyName("autoInvoke")]
+    public bool? AutoInvoke { get; set; }
+
     /// <summary>Context tier override for matching subagents.</summary>
     [JsonPropertyName("contextTier")]
     public SubagentSettingsEntryContextTier? ContextTier { get; set; }
@@ -14805,27 +15194,6 @@ public sealed class PermissionRequestResult
     /// <summary>Whether the permission request was handled successfully.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
-}
-
-/// <summary>Optional informational context describing how and where the permission decision was made. This does not affect permission behavior.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class PermissionDecisionContext
-{
-    /// <summary>Disposition of the permission request as observed by the responding client.</summary>
-    [JsonPropertyName("outcome")]
-    public PermissionDecisionOutcome Outcome { get; set; }
-
-    /// <summary>Whether the responding client could ask a user interactively, was running headlessly, or had no response path. Omit when the client cannot determine this authoritatively.</summary>
-    [JsonPropertyName("responseCapability")]
-    public PermissionResponseCapability? ResponseCapability { get; set; }
-
-    /// <summary>Controlled reason or actor responsible for the response.</summary>
-    [JsonPropertyName("source")]
-    public PermissionDecisionSource Source { get; set; }
-
-    /// <summary>Client surface that submitted the response.</summary>
-    [JsonPropertyName("surface")]
-    public PermissionDecisionSurface Surface { get; set; }
 }
 
 /// <summary>The client's response to the pending permission prompt.</summary>
@@ -16275,6 +16643,36 @@ internal sealed class SessionMetadataSnapshotRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionMetadataGetClientMetadataRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Atomic patch for client-owned session metadata. Operations apply in clear, remove, then set order. The resulting bag must satisfy the ClientMetadata entry and serialized-size limits. Local storage coordinates concurrent runtime processes; custom SessionFs providers must serialize writers that access the same session from multiple processes.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class MetadataUpdateClientMetadataRequest
+{
+    /// <summary>Remove every existing client metadata entry before applying remove and set. Defaults to false.</summary>
+    [JsonPropertyName("clear")]
+    public bool? Clear { get; set; }
+
+    /// <summary>Case-sensitive keys to remove. Missing keys are ignored. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces.</summary>
+    [JsonPropertyName("remove")]
+    public IList<string>? Remove { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>String entries to add or replace. Set wins when a key also appears in remove. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Each value may contain at most 16 KiB of UTF-8 data.</summary>
+    [JsonPropertyName("set")]
+    public IDictionary<string, string>? Set { get; set; }
 }
 
 /// <summary>Indicates whether the local session is currently processing a turn or background continuation.</summary>
@@ -18743,6 +19141,10 @@ public sealed class FactoryExecuteRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryAbortRequest
 {
+    /// <summary>Opaque token identifying the execution attempt to abort.</summary>
+    [JsonPropertyName("executionToken")]
+    public string ExecutionToken { get; set; } = string.Empty;
+
     /// <summary>Factory run identifier.</summary>
     [JsonPropertyName("runId")]
     public string RunId { get; set; } = string.Empty;
@@ -18846,7 +19248,7 @@ public sealed class SessionFsWriteFileRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>File path, content to append, and optional mode for the client-provided session filesystem.</summary>
+/// <summary>File path, content to append, and optional mode for the client-provided session filesystem. Implementations create parent directories as needed.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsAppendFileRequest
 {
@@ -24304,6 +24706,279 @@ public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
 }
 
 
+/// <summary>Disposition of a permission request as observed by the responding client.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionDecisionOutcome : IEquatable<PermissionDecisionOutcome>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionOutcome"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionDecisionOutcome"/>.</param>
+    [JsonConstructor]
+    public PermissionDecisionOutcome(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionDecisionOutcome"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The request was approved automatically without a new human decision.</summary>
+    public static PermissionDecisionOutcome AutoApproved { get; } = new("auto_approved");
+
+    /// <summary>The request was denied without an interactive user decision; source records why.</summary>
+    public static PermissionDecisionOutcome AutopilotDenied { get; } = new("autopilot_denied");
+
+    /// <summary>The response came from an interactive user prompt.</summary>
+    public static PermissionDecisionOutcome PromptedUser { get; } = new("prompted_user");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionOutcome"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionDecisionOutcome left, PermissionDecisionOutcome right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionOutcome"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionDecisionOutcome left, PermissionDecisionOutcome right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionDecisionOutcome other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionDecisionOutcome other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionOutcome}"/> for serializing <see cref="PermissionDecisionOutcome"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionDecisionOutcome>
+    {
+        /// <inheritdoc />
+        public override PermissionDecisionOutcome Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionDecisionOutcome value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionOutcome));
+        }
+    }
+}
+
+
+/// <summary>Response capability available to the client when it settled a permission request.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionResponseCapability : IEquatable<PermissionResponseCapability>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionResponseCapability"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionResponseCapability"/>.</param>
+    [JsonConstructor]
+    public PermissionResponseCapability(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionResponseCapability"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The client could ask a user for this decision.</summary>
+    public static PermissionResponseCapability Interactive { get; } = new("interactive");
+
+    /// <summary>The client could return an automated response but could not ask a user.</summary>
+    public static PermissionResponseCapability Headless { get; } = new("headless");
+
+    /// <summary>The client had no response path available.</summary>
+    public static PermissionResponseCapability None { get; } = new("none");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionResponseCapability"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionResponseCapability left, PermissionResponseCapability right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionResponseCapability"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionResponseCapability left, PermissionResponseCapability right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionResponseCapability other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionResponseCapability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionResponseCapability}"/> for serializing <see cref="PermissionResponseCapability"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionResponseCapability>
+    {
+        /// <inheritdoc />
+        public override PermissionResponseCapability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionResponseCapability value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionResponseCapability));
+        }
+    }
+}
+
+
+/// <summary>Controlled reason or actor responsible for a permission response.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionDecisionSource : IEquatable<PermissionDecisionSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionDecisionSource"/>.</param>
+    [JsonConstructor]
+    public PermissionDecisionSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionDecisionSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The response followed the assisted-approval judge recommendation.</summary>
+    public static PermissionDecisionSource AssistedApproval { get; } = new("assisted_approval");
+
+    /// <summary>A human supplied the response through an interactive prompt.</summary>
+    public static PermissionDecisionSource HumanResponse { get; } = new("human_response");
+
+    /// <summary>The host applied a standing policy or override rather than a judge recommendation or human decision.</summary>
+    public static PermissionDecisionSource HostPolicy { get; } = new("host_policy");
+
+    /// <summary>The host denied the request because no interactive user response was available.</summary>
+    public static PermissionDecisionSource UnattendedFallback { get; } = new("unattended_fallback");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionDecisionSource left, PermissionDecisionSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionDecisionSource left, PermissionDecisionSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionDecisionSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionDecisionSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionSource}"/> for serializing <see cref="PermissionDecisionSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionDecisionSource>
+    {
+        /// <inheritdoc />
+        public override PermissionDecisionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionDecisionSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionSource));
+        }
+    }
+}
+
+
+/// <summary>Client surface that submitted a permission response.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionDecisionSurface : IEquatable<PermissionDecisionSurface>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionSurface"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionDecisionSurface"/>.</param>
+    [JsonConstructor]
+    public PermissionDecisionSurface(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionDecisionSurface"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The interactive Copilot CLI terminal UI.</summary>
+    public static PermissionDecisionSurface Tui { get; } = new("tui");
+
+    /// <summary>The non-interactive Copilot CLI prompt mode.</summary>
+    public static PermissionDecisionSurface PromptMode { get; } = new("prompt_mode");
+
+    /// <summary>The Copilot App client.</summary>
+    public static PermissionDecisionSurface CopilotApp { get; } = new("copilot_app");
+
+    /// <summary>An Agent Client Protocol host.</summary>
+    public static PermissionDecisionSurface Acp { get; } = new("acp");
+
+    /// <summary>A generic Copilot SDK client.</summary>
+    public static PermissionDecisionSurface Sdk { get; } = new("sdk");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSurface"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionDecisionSurface left, PermissionDecisionSurface right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSurface"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionDecisionSurface left, PermissionDecisionSurface right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionDecisionSurface other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionDecisionSurface other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionSurface}"/> for serializing <see cref="PermissionDecisionSurface"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionDecisionSurface>
+    {
+        /// <inheritdoc />
+        public override PermissionDecisionSurface Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionDecisionSurface value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionSurface));
+        }
+    }
+}
+
+
 /// <summary>Authentication type.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -24831,6 +25506,9 @@ public readonly struct FactoryRunStatus : IEquatable<FactoryRunStatus>
     /// <summary>The run was interrupted while resource budget remained.</summary>
     public static FactoryRunStatus Halted { get; } = new("halted");
 
+    /// <summary>The current attempt stopped intentionally and the run may be resumed.</summary>
+    public static FactoryRunStatus Paused { get; } = new("paused");
+
     /// <summary>The run was cancelled before completion.</summary>
     public static FactoryRunStatus Cancelled { get; } = new("cancelled");
 
@@ -25001,6 +25679,69 @@ public readonly struct FactoryLogLineKind : IEquatable<FactoryLogLineKind>
         public override void Write(Utf8JsonWriter writer, FactoryLogLineKind value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FactoryLogLineKind));
+        }
+    }
+}
+
+
+/// <summary>Action the runtime selected for a durable factory pause checkpoint.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct FactoryPauseCheckpointAction : IEquatable<FactoryPauseCheckpointAction>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="FactoryPauseCheckpointAction"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="FactoryPauseCheckpointAction"/>.</param>
+    [JsonConstructor]
+    public FactoryPauseCheckpointAction(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="FactoryPauseCheckpointAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The checkpoint was committed by a prior paused attempt, so execution may continue.</summary>
+    public static FactoryPauseCheckpointAction Continue { get; } = new("continue");
+
+    /// <summary>This attempt claimed the checkpoint and must cooperatively stop.</summary>
+    public static FactoryPauseCheckpointAction Pause { get; } = new("pause");
+
+    /// <summary>Returns a value indicating whether two <see cref="FactoryPauseCheckpointAction"/> instances are equivalent.</summary>
+    public static bool operator ==(FactoryPauseCheckpointAction left, FactoryPauseCheckpointAction right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="FactoryPauseCheckpointAction"/> instances are not equivalent.</summary>
+    public static bool operator !=(FactoryPauseCheckpointAction left, FactoryPauseCheckpointAction right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is FactoryPauseCheckpointAction other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(FactoryPauseCheckpointAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{FactoryPauseCheckpointAction}"/> for serializing <see cref="FactoryPauseCheckpointAction"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<FactoryPauseCheckpointAction>
+    {
+        /// <inheritdoc />
+        public override FactoryPauseCheckpointAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, FactoryPauseCheckpointAction value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FactoryPauseCheckpointAction));
         }
     }
 }
@@ -28987,279 +29728,6 @@ public readonly struct PermissionsConfigureAdditionalContentExclusionPolicyScope
 }
 
 
-/// <summary>Disposition of a permission request as observed by the responding client.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionDecisionOutcome : IEquatable<PermissionDecisionOutcome>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionOutcome"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PermissionDecisionOutcome"/>.</param>
-    [JsonConstructor]
-    public PermissionDecisionOutcome(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="PermissionDecisionOutcome"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The request was approved automatically without a new human decision.</summary>
-    public static PermissionDecisionOutcome AutoApproved { get; } = new("auto_approved");
-
-    /// <summary>The request was denied without an interactive user decision; source records why.</summary>
-    public static PermissionDecisionOutcome AutopilotDenied { get; } = new("autopilot_denied");
-
-    /// <summary>The response came from an interactive user prompt.</summary>
-    public static PermissionDecisionOutcome PromptedUser { get; } = new("prompted_user");
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionOutcome"/> instances are equivalent.</summary>
-    public static bool operator ==(PermissionDecisionOutcome left, PermissionDecisionOutcome right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionOutcome"/> instances are not equivalent.</summary>
-    public static bool operator !=(PermissionDecisionOutcome left, PermissionDecisionOutcome right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PermissionDecisionOutcome other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(PermissionDecisionOutcome other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionOutcome}"/> for serializing <see cref="PermissionDecisionOutcome"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionDecisionOutcome>
-    {
-        /// <inheritdoc />
-        public override PermissionDecisionOutcome Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PermissionDecisionOutcome value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionOutcome));
-        }
-    }
-}
-
-
-/// <summary>Response capability available to the client when it settled a permission request.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionResponseCapability : IEquatable<PermissionResponseCapability>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="PermissionResponseCapability"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PermissionResponseCapability"/>.</param>
-    [JsonConstructor]
-    public PermissionResponseCapability(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="PermissionResponseCapability"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The client could ask a user for this decision.</summary>
-    public static PermissionResponseCapability Interactive { get; } = new("interactive");
-
-    /// <summary>The client could return an automated response but could not ask a user.</summary>
-    public static PermissionResponseCapability Headless { get; } = new("headless");
-
-    /// <summary>The client had no response path available.</summary>
-    public static PermissionResponseCapability None { get; } = new("none");
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionResponseCapability"/> instances are equivalent.</summary>
-    public static bool operator ==(PermissionResponseCapability left, PermissionResponseCapability right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionResponseCapability"/> instances are not equivalent.</summary>
-    public static bool operator !=(PermissionResponseCapability left, PermissionResponseCapability right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PermissionResponseCapability other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(PermissionResponseCapability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{PermissionResponseCapability}"/> for serializing <see cref="PermissionResponseCapability"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionResponseCapability>
-    {
-        /// <inheritdoc />
-        public override PermissionResponseCapability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PermissionResponseCapability value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionResponseCapability));
-        }
-    }
-}
-
-
-/// <summary>Controlled reason or actor responsible for a permission response.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionDecisionSource : IEquatable<PermissionDecisionSource>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionSource"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PermissionDecisionSource"/>.</param>
-    [JsonConstructor]
-    public PermissionDecisionSource(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="PermissionDecisionSource"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The response followed the assisted-approval judge recommendation.</summary>
-    public static PermissionDecisionSource AssistedApproval { get; } = new("assisted_approval");
-
-    /// <summary>A human supplied the response through an interactive prompt.</summary>
-    public static PermissionDecisionSource HumanResponse { get; } = new("human_response");
-
-    /// <summary>The host applied a standing policy or override rather than a judge recommendation or human decision.</summary>
-    public static PermissionDecisionSource HostPolicy { get; } = new("host_policy");
-
-    /// <summary>The host denied the request because no interactive user response was available.</summary>
-    public static PermissionDecisionSource UnattendedFallback { get; } = new("unattended_fallback");
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are equivalent.</summary>
-    public static bool operator ==(PermissionDecisionSource left, PermissionDecisionSource right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are not equivalent.</summary>
-    public static bool operator !=(PermissionDecisionSource left, PermissionDecisionSource right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PermissionDecisionSource other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(PermissionDecisionSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionSource}"/> for serializing <see cref="PermissionDecisionSource"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionDecisionSource>
-    {
-        /// <inheritdoc />
-        public override PermissionDecisionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PermissionDecisionSource value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionSource));
-        }
-    }
-}
-
-
-/// <summary>Client surface that submitted a permission response.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionDecisionSurface : IEquatable<PermissionDecisionSurface>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionSurface"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PermissionDecisionSurface"/>.</param>
-    [JsonConstructor]
-    public PermissionDecisionSurface(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="PermissionDecisionSurface"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The interactive Copilot CLI terminal UI.</summary>
-    public static PermissionDecisionSurface Tui { get; } = new("tui");
-
-    /// <summary>The non-interactive Copilot CLI prompt mode.</summary>
-    public static PermissionDecisionSurface PromptMode { get; } = new("prompt_mode");
-
-    /// <summary>The Copilot App client.</summary>
-    public static PermissionDecisionSurface CopilotApp { get; } = new("copilot_app");
-
-    /// <summary>An Agent Client Protocol host.</summary>
-    public static PermissionDecisionSurface Acp { get; } = new("acp");
-
-    /// <summary>A generic Copilot SDK client.</summary>
-    public static PermissionDecisionSurface Sdk { get; } = new("sdk");
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSurface"/> instances are equivalent.</summary>
-    public static bool operator ==(PermissionDecisionSurface left, PermissionDecisionSurface right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSurface"/> instances are not equivalent.</summary>
-    public static bool operator !=(PermissionDecisionSurface left, PermissionDecisionSurface right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PermissionDecisionSurface other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(PermissionDecisionSurface other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionSurface}"/> for serializing <see cref="PermissionDecisionSurface"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionDecisionSurface>
-    {
-        /// <inheritdoc />
-        public override PermissionDecisionSurface Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PermissionDecisionSurface value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionSurface));
-        }
-    }
-}
-
-
 /// <summary>Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -31608,11 +32076,12 @@ public sealed class ServerMcpApi
 
     /// <summary>Discovers MCP servers from user, workspace, plugin, and builtin sources.</summary>
     /// <param name="workingDirectory">Working directory used as context for discovery (e.g., plugin resolution).</param>
+    /// <param name="includeEffectiveSource">Whether to include canonical effectiveSource metadata for each discovered server. Callers must opt in so protocol-3 clients retain the legacy closed response shape.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>MCP servers discovered from user, workspace, plugin, and built-in sources.</returns>
-    public async Task<McpDiscoverResult> DiscoverAsync(string? workingDirectory = null, CancellationToken cancellationToken = default)
+    public async Task<McpDiscoverResult> DiscoverAsync(string? workingDirectory = null, bool? includeEffectiveSource = null, CancellationToken cancellationToken = default)
     {
-        var request = new McpDiscoverRequest { WorkingDirectory = workingDirectory };
+        var request = new McpDiscoverRequest { WorkingDirectory = workingDirectory, IncludeEffectiveSource = includeEffectiveSource };
         return await CopilotClient.InvokeRpcAsync<McpDiscoverResult>(_rpc, "mcp.discover", [request], cancellationToken);
     }
 
@@ -31861,23 +32330,25 @@ public sealed class ServerPluginsApi
 
     /// <summary>Enables installed plugins for new sessions.</summary>
     /// <param name="names">Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.</param>
+    /// <param name="workingDirectory">Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task EnableAsync(IList<string> names, CancellationToken cancellationToken = default)
+    public async Task EnableAsync(IList<string> names, string? workingDirectory = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(names);
 
-        var request = new PluginsEnableRequest { Names = names };
+        var request = new PluginsEnableRequest { Names = names, WorkingDirectory = workingDirectory };
         await CopilotClient.InvokeRpcAsync(_rpc, "plugins.enable", [request], cancellationToken);
     }
 
     /// <summary>Disables installed plugins for new sessions.</summary>
     /// <param name="names">Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.</param>
+    /// <param name="workingDirectory">Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task DisableAsync(IList<string> names, CancellationToken cancellationToken = default)
+    public async Task DisableAsync(IList<string> names, string? workingDirectory = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(names);
 
-        var request = new PluginsDisableRequest { Names = names };
+        var request = new PluginsDisableRequest { Names = names, WorkingDirectory = workingDirectory };
         await CopilotClient.InvokeRpcAsync(_rpc, "plugins.disable", [request], cancellationToken);
     }
 
@@ -32402,6 +32873,19 @@ public sealed class ServerSessionsApi
 
         var request = new SessionsGetMetadataRequest { SessionId = sessionId };
         return await CopilotClient.InvokeRpcAsync<SessionsGetMetadataResult>(_rpc, "sessions.getMetadata", [request], cancellationToken);
+    }
+
+    /// <summary>Reads client-owned metadata for multiple persisted local sessions without opening them. Results preserve request order and report missing, corrupt, unsupported, or temporarily unavailable sessions independently.</summary>
+    /// <param name="sessionIds">Session IDs to inspect. Results preserve this order.</param>
+    /// <param name="keys">Case-sensitive keys to project from each valid bag. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Omit to return every entry.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Ordered client metadata outcomes for the requested local sessions.</returns>
+    public async Task<IList<SessionsClientMetadataEntry>> GetClientMetadataAsync(IList<string> sessionIds, IList<string>? keys = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sessionIds);
+
+        var request = new SessionsGetClientMetadataRequest { SessionIds = sessionIds, Keys = keys };
+        return await CopilotClient.InvokeRpcAsync<IList<SessionsClientMetadataEntry>>(_rpc, "sessions.getClientMetadata", [request], cancellationToken);
     }
 
     /// <summary>Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.</summary>
@@ -33168,6 +33652,20 @@ public sealed class SandboxApi
         var request = new SessionSandboxGetEnforcementStatusRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<SandboxEnforcementStatus>(_session.Rpc, "session.sandbox.getEnforcementStatus", [request], cancellationToken);
     }
+
+    /// <summary>Disables sandboxing for the remainder of the current session and approves the referenced pending sandbox-bypass permission request. The request is rejected unless the exact request is still pending and the effective sandbox policy permits bypass.</summary>
+    /// <param name="requestId">Identifier of the exact pending sandbox-bypass permission request that authorized the session opt-out.</param>
+    /// <param name="decisionContext">Optional attribution for the permission decision.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of attempting to disable sandboxing for the current session.</returns>
+    public async Task<SandboxDisableForSessionResult> DisableForSessionAsync(string requestId, PermissionDecisionContext? decisionContext = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requestId);
+        _session.ThrowIfDisposed();
+
+        var request = new SandboxDisableForSessionRequest { SessionId = _session.SessionId, RequestId = requestId, DecisionContext = decisionContext };
+        return await CopilotClient.InvokeRpcAsync<SandboxDisableForSessionResult>(_session.Rpc, "session.sandbox.disableForSession", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped GitHubAuth APIs.</summary>
@@ -33619,6 +34117,35 @@ public sealed class FactoryApi
         return await CopilotClient.InvokeRpcAsync<FactoryRunResult>(_session.Rpc, "session.factory.cancel", [request], cancellationToken);
     }
 
+    /// <summary>Pauses a running factory and returns its settled run envelope.</summary>
+    /// <param name="runId">Factory run identifier.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Complete current or terminal factory run envelope.</returns>
+    public async Task<FactoryRunResult> PauseAsync(string runId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(runId);
+        _session.ThrowIfDisposed();
+
+        var request = new FactoryPauseRequest { SessionId = _session.SessionId, RunId = runId };
+        return await CopilotClient.InvokeRpcAsync<FactoryRunResult>(_session.Rpc, "session.factory.pause", [request], cancellationToken);
+    }
+
+    /// <summary>Atomically pauses an owned factory attempt at a durable checkpoint.</summary>
+    /// <param name="runId">Factory run identifier.</param>
+    /// <param name="executionToken">Opaque token identifying the execution attempt that reached the checkpoint.</param>
+    /// <param name="key">Stable author-defined checkpoint key.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task<SessionFactoryPauseAtCheckpointResult> PauseAtCheckpointAsync(string runId, string executionToken, string key, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(runId);
+        ArgumentNullException.ThrowIfNull(executionToken);
+        ArgumentNullException.ThrowIfNull(key);
+        _session.ThrowIfDisposed();
+
+        var request = new FactoryPauseCheckpointRequest { SessionId = _session.SessionId, RunId = runId, ExecutionToken = executionToken, Key = key };
+        return await CopilotClient.InvokeRpcAsync<SessionFactoryPauseAtCheckpointResult>(_session.Rpc, "session.factory.pauseAtCheckpoint", [request], cancellationToken);
+    }
+
     /// <summary>Records a batch of ordered factory progress lines.</summary>
     /// <param name="runId">Factory run identifier.</param>
     /// <param name="executionToken">Opaque token identifying the current factory execution attempt.</param>
@@ -33789,6 +34316,18 @@ public sealed class ModelApi
 
         var request = new ModelApplyStartupOverlayRequest { SessionId = _session.SessionId, DeviceManagedModel = deviceManagedModel, ServerManagedModel = serverManagedModel, PolicyHelperModel = policyHelperModel, RepoModel = repoModel, RepoReasoningEffort = repoReasoningEffort, RepoContextTier = repoContextTier, CliModel = cliModel, DeferredResume = deferredResume };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.applyStartupOverlay", [request], cancellationToken);
+    }
+
+    /// <summary>Replaces or clears the host-supplied model allowlist for a running session.</summary>
+    /// <param name="allowedModels">Exact model IDs to permit, or null to clear the host restriction.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The applied host allowlist and effective session model policy after intersection.</returns>
+    public async Task<ModelSetAllowedModelsResult> SetAllowedModelsAsync(IList<string>? allowedModels = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new ModelSetAllowedModelsRequest { SessionId = _session.SessionId, AllowedModels = allowedModels };
+        return await CopilotClient.InvokeRpcAsync<ModelSetAllowedModelsResult>(_session.Rpc, "session.model.setAllowedModels", [request], cancellationToken);
     }
 
     /// <summary>Updates the session's reasoning effort without changing the selected model.</summary>
@@ -35521,7 +36060,7 @@ public sealed class ToolsApi
         return await CopilotClient.InvokeRpcAsync<ToolsSetResult>(_session.Rpc, "session.tools.set", [request], cancellationToken);
     }
 
-    /// <summary>Updates the current session's live subagent settings after user settings change. The persisted user settings remain the source of truth for future sessions.</summary>
+    /// <summary>Sets the current session's live subagent settings override, which takes precedence over persisted user settings until cleared. Persisted user settings remain the source of truth for future sessions.</summary>
     /// <param name="subagents">Subagent settings to apply, or null to clear the live session override.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Empty result after applying subagent settings.</returns>
@@ -36215,6 +36754,31 @@ public sealed class MetadataApi
 
         var request = new SessionMetadataSnapshotRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<SessionMetadataSnapshot>(_session.Rpc, "session.metadata.snapshot", [request], cancellationToken);
+    }
+
+    /// <summary>Returns the client-owned string metadata persisted with this local session. The metadata is not included in model context, events, telemetry, snapshots, or remote exports.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.</returns>
+    public async Task<IDictionary<string, string>> GetClientMetadataAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionMetadataGetClientMetadataRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<IDictionary<string, string>>(_session.Rpc, "session.metadata.getClientMetadata", [request], cancellationToken);
+    }
+
+    /// <summary>Atomically patches the client-owned string metadata persisted with this local session and returns the committed bag.</summary>
+    /// <param name="clear">Remove every existing client metadata entry before applying remove and set. Defaults to false.</param>
+    /// <param name="remove">Case-sensitive keys to remove. Missing keys are ignored. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces.</param>
+    /// <param name="set">String entries to add or replace. Set wins when a key also appears in remove. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Each value may contain at most 16 KiB of UTF-8 data.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.</returns>
+    public async Task<IDictionary<string, string>> UpdateClientMetadataAsync(bool? clear = null, IList<string>? remove = null, IDictionary<string, string>? set = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new MetadataUpdateClientMetadataRequest { SessionId = _session.SessionId, Clear = clear, Remove = remove, Set = set };
+        return await CopilotClient.InvokeRpcAsync<IDictionary<string, string>>(_session.Rpc, "session.metadata.updateClientMetadata", [request], cancellationToken);
     }
 
     /// <summary>Reports whether the local session is currently processing user/agent messages.</summary>
@@ -37179,8 +37743,8 @@ public interface ISessionFsHandler
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Appends content to a file in the client-provided session filesystem.</summary>
-    /// <param name="request">File path, content to append, and optional mode for the client-provided session filesystem.</param>
+    /// <summary>Appends content to a file in the client-provided session filesystem, creating parent directories as needed.</summary>
+    /// <param name="request">File path, content to append, and optional mode for the client-provided session filesystem. Implementations create parent directories as needed.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default);
@@ -37795,6 +38359,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PromptCacheBreakData), TypeInfoPropertyName = "SessionEventsPromptCacheBreakData")]
 [JsonSerializable(typeof(GitHub.Copilot.PromptCacheBreakEvent), TypeInfoPropertyName = "SessionEventsPromptCacheBreakEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
+[JsonSerializable(typeof(GitHub.Copilot.RecommendedAutoTier), TypeInfoPropertyName = "SessionEventsRecommendedAutoTier")]
 [JsonSerializable(typeof(GitHub.Copilot.RemediationAction), TypeInfoPropertyName = "SessionEventsRemediationAction")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
@@ -37833,10 +38398,12 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.SubagentDeselectedEvent), TypeInfoPropertyName = "SessionEventsSubagentDeselectedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentFailedData), TypeInfoPropertyName = "SessionEventsSubagentFailedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentFailedEvent), TypeInfoPropertyName = "SessionEventsSubagentFailedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentModelSelectionSource), TypeInfoPropertyName = "SessionEventsSubagentModelSelectionSource")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentSelectedData), TypeInfoPropertyName = "SessionEventsSubagentSelectedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentSelectedEvent), TypeInfoPropertyName = "SessionEventsSubagentSelectedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentStartedData), TypeInfoPropertyName = "SessionEventsSubagentStartedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentStartedEvent), TypeInfoPropertyName = "SessionEventsSubagentStartedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentTaskModelSource), TypeInfoPropertyName = "SessionEventsSubagentTaskModelSource")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemMessageData), TypeInfoPropertyName = "SessionEventsSystemMessageData")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemMessageEvent), TypeInfoPropertyName = "SessionEventsSystemMessageEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemMessageMetadata), TypeInfoPropertyName = "SessionEventsSystemMessageMetadata")]
@@ -37849,6 +38416,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationEvent), TypeInfoPropertyName = "SessionEventsSystemNotificationEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationFactoryCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationFactoryCompleted")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationFactoryCompletedStatus), TypeInfoPropertyName = "SessionEventsSystemNotificationFactoryCompletedStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationFactoryPauseInfo), TypeInfoPropertyName = "SessionEventsSystemNotificationFactoryPauseInfo")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationInstructionDiscovered), TypeInfoPropertyName = "SessionEventsSystemNotificationInstructionDiscovered")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationNewInboxMessage), TypeInfoPropertyName = "SessionEventsSystemNotificationNewInboxMessage")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationShellCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellCompleted")]
@@ -38072,6 +38640,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(FactoryListRunsResult))]
 [JsonSerializable(typeof(FactoryLogLine))]
 [JsonSerializable(typeof(FactoryLogRequest))]
+[JsonSerializable(typeof(FactoryPauseCheckpointRequest))]
+[JsonSerializable(typeof(FactoryPauseInfo))]
+[JsonSerializable(typeof(FactoryPauseRequest))]
 [JsonSerializable(typeof(FactoryPhaseObservation))]
 [JsonSerializable(typeof(FactoryProgressLine))]
 [JsonSerializable(typeof(FactoryProgressPage))]
@@ -38120,9 +38691,11 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HooksDiscoverRequest))]
 [JsonSerializable(typeof(HooksDiscoverResult))]
 [JsonSerializable(typeof(IDictionary<string, JsonElement>))]
+[JsonSerializable(typeof(IDictionary<string, string>))]
 [JsonSerializable(typeof(IList<AccountAllUsers>))]
 [JsonSerializable(typeof(IList<AuthValidationError>))]
 [JsonSerializable(typeof(IList<SessionAuthStatus>))]
+[JsonSerializable(typeof(IList<SessionsClientMetadataEntry>))]
 [JsonSerializable(typeof(InstalledPlugin))]
 [JsonSerializable(typeof(InstalledPluginInfo))]
 [JsonSerializable(typeof(InstructionDiscoveryPath))]
@@ -38243,6 +38816,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpServerNeedsAuthInfo))]
 [JsonSerializable(typeof(McpSetEnvValueModeParams))]
 [JsonSerializable(typeof(McpSetEnvValueModeResult))]
+[JsonSerializable(typeof(McpSourceFile))]
+[JsonSerializable(typeof(McpSourcePlugin))]
+[JsonSerializable(typeof(McpSourceRef))]
 [JsonSerializable(typeof(McpStartServerRequest))]
 [JsonSerializable(typeof(McpStartServersResult))]
 [JsonSerializable(typeof(McpStopServerRequest))]
@@ -38269,6 +38845,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(MetadataSetWorkingDirectoryResult))]
 [JsonSerializable(typeof(MetadataSnapshotRemoteMetadata))]
 [JsonSerializable(typeof(MetadataSnapshotRemoteMetadataRepository))]
+[JsonSerializable(typeof(MetadataUpdateClientMetadataRequest))]
 [JsonSerializable(typeof(ModeSetRequest))]
 [JsonSerializable(typeof(ModeSetResult))]
 [JsonSerializable(typeof(Model))]
@@ -38291,6 +38868,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ModelPickerSettingsContext))]
 [JsonSerializable(typeof(ModelPickerSettingsContextEnvironment))]
 [JsonSerializable(typeof(ModelPolicy))]
+[JsonSerializable(typeof(ModelSetAllowedModelsRequest))]
+[JsonSerializable(typeof(ModelSetAllowedModelsResult))]
 [JsonSerializable(typeof(ModelSetReasoningEffortRequest))]
 [JsonSerializable(typeof(ModelSetReasoningEffortResult))]
 [JsonSerializable(typeof(ModelSwitchAutoTierRequest))]
@@ -38459,6 +39038,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SandboxConfigUserPolicyNetwork))]
 [JsonSerializable(typeof(SandboxConfigUserPolicyNetworkProxy))]
 [JsonSerializable(typeof(SandboxConfigUserPolicySeatbelt))]
+[JsonSerializable(typeof(SandboxDisableForSessionRequest))]
+[JsonSerializable(typeof(SandboxDisableForSessionResult))]
 [JsonSerializable(typeof(SandboxEnforcementStatus))]
 [JsonSerializable(typeof(ScheduleAddAtRequest))]
 [JsonSerializable(typeof(ScheduleAddCronRequest))]
@@ -38508,6 +39089,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionEventLogTailRequest))]
 [JsonSerializable(typeof(SessionExtensionsListRequest))]
 [JsonSerializable(typeof(SessionExtensionsReloadRequest))]
+[JsonSerializable(typeof(SessionFactoryPauseAtCheckpointResult))]
 [JsonSerializable(typeof(SessionFsAppendFileRequest))]
 [JsonSerializable(typeof(SessionFsError))]
 [JsonSerializable(typeof(SessionFsExistsRequest))]
@@ -38566,6 +39148,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionMcpReloadRequest))]
 [JsonSerializable(typeof(SessionMcpRemoveGitHubRequest))]
 [JsonSerializable(typeof(SessionMetadataActivityRequest))]
+[JsonSerializable(typeof(SessionMetadataGetClientMetadataRequest))]
 [JsonSerializable(typeof(SessionMetadataGetContextAttributionRequest))]
 [JsonSerializable(typeof(SessionMetadataIsProcessingRequest))]
 [JsonSerializable(typeof(SessionMetadataSnapshot))]
@@ -38643,6 +39226,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsBulkDeleteRequest))]
 [JsonSerializable(typeof(SessionsCheckInUseRequest))]
 [JsonSerializable(typeof(SessionsCheckInUseResult))]
+[JsonSerializable(typeof(SessionsClientMetadataEntry))]
 [JsonSerializable(typeof(SessionsCloseRequest))]
 [JsonSerializable(typeof(SessionsCloseResult))]
 [JsonSerializable(typeof(SessionsDeleteRequest))]
@@ -38655,6 +39239,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsForkResult))]
 [JsonSerializable(typeof(SessionsGetBoardEntryCountRequest))]
 [JsonSerializable(typeof(SessionsGetBoardEntryCountResult))]
+[JsonSerializable(typeof(SessionsGetClientMetadataRequest))]
 [JsonSerializable(typeof(SessionsGetEventFilePathRequest))]
 [JsonSerializable(typeof(SessionsGetEventFilePathResult))]
 [JsonSerializable(typeof(SessionsGetLastForContextRequest))]
