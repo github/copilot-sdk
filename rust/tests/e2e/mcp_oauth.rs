@@ -602,6 +602,8 @@ impl OAuthMcpServer {
     }
 
     async fn requests(&self) -> Vec<OAuthMcpRequest> {
+        // codeql[rust/cleartext-transmission]
+        // This test-only server binds to 127.0.0.1 and never sends request logs off-host.
         let text = reqwest::get(format!("{}/__requests", self.url))
             .await
             .expect("fetch OAuth MCP requests")
