@@ -38,9 +38,9 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
         await WaitForMcpServerStatusAsync(session, serverName, McpServerStatus.NeedsAuth);
         var result = await session.Rpc.Mcp.Oauth.LoginAsync(serverName);
         Assert.NotNull(result.AuthorizationUrl);
-        var clientId = new Uri(result.AuthorizationUrl!).Query.TrimStart('?')
-            .Split('&').Single(part => part.StartsWith("client_id=", StringComparison.Ordinal))
-            .Split('=', 2)[1];
+        var clientIdParameter = new Uri(result.AuthorizationUrl!).Query.TrimStart('?')
+            .Split('&').Single(part => part.StartsWith("client_id=", StringComparison.Ordinal));
+        var clientId = clientIdParameter.Substring("client_id=".Length);
         Assert.Equal(CimdUrl, WebUtility.UrlDecode(clientId));
         Assert.DoesNotContain(await oauthServer.GetRequestsAsync(), request => request.Path == "/register");
     }
