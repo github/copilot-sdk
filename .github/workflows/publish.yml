@@ -486,36 +486,48 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Tag Java SDK
-        # Language-scoped traceability tag for the Maven Central release,
-        # created only after publication succeeded and pointing at the original
-        # release commit. Java is included in the cross-language `vX.Y.Z`
-        # GitHub Release.
+        # Reuse a tag only when it identifies the source that was published.
         if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
         run: |
-          set -e
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch --tags
-          VERSION="${{ needs.version.outputs.version }}"
+          git fetch --tags origin
           TAG_NAME="java/v${VERSION}"
-          if git tag "$TAG_NAME" ${{ github.sha }} 2>/dev/null; then
-            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git "$TAG_NAME"
-            echo "Created and pushed tag $TAG_NAME"
+          if git show-ref --verify --quiet "refs/tags/$TAG_NAME"; then
+            TAG_COMMIT=$(git rev-parse --verify "refs/tags/${TAG_NAME}^{commit}")
+            if [ "$TAG_COMMIT" != "$SOURCE_SHA" ]; then
+              echo "::error::Tag $TAG_NAME points to $TAG_COMMIT, expected $SOURCE_SHA. Refusing to overwrite it."
+              exit 1
+            fi
+            echo "Tag $TAG_NAME already points to the release source, skipping tag push"
           else
-            echo "Tag $TAG_NAME already exists, skipping tag push"
+            STATUS=$?
+            if [ "$STATUS" -ne 1 ]; then
+              echo "::error::Could not inspect tag $TAG_NAME."
+              exit "$STATUS"
+            fi
+            git tag "$TAG_NAME" "$SOURCE_SHA"
+            git push origin "refs/tags/$TAG_NAME"
+            echo "Created and pushed tag $TAG_NAME"
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+          SOURCE_SHA: ${{ github.sha }}
+
+  deploy-java-site:
+    name: Deploy Java documentation site
+    needs: [version, github-release]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
       - name: Trigger Java documentation site deploy
-        # Runs after the java/vX.Y.Z tag exists so the standalone site repo can
-        # check out the monorepo at that tag.
-        if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
+        # A failed dispatch can be retried without recreating the GitHub release.
         run: |
-          set -e
-          VERSION="${{ needs.version.outputs.version }}"
+          set -euo pipefail
           TAG="java/v${VERSION}"
           PUBLISH_AS_LATEST=true
-          if [ "${{ github.event.inputs.dist-tag }}" = "prerelease" ]; then
+          if [ "$DIST_TAG" = "prerelease" ]; then
             PUBLISH_AS_LATEST=false
           fi
           echo "Triggering site deployment for version ${VERSION} (tag: ${TAG})"
@@ -525,4 +537,6 @@ jobs:
             -f publish_as_latest="${PUBLISH_AS_LATEST}" \
             -f monorepo_tag="${TAG}"
         env:
+          VERSION: ${{ needs.version.outputs.version }}
+          DIST_TAG: ${{ github.event.inputs.dist-tag }}
           GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
