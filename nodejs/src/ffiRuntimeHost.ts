@@ -305,19 +305,21 @@ export class FfiRuntimeHost {
         }
     }
 
-    private unregisterCallback(): void {
+    private unregisterCallback(): boolean {
         if (this.outboundCallback === undefined) {
-            return;
+            return true;
         }
         const callback = this.outboundCallback;
         try {
             koffi.unregister(callback);
             this.outboundCallback = undefined;
+            return true;
         } catch (error) {
             console.error(
                 `Failed to unregister in-process FFI callback: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
             );
-            this.outboundCallback = undefined;
+            FfiRuntimeHost.quarantinedHosts.add(this);
+            return false;
         }
     }
 
@@ -360,7 +362,7 @@ export class FfiRuntimeHost {
                 }
                 this.connectionId = 0;
             }
-            this.unregisterCallback();
+            const callbackUnregistered = this.unregisterCallback();
 
             // The referenced timer is part of the callback lifetime. Clearing it
             // before connection_close reports quiescence can let the process exit
@@ -384,7 +386,9 @@ export class FfiRuntimeHost {
                 }
                 this.serverId = 0;
             }
-            FfiRuntimeHost.quarantinedHosts.delete(this);
+            if (callbackUnregistered) {
+                FfiRuntimeHost.quarantinedHosts.delete(this);
+            }
         } finally {
             this.cleanupInProgress = false;
         }

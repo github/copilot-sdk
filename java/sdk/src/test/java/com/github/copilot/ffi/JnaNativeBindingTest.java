@@ -230,7 +230,7 @@ class JnaNativeBindingTest {
     }
 
     @Test
-    void callbackWrapperRemainsReachableAfterConnectionClose() throws InterruptedException {
+    void callbackWrapperRemainsReachableAndIsDetachedAfterConnectionClose() throws InterruptedException {
         StubRuntimeLibrary stub = new StubRuntimeLibrary();
         stub.connectionOpenReturn = 99;
         JnaNativeBinding binding = new JnaNativeBinding(stub);
@@ -244,7 +244,7 @@ class JnaNativeBindingTest {
         OutboundCallback callback = callbackReference.get();
         assertNotNull(callback, "Callback wrapper must remain strongly reachable after connection close");
         callback.invoke(Pointer.NULL, Pointer.NULL, new SizeT(0));
-        assertEquals(1, invocations.get(), "A callback queued before close must remain safely invocable");
+        assertEquals(0, invocations.get(), "Successful connection close must detach the Java delegate");
     }
 
     private static WeakReference<OutboundCallback> openAndCloseConnection(JnaNativeBinding binding,

@@ -49,9 +49,9 @@ import java.util.logging.Logger;
  * <p>
  * The native runtime can still be inside an outbound callback when
  * {@link #connectionClose} returns {@code false}. Each JNA callback wrapper is
- * therefore retained for the lifetime of the JVM. After host shutdown, its Java
- * delegate is detached so the wrapper no longer retains the complete host object
- * graph.
+ * therefore retained for the lifetime of the JVM. After connection close reports
+ * quiescence, its Java delegate is detached so the wrapper no longer retains the
+ * complete host object graph.
  *
  * <h2>GraalVM Native Image</h2>
  * <p>
@@ -140,8 +140,9 @@ final class JnaNativeBinding implements NativeBinding {
      * Callback registrations keyed by connection handle.
      * <p>
      * Registrations remain here through connection close because native callbacks
-     * can still arrive. Successful host shutdown detaches their Java delegates; the
-     * wrappers themselves remain rooted by {@link #RETAINED_CALLBACKS}.
+     * can still arrive while close reports non-quiescence. Successful connection
+     * close detaches their Java delegates; the wrappers themselves remain rooted by
+     * {@link #RETAINED_CALLBACKS}.
      */
     private final Map<Integer, CallbackRegistration> callbackRegistrations = new ConcurrentHashMap<>();
 
@@ -266,7 +267,14 @@ final class JnaNativeBinding implements NativeBinding {
 
     @Override
     public boolean connectionClose(int connectionId) {
-        return lib.copilot_runtime_connection_close(connectionId) != 0;
+        boolean closed = lib.copilot_runtime_connection_close(connectionId) != 0;
+        if (closed) {
+            CallbackRegistration registration = callbackRegistrations.remove(connectionId);
+            if (registration != null) {
+                registration.detach();
+            }
+        }
+        return closed;
     }
 
     // -------------------------------------------------------------------------

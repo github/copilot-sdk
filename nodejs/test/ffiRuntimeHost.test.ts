@@ -148,4 +148,29 @@ describe("FfiRuntimeHost callback cleanup", () => {
         expect(vi.getTimerCount()).toBe(0);
         error.mockRestore();
     });
+
+    it("retains the callback token when Koffi unregistration fails", async () => {
+        ffi.connectionClose.mockReturnValue(true);
+        ffi.unregister.mockImplementationOnce(() => {
+            throw new Error("unregister failed");
+        });
+        const error = vi.spyOn(console, "error").mockImplementation(() => {});
+        const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, []);
+        await host.start();
+
+        host.dispose();
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(ffi.connectionClose).toHaveBeenCalledTimes(1);
+        expect(ffi.unregister).toHaveBeenCalledTimes(1);
+        expect(ffi.hostShutdown).toHaveBeenCalledTimes(1);
+        expect((host as any).outboundCallback).toBe(ffi.callbackToken);
+        expect((FfiRuntimeHost as any).quarantinedHosts.has(host)).toBe(true);
+        expect((host as any).keepAliveTimer).toBeUndefined();
+        expect(vi.getTimerCount()).toBe(0);
+
+        host.dispose();
+        expect(ffi.unregister).toHaveBeenCalledTimes(1);
+        error.mockRestore();
+    });
 });
