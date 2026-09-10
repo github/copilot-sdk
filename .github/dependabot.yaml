@@ -3,6 +3,7 @@ multi-ecosystem-groups:
   all:
     schedule:
       interval: 'weekly'
+# npm, PyPI, and NuGet cooldowns accommodate downstream registry quarantine.
 updates:
   - package-ecosystem: 'github-actions'
     directory: '/'
@@ -21,15 +22,23 @@ updates:
   # Node.js dependencies
   - package-ecosystem: 'npm'
     directory: '/nodejs'
+    cooldown:
+      default-days: 7
+      exclude: ['@github/*']
     multi-ecosystem-group: 'all'
     patterns: ['*']
   - package-ecosystem: 'npm'
     directory: '/test/harness'
+    cooldown:
+      default-days: 7
+      exclude: ['@github/*']
     multi-ecosystem-group: 'all'
     patterns: ['*']
   # Python dependencies
   - package-ecosystem: 'pip'
     directory: '/python'
+    cooldown:
+      default-days: 7
     multi-ecosystem-group: 'all'
     patterns: ['*']
   # Go dependencies
@@ -40,6 +49,8 @@ updates:
   # .NET dependencies
   - package-ecosystem: 'nuget'
     directory: '/dotnet'
+    cooldown:
+      default-days: 7
     multi-ecosystem-group: 'all'
     patterns: ['*']
   # Java dependencies
@@ -59,6 +70,9 @@ updates:
   # Java codegen dependencies
   - package-ecosystem: 'npm'
     directory: '/java/scripts/codegen'
+    cooldown:
+      default-days: 7
+      exclude: ['@github/*']
     schedule:
       interval: 'weekly'
     groups:

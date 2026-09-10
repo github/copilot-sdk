@@ -31,6 +31,8 @@ public record DiscoveredMcpServer(
     @JsonProperty("sourcePlugin") String sourcePlugin,
     /** Plugin version that provided this server, when source is plugin. */
     @JsonProperty("sourcePluginVersion") String sourcePluginVersion,
+    /** Canonical identity and location of the effective server declaration. */
+    @JsonProperty("effectiveSource") McpSourceRef effectiveSource,
     /** Whether the server is enabled (not in the disabled list) */
     @JsonProperty("enabled") Boolean enabled
 ) {

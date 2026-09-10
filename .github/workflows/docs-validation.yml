@@ -149,7 +149,7 @@ jobs:
 
       - name: Install SDK to local repo
         working-directory: java
-        run: mvn install -DskipTests -q
+        run: mvn install -Dmaven.test.skip=true -q
 
       - name: Install validation dependencies
         working-directory: scripts/docs-validation

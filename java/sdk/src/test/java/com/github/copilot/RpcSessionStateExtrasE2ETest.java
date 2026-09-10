@@ -143,7 +143,7 @@ class RpcSessionStateExtrasE2ETest {
                         new SessionToolsUpdateSubagentSettingsParams.SessionToolsUpdateSubagentSettingsParamsSubagents(
                                 Map.of("general-purpose",
                                         new SubagentSettingsEntry("gpt-5-mini", null, "low",
-                                                SubagentSettingsEntryContextTier.LONG_CONTEXT)),
+                                                SubagentSettingsEntryContextTier.LONG_CONTEXT, null)),
                                 List.of("legacy-agent"), null, null)))
                         .get(30, TimeUnit.SECONDS);
                 session.getRpc().tools.updateSubagentSettings(new SessionToolsUpdateSubagentSettingsParams(null, null))

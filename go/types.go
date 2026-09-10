@@ -2431,10 +2431,29 @@ type ToolBinaryResult struct {
 	Description string `json:"description,omitempty"`
 }
 
+// MessageSource identifies whether a message originates from a user, the system, or an agent.
+type MessageSource string
+
+const (
+	// MessageSourceUser identifies a user-originated message.
+	MessageSourceUser MessageSource = "user"
+	// MessageSourceSystem identifies a system-originated message.
+	MessageSourceSystem MessageSource = "system"
+)
+
+// MessageSourceAgent identifies the agent that produced a message.
+// The agent ID is opaque and is sent unchanged after the "agent-" prefix.
+func MessageSourceAgent(id string) MessageSource {
+	return MessageSource("agent-" + id)
+}
+
 // MessageOptions configures a message to send
 type MessageOptions struct {
 	// Prompt is the message to send
 	Prompt string
+	// Source identifies the message origin independently of Mode and AgentMode.
+	// The empty value omits source from the request, preserving runtime defaults.
+	Source MessageSource
 	// Attachments are file or directory attachments
 	Attachments []Attachment
 	// Mode is the message delivery mode (default: "enqueue")
@@ -2913,6 +2932,7 @@ type sessionAbortRequest struct {
 type sessionSendRequest struct {
 	SessionID      string            `json:"sessionId"`
 	Prompt         string            `json:"prompt"`
+	Source         MessageSource     `json:"source,omitempty"`
 	DisplayPrompt  string            `json:"displayPrompt,omitempty"`
 	Attachments    []Attachment      `json:"attachments,omitempty"`
 	Mode           string            `json:"mode,omitempty"`

@@ -23,9 +23,16 @@ const PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource";
 
 export async function startOAuthMcpServer({
   expectedToken = DEFAULT_EXPECTED_TOKEN,
+  deferInitialChallenge = false,
   host = "127.0.0.1",
   port = 0,
 } = {}) {
+  let releaseInitialChallenge = () => {};
+  const initialChallenge = deferInitialChallenge
+    ? new Promise((resolve) => {
+        releaseInitialChallenge = resolve;
+      })
+    : Promise.resolve();
   const requests = [];
   const tokens = {
     initial: expectedToken,
@@ -50,6 +57,13 @@ export async function startOAuthMcpServer({
 
     if (req.method === "GET" && url.pathname === "/__requests") {
       respondJson(res, 200, requests);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/__release-initial-challenge") {
+      releaseInitialChallenge();
+      res.writeHead(204);
+      res.end();
       return;
     }
 
@@ -92,6 +106,7 @@ export async function startOAuthMcpServer({
 
     const token = parseBearerToken(req.headers.authorization);
     if (!token || !acceptedTokens.has(token)) {
+      await initialChallenge;
       challengeInitial(res, baseUrl);
       return;
     }
@@ -317,6 +332,7 @@ if (
 ) {
   const server = await startOAuthMcpServer({
     expectedToken: process.env.EXPECTED_TOKEN ?? DEFAULT_EXPECTED_TOKEN,
+    deferInitialChallenge: process.env.DEFER_INITIAL_CHALLENGE === "true",
   });
   console.log(`Listening: ${server.url}`);
   process.on("SIGTERM", async () => {

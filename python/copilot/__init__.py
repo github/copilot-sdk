@@ -116,6 +116,7 @@ from .generated.session_events import (
     SessionEventType,
 )
 from .session import (
+    AgentMessageSource,
     AgentStopHandler,
     AgentStopHookInput,
     AgentStopHookOutput,
@@ -152,6 +153,7 @@ from .session import (
     MCPHTTPServerConfig,
     MCPServerConfig,
     MCPStdioServerConfig,
+    MessageSource,
     ModelCapabilitiesOverride,
     ModelLimitsOverride,
     ModelSupportsOverride,
@@ -230,6 +232,7 @@ except PackageNotFoundError:
     __version__ = "0.0.0.dev0"
 
 __all__ = [
+    "AgentMessageSource",
     "AgentStopHandler",
     "AgentStopHookInput",
     "AgentStopHookOutput",
@@ -318,6 +321,7 @@ __all__ = [
     "McpAuthWwwAuthenticateParams",
     "ManagedSettings",
     "ManagedSettingsPermissions",
+    "MessageSource",
     "ModelBilling",
     "ModelBillingTokenPrices",
     "ModelBillingTokenPricesLongContext",

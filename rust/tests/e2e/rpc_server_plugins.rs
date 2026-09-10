@@ -99,6 +99,7 @@ async fn should_enable_and_disable_marketplace_plugin() {
                     .plugins()
                     .disable(PluginsDisableRequest {
                         names: vec![spec.clone()],
+                        working_directory: None,
                     })
                     .await
                     .expect("disable plugin");
@@ -114,7 +115,10 @@ async fn should_enable_and_disable_marketplace_plugin() {
                 client
                     .rpc()
                     .plugins()
-                    .enable(PluginsEnableRequest { names: vec![spec] })
+                    .enable(PluginsEnableRequest {
+                        names: vec![spec],
+                        working_directory: None,
+                    })
                     .await
                     .expect("enable plugin");
                 assert!(
