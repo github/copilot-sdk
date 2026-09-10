@@ -40,7 +40,7 @@ describe("release manifest", () => {
             createdAt: "2026-09-04T00:00:00Z",
             runtimeRunId: "9001",
             runtimeSha,
-            runtimeVersion: "1.0.83-5.unstable.123.g1234567",
+            runtimeVersion: "1.0.83-5.unstable.123.g1234567+build.42",
             sdkRef: "feature/unstable",
             sdkSha,
             sdkVersion: version,
@@ -52,6 +52,26 @@ describe("release manifest", () => {
         expect(manifest.runtime.runId).toBe("9001");
         expect(manifest.runtime.source).toBe("github-packages");
         expect(() => verifyReleaseManifest(manifest, root)).not.toThrow();
+
+        const mismatched = structuredClone(manifest);
+        mismatched.runtime.version = "1.0.83-5.canary.123.g1234567.unsigned";
+        expect(() => verifyReleaseManifest(mismatched, root)).toThrow(
+            "does not belong to the 'unstable' channel"
+        );
+        await expect(
+            createReleaseManifest(root, {
+                channel: "canary",
+                createdAt: "2026-09-04T00:00:00Z",
+                runtimeRunId: "9001",
+                runtimeSha,
+                runtimeVersion: "1.0.83-5.unstable.123.g1234567",
+                sdkRef: "feature/unstable",
+                sdkSha,
+                sdkVersion: version,
+                workflowRunId: "812300",
+                workflowRunNumber: "8123",
+            })
+        ).rejects.toThrow("does not belong to the 'canary' channel");
 
         const damaged = join(root, manifest.packages[0].filename);
         writeFileSync(damaged, Buffer.concat([readFileSync(damaged), Buffer.from("tampered")]));

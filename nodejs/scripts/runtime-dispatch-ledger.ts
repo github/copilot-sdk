@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateRuntimeVersionChannel } from "./runtime-release-identity.js";
 
 export interface RuntimeDispatchMarker {
     canonicalRunId: string;
@@ -83,8 +84,6 @@ export interface ClaimOptions {
 const workflowPath = ".github/workflows/runtime-sdk.yml";
 const workflowName = "Runtime-driven Node SDK";
 const canonicalNumericIdPattern = /^[1-9][0-9]*$/;
-const runtimeVersionPattern =
-    /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
 
 function validateInputs(expected: ExpectedDispatch): void {
     for (const [name, value] of Object.entries(expected)) {
@@ -101,11 +100,7 @@ function validateInputs(expected: ExpectedDispatch): void {
         "Runtime workflow run ID must be canonical numeric"
     );
     assert.match(expected.runtimeSha, /^[0-9a-f]{40}$/, "Runtime SHA must be lowercase full SHA");
-    assert.match(
-        expected.runtimeVersion,
-        runtimeVersionPattern,
-        "Runtime version must be exact SemVer"
-    );
+    validateRuntimeVersionChannel(expected.runtimeVersion, expected.channel);
     assert.match(expected.sdkSha, /^[0-9a-f]{40}$/, "SDK SHA must be lowercase full SHA");
     assert(expected.sdkRef.length > 0, "SDK ref is required");
     assert(
