@@ -287,9 +287,12 @@ func NewClient(options *ClientOptions) *Client {
 		panic("GitHubToken and UseLoggedInUser cannot be used with URIConnection (external runtime manages its own auth)")
 	}
 
-	// Default the out-of-process environment to the current process if not set.
-	// An explicit empty slice stays authoritative and yields a cleared child env.
-	if _, ok := connection.(outOfProcessConnection); ok && client.processEnv == nil {
+	// Default the environment to the current process if not set. This mirrors
+	// pre-v2 behavior: the effective env is always resolved (it's harmless for
+	// in-process transport, since it's never applied there), and an explicit
+	// empty slice on an out-of-process connection stays authoritative and
+	// yields a cleared child env.
+	if client.processEnv == nil {
 		client.processEnv = os.Environ()
 	}
 

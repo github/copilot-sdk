@@ -28,16 +28,6 @@ type RuntimeConnection interface {
 	runtimeConnection()
 }
 
-// outOfProcessConnection is implemented by the connection types that spawn and
-// manage an out-of-process runtime ([StdioConnection] and [TCPConnection]). It
-// exposes per-connection process settings so the client can resolve them
-// uniformly regardless of the specific out-of-process transport.
-type outOfProcessConnection interface {
-	RuntimeConnection
-	connEnv() []string
-	connWorkingDirectory() string
-}
-
 // StdioConnection spawns and manages an out-of-process runtime over its
 // stdin/stdout pipes. This is the default when no connection is configured.
 type StdioConnection struct {
@@ -55,11 +45,6 @@ type StdioConnection struct {
 }
 
 func (StdioConnection) runtimeConnection() {}
-
-func (c StdioConnection) connEnv() []string { return c.Env }
-func (c StdioConnection) connWorkingDirectory() string {
-	return c.WorkingDirectory
-}
 
 // TCPConnection spawns and manages an out-of-process runtime that listens on a
 // TCP socket and connects to it.
@@ -86,11 +71,6 @@ type TCPConnection struct {
 }
 
 func (TCPConnection) runtimeConnection() {}
-
-func (c TCPConnection) connEnv() []string { return c.Env }
-func (c TCPConnection) connWorkingDirectory() string {
-	return c.WorkingDirectory
-}
 
 // URIConnection connects to an already-running runtime at the given URL.
 // The SDK does not spawn a process in this mode.
