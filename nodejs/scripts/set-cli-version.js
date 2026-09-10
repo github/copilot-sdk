@@ -57,6 +57,7 @@ if (!useNpmPackage) {
 const packagePath = join(nodeRoot, "package.json");
 const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
 packageJson.copilotCliVersion = version;
+delete packageJson.copilotRuntimeContractCommit;
 writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 4)}\n`);
 
 const sourcePath = join(nodeRoot, "src", "cliVersion.ts");
@@ -66,6 +67,8 @@ writeFileSync(
         `export const COPILOT_CLI_VERSION = ${JSON.stringify(version)};`,
         "",
         `export const COPILOT_CLI_USE_NPM_PACKAGE = ${useNpmPackage};`,
+        "",
+        "export const COPILOT_RUNTIME_CONTRACT_COMMIT = undefined;",
         "",
     ].join("\n")
 );

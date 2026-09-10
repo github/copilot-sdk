@@ -9,10 +9,14 @@
 import { execFile } from "child_process";
 import fs from "fs/promises";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
+import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
-import { COPILOT_CLI_VERSION } from "../../nodejs/src/cliVersion.js";
+import {
+    COPILOT_CLI_VERSION,
+    COPILOT_RUNTIME_CONTRACT_COMMIT,
+} from "../../nodejs/src/cliVersion.js";
 import { ensureCopilotPackage } from "../../nodejs/scripts/releaseArtifacts.js";
 
 export const execFileAsync = promisify(execFile);
@@ -51,6 +55,55 @@ export type SchemaWithSharedDefinitions<T extends JSONSchema7 = JSONSchema7> = T
  * Resolve a JSON schema from the pinned Copilot CLI GitHub Release.
  */
 async function resolveCopilotSchemaPath(fileName: string): Promise<string> {
+    if (COPILOT_RUNTIME_CONTRACT_COMMIT) {
+        const schemaDirectory = path.join(
+            os.tmpdir(),
+            "github-copilot-sdk",
+            "runtime-contracts",
+            COPILOT_RUNTIME_CONTRACT_COMMIT
+        );
+        const schemaPath = path.join(schemaDirectory, fileName);
+        try {
+            await fs.access(schemaPath);
+            return schemaPath;
+        } catch {
+            // Download below.
+        }
+
+        const token =
+            process.env.RUNTIME_TRIAGE_TOKEN ??
+            process.env.GH_TOKEN ??
+            process.env.GITHUB_TOKEN;
+        if (!token) {
+            throw new Error(
+                "RUNTIME_TRIAGE_TOKEN, GH_TOKEN, or GITHUB_TOKEN is required " +
+                    `to fetch runtime schemas at ${COPILOT_RUNTIME_CONTRACT_COMMIT}`
+            );
+        }
+        const response = await fetch(
+            `https://api.github.com/repos/github/copilot-agent-runtime/contents/generated/${fileName}` +
+                `?ref=${COPILOT_RUNTIME_CONTRACT_COMMIT}`,
+            {
+                headers: {
+                    Accept: "application/vnd.github.raw+json",
+                    Authorization: `Bearer ${token}`,
+                    "User-Agent": "github-copilot-sdk-codegen",
+                },
+            }
+        );
+        if (!response.ok) {
+            throw new Error(
+                `Failed to fetch ${fileName} at ${COPILOT_RUNTIME_CONTRACT_COMMIT}: ` +
+                    `${response.status} ${response.statusText}`
+            );
+        }
+        const schema = await response.text();
+        JSON.parse(schema);
+        await fs.mkdir(schemaDirectory, { recursive: true });
+        await fs.writeFile(schemaPath, schema);
+        return schemaPath;
+    }
+
     const packageRoot = await ensureCopilotPackage(COPILOT_CLI_VERSION);
     const schemaPath = path.join(packageRoot, "schemas", fileName);
     await fs.access(schemaPath);
@@ -248,33 +301,41 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
 }
 
 /**
- * Strip boolean literal constraints (`const: true/false`, `enum: [true]`, `enum: [false]`)
- * from a schema, recursively. quicktype's Python renderer attempts to derive
- * identifier names from enum values; deriving a name from a boolean throws inside
- * `snakeNameStyle` (TypeError: s.codePointAt is not a function).
+ * Strip boolean and numeric literal constraints from a schema recursively.
+ * quicktype's Python renderer attempts to derive identifier names from enum
+ * values; deriving a name from a primitive throws inside `snakeNameStyle`
+ * (TypeError: s.codePointAt is not a function).
  *
  * The literal narrowing isn't expressible in Python anyway, so we drop it and
- * keep just `type: "boolean"`. Other codegen runs on the original schema.
+ * keep the primitive type. Rust also uses this normalization because numeric
+ * const values otherwise degrade to `serde_json::Value`.
  */
-export function stripBooleanLiterals<T>(schema: T): T {
+export function stripPrimitiveLiterals<T>(schema: T): T {
     if (typeof schema !== "object" || schema === null) return schema;
     if (Array.isArray(schema)) {
-        return schema.map((item) => stripBooleanLiterals(item)) as unknown as T;
+        return schema.map((item) => stripPrimitiveLiterals(item)) as unknown as T;
     }
     const result: Record<string, unknown> = {};
     const src = schema as unknown as Record<string, unknown>;
-    const isBooleanType = src.type === "boolean";
+    const isPrimitiveLiteralType =
+        src.type === "boolean" || src.type === "integer" || src.type === "number";
     for (const [key, value] of Object.entries(src)) {
-        if (isBooleanType && key === "const" && typeof value === "boolean") continue;
         if (
-            isBooleanType &&
-            key === "enum" &&
-            Array.isArray(value) &&
-            value.every((v) => typeof v === "boolean")
+            isPrimitiveLiteralType &&
+            key === "const" &&
+            (typeof value === "boolean" || typeof value === "number")
         ) {
             continue;
         }
-        result[key] = stripBooleanLiterals(value);
+        if (
+            isPrimitiveLiteralType &&
+            key === "enum" &&
+            Array.isArray(value) &&
+            value.every((v) => typeof v === "boolean" || typeof v === "number")
+        ) {
+            continue;
+        }
+        result[key] = stripPrimitiveLiterals(value);
     }
     return result as T;
 }

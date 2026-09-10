@@ -8,6 +8,9 @@ use github_copilot_sdk::rpc::{
     SubagentSettingsEntryContextTier, UpdateSubagentSettingsRequest,
     UpdateSubagentSettingsRequestSubagents, VisibilitySetRequest,
 };
+use github_copilot_sdk::session_activity::{
+    SessionActivitySupport, SessionActivityUnsupportedReason,
+};
 use github_copilot_sdk::session_events::PermissionMode;
 
 use super::support::{assistant_message_content, with_e2e_context};
@@ -68,15 +71,14 @@ async fn should_report_session_activity_when_idle() {
                     .await
                     .expect("create session");
 
-                let activity = session
-                    .rpc()
-                    .metadata()
-                    .activity()
-                    .await
-                    .expect("get activity");
+                let activity = session.activity().await.expect("get activity");
 
-                assert!(!activity.has_active_work);
-                assert!(!activity.abortable);
+                assert_eq!(
+                    activity,
+                    SessionActivitySupport::Unsupported(
+                        SessionActivityUnsupportedReason::LegacyResponse
+                    )
+                );
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -490,6 +492,7 @@ async fn should_update_and_clear_live_subagent_settings() {
                             agents: Some(HashMap::from([(
                                 "general-purpose".to_string(),
                                 SubagentSettingsEntry {
+                                    auto_invoke: None,
                                     context_tier: Some(
                                         SubagentSettingsEntryContextTier::LongContext,
                                     ),

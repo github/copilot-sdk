@@ -684,6 +684,34 @@ impl Session {
         Ok(())
     }
 
+    /// Query the authoritative operational activity snapshot for this session.
+    ///
+    /// Subscribe with [`Session::subscribe`] before calling this method, then
+    /// feed both the query result and `session.activity_changed` events through
+    /// one [`SessionActivityReducer`](crate::session_activity::SessionActivityReducer)
+    /// scoped to the current runtime connection.
+    ///
+    /// A runtime without `session.metadata.activity`, a legacy two-field
+    /// response, or an unknown contract version is reported as
+    /// [`SessionActivitySupport::Unsupported`](crate::session_activity::SessionActivitySupport::Unsupported).
+    /// A malformed version 1 response is an error.
+    pub async fn activity(&self) -> Result<crate::session_activity::SessionActivitySupport, Error> {
+        let params = serde_json::json!({ "sessionId": self.id() });
+        match self
+            .client
+            .call(rpc_methods::SESSION_METADATA_ACTIVITY, Some(params))
+            .await
+        {
+            Ok(activity) => crate::session_activity::classify_query(activity),
+            Err(error) if error.rpc_code() == Some(error_codes::METHOD_NOT_FOUND) => Ok(
+                crate::session_activity::SessionActivitySupport::Unsupported(
+                    crate::session_activity::SessionActivityUnsupportedReason::MethodUnavailable,
+                ),
+            ),
+            Err(error) => Err(error),
+        }
+    }
+
     /// Switch to a different model.
     ///
     /// Pass `None` for `opts` if no extra configuration is needed.

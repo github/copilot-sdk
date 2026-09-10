@@ -34,7 +34,7 @@ import {
     collectInternalFieldsOnPublicTypes,
     annotateInternalPythonFields,
     renameInternalPythonSymbols,
-    stripBooleanLiterals,
+    stripPrimitiveLiterals,
     writeGeneratedFile,
     collectDefinitionCollections,
     collectExperimentalOnlyRpcReferencedDefinitionNames,
@@ -3069,7 +3069,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     const singleSchema: Record<string, unknown> = {
         $schema: "http://json-schema.org/draft-07/schema#",
         type: "object",
-        definitions: stripBooleanLiterals(allDefinitions),
+        definitions: stripPrimitiveLiterals(allDefinitions),
         properties: Object.fromEntries(
             Object.keys(allDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
         ),

@@ -6,6 +6,7 @@
     },
     "version": "0.0.0-dev",
     "copilotCliVersion": "1.0.83",
+    "copilotRuntimeContractCommit": "fe8a752a5442916234d59611eda30f68ba0821f9",
     "description": "TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC",
     "main": "./dist/cjs/index.js",
     "types": "./dist/index.d.ts",

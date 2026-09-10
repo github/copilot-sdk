@@ -55,8 +55,15 @@ jobs:
         run: npm test
 
       - name: Run codegen
+        if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]')
         working-directory: ./java/scripts/codegen
+        env:
+          RUNTIME_TRIAGE_TOKEN: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
         run: npm run generate
+
+      - name: Note unavailable private runtime schemas
+        if: github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]')
+        run: echo "::notice::Skipping regeneration because this pull request cannot access the pinned private runtime schemas."
 
       - name: Check for uncommitted changes
         id: check-changes

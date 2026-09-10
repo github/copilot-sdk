@@ -51,7 +51,7 @@ import {
 	resolveRef,
 	resolveSchema,
 	rewriteSharedDefinitionReferences,
-	stripBooleanLiterals,
+	stripPrimitiveLiterals,
 	type EnumValueDescriptions,
 } from "./utils.js";
 
@@ -2225,14 +2225,14 @@ async function generate(): Promise<void> {
 
 	const sessionEventsSchema = propagateInternalVisibility(
 		postProcessSchema(
-			stripBooleanLiterals(
+			stripPrimitiveLiterals(
 				addManagedApprovalRequiredToPermissionRequests(sessionEventsRaw as JSONSchema7),
 			) as JSONSchema7,
 		),
 	);
 	const apiSchema = propagateInternalVisibility(
 		postProcessSchema(
-			stripBooleanLiterals(apiRaw) as JSONSchema7,
+			stripPrimitiveLiterals(apiRaw) as JSONSchema7,
 		),
 	) as unknown as ApiSchema;
 
