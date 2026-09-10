@@ -114,7 +114,7 @@ describe("FfiRuntimeHost callback cleanup", () => {
         expect(ffi.hostShutdown).toHaveBeenCalledTimes(1);
     });
 
-    it("defers reclamation when dispose is reentrant from the outbound callback", async () => {
+    it("defers reclamation when dispose is called from the outbound callback", async () => {
         ffi.connectionClose.mockReturnValueOnce(false).mockReturnValueOnce(true);
         const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, []);
         await host.start();
@@ -130,5 +130,22 @@ describe("FfiRuntimeHost callback cleanup", () => {
         expect(ffi.unregister).toHaveBeenCalledTimes(1);
         expect(ffi.hostShutdown).toHaveBeenCalledTimes(1);
         expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("does not retry a terminal host shutdown failure", async () => {
+        ffi.connectionClose.mockReturnValue(true);
+        ffi.hostShutdown.mockReturnValueOnce(false);
+        const error = vi.spyOn(console, "error").mockImplementation(() => {});
+        const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, []);
+        await host.start();
+
+        host.dispose();
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(ffi.connectionClose).toHaveBeenCalledTimes(1);
+        expect(ffi.unregister).toHaveBeenCalledTimes(1);
+        expect(ffi.hostShutdown).toHaveBeenCalledTimes(1);
+        expect(vi.getTimerCount()).toBe(0);
+        error.mockRestore();
     });
 });

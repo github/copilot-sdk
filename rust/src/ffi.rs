@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 
@@ -45,7 +45,6 @@ type ConnectionCloseFn = unsafe extern "C" fn(u32) -> bool;
 /// route inbound frames back to the reader.
 struct CallbackState {
     tx: mpsc::UnboundedSender<Vec<u8>>,
-    active_callbacks: AtomicUsize,
     closing: AtomicBool,
 }
 
@@ -54,14 +53,11 @@ extern "C" fn on_outbound(user_data: *mut c_void, bytes: *const u8, len: usize) 
         return;
     }
     let state = unsafe { &*(user_data as *const CallbackState) };
-    state.active_callbacks.fetch_add(1, Ordering::SeqCst);
     if state.closing.load(Ordering::SeqCst) {
-        state.active_callbacks.fetch_sub(1, Ordering::SeqCst);
         return;
     }
     let slice = unsafe { std::slice::from_raw_parts(bytes, len) };
     let _ = state.tx.send(slice.to_vec());
-    state.active_callbacks.fetch_sub(1, Ordering::SeqCst);
 }
 
 /// Bound exports and connection lifecycle state, shared between the
@@ -117,10 +113,12 @@ impl FfiShared {
                             std::thread::sleep(std::time::Duration::from_millis(100));
                         }
                         release_callback_state(state);
-                        if server != 0 {
-                            while !unsafe { host_shutdown(server) } {
-                                std::thread::sleep(std::time::Duration::from_millis(100));
-                            }
+                        if server != 0 && !unsafe { host_shutdown(server) } {
+                            warn!(
+                                library = %library_path.display(),
+                                server_id = server,
+                                "FFI runtime host shutdown did not recognize server"
+                            );
                         }
                         debug!(library = %library_path.display(), "FFI runtime connection closed");
                     })
@@ -140,10 +138,12 @@ impl FfiShared {
             .callback_state
             .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
         release_callback_state(state);
-        if server != 0 {
-            if !unsafe { (self.host_shutdown)(server) } {
-                schedule_host_shutdown_retry(self.host_shutdown, server, self.library_path.clone());
-            }
+        if server != 0 && !unsafe { (self.host_shutdown)(server) } {
+            warn!(
+                library = %self.library_path.display(),
+                server_id = server,
+                "FFI runtime host shutdown did not recognize server"
+            );
         }
         debug!(library = %self.library_path.display(), "FFI runtime connection closed");
     }
@@ -167,30 +167,7 @@ fn release_callback_state(state: usize) {
         return;
     }
     let state = state as *mut CallbackState;
-    while unsafe { &*state }.active_callbacks.load(Ordering::SeqCst) != 0 {
-        std::thread::yield_now();
-    }
     drop(unsafe { Box::from_raw(state) });
-}
-
-fn schedule_host_shutdown_retry(host_shutdown: HostShutdownFn, server: u32, library_path: PathBuf) {
-    let thread_library_path = library_path.clone();
-    if let Err(error) = std::thread::Builder::new()
-        .name("copilot-ffi-cleanup".to_owned())
-        .spawn(move || {
-            while !unsafe { host_shutdown(server) } {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
-            debug!(library = %thread_library_path.display(), "FFI runtime host shut down");
-        })
-    {
-        warn!(
-            error = %error,
-            library = %library_path.display(),
-            server_id = server,
-            "failed to start deferred FFI host shutdown thread"
-        );
-    }
 }
 
 impl Drop for FfiShared {
@@ -376,7 +353,6 @@ impl FfiHost {
         let (tx, rx) = mpsc::unbounded_channel::<Vec<u8>>();
         let state_ptr = Box::into_raw(Box::new(CallbackState {
             tx,
-            active_callbacks: AtomicUsize::new(0),
             closing: AtomicBool::new(false),
         }));
         let connection_id = unsafe {

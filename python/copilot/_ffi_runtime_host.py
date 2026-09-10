@@ -337,6 +337,8 @@ class FfiRuntimeHost:
     :class:`JsonRpcClient`, and call :meth:`dispose` to tear everything down.
     """
 
+    _quarantined_hosts: set[FfiRuntimeHost] = set()
+
     def __init__(
         self,
         library_path: str,
@@ -362,10 +364,6 @@ class FfiRuntimeHost:
         # Keep a strong reference to the ctypes callback for its whole lifetime;
         # dropping it while native code can still invoke it is a use-after-free.
         self._outbound_callback: ctypes._FuncPointer | None = None
-        # Serializes teardown against in-flight native callbacks.
-        self._active_callbacks = 0
-        self._callback_lock = threading.Lock()
-
         self._process = _FfiProcessAdapter(self)
 
     @property
@@ -472,21 +470,18 @@ class FfiRuntimeHost:
         out before returning. Exceptions must not cross the FFI boundary, so
         everything is caught and logged.
         """
-        with self._callback_lock:
-            if self._disposed:
-                return
-            self._active_callbacks += 1
+        if self._disposed:
+            return
         try:
             if bytes_ptr and bytes_len > 0:
                 data = ctypes.string_at(bytes_ptr, bytes_len)
                 self._receive_buffer.feed(data)
         except Exception:  # noqa: BLE001
             logger.error("In-process FFI inbound callback failed", exc_info=True)
-        finally:
-            with self._callback_lock:
-                self._active_callbacks -= 1
 
     def _write_frame(self, frame: bytes) -> None:
+        if self._disposed:
+            raise RuntimeError("The in-process runtime connection is closed.")
         with self._operation_lock:
             if self._disposed or not self._connection_id:
                 raise RuntimeError("The in-process runtime connection is closed.")
@@ -513,37 +508,43 @@ class FfiRuntimeHost:
 
     def _try_finalize_cleanup(self) -> None:
         with self._dispose_lock:
-            self._cleanup_timer = None
+            if self._cleanup_timer is not None:
+                return
             with self._operation_lock:
                 if self._connection_id:
                     try:
                         closed = self._lib.connection_close(self._connection_id)
                     except Exception:  # noqa: BLE001
                         logger.debug("Error closing in-process FFI connection", exc_info=True)
-                        self._schedule_cleanup_retry()
+                        self._quarantined_hosts.add(self)
                         return
                     if not closed:
                         self._schedule_cleanup_retry()
                         return
                     self._connection_id = 0
                     self._outbound_callback = None
+                    self._quarantined_hosts.discard(self)
 
                 if self._server_id:
                     try:
-                        shut_down = self._lib.host_shutdown(self._server_id)
+                        if not self._lib.host_shutdown(self._server_id):
+                            logger.debug(
+                                "In-process FFI host shutdown did not recognize server %s",
+                                self._server_id,
+                            )
                     except Exception:  # noqa: BLE001
                         logger.debug("Error shutting down in-process FFI host", exc_info=True)
-                        self._schedule_cleanup_retry()
-                        return
-                    if not shut_down:
-                        self._schedule_cleanup_retry()
-                        return
                     self._server_id = 0
 
     def _schedule_cleanup_retry(self) -> None:
         if self._cleanup_timer is not None:
             return
-        timer = threading.Timer(_CLEANUP_RETRY_INTERVAL_SECONDS, self._try_finalize_cleanup)
+        timer = threading.Timer(_CLEANUP_RETRY_INTERVAL_SECONDS, self._run_cleanup_retry)
         timer.daemon = True
         self._cleanup_timer = timer
         timer.start()
+
+    def _run_cleanup_retry(self) -> None:
+        with self._dispose_lock:
+            self._cleanup_timer = None
+        self._try_finalize_cleanup()

@@ -123,6 +123,8 @@ function buildEnvJson(environment?: Record<string, string | undefined>): Buffer 
 }
 
 export class FfiRuntimeHost {
+    private static readonly quarantinedHosts = new Set<FfiRuntimeHost>();
+
     private readonly lib: FfiLibrary;
     private serverId = 0;
     private connectionId = 0;
@@ -303,20 +305,19 @@ export class FfiRuntimeHost {
         }
     }
 
-    private unregisterCallback(): boolean {
+    private unregisterCallback(): void {
         if (this.outboundCallback === undefined) {
-            return true;
+            return;
         }
         const callback = this.outboundCallback;
         try {
             koffi.unregister(callback);
             this.outboundCallback = undefined;
-            return true;
         } catch (error) {
             console.error(
                 `Failed to unregister in-process FFI callback: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
             );
-            return false;
+            this.outboundCallback = undefined;
         }
     }
 
@@ -346,7 +347,11 @@ export class FfiRuntimeHost {
                     console.error(
                         `Failed to close in-process FFI connection: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
                     );
-                    this.scheduleCleanupRetry();
+                    FfiRuntimeHost.quarantinedHosts.add(this);
+                    if (this.keepAliveTimer !== undefined) {
+                        clearInterval(this.keepAliveTimer);
+                        this.keepAliveTimer = undefined;
+                    }
                     return;
                 }
                 if (!closed) {
@@ -355,10 +360,7 @@ export class FfiRuntimeHost {
                 }
                 this.connectionId = 0;
             }
-            if (!this.unregisterCallback()) {
-                this.scheduleCleanupRetry();
-                return;
-            }
+            this.unregisterCallback();
 
             // The referenced timer is part of the callback lifetime. Clearing it
             // before connection_close reports quiescence can let the process exit
@@ -369,22 +371,20 @@ export class FfiRuntimeHost {
             }
 
             if (this.serverId) {
-                let shutDown = false;
                 try {
-                    shutDown = Boolean(this.lib.hostShutdown(this.serverId));
+                    if (!this.lib.hostShutdown(this.serverId)) {
+                        console.error(
+                            `In-process FFI host shutdown did not recognize server ${this.serverId}.`
+                        );
+                    }
                 } catch (error) {
                     console.error(
                         `Failed to shut down in-process FFI host: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
                     );
-                    this.scheduleCleanupRetry();
-                    return;
-                }
-                if (!shutDown) {
-                    this.scheduleCleanupRetry();
-                    return;
                 }
                 this.serverId = 0;
             }
+            FfiRuntimeHost.quarantinedHosts.delete(this);
         } finally {
             this.cleanupInProgress = false;
         }

@@ -41,17 +41,17 @@ import java.util.logging.Logger;
  * <h2>Active-callback tracking</h2>
  * <p>
  * The {@link #activeCallbacks} counter is incremented when the native runtime
- * enters the outbound callback and decremented when the callback returns.
- * Callers (e.g. {@code FfiRuntimeHost}) must drain this counter to zero before
- * calling {@link #connectionClose} or {@link #hostShutdown}.
+ * enters the outbound callback and decremented when the callback returns. It is
+ * retained for diagnostics and tests; a successful {@link #connectionClose}
+ * is the authoritative callback-quiescence barrier.
  *
  * <h2>Callback lifetime</h2>
  * <p>
- * The native runtime can invoke an outbound callback after connection close and
- * host shutdown return. Each JNA callback wrapper is therefore retained for the
- * lifetime of the JVM. After host shutdown, its Java delegate is detached so a
- * late native invocation safely becomes a no-op without retaining the complete
- * host object graph.
+ * The native runtime can still be inside an outbound callback when
+ * {@link #connectionClose} returns {@code false}. Each JNA callback wrapper is
+ * therefore retained for the lifetime of the JVM. After host shutdown, its Java
+ * delegate is detached so the wrapper no longer retains the complete host object
+ * graph.
  *
  * <h2>GraalVM Native Image</h2>
  * <p>
@@ -133,10 +133,7 @@ final class JnaNativeBinding implements NativeBinding {
      */
     private final CopilotRuntimeLibrary lib;
 
-    /**
-     * Count of callbacks currently executing on native threads. Must reach zero
-     * before {@link #connectionClose} or {@link #hostShutdown} is called.
-     */
+    /** Count of callbacks currently executing on native threads. */
     final AtomicInteger activeCallbacks = new AtomicInteger(0);
 
     /**

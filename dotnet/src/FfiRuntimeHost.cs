@@ -39,11 +39,14 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     {
         Complete,
         Retry,
+        Failed,
     }
 
     /// <summary>Logical name the native interop layer binds the cdylib to.</summary>
     private const string LibraryName = "copilot_runtime";
     private const int CleanupRetryDelayMilliseconds = 100;
+    private static readonly object QuarantineLock = new();
+    private static readonly HashSet<FfiRuntimeHost> QuarantinedHosts = [];
 
     private readonly ILogger _logger;
     private readonly string? _cliEntrypoint;
@@ -230,6 +233,10 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private bool SendFrame(ReadOnlySpan<byte> frame)
     {
+        if (Volatile.Read(ref _disposed))
+        {
+            return false;
+        }
         lock (_lifecycleLock)
         {
             if (_disposed || _connectionId == 0)
@@ -282,7 +289,11 @@ internal sealed partial class FfiRuntimeHost : IDisposable
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "FfiRuntimeHost: connection_close failed");
-                return NativeCleanupResult.Retry;
+                lock (QuarantineLock)
+                {
+                    QuarantinedHosts.Add(this);
+                }
+                return NativeCleanupResult.Failed;
             }
             if (!closed)
             {
@@ -295,19 +306,18 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
         if (_serverId != 0)
         {
-            bool shutDown;
             try
             {
-                shutDown = _hostShutdown(_serverId);
+                if (!_hostShutdown(_serverId))
+                {
+                    _logger.LogDebug(
+                        "FfiRuntimeHost: host_shutdown did not recognize server {ServerId}",
+                        _serverId);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "FfiRuntimeHost: host_shutdown failed");
-                return NativeCleanupResult.Retry;
-            }
-            if (!shutDown)
-            {
-                return NativeCleanupResult.Retry;
             }
 
             _serverId = 0;

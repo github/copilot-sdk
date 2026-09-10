@@ -14,11 +14,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,11 +42,7 @@ public final class FfiRuntimeHost implements AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(FfiRuntimeHost.class.getName());
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final ScheduledExecutorService CLEANUP_EXECUTOR = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread thread = new Thread(r, "copilot-ffi-cleanup");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private static final Set<FfiRuntimeHost> QUARANTINED_HOSTS = ConcurrentHashMap.newKeySet();
 
     private final NativeBinding nativeBinding;
     private final QueueInputStream receiveStream;
@@ -53,8 +51,6 @@ public final class FfiRuntimeHost implements AutoCloseable {
     private final AtomicBoolean cleanupScheduled = new AtomicBoolean(false);
     private final AtomicInteger serverId = new AtomicInteger(0);
     private final AtomicInteger connectionId = new AtomicInteger(0);
-    private final AtomicInteger activeCallbacks = new AtomicInteger(0);
-    private final Object callbackDrainMonitor = new Object();
     private final ReentrantLock operationLock = new ReentrantLock();
     private final FfiOutputStream sendStream;
     private final String libraryPath;
@@ -192,22 +188,22 @@ public final class FfiRuntimeHost implements AutoCloseable {
                     }
                 } catch (Throwable t) {
                     LOG.log(Level.FINE, "Failed to close FFI connection", t);
-                    return false;
+                    QUARANTINED_HOSTS.add(this);
+                    return true;
                 }
                 connectionId.set(0);
-                drainActiveCallbacks();
                 callbackRef = null;
+                QUARANTINED_HOSTS.remove(this);
             }
 
             int hostHandle = serverId.get();
             if (hostHandle != 0) {
                 try {
                     if (!nativeBinding.hostShutdown(hostHandle)) {
-                        return false;
+                        LOG.fine(() -> "FFI host shutdown did not recognize server " + hostHandle);
                     }
                 } catch (Throwable t) {
                     LOG.log(Level.FINE, "Failed to shut down FFI host", t);
-                    return false;
                 }
                 serverId.set(0);
             }
@@ -221,7 +217,7 @@ public final class FfiRuntimeHost implements AutoCloseable {
         if (!cleanupScheduled.compareAndSet(false, true)) {
             return;
         }
-        CLEANUP_EXECUTOR.schedule(this::retryCleanup, 100, TimeUnit.MILLISECONDS);
+        CompletableFuture.delayedExecutor(100, TimeUnit.MILLISECONDS).execute(this::retryCleanup);
     }
 
     private void retryCleanup() {
@@ -229,23 +225,7 @@ public final class FfiRuntimeHost implements AutoCloseable {
             cleanupScheduled.set(false);
             return;
         }
-        CLEANUP_EXECUTOR.schedule(this::retryCleanup, 100, TimeUnit.MILLISECONDS);
-    }
-
-    private void drainActiveCallbacks() {
-        while (activeCallbacks.get() > 0) {
-            synchronized (callbackDrainMonitor) {
-                if (activeCallbacks.get() == 0) {
-                    return;
-                }
-                try {
-                    callbackDrainMonitor.wait(10L);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
-        }
+        CompletableFuture.delayedExecutor(100, TimeUnit.MILLISECONDS).execute(this::retryCleanup);
     }
 
     private OutboundCallback createOutboundCallback() {
@@ -253,7 +233,6 @@ public final class FfiRuntimeHost implements AutoCloseable {
             if (closing.get()) {
                 return;
             }
-            activeCallbacks.incrementAndGet();
             try {
                 int length = len.intValue();
                 if (closing.get() || data == null || length <= 0) {
@@ -265,12 +244,6 @@ public final class FfiRuntimeHost implements AutoCloseable {
                 }
             } catch (Throwable t) {
                 LOG.log(Level.WARNING, "Exception in FFI outbound callback", t);
-            } finally {
-                if (activeCallbacks.decrementAndGet() == 0) {
-                    synchronized (callbackDrainMonitor) {
-                        callbackDrainMonitor.notifyAll();
-                    }
-                }
             }
         };
     }

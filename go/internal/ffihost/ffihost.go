@@ -146,12 +146,10 @@ type Host struct {
 	lifecycleMu sync.Mutex
 	// mu serializes disposal with native callbacks so the receive buffer cannot
 	// be fed after it is closed.
-	mu           sync.Mutex
-	serverID     uint32
-	connectionID uint32
-	disposed     bool
-	// activeCallbacks counts outbound native callbacks currently executing.
-	activeCallbacks  int
+	mu               sync.Mutex
+	serverID         uint32
+	connectionID     uint32
+	disposed         bool
 	cleanupScheduled bool
 
 	recv *receiveBuffer
@@ -271,13 +269,9 @@ func (h *Host) onOutbound(bytesPtr uintptr, bytesLen uintptr) uintptr {
 		h.mu.Unlock()
 		return 0
 	}
-	h.activeCallbacks++
 	h.mu.Unlock()
 
 	defer func() {
-		h.mu.Lock()
-		h.activeCallbacks--
-		h.mu.Unlock()
 		// Never let a panic unwind into native code.
 		_ = recover()
 	}()
@@ -296,11 +290,18 @@ func (h *Host) onOutbound(bytesPtr uintptr, bytesLen uintptr) uintptr {
 }
 
 func (h *Host) writeFrame(frame []byte) (int, error) {
+	h.mu.Lock()
+	disposed := h.disposed
+	h.mu.Unlock()
+	if disposed {
+		return 0, fmt.Errorf("the in-process runtime connection is closed")
+	}
+
 	h.lifecycleMu.Lock()
 	defer h.lifecycleMu.Unlock()
 
 	h.mu.Lock()
-	disposed := h.disposed
+	disposed = h.disposed
 	h.mu.Unlock()
 	connID := h.connectionID
 	if disposed || connID == 0 {
@@ -338,37 +339,25 @@ func (h *Host) Dispose() {
 }
 
 func (h *Host) tryFinalizeCleanupLocked() bool {
-	h.mu.Lock()
 	connID := h.connectionID
-	h.mu.Unlock()
 
 	if connID != 0 {
 		if !h.lib.connectionClose(connID) {
 			return false
 		}
-		h.mu.Lock()
 		h.connectionID = 0
-		h.mu.Unlock()
 	}
 
-	h.mu.Lock()
 	callbackToken := h.callbackToken
 	h.callbackToken = 0
-	h.mu.Unlock()
 	if callbackToken != 0 {
 		outboundTargets.Delete(callbackToken)
 	}
 
-	h.mu.Lock()
 	serverID := h.serverID
-	h.mu.Unlock()
 	if serverID != 0 {
-		if !h.lib.hostShutdown(serverID) {
-			return false
-		}
-		h.mu.Lock()
+		h.lib.hostShutdown(serverID)
 		h.serverID = 0
-		h.mu.Unlock()
 		if h.cliEntrypoint != "" {
 			// A legacy host may restore its saved SIGCHLD action during shutdown.
 			rearmForeignSignalHandlers(h.lib.handle)
