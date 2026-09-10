@@ -365,7 +365,56 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
-        return _connectionTask ??= StartCoreAsync(cancellationToken);
+        var connectionTask = Volatile.Read(ref _connectionTask);
+        if (connectionTask is not null)
+        {
+            return connectionTask;
+        }
+
+        var completion = new TaskCompletionSource<Connection>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        // Publish before startup begins because StartCoreAsync executes synchronously
+        // until its first incomplete await and can re-enter user-provided callbacks.
+        connectionTask = Interlocked.CompareExchange(
+            ref _connectionTask,
+            completion.Task,
+            null);
+        if (connectionTask is not null)
+        {
+            return connectionTask;
+        }
+
+        _ = CompleteStartAsync(completion, cancellationToken);
+        return completion.Task;
+
+        async Task CompleteStartAsync(
+            TaskCompletionSource<Connection> startCompletion,
+            CancellationToken ct)
+        {
+            try
+            {
+                var connection = await StartCoreAsync(ct).ConfigureAwait(false);
+                startCompletion.TrySetResult(connection);
+            }
+            catch (OperationCanceledException)
+            {
+                // Clear before waking waiters so continuations can immediately retry.
+                _ = Interlocked.CompareExchange(
+                    ref _connectionTask,
+                    null,
+                    startCompletion.Task);
+                startCompletion.TrySetCanceled(ct);
+            }
+            catch (Exception ex)
+            {
+                // Clear before waking waiters so continuations can immediately retry.
+                _ = Interlocked.CompareExchange(
+                    ref _connectionTask,
+                    null,
+                    startCompletion.Task);
+                startCompletion.TrySetException(ex);
+            }
+        }
 
         async Task<Connection> StartCoreAsync(CancellationToken ct)
         {
@@ -375,6 +424,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             Connection? connection = null;
             Process? cliProcess = null;
             ProcessStderrPump? stderrPump = null;
+            FfiRuntimeHost? ffiHost = null;
 
             try
             {
@@ -427,7 +477,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                             ?? throw new InvalidOperationException(
                                 $"In-process FFI runtime library not found at '{searchedRuntime}'.")
                         : ResolveRuntimePathForExplicitCli(explicitCliPath);
-                    var ffiHost = FfiRuntimeHost.Create(
+                    ffiHost = FfiRuntimeHost.Create(
                         ffiRuntimePath,
                         explicitCliPath,
                         ffiEnvironment,
@@ -502,6 +552,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 else if (cliProcess is not null)
                 {
                     await CleanupCliProcessAsync(cliProcess, stderrPump, errors: null, _logger);
+                }
+                else if (ffiHost is not null)
+                {
+                    try { ffiHost.Dispose(); }
+                    catch (Exception cleanupError) { AddCleanupError(null, cleanupError, _logger); }
+                    _ffiHost = null;
                 }
 
                 if (ex is IOException
@@ -627,13 +683,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task CleanupConnectionAsync(List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
-        var connectionTask = _connectionTask;
+        var connectionTask = Interlocked.Exchange(ref _connectionTask, null);
         if (connectionTask is null)
         {
             return;
         }
-
-        _connectionTask = null;
 
         Connection ctx;
         try
@@ -2741,7 +2795,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             _logger.LogDebug(exception, "JSON-RPC connection completed with an error");
         }
 
-        var connectionTask = _connectionTask;
+        var connectionTask = Volatile.Read(ref _connectionTask);
         if (connectionTask is null
             || connectionTask.Status != System.Threading.Tasks.TaskStatus.RanToCompletion
             || !ReferenceEquals(connectionTask.Result.Rpc, rpc))

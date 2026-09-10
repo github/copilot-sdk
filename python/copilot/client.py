@@ -1753,6 +1753,7 @@ class CopilotClient:
         self._cli_process: subprocess.Popen | None = None
         self._client: JsonRpcClient | None = None
         self._state: _ConnectionState = "disconnected"
+        self._start_lock = asyncio.Lock()
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
         self._github_token_providers: dict[str, _GitHubTokenProviderRegistration] = {}
@@ -1938,12 +1939,15 @@ class CopilotClient:
             >>> await client.start()
             >>> # Now ready to create sessions
         """
-        if self._state == "connected":
-            return
+        async with self._start_lock:
+            if self._state == "connected":
+                return
 
+            await self._start_once()
+
+    async def _start_once(self) -> None:
         start_time = time.perf_counter()
         self._state = "connecting"
-
         try:
             # Only start CLI server process if not connecting to external server
             if not self._is_external_server:
@@ -1969,14 +1973,10 @@ class CopilotClient:
 
             if self._options.builtin_plugin_directories:
                 assert self._client is not None
-                try:
-                    await self._client.request(
-                        "plugins.builtin.set",
-                        {"paths": list(self._options.builtin_plugin_directories)},
-                    )
-                except Exception:
-                    await self.force_stop()
-                    raise
+                await self._client.request(
+                    "plugins.builtin.set",
+                    {"paths": list(self._options.builtin_plugin_directories)},
+                )
 
             if self._session_fs_config:
                 session_fs_start = time.perf_counter()
@@ -2000,6 +2000,7 @@ class CopilotClient:
             )
         except ProcessExitedError as e:
             # Process exited with error - reraise as RuntimeError with stderr
+            await self._cleanup_failed_start()
             self._state = "error"
             log_timing(
                 logger,
@@ -2009,16 +2010,13 @@ class CopilotClient:
                 exc_info=True,
             )
             raise RuntimeError(str(e)) from None
-        except Exception as e:
+        except asyncio.CancelledError:
+            await self._cleanup_failed_start()
             self._state = "error"
-            log_timing(
-                logger,
-                logging.WARNING,
-                "CopilotClient.start failed",
-                start_time,
-                exc_info=True,
-            )
+            raise
+        except Exception as e:
             # Check if process exited and capture any remaining stderr
+            startup_error: RuntimeError | None = None
             process = self._cli_process if self._cli_process is not None else self._process
             if process and hasattr(process, "poll"):
                 if isinstance(e, BrokenPipeError) and process.poll() is None:
@@ -2028,8 +2026,23 @@ class CopilotClient:
                         pass
                 return_code = process.poll()
                 if return_code is not None and self._client:
-                    raise RuntimeError(self._client._get_process_exit_error()) from e
+                    startup_error = RuntimeError(self._client._get_process_exit_error())
+
+            await self._cleanup_failed_start()
+            self._state = "error"
+            log_timing(
+                logger,
+                logging.WARNING,
+                "CopilotClient.start failed",
+                start_time,
+                exc_info=True,
+            )
+            if startup_error is not None:
+                raise startup_error from e
             raise
+
+    async def _cleanup_failed_start(self) -> None:
+        await self.force_stop()
 
     async def stop(self) -> None:
         """

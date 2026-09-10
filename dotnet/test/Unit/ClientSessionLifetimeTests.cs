@@ -13,6 +13,7 @@ using System.Text;
 using System.Text.Json;
 using GitHub.Copilot.Rpc;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -20,6 +21,66 @@ namespace GitHub.Copilot.Test.Unit;
 public sealed class ClientSessionLifetimeTests
 {
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
+
+    [Fact]
+    public async Task StartAsync_Concurrent_Callers_Share_One_Startup()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        var logger = new BlockingStartLogger();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Logger = logger
+        });
+        using var cancellation = new CancellationTokenSource();
+
+        var firstInvocation = Task.Run<Task>(() => client.StartAsync(cancellation.Token));
+        await logger.FirstStartEntered.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Task secondStart;
+        int startCount;
+        try
+        {
+            // Cancel before releasing the blocked first attempt so both code paths
+            // terminate without opening a connection if startup is duplicated.
+            cancellation.Cancel();
+            secondStart = client.StartAsync(cancellation.Token);
+            startCount = logger.StartCount;
+        }
+        finally
+        {
+            logger.ReleaseFirstStart();
+        }
+
+        var firstStart = await firstInvocation;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => firstStart);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => secondStart);
+
+        Assert.Equal(1, startCount);
+        Assert.Same(firstStart, secondStart);
+
+        await client.StartAsync();
+        Assert.Equal(2, logger.StartCount);
+    }
+
+    [Fact]
+    public async Task StartAsync_Retries_After_Failed_Startup()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        var logger = new FailFirstStartLogger();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Logger = logger
+        });
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => client.StartAsync());
+        Assert.Equal("first startup failed", error.Message);
+
+        await client.StartAsync();
+
+        Assert.Equal(2, logger.StartCount);
+    }
 
     [Theory]
     [InlineData("static")]
@@ -2181,6 +2242,70 @@ public sealed class ClientSessionLifetimeTests
             ?? throw new InvalidOperationException("Failed to start test process.");
         process.WaitForExit();
         return process;
+    }
+
+    private sealed class BlockingStartLogger : ILogger
+    {
+        private readonly TaskCompletionSource _firstStartEntered =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _allowFirstStart =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _startCount;
+
+        public Task FirstStartEntered => _firstStartEntered.Task;
+
+        public int StartCount => Volatile.Read(ref _startCount);
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel == LogLevel.Debug;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (formatter(state, exception) != "Starting Copilot client")
+            {
+                return;
+            }
+
+            var startCount = Interlocked.Increment(ref _startCount);
+            if (startCount == 1)
+            {
+                _firstStartEntered.TrySetResult();
+                _allowFirstStart.Task.GetAwaiter().GetResult();
+            }
+        }
+
+        public void ReleaseFirstStart() => _allowFirstStart.TrySetResult();
+    }
+
+    private sealed class FailFirstStartLogger : ILogger
+    {
+        private int _startCount;
+
+        public int StartCount => Volatile.Read(ref _startCount);
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel == LogLevel.Debug;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (formatter(state, exception) == "Starting Copilot client"
+                && Interlocked.Increment(ref _startCount) == 1)
+            {
+                throw new InvalidOperationException("first startup failed");
+            }
+        }
     }
 
     private sealed class FakeCopilotServer : IAsyncDisposable

@@ -206,15 +206,18 @@ class TestClient:
                 f"Expected error to contain 'nonexistent', got: {error_message}"
             )
 
-            # Verify subsequent calls also fail (don't hang)
-            with pytest.raises(Exception) as exc_info2:
-                session = await client.create_session(
-                    on_permission_request=PermissionHandler.approve_all
-                )
-                await session.send("test")
-            # Error message varies by platform (EINVAL on Windows, EPIPE on Linux)
-            error_msg = str(exc_info2.value).lower()
-            assert "invalid" in error_msg or "pipe" in error_msg or "closed" in error_msg
+            # A subsequent lazy start retries and reports the same invalid CLI
+            # configuration rather than using the failed process transport.
+            with pytest.raises(RuntimeError) as retry_exc_info:
+                await client.create_session(on_permission_request=PermissionHandler.approve_all)
+
+            retry_error_message = str(retry_exc_info.value)
+            assert "stderr" in retry_error_message, (
+                f"Expected retry error to contain 'stderr', got: {retry_error_message}"
+            )
+            assert "nonexistent" in retry_error_message, (
+                f"Expected retry error to contain 'nonexistent', got: {retry_error_message}"
+            )
         finally:
             await client.force_stop()
 
