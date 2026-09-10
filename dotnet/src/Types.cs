@@ -2134,6 +2134,58 @@ public enum AgentMode
 }
 
 /// <summary>
+/// Identifies the origin of a message sent to a session.
+/// </summary>
+[JsonConverter(typeof(MessageSource.Converter))]
+public sealed record MessageSource
+{
+    /// <summary>The message originates from user input.</summary>
+    public static MessageSource User { get; } = new("user");
+
+    /// <summary>The message provides application-generated context.</summary>
+    public static MessageSource System { get; } = new("system");
+
+    /// <summary>The string value used in JSON serialization.</summary>
+    public string Value { get; }
+
+    private MessageSource(string value) => Value = value;
+
+    /// <summary>Identifies a message from an agent.</summary>
+    /// <param name="id">The opaque agent identifier, preserved exactly after <c>agent-</c>.</param>
+    /// <returns>The agent message source.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="id"/> is null.</exception>
+    public static MessageSource Agent(string id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return new("agent-" + id);
+    }
+
+    /// <inheritdoc/>
+    public override string ToString() => Value;
+
+    /// <summary>Converts message sources to and from their wire strings.</summary>
+    public sealed class Converter : JsonConverter<MessageSource>
+    {
+        /// <inheritdoc/>
+        public override MessageSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            var value = GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert);
+            return value switch
+            {
+                "user" => User,
+                "system" => System,
+                _ when value.StartsWith("agent-", StringComparison.Ordinal) => new MessageSource(value),
+                _ => throw new JsonException($"Unknown MessageSource value: {value}")
+            };
+        }
+
+        /// <inheritdoc/>
+        public override void Write(Utf8JsonWriter writer, MessageSource value, JsonSerializerOptions options) =>
+            writer.WriteStringValue(value.Value);
+    }
+}
+
+/// <summary>
 /// Specifies the operation to perform on a system message section.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SectionOverrideAction>))]
@@ -2447,9 +2499,11 @@ public sealed class CapiSessionOptions
     /// </summary>
     /// <remarks>
     /// Requires a runtime that supports Auto tiers; it has no effect outside V2 Auto.
-    /// When omitted, the runtime uses its default on create and preserves the persisted or current
-    /// tier on resume. An explicit tier overrides the persisted tier on a cold resume; a conflicting
-    /// tier on a resident session resume is rejected by the runtime.
+    /// When omitted, the runtime uses its default on create and restores the last committed
+    /// tier on cold resume. On resident resume, a different tier requests a safe switch that
+    /// takes effect after resume succeeds and never disturbs a turn that is already running.
+    /// To change the preference on a live session, use
+    /// <see cref="CopilotSession.SetAutoTierAsync"/>.
     /// </remarks>
     [JsonPropertyName("autoTier")]
     public AutoTier? AutoTier { get; set; }
@@ -3017,6 +3071,26 @@ public struct SetModelOptions
 
     /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
+
+    /// <summary>
+    /// Routing preference to stage atomically with selecting the <c>auto</c> model.
+    /// </summary>
+    /// <remarks>
+    /// Leave unset to leave the current preference alone. Set
+    /// <see cref="ResetAutoTier"/> instead to return to the provider's default Auto
+    /// routing. The runtime rejects this option when the model is anything other than
+    /// <c>auto</c>; use <see cref="CopilotSession.SetAutoTierAsync"/> to change the
+    /// preference without changing the selected model.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    public AutoTier? AutoTier { get; set; }
+
+    /// <summary>
+    /// Returns to the provider's default Auto routing as part of this switch.
+    /// Mutually exclusive with <see cref="AutoTier"/>.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool ResetAutoTier { get; set; }
 }
 
 /// <summary>
@@ -4007,6 +4081,7 @@ public sealed class MessageOptions
         Attachments = other.Attachments is not null ? [.. other.Attachments] : null;
         Mode = other.Mode;
         AgentMode = other.AgentMode;
+        Source = other.Source;
         Prompt = other.Prompt;
         DisplayPrompt = other.DisplayPrompt;
         RequestHeaders = other.RequestHeaders is not null
@@ -4032,6 +4107,11 @@ public sealed class MessageOptions
     /// Defaults to the session's current mode when unset.
     /// </summary>
     public AgentMode? AgentMode { get; set; }
+    /// <summary>
+    /// The message's origin. When unset, the field is omitted and the runtime defaults to user input.
+    /// This tags message provenance; it does not replace the session's system prompt or change delivery mode.
+    /// </summary>
+    public MessageSource? Source { get; set; }
     /// <summary>
     /// Custom per-turn HTTP headers for outbound model requests.
     /// </summary>

@@ -188,6 +188,20 @@ export type Verbosity =
   /** A more detailed response was requested. */
   | "high";
 /**
+ * What the user must do to recover from a failure, named as an action rather than as one client's affordance. The runtime cannot know which affordance a client offers — a slash command, a settings pane, a link — so the accompanying message stays host-agnostic and each client renders its own copy from this value. Absent when the runtime knows of no action the user can take.
+ */
+export type RemediationAction =
+  /** Authenticate again with the Copilot backend. The current credential is absent, expired, or rejected. */
+  | "sign_in"
+  /** Authenticate as a different account. The current account exists but lacks access to the requested resource. */
+  | "switch_account"
+  /** Inspect which account is currently authenticated before deciding what to change. */
+  | "show_account"
+  /** Review or widen the sandbox policy. The blocked path or host is named by the accompanying message or by the tool result the action arrived with. */
+  | "review_sandbox_policy"
+  /** Permit outbound network access in the sandbox policy. */
+  | "allow_sandbox_outbound";
+/**
  * The session mode the agent is operating in
  */
 export type SessionMode =
@@ -1476,6 +1490,7 @@ export interface ErrorData {
    * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
    */
   providerCallId?: string;
+  remediation?: RemediationAction;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
    */
@@ -1856,6 +1871,7 @@ export interface WarningData {
    * Human-readable warning message for display in the timeline
    */
   message: string;
+  remediation?: RemediationAction;
   /**
    * Optional URL associated with this warning that the user can open in a browser
    */
@@ -6340,6 +6356,7 @@ export interface ToolExecutionCompleteError {
    * Human-readable error message
    */
   message: string;
+  remediation?: RemediationAction;
 }
 /**
  * Tool execution result on success
@@ -7948,11 +7965,11 @@ export interface PermissionRequestShell {
    */
   possibleUrls: PermissionRequestShellPossibleUrl[];
   /**
-   * True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   * True when the tool is asking to run this command outside the sandbox, either because the command detaches and cannot be sandboxed at all, or because a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
    */
   requestSandboxBypass?: boolean;
   /**
-   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   * What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
    */
   requestSandboxBypassReason?: string;
   /**
@@ -8065,11 +8082,11 @@ export interface PermissionRequestRead {
    */
   path: string;
   /**
-   * True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   * True when the tool is asking to re-run this search outside the sandbox, after a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
    */
   requestSandboxBypass?: boolean;
   /**
-   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   * What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
    */
   requestSandboxBypassReason?: string;
   /**
@@ -8137,11 +8154,11 @@ export interface PermissionRequestUrl {
    */
   redirectedFrom?: string;
   /**
-   * True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   * True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
    */
   requestSandboxBypass?: boolean;
   /**
-   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   * What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
    */
   requestSandboxBypassReason?: string;
   /**
@@ -8598,11 +8615,11 @@ export interface PermissionPromptRequestUrl {
    */
   redirectedFrom?: string;
   /**
-   * True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   * True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
    */
   requestSandboxBypass?: boolean;
   /**
-   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   * What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
    */
   requestSandboxBypassReason?: string;
   /**
@@ -11197,9 +11214,19 @@ export interface McpServersLoadedServer {
    * Version of the plugin that supplied the effective MCP server config, only when source is plugin
    */
   pluginVersion?: string;
+  serverMetadata?: McpServerMetadata;
   source?: McpServerSource;
   status: McpServerStatus;
   transport?: McpServerTransport;
+}
+/**
+ * Server-advertised metadata learned through modern discovery or legacy initialization.
+ */
+export interface McpServerMetadata {
+  /**
+   * Non-empty natural-language guidance for using the server, or null when the server omitted instructions or advertised an empty string.
+   */
+  instructions: string | null;
 }
 /**
  * Session event "session.mcp_server_status_changed". Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.

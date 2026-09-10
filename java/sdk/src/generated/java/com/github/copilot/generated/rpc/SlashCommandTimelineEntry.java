@@ -21,6 +21,8 @@ public record SlashCommandTimelineEntry(
     /** Text displayed for the timeline entry. */
     @JsonProperty("text") String text,
     /** Optional URL associated with the timeline entry. */
-    @JsonProperty("url") String url
+    @JsonProperty("url") String url,
+    /** What the user must do to recover, when the entry reports a failure the runtime knows an action for. The `text` never names a client affordance, so a client that offers one renders it from this value. */
+    @JsonProperty("remediation") RemediationAction remediation
 ) {
 }

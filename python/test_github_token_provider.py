@@ -31,8 +31,8 @@ class FakeJsonRpcClient:
             if callback is not None:
                 callback(response)
             return response
-        if method == "session.destroy":
-            return {}
+        if method == "session.detach":
+            return {"success": True}
         if method == "session.delete":
             return {"success": True}
         raise RuntimeError(f"Unexpected method: {method}")

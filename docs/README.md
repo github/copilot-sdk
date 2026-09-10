@@ -25,6 +25,7 @@ How to configure and deploy the SDK for your use case.
 * [Default Setup (Bundled CLI)](./setup/bundled-cli.md): the SDK includes the CLI automatically
 * [Local CLI](./setup/local-cli.md): use your own CLI binary or running instance
 * [Backend Services](./setup/backend-services.md): server-side with headless CLI over TCP
+* [In-process Runtime](./setup/in-process-runtime.md): host the runtime inside your application process (experimental)
 * [GitHub OAuth](./setup/github-oauth.md): implement the OAuth flow
 * [Azure Managed Identity](./setup/azure-managed-identity.md): BYOK with Microsoft Foundry
 * [Scaling & Multi-Tenancy](./setup/scaling.md): horizontal scaling, isolation patterns
@@ -67,17 +68,17 @@ Detailed API reference for each session hook.
 * [Session Lifecycle](./hooks/session-lifecycle.md): session start and end
 * [Error Handling](./hooks/error-handling.md): custom error handling
 
-### [Troubleshooting](./troubleshooting/debugging.md)
+### [Troubleshooting](./troubleshooting/README.md)
 
 * [Debugging Guide](./troubleshooting/debugging.md): common issues and solutions
 * [MCP Debugging](./troubleshooting/mcp-debugging.md): MCP-specific troubleshooting
 * [Compatibility](./troubleshooting/compatibility.md): SDK vs CLI feature matrix
 
-### [Observability](./observability/opentelemetry.md)
+### [Observability](./observability/README.md)
 
 * [OpenTelemetry Instrumentation](./observability/opentelemetry.md): built-in TelemetryConfig and trace context propagation
 
-### [Integrations](./integrations/microsoft-agent-framework.md)
+### [Integrations](./integrations/README.md)
 
 Guides for using the SDK with other platforms and frameworks.
 

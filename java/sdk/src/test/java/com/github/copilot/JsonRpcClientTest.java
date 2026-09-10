@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
@@ -181,6 +182,36 @@ class JsonRpcClientTest {
     void testGetProcessNullForSocket() throws Exception {
         try (var pair = createSocketPair()) {
             assertNull(pair.client.getProcess());
+        }
+    }
+
+    @Test
+    void testCloseHandlerRunsOnceOnRemoteAndExplicitClose() throws Exception {
+        try (var pair = createSocketPair()) {
+            var closeCount = new AtomicInteger();
+            var closed = new CompletableFuture<Void>();
+            pair.client.setCloseHandler(() -> {
+                closeCount.incrementAndGet();
+                closed.complete(null);
+            });
+
+            pair.serverSide.close();
+            closed.get(5, TimeUnit.SECONDS);
+            pair.client.close();
+
+            assertEquals(1, closeCount.get());
+        }
+    }
+
+    @Test
+    void testCloseHandlerRunsWhenRegisteredAfterClose() throws Exception {
+        try (var pair = createSocketPair()) {
+            pair.client.close();
+            var closed = new CompletableFuture<Void>();
+
+            pair.client.setCloseHandler(() -> closed.complete(null));
+
+            closed.get(5, TimeUnit.SECONDS);
         }
     }
 

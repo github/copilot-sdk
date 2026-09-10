@@ -597,6 +597,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task ForceStopAsync()
     {
+        foreach (var session in _sessions.Values)
+        {
+            session.CancelPendingExternalTools();
+        }
         _sessions.Clear();
         ClearGitHubTokenProviders();
 
@@ -762,7 +766,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         s_stderrPumpShutdownTimeout);
                 }
 
-                AddCleanupError(errors, ex, logger);
+                // Once the owned process has exited, stderr is diagnostic-only. A descendant
+                // can briefly retain the inherited pipe on Windows, but that must not turn a
+                // successful process shutdown into a client cleanup failure.
+                if (!processExited)
+                {
+                    AddCleanupError(errors, ex, logger);
+                }
             }
             catch (Exception ex)
             {
@@ -2687,6 +2697,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ClientGlobalApiRegistration.RegisterClientGlobalApiHandlers(rpc, _clientGlobalApis);
             }
             rpc.StartListening();
+            _ = CancelExternalToolsWhenConnectionClosesAsync(rpc);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
                 setupTimestamp);
@@ -2699,14 +2710,47 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         catch
         {
             try { rpc?.Dispose(); }
-            catch (Exception ex) { _logger.LogDebug(ex, "Failed to dispose JSON-RPC connection after startup failure"); }
+            catch (Exception ex) when (IsRecoverableConnectionCleanupFailure(ex))
+            {
+                _logger.LogDebug(ex, "Failed to dispose JSON-RPC connection after startup failure");
+            }
 
             if (networkStream is not null)
             {
                 try { await networkStream.DisposeAsync(); }
-                catch (Exception ex) { _logger.LogDebug(ex, "Failed to dispose TCP stream after startup failure"); }
+                catch (Exception ex) when (IsRecoverableConnectionCleanupFailure(ex))
+                {
+                    _logger.LogDebug(ex, "Failed to dispose TCP stream after startup failure");
+                }
             }
             throw;
+        }
+    }
+
+    private static bool IsRecoverableConnectionCleanupFailure(Exception exception)
+        => exception is not OutOfMemoryException
+            and not StackOverflowException
+            and not AccessViolationException
+            and not AppDomainUnloadedException;
+
+    private async Task CancelExternalToolsWhenConnectionClosesAsync(JsonRpc rpc)
+    {
+        await Task.WhenAny(rpc.Completion).ConfigureAwait(false);
+        if (rpc.Completion.Exception is { } exception)
+        {
+            _logger.LogDebug(exception, "JSON-RPC connection completed with an error");
+        }
+
+        var connectionTask = _connectionTask;
+        if (connectionTask is null
+            || connectionTask.Status != System.Threading.Tasks.TaskStatus.RanToCompletion
+            || !ReferenceEquals(connectionTask.Result.Rpc, rpc))
+        {
+            return;
+        }
+        foreach (var session in _sessions.Values)
+        {
+            session.CancelPendingExternalTools();
         }
     }
 

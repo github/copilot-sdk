@@ -267,10 +267,25 @@ Send a message to the session. Returns immediately after the message is queued; 
 **Options:**
 
 - `prompt: string` - The message/prompt to send
+- `source?: MessageSource` - `"user"`, `"system"`, or `` `agent-${string}` `` provenance; omitted by default
 - `attachments?: Array<{type, path, displayName}>` - File attachments
 - `mode?: "enqueue" | "immediate"` - Delivery mode
 
 Returns the message ID.
+
+Use `source: "system"` for automated messages from your application:
+
+```typescript
+await session.send({ prompt: "Context updated", source: "system" });
+```
+
+For a message from another agent, use its trusted sender ID:
+
+```typescript
+await session.send({ prompt: "Review complete", source: "agent-reviewer-id" });
+```
+
+Source is independent of delivery mode. Leaving it unset preserves the existing human-message payload; it does not set billing flags or use the notification API.
 
 ##### `sendAndWait(options: MessageOptions, timeout?: number): Promise<AssistantMessageEvent | undefined>`
 
@@ -279,6 +294,7 @@ Send a message and wait until the session becomes idle.
 **Options:**
 
 - `prompt: string` - The message/prompt to send
+- `source?: MessageSource` - Same optional provenance as `send`
 - `attachments?: Array<{type, path, displayName}>` - File attachments
 - `mode?: "enqueue" | "immediate"` - Delivery mode
 - `timeout?: number` - Optional timeout in milliseconds
@@ -318,6 +334,32 @@ const unsubscribe = session.on((event) => {
 // Later...
 unsubscribe();
 ```
+
+##### `setModel(model: string, options?): Promise<void>`
+
+Change the model for this session. The new model takes effect for the next message; conversation history is preserved.
+
+**Options:**
+
+- `reasoningEffort?: string` - Reasoning effort level
+- `autoTier?: AutoTier | null` - Auto routing preference to stage together with selecting `auto`. Pass `null` to return to the provider's default Auto routing; omit it to leave the current preference unchanged.
+
+##### `setAutoTier(autoTier: AutoTier | null): Promise<ModelSwitchAutoTierResult>`
+
+Change the Auto routing preference without changing the selected model. Pass `null` to return to the provider's default Auto routing.
+
+The runtime does not apply the preference immediately. It records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure, and read the authoritative state at any time with `session.rpc.model.getCurrent()`.
+
+```typescript
+const result = await session.setAutoTier("intelligence");
+if (result.status === "pending") {
+    // Accepted, but not yet in effect.
+}
+```
+
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 
 ##### `abort(): Promise<void>`
 

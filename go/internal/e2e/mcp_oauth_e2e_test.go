@@ -261,6 +261,7 @@ func TestMCPOAuthE2E(t *testing.T) {
 	})
 
 	t.Run("resolve pending MCP OAuth request through RPC", func(t *testing.T) {
+		testharness.SkipIfInProcess(t, "blocked on github/copilot-agent-runtime#18961 MCP OAuth connection stall")
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureWithoutSnapshot(t)
 		client := ctx.NewClient()

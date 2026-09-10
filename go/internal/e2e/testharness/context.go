@@ -1,6 +1,7 @@
 package testharness
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -167,7 +168,9 @@ func NewTestContext(t *testing.T) *TestContext {
 	// use a snapshot replace this empty configuration before model traffic begins.
 	dummySnapshotPath := filepath.Join(workDir, "__no_snapshot__.yaml")
 	if err := proxy.Configure(dummySnapshotPath, workDir); err != nil {
-		proxy.StopWithOptions(true)
+		if stopErr := proxy.StopWithOptions(true); stopErr != nil {
+			t.Logf("Failed to stop proxy after initialization error: %v", stopErr)
+		}
 		os.RemoveAll(homeDir)
 		os.RemoveAll(workDir)
 		t.Fatalf("Failed to initialize proxy: %v", err)
@@ -181,7 +184,9 @@ func NewTestContext(t *testing.T) *TestContext {
 		},
 		"analytics_tracking_id": "e2e-test-tracking-id",
 	}); err != nil {
-		proxy.StopWithOptions(true)
+		if stopErr := proxy.StopWithOptions(true); stopErr != nil {
+			t.Logf("Failed to stop proxy after configuration error: %v", stopErr)
+		}
 		os.RemoveAll(homeDir)
 		os.RemoveAll(workDir)
 		t.Fatalf("Failed to configure default Copilot user: %v", err)
@@ -264,7 +269,9 @@ func (c *TestContext) ConfigureWithoutSnapshot(t *testing.T) {
 func (c *TestContext) Close(testFailed bool) {
 	c.restoreInProcessEnvironment()
 	if c.proxy != nil {
-		c.proxy.StopWithOptions(testFailed)
+		if err := c.proxy.StopWithOptions(testFailed); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to stop E2E proxy: %v\n", err)
+		}
 	}
 	if c.HomeDir != "" {
 		os.RemoveAll(c.HomeDir)

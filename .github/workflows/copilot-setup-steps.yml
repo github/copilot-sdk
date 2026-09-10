@@ -80,10 +80,6 @@ jobs:
         with:
           version: v0.82.10
 
-      # Enable repository pre-commit hooks (Spotless checks for Java source changes)
-      - name: Enable pre-commit hooks
-        run: git config core.hooksPath .githooks
-
       # Install JavaScript dependencies
       - name: Install Node.js dependencies
         working-directory: ./nodejs

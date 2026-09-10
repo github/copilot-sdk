@@ -1110,6 +1110,9 @@ pub struct SessionErrorData {
     /// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
+    /// What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<RemediationAction>,
     /// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_request_id: Option<String>,
@@ -1232,6 +1235,9 @@ pub struct SessionInfoData {
 pub struct SessionWarningData {
     /// Human-readable warning message for display in the timeline
     pub message: String,
+    /// What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<RemediationAction>,
     /// Optional URL associated with this warning that the user can open in a browser
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
@@ -3535,6 +3541,9 @@ pub struct ToolExecutionCompleteError {
     pub code: Option<String>,
     /// Human-readable error message
     pub message: String,
+    /// What the user must do to recover, when the runtime knows of an action. Set on sandbox policy denials, where `message` names the rule that blocked the call but never the client affordance that relaxes it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<RemediationAction>,
 }
 
 /// Binary result returned by a tool for the model
@@ -4427,10 +4436,10 @@ pub struct PermissionRequestShell {
     pub possible_paths: Vec<String>,
     /// URLs that may be accessed by the command
     pub possible_urls: Vec<PermissionRequestShellPossibleUrl>,
-    /// True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    /// True when the tool is asking to run this command outside the sandbox, either because the command detaches and cannot be sandboxed at all, or because a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass: Option<bool>,
-    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    /// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
@@ -4485,10 +4494,10 @@ pub struct PermissionRequestRead {
     pub managed_approval_required: Option<bool>,
     /// Path of the file or directory being read
     pub path: String,
-    /// True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    /// True when the tool is asking to re-run this search outside the sandbox, after a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass: Option<bool>,
-    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    /// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
@@ -4545,10 +4554,10 @@ pub struct PermissionRequestUrl {
     /// Immediately preceding URL when this request is for a redirect target
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redirected_from: Option<String>,
-    /// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    /// True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass: Option<bool>,
-    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    /// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
@@ -4956,10 +4965,10 @@ pub struct PermissionPromptRequestUrl {
     /// Immediately preceding URL when this prompt is for a redirect target
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redirected_from: Option<String>,
-    /// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    /// True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass: Option<bool>,
-    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    /// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
@@ -6223,6 +6232,14 @@ pub struct SessionCustomAgentsUpdatedData {
     pub warnings: Vec<String>,
 }
 
+/// Server-advertised metadata learned through modern discovery or legacy initialization.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerMetadata {
+    /// Non-empty natural-language guidance for using the server, or null when the server omitted instructions or advertised an empty string.
+    pub instructions: Option<String>,
+}
+
 /// A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -6238,6 +6255,9 @@ pub struct McpServersLoadedServer {
     /// Version of the plugin that supplied the effective MCP server config, only when source is plugin
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plugin_version: Option<String>,
+    /// Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_metadata: Option<McpServerMetadata>,
     /// Configuration source: user, workspace, plugin, or builtin
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<McpServerSource>,
@@ -6660,6 +6680,30 @@ pub enum Verbosity {
     /// A more detailed response was requested.
     #[serde(rename = "high")]
     High,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// What the user must do to recover from a failure, named as an action rather than as one client's affordance. The runtime cannot know which affordance a client offers — a slash command, a settings pane, a link — so the accompanying message stays host-agnostic and each client renders its own copy from this value. Absent when the runtime knows of no action the user can take.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RemediationAction {
+    /// Authenticate again with the Copilot backend. The current credential is absent, expired, or rejected.
+    #[serde(rename = "sign_in")]
+    SignIn,
+    /// Authenticate as a different account. The current account exists but lacks access to the requested resource.
+    #[serde(rename = "switch_account")]
+    SwitchAccount,
+    /// Inspect which account is currently authenticated before deciding what to change.
+    #[serde(rename = "show_account")]
+    ShowAccount,
+    /// Review or widen the sandbox policy. The blocked path or host is named by the accompanying message or by the tool result the action arrived with.
+    #[serde(rename = "review_sandbox_policy")]
+    ReviewSandboxPolicy,
+    /// Permit outbound network access in the sandbox policy.
+    #[serde(rename = "allow_sandbox_outbound")]
+    AllowSandboxOutbound,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

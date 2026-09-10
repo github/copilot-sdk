@@ -2189,6 +2189,11 @@ public sealed partial class SessionErrorData
     [JsonPropertyName("providerCallId")]
     public string? ProviderCallId { get; set; }
 
+    /// <summary>What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("remediation")]
+    public RemediationAction? Remediation { get; set; }
+
     /// <summary>Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("serviceRequestId")]
@@ -2351,6 +2356,11 @@ public sealed partial class SessionWarningData
     /// <summary>Human-readable warning message for display in the timeline.</summary>
     [JsonPropertyName("message")]
     public required string Message { get; set; }
+
+    /// <summary>What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("remediation")]
+    public RemediationAction? Remediation { get; set; }
 
     /// <summary>Optional URL associated with this warning that the user can open in a browser.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -7695,6 +7705,11 @@ public sealed partial class ToolExecutionCompleteError
     /// <summary>Human-readable error message.</summary>
     [JsonPropertyName("message")]
     public required string Message { get; set; }
+
+    /// <summary>What the user must do to recover, when the runtime knows of an action. Set on sandbox policy denials, where `message` names the rule that blocked the call but never the client affordance that relaxes it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("remediation")]
+    public RemediationAction? Remediation { get; set; }
 }
 
 /// <summary>Binary result returned by a tool for the model.</summary>
@@ -8837,12 +8852,12 @@ public sealed partial class PermissionRequestShell : PermissionRequest
     [JsonPropertyName("possibleUrls")]
     public required PermissionRequestShellPossibleUrl[] PossibleUrls { get; set; }
 
-    /// <summary>True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    /// <summary>True when the tool is asking to run this command outside the sandbox, either because the command detaches and cannot be sandboxed at all, or because a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypass")]
     public bool? RequestSandboxBypass { get; set; }
 
-    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    /// <summary>What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
@@ -8937,12 +8952,12 @@ public sealed partial class PermissionRequestRead : PermissionRequest
     [JsonPropertyName("path")]
     public required string Path { get; set; }
 
-    /// <summary>True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    /// <summary>True when the tool is asking to re-run this search outside the sandbox, after a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypass")]
     public bool? RequestSandboxBypass { get; set; }
 
-    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    /// <summary>What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
@@ -9020,12 +9035,12 @@ public sealed partial class PermissionRequestUrl : PermissionRequest
     [JsonPropertyName("redirectedFrom")]
     public string? RedirectedFrom { get; set; }
 
-    /// <summary>True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    /// <summary>True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypass")]
     public bool? RequestSandboxBypass { get; set; }
 
-    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    /// <summary>What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
@@ -9574,12 +9589,12 @@ public sealed partial class PermissionPromptRequestUrl : PermissionPromptRequest
     [JsonPropertyName("redirectedFrom")]
     public string? RedirectedFrom { get; set; }
 
-    /// <summary>True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    /// <summary>True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypass")]
     public bool? RequestSandboxBypass { get; set; }
 
-    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    /// <summary>What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
@@ -10503,6 +10518,15 @@ public sealed partial class CustomAgentsUpdatedAgent
     public required bool UserInvocable { get; set; }
 }
 
+/// <summary>Server-advertised metadata learned through modern discovery or legacy initialization.</summary>
+/// <remarks>Nested data type for <c>McpServerMetadata</c>.</remarks>
+public sealed partial class McpServerMetadata
+{
+    /// <summary>Non-empty natural-language guidance for using the server, or null when the server omitted instructions or advertised an empty string.</summary>
+    [JsonPropertyName("instructions")]
+    public string? Instructions { get; set; }
+}
+
 /// <summary>A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata.</summary>
 /// <remarks>Nested data type for <c>McpServersLoadedServer</c>.</remarks>
 public sealed partial class McpServersLoadedServer
@@ -10525,6 +10549,11 @@ public sealed partial class McpServersLoadedServer
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("pluginVersion")]
     public string? PluginVersion { get; set; }
+
+    /// <summary>Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("serverMetadata")]
+    public McpServerMetadata? ServerMetadata { get; set; }
 
     /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -10970,6 +10999,76 @@ public readonly struct Verbosity : IEquatable<Verbosity>
         public override void Write(Utf8JsonWriter writer, Verbosity value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(Verbosity));
+        }
+    }
+}
+
+/// <summary>What the user must do to recover from a failure, named as an action rather than as one client's affordance. The runtime cannot know which affordance a client offers — a slash command, a settings pane, a link — so the accompanying message stays host-agnostic and each client renders its own copy from this value. Absent when the runtime knows of no action the user can take.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct RemediationAction : IEquatable<RemediationAction>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="RemediationAction"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="RemediationAction"/>.</param>
+    [JsonConstructor]
+    public RemediationAction(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="RemediationAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Authenticate again with the Copilot backend. The current credential is absent, expired, or rejected.</summary>
+    public static RemediationAction SignIn { get; } = new("sign_in");
+
+    /// <summary>Authenticate as a different account. The current account exists but lacks access to the requested resource.</summary>
+    public static RemediationAction SwitchAccount { get; } = new("switch_account");
+
+    /// <summary>Inspect which account is currently authenticated before deciding what to change.</summary>
+    public static RemediationAction ShowAccount { get; } = new("show_account");
+
+    /// <summary>Review or widen the sandbox policy. The blocked path or host is named by the accompanying message or by the tool result the action arrived with.</summary>
+    public static RemediationAction ReviewSandboxPolicy { get; } = new("review_sandbox_policy");
+
+    /// <summary>Permit outbound network access in the sandbox policy.</summary>
+    public static RemediationAction AllowSandboxOutbound { get; } = new("allow_sandbox_outbound");
+
+    /// <summary>Returns a value indicating whether two <see cref="RemediationAction"/> instances are equivalent.</summary>
+    public static bool operator ==(RemediationAction left, RemediationAction right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="RemediationAction"/> instances are not equivalent.</summary>
+    public static bool operator !=(RemediationAction left, RemediationAction right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is RemediationAction other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(RemediationAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{RemediationAction}"/> for serializing <see cref="RemediationAction"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<RemediationAction>
+    {
+        /// <inheritdoc />
+        public override RemediationAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, RemediationAction value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(RemediationAction));
         }
     }
 }
@@ -16388,6 +16487,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(McpPromptsListChangedEvent))]
 [JsonSerializable(typeof(McpResourcesListChangedData))]
 [JsonSerializable(typeof(McpResourcesListChangedEvent))]
+[JsonSerializable(typeof(McpServerMetadata))]
 [JsonSerializable(typeof(McpServersLoadedServer))]
 [JsonSerializable(typeof(McpToolsListChangedData))]
 [JsonSerializable(typeof(McpToolsListChangedEvent))]

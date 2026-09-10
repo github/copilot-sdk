@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
 	"github.com/github/copilot-sdk/go/rpc"
@@ -523,6 +525,62 @@ func TestSessionE2E(t *testing.T) {
 			t.Errorf("Expected follow-up answer to contain '4', got nil")
 		} else if ad, ok := answer3.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "4") {
 			t.Errorf("Expected follow-up answer to contain '4', got %v", answer3)
+		}
+	})
+
+	t.Run("should recover marker after cold resume with explicit session id", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		sessionID := "e2e-cold-resume-" + uuid.NewString()
+
+		client1 := ctx.NewClient()
+		session1, err := client1.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SessionID:           sessionID,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		if session1.SessionID != sessionID {
+			t.Fatalf("Expected explicit session ID %q, got %q", sessionID, session1.SessionID)
+		}
+
+		answer, err := session1.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: `Please remember this exact secret marker for later - MARKER-7f3ac21e. Reply with only the single word "Acknowledged".`,
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "Acknowledged") {
+			t.Errorf("Expected answer to contain 'Acknowledged', got %v", answer.Data)
+		}
+
+		if err := session1.Disconnect(); err != nil {
+			t.Fatalf("Failed to disconnect session: %v", err)
+		}
+		client1.ForceStop()
+
+		client2 := ctx.NewClient()
+		defer client2.ForceStop()
+
+		session2, err := client2.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to resume session: %v", err)
+		}
+		if session2.SessionID != sessionID {
+			t.Errorf("Expected resumed session ID to match, got %q vs %q", session2.SessionID, sessionID)
+		}
+
+		answer2, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "What was the exact secret marker I asked you to remember earlier? Reply with only that marker value and nothing else.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message after resume: %v", err)
+		}
+		if ad, ok := answer2.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "MARKER-7f3ac21e") {
+			t.Errorf("Expected resumed answer to contain marker, got %v", answer2.Data)
 		}
 	})
 

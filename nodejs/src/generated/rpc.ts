@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -276,6 +276,20 @@ export type AuthInfoType =
  */
 /** @experimental */
 export type AuthValidationErrors = AuthValidationError[];
+/**
+ * Current normalized autopilot objective lifecycle status.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AutopilotObjectiveStatus".
+ */
+/** @experimental */
+export type AutopilotObjectiveStatus =
+  /** The objective is actively running. */
+  | "active"
+  /** The objective is paused and may be resumed. */
+  | "paused"
+  /** The objective completed. */
+  | "completed";
 /**
  * Root JSON Schema type for a built-in tool input.
  *
@@ -2726,6 +2740,18 @@ export type PermissionsSetApproveAllSource =
   | "user_setting"
   /** Allow-all was enabled through an RPC caller. */
   | "rpc";
+/**
+ * Where completed plugin content was staged before atomic promotion.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PluginInstallStagingMode".
+ */
+/** @experimental */
+export type PluginInstallStagingMode =
+  /** A sibling of the installed-plugins root, outside the recursively watched tree. */
+  | "external"
+  /** A sibling of the destination plugin directory, used when external staging is unavailable. */
+  | "destination_sibling";
 /**
  * Optional flags controlling which side effects the reload performs.
  *
@@ -5196,6 +5222,75 @@ export interface AuthValidationError {
    * Optional message returned by GitHub
    */
   githubMessage?: string;
+}
+/**
+ * Current per-window credit limit and consumption for an autopilot objective.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AutopilotObjectiveCreditLimit".
+ */
+/** @experimental */
+export interface AutopilotObjectiveCreditLimit {
+  /**
+   * Configured AI-credit cap, when one is set.
+   */
+  credits?: number;
+  /**
+   * Window consumption in fractional AI credits, for display.
+   */
+  creditsUsed: number;
+  /**
+   * Exact window consumption in non-negative integer nano-AIU, encoded as a decimal string.
+   */
+  creditsUsedNanoAiu: string;
+}
+/**
+ * Canonical runtime state for the session's current autopilot objective.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AutopilotObjectiveGetStateResult".
+ */
+/** @experimental */
+export interface AutopilotObjectiveGetStateResult {
+  /**
+   * Current objective state, or `null` when the session has no objective.
+   */
+  state: AutopilotObjectiveState | null;
+}
+/**
+ * Public, persistence-independent projection of an autopilot objective.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AutopilotObjectiveState".
+ */
+/** @experimental */
+export interface AutopilotObjectiveState {
+  /**
+   * Session-local objective identifier.
+   */
+  id: number;
+  /**
+   * User-provided objective text.
+   */
+  objective: string;
+  status: AutopilotObjectiveStatus;
+  /**
+   * Number of objective turns started.
+   */
+  turnCount: number;
+  /**
+   * Optional reason the objective is paused.
+   */
+  pauseReason?: string;
+  /**
+   * Optional summary recorded when the objective completed.
+   */
+  completionSummary?: string;
+  /**
+   * Exact lifetime AI-credit consumption in non-negative integer nano-AIU, encoded as a decimal string.
+   */
+  creditCountNanoAiu: string;
+  creditLimit?: AutopilotObjectiveCreditLimit;
 }
 /**
  * The running runtime's complete catalog of well-known built-in model IDs, including supported models and additional IDs with built-in metadata.
@@ -12002,6 +12097,7 @@ export interface McpServer {
    * Error message if the server failed to connect
    */
   error?: string;
+  serverMetadata?: McpServerMetadata;
 }
 /**
  * In-process MCP server configuration used by embedded SDK clients.
@@ -15026,6 +15122,7 @@ export interface PluginInstallResult {
    * Number of skills discovered and installed from the plugin
    */
   skillsInstalled: number;
+  stagingMode?: PluginInstallStagingMode;
   /**
    * Optional post-install message provided by the plugin (e.g. setup instructions)
    */
@@ -20798,6 +20895,7 @@ export interface SlashCommandTimelineEntry {
    * Optional URL associated with the timeline entry.
    */
   url?: string;
+  remediation?: RemediationAction;
 }
 /**
  * Slash-command invocation result that submits an agent prompt, with display prompt, optional mode, optional user-facing notice, and settings-change flag.
@@ -24975,6 +25073,16 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             diff: async (params: WorkspacesDiffRequest): Promise<WorkspaceDiffResult> =>
                 connection.sendRequest("session.workspaces.diff", { sessionId, ...params }),
+        },
+        /** @experimental */
+        autopilotObjective: {
+            /**
+             * Reads the current canonical autopilot objective state for this session.
+             *
+             * @returns Canonical runtime state for the session's current autopilot objective.
+             */
+            getState: async (): Promise<AutopilotObjectiveGetStateResult> =>
+                connection.sendRequest("session.autopilotObjective.getState", { sessionId }),
         },
         /** @experimental */
         completions: {

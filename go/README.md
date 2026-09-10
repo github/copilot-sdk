@@ -101,6 +101,9 @@ tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
 
 The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.
 This allows you to bundle a specific CLI version and avoid external dependencies on the user's system.
+The bundler downloads the matching `github-copilot-<version>-<platform>.tgz`
+asset from the `github/copilot-cli` release and verifies it against that
+release's `SHA256SUMS.txt`.
 
 Follow these steps to embed the CLI:
 
@@ -275,6 +278,30 @@ Initial acquisition runs during session creation or resume. Cancellation, provid
 - `UI() *SessionUI` - Interactive UI API for elicitation dialogs
 - `Capabilities() SessionCapabilities` - Host capabilities (e.g. elicitation support)
 
+#### Message source
+
+Set `MessageOptions.Source` to `copilot.MessageSourceAgent(id)` for messages from
+an identified agent. Use `copilot.MessageSourceSystem` for application-internal
+context, not as a substitute for agent provenance. Use `copilot.MessageSourceUser`
+for explicit user provenance, or leave it empty to omit `source` from the request
+and preserve the runtime's default behavior.
+
+```go
+_, err := session.Send(ctx, copilot.MessageOptions{
+    Prompt: "Review complete. The build passed.",
+    Source: copilot.MessageSourceAgent("reviewer"),
+    Mode:   "enqueue",
+})
+```
+
+`MessageSourceAgent` returns a `MessageSource` containing `agent-` followed by the
+unchanged ID, so `"reviewer"` becomes `"agent-reviewer"`. It does not trim
+whitespace, change case, or remove an existing prefix.
+
+Source is independent of delivery `Mode` and `AgentMode`; it does not replace the
+session's `SystemMessage` configuration. `SendAndWait` accepts the same options
+and still waits for session idle, returning `nil` if no assistant message arrives.
+
 ### Helper Functions
 
 - `Bool(v bool) *bool` - Helper to create bool pointers (e.g. for `Streaming`)
@@ -331,6 +358,30 @@ Each section override supports five actions:
 - **`preserve`** — No-op that opts an individually-addressable section out of a group-level `remove`
 
 Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
+
+## Auto routing tiers
+
+Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+
+```go
+tier := copilot.AutoTierIntelligence
+result, err := session.SetAutoTier(ctx, &tier)
+if err != nil {
+    return err
+}
+if result.Status == rpc.ModelSwitchAutoTierStatusPending {
+    // Accepted, but not yet in effect.
+}
+
+// Return to the provider's default Auto routing.
+_, err = session.SetAutoTier(ctx, nil)
+```
+
+`SetModel` accepts the same preference through `SetModelOptions.AutoTier`, which stages the tier atomically with selecting `auto`. Set `ResetAutoTier` instead to return to provider-default routing; the two options are mutually exclusive.
+
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 
 ## Image Support
 

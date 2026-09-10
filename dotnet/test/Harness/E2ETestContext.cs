@@ -66,6 +66,13 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         var proxy = new ReplayProxy();
         var proxyUrl = await proxy.StartAsync();
+        // Creating an in-process fixture applies this URL before its first
+        // test-specific configuration is posted, so early runtime requests need
+        // an empty but valid replay state.
+        await proxy.ConfigureAsync(
+            Path.Combine(workDir, "__unconfigured__.yaml"),
+            workDir,
+            "capi");
         await proxy.SetCopilotUserByTokenAsync(DefaultGitHubToken, new CopilotUserConfig(
             Login: "e2e-test-user",
             CopilotPlan: "individual_pro",
@@ -595,7 +602,7 @@ public sealed class E2ETestContext : IAsyncDisposable
                     $"Graceful in-process client cleanup exceeded {s_gracefulClientStopTimeout}; forcing shutdown.");
                 await client.ForceStopAsync();
 
-                // Disposing the connection completes any session.destroy RPC that
+                // Disposing the connection completes any session.detach RPC that
                 // blocked graceful cleanup. Observe that task before continuing.
                 await gracefulStop.WaitAsync(s_gracefulClientStopTimeout);
             }

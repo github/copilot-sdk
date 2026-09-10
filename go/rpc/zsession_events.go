@@ -920,6 +920,8 @@ type SessionErrorData struct {
 	Message string `json:"message"`
 	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
 	ProviderCallID *string `json:"providerCallId,omitempty"`
+	// What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.
+	Remediation *RemediationAction `json:"remediation,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Error stack trace, when available
@@ -2868,6 +2870,8 @@ func (*ToolUserRequestedData) Type() SessionEventType { return SessionEventTypeT
 type SessionWarningData struct {
 	// Human-readable warning message for display in the timeline
 	Message string `json:"message"`
+	// What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.
+	Remediation *RemediationAction `json:"remediation,omitempty"`
 	// Optional URL associated with this warning that the user can open in a browser
 	URL *string `json:"url,omitempty"`
 	// Category of warning (e.g., "subscription", "policy", "mcp")
@@ -3506,6 +3510,8 @@ type MCPServersLoadedServer struct {
 	PluginName *string `json:"pluginName,omitempty"`
 	// Version of the plugin that supplied the effective MCP server config, only when source is plugin
 	PluginVersion *string `json:"pluginVersion,omitempty"`
+	// Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.
+	ServerMetadata *MCPServerMetadata `json:"serverMetadata,omitempty"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source *MCPServerSource `json:"source,omitempty"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
@@ -3827,9 +3833,9 @@ type PermissionPromptRequestURL struct {
 	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Immediately preceding URL when this prompt is for a redirect target
 	RedirectedFrom *string `json:"redirectedFrom,omitempty"`
-	// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	// True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
-	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
@@ -4083,9 +4089,9 @@ type PermissionRequestRead struct {
 	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Path of the file or directory being read
 	Path string `json:"path"`
-	// True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	// True when the tool is asking to re-run this search outside the sandbox, after a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
-	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
@@ -4116,9 +4122,9 @@ type PermissionRequestShell struct {
 	PossiblePaths []string `json:"possiblePaths"`
 	// URLs that may be accessed by the command
 	PossibleURLs []PermissionRequestShellPossibleURL `json:"possibleUrls"`
-	// True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	// True when the tool is asking to run this command outside the sandbox, either because the command detaches and cannot be sandboxed at all, or because a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
-	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
@@ -4139,9 +4145,9 @@ type PermissionRequestURL struct {
 	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Immediately preceding URL when this request is for a redirect target
 	RedirectedFrom *string `json:"redirectedFrom,omitempty"`
-	// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	// True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
-	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
@@ -4826,6 +4832,8 @@ type ToolExecutionCompleteError struct {
 	Code *string `json:"code,omitempty"`
 	// Human-readable error message
 	Message string `json:"message"`
+	// What the user must do to recover, when the runtime knows of an action. Set on sandbox policy denials, where `message` names the rule that blocked the call but never the client affordance that relaxes it.
+	Remediation *RemediationAction `json:"remediation,omitempty"`
 }
 
 // Tool execution result on success
