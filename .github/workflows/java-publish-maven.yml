@@ -10,8 +10,8 @@ env:
 # the repository. The cross-language `vX.Y.Z` GitHub Release and the
 # `java/vX.Y.Z` traceability tag are created by .github/workflows/publish.yml
 # only after publication succeeds.
-# Dispatches can select a different source SHA than the workflow's branch.
-# Keep dependency caches disabled so that source cannot poison branch caches.
+# Only validated commits from main's history may be published.
+# Keep dependency caches isolated from these independently selected sources.
 
 on:
   workflow_dispatch:
@@ -21,7 +21,7 @@ on:
         required: false
         type: string
       sourceSha:
-        description: "Immutable source commit to build and publish from. Defaults to the commit this workflow runs on."
+        description: "Full commit SHA from main's history. Defaults to the triggering commit; dispatch this workflow from main."
         required: false
         type: string
       prerelease:
@@ -36,7 +36,7 @@ on:
         required: false
         type: string
       sourceSha:
-        description: "Immutable source commit to build and publish from. Defaults to the commit this workflow runs on."
+        description: "Full commit SHA from main's history. Defaults to the triggering commit; dispatch this workflow from main."
         required: false
         type: string
       prerelease:
@@ -53,7 +53,7 @@ on:
         value: ${{ jobs.resolve-source.outputs.release_version }}
       sourceSha:
         description: "The immutable source commit that was published"
-        value: ${{ jobs.resolve-source.outputs.source_sha }}
+        value: ${{ jobs.resolve-source.outputs.validated_source }}
     secrets:
       JAVA_MAVEN_CENTRAL_USERNAME:
         required: true
@@ -82,19 +82,41 @@ jobs:
         shell: bash
         working-directory: ./java
     outputs:
-      source_sha: ${{ steps.source.outputs.sha }}
+      validated_source: ${{ steps.source.outputs.validated_source }}
       release_version: ${{ steps.versions.outputs.release_version }}
     steps:
+      - name: Require a main-branch publication
+        working-directory: .
+        env:
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          if [ "$WORKFLOW_REF" != "refs/heads/main" ]; then
+            echo "::error::Java publication must be dispatched from main."
+            exit 1
+          fi
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ inputs.sourceSha || github.sha }}
-          fetch-depth: 1
+          ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
 
-      - id: source
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Validate and check out the release source
+        id: source
+        working-directory: .
+        env:
+          REQUESTED_SOURCE: ${{ inputs.sourceSha || github.sha }}
+          WORKFLOW_REF: ${{ github.ref }}
         run: |
-          SHA=$(git rev-parse HEAD)
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          VALIDATED_SOURCE=$(node java/scripts/resolve-release-source.mjs)
+          git checkout --detach "$VALIDATED_SOURCE"
+          echo "validated_source=$VALIDATED_SOURCE" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
@@ -103,12 +125,14 @@ jobs:
 
       - name: Determine release version
         id: versions
+        env:
+          REQUESTED_VERSION: ${{ inputs.releaseVersion }}
         run: |
           CURRENT_VERSION=$(mvn -N help:evaluate -Dexpression=project.version -q -DforceStdout)
           echo "Current pom.xml version: $CURRENT_VERSION"
 
-          if [ -n "${{ inputs.releaseVersion }}" ]; then
-            RELEASE_VERSION="${{ inputs.releaseVersion }}"
+          if [ -n "$REQUESTED_VERSION" ]; then
+            RELEASE_VERSION="$REQUESTED_VERSION"
           else
             RELEASE_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
           fi
@@ -138,7 +162,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ needs.resolve-source.outputs.source_sha }}
+          ref: ${{ needs.resolve-source.outputs.validated_source }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -156,7 +180,7 @@ jobs:
         run: |
           set -euo pipefail
           SOURCE_COMMIT=$(git rev-parse HEAD)
-          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.source_sha }}" ]; then
+          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.validated_source }}" ]; then
             echo "::error::Checked out $SOURCE_COMMIT instead of the resolved release source."
             exit 1
           fi
@@ -197,7 +221,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ needs.resolve-source.outputs.source_sha }}
+          ref: ${{ needs.resolve-source.outputs.validated_source }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -214,7 +238,7 @@ jobs:
       - name: Build and validate win32-x64 classifier
         run: |
           $sourceCommit = git rev-parse HEAD
-          if ($sourceCommit -ne '${{ needs.resolve-source.outputs.source_sha }}') {
+          if ($sourceCommit -ne '${{ needs.resolve-source.outputs.validated_source }}') {
             throw "Checked out $sourceCommit instead of the resolved release source."
           }
           $version = '${{ needs.resolve-source.outputs.release_version }}'
@@ -254,7 +278,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ needs.resolve-source.outputs.source_sha }}
+          ref: ${{ needs.resolve-source.outputs.validated_source }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -271,7 +295,7 @@ jobs:
       - name: Build and validate win32-arm64 classifier
         run: |
           $sourceCommit = git rev-parse HEAD
-          if ($sourceCommit -ne '${{ needs.resolve-source.outputs.source_sha }}') {
+          if ($sourceCommit -ne '${{ needs.resolve-source.outputs.validated_source }}') {
             throw "Checked out $sourceCommit instead of the resolved release source."
           }
           $version = '${{ needs.resolve-source.outputs.release_version }}'
@@ -311,7 +335,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ needs.resolve-source.outputs.source_sha }}
+          ref: ${{ needs.resolve-source.outputs.validated_source }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -329,7 +353,7 @@ jobs:
         run: |
           set -euo pipefail
           SOURCE_COMMIT=$(git rev-parse HEAD)
-          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.source_sha }}" ]; then
+          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.validated_source }}" ]; then
             echo "::error::Checked out $SOURCE_COMMIT instead of the resolved release source."
             exit 1
           fi
@@ -380,7 +404,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ needs.resolve-source.outputs.source_sha }}
+          ref: ${{ needs.resolve-source.outputs.validated_source }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -423,7 +447,7 @@ jobs:
         id: linux-arm64-artifact
         run: |
           SOURCE_COMMIT=$(git rev-parse HEAD)
-          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.source_sha }}" ]; then
+          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.validated_source }}" ]; then
             echo "::error::Checked out $SOURCE_COMMIT instead of the resolved release source."
             exit 1
           fi
@@ -444,7 +468,7 @@ jobs:
         id: windows-artifact
         run: |
           SOURCE_COMMIT=$(git rev-parse HEAD)
-          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.source_sha }}" ]; then
+          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.validated_source }}" ]; then
             echo "::error::Checked out $SOURCE_COMMIT instead of the resolved release source."
             exit 1
           fi
@@ -465,7 +489,7 @@ jobs:
         id: darwin-artifact
         run: |
           SOURCE_COMMIT=$(git rev-parse HEAD)
-          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.source_sha }}" ]; then
+          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.validated_source }}" ]; then
             echo "::error::Checked out $SOURCE_COMMIT instead of the resolved release source."
             exit 1
           fi
@@ -486,7 +510,7 @@ jobs:
         id: windows-arm64-artifact
         run: |
           SOURCE_COMMIT=$(git rev-parse HEAD)
-          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.source_sha }}" ]; then
+          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.validated_source }}" ]; then
             echo "::error::Checked out $SOURCE_COMMIT instead of the resolved release source."
             exit 1
           fi
@@ -527,7 +551,7 @@ jobs:
           {
             echo "### Maven Central Release"
             echo "- **Version:** $VERSION"
-            echo "- **Source commit:** \`${{ needs.resolve-source.outputs.source_sha }}\`"
+            echo "- **Source commit:** \`${{ needs.resolve-source.outputs.validated_source }}\`"
             echo "- **Repository:** Maven Central"
             echo ""
             echo "#### Maven Coordinates"

@@ -457,6 +457,10 @@ jobs:
         if: matrix.test-jdk == '25'
         run: ./scripts/test-update-documentation-versions.sh
 
+      - name: Test release source validation
+        if: matrix.test-jdk == '25'
+        run: node --test scripts/resolve-release-source.test.mjs
+
       - name: Build SDK and set up test harness
         run: mvn test-compile jar:jar
 
