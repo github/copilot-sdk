@@ -15,6 +15,11 @@ const acquisitionJob = runtimeSdk.slice(
     runtimeSdk.indexOf("  acquire-runtime:"),
     runtimeSdk.indexOf("  test:")
 );
+const testJob = runtimeSdk.slice(runtimeSdk.indexOf("  test:"), runtimeSdk.indexOf("  package:"));
+const packageJob = runtimeSdk.slice(
+    runtimeSdk.indexOf("  package:"),
+    runtimeSdk.indexOf("  publish-internal:")
+);
 const internalPublicationJob = runtimeSdk.slice(
     runtimeSdk.indexOf("  publish-internal:"),
     runtimeSdk.indexOf("  publish-public:")
@@ -143,6 +148,43 @@ describe("runtime-backed Node release implementation", () => {
         expect(runtimeSdk).not.toContain('BASE="${PUBLIC_LATEST%%-*}"');
         expect(runtimeSdk.indexOf("npm run verify:release-packages")).toBeLessThan(
             runtimeSdk.indexOf("publish-manifest")
+        );
+    });
+
+    it("preserves runtime package modes across every artifact boundary", () => {
+        expect(acquisitionJob).toContain(
+            'tar -czf "$RUNNER_TEMP/runtime-packages.tar.gz" -C "$RUNNER_TEMP" runtime-packages'
+        );
+        expect(acquisitionJob).toContain("path: ${{ runner.temp }}/runtime-packages.tar.gz");
+        expect(acquisitionJob).not.toContain("path: ${{ runner.temp }}/runtime-packages\n");
+
+        for (const consumer of [testJob, packageJob]) {
+            expect(consumer).toContain("path: ${{ runner.temp }}/runtime-package-artifact");
+            expect(consumer).toContain(
+                'tar -xzf "$RUNNER_TEMP/runtime-package-artifact/runtime-packages.tar.gz" -C "$RUNNER_TEMP"'
+            );
+            expect(consumer).not.toContain("path: ${{ runner.temp }}/runtime-packages\n");
+        }
+        expect(testJob.indexOf("Extract validated runtime packages")).toBeLessThan(
+            testJob.indexOf("Select the acquired runtime")
+        );
+        expect(packageJob.indexOf("Extract validated runtime packages")).toBeLessThan(
+            packageJob.indexOf("Build and verify exact package set")
+        );
+    });
+
+    it("persists and consumes the restored runtime package directory", () => {
+        expect(testJob).toContain(
+            'echo "COPILOT_SDK_RUNTIME_PACKAGE_DIR=$COPILOT_SDK_RUNTIME_PACKAGE_DIR" >> "$GITHUB_ENV"'
+        );
+        expect(testJob).toContain('echo "COPILOT_CLI_PATH=$runtime_path" >> "$GITHUB_ENV"');
+        expect(packageJob).toContain(
+            "COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages"
+        );
+        expect(packageJob.indexOf("Extract validated runtime packages")).toBeLessThan(
+            packageJob.indexOf(
+                "COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages"
+            )
         );
     });
 });
