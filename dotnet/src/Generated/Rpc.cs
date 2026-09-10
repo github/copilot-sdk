@@ -4333,6 +4333,115 @@ internal sealed class SessionsGetMetadataRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Client metadata outcome for one requested local session.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>status</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "status",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SessionsClientMetadataEntryOk), "ok")]
+[JsonDerivedType(typeof(SessionsClientMetadataEntryNotFound), "notFound")]
+[JsonDerivedType(typeof(SessionsClientMetadataEntryCorrupt), "corrupt")]
+[JsonDerivedType(typeof(SessionsClientMetadataEntryUnsupportedVersion), "unsupportedVersion")]
+[JsonDerivedType(typeof(SessionsClientMetadataEntryUnavailable), "unavailable")]
+public partial class SessionsClientMetadataEntry
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("status")]
+    public virtual string Status { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>ok</c> variant of <see cref="SessionsClientMetadataEntry"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class SessionsClientMetadataEntryOk : SessionsClientMetadataEntry
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "ok";
+
+    /// <summary>Validated client metadata, possibly empty or projected to requested keys.</summary>
+    [JsonPropertyName("metadata")]
+    public required IDictionary<string, string> Metadata { get; set; }
+
+    /// <summary>Requested session ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>The <c>notFound</c> variant of <see cref="SessionsClientMetadataEntry"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class SessionsClientMetadataEntryNotFound : SessionsClientMetadataEntry
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "notFound";
+
+    /// <summary>Requested session ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>The <c>corrupt</c> variant of <see cref="SessionsClientMetadataEntry"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class SessionsClientMetadataEntryCorrupt : SessionsClientMetadataEntry
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "corrupt";
+
+    /// <summary>Requested session ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>The <c>unsupportedVersion</c> variant of <see cref="SessionsClientMetadataEntry"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class SessionsClientMetadataEntryUnsupportedVersion : SessionsClientMetadataEntry
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "unsupportedVersion";
+
+    /// <summary>Requested session ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>The <c>unavailable</c> variant of <see cref="SessionsClientMetadataEntry"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class SessionsClientMetadataEntryUnavailable : SessionsClientMetadataEntry
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "unavailable";
+
+    /// <summary>Filesystem or provider error code. Clients should not assume every provider uses operating-system error codes.</summary>
+    [JsonPropertyName("code")]
+    public required string Code { get; set; }
+
+    /// <summary>Human-readable diagnostic message. Not stable for programmatic matching.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Requested session ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>Bounded batch request for client-owned metadata from persisted local sessions.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionsGetClientMetadataRequest
+{
+    /// <summary>Case-sensitive keys to project from each valid bag. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Omit to return every entry.</summary>
+    [JsonPropertyName("keys")]
+    public IList<string>? Keys { get; set; }
+
+    /// <summary>Session IDs to inspect. Results preserve this order.</summary>
+    [JsonPropertyName("sessionIds")]
+    public IList<string> SessionIds { get => field ??= []; set; }
+}
+
 /// <summary>Batch of session events returned by a read, with cursor and continuation metadata.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class EventsReadResult
@@ -13968,10 +14077,14 @@ public sealed class ToolsUpdateSubagentSettingsResult
 {
 }
 
-/// <summary>Subagent model, reasoning effort, and context tier settings.</summary>
+/// <summary>Subagent model, reasoning effort, context tier, and auto-invocation settings.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SubagentSettingsEntry
 {
+    /// <summary>Whether this agent's runtime-defined proactive invocation prompting is enabled, if supported. Currently consumed by the built-in rubber-duck agent.</summary>
+    [JsonPropertyName("autoInvoke")]
+    public bool? AutoInvoke { get; set; }
+
     /// <summary>Context tier override for matching subagents.</summary>
     [JsonPropertyName("contextTier")]
     public SubagentSettingsEntryContextTier? ContextTier { get; set; }
@@ -16494,6 +16607,36 @@ internal sealed class SessionMetadataSnapshotRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionMetadataGetClientMetadataRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Atomic patch for client-owned session metadata. Operations apply in clear, remove, then set order. The resulting bag must satisfy the ClientMetadata entry and serialized-size limits. Local storage coordinates concurrent runtime processes; custom SessionFs providers must serialize writers that access the same session from multiple processes.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class MetadataUpdateClientMetadataRequest
+{
+    /// <summary>Remove every existing client metadata entry before applying remove and set. Defaults to false.</summary>
+    [JsonPropertyName("clear")]
+    public bool? Clear { get; set; }
+
+    /// <summary>Case-sensitive keys to remove. Missing keys are ignored. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces.</summary>
+    [JsonPropertyName("remove")]
+    public IList<string>? Remove { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>String entries to add or replace. Set wins when a key also appears in remove. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Each value may contain at most 16 KiB of UTF-8 data.</summary>
+    [JsonPropertyName("set")]
+    public IDictionary<string, string>? Set { get; set; }
 }
 
 /// <summary>Indicates whether the local session is currently processing a turn or background continuation.</summary>
@@ -19069,7 +19212,7 @@ public sealed class SessionFsWriteFileRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>File path, content to append, and optional mode for the client-provided session filesystem.</summary>
+/// <summary>File path, content to append, and optional mode for the client-provided session filesystem. Implementations create parent directories as needed.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsAppendFileRequest
 {
@@ -32695,6 +32838,19 @@ public sealed class ServerSessionsApi
         return await CopilotClient.InvokeRpcAsync<SessionsGetMetadataResult>(_rpc, "sessions.getMetadata", [request], cancellationToken);
     }
 
+    /// <summary>Reads client-owned metadata for multiple persisted local sessions without opening them. Results preserve request order and report missing, corrupt, unsupported, or temporarily unavailable sessions independently.</summary>
+    /// <param name="sessionIds">Session IDs to inspect. Results preserve this order.</param>
+    /// <param name="keys">Case-sensitive keys to project from each valid bag. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Omit to return every entry.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Ordered client metadata outcomes for the requested local sessions.</returns>
+    public async Task<IList<SessionsClientMetadataEntry>> GetClientMetadataAsync(IList<string> sessionIds, IList<string>? keys = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sessionIds);
+
+        var request = new SessionsGetClientMetadataRequest { SessionIds = sessionIds, Keys = keys };
+        return await CopilotClient.InvokeRpcAsync<IList<SessionsClientMetadataEntry>>(_rpc, "sessions.getClientMetadata", [request], cancellationToken);
+    }
+
     /// <summary>Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.</summary>
     /// <param name="sessionId">Session ID whose persisted event journal should be read.</param>
     /// <param name="cursor">Opaque cursor returned by a previous persisted-event read. Omit on the first call.</param>
@@ -35869,7 +36025,7 @@ public sealed class ToolsApi
         return await CopilotClient.InvokeRpcAsync<ToolsSetResult>(_session.Rpc, "session.tools.set", [request], cancellationToken);
     }
 
-    /// <summary>Updates the current session's live subagent settings after user settings change. The persisted user settings remain the source of truth for future sessions.</summary>
+    /// <summary>Sets the current session's live subagent settings override, which takes precedence over persisted user settings until cleared. Persisted user settings remain the source of truth for future sessions.</summary>
     /// <param name="subagents">Subagent settings to apply, or null to clear the live session override.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Empty result after applying subagent settings.</returns>
@@ -36563,6 +36719,31 @@ public sealed class MetadataApi
 
         var request = new SessionMetadataSnapshotRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<SessionMetadataSnapshot>(_session.Rpc, "session.metadata.snapshot", [request], cancellationToken);
+    }
+
+    /// <summary>Returns the client-owned string metadata persisted with this local session. The metadata is not included in model context, events, telemetry, snapshots, or remote exports.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.</returns>
+    public async Task<IDictionary<string, string>> GetClientMetadataAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionMetadataGetClientMetadataRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<IDictionary<string, string>>(_session.Rpc, "session.metadata.getClientMetadata", [request], cancellationToken);
+    }
+
+    /// <summary>Atomically patches the client-owned string metadata persisted with this local session and returns the committed bag.</summary>
+    /// <param name="clear">Remove every existing client metadata entry before applying remove and set. Defaults to false.</param>
+    /// <param name="remove">Case-sensitive keys to remove. Missing keys are ignored. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces.</param>
+    /// <param name="set">String entries to add or replace. Set wins when a key also appears in remove. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Each value may contain at most 16 KiB of UTF-8 data.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.</returns>
+    public async Task<IDictionary<string, string>> UpdateClientMetadataAsync(bool? clear = null, IList<string>? remove = null, IDictionary<string, string>? set = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new MetadataUpdateClientMetadataRequest { SessionId = _session.SessionId, Clear = clear, Remove = remove, Set = set };
+        return await CopilotClient.InvokeRpcAsync<IDictionary<string, string>>(_session.Rpc, "session.metadata.updateClientMetadata", [request], cancellationToken);
     }
 
     /// <summary>Reports whether the local session is currently processing user/agent messages.</summary>
@@ -37527,8 +37708,8 @@ public interface ISessionFsHandler
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Appends content to a file in the client-provided session filesystem.</summary>
-    /// <param name="request">File path, content to append, and optional mode for the client-provided session filesystem.</param>
+    /// <summary>Appends content to a file in the client-provided session filesystem, creating parent directories as needed.</summary>
+    /// <param name="request">File path, content to append, and optional mode for the client-provided session filesystem. Implementations create parent directories as needed.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default);
@@ -38182,6 +38363,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.SubagentDeselectedEvent), TypeInfoPropertyName = "SessionEventsSubagentDeselectedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentFailedData), TypeInfoPropertyName = "SessionEventsSubagentFailedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentFailedEvent), TypeInfoPropertyName = "SessionEventsSubagentFailedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentModelSelectionSource), TypeInfoPropertyName = "SessionEventsSubagentModelSelectionSource")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentSelectedData), TypeInfoPropertyName = "SessionEventsSubagentSelectedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentSelectedEvent), TypeInfoPropertyName = "SessionEventsSubagentSelectedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentStartedData), TypeInfoPropertyName = "SessionEventsSubagentStartedData")]
@@ -38474,9 +38656,11 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HooksDiscoverRequest))]
 [JsonSerializable(typeof(HooksDiscoverResult))]
 [JsonSerializable(typeof(IDictionary<string, JsonElement>))]
+[JsonSerializable(typeof(IDictionary<string, string>))]
 [JsonSerializable(typeof(IList<AccountAllUsers>))]
 [JsonSerializable(typeof(IList<AuthValidationError>))]
 [JsonSerializable(typeof(IList<SessionAuthStatus>))]
+[JsonSerializable(typeof(IList<SessionsClientMetadataEntry>))]
 [JsonSerializable(typeof(InstalledPlugin))]
 [JsonSerializable(typeof(InstalledPluginInfo))]
 [JsonSerializable(typeof(InstructionDiscoveryPath))]
@@ -38624,6 +38808,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(MetadataSetWorkingDirectoryResult))]
 [JsonSerializable(typeof(MetadataSnapshotRemoteMetadata))]
 [JsonSerializable(typeof(MetadataSnapshotRemoteMetadataRepository))]
+[JsonSerializable(typeof(MetadataUpdateClientMetadataRequest))]
 [JsonSerializable(typeof(ModeSetRequest))]
 [JsonSerializable(typeof(ModeSetResult))]
 [JsonSerializable(typeof(Model))]
@@ -38927,6 +39112,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionMcpReloadRequest))]
 [JsonSerializable(typeof(SessionMcpRemoveGitHubRequest))]
 [JsonSerializable(typeof(SessionMetadataActivityRequest))]
+[JsonSerializable(typeof(SessionMetadataGetClientMetadataRequest))]
 [JsonSerializable(typeof(SessionMetadataGetContextAttributionRequest))]
 [JsonSerializable(typeof(SessionMetadataIsProcessingRequest))]
 [JsonSerializable(typeof(SessionMetadataSnapshot))]
@@ -39004,6 +39190,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsBulkDeleteRequest))]
 [JsonSerializable(typeof(SessionsCheckInUseRequest))]
 [JsonSerializable(typeof(SessionsCheckInUseResult))]
+[JsonSerializable(typeof(SessionsClientMetadataEntry))]
 [JsonSerializable(typeof(SessionsCloseRequest))]
 [JsonSerializable(typeof(SessionsCloseResult))]
 [JsonSerializable(typeof(SessionsDeleteRequest))]
@@ -39016,6 +39203,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsForkResult))]
 [JsonSerializable(typeof(SessionsGetBoardEntryCountRequest))]
 [JsonSerializable(typeof(SessionsGetBoardEntryCountResult))]
+[JsonSerializable(typeof(SessionsGetClientMetadataRequest))]
 [JsonSerializable(typeof(SessionsGetEventFilePathRequest))]
 [JsonSerializable(typeof(SessionsGetEventFilePathResult))]
 [JsonSerializable(typeof(SessionsGetLastForContextRequest))]

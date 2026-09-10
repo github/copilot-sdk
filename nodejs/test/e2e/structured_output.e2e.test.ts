@@ -59,13 +59,11 @@ describe("Structured output", async () => {
         ).toBeDefined();
         expect(JSON.parse(result!.data.content)).toEqual({ answer: 42, contract: "raw_schema" });
         expect(result!.data.originatingMessageId).toBeTruthy();
-        expect(result!.data.isFinalReply).toBe(true);
 
         const ordinary = await session.sendAndWait(
             "Reply exactly SCHEMA_CLEARED without JSON or quotes."
         );
         expect(ordinary?.data.content).toBe("SCHEMA_CLEARED");
-        expect(ordinary?.data.isFinalReply).toBe(true);
         const exchanges = await openAiEndpoint.getExchanges();
         expect(exchanges).toHaveLength(2);
         expect(exchanges[0].request).toMatchObject({
@@ -115,13 +113,8 @@ describe("Structured output", async () => {
         const replies = events.filter(
             (event) => event.type === "assistant.message" && !event.agentId
         );
-        expect(replies.filter((event) => event.data.isFinalReply)).toEqual([replies.at(-1)]);
         expect(replies.some((event) => event.data.toolRequests?.length)).toBe(true);
-        expect(
-            replies
-                .filter((event) => event.data.toolRequests?.length)
-                .every((event) => event.data.isFinalReply !== true)
-        ).toBe(true);
+        expect(replies.at(-1)?.data.toolRequests ?? []).toEqual([]);
         const exchanges = await openAiEndpoint.getExchanges();
         expect(exchanges.length).toBeGreaterThanOrEqual(2);
         for (const exchange of exchanges) {
@@ -132,7 +125,7 @@ describe("Structured output", async () => {
         }
     });
 
-    it("node_send_exposes_final_reply_before_stop_hook_completes", async () => {
+    it("node_send_selects_correlated_response_after_idle", async () => {
         let releaseHook!: () => void;
         let hookEntered = false;
         const hookReleased = new Promise<void>((resolve) => {
@@ -159,56 +152,93 @@ describe("Structured output", async () => {
             },
         });
         const replies: AssistantMessageEvent[] = [];
-        let resolveReply!: (event: AssistantMessageEvent) => void;
-        let rejectReply!: (error: Error) => void;
-        const replyReceived = new Promise<AssistantMessageEvent>((resolve, reject) => {
-            resolveReply = resolve;
-            rejectReply = reject;
-        });
+        const errors: string[] = [];
         let idle = false;
         const unsubscribe = session.on((event) => {
             if (event.agentId) return;
             if (event.type === "assistant.message") {
                 replies.push(event);
-                if (event.data.isFinalReply === true) resolveReply(event);
             } else if (event.type === "session.error") {
-                rejectReply(new Error(event.data.message));
+                errors.push(event.data.message);
             } else if (event.type === "session.idle") {
                 idle = true;
             }
         });
         const schema = z.object({ count: z.number().int(), color: z.literal("red") });
-        const timeout = setTimeout(() => rejectReply(new Error("No final reply received")), 45_000);
         try {
-            const [messageId, reply] = await Promise.all([
-                session.send({
-                    prompt: "Call read_inventory once, then report the current widget count and color.",
-                    responseSchema: schema,
-                }),
-                replyReceived,
-            ]);
-            await waitForCondition(() => hookEntered, {
+            const messageId = await session.send({
+                prompt: "Call read_inventory once, then report the current widget count and color.",
+                responseSchema: schema,
+            });
+            await waitForCondition(() => hookEntered || errors.length > 0, {
                 timeoutMessage: "Stop hook did not start",
             });
+            expect(errors).toEqual([]);
+            expect(idle).toBe(false);
+            releaseHook();
+            await waitForCondition(() => idle || errors.length > 0, {
+                timeoutMessage: "Session did not become idle",
+            });
+            expect(errors).toEqual([]);
+            const reply = replies.findLast(
+                (event) => event.data.originatingMessageId === messageId
+            );
+            expect(reply).toBeDefined();
+            if (!reply) throw new Error("No correlated assistant response");
             expect(reply.data.originatingMessageId).toBe(messageId);
             expect(schema.parse(JSON.parse(reply.data.content))).toEqual({
                 count: 42,
                 color: "red",
             });
-            expect(idle).toBe(false);
-            expect(replies.filter((event) => event.data.isFinalReply)).toEqual([reply]);
             expect(replies.some((event) => event.data.toolRequests?.length)).toBe(true);
             expect(reply.data.toolRequests ?? []).toEqual([]);
-
-            releaseHook();
-            await waitForCondition(() => idle, { timeoutMessage: "Session did not become idle" });
             expect(replies.at(-1)).toBe(reply);
         } finally {
-            clearTimeout(timeout);
             releaseHook();
             unsubscribe();
         }
     }, 60_000);
+
+    it("typed_wait_returns_stop_hook_correction", async () => {
+        let stops = 0;
+        const replies: AssistantMessageEvent[] = [];
+        const schema = z.object({ answer: z.number().int() });
+        const session = await client.createSession({
+            model: "gpt-4.1",
+            provider,
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            onEvent: (event) => {
+                if (event.type === "assistant.message" && !event.agentId) replies.push(event);
+            },
+            hooks: {
+                onAgentStop: () =>
+                    ++stops === 1
+                        ? {
+                              decision: "block",
+                              reason: "Correct the answer to 99, not 42. Do not use tools.",
+                          }
+                        : undefined,
+            },
+        });
+        const result = await session.sendAndWait("What is 19 + 23? Do not use tools.", schema);
+        expect(result).toEqual({ answer: 99 });
+        expect(stops).toBe(2);
+        expect(replies.map((reply): unknown => JSON.parse(reply.data.content))).toEqual([
+            { answer: 42 },
+            { answer: 99 },
+        ]);
+        expect(replies[0].data.originatingMessageId).toBeTruthy();
+        expect(replies[1].data.originatingMessageId).toBe(replies[0].data.originatingMessageId);
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges).toHaveLength(2);
+        for (const exchange of exchanges) {
+            expect(exchange.request).toHaveProperty(
+                "response_format.json_schema.schema",
+                schema.toJSONSchema()
+            );
+        }
+    });
 
     it("node_concurrent_typed_sends_return_their_own_results", async () => {
         let markToolEntered!: () => void;
@@ -298,6 +328,5 @@ describe("Structured output", async () => {
         if (final?.type !== "assistant.message") throw new Error("No assistant response");
         expect(schema.parse(JSON.parse(final.data.content))).toEqual({ total: 42 });
         expect(final.data.originatingMessageId).toBe(response.messageIds[0]);
-        expect(final.data.isFinalReply).toBe(true);
     });
 });

@@ -1899,6 +1899,14 @@ func (CatalogUnsupportedKindError) Kind() CatalogSearchResultKind {
 	return CatalogSearchResultKindUnsupportedKind
 }
 
+// Client-owned, case-sensitive string metadata persisted with a local session. Clients
+// should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys
+// under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8
+// data. A bag may contain at most 128 entries and its serialized sidecar may contain at
+// most 64 KiB. The runtime stores but never interprets these values.
+// Experimental: ClientMetadata is part of an experimental API and may change or be removed.
+type ClientMetadata map[string]string
+
 // Runtime-to-owner cancellation request for a client-owned task.
 // Experimental: ClientTaskCancelRequest is part of an experimental API and may change or be
 // removed.
@@ -7117,6 +7125,25 @@ type MetadataSnapshotRemoteMetadataRepository struct {
 	Owner string `json:"owner"`
 }
 
+// Atomic patch for client-owned session metadata. Operations apply in clear, remove, then
+// set order. The resulting bag must satisfy the ClientMetadata entry and serialized-size
+// limits. Local storage coordinates concurrent runtime processes; custom SessionFs
+// providers must serialize writers that access the same session from multiple processes.
+// Experimental: MetadataUpdateClientMetadataRequest is part of an experimental API and may
+// change or be removed.
+type MetadataUpdateClientMetadataRequest struct {
+	// Remove every existing client metadata entry before applying remove and set. Defaults to
+	// false.
+	Clear *bool `json:"clear,omitempty"`
+	// Case-sensitive keys to remove. Missing keys are ignored. Each key must be non-empty, at
+	// most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces.
+	Remove []string `json:"remove,omitzero"`
+	// String entries to add or replace. Set wins when a key also appears in remove. Each key
+	// must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and
+	// `github/` namespaces. Each value may contain at most 16 KiB of UTF-8 data.
+	Set map[string]string `json:"set,omitzero"`
+}
+
 // Copilot model metadata, including identifier, display name, capabilities, policy,
 // billing, reasoning efforts, and picker categories.
 // Experimental: Model is part of an experimental API and may change or be removed.
@@ -11511,7 +11538,7 @@ type SessionFactoryPauseAtCheckpointResult struct {
 }
 
 // File path, content to append, and optional mode for the client-provided session
-// filesystem.
+// filesystem. Implementations create parent directories as needed.
 // Experimental: SessionFSAppendFileRequest is part of an experimental API and may change or
 // be removed.
 type SessionFSAppendFileRequest struct {
@@ -12888,6 +12915,81 @@ type SessionsCheckInUseResult struct {
 type SessionScheduleHydrateResult struct {
 }
 
+// Client metadata outcome for one requested local session.
+// Experimental: SessionsClientMetadataEntry is part of an experimental API and may change
+// or be removed.
+type SessionsClientMetadataEntry interface {
+	sessionsClientMetadataEntry()
+	Status() SessionsClientMetadataEntryStatus
+}
+
+type RawSessionsClientMetadataEntryData struct {
+	Discriminator SessionsClientMetadataEntryStatus
+	Raw           json.RawMessage
+}
+
+func (RawSessionsClientMetadataEntryData) sessionsClientMetadataEntry() {}
+func (r RawSessionsClientMetadataEntryData) Status() SessionsClientMetadataEntryStatus {
+	return r.Discriminator
+}
+
+type SessionsClientMetadataEntryCorrupt struct {
+	// Requested session ID.
+	SessionID string `json:"sessionId"`
+}
+
+func (SessionsClientMetadataEntryCorrupt) sessionsClientMetadataEntry() {}
+func (SessionsClientMetadataEntryCorrupt) Status() SessionsClientMetadataEntryStatus {
+	return SessionsClientMetadataEntryStatusCorrupt
+}
+
+type SessionsClientMetadataEntryNotFound struct {
+	// Requested session ID.
+	SessionID string `json:"sessionId"`
+}
+
+func (SessionsClientMetadataEntryNotFound) sessionsClientMetadataEntry() {}
+func (SessionsClientMetadataEntryNotFound) Status() SessionsClientMetadataEntryStatus {
+	return SessionsClientMetadataEntryStatusNotFound
+}
+
+type SessionsClientMetadataEntryOk struct {
+	// Validated client metadata, possibly empty or projected to requested keys.
+	Metadata map[string]string `json:"metadata"`
+	// Requested session ID.
+	SessionID string `json:"sessionId"`
+}
+
+func (SessionsClientMetadataEntryOk) sessionsClientMetadataEntry() {}
+func (SessionsClientMetadataEntryOk) Status() SessionsClientMetadataEntryStatus {
+	return SessionsClientMetadataEntryStatusOk
+}
+
+type SessionsClientMetadataEntryUnavailable struct {
+	// Filesystem or provider error code. Clients should not assume every provider uses
+	// operating-system error codes.
+	Code string `json:"code"`
+	// Human-readable diagnostic message. Not stable for programmatic matching.
+	Message string `json:"message"`
+	// Requested session ID.
+	SessionID string `json:"sessionId"`
+}
+
+func (SessionsClientMetadataEntryUnavailable) sessionsClientMetadataEntry() {}
+func (SessionsClientMetadataEntryUnavailable) Status() SessionsClientMetadataEntryStatus {
+	return SessionsClientMetadataEntryStatusUnavailable
+}
+
+type SessionsClientMetadataEntryUnsupportedVersion struct {
+	// Requested session ID.
+	SessionID string `json:"sessionId"`
+}
+
+func (SessionsClientMetadataEntryUnsupportedVersion) sessionsClientMetadataEntry() {}
+func (SessionsClientMetadataEntryUnsupportedVersion) Status() SessionsClientMetadataEntryStatus {
+	return SessionsClientMetadataEntryStatusUnsupportedVersion
+}
+
 // Session ID to close.
 // Experimental: SessionsCloseRequest is part of an experimental API and may change or be
 // removed.
@@ -13187,6 +13289,23 @@ type SessionsGetBoardEntryCountResult struct {
 	// Board entry count, when available.
 	Count *int64 `json:"count,omitempty"`
 }
+
+// Bounded batch request for client-owned metadata from persisted local sessions.
+// Experimental: SessionsGetClientMetadataRequest is part of an experimental API and may
+// change or be removed.
+type SessionsGetClientMetadataRequest struct {
+	// Case-sensitive keys to project from each valid bag. Each key must be non-empty, at most
+	// 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Omit to
+	// return every entry.
+	Keys []string `json:"keys,omitzero"`
+	// Session IDs to inspect. Results preserve this order.
+	SessionIDs []string `json:"sessionIds"`
+}
+
+// Ordered client metadata outcomes for the requested local sessions.
+// Experimental: SessionsGetClientMetadataResult is part of an experimental API and may
+// change or be removed.
+type SessionsGetClientMetadataResult []SessionsClientMetadataEntry
 
 // Session ID whose event-log file path to compute.
 // Experimental: SessionsGetEventFilePathRequest is part of an experimental API and may
@@ -14429,10 +14548,13 @@ type SubagentSettings struct {
 	MaxDepth *int32 `json:"maxDepth,omitempty"`
 }
 
-// Subagent model, reasoning effort, and context tier settings
+// Subagent model, reasoning effort, context tier, and auto-invocation settings
 // Experimental: SubagentSettingsEntry is part of an experimental API and may change or be
 // removed.
 type SubagentSettingsEntry struct {
+	// Whether this agent's runtime-defined proactive invocation prompting is enabled, if
+	// supported. Currently consumed by the built-in rubber-duck agent.
+	AutoInvoke *bool `json:"autoInvoke,omitempty"`
 	// Context tier override for matching subagents
 	ContextTier *SubagentSettingsEntryContextTier `json:"contextTier,omitempty"`
 	// Reasoning effort override for matching subagents
@@ -19370,6 +19492,17 @@ const (
 	SessionOpenParamsKindResumeLast SessionOpenParamsKind = "resumeLast"
 )
 
+// Status discriminator for SessionsClientMetadataEntry.
+type SessionsClientMetadataEntryStatus string
+
+const (
+	SessionsClientMetadataEntryStatusCorrupt            SessionsClientMetadataEntryStatus = "corrupt"
+	SessionsClientMetadataEntryStatusNotFound           SessionsClientMetadataEntryStatus = "notFound"
+	SessionsClientMetadataEntryStatusOk                 SessionsClientMetadataEntryStatus = "ok"
+	SessionsClientMetadataEntryStatusUnavailable        SessionsClientMetadataEntryStatus = "unavailable"
+	SessionsClientMetadataEntryStatusUnsupportedVersion SessionsClientMetadataEntryStatus = "unsupportedVersion"
+)
+
 // Rust-owned settings predicates exposed across the SDK boundary. Raw feature-flag names
 // are intentionally not part of the contract.
 // Experimental: SessionSettingsPredicateName is part of an experimental API and may change
@@ -21247,6 +21380,27 @@ func (a *ServerSessionsAPI) Fork(ctx context.Context, params *SessionsForkReques
 		return nil, err
 	}
 	var result SessionsForkResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetClientMetadata reads client-owned metadata for multiple persisted local sessions
+// without opening them. Results preserve request order and report missing, corrupt,
+// unsupported, or temporarily unavailable sessions independently.
+//
+// RPC method: sessions.getClientMetadata.
+//
+// Parameters: Bounded batch request for client-owned metadata from persisted local sessions.
+//
+// Returns: Ordered client metadata outcomes for the requested local sessions.
+func (a *ServerSessionsAPI) GetClientMetadata(ctx context.Context, params *SessionsGetClientMetadataRequest) (*SessionsGetClientMetadataResult, error) {
+	raw, err := a.client.Request(ctx, "sessions.getClientMetadata", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionsGetClientMetadataResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -24459,6 +24613,30 @@ func (a *MetadataAPI) ContextInfo(ctx context.Context, params *MetadataContextIn
 	return &result, nil
 }
 
+// GetClientMetadata returns the client-owned string metadata persisted with this local
+// session. The metadata is not included in model context, events, telemetry, snapshots, or
+// remote exports.
+//
+// RPC method: session.metadata.getClientMetadata.
+//
+// Returns: Client-owned, case-sensitive string metadata persisted with a local session.
+// Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8
+// bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16
+// KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may
+// contain at most 64 KiB. The runtime stores but never interprets these values.
+func (a *MetadataAPI) GetClientMetadata(ctx context.Context) (*ClientMetadata, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.metadata.getClientMetadata", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ClientMetadata
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetContextAttribution returns the experimental per-source attribution breakdown of the
 // session's current context window as a flat list of entries (skills, subagents, MCP
 // servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via
@@ -24641,6 +24819,46 @@ func (a *MetadataAPI) Snapshot(ctx context.Context) (*SessionMetadataSnapshot, e
 		return nil, err
 	}
 	var result SessionMetadataSnapshot
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// UpdateClientMetadata atomically patches the client-owned string metadata persisted with
+// this local session and returns the committed bag.
+//
+// RPC method: session.metadata.updateClientMetadata.
+//
+// Parameters: Atomic patch for client-owned session metadata. Operations apply in clear,
+// remove, then set order. The resulting bag must satisfy the ClientMetadata entry and
+// serialized-size limits. Local storage coordinates concurrent runtime processes; custom
+// SessionFs providers must serialize writers that access the same session from multiple
+// processes.
+//
+// Returns: Client-owned, case-sensitive string metadata persisted with a local session.
+// Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8
+// bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16
+// KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may
+// contain at most 64 KiB. The runtime stores but never interprets these values.
+func (a *MetadataAPI) UpdateClientMetadata(ctx context.Context, params *MetadataUpdateClientMetadataRequest) (*ClientMetadata, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Clear != nil {
+			req["clear"] = *params.Clear
+		}
+		if params.Remove != nil {
+			req["remove"] = params.Remove
+		}
+		if params.Set != nil {
+			req["set"] = params.Set
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.metadata.updateClientMetadata", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ClientMetadata
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -27200,9 +27418,9 @@ func (a *ToolsAPI) TaskCompleteEventData(ctx context.Context, params *ToolsTaskC
 	return &result, nil
 }
 
-// UpdateSubagentSettings updates the current session's live subagent settings after user
-// settings change. The persisted user settings remain the source of truth for future
-// sessions.
+// UpdateSubagentSettings sets the current session's live subagent settings override, which
+// takes precedence over persisted user settings until cleared. Persisted user settings
+// remain the source of truth for future sessions.
 //
 // RPC method: session.tools.updateSubagentSettings.
 //
@@ -29429,12 +29647,13 @@ type ProviderTokenHandler interface {
 
 // Experimental: SessionFSHandler contains experimental APIs that may change or be removed.
 type SessionFSHandler interface {
-	// AppendFile appends content to a file in the client-provided session filesystem.
+	// AppendFile appends content to a file in the client-provided session filesystem, creating
+	// parent directories as needed.
 	//
 	// RPC method: sessionFs.appendFile.
 	//
 	// Parameters: File path, content to append, and optional mode for the client-provided
-	// session filesystem.
+	// session filesystem. Implementations create parent directories as needed.
 	//
 	// Returns: Describes a filesystem error.
 	AppendFile(request *SessionFSAppendFileRequest) (*SessionFSError, error)

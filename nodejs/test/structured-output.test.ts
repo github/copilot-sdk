@@ -230,7 +230,7 @@ describe("structured output", () => {
         await assertion;
     });
 
-    it("does not treat a final-reply flag as successful completion", async () => {
+    it("does not treat an assistant response as successful completion", async () => {
         const { session, sends } = controlledSession();
         const pending = session.sendAndWait("question", answer);
         const assertion = expect(pending).rejects.toThrow("post-response failure");
@@ -240,7 +240,6 @@ describe("structured output", () => {
             event("assistant.message", {
                 messageId: "final-reply",
                 originatingMessageId: "one",
-                isFinalReply: true,
                 content: '{"answer":42}',
             })
         );
@@ -253,6 +252,26 @@ describe("structured output", () => {
         session._dispatchEvent(event("session.idle", {}));
         sends[0].resolve({ messageId: "one" });
         await assertion;
+    });
+
+    it("waits for idle and returns a correlated hook correction instead of the original answer", async () => {
+        const { session, sends } = controlledSession();
+        const pending = session.sendAndWait("question", answer);
+        const completed = vi.fn();
+        void pending.then(completed);
+        await sent(sends);
+        sends[0].resolve({ messageId: "one" });
+        session._dispatchEvent(user("one"));
+        session._dispatchEvent(assistant("one", '{"answer":42}'));
+        await Promise.resolve();
+        expect(completed).not.toHaveBeenCalled();
+        session._dispatchEvent(user("hook-correction"));
+        session._dispatchEvent(assistant("one", '{"answer":99}'));
+        session._dispatchEvent(assistant("unrelated", '{"answer":123}'));
+        await Promise.resolve();
+        expect(completed).not.toHaveBeenCalled();
+        session._dispatchEvent(event("session.idle", {}));
+        await expect(pending).resolves.toEqual({ answer: 99 });
     });
 
     it("rejects promptly when the session disconnects", async () => {

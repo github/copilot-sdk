@@ -732,6 +732,24 @@ export type SubagentTaskModelSource =
   /** Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model. */
   | "unset";
 /**
+ * Authority or runtime mechanism responsible for sub-agent model selection.
+ */
+export type SubagentModelSelectionSource =
+  /** Explicit model supplied by the parent agent on the task call and selected for dispatch. */
+  | "explicit_override"
+  /** Required model policy configured for the sub-agent. */
+  | "configured_required"
+  /** Non-required model preference configured for the sub-agent. */
+  | "configured_preference"
+  /** Complementary-model default selected for the sub-agent. */
+  | "complementary_default"
+  /** Model inherited from the parent session. */
+  | "session_inheritance"
+  /** Default model declared by the agent definition. */
+  | "agent_definition_default"
+  /** Runtime policy, Auto mode, or an experiment selected the model. */
+  | "runtime_policy";
+/**
  * Binary asset type discriminator. Use "image" for images and "resource" otherwise.
  */
 export type BinaryAssetType =
@@ -5024,10 +5042,6 @@ export interface AssistantMessageData {
    */
   interactionId?: string;
   /**
-   * True when this is the last assistant reply for the originatingMessageId. Does not indicate successful completion of hooks or cleanup; session.error or abort events may still follow.
-   */
-  isFinalReply?: boolean;
-  /**
    * Unique identifier for this assistant message
    */
   messageId: string;
@@ -5036,7 +5050,7 @@ export interface AssistantMessageData {
    */
   model?: string;
   /**
-   * Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations and steering messages. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
+   * Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
    */
   originatingMessageId?: string;
   /**
@@ -7269,6 +7283,7 @@ export interface SubagentCompletedData {
    * Why an explicit task-call model did not become the effective model
    */
   modelOverrideReason?: string;
+  modelSelectionSource?: SubagentModelSelectionSource;
   /**
    * Tool call ID of the parent tool invocation that spawned this sub-agent
    */
@@ -7360,6 +7375,7 @@ export interface SubagentFailedData {
    * Why an explicit task-call model did not become the effective model
    */
   modelOverrideReason?: string;
+  modelSelectionSource?: SubagentModelSelectionSource;
   /**
    * Tool call ID of the parent tool invocation that spawned this sub-agent
    */

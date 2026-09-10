@@ -2448,7 +2448,6 @@ class AssistantMessageData:
     # Experimental: this field is part of an experimental API and may change or be removed.
     fusion: FusionAttribution | None = None
     interaction_id: str | None = None
-    is_final_reply: bool | None = None
     model: str | None = None
     originating_message_id: str | None = None
     output_tokens: int | None = None
@@ -2479,7 +2478,6 @@ class AssistantMessageData:
         encrypted_content = from_union([from_none, from_str], obj.get("encryptedContent"))
         fusion = from_union([from_none, FusionAttribution.from_dict], obj.get("fusion"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
-        is_final_reply = from_union([from_none, from_bool], obj.get("isFinalReply"))
         model = from_union([from_none, from_str], obj.get("model"))
         originating_message_id = from_union([from_none, from_str], obj.get("originatingMessageId"))
         output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
@@ -2506,7 +2504,6 @@ class AssistantMessageData:
             encrypted_content=encrypted_content,
             fusion=fusion,
             interaction_id=interaction_id,
-            is_final_reply=is_final_reply,
             model=model,
             originating_message_id=originating_message_id,
             output_tokens=output_tokens,
@@ -2544,8 +2541,6 @@ class AssistantMessageData:
             result["fusion"] = from_union([from_none, lambda x: to_class(FusionAttribution, x)], self.fusion)
         if self.interaction_id is not None:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
-        if self.is_final_reply is not None:
-            result["isFinalReply"] = from_union([from_none, from_bool], self.is_final_reply)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.originating_message_id is not None:
@@ -9733,6 +9728,7 @@ class SubagentCompletedData:
     first_dispatched_model: str | None = None
     model: str | None = None
     model_override_reason: str | None = None
+    model_selection_source: SubagentModelSelectionSource | None = None
     total_tokens: int | None = None
     total_tool_calls: int | None = None
 
@@ -9751,6 +9747,7 @@ class SubagentCompletedData:
         first_dispatched_model = from_union([from_none, from_str], obj.get("firstDispatchedModel"))
         model = from_union([from_none, from_str], obj.get("model"))
         model_override_reason = from_union([from_none, from_str], obj.get("modelOverrideReason"))
+        model_selection_source = from_union([from_none, lambda x: parse_enum(SubagentModelSelectionSource, x)], obj.get("modelSelectionSource"))
         total_tokens = from_union([from_none, from_int], obj.get("totalTokens"))
         total_tool_calls = from_union([from_none, from_int], obj.get("totalToolCalls"))
         return SubagentCompletedData(
@@ -9766,6 +9763,7 @@ class SubagentCompletedData:
             first_dispatched_model=first_dispatched_model,
             model=model,
             model_override_reason=model_override_reason,
+            model_selection_source=model_selection_source,
             total_tokens=total_tokens,
             total_tool_calls=total_tool_calls,
         )
@@ -9793,6 +9791,8 @@ class SubagentCompletedData:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.model_override_reason is not None:
             result["modelOverrideReason"] = from_union([from_none, from_str], self.model_override_reason)
+        if self.model_selection_source is not None:
+            result["modelSelectionSource"] = from_union([from_none, lambda x: to_enum(SubagentModelSelectionSource, x)], self.model_selection_source)
         if self.total_tokens is not None:
             result["totalTokens"] = from_union([from_none, to_int], self.total_tokens)
         if self.total_tool_calls is not None:
@@ -9860,6 +9860,7 @@ class SubagentFailedData:
     first_dispatched_model: str | None = None
     model: str | None = None
     model_override_reason: str | None = None
+    model_selection_source: SubagentModelSelectionSource | None = None
     total_tokens: int | None = None
     total_tool_calls: int | None = None
 
@@ -9878,6 +9879,7 @@ class SubagentFailedData:
         first_dispatched_model = from_union([from_none, from_str], obj.get("firstDispatchedModel"))
         model = from_union([from_none, from_str], obj.get("model"))
         model_override_reason = from_union([from_none, from_str], obj.get("modelOverrideReason"))
+        model_selection_source = from_union([from_none, lambda x: parse_enum(SubagentModelSelectionSource, x)], obj.get("modelSelectionSource"))
         total_tokens = from_union([from_none, from_int], obj.get("totalTokens"))
         total_tool_calls = from_union([from_none, from_int], obj.get("totalToolCalls"))
         return SubagentFailedData(
@@ -9893,6 +9895,7 @@ class SubagentFailedData:
             first_dispatched_model=first_dispatched_model,
             model=model,
             model_override_reason=model_override_reason,
+            model_selection_source=model_selection_source,
             total_tokens=total_tokens,
             total_tool_calls=total_tool_calls,
         )
@@ -9919,6 +9922,8 @@ class SubagentFailedData:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.model_override_reason is not None:
             result["modelOverrideReason"] = from_union([from_none, from_str], self.model_override_reason)
+        if self.model_selection_source is not None:
+            result["modelSelectionSource"] = from_union([from_none, lambda x: to_enum(SubagentModelSelectionSource, x)], self.model_selection_source)
         if self.total_tokens is not None:
             result["totalTokens"] = from_union([from_none, to_int], self.total_tokens)
         if self.total_tool_calls is not None:
@@ -12815,6 +12820,24 @@ class SkillSource(Enum):
     SDK = "sdk"
 
 
+class SubagentModelSelectionSource(Enum):
+    "Authority or runtime mechanism responsible for sub-agent model selection."
+    # Explicit model supplied by the parent agent on the task call and selected for dispatch.
+    EXPLICIT_OVERRIDE = "explicit_override"
+    # Required model policy configured for the sub-agent.
+    CONFIGURED_REQUIRED = "configured_required"
+    # Non-required model preference configured for the sub-agent.
+    CONFIGURED_PREFERENCE = "configured_preference"
+    # Complementary-model default selected for the sub-agent.
+    COMPLEMENTARY_DEFAULT = "complementary_default"
+    # Model inherited from the parent session.
+    SESSION_INHERITANCE = "session_inheritance"
+    # Default model declared by the agent definition.
+    AGENT_DEFINITION_DEFAULT = "agent_definition_default"
+    # Runtime policy, Auto mode, or an experiment selected the model.
+    RUNTIME_POLICY = "runtime_policy"
+
+
 class SubagentTaskModelSource(Enum):
     "Where the model input for a task-tool sub-agent came from."
     # The spawning agent supplied the task tool's model argument.
@@ -13470,6 +13493,7 @@ __all__ = [
     "SubagentConfiguredData",
     "SubagentDeselectedData",
     "SubagentFailedData",
+    "SubagentModelSelectionSource",
     "SubagentSelectedData",
     "SubagentStartedData",
     "SubagentTaskModelSource",

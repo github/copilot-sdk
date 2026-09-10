@@ -12,7 +12,7 @@ using Xunit.Abstractions;
 namespace GitHub.Copilot.Test.E2E;
 
 public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "structured_output_dotnet", output)
+    : E2ETestBase(fixture, "structured_output", output)
 {
     private SessionConfig StructuredSessionConfig() => new()
     {
@@ -71,12 +71,22 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
     public async Task Sends_Explicit_Schema_For_Message_And_Batch()
     {
         var session = await CreateSessionAsync(StructuredSessionConfig());
-        var completion = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = session.On<AssistantMessageEvent>(message =>
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var replies = new System.Collections.Concurrent.ConcurrentQueue<AssistantMessageEvent>();
+        using var subscription = session.On<SessionEvent>(evt =>
         {
-            if (message.Data.IsFinalReply == true)
+            if (!string.IsNullOrEmpty(evt.AgentId)) return;
+            switch (evt)
             {
-                completion.TrySetResult(message);
+                case AssistantMessageEvent message:
+                    replies.Enqueue(message);
+                    break;
+                case SessionIdleEvent:
+                    completion.TrySetResult();
+                    break;
+                case SessionErrorEvent error:
+                    completion.TrySetException(new InvalidOperationException(error.Data.Message));
+                    break;
             }
         });
         using var schema = JsonDocument.Parse(
@@ -95,9 +105,10 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
                 },
             });
         using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-        var message = await completion.Task.WaitAsync(cts.Token);
+        await completion.Task.WaitAsync(cts.Token);
+        var message = replies.Last(message => message.Data.OriginatingMessageId == accepted.MessageIds.Last());
         Assert.Equal(accepted.MessageIds.Last(), message.Data.OriginatingMessageId);
-        Assert.True(message.Data.IsFinalReply);
+        Assert.Empty(message.Data.ToolRequests ?? []);
         var result = JsonSerializer.Deserialize(message.Data.Content, StructuredOutputE2EJsonContext.Default.Inventory);
         Assert.NotNull(result);
         Assert.Equal(42, result.Count);
@@ -109,7 +120,6 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
             ResponseSchema = schema.RootElement.Clone(),
         }, TimeSpan.FromMinutes(3));
         Assert.NotNull(raw);
-        Assert.True(raw.Data.IsFinalReply);
         var updated = JsonSerializer.Deserialize(raw.Data.Content, StructuredOutputE2EJsonContext.Default.Inventory);
         Assert.NotNull(updated);
         Assert.Equal(21, updated.Count);
@@ -117,7 +127,7 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
     }
 
     [Fact]
-    public async Task Send_Exposes_Final_Reply_Before_Stop_Hook_Completes()
+    public async Task Send_Selects_Correlated_Response_After_Idle()
     {
         var hookEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseHook = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -137,7 +147,6 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
             },
         };
         var session = await CreateSessionAsync(config);
-        var replyReceived = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         var idleReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var replies = new System.Collections.Concurrent.ConcurrentQueue<AssistantMessageEvent>();
         using var subscription = session.On<SessionEvent>(evt =>
@@ -147,10 +156,9 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
             {
                 case AssistantMessageEvent message:
                     replies.Enqueue(message);
-                    if (message.Data.IsFinalReply == true) replyReceived.TrySetResult(message);
                     break;
                 case SessionErrorEvent error:
-                    replyReceived.TrySetException(new InvalidOperationException(error.Data.Message));
+                    idleReceived.TrySetException(new InvalidOperationException(error.Data.Message));
                     break;
                 case SessionIdleEvent:
                     idleReceived.TrySetResult();
@@ -167,26 +175,55 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
                 Prompt = "Call read_inventory once, then report the current widget count and color.",
                 ResponseSchema = schema.RootElement.Clone(),
             }, cts.Token);
-            var reply = await replyReceived.Task.WaitAsync(cts.Token);
             await hookEntered.Task.WaitAsync(cts.Token);
+            Assert.False(idleReceived.Task.IsCompleted);
+            releaseHook.TrySetResult();
+            await idleReceived.Task.WaitAsync(cts.Token);
+            var reply = replies.Last(message => message.Data.OriginatingMessageId == messageId);
             Assert.Equal(messageId, reply.Data.OriginatingMessageId);
             var result = JsonSerializer.Deserialize(reply.Data.Content, StructuredOutputE2EJsonContext.Default.Inventory);
             Assert.NotNull(result);
             Assert.Equal(42, result.Count);
             Assert.Equal("red", result.Color);
-            Assert.False(idleReceived.Task.IsCompleted);
-            Assert.Same(reply, Assert.Single(replies, message => message.Data.IsFinalReply == true));
             Assert.Contains(replies, message => message.Data.ToolRequests is { Length: > 0 });
             Assert.Empty(reply.Data.ToolRequests ?? []);
-
-            releaseHook.TrySetResult();
-            await idleReceived.Task.WaitAsync(cts.Token);
             Assert.Same(reply, replies.Last());
         }
         finally
         {
             releaseHook.TrySetResult();
         }
+    }
+
+    [Fact]
+    public async Task Typed_Wait_Returns_Stop_Hook_Correction()
+    {
+        var stops = 0;
+        var config = StructuredSessionConfig();
+        config.Hooks = new SessionHooks
+        {
+            OnAgentStop = (_, _) => Task.FromResult<AgentStopHookOutput?>(
+                Interlocked.Increment(ref stops) == 1
+                    ? new() { Decision = "block", Reason = "Correct the answer to 99, not 42. Do not use tools." }
+                    : null),
+        };
+        var session = await CreateSessionAsync(config);
+        var replies = new System.Collections.Concurrent.ConcurrentQueue<AssistantMessageEvent>();
+        using var subscription = session.On<AssistantMessageEvent>(message =>
+        {
+            if (string.IsNullOrEmpty(message.AgentId)) replies.Enqueue(message);
+        });
+        var result = await session.SendAndWaitAsync<CorrectionResult>(
+            "What is 19 + 23? Do not use tools.",
+            StructuredOutputE2EJsonContext.Default.Options,
+            TimeSpan.FromMinutes(3));
+        Assert.Equal(99, result.Answer);
+        Assert.Equal(2, stops);
+        Assert.Equal(2, replies.Count);
+        Assert.False(string.IsNullOrEmpty(replies.First().Data.OriginatingMessageId));
+        Assert.Equal(replies.First().Data.OriginatingMessageId, replies.Last().Data.OriginatingMessageId);
+        Assert.Equal([42, 99], replies.Select(message =>
+            JsonSerializer.Deserialize(message.Data.Content, StructuredOutputE2EJsonContext.Default.CorrectionResult)!.Answer));
     }
 
     [Fact]
@@ -253,9 +290,15 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
         public required string Color { get; set; }
     }
 
+    public sealed class CorrectionResult
+    {
+        public required int Answer { get; set; }
+    }
+
     [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
     [JsonSerializable(typeof(Inventory))]
     [JsonSerializable(typeof(FirstAnswer))]
     [JsonSerializable(typeof(SecondAnswer))]
+    [JsonSerializable(typeof(CorrectionResult))]
     internal sealed partial class StructuredOutputE2EJsonContext : JsonSerializerContext;
 }

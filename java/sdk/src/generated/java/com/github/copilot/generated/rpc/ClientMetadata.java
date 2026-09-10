@@ -10,27 +10,14 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * File path, content to append, and optional mode for the client-provided session filesystem. Implementations create parent directories as needed.
- *
- * @apiNote This method is experimental and may change in a future version.
+ * Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.
  * @since 1.0.0
  */
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionFsAppendFileParams(
-    /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId,
-    /** Path using SessionFs conventions */
-    @JsonProperty("path") String path,
-    /** Content to append */
-    @JsonProperty("content") String content,
-    /** Optional POSIX-style mode for newly created files */
-    @JsonProperty("mode") Long mode
-) {
+public record ClientMetadata() {
 }

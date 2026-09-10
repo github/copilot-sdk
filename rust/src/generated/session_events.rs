@@ -2875,15 +2875,12 @@ pub struct AssistantMessageData {
     /// CAPI interaction ID for correlating this message with upstream telemetry
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
-    /// True when this is the last assistant reply for the originatingMessageId. Does not indicate successful completion of hooks or cleanup; session.error or abort events may still follow.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub is_final_reply: Option<bool>,
     /// Unique identifier for this assistant message
     pub message_id: String,
     /// Model that produced this assistant message, if known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    /// Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations and steering messages. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
+    /// Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub originating_message_id: Option<String>,
     /// Actual output token count from the API response (completion_tokens), used for accurate token accounting
@@ -4247,6 +4244,9 @@ pub struct SubagentCompletedData {
     /// Why an explicit task-call model did not become the effective model
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_override_reason: Option<String>,
+    /// Authority or runtime mechanism responsible for sub-agent model selection
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_selection_source: Option<SubagentModelSelectionSource>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed by the sub-agent
@@ -4291,6 +4291,9 @@ pub struct SubagentFailedData {
     /// Why an explicit task-call model did not become the effective model
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_override_reason: Option<String>,
+    /// Authority or runtime mechanism responsible for sub-agent model selection
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_selection_source: Option<SubagentModelSelectionSource>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed before the sub-agent failed
@@ -7815,6 +7818,36 @@ pub enum SubagentTaskModelSource {
     /// Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model.
     #[serde(rename = "unset")]
     Unset,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Authority or runtime mechanism responsible for sub-agent model selection.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SubagentModelSelectionSource {
+    /// Explicit model supplied by the parent agent on the task call and selected for dispatch.
+    #[serde(rename = "explicit_override")]
+    ExplicitOverride,
+    /// Required model policy configured for the sub-agent.
+    #[serde(rename = "configured_required")]
+    ConfiguredRequired,
+    /// Non-required model preference configured for the sub-agent.
+    #[serde(rename = "configured_preference")]
+    ConfiguredPreference,
+    /// Complementary-model default selected for the sub-agent.
+    #[serde(rename = "complementary_default")]
+    ComplementaryDefault,
+    /// Model inherited from the parent session.
+    #[serde(rename = "session_inheritance")]
+    SessionInheritance,
+    /// Default model declared by the agent definition.
+    #[serde(rename = "agent_definition_default")]
+    AgentDefinitionDefault,
+    /// Runtime policy, Auto mode, or an experiment selected the model.
+    #[serde(rename = "runtime_policy")]
+    RuntimePolicy,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

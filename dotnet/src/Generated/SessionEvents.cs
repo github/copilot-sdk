@@ -3816,11 +3816,6 @@ public sealed partial class AssistantMessageData
     [JsonPropertyName("interactionId")]
     public string? InteractionId { get; set; }
 
-    /// <summary>True when this is the last assistant reply for the originatingMessageId. Does not indicate successful completion of hooks or cleanup; session.error or abort events may still follow.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("isFinalReply")]
-    public bool? IsFinalReply { get; set; }
-
     /// <summary>Unique identifier for this assistant message.</summary>
     [JsonPropertyName("messageId")]
     public required string MessageId { get; set; }
@@ -3830,7 +3825,7 @@ public sealed partial class AssistantMessageData
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
-    /// <summary>Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations and steering messages. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.</summary>
+    /// <summary>Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("originatingMessageId")]
     public string? OriginatingMessageId { get; set; }
@@ -4913,6 +4908,11 @@ public sealed partial class SubagentCompletedData
     [JsonPropertyName("modelOverrideReason")]
     public string? ModelOverrideReason { get; set; }
 
+    /// <summary>Authority or runtime mechanism responsible for sub-agent model selection.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelSelectionSource")]
+    public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
+
     /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
@@ -4983,6 +4983,11 @@ public sealed partial class SubagentFailedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("modelOverrideReason")]
     public string? ModelOverrideReason { get; set; }
+
+    /// <summary>Authority or runtime mechanism responsible for sub-agent model selection.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelSelectionSource")]
+    public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
     [JsonPropertyName("toolCallId")]
@@ -14357,6 +14362,82 @@ public readonly struct SubagentTaskModelSource : IEquatable<SubagentTaskModelSou
         public override void Write(Utf8JsonWriter writer, SubagentTaskModelSource value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SubagentTaskModelSource));
+        }
+    }
+}
+
+/// <summary>Authority or runtime mechanism responsible for sub-agent model selection.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SubagentModelSelectionSource : IEquatable<SubagentModelSelectionSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SubagentModelSelectionSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SubagentModelSelectionSource"/>.</param>
+    [JsonConstructor]
+    public SubagentModelSelectionSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SubagentModelSelectionSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Explicit model supplied by the parent agent on the task call and selected for dispatch.</summary>
+    public static SubagentModelSelectionSource ExplicitOverride { get; } = new("explicit_override");
+
+    /// <summary>Required model policy configured for the sub-agent.</summary>
+    public static SubagentModelSelectionSource ConfiguredRequired { get; } = new("configured_required");
+
+    /// <summary>Non-required model preference configured for the sub-agent.</summary>
+    public static SubagentModelSelectionSource ConfiguredPreference { get; } = new("configured_preference");
+
+    /// <summary>Complementary-model default selected for the sub-agent.</summary>
+    public static SubagentModelSelectionSource ComplementaryDefault { get; } = new("complementary_default");
+
+    /// <summary>Model inherited from the parent session.</summary>
+    public static SubagentModelSelectionSource SessionInheritance { get; } = new("session_inheritance");
+
+    /// <summary>Default model declared by the agent definition.</summary>
+    public static SubagentModelSelectionSource AgentDefinitionDefault { get; } = new("agent_definition_default");
+
+    /// <summary>Runtime policy, Auto mode, or an experiment selected the model.</summary>
+    public static SubagentModelSelectionSource RuntimePolicy { get; } = new("runtime_policy");
+
+    /// <summary>Returns a value indicating whether two <see cref="SubagentModelSelectionSource"/> instances are equivalent.</summary>
+    public static bool operator ==(SubagentModelSelectionSource left, SubagentModelSelectionSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SubagentModelSelectionSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(SubagentModelSelectionSource left, SubagentModelSelectionSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SubagentModelSelectionSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SubagentModelSelectionSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SubagentModelSelectionSource}"/> for serializing <see cref="SubagentModelSelectionSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SubagentModelSelectionSource>
+    {
+        /// <inheritdoc />
+        public override SubagentModelSelectionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SubagentModelSelectionSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SubagentModelSelectionSource));
         }
     }
 }

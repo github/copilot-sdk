@@ -382,13 +382,11 @@ type AssistantMessageData struct {
 	Fusion *FusionAttribution `json:"fusion,omitempty"`
 	// CAPI interaction ID for correlating this message with upstream telemetry
 	InteractionID *string `json:"interactionId,omitempty"`
-	// True when this is the last assistant reply for the originatingMessageId. Does not indicate successful completion of hooks or cleanup; session.error or abort events may still follow.
-	IsFinalReply *bool `json:"isFinalReply,omitempty"`
 	// Unique identifier for this assistant message
 	MessageID string `json:"messageId"`
 	// Model that produced this assistant message, if known
 	Model *string `json:"model,omitempty"`
-	// Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations and steering messages. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
+	// Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
 	OriginatingMessageID *string `json:"originatingMessageId,omitempty"`
 	// Actual output token count from the API response (completion_tokens), used for accurate token accounting
 	OutputTokens *int64 `json:"outputTokens,omitempty"`
@@ -2598,6 +2596,8 @@ type SubagentCompletedData struct {
 	Model *string `json:"model,omitempty"`
 	// Why an explicit task-call model did not become the effective model
 	ModelOverrideReason *string `json:"modelOverrideReason,omitempty"`
+	// Authority or runtime mechanism responsible for sub-agent model selection
+	ModelSelectionSource *SubagentModelSelectionSource `json:"modelSelectionSource,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed by the sub-agent
@@ -2633,6 +2633,8 @@ type SubagentFailedData struct {
 	Model *string `json:"model,omitempty"`
 	// Why an explicit task-call model did not become the effective model
 	ModelOverrideReason *string `json:"modelOverrideReason,omitempty"`
+	// Authority or runtime mechanism responsible for sub-agent model selection
+	ModelSelectionSource *SubagentModelSelectionSource `json:"modelSelectionSource,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed before the sub-agent failed
@@ -5923,6 +5925,26 @@ const (
 	SkillInvokedTriggerContextLoad SkillInvokedTrigger = "context-load"
 	// Skill invocation requested explicitly by the user, such as via a slash command or UI affordance.
 	SkillInvokedTriggerUserInvoked SkillInvokedTrigger = "user-invoked"
+)
+
+// Authority or runtime mechanism responsible for sub-agent model selection.
+type SubagentModelSelectionSource string
+
+const (
+	// Default model declared by the agent definition.
+	SubagentModelSelectionSourceAgentDefinitionDefault SubagentModelSelectionSource = "agent_definition_default"
+	// Complementary-model default selected for the sub-agent.
+	SubagentModelSelectionSourceComplementaryDefault SubagentModelSelectionSource = "complementary_default"
+	// Non-required model preference configured for the sub-agent.
+	SubagentModelSelectionSourceConfiguredPreference SubagentModelSelectionSource = "configured_preference"
+	// Required model policy configured for the sub-agent.
+	SubagentModelSelectionSourceConfiguredRequired SubagentModelSelectionSource = "configured_required"
+	// Explicit model supplied by the parent agent on the task call and selected for dispatch.
+	SubagentModelSelectionSourceExplicitOverride SubagentModelSelectionSource = "explicit_override"
+	// Runtime policy, Auto mode, or an experiment selected the model.
+	SubagentModelSelectionSourceRuntimePolicy SubagentModelSelectionSource = "runtime_policy"
+	// Model inherited from the parent session.
+	SubagentModelSelectionSourceSessionInheritance SubagentModelSelectionSource = "session_inheritance"
 )
 
 // Where the model input for a task-tool sub-agent came from.

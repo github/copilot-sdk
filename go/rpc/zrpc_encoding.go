@@ -5763,6 +5763,120 @@ func (r SessionsOpenResumeLast) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func unmarshalSessionsClientMetadataEntry(data []byte) (SessionsClientMetadataEntry, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Status SessionsClientMetadataEntryStatus `json:"status"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Status {
+	case SessionsClientMetadataEntryStatusCorrupt:
+		var d SessionsClientMetadataEntryCorrupt
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionsClientMetadataEntryStatusNotFound:
+		var d SessionsClientMetadataEntryNotFound
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionsClientMetadataEntryStatusOk:
+		var d SessionsClientMetadataEntryOk
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionsClientMetadataEntryStatusUnavailable:
+		var d SessionsClientMetadataEntryUnavailable
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionsClientMetadataEntryStatusUnsupportedVersion:
+		var d SessionsClientMetadataEntryUnsupportedVersion
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawSessionsClientMetadataEntryData{Discriminator: raw.Status, Raw: data}, nil
+	}
+}
+
+func (r RawSessionsClientMetadataEntryData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Status SessionsClientMetadataEntryStatus `json:"status"`
+	}{
+		Status: r.Discriminator,
+	})
+}
+
+func (r SessionsClientMetadataEntryCorrupt) MarshalJSON() ([]byte, error) {
+	type alias SessionsClientMetadataEntryCorrupt
+	return json.Marshal(struct {
+		Status SessionsClientMetadataEntryStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r SessionsClientMetadataEntryNotFound) MarshalJSON() ([]byte, error) {
+	type alias SessionsClientMetadataEntryNotFound
+	return json.Marshal(struct {
+		Status SessionsClientMetadataEntryStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r SessionsClientMetadataEntryOk) MarshalJSON() ([]byte, error) {
+	type alias SessionsClientMetadataEntryOk
+	return json.Marshal(struct {
+		Status SessionsClientMetadataEntryStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r SessionsClientMetadataEntryUnavailable) MarshalJSON() ([]byte, error) {
+	type alias SessionsClientMetadataEntryUnavailable
+	return json.Marshal(struct {
+		Status SessionsClientMetadataEntryStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r SessionsClientMetadataEntryUnsupportedVersion) MarshalJSON() ([]byte, error) {
+	type alias SessionsClientMetadataEntryUnsupportedVersion
+	return json.Marshal(struct {
+		Status SessionsClientMetadataEntryStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
 func unmarshalSettableAuthInfo(data []byte) (SettableAuthInfo, error) {
 	if string(data) == "null" {
 		return nil, nil

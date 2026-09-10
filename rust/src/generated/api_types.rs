@@ -146,6 +146,8 @@ pub mod rpc_methods {
     pub const SESSIONS_LIST: &str = "sessions.list";
     /// `sessions.getMetadata`
     pub const SESSIONS_GETMETADATA: &str = "sessions.getMetadata";
+    /// `sessions.getClientMetadata`
+    pub const SESSIONS_GETCLIENTMETADATA: &str = "sessions.getClientMetadata";
     /// `sessions.readPersistedEvents`
     pub const SESSIONS_READPERSISTEDEVENTS: &str = "sessions.readPersistedEvents";
     /// `sessions.listNonEmptySessionIds`
@@ -630,6 +632,10 @@ pub mod rpc_methods {
     pub const SESSION_LOG: &str = "session.log";
     /// `session.metadata.snapshot`
     pub const SESSION_METADATA_SNAPSHOT: &str = "session.metadata.snapshot";
+    /// `session.metadata.getClientMetadata`
+    pub const SESSION_METADATA_GETCLIENTMETADATA: &str = "session.metadata.getClientMetadata";
+    /// `session.metadata.updateClientMetadata`
+    pub const SESSION_METADATA_UPDATECLIENTMETADATA: &str = "session.metadata.updateClientMetadata";
     /// `session.metadata.isProcessing`
     pub const SESSION_METADATA_ISPROCESSING: &str = "session.metadata.isProcessing";
     /// `session.metadata.activity`
@@ -10181,6 +10187,28 @@ pub struct MetadataSnapshotRemoteMetadata {
     pub task_type: Option<MetadataSnapshotRemoteMetadataTaskType>,
 }
 
+/// Atomic patch for client-owned session metadata. Operations apply in clear, remove, then set order. The resulting bag must satisfy the ClientMetadata entry and serialized-size limits. Local storage coordinates concurrent runtime processes; custom SessionFs providers must serialize writers that access the same session from multiple processes.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataUpdateClientMetadataRequest {
+    /// Remove every existing client metadata entry before applying remove and set. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clear: Option<bool>,
+    /// Case-sensitive keys to remove. Missing keys are ignored. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remove: Option<Vec<String>>,
+    /// String entries to add or replace. Set wins when a key also appears in remove. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Each value may contain at most 16 KiB of UTF-8 data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub set: Option<HashMap<String, String>>,
+}
+
 /// Active server-driven promotion for a model, including its discount and optional expiry.
 ///
 /// <div class="warning">
@@ -16111,7 +16139,7 @@ pub struct SessionEnrichMetadataResult {
     pub sessions: Vec<LocalSessionMetadataValue>,
 }
 
-/// File path, content to append, and optional mode for the client-provided session filesystem.
+/// File path, content to append, and optional mode for the client-provided session filesystem. Implementations create parent directories as needed.
 ///
 /// <div class="warning">
 ///
@@ -18261,6 +18289,24 @@ pub struct SessionsGetBoardEntryCountResult {
     pub count: Option<i64>,
 }
 
+/// Bounded batch request for client-owned metadata from persisted local sessions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsGetClientMetadataRequest {
+    /// Case-sensitive keys to project from each valid bag. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Omit to return every entry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keys: Option<Vec<String>>,
+    /// Session IDs to inspect. Results preserve this order.
+    pub session_ids: Vec<String>,
+}
+
 /// Session ID whose event-log file path to compute.
 ///
 /// <div class="warning">
@@ -19643,7 +19689,7 @@ pub struct SlashCommandSetPlanModelResult {
     pub runtime_settings_changed: Option<bool>,
 }
 
-/// Subagent model, reasoning effort, and context tier settings
+/// Subagent model, reasoning effort, context tier, and auto-invocation settings
 ///
 /// <div class="warning">
 ///
@@ -19654,6 +19700,9 @@ pub struct SlashCommandSetPlanModelResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubagentSettingsEntry {
+    /// Whether this agent's runtime-defined proactive invocation prompting is enabled, if supported. Currently consumed by the built-in rubber-duck agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_invoke: Option<bool>,
     /// Context tier override for matching subagents
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_tier: Option<SubagentSettingsEntryContextTier>,
@@ -26809,6 +26858,21 @@ pub struct SessionMetadataSnapshotResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetClientMetadataParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionMetadataIsProcessingParams {
     /// Target session identifier
     pub session_id: SessionId,
@@ -28302,6 +28366,16 @@ pub type CardDigestValue = String;
 /// </div>
 pub type CatalogCapabilityId = String;
 
+/// Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type ClientMetadata = HashMap<String, String>;
+
 /// HTTP headers as a map from lowercased header name to a list of values. Multi-valued headers (e.g. Set-Cookie) preserve all values.
 ///
 /// <div class="warning">
@@ -28331,6 +28405,16 @@ pub type McpExecuteSamplingResult = HashMap<String, serde_json::Value>;
 ///
 /// </div>
 pub type McpPlanSecretReference = String;
+
+/// Ordered client metadata outcomes for the requested local sessions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type SessionsGetClientMetadataResult = Vec<serde_json::Value>;
 
 /// The form values submitted by the user (present when action is 'accept')
 ///
@@ -28411,6 +28495,26 @@ pub type SessionGitHubAuthLastAuthErrorsResult = Vec<AuthValidationError>;
 ///
 /// </div>
 pub type SessionMcpAppsCallToolResult = HashMap<String, serde_json::Value>;
+
+/// Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type SessionMetadataGetClientMetadataResult = HashMap<String, String>;
+
+/// Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type SessionMetadataUpdateClientMetadataResult = HashMap<String, String>;
 
 /// Authentication host. HMAC auth always targets the public GitHub host.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

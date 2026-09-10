@@ -350,6 +350,7 @@ type (
 	SubagentConfiguredData                                         = rpc.SubagentConfiguredData
 	SubagentDeselectedData                                         = rpc.SubagentDeselectedData
 	SubagentFailedData                                             = rpc.SubagentFailedData
+	SubagentModelSelectionSource                                   = rpc.SubagentModelSelectionSource
 	SubagentSelectedData                                           = rpc.SubagentSelectedData
 	SubagentStartedData                                            = rpc.SubagentStartedData
 	SubagentTaskModelSource                                        = rpc.SubagentTaskModelSource
@@ -876,6 +877,13 @@ const (
 	SkillSourcePlugin                                                  = rpc.SkillSourcePlugin
 	SkillSourceProject                                                 = rpc.SkillSourceProject
 	SkillSourceSDK                                                     = rpc.SkillSourceSDK
+	SubagentModelSelectionSourceAgentDefinitionDefault                 = rpc.SubagentModelSelectionSourceAgentDefinitionDefault
+	SubagentModelSelectionSourceComplementaryDefault                   = rpc.SubagentModelSelectionSourceComplementaryDefault
+	SubagentModelSelectionSourceConfiguredPreference                   = rpc.SubagentModelSelectionSourceConfiguredPreference
+	SubagentModelSelectionSourceConfiguredRequired                     = rpc.SubagentModelSelectionSourceConfiguredRequired
+	SubagentModelSelectionSourceExplicitOverride                       = rpc.SubagentModelSelectionSourceExplicitOverride
+	SubagentModelSelectionSourceRuntimePolicy                          = rpc.SubagentModelSelectionSourceRuntimePolicy
+	SubagentModelSelectionSourceSessionInheritance                     = rpc.SubagentModelSelectionSourceSessionInheritance
 	SubagentTaskModelSourceCustomAgentDefinition                       = rpc.SubagentTaskModelSourceCustomAgentDefinition
 	SubagentTaskModelSourceSubagentConfiguration                       = rpc.SubagentTaskModelSourceSubagentConfiguration
 	SubagentTaskModelSourceTaskArgument                                = rpc.SubagentTaskModelSourceTaskArgument

@@ -3476,6 +3476,73 @@ export type SessionsOpenProgressStatus =
   /** The step has completed successfully. */
   | "complete";
 /**
+ * Client metadata outcome for one requested local session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionsClientMetadataEntry".
+ */
+/** @experimental */
+export type SessionsClientMetadataEntry =
+  | {
+      /**
+       * Requested session ID.
+       */
+      sessionId: string;
+      metadata: ClientMetadata;
+      /**
+       * Client metadata outcome discriminator.
+       */
+      status: "ok";
+    }
+  | {
+      /**
+       * Requested session ID.
+       */
+      sessionId: string;
+      /**
+       * Client metadata outcome discriminator.
+       */
+      status: "notFound";
+    }
+  | {
+      /**
+       * Requested session ID.
+       */
+      sessionId: string;
+      /**
+       * Client metadata outcome discriminator.
+       */
+      status: "corrupt";
+    }
+  | {
+      /**
+       * Requested session ID.
+       */
+      sessionId: string;
+      /**
+       * Client metadata outcome discriminator.
+       */
+      status: "unsupportedVersion";
+    }
+  | {
+      /**
+       * Requested session ID.
+       */
+      sessionId: string;
+      /**
+       * Filesystem or provider error code. Clients should not assume every provider uses operating-system error codes.
+       */
+      code: string;
+      /**
+       * Human-readable diagnostic message. Not stable for programmatic matching.
+       */
+      message: string;
+      /**
+       * Client metadata outcome discriminator.
+       */
+      status: "unavailable";
+    };
+/**
  * Authentication credentials accepted by session.gitHubAuth.setCredentials. Session-owned token-provider identities cannot be installed through this method.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3536,6 +3603,14 @@ export type SessionSettingsPredicateName =
   | "trivialChangeEnabledForTool"
   /** Whether trivial-change skip behavior is enabled for a specific tool. */
   | "trivialChangeSkipEnabledForTool";
+/**
+ * Ordered client metadata outcomes for the requested local sessions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionsGetClientMetadataResult".
+ */
+/** @experimental */
+export type SessionsGetClientMetadataResult = SessionsClientMetadataEntry[];
 /**
  * Which session sources to include. Defaults to `local` for backward compatibility.
  *
@@ -6384,6 +6459,16 @@ export interface CatalogUnavailableTransportError {
    * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
    */
   message: string;
+}
+/**
+ * Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ClientMetadata".
+ */
+/** @experimental */
+export interface ClientMetadata {
+  [k: string]: string | undefined;
 }
 /**
  * Runtime-to-owner cancellation request for a client-owned task.
@@ -12687,6 +12772,31 @@ export interface MetadataSnapshotRemoteMetadataRepository {
   branch: string;
 }
 /**
+ * Atomic patch for client-owned session metadata. Operations apply in clear, remove, then set order. The resulting bag must satisfy the ClientMetadata entry and serialized-size limits. Local storage coordinates concurrent runtime processes; custom SessionFs providers must serialize writers that access the same session from multiple processes.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MetadataUpdateClientMetadataRequest".
+ */
+/** @experimental */
+export interface MetadataUpdateClientMetadataRequest {
+  /**
+   * Remove every existing client metadata entry before applying remove and set. Defaults to false.
+   */
+  clear?: boolean;
+  /**
+   * Case-sensitive keys to remove. Missing keys are ignored. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces.
+   *
+   * @maxItems 128
+   */
+  remove?: string[];
+  /**
+   * String entries to add or replace. Set wins when a key also appears in remove. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Each value may contain at most 16 KiB of UTF-8 data.
+   */
+  set?: {
+    [k: string]: string | undefined;
+  };
+}
+/**
  * Copilot model metadata, including identifier, display name, capabilities, policy, billing, reasoning efforts, and picker categories.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -18029,7 +18139,7 @@ export interface SessionEnrichMetadataResult {
   sessions: LocalSessionMetadataValue[];
 }
 /**
- * File path, content to append, and optional mode for the client-provided session filesystem.
+ * File path, content to append, and optional mode for the client-provided session filesystem. Implementations create parent directories as needed.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsAppendFileRequest".
@@ -20037,6 +20147,27 @@ export interface SessionsGetBoardEntryCountResult {
   count?: number;
 }
 /**
+ * Bounded batch request for client-owned metadata from persisted local sessions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionsGetClientMetadataRequest".
+ */
+/** @experimental */
+export interface SessionsGetClientMetadataRequest {
+  /**
+   * Session IDs to inspect. Results preserve this order.
+   *
+   * @maxItems 1000
+   */
+  sessionIds: string[];
+  /**
+   * Case-sensitive keys to project from each valid bag. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Omit to return every entry.
+   *
+   * @maxItems 128
+   */
+  keys?: string[];
+}
+/**
  * Session ID whose event-log file path to compute.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -21338,7 +21469,7 @@ export interface SlashCommandSetPlanModelResult {
   runtimeSettingsChanged?: boolean;
 }
 /**
- * Subagent model, reasoning effort, and context tier settings
+ * Subagent model, reasoning effort, context tier, and auto-invocation settings
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SubagentSettingsEntry".
@@ -21355,6 +21486,10 @@ export interface SubagentSettingsEntry {
    */
   effortLevel?: string;
   contextTier?: SubagentSettingsEntryContextTier;
+  /**
+   * Whether this agent's runtime-defined proactive invocation prompting is enabled, if supported. Currently consumed by the built-in rubber-duck agent.
+   */
+  autoInvoke?: boolean;
 }
 /**
  * Tracked background agent task metadata, including IDs, status, timing, agent type, prompt, model, result, and latest response.
@@ -24493,6 +24628,15 @@ export function createServerRpc(connection: MessageConnection) {
             list: async (params: SessionsListRequest): Promise<SessionList> =>
                 connection.sendRequest("sessions.list", params),
             /**
+             * Reads client-owned metadata for multiple persisted local sessions without opening them. Results preserve request order and report missing, corrupt, unsupported, or temporarily unavailable sessions independently.
+             *
+             * @param params Bounded batch request for client-owned metadata from persisted local sessions.
+             *
+             * @returns Ordered client metadata outcomes for the requested local sessions.
+             */
+            getClientMetadata: async (params: SessionsGetClientMetadataRequest): Promise<SessionsGetClientMetadataResult> =>
+                connection.sendRequest("sessions.getClientMetadata", params),
+            /**
              * Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.
              *
              * @param params Pagination options for reading an inactive or active local session's persisted event journal.
@@ -25985,7 +26129,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             set: async (params: ToolsSetRequest): Promise<ToolsSetResult> =>
                 connection.sendRequest("session.tools.set", { sessionId, ...params }),
             /**
-             * Updates the current session's live subagent settings after user settings change. The persisted user settings remain the source of truth for future sessions.
+             * Sets the current session's live subagent settings override, which takes precedence over persisted user settings until cleared. Persisted user settings remain the source of truth for future sessions.
              *
              * @param params Subagent settings to apply to the current session
              *
@@ -26377,6 +26521,22 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             snapshot: async (): Promise<SessionMetadataSnapshot> =>
                 connection.sendRequest("session.metadata.snapshot", { sessionId }),
+            /**
+             * Returns the client-owned string metadata persisted with this local session. The metadata is not included in model context, events, telemetry, snapshots, or remote exports.
+             *
+             * @returns Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.
+             */
+            getClientMetadata: async (): Promise<ClientMetadata> =>
+                connection.sendRequest("session.metadata.getClientMetadata", { sessionId }),
+            /**
+             * Atomically patches the client-owned string metadata persisted with this local session and returns the committed bag.
+             *
+             * @param params Atomic patch for client-owned session metadata. Operations apply in clear, remove, then set order. The resulting bag must satisfy the ClientMetadata entry and serialized-size limits. Local storage coordinates concurrent runtime processes; custom SessionFs providers must serialize writers that access the same session from multiple processes.
+             *
+             * @returns Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.
+             */
+            updateClientMetadata: async (params: MetadataUpdateClientMetadataRequest): Promise<ClientMetadata> =>
+                connection.sendRequest("session.metadata.updateClientMetadata", { sessionId, ...params }),
             /**
              * Reports whether the local session is currently processing user/agent messages.
              *
@@ -27178,9 +27338,9 @@ export interface SessionFsHandler {
      */
     writeFile(params: SessionFsWriteFileRequest): Promise<SessionFsError | undefined>;
     /**
-     * Appends content to a file in the client-provided session filesystem.
+     * Appends content to a file in the client-provided session filesystem, creating parent directories as needed.
      *
-     * @param params File path, content to append, and optional mode for the client-provided session filesystem.
+     * @param params File path, content to append, and optional mode for the client-provided session filesystem. Implementations create parent directories as needed.
      *
      * @returns Describes a filesystem error.
      */
