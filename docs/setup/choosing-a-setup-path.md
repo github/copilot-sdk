@@ -91,6 +91,7 @@ Use this table to find the right guides based on what you need to do:
 | Use your own model keys (OpenAI, Azure, and more) | [BYOK](../auth/byok.md) |
 | Azure BYOK with Managed Identity (no API keys) | [Azure Managed Identity](./azure-managed-identity.md) |
 | Run the SDK on a server | [Backend Services](./backend-services.md) |
+| Host the runtime inside your application process (no separate CLI process) | [In-process runtime](./in-process-runtime.md) *(experimental)* |
 | Configure SDK options for concurrent users | [Multi-tenancy and server deployments](./multi-tenancy.md) |
 | Serve multiple users / scale horizontally | [Scaling & Multi-Tenancy](./scaling.md) |
 

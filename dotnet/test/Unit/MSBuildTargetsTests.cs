@@ -4,6 +4,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -30,6 +31,11 @@ public class MSBuildTargetsTests
 
     private static readonly string RuntimeWrapperName =
         OperatingSystem.IsWindows() ? "copilot-runtime.exe" : "copilot-runtime";
+
+    private static readonly string RuntimeLibraryName =
+        OperatingSystem.IsWindows() ? "copilot_runtime.dll"
+        : OperatingSystem.IsMacOS() ? "libcopilot_runtime.dylib"
+        : "libcopilot_runtime.so";
 
     [Fact]
     public async Task PreinstalledCliBinaryPath_IsHonored_DownloadSkipped_AndCopiedToOutput()
@@ -237,6 +243,53 @@ public class MSBuildTargetsTests
     }
 
     [Fact]
+    public async Task PackAsTool_NoBuild_IncludesRuntimeAssetsInToolPackage()
+    {
+        using var sandbox = MSBuildSandbox.Create(packAsTool: true);
+        var preinstalled = sandbox.WritePreinstalledBinary("fake-cli-contents");
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), "runtime.node", "runtime");
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), RuntimeWrapperName, "wrapper");
+        sandbox.WriteRuntimeCacheAsset("ripgrep", "bin", GetReleasePlatform(), "rg", "ripgrep");
+
+        var result = await sandbox.PackNoBuildAsync(new Dictionary<string, string>
+        {
+            ["CopilotCliBinaryPath"] = preinstalled,
+        });
+
+        Assert.True(result.Succeeded, result.FailureMessage());
+
+        var rid = MSBuildSandbox.GetPortableRid();
+        var entries = sandbox.GetPackageEntries();
+        var nativePath = $"tools/net8.0/{rid}/runtimes/{rid}/native";
+        Assert.Contains($"{nativePath}/{BinaryName}", entries);
+        Assert.Contains($"{nativePath}/{RuntimeWrapperName}", entries);
+        Assert.Contains($"{nativePath}/runtime.node", entries);
+        Assert.Contains($"{nativePath}/{RuntimeLibraryName}", entries);
+        Assert.Contains($"{nativePath}/ripgrep/bin/{GetReleasePlatform()}/rg", entries);
+    }
+
+    [Fact]
+    public async Task PackAsTool_NoBuild_PublishesExplicitCliMarker()
+    {
+        using var sandbox = MSBuildSandbox.Create(packAsTool: true);
+        var preinstalled = sandbox.WritePreinstalledBinary("fake-cli-contents");
+
+        var result = await sandbox.PackNoBuildAsync(new Dictionary<string, string>
+        {
+            ["CopilotCliBinaryPath"] = preinstalled,
+        });
+
+        Assert.True(result.Succeeded, result.FailureMessage());
+        // The marker is what CopilotClient uses to launch an explicit CLI without
+        // requiring the runtime pair, so it has to survive into the publish layout
+        // the tool package is built from. NuGet's default dot-file exclusion keeps
+        // it out of the .nupkg itself, which is a separate pre-existing limitation.
+        Assert.True(File.Exists(sandbox.PublishedRuntimeAsset(".copilot-explicit-cli")),
+            "The explicit-CLI marker must reach the publish layout.");
+        Assert.True(File.Exists(sandbox.PublishedRuntimeAsset(BinaryName)));
+    }
+
+    [Fact]
     public async Task PreinstalledCliBinaryPath_NonExistentFile_FailsWithActionableError()
     {
         using var sandbox = MSBuildSandbox.Create();
@@ -327,25 +380,49 @@ public class MSBuildTargetsTests
             ProjectDir = projectDir;
         }
 
-        public static MSBuildSandbox Create()
+        public static MSBuildSandbox Create(bool packAsTool = false)
         {
             var dir = Path.Combine(Path.GetTempPath(), "copilot-sdk-targets-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(dir);
 
-            // Minimal class library that imports the SDK targets with a pinned fake
-            // CopilotCliVersion so the targets do not need the generated props file.
+            // Tool packages are produced from the publish layout, so the tool variant
+            // exercises the packaging path reported in issue #2067.
+            var toolProperties = packAsTool
+                ? $"""
+
+                    <OutputType>Exe</OutputType>
+                    <PackAsTool>true</PackAsTool>
+                    <PackageId>CopilotSdkTargetsTest.Tool</PackageId>
+                    <Version>1.0.0</Version>
+                    <ToolCommandName>copilot-sdk-targets-test</ToolCommandName>
+                    <RuntimeIdentifiers>{GetPortableRid()}</RuntimeIdentifiers>
+                    <SelfContained>false</SelfContained>
+                    <UseAppHost>false</UseAppHost>
+                """
+                : string.Empty;
+
+            // Pin the RID for every sandbox build. Left unpinned, the targets fall
+            // back to the spawned SDK's own RID, which need not match the test
+            // process — so an emulated run would build for one architecture while
+            // GetReleasePlatform() seeded the cache for another.
             var csproj = $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
                     <TargetFramework>net8.0</TargetFramework>
+                    <RuntimeIdentifier>{GetPortableRid()}</RuntimeIdentifier>
+                    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
                     <CopilotCliVersion>0.0.0-test</CopilotCliVersion>
-                    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+                    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>{toolProperties}
                   </PropertyGroup>
                   <Import Project="{TargetsFilePath}" />
                 </Project>
                 """;
             File.WriteAllText(Path.Combine(dir, "App.csproj"), csproj);
-            File.WriteAllText(Path.Combine(dir, "Stub.cs"), "namespace CopilotSdkTargetsTest { internal static class Stub { } }\n");
+            File.WriteAllText(
+                Path.Combine(dir, "Stub.cs"),
+                packAsTool
+                    ? "namespace CopilotSdkTargetsTest { internal static class Stub { private static void Main() { } } }\n"
+                    : "namespace CopilotSdkTargetsTest { internal static class Stub { } }\n");
 
             return new MSBuildSandbox(dir);
         }
@@ -416,6 +493,21 @@ public class MSBuildTargetsTests
             return path;
         }
 
+        /// <summary>
+        /// A runtime asset in the publish layout, which is what tool packaging
+        /// consumes.
+        /// </summary>
+        public string PublishedRuntimeAsset(params string[] pathParts)
+        {
+            var rid = GetPortableRid();
+            var path = Path.Combine(ProjectDir, "bin", "Debug", "net8.0", rid, "publish", "runtimes", rid, "native");
+            foreach (var part in pathParts)
+            {
+                path = Path.Combine(path, part);
+            }
+            return path;
+        }
+
         public string ExpectedRuntimeAsset(params string[] pathParts)
         {
             var path = Path.Combine(ProjectDir, "bin", "Debug", "net8.0", "runtimes", GetPortableRid(), "native");
@@ -439,9 +531,46 @@ public class MSBuildTargetsTests
                 string.Join(Path.DirectorySeparatorChar.ToString(), relativeParts) + Environment.NewLine);
         }
 
-        public async Task<BuildResult> BuildAsync(IDictionary<string, string> properties)
+        public async Task<BuildResult> BuildAsync(IDictionary<string, string> properties) =>
+            await RunAsync("build --nologo -clp:NoSummary", properties);
+
+        /// <summary>
+        /// Builds, publishes, then packs without rebuilding — the tool packaging sequence
+        /// used by CI pipelines and reported in issue #2067.
+        /// </summary>
+        public async Task<BuildResult> PackNoBuildAsync(IDictionary<string, string> properties)
         {
-            var args = new StringBuilder("build --nologo -clp:NoSummary");
+            // Pin the configuration: build defaults to Debug while publish and pack default
+            // to Release, which would otherwise stage and read different output trees.
+            var rid = GetPortableRid();
+            var build = await RunAsync($"build --nologo -clp:NoSummary -c Debug -r {rid}", properties);
+            if (!build.Succeeded)
+            {
+                return build;
+            }
+
+            var publish = await RunAsync($"publish --nologo -clp:NoSummary -c Debug -r {rid}", properties);
+            if (!publish.Succeeded)
+            {
+                return publish;
+            }
+
+            return await RunAsync(
+                $"pack --nologo -clp:NoSummary -c Debug -r {rid} --no-build -o packages",
+                properties);
+        }
+
+        public List<string> GetPackageEntries()
+        {
+            var package = Directory.GetFiles(Path.Combine(ProjectDir, "packages"), "*.nupkg").Single();
+            using var stream = File.OpenRead(package);
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+            return archive.Entries.Select(entry => entry.FullName).ToList();
+        }
+
+        private async Task<BuildResult> RunAsync(string command, IDictionary<string, string> properties)
+        {
+            var args = new StringBuilder(command);
             foreach (var (key, value) in properties)
             {
                 // Quote the value so paths with spaces are preserved.
@@ -482,7 +611,7 @@ public class MSBuildTargetsTests
                 catch (InvalidOperationException) { /* process already exited */ }
                 catch (NotSupportedException) { /* not supported on this platform */ }
                 catch (System.ComponentModel.Win32Exception) { /* kill failed; best effort */ }
-                throw new TimeoutException($"dotnet build did not complete within the timeout for args: {args}");
+                throw new TimeoutException($"dotnet did not complete within the timeout for args: {args}");
             }
 
             return new BuildResult(
@@ -499,11 +628,15 @@ public class MSBuildTargetsTests
             catch (UnauthorizedAccessException) { /* cleanup is best effort */ }
         }
 
-        private static string GetPortableRid()
+        public static string GetPortableRid()
         {
+            // Must agree with GetReleasePlatform(), which names the seeded runtime cache:
+            // both describe the SDK actually running the build, so an emulated process
+            // (x64 on arm64) pins the RID it seeded assets for.
+            var arch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture;
             if (OperatingSystem.IsWindows())
             {
-                return System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
+                return arch switch
                 {
                     System.Runtime.InteropServices.Architecture.Arm64 => "win-arm64",
                     _ => "win-x64",
@@ -511,14 +644,14 @@ public class MSBuildTargetsTests
             }
             if (OperatingSystem.IsMacOS())
             {
-                return System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
+                return arch switch
                 {
                     System.Runtime.InteropServices.Architecture.Arm64 => "osx-arm64",
                     _ => "osx-x64",
                 };
             }
             var os = IsMusl() ? "linux-musl" : "linux";
-            var architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
+            var architecture = arch switch
             {
                 System.Runtime.InteropServices.Architecture.Arm64 => "arm64",
                 _ => "x64",

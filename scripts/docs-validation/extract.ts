@@ -61,6 +61,7 @@ function parseMarkdownCodeBlocks(
   let skipNext = false;
   let wrapAsync = false;
   let inHiddenBlock = false;
+  let inUnvalidatedFence = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -86,13 +87,25 @@ function parseMarkdownCodeBlocks(
     }
 
     // Start of code block
-    if (!inCodeBlock && line.startsWith("```")) {
+    if (!inCodeBlock && !inUnvalidatedFence && line.startsWith("```")) {
       const lang = line.slice(3).trim().toLowerCase();
       if (lang && LANGUAGE_MAP[lang]) {
         inCodeBlock = true;
         currentLang = LANGUAGE_MAP[lang];
         currentCode = [];
         blockStartLine = i + 1; // 1-indexed line number
+      } else {
+        inUnvalidatedFence = true;
+      }
+      continue;
+    }
+
+    // End of a fence whose language has no validator. It still consumes a
+    // pending skip so the directive cannot leak onto a later block.
+    if (inUnvalidatedFence && line.startsWith("```")) {
+      inUnvalidatedFence = false;
+      if (!inHiddenBlock) {
+        skipNext = false;
       }
       continue;
     }

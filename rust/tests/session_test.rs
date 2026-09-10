@@ -655,6 +655,219 @@ async fn github_token_provider_is_mutually_exclusive_and_rolls_back_failed_creat
     assert_eq!(unknown["error"]["code"], -32603);
 }
 
+async fn create_token_test_session(
+    client: &Client,
+    server: &mut FakeServer,
+    provider: Arc<dyn github_copilot_sdk::github_token::GitHubTokenProvider>,
+) -> (github_copilot_sdk::session::Session, String) {
+    let create = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_github_token_provider(provider))
+                .await
+                .unwrap()
+        }
+    });
+    let request = server.read_request().await;
+    let registration = request["params"]["gitHubTokenProviderRegistrationId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    server
+        .respond(
+            &request,
+            serde_json::json!({"sessionId": requested_session_id(&request)}),
+        )
+        .await;
+    (
+        timeout(TIMEOUT, create).await.unwrap().unwrap(),
+        registration,
+    )
+}
+
+async fn request_test_token(server: &mut FakeServer, id: u64, registration: &str, host: &str) {
+    server
+        .send_request(
+            id,
+            "gitHubToken.getToken",
+            serde_json::json!({
+                "registrationId": registration, "host": host, "reason": "refresh"
+            }),
+        )
+        .await;
+}
+
+#[tokio::test]
+async fn github_token_provider_pending_callback_does_not_block_other_providers() {
+    let (client, read, write) = make_client();
+    let mut server = FakeServer {
+        read,
+        write,
+        session_id: String::new(),
+    };
+    let entered = Arc::new(Notify::new());
+    let release = Arc::new(Notify::new());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let blocked = Arc::new({
+        let calls = calls.clone();
+        let entered = entered.clone();
+        let release = release.clone();
+        move |_args: GitHubTokenProviderArgs| {
+            let calls = calls.clone();
+            let entered = entered.clone();
+            let release = release.clone();
+            async move {
+                calls.fetch_add(1, Ordering::SeqCst);
+                entered.notify_one();
+                release.notified().await;
+                Ok(GitHubTokenProviderResult::Cancelled)
+            }
+        }
+    });
+    let (first, first_id) = create_token_test_session(&client, &mut server, blocked).await;
+    let (_second, second_id) = create_token_test_session(
+        &client,
+        &mut server,
+        Arc::new(|_args: GitHubTokenProviderArgs| async {
+            Ok(GitHubTokenProviderResult::Cancelled)
+        }),
+    )
+    .await;
+    request_test_token(&mut server, 910, &first_id, "github.com").await;
+    timeout(TIMEOUT, entered.notified()).await.unwrap();
+    request_test_token(&mut server, 912, &first_id, "github.com").await;
+    request_test_token(&mut server, 911, &second_id, "github.com").await;
+    let response = timeout(TIMEOUT, server.read_response())
+        .await
+        .expect("another provider must not wait for a blocked callback");
+    assert_eq!(response["id"], 911);
+    assert_eq!(response["result"]["kind"], "cancelled");
+    server
+        .send_request(
+            913,
+            "userInput.request",
+            serde_json::json!({
+                "sessionId": first.id(), "question": "Still responsive?"
+            }),
+        )
+        .await;
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 913);
+    assert_eq!(response["result"]["noResponse"], true);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "same-provider callbacks must stay serialized"
+    );
+    release.notify_one();
+    assert_eq!(
+        timeout(TIMEOUT, server.read_response()).await.unwrap()["id"],
+        910
+    );
+    timeout(TIMEOUT, entered.notified()).await.unwrap();
+    release.notify_one();
+    assert_eq!(
+        timeout(TIMEOUT, server.read_response()).await.unwrap()["id"],
+        912
+    );
+    client.force_stop();
+}
+
+#[tokio::test]
+async fn github_token_provider_panic_returns_error_and_keeps_routing() {
+    let (client, read, write) = make_client();
+    let mut server = FakeServer {
+        read,
+        write,
+        session_id: String::new(),
+    };
+    let (_session, registration) = create_token_test_session(
+        &client,
+        &mut server,
+        Arc::new(|args: GitHubTokenProviderArgs| async move {
+            if args.host == "panic.example" {
+                panic!("private provider failure");
+            }
+            Ok(GitHubTokenProviderResult::Cancelled)
+        }),
+    )
+    .await;
+    request_test_token(&mut server, 920, &registration, "panic.example").await;
+    let response = timeout(TIMEOUT, server.read_response())
+        .await
+        .expect("provider panic must receive an error response");
+    assert_eq!(response["id"], 920);
+    assert_eq!(response["error"]["code"], -32603);
+    assert!(!response.to_string().contains("private provider failure"));
+    request_test_token(&mut server, 921, &registration, "github.com").await;
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 921);
+    assert_eq!(response["result"]["kind"], "cancelled");
+    client.force_stop();
+}
+
+#[tokio::test]
+async fn github_token_provider_pending_callback_is_cancelled_on_retirement() {
+    struct OnDrop(Arc<Notify>);
+    impl Drop for OnDrop {
+        fn drop(&mut self) {
+            self.0.notify_one();
+        }
+    }
+    for action in ["delete", "force_stop", "drop"] {
+        let (client, read, write) = make_client();
+        let mut server = FakeServer {
+            read,
+            write,
+            session_id: String::new(),
+        };
+        let entered = Arc::new(Notify::new());
+        let dropped = Arc::new(Notify::new());
+        let provider = Arc::new({
+            let entered = entered.clone();
+            let dropped = dropped.clone();
+            move |_args: GitHubTokenProviderArgs| {
+                let entered = entered.clone();
+                let dropped = dropped.clone();
+                async move {
+                    let _guard = OnDrop(dropped);
+                    entered.notify_one();
+                    std::future::pending::<()>().await;
+                    Ok(GitHubTokenProviderResult::Cancelled)
+                }
+            }
+        });
+        let (session, registration) =
+            create_token_test_session(&client, &mut server, provider).await;
+        request_test_token(&mut server, 930, &registration, "github.com").await;
+        timeout(TIMEOUT, entered.notified()).await.unwrap();
+        match action {
+            "delete" => {
+                let delete = tokio::spawn({
+                    let client = client.clone();
+                    let session_id = session.id().clone();
+                    async move {
+                        client.delete_session(&session_id).await.unwrap();
+                    }
+                });
+                let request = server.read_request().await;
+                assert_eq!(request["method"], "session.delete");
+                server.respond(&request, serde_json::json!({})).await;
+                timeout(TIMEOUT, delete).await.unwrap().unwrap();
+            }
+            "force_stop" => client.force_stop(),
+            _ => {
+                drop(session);
+                drop(client);
+            }
+        }
+        timeout(TIMEOUT, dropped.notified())
+            .await
+            .unwrap_or_else(|_| panic!("callback survived {action}"));
+    }
+}
+
 fn rand_id() -> u64 {
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
     COUNTER.fetch_add(1, Ordering::Relaxed) as u64

@@ -254,7 +254,7 @@ impl SessionRouter {
                         continue;
                     }
                     if request.method == "gitHubToken.getToken" {
-                        github_token_registry.dispatch(request).await;
+                        github_token_registry.dispatch(request);
                         continue;
                     }
                     // Client-global `llmInference.*` requests carry no routable

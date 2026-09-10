@@ -215,9 +215,11 @@
     <Delete Files="$(_CopilotOutputDir)\$(_CopilotRuntimeLib)" Condition="!Exists('$(_CopilotRuntimeNodePath)')" />
   </Target>
 
-  <!-- Register the compatibility entrypoint as content so it flows through project references.
+  <!-- Register the compatibility entrypoint as content so it flows through project references
+       and publish output. Tool packages (PackAsTool) are built from the publish layout, so the
+       runtime assets must be registered for publish as well as build output.
        Same gating semantics as _CopyCopilotCliToOutput. -->
-  <Target Name="_RegisterCopilotCliForCopy" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="_DownloadCopilotCli" Condition="'$(TargetFramework)' != '' And ('$(CopilotCliBinaryPath)' != '' Or '$(CopilotSkipCliDownload)' != 'true') And '$(_CopilotPlatform)' != ''">
+  <Target Name="_RegisterCopilotCliForCopy" BeforeTargets="GetCopyToOutputDirectoryItems;GetCopyToPublishDirectoryItems" DependsOnTargets="_DownloadCopilotCli" Condition="'$(TargetFramework)' != '' And ('$(CopilotCliBinaryPath)' != '' Or '$(CopilotSkipCliDownload)' != 'true') And '$(_CopilotPlatform)' != ''">
     <PropertyGroup>
       <_CopilotCacheDir Condition="'$(_CopilotCacheDir)' == ''">$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
       <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotCliBinaryPath>
@@ -239,22 +241,27 @@
                                     Condition="Exists('$(_CopilotRuntimeWrapperPath)') And Exists('$(_CopilotRuntimeNodePath)')" />
       <ContentWithTargetPath Include="$(_CopilotCliBinaryPath)" 
                              TargetPath="runtimes\$(_CopilotRid)\native\$(_CopilotBinary)"
-                             CopyToOutputDirectory="PreserveNewest" />
+                             CopyToOutputDirectory="PreserveNewest"
+                             CopyToPublishDirectory="PreserveNewest" />
       <ContentWithTargetPath Include="$(_CopilotExplicitCliMarker)"
                              TargetPath="runtimes\$(_CopilotRid)\native\.copilot-explicit-cli"
                              CopyToOutputDirectory="PreserveNewest"
+                             CopyToPublishDirectory="PreserveNewest"
                              Condition="'$(CopilotCliBinaryPath)' != ''" />
       <!-- FFI cdylib (only when the tarball ships it); see _CopyCopilotCliToOutput. -->
       <ContentWithTargetPath Include="$(_CopilotRuntimeNodePath)"
                              TargetPath="runtimes\$(_CopilotRid)\native\$(_CopilotRuntimeLib)"
                              CopyToOutputDirectory="PreserveNewest"
+                             CopyToPublishDirectory="PreserveNewest"
                              Condition="Exists('$(_CopilotRuntimeNodePath)')" />
       <ContentWithTargetPath Include="@(_CopilotRuntimeRootAsset)"
                              TargetPath="runtimes\$(_CopilotRid)\native\%(RecursiveDir)%(Filename)%(Extension)"
-                             CopyToOutputDirectory="PreserveNewest" />
+                             CopyToOutputDirectory="PreserveNewest"
+                             CopyToPublishDirectory="PreserveNewest" />
       <ContentWithTargetPath Include="@(_CopilotRuntimePrebuildAsset)"
                              TargetPath="runtimes\$(_CopilotRid)\native\%(RecursiveDir)%(Filename)%(Extension)"
-                             CopyToOutputDirectory="PreserveNewest" />
+                             CopyToOutputDirectory="PreserveNewest"
+                             CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
   </Target>
 </Project>
