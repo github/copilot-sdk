@@ -1344,7 +1344,8 @@ function generateRpcClass(
     schema: JSONSchema7,
     _nestedTypes: Map<string, { code: string }>,
     _packageName: string,
-    visibility: "public" | "internal" = "public"
+    visibility: "public" | "internal" = "public",
+    preserveRequiredNulls = false
 ): { code: string; imports: Set<string> } {
     const imports = new Set<string>();
     const localNestedTypes = new Map<string, JavaClassDef>();
@@ -1364,7 +1365,7 @@ function generateRpcClass(
             javaName: toCamelCase(propName),
             javaType: result.javaType,
             description: prop.description,
-            includeNull: required.has(propName) && schemaAllowsNull(prop),
+            includeNull: preserveRequiredNulls && required.has(propName) && schemaAllowsNull(prop),
         }];
     });
 
@@ -1542,7 +1543,7 @@ async function generateRpcDataClass(
     deprecated?: boolean
 ): Promise<string> {
     const nestedTypes = new Map<string, { code: string }>();
-    const { code, imports } = generateRpcClass(className, schema, nestedTypes, packageName);
+    const { code, imports } = generateRpcClass(className, schema, nestedTypes, packageName, "public", kind === "params");
 
     const lines: string[] = [];
     lines.push(COPYRIGHT);
