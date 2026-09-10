@@ -106,7 +106,7 @@ export function calculateUnstableVersion(options: UnstableVersionOptions): strin
                 `Explicit unstable SDK version must be valid SemVer with an unstable prerelease: ${options.versionOverride}`
             );
         }
-        return options.versionOverride;
+        return `${parsed.major}.${parsed.minor}.${parsed.patch}-${parsed.prerelease.join(".")}.${options.runNumber}.g${options.sdkSha.slice(0, 7)}`;
     }
 
     const eligibleTags = new Set(

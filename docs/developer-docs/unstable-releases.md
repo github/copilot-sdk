@@ -22,12 +22,13 @@ The runtime dispatch includes these inputs:
 * `channel`: `canary` or `unstable`
 * `runtime_version`: Exact runtime package version
 * `runtime_sha`: Lowercase, 40-character `github/copilot-agent-runtime` SHA
-* `runtime_run_id`: Source runtime workflow run ID and receiver idempotency key
+* `runtime_run_id`: Source runtime workflow run ID for provenance
 * `mode`: `tests-only` or `internal` for canary; `internal` for unstable
 
 Maintainers can dispatch `runtime-sdk.yml` directly with the same inputs. The
 optional `version` input is available only for unstable and must be an unstable
-SemVer. Do not reuse an explicit version after an artifact has been built.
+SemVer base. The workflow appends its run number and SDK SHA so each new
+dispatch still creates a unique version.
 
 ## Release gates
 
@@ -80,12 +81,11 @@ Use **Re-run failed jobs** on the original workflow run for normal recovery.
 The run number, frozen version, and retained artifact remain unchanged. Do not
 rerun a successful packaging job merely to recover a publication job.
 
-Each `runtime_run_id` is serialized and claimed by a 90-day marker artifact.
-The marker records the canonical SDK run and complete runtime/input
-provenance, but the runtime run ID is not part of the immutable release
-identity. Exact duplicate dispatches wait for and mirror the canonical run.
-If that run fails or is canceled, rerun the original run rather than
-dispatching another release.
+The runtime run ID is retained as provenance only. Re-running the same SDK
+workflow run retries its frozen SDK version and retained artifact. A new
+workflow dispatch creates a new SDK release identity and version, even when it
+uses the same runtime run, version, and SHA. This allows any number of SDK
+releases to reuse the same immutable runtime packages.
 
 ## Registry setup
 

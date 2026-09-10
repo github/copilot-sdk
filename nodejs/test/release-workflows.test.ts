@@ -7,9 +7,13 @@ const workflow = (name: string) =>
     readFileSync(join(repositoryRoot, ".github", "workflows", name), "utf8");
 const publish = workflow("publish.yml");
 const runtimeSdk = workflow("runtime-sdk.yml");
-const runtimeDispatchLedger = readFileSync(
-    join(repositoryRoot, "nodejs", "scripts", "runtime-dispatch-ledger.ts"),
+const runtimeReleaseIdentity = readFileSync(
+    join(repositoryRoot, "nodejs", "scripts", "runtime-release-identity.ts"),
     "utf8"
+);
+const planJob = runtimeSdk.slice(
+    runtimeSdk.indexOf("  plan:"),
+    runtimeSdk.indexOf("  acquire-runtime:")
 );
 const acquisitionJob = runtimeSdk.slice(
     runtimeSdk.indexOf("  acquire-runtime:"),
@@ -70,52 +74,62 @@ describe("runtime-driven Node SDK entry contract", () => {
         expect(runtimeSdk).toContain("name: Runtime-driven Node SDK");
         expect(runtimeSdk).toContain("runtime_run_id:");
         expect(runtimeSdk).not.toContain("runtime_source:");
-        expect(runtimeDispatchLedger).toContain('expected.channel === "canary"');
-        expect(runtimeDispatchLedger).toContain('source: "github-packages"');
-        expect(runtimeDispatchLedger).not.toContain("runtimeSource");
+        expect(runtimeReleaseIdentity).toContain('inputs.channel === "canary"');
+        expect(runtimeReleaseIdentity).toContain('inputs.mode === "tests-only"');
+        expect(runtimeReleaseIdentity).toContain("Invalid channel or mode combination");
+        expect(runtimeSdk).toContain("npx tsx scripts/runtime-release-identity.ts");
     });
 
-    it("serializes and durably claims each runtime run", () => {
-        expect(runtimeSdk).toContain("group: sdk-runtime-dispatch-${{ inputs.runtime_run_id }}");
+    it("uses the runtime run ID only as provenance", () => {
+        expect(runtimeSdk).toContain(
+            'description: "Source runtime workflow run ID for provenance"'
+        );
+        expect(runtimeSdk).toContain(
+            'run-name: "Runtime-driven SDK #${{ github.run_number }} from runtime run ${{ inputs.runtime_run_id }}"'
+        );
+        expect(runtimeSdk).toContain(
+            'description: "Unstable SemVer base for a direct manual run; workflow identity is appended"'
+        );
+        expect(runtimeSdk).not.toContain("claim-runtime-dispatch");
+        expect(runtimeSdk).not.toContain("sdk-runtime-dispatch-");
+        expect(runtimeSdk).not.toContain("runtime-dispatch-ledger");
+        expect(runtimeSdk).not.toContain("canonical_run");
+        expect(runtimeSdk).not.toContain("CANONICAL_RUN_ID");
+        expect(runtimeSdk).not.toContain("gh run watch");
+        expect(
+            existsSync(join(repositoryRoot, "nodejs", "scripts", "runtime-dispatch-ledger.ts"))
+        ).toBe(false);
+        expect(
+            existsSync(join(repositoryRoot, "nodejs", "test", "runtime-dispatch-ledger.test.ts"))
+        ).toBe(false);
         expect(runtimeSdk).toContain("cancel-in-progress: false");
-        expect(runtimeSdk.match(/queue: max/g)).toHaveLength(3);
-        expect(runtimeSdk).toContain("sdk-runtime-dispatch-${{ inputs.runtime_run_id }}");
-        expect(runtimeSdk).toContain("runtime-dispatch-ledger.ts claim");
-        expect(runtimeSdk).toContain("steps.claim.outputs.created == 'true'");
-        expect(runtimeSdk).not.toContain("actions/artifacts");
-        expect(runtimeSdk).not.toContain("actions/workflows/runtime-sdk.yml/runs");
-        expect(runtimeDispatchLedger).toContain("More than one unexpired");
-        expect(runtimeDispatchLedger).toContain("attempts ?? 6");
-        expect(runtimeDispatchLedger).toContain("actions/workflows/runtime-sdk.yml/runs");
-        expect(runtimeDispatchLedger).toContain("canonicalNumericIdPattern");
-        expect(runtimeDispatchLedger).not.toContain("process.env[name]?.trim()");
-        expect(runtimeSdk).toContain('gh run watch "$CANONICAL_RUN_ID" --exit-status');
-        expect(runtimeSdk).toContain("retention-days: 90");
+        expect(runtimeSdk.match(/queue: max/g)).toHaveLength(2);
         expect(runtimeSdk).not.toContain("resume_run_id");
     });
 
-    it("delegates preparation before its separately serialized public publication", () => {
+    it("plans every invocation before separately serialized publication", () => {
         expect(runtimeSdk).toContain("scripts/unstable-version.ts");
+        expect(planJob).not.toContain("needs:");
+        expect(planJob).not.toContain("if: needs.");
         expect(runtimeSdk).toContain("group: sdk-runtime-public-unstable");
         expect(runtimeSdk.indexOf("publish-internal:")).toBeLessThan(
             runtimeSdk.indexOf("publish-public:")
         );
-        expect(runtimeSdk).toContain("needs: [claim-runtime-dispatch, plan, publish-internal]");
+        expect(runtimeSdk).toContain("needs: [plan, publish-internal]");
         expect(runtimeSdk).toContain("dist/release-manifest.json dist unstable");
-    });
-
-    it("requires duplicates and failures to use the canonical workflow run", () => {
-        expect(runtimeSdk).toContain('gh run watch "$CANONICAL_RUN_ID" --exit-status');
-        expect(runtimeSdk).toContain("Re-run that original run");
-        expect(runtimeSdk).not.toContain("run-id:");
+        expect(runtimeSdk).not.toContain("needs.claim-runtime-dispatch");
     });
 });
 
 describe("runtime-backed Node release implementation", () => {
     it("enforces the channel, source, and mode matrix", () => {
-        expect(runtimeDispatchLedger).toContain('expected.mode === "tests-only"');
-        expect(runtimeDispatchLedger).toContain('expected.mode === "internal"');
-        expect(runtimeDispatchLedger).toContain("Invalid channel or mode combination");
+        expect(runtimeReleaseIdentity).toContain('inputs.mode === "tests-only"');
+        expect(runtimeReleaseIdentity).toContain('inputs.mode === "internal"');
+        expect(runtimeReleaseIdentity).toContain("Invalid channel or mode combination");
+        expect(runtimeReleaseIdentity).toContain(
+            "Runtime workflow run ID must be a positive canonical integer"
+        );
+        expect(runtimeReleaseIdentity).toContain("validateRuntimeVersionChannel");
     });
 
     it("owns acquisition, cross-platform tests, packaging, and internal verification", () => {
@@ -134,7 +148,7 @@ describe("runtime-backed Node release implementation", () => {
         expect(publicPublicationJob).not.toContain("FEED_URL");
         expect(runtimeSdk).toContain("npm run verify:release-packages");
         expect(runtimeSdk).toContain("publish-manifest");
-        expect(runtimeSdk.match(/preflight-package-set/g)).toHaveLength(2);
+        expect(runtimeSdk).not.toContain("preflight-package-set");
         expect(runtimeSdk).not.toContain("for PACKAGE in");
         expect(runtimeSdk).toContain("group: sdk-runtime-internal-${{ inputs.channel }}");
         expect(runtimeSdk).not.toContain('"$runtime_path" --version');

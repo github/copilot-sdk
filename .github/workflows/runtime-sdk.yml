@@ -1,5 +1,5 @@
 name: Runtime-driven Node SDK
-run-name: Runtime-driven SDK from runtime run ${{ inputs.runtime_run_id }}
+run-name: "Runtime-driven SDK #${{ github.run_number }} from runtime run ${{ inputs.runtime_run_id }}"
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ on:
         required: true
         type: string
       runtime_run_id:
-        description: "Source runtime workflow run ID and idempotency key"
+        description: "Source runtime workflow run ID for provenance"
         required: true
         type: string
       mode:
@@ -32,7 +32,7 @@ on:
           - internal
         default: internal
       version:
-        description: "Unstable SDK version override for a direct manual run"
+        description: "Unstable SemVer base for a direct manual run; workflow identity is appended"
         required: false
         type: string
 
@@ -45,78 +45,13 @@ env:
   HUSKY: 0
 
 jobs:
-  claim-runtime-dispatch:
-    name: Claim runtime dispatch
-    runs-on: ubuntu-latest
-    concurrency:
-      group: sdk-runtime-dispatch-${{ inputs.runtime_run_id }}
-      cancel-in-progress: false
-      queue: max
-    permissions:
-      actions: read
-      contents: read
-    outputs:
-      canonical_run_id: ${{ steps.claim.outputs.canonical_run_id }}
-      role: ${{ steps.claim.outputs.role }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
-        with:
-          cache: npm
-          cache-dependency-path: ./nodejs/package-lock.json
-          node-version: 22
-      - run: npm ci --ignore-scripts
-        working-directory: ./nodejs
-      - name: Claim or resolve the canonical dispatch
-        id: claim
-        env:
-          CHANNEL: ${{ inputs.channel }}
-          CURRENT_RUN_ID: ${{ github.run_id }}
-          GH_TOKEN: ${{ github.token }}
-          MODE: ${{ inputs.mode }}
-          RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
-          RUNTIME_SHA: ${{ inputs.runtime_sha }}
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
-          SDK_REF: ${{ github.ref }}
-          SDK_SHA: ${{ github.sha }}
-          VERSION_OVERRIDE: ${{ inputs.version }}
-        run: node nodejs/node_modules/.bin/tsx nodejs/scripts/runtime-dispatch-ledger.ts claim "$RUNNER_TEMP/new-marker/marker.json"
-      - name: Mirror the canonical run
-        if: steps.claim.outputs.role == 'duplicate'
-        env:
-          CANONICAL_RUN_ID: ${{ steps.claim.outputs.canonical_run_id }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set +e
-          gh run watch "$CANONICAL_RUN_ID" --exit-status
-          RESULT=$?
-          set -e
-          if [ "$RESULT" -ne 0 ]; then
-            echo "::error::Canonical SDK run $CANONICAL_RUN_ID failed or was canceled. Re-run that original run; this duplicate will not mint another SDK version."
-            exit "$RESULT"
-          fi
-          echo "Canonical SDK run $CANONICAL_RUN_ID succeeded; this duplicate is complete."
-      - name: Persist the canonical marker
-        if: steps.claim.outputs.created == 'true'
-        uses: actions/upload-artifact@v7.0.0
-        with:
-          name: sdk-runtime-dispatch-${{ inputs.runtime_run_id }}
-          path: ${{ runner.temp }}/new-marker/marker.json
-          retention-days: 90
-
   plan:
     name: Freeze runtime-backed release identity
-    if: needs.claim-runtime-dispatch.outputs.role == 'owner'
-    needs: claim-runtime-dispatch
     runs-on: ubuntu-latest
     environment: cicd
     permissions:
       actions: read
       contents: read
-      id-token: write
     outputs:
       artifact_name: ${{ steps.plan.outputs.artifact_name }}
       sdk_version: ${{ steps.plan.outputs.sdk_version }}
@@ -135,6 +70,16 @@ jobs:
           node-version: 22
       - run: npm ci --ignore-scripts
         working-directory: ./nodejs
+      - name: Validate runtime release inputs
+        working-directory: ./nodejs
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          MODE: ${{ inputs.mode }}
+          RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
+          RUNTIME_SHA: ${{ inputs.runtime_sha }}
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          VERSION_OVERRIDE: ${{ inputs.version }}
+        run: npx tsx scripts/runtime-release-identity.ts
       - name: Calculate the release identity
         id: plan
         working-directory: ./nodejs
@@ -160,36 +105,6 @@ jobs:
             echo "sdk_version=$SDK_VERSION"
             echo "workflow_created_at=$WORKFLOW_CREATED_AT"
           } >> "$GITHUB_OUTPUT"
-      - name: Reject an explicit version already present publicly
-        if: needs.claim-runtime-dispatch.outputs.role == 'owner' && inputs.channel == 'unstable' && inputs.version != ''
-        working-directory: ./nodejs
-        env:
-          SDK_VERSION: ${{ steps.plan.outputs.sdk_version }}
-        run: node scripts/npm-release.js preflight-package-set "$SDK_VERSION" https://registry.npmjs.org
-      - name: Azure login for explicit-version preflight
-        if: needs.claim-runtime-dispatch.outputs.role == 'owner' && inputs.channel == 'unstable' && inputs.version != ''
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          allow-no-subscriptions: true
-          client-id: ${{ vars.CPD_ID_CLIENT_ID }}
-          tenant-id: ${{ vars.CPD_ID_TENANT_ID }}
-      - name: Reject an explicit version already present internally
-        if: needs.claim-runtime-dispatch.outputs.role == 'owner' && inputs.channel == 'unstable' && inputs.version != ''
-        working-directory: ./nodejs
-        env:
-          ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
-          FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
-          SDK_VERSION: ${{ steps.plan.outputs.sdk_version }}
-        run: |
-          set -euo pipefail
-          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
-          echo "::add-mask::$TOKEN"
-          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
-          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
-          printf '%s\n' \
-            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
-            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
-          node scripts/npm-release.js preflight-package-set "$SDK_VERSION" "$FEED_URL"
 
   acquire-runtime:
     name: Acquire exact runtime packages
@@ -430,8 +345,8 @@ jobs:
 
   publish-public:
     name: Publish unstable SDK publicly
-    if: inputs.channel == 'unstable' && needs.claim-runtime-dispatch.outputs.role == 'owner'
-    needs: [claim-runtime-dispatch, plan, publish-internal]
+    if: inputs.channel == 'unstable'
+    needs: [plan, publish-internal]
     runs-on: ubuntu-latest
     concurrency:
       group: sdk-runtime-public-unstable
