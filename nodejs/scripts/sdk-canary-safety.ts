@@ -66,6 +66,20 @@ export function assertSafeTestWorkflow(workflow: string): void {
         ["channel", "mode", "runtime_run_id", "runtime_sha", "runtime_version"].sort(),
         "Test workflow must expose exactly the five approved dispatch inputs."
     );
+    const modeStart = inputsSection.indexOf("      mode:");
+    assert(modeStart >= 0, "Test workflow mode input is missing.");
+    const modeRemainder = inputsSection.slice(modeStart + "      mode:".length);
+    const nextInput = modeRemainder.match(/^\s{6}[a-z][a-z0-9_]*:\s*$/m);
+    const modeSection = modeRemainder.slice(0, nextInput?.index ?? modeRemainder.length);
+    const modeOptions = [...modeSection.matchAll(/^\s{10}-\s+([a-z-]+)\s*$/gm)].map(
+        (match) => match[1]
+    );
+    assert.deepEqual(
+        modeOptions,
+        ["tests-only", "publish"],
+        "Test workflow modes must be exactly tests-only and publish."
+    );
+    assert.match(modeSection, /^\s{8}default:\s*publish\s*$/m);
     const configuredFeeds = [...workflow.matchAll(/^\s*FEED_URL:\s*(\S+)\s*$/gm)];
     assert.equal(
         configuredFeeds.length,
@@ -148,6 +162,11 @@ export function assertSafeTestWorkflow(workflow: string): void {
     );
     const testJob = workflow.slice(testStart, packageStart);
     const packageJob = workflow.slice(packageStart, publicationStart);
+    const publicationJob = workflow.slice(publicationStart);
+    assert(
+        publicationJob.includes("inputs.mode == 'publish'"),
+        "Azure test publication must require publish mode."
+    );
     const archiveDownloadPath = "path: ${{ runner.temp }}/runtime-package-artifact";
     const archiveExtraction =
         'tar -xzf "$runner_temp/runtime-package-artifact/runtime-packages.tar.gz" -C "$runner_temp"';

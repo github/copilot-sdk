@@ -54,10 +54,10 @@ test "$(gh api "/repos/github/copilot-agent-runtime/actions/runs/$RUNTIME_RUN_ID
 
 The accepted matrix is:
 
-| Channel    | Mode                       | Runtime source  | Internal tag                |
-| ---------- | -------------------------- | --------------- | --------------------------- |
-| `canary`   | `tests-only` or `internal` | GitHub Packages | `runtime-sdk-canary-test`   |
-| `unstable` | `internal` only            | GitHub Packages | `runtime-sdk-unstable-test` |
+| Channel    | Mode                      | Runtime source  | Internal tag                |
+| ---------- | ------------------------- | --------------- | --------------------------- |
+| `canary`   | `tests-only` or `publish` | GitHub Packages | `runtime-sdk-canary-test`   |
+| `unstable` | `publish` only            | GitHub Packages | `runtime-sdk-unstable-test` |
 
 ## Dispatch exactly
 
@@ -74,7 +74,7 @@ gh workflow run sdk-canary.yml \
   --raw-field mode="$MODE"
 ```
 
-Use `canary` with `tests-only` first. The same validated runtime inputs can be dispatched again to create another SDK workflow-run-derived identity. Use a handoff matching the selected channel for canary `internal` and unstable `internal`. Do not dispatch unstable `tests-only`.
+Use `canary` with `tests-only` first. The same validated runtime inputs can be dispatched again to create another SDK workflow-run-derived identity. Use a handoff matching the selected channel for canary `publish` and unstable `publish`. In this test-only workflow, `publish` writes only to the isolated Azure test tags; there is no public npm publication path. Do not dispatch unstable `tests-only`.
 
 ## Exercise release identity
 
