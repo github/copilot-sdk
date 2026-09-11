@@ -995,7 +995,7 @@ function emitGroup(
                     // sessionId is already stripped from the generated type definition,
                     // so no need for Omit<..., "sessionId">
                     sigParams.push(`params${optMark}: ${paramsType}`);
-                    bodyArg = "{ sessionId, ...params }";
+                    bodyArg = "{ ...params, sessionId }";
                 } else {
                     bodyArg = "{ sessionId }";
                 }

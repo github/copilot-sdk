@@ -2321,10 +2321,7 @@ impl Client {
                 ))
                 .into());
             }
-            return Err(Error::with_message(
-                ErrorKind::Rpc { code: err.code },
-                err.message,
-            ));
+            return Err(Error::from_rpc_error(err.code, err.message, err.data));
         }
         Ok(response.result.unwrap_or(serde_json::Value::Null))
     }

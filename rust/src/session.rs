@@ -29,6 +29,10 @@ use crate::handler::{
 };
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
+use crate::rpc::{
+    ListMessageableSessionsRequest, ListMessageableSessionsResult, SendSessionMessageRequest,
+    SendSessionMessageResult,
+};
 use crate::session_fs::SessionFsProvider;
 use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
@@ -41,14 +45,52 @@ use crate::types::{
     ToolResultExpanded, TraceContext, UiInputOptions, ensure_attachment_display_names,
 };
 use crate::{
-    Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification,
-    error_codes,
+    Client, Error, ErrorKind, JsonRpcResponse, SendSessionMessageErrorCode, SessionErrorKind,
+    SessionEventNotification, error_codes,
 };
 
 /// Fixed name of the runtime's built-in tool-search tool. A client can replace
 /// its behavior by registering a tool with this exact name and
 /// `overrides_built_in_tool` set to `true`.
 const TOOL_SEARCH_TOOL_NAME: &str = "tool_search_tool";
+
+fn parse_send_session_message_error_data(
+    data: Option<&Value>,
+) -> Option<(SendSessionMessageErrorCode, Option<String>)> {
+    let envelope = data?.as_object()?;
+    let kind = envelope.get("kind")?.as_str()?;
+    let runtime_code = envelope.get("code")?.as_str()?;
+    let message_id = match envelope.get("messageId") {
+        Some(value) => Some(value.as_str()?.to_string()),
+        None => None,
+    };
+
+    let code = match kind {
+        "session_message_refused"
+            if matches!(
+                runtime_code,
+                "target-not-active"
+                    | "target-generation-changed"
+                    | "source-not-active"
+                    | "self-send"
+                    | "request-invalid"
+                    | "recipient-refused"
+                    | "transport-unavailable"
+            ) =>
+        {
+            SendSessionMessageErrorCode::Refused
+        }
+        "session_message_not_delivered" if runtime_code == "not-delivered" => {
+            SendSessionMessageErrorCode::NotDelivered
+        }
+        "session_message_ambiguous" if runtime_code == "ambiguous" => {
+            SendSessionMessageErrorCode::Ambiguous
+        }
+        _ => return None,
+    };
+
+    Some((code, message_id))
+}
 
 /// Default capacity of the per-session event broadcast buffer backing
 /// [`Session::subscribe`] and [`PreparedSession::subscribe`].
@@ -515,6 +557,61 @@ impl Session {
             return Err(ErrorKind::Session(SessionErrorKind::SendWhileWaiting).into());
         }
         self.send_inner(opts.into()).await
+    }
+
+    /// Lists active local sessions available for exact-ID cross-session messaging.
+    ///
+    /// The runtime derives the source identity from this bound session. Pass
+    /// `None` to list all messageable sessions or a request containing an
+    /// exact-name filter. Discovery grants no delivery authority.
+    pub async fn list_messageable_sessions(
+        &self,
+        params: Option<ListMessageableSessionsRequest>,
+    ) -> Result<ListMessageableSessionsResult, Error> {
+        let mut wire_params = serde_json::to_value(params.unwrap_or_default())?;
+        wire_params["sessionId"] = Value::String(self.id.to_string());
+        let value = self
+            .client
+            .call("session.listMessageableSessions", Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(value)?)
+    }
+
+    /// Sends one authenticated non-user message to an exact active local session.
+    ///
+    /// The runtime derives the source identity from this bound session. Success
+    /// reports recipient admission, not completion of delegated work. An
+    /// [`SendSessionMessageErrorCode::Ambiguous`] error means delivery may have
+    /// started and must not be retried automatically.
+    pub async fn send_session_message(
+        &self,
+        params: SendSessionMessageRequest,
+    ) -> Result<SendSessionMessageResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = Value::String(self.id.to_string());
+        match self
+            .client
+            .call("session.sendSessionMessage", Some(wire_params))
+            .await
+            .and_then(|value| serde_json::from_value(value).map_err(Error::from))
+        {
+            Ok(result) => Ok(result),
+            Err(error) => {
+                let Some((code, message_id)) =
+                    parse_send_session_message_error_data(error.rpc_data())
+                else {
+                    return Err(error);
+                };
+                let message = error
+                    .message()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| error.to_string());
+                Err(Error::with_message(
+                    ErrorKind::Session(SessionErrorKind::SendSessionMessage { code, message_id }),
+                    message,
+                ))
+            }
+        }
     }
 
     async fn send_inner(&self, opts: MessageOptions) -> Result<String, Error> {

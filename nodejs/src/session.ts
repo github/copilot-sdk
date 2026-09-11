@@ -19,6 +19,7 @@ import type {
     FactoryLogLine,
     FactoryRunResult as WireFactoryRunResult,
     ModelSwitchAutoTierResult,
+    SendMode,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
@@ -384,6 +385,123 @@ function isFactoryFatalError(error: unknown): boolean {
 /** Assistant message event - the final response from the assistant. */
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
 
+/** Optional exact-name query for active local messageable sessions. */
+export interface ListMessageableSessionsRequest {
+    /** Optional exact session name query. Matching semantics are owned by the local host. */
+    name?: string;
+}
+
+/** Sanitized active local session available for exact-ID messaging selection. */
+export interface MessageableSession {
+    /** Stable session ID to provide to {@link CopilotSession.sendSessionMessage}. */
+    sessionId: string;
+    /** Current session name when available. */
+    name?: string;
+    /** Current session summary when available. */
+    summary?: string;
+}
+
+/** Sanitized active local sessions available for exact-ID messaging selection. */
+export interface ListMessageableSessionsResult {
+    /** Messageable sessions in deterministic session-ID order. */
+    sessions: MessageableSession[];
+}
+
+/** Actual recipient delivery class for an admitted cross-session message. */
+export type SessionMessageDelivery = "idle" | "steering" | "queued";
+
+/** Parameters for one authenticated exact-target cross-session message. */
+export interface SendSessionMessageRequest {
+    /** Exact active local recipient session ID. */
+    targetSessionId: string;
+    /** Natural-language message content. */
+    content: string;
+    /** Requested delivery mode. The host applies its existing default when omitted. */
+    delivery?: SendMode;
+}
+
+/** Recipient admission result for an authenticated cross-session message. */
+export interface SendSessionMessageResult {
+    /** Unique identifier assigned to the admitted message. */
+    messageId: string;
+    /** Actual recipient delivery class at admission. */
+    delivery: SessionMessageDelivery;
+    /** Sanitized recipient display name for presentation only. */
+    targetDisplayName?: string;
+}
+
+/** Stable public outcomes for a failed cross-session message send. */
+export type SendSessionMessageErrorCode = "refused" | "not-delivered" | "ambiguous";
+
+/**
+ * Error returned when the runtime reaches a recognized terminal cross-session
+ * message outcome.
+ *
+ * @experimental
+ */
+export class SendSessionMessageError extends Error {
+    constructor(
+        public readonly code: SendSessionMessageErrorCode,
+        message: string,
+        public readonly messageId?: string
+    ) {
+        super(message);
+        this.name = "SendSessionMessageError";
+    }
+}
+
+function parseSendSessionMessageErrorData(
+    data: unknown
+): { code: SendSessionMessageErrorCode; messageId?: string } | undefined {
+    if (typeof data !== "object" || data === null) {
+        return undefined;
+    }
+
+    const envelope = data as { kind?: unknown; code?: unknown; messageId?: unknown };
+    if (
+        typeof envelope.code !== "string" ||
+        (envelope.messageId !== undefined && typeof envelope.messageId !== "string")
+    ) {
+        return undefined;
+    }
+
+    let code: SendSessionMessageErrorCode;
+    switch (envelope.kind) {
+        case "session_message_refused":
+            if (
+                ![
+                    "target-not-active",
+                    "target-generation-changed",
+                    "source-not-active",
+                    "self-send",
+                    "request-invalid",
+                    "recipient-refused",
+                    "transport-unavailable",
+                ].includes(envelope.code)
+            ) {
+                return undefined;
+            }
+            code = "refused";
+            break;
+        case "session_message_not_delivered":
+            if (envelope.code !== "not-delivered") {
+                return undefined;
+            }
+            code = "not-delivered";
+            break;
+        case "session_message_ambiguous":
+            if (envelope.code !== "ambiguous") {
+                return undefined;
+            }
+            code = "ambiguous";
+            break;
+        default:
+            return undefined;
+    }
+
+    return envelope.messageId === undefined ? { code } : { code, messageId: envelope.messageId };
+}
+
 const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
 
 /**
@@ -728,6 +846,52 @@ export class CopilotSession {
         });
 
         return (response as { messageId: string }).messageId;
+    }
+
+    /**
+     * Lists active local sessions that this bound session can select by exact
+     * ID for cross-session messaging. The result grants no delivery authority;
+     * call {@link sendSessionMessage} with a selected `sessionId`.
+     *
+     * @experimental
+     */
+    async listMessageableSessions(
+        params: ListMessageableSessionsRequest = {}
+    ): Promise<ListMessageableSessionsResult> {
+        return this.connection.sendRequest("session.listMessageableSessions", {
+            ...params,
+            sessionId: this.sessionId,
+        });
+    }
+
+    /**
+     * Sends one authenticated non-user message from this bound session to an
+     * exact active local session.
+     *
+     * Success reports recipient admission, not completion of delegated work.
+     * An ambiguous error means delivery may have started and is never retried.
+     *
+     * @experimental
+     */
+    async sendSessionMessage(params: SendSessionMessageRequest): Promise<SendSessionMessageResult> {
+        try {
+            return await this.connection.sendRequest("session.sendSessionMessage", {
+                ...params,
+                sessionId: this.sessionId,
+            });
+        } catch (error) {
+            if (error instanceof ResponseError) {
+                const translated = parseSendSessionMessageErrorData(error.data);
+                if (translated) {
+                    throw new SendSessionMessageError(
+                        translated.code,
+                        error.message,
+                        translated.messageId
+                    );
+                }
+            }
+            throw error;
+        }
     }
 
     /**
