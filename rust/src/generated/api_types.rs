@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::session_events::{
+pub use super::session_events::{
     AbortReason, AgentModelPolicy, AutoTier, ContextTier, McpOauthHttpResponse,
     McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus,
     ModelChangeSource, OmittedBinaryOmittedReason, PermissionMode, PermissionPromptRequest,
