@@ -89,10 +89,10 @@ export type { SessionFsSqliteStatement } from "./sessionFsProvider.js";
 export type { SessionFsSqliteTransactionErrorClass } from "./sessionFsProvider.js";
 export { SessionFsSqliteTransactionFailure } from "./sessionFsProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
+export type { PermissionDecisionSource } from "./generated/session-events.js";
 export type {
     PermissionDecisionContext,
     PermissionDecisionOutcome,
-    PermissionDecisionSource,
     PermissionDecisionSurface,
     PermissionResponseCapability,
 } from "./generated/rpc.js";

@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 public record JsonSchemaResponseFormat(
     /** Name of the output schema, subject to the provider's naming restrictions. */
     @JsonProperty("name") String name,
-    /** JSON Schema passed unchanged to the inference provider. Supported keywords and schema restrictions are determined by that provider. */
+    /** JSON Schema passed unchanged to the inference provider. Schemas larger than 32 MiB when JSON-encoded are rejected before admission, using the runtime's existing request-size ceiling. This is not a guarantee that the entire model request fits. Supported keywords and schema restrictions are determined by the provider. */
     @JsonProperty("schema") Object schema,
     /** Optional description passed to OpenAI providers. */
     @JsonProperty("description") String description,

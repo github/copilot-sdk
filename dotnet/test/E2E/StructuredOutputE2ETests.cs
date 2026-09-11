@@ -271,6 +271,88 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
     }
 
     [Fact]
+    public async Task Typed_Wait_Returns_Stop_Hook_Correction_After_Terminal_Tool()
+    {
+        var calls = 0;
+        var stops = 0;
+        var config = StructuredSessionConfig();
+        config.Tools =
+        [
+            CopilotTool.DefineTool(() =>
+            {
+                Interlocked.Increment(ref calls);
+                return 58;
+            }, new CopilotToolOptions { IsTerminal = true, SkipPermission = true },
+                new() { Name = "lookup_number", Description = "Return the number needed for the calculation." }),
+        ];
+        config.Hooks = new SessionHooks
+        {
+            OnAgentStop = (_, _) => Task.FromResult<AgentStopHookOutput?>(
+                Interlocked.Increment(ref stops) == 1
+                    ? new() { Decision = "block", Reason = "Correct the answer to 99, not 63. Do not use tools." }
+                    : null),
+        };
+        var session = await CreateSessionAsync(config);
+        var replies = new System.Collections.Concurrent.ConcurrentQueue<AssistantMessageEvent>();
+        using var subscription = session.On<AssistantMessageEvent>(message =>
+        {
+            if (string.IsNullOrEmpty(message.AgentId)) replies.Enqueue(message);
+        });
+        var result = await session.SendAndWaitAsync<CorrectionResult>(
+            "Call lookup_number exactly once, then add 5 to the returned number. Do not guess its result.",
+            StructuredOutputE2EJsonContext.Default.Options,
+            TimeSpan.FromMinutes(3));
+        Assert.Equal(99, result.Answer);
+        Assert.Equal(1, calls);
+        Assert.Equal(2, stops);
+        var answers = replies.Where(message => message.Data.ToolRequests is not { Length: > 0 }).ToArray();
+        Assert.Equal([63, 99], answers.Select(message =>
+            JsonSerializer.Deserialize(message.Data.Content, StructuredOutputE2EJsonContext.Default.CorrectionResult)!.Answer));
+        Assert.False(string.IsNullOrEmpty(answers[0].Data.OriginatingMessageId));
+        Assert.Equal(answers[0].Data.OriginatingMessageId, answers[1].Data.OriginatingMessageId);
+        var exchanges = await Ctx.GetExchangesAsync();
+        Assert.Equal(3, exchanges.Count);
+        Assert.Equal("none", exchanges[1].Request.ToolChoice?.GetString());
+    }
+
+    [Fact]
+    public async Task Rejects_Unsupported_Or_Oversized_Schemas_Before_Admission()
+    {
+        var environment = Ctx.GetEnvironment();
+        environment["COPILOT_CLI_ENABLED_FEATURE_FLAGS"] = "HYDRAFUSION,HYDRAFUSION_ROLLOUT";
+        await using var client = Ctx.CreateClient(environment: environment);
+        foreach (var model in new[] { "gpt-4.1", "hydrafusion" })
+        {
+            var config = StructuredSessionConfig();
+            config.Model = model;
+            config.OnPermissionRequest = PermissionHandler.ApproveAll;
+            await using var session = await client.CreateSessionAsync(config);
+            using var schema = JsonDocument.Parse(
+                "{\"type\":\"object\",\"description\":\"" +
+                (model == "gpt-4.1" ? new string('x', 32 * 1024 * 1024) : "Small schema") + "\"}");
+            var message = model == "gpt-4.1" ? "32 MiB" : "HydraFusion";
+            var error = await Assert.ThrowsAnyAsync<Exception>(() =>
+                session.SendAndWaitAsync(new MessageOptions
+                {
+                    Prompt = "Must not be admitted",
+                    ResponseSchema = schema.RootElement,
+                }));
+            Assert.Contains(message, error.Message);
+            error = await Assert.ThrowsAnyAsync<Exception>(() =>
+                session.Rpc.SendMessagesAsync([], responseFormat: new ResponseFormat
+                {
+                    Type = "json_schema",
+                    JsonSchema = new() { Name = "response", Schema = schema.RootElement },
+                }));
+            Assert.Contains(message, error.Message);
+            Assert.Empty((await session.Rpc.Queue.PendingItemsAsync()).Items);
+            Assert.DoesNotContain(await session.GetEventsAsync(),
+                evt => evt is UserMessageEvent or SessionErrorEvent);
+        }
+        Assert.Empty(await Ctx.GetExchangesAsync());
+    }
+
+    [Fact]
     public async Task Concurrent_Typed_Sends_Return_Their_Own_Results()
     {
         var toolEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -351,7 +351,12 @@ The schema is not a persisted session default: autonomous resume-pending work
 after a restart does not restore it. A terminal tool that clears context ends
 the old run; its fresh seed does not inherit the schema or origin. Such a run
 can finish without a structured result, in which case the typed wait throws.
-Remote sessions and HydraFusion routes reject response formats.
+After a successful terminal tool, the runtime disables tools while the model
+produces the structured result. Stop-hook corrections remain supported.
+Remote sessions and known HydraFusion routes reject response formats before
+admission. Schemas larger than 32 MiB when JSON-encoded are also rejected before
+admission, using the runtime's existing request-size ceiling. This does not
+guarantee the schema plus conversation and tools fits the provider's budget.
 
 Structured waits select the last root-agent message whose `originatingMessageId`
 matches the ID returned by their send, then return at a non-autopilot

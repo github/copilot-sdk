@@ -16,7 +16,11 @@ import { createSdkTestContext, DEFAULT_GITHUB_TOKEN, isCI } from "./harness/sdkT
 import { waitForCondition } from "./harness/sdkTestHelper";
 
 describe("Structured output", async () => {
-    const { copilotClient: client, openAiEndpoint } = await createSdkTestContext();
+    const { copilotClient: client, openAiEndpoint } = await createSdkTestContext({
+        copilotClientOptions: {
+            env: { COPILOT_CLI_ENABLED_FEATURE_FLAGS: "HYDRAFUSION,HYDRAFUSION_ROLLOUT" },
+        },
+    });
     const provider: ProviderConfig = {
         type: "openai",
         wireApi: "completions",
@@ -77,6 +81,7 @@ describe("Structured output", async () => {
 
     it("node_zod_typed_result_after_terminal_tool_and_steering", async () => {
         const events: SessionEvent[] = [];
+        let calls = 0;
         let session: CopilotSession;
         session = await client.createSession({
             model: "gpt-4.1",
@@ -92,6 +97,7 @@ describe("Structured output", async () => {
                     skipPermission: true,
                     isTerminal: true,
                     handler: async () => {
+                        calls++;
                         await session.send({
                             prompt: "Continue with the original calculation. Do not call any more tools.",
                             mode: "immediate",
@@ -108,6 +114,7 @@ describe("Structured output", async () => {
         );
         expectTypeOf(result).toEqualTypeOf<{ answer: number; contract: "typed_tool" }>();
         expect(result).toEqual({ answer: 63, contract: "typed_tool" });
+        expect(calls).toBe(1);
         expect(events.some((event) => event.type === "tool.execution_complete")).toBe(true);
         expect(events.some((event) => event.type === "assistant.message_delta")).toBe(true);
         const replies = events.filter(
@@ -117,12 +124,113 @@ describe("Structured output", async () => {
         expect(replies.at(-1)?.data.toolRequests ?? []).toEqual([]);
         const exchanges = await openAiEndpoint.getExchanges();
         expect(exchanges.length).toBeGreaterThanOrEqual(2);
+        for (const exchange of exchanges.slice(1)) {
+            expect(exchange.request).toHaveProperty("tool_choice", "none");
+        }
         for (const exchange of exchanges) {
             expect(exchange.request).toHaveProperty(
                 "response_format.json_schema.schema",
                 schema.toJSONSchema()
             );
         }
+    });
+
+    it("typed_wait_returns_stop_hook_correction_after_terminal_tool", async () => {
+        let calls = 0;
+        let stops = 0;
+        const replies: AssistantMessageEvent[] = [];
+        const session = await client.createSession({
+            model: "gpt-4.1",
+            provider,
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            tools: [
+                defineTool("lookup_number", {
+                    description: "Return the number needed for the calculation.",
+                    parameters: z.object({}),
+                    skipPermission: true,
+                    isTerminal: true,
+                    handler: () => {
+                        calls++;
+                        return 58;
+                    },
+                }),
+            ],
+            onEvent: (event) => {
+                if (event.type === "assistant.message" && !event.agentId) replies.push(event);
+            },
+            hooks: {
+                onAgentStop: () =>
+                    ++stops === 1
+                        ? {
+                              decision: "block",
+                              reason: "Correct the answer to 99, not 63. Do not use tools.",
+                          }
+                        : undefined,
+            },
+        });
+        const schema = z.object({ answer: z.number().int() });
+        const result = await session.sendAndWait(
+            "Call lookup_number exactly once, then add 5 to the returned number. Do not guess its result.",
+            schema
+        );
+        expect(result).toEqual({ answer: 99 });
+        expect(calls).toBe(1);
+        expect(stops).toBe(2);
+        const answers = replies.filter((reply) => !reply.data.toolRequests?.length);
+        expect(answers.map((reply): unknown => JSON.parse(reply.data.content))).toEqual([
+            { answer: 63 },
+            { answer: 99 },
+        ]);
+        expect(answers[0].data.originatingMessageId).toBeTruthy();
+        expect(answers[1].data.originatingMessageId).toBe(answers[0].data.originatingMessageId);
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges).toHaveLength(3);
+        expect(exchanges[1].request).toHaveProperty("tool_choice", "none");
+        for (const exchange of exchanges) {
+            expect(exchange.request).toHaveProperty(
+                "response_format.json_schema.schema",
+                schema.toJSONSchema()
+            );
+        }
+    });
+
+    it("rejects_unsupported_or_oversized_schemas_before_admission", async () => {
+        for (const model of ["gpt-4.1", "hydrafusion"]) {
+            const session = await client.createSession({
+                model,
+                provider,
+                onPermissionRequest: approveAll,
+                availableTools: [],
+            });
+            const schema = {
+                type: "object",
+                description: model === "gpt-4.1" ? "x".repeat(32 * 1024 * 1024) : "Small schema",
+            };
+            const message = model === "gpt-4.1" ? /32 MiB/ : /HydraFusion/;
+            await expect(
+                session.sendAndWait({
+                    prompt: "Must not be admitted",
+                    responseSchema: schema,
+                })
+            ).rejects.toThrow(message);
+            await expect(
+                session.rpc.sendMessages({
+                    messages: [],
+                    responseFormat: {
+                        type: "json_schema",
+                        jsonSchema: { name: "response", schema },
+                    },
+                })
+            ).rejects.toThrow(message);
+            expect((await session.rpc.queue.pendingItems()).items).toEqual([]);
+            expect(
+                (await session.getEvents()).filter(
+                    (event) => event.type === "user.message" || event.type === "session.error"
+                )
+            ).toEqual([]);
+        }
+        expect(await openAiEndpoint.getExchanges()).toEqual([]);
     });
 
     it("node_send_selects_correlated_response_after_idle", async () => {

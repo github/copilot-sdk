@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -1016,16 +1016,16 @@ export type EventsReadDirection =
   /** Tail-first: return the newest events and page toward older events. */
   | "backward";
 /**
- * Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history (the beginning for a forward read, the tail for a backward read). The fallback page is a fresh boundary snapshot, not a continuation of the requested cursor, so it may overlap already-rendered events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate by event id) before continuing from the returned cursor.
+ * Cursor status: 'ok' means the read succeeded against the requested history; 'expired' means the requested continuation is unavailable. Recovery is endpoint-specific: session.eventLog.read returns a boundary window of remaining active history that may overlap prior pages, while sessions.readPersistedEvents returns an empty terminal page and never switches journal generations. An expired persisted read is not successful completion; a complete persisted snapshot requires cursorStatus 'ok' and hasMore false.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "EventsCursorStatus".
  */
 /** @experimental */
 export type EventsCursorStatus =
-  /** The cursor was applied successfully. */
+  /** The read succeeded against the requested history. */
   | "ok"
-  /** The cursor referred to history that is no longer available. */
+  /** The requested continuation is unavailable; see the endpoint's recovery semantics. */
   | "expired";
 /**
  * Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)
@@ -2644,22 +2644,6 @@ export type PermissionDecisionOutcome =
   /** The response came from an interactive user prompt. */
   | "prompted_user";
 /**
- * Controlled reason or actor responsible for a permission response.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionDecisionSource".
- */
-/** @experimental */
-export type PermissionDecisionSource =
-  /** The response followed the assisted-approval judge recommendation. */
-  | "assisted_approval"
-  /** A human supplied the response through an interactive prompt. */
-  | "human_response"
-  /** The host applied a standing policy or override rather than a judge recommendation or human decision. */
-  | "host_policy"
-  /** The host denied the request because no interactive user response was available. */
-  | "unattended_fallback";
-/**
  * Client surface that submitted a permission response.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4270,7 +4254,7 @@ export interface CopilotUserResponse {
    */
   organization_login_list?: string[];
   /**
-   * Organizations the user belongs to, each with an optional login and display name.
+   * Organizations the user belongs to, each with an optional ID, login, and display name.
    */
   organization_list?:
     | (
@@ -4278,6 +4262,10 @@ export interface CopilotUserResponse {
             [k: string]: unknown | undefined;
           }
         | ({
+            /**
+             * Numeric database ID of the organization.
+             */
+            id?: number;
             /**
              * GitHub login of the organization.
              */
@@ -7567,7 +7555,7 @@ export interface EventsReadResult {
    */
   cursor: string;
   /**
-   * True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
+   * True when more events are available in the read's direction. For a backward read, true means older persisted events remain before the returned window. A persisted-event page may contain fewer than `max` events because of its byte budget while still reporting hasMore true; continue according to this flag rather than the event count.
    */
   hasMore: boolean;
   cursorStatus: EventsCursorStatus;
@@ -9030,7 +9018,7 @@ export interface FactoryToolRunRequest {
   toolCallId?: string;
 }
 /**
- * Optional user prompt to combine with the fleet orchestration instructions.
+ * Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "FleetStartRequest".
@@ -9041,6 +9029,20 @@ export interface FleetStartRequest {
    * Optional user prompt to combine with fleet instructions
    */
   prompt?: string;
+  /**
+   * Optional attachments (files, directories, selections, blobs, GitHub references) to include with the fleet request
+   */
+  attachments?: Attachment[];
+  /**
+   * If false, this request will not trigger a Premium Request Unit charge. User requests default to billable.
+   *
+   * @internal
+   */
+  billable?: boolean;
+  /**
+   * If true, await completion of the agentic loop for this fleet request before returning. Defaults to false.
+   */
+  wait?: boolean;
 }
 /**
  * Indicates whether fleet mode was successfully activated.
@@ -9983,7 +9985,7 @@ export interface JsonSchemaResponseFormat {
    */
   name: string;
   /**
-   * JSON Schema passed unchanged to the inference provider. Supported keywords and schema restrictions are determined by that provider.
+   * JSON Schema passed unchanged to the inference provider. Schemas larger than 32 MiB when JSON-encoded are rejected before admission, using the runtime's existing request-size ceiling. This is not a guarantee that the entire model request fits. Supported keywords and schema restrictions are determined by the provider.
    */
   schema: JsonValue;
   /**
@@ -13554,6 +13556,7 @@ export interface ModelSwitchToResult {
 /** @experimental */
 export interface ModeSetRequest {
   mode: SessionMode;
+  expectedMode?: SessionMode;
   /**
    * Session whose plan-mode base state should be inherited.
    */
@@ -13608,6 +13611,10 @@ export interface ModeSetResult {
    * Whether applying the mode changed the active model.
    */
   modelChanged: boolean;
+  /**
+   * Whether the requested mode was applied to the session. False only when an 'expectedMode' precondition did not hold, in which case any model change reported alongside it was still applied.
+   */
+  modeApplied?: boolean;
   confirmation?: ModelSwitchConfirmation;
   /**
    * User-facing warning produced while applying the mode change.
@@ -19270,6 +19277,10 @@ export interface SessionOpenOptions {
    */
   skipCustomInstructions?: boolean;
   /**
+   * Whether to invalidate cached custom-instruction discovery before constructing the session. Use when instruction files may have changed earlier in the same runtime process.
+   */
+  refreshCustomInstructions?: boolean;
+  /**
    * Instruction source IDs disabled for this session.
    */
   disabledInstructionSources?: string[];
@@ -20446,11 +20457,11 @@ export interface SessionsReadPersistedEventsRequest {
    */
   sessionId: string;
   /**
-   * Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+   * Opaque, process-local, single-use cursor returned by the previous persisted-event read. Omit on the first call and issue continuations sequentially; reusing the same cursor returns an expired terminal page.
    */
   cursor?: string;
   /**
-   * Maximum number of events to return in this batch (1–1000, default 200).
+   * Maximum number of events to return in this batch (1–1000, default 200). Pages may contain fewer events to keep the serialized event array within a soft 1 MiB budget including resolved binary assets; one oversized event is returned alone to guarantee progress.
    */
   max?: number;
   direction?: EventsReadDirection;
@@ -24703,7 +24714,7 @@ export function createServerRpc(connection: MessageConnection) {
             getClientMetadata: async (params: SessionsGetClientMetadataRequest): Promise<SessionsGetClientMetadataResult> =>
                 connection.sendRequest("sessions.getClientMetadata", params),
             /**
-             * Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.
+             * Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The first read pins the currently opened journal generation and its byte-length boundary; opaque cursor continuations remain on that generation across runtime-owned compaction, truncation, and rewrite operations, which replace the live path atomically, and events appended after the boundary are excluded. For cold hydration, await the first successful page before activation and establish lossless live-event buffering before resume; merge subsequent live events by ID, preserving persisted order and letting live payloads win. Continuations are process-local, single-use capabilities bound to the originating session and storage context and must be paged sequentially; concurrent or repeated use of the same cursor expires that duplicate read rather than reading the generation twice. A complete snapshot has cursorStatus 'ok' and hasMore false. Snapshots expire after five idle minutes, with at most eight retained per process and idle-only eviction under pressure; completion and cancelled-worker exit release their handles. No transcript copy is created, but retained handles may keep replaced files' disk blocks alive until release. Pages have a soft 1 MiB serialized event-array budget including resolved binary assets; one oversized event is returned alone to guarantee progress. Working memory also includes a record/lookahead and asset resolution; resolving the first binary reference may scan the full pinned generation to build a bounded offset index. If the snapshot expires, is evicted, is cancelled before a continuation is established, or becomes unreadable after an observable unsupported in-place shortening, the continuation returns cursorStatus 'expired' with an empty terminal page and never falls back to a different generation. A missing or initially unreadable journal is an RPC error. Persisted history excludes ephemeral events and may omit payloads that are reconstructed only for an active session; use the active session event stream for post-resume live events.
              *
              * @param params Pagination options for reading an inactive or active local session's persisted event journal.
              *
@@ -25580,7 +25591,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Starts fleet mode by submitting the fleet orchestration prompt to the session.
              *
-             * @param params Optional user prompt to combine with the fleet orchestration instructions.
+             * @param params Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
              *
              * @returns Indicates whether fleet mode was successfully activated.
              */
