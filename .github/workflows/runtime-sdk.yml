@@ -46,7 +46,7 @@ env:
 
 jobs:
   plan:
-    name: Freeze runtime-backed release identity
+    name: Plan
     runs-on: ubuntu-latest
     environment: cicd
     permissions:
@@ -107,7 +107,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   acquire-runtime:
-    name: Acquire exact runtime packages
+    name: Acquire runtime
     needs: plan
     runs-on: ubuntu-latest
     environment: cicd
@@ -152,7 +152,7 @@ jobs:
           retention-days: 7
 
   test:
-    name: Runtime-backed Node tests (${{ matrix.os }})
+    name: Test (${{ matrix.os }})
     needs: [plan, acquire-runtime]
     permissions:
       contents: read
@@ -209,7 +209,7 @@ jobs:
         run: npm test
 
   package:
-    name: Build and verify nine SDK packages
+    name: Build and verify
     needs: [plan, acquire-runtime, test]
     runs-on: ubuntu-latest
     permissions:
@@ -276,7 +276,7 @@ jobs:
           retention-days: 30
 
   publish-internal:
-    name: Publish and verify SDK internally
+    name: Publish internally
     if: |
       always() &&
       !cancelled() &&
@@ -352,7 +352,7 @@ jobs:
           ' "$SDK_VERSION"
 
   publish-public:
-    name: Publish unstable SDK publicly
+    name: Publish publicly
     if: inputs.channel == 'unstable'
     needs: [plan, publish-internal]
     runs-on: ubuntu-latest
