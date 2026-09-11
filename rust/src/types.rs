@@ -2174,9 +2174,17 @@ pub struct SessionConfig {
     /// server OAuth requests with host-acquired token data or cancellation.
     pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
     /// Optional user-input handler. When `None`,
-    /// `requestUserInput: false` goes on the wire and the `ask_user`
-    /// tool is disabled.
+    /// `requestUserInput: false` goes on the wire. Enable
+    /// [`observe_prompt_events`](Self::observe_prompt_events) to answer through events instead.
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
+    /// Observe pending prompt events with their runtime request IDs.
+    ///
+    /// An event-driven host can answer `user_input.requested` through
+    /// `session.rpc().ui().handle_pending_user_input(...)` and retire its UI on
+    /// `user_input.completed`, including when another client answered.
+    /// Without a callback handler, the observer is responsible for answering;
+    /// otherwise the request can remain pending.
+    pub observe_prompt_events: Option<bool>,
     /// Optional exit-plan-mode handler. When `None`,
     /// `requestExitPlanMode: false` goes on the wire.
     pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
@@ -2229,6 +2237,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("reasoning_summary", &self.reasoning_summary)
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
+            .field("observe_prompt_events", &self.observe_prompt_events)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
             .field("canvases", &self.canvases)
@@ -2429,6 +2438,7 @@ impl Default for SessionConfig {
             elicitation_handler: None,
             mcp_auth_handler: None,
             user_input_handler: None,
+            observe_prompt_events: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
             hooks_handler: None,
@@ -2549,6 +2559,7 @@ impl SessionConfig {
             enable_session_store: self.enable_session_store,
             enable_skills: self.enable_skills,
             request_user_input,
+            observe_prompt_events: self.observe_prompt_events,
             request_permission: permission_active,
             request_exit_plan_mode,
             request_auto_mode_switch,
@@ -2634,10 +2645,15 @@ impl SessionConfig {
         self
     }
 
-    /// Install a [`UserInputHandler`]. Required for the `ask_user` tool
-    /// to be enabled.
+    /// Install a [`UserInputHandler`] for callback-based user input.
     pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
         self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Enable event-driven prompt handling. See [`Self::observe_prompt_events`].
+    pub fn with_observe_prompt_events(mut self, enabled: bool) -> Self {
+        self.observe_prompt_events = Some(enabled);
         self
     }
 
@@ -3473,6 +3489,8 @@ pub struct ResumeSessionConfig {
     /// Optional user-input handler. See
     /// [`SessionConfig::user_input_handler`].
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
+    /// See [`SessionConfig::observe_prompt_events`].
+    pub observe_prompt_events: Option<bool>,
     /// Optional exit-plan-mode handler. See
     /// [`SessionConfig::exit_plan_mode_handler`].
     pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
@@ -3510,6 +3528,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("reasoning_summary", &self.reasoning_summary)
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
+            .field("observe_prompt_events", &self.observe_prompt_events)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
             .field("canvases", &self.canvases)
@@ -3709,6 +3728,7 @@ impl ResumeSessionConfig {
             enable_session_store: self.enable_session_store,
             enable_skills: self.enable_skills,
             request_user_input,
+            observe_prompt_events: self.observe_prompt_events,
             request_permission: permission_active,
             request_exit_plan_mode,
             request_auto_mode_switch,
@@ -3853,6 +3873,7 @@ impl ResumeSessionConfig {
             elicitation_handler: None,
             mcp_auth_handler: None,
             user_input_handler: None,
+            observe_prompt_events: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
             hooks_handler: None,
@@ -3887,6 +3908,12 @@ impl ResumeSessionConfig {
     /// Install a [`UserInputHandler`] for the resumed session.
     pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
         self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Enable event-driven prompt handling. See [`SessionConfig::observe_prompt_events`].
+    pub fn with_observe_prompt_events(mut self, enabled: bool) -> Self {
+        self.observe_prompt_events = Some(enabled);
         self
     }
 
@@ -5897,6 +5924,9 @@ impl Default for ExitPlanModeData {
         }
     }
 }
+
+#[cfg(test)]
+mod prompt_observer_tests;
 
 #[cfg(test)]
 mod tests {

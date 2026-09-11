@@ -110,6 +110,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_skills: Option<bool>,
     pub request_user_input: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observe_prompt_events: Option<bool>,
     pub request_permission: bool,
     pub request_exit_plan_mode: bool,
     pub request_auto_mode_switch: bool,
@@ -260,6 +262,8 @@ pub(crate) struct SessionResumeWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_skills: Option<bool>,
     pub request_user_input: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observe_prompt_events: Option<bool>,
     pub request_permission: bool,
     pub request_exit_plan_mode: bool,
     pub request_auto_mode_switch: bool,
