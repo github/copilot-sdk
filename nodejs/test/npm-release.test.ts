@@ -12,7 +12,7 @@ import {
 } from "../scripts/npm-release.js";
 
 const packageName = "@github/copilot-sdk";
-const version = "1.2.3-unstable.7.gabcdef0";
+const version = "1.2.3-unstable.34640000001.gabcdef0";
 const registry = "https://registry.example.test";
 const integrity = "sha512-expected";
 const identity = { name: packageName, version, integrity };
