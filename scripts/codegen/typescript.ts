@@ -1293,8 +1293,10 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
-async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
-    await generateSessionEvents(sessionSchemaPath);
+async function generate(sessionSchemaPath?: string, apiSchemaPath?: string, rpcOnly = false): Promise<void> {
+    if (!rpcOnly) {
+        await generateSessionEvents(sessionSchemaPath);
+    }
     try {
         const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
         const sessionSchema = propagateInternalVisibility(postProcessSchema((await loadSchemaJson(resolvedSessionPath)) as JSONSchema7));
@@ -1311,9 +1313,11 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
 const __filename = fileURLToPath(import.meta.url);
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-    const sessionArg = process.argv[2] || undefined;
-    const apiArg = process.argv[3] || undefined;
-    generate(sessionArg, apiArg).catch((err) => {
+    const rpcOnly = process.argv.includes("--rpc-only");
+    const args = process.argv.slice(2).filter((arg) => arg !== "--rpc-only");
+    const sessionArg = args[0] || undefined;
+    const apiArg = args[1] || undefined;
+    generate(sessionArg, apiArg, rpcOnly).catch((err) => {
         console.error("TypeScript generation failed:", err);
         process.exit(1);
     });
