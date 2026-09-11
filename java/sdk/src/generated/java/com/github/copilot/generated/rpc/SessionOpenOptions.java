@@ -127,6 +127,8 @@ public record SessionOpenOptions(
     @JsonProperty("customAgentsLocalOnly") Boolean customAgentsLocalOnly,
     /** Whether to skip custom instruction sources. */
     @JsonProperty("skipCustomInstructions") Boolean skipCustomInstructions,
+    /** Whether to invalidate cached custom-instruction discovery before constructing the session. Use when instruction files may have changed earlier in the same runtime process. */
+    @JsonProperty("refreshCustomInstructions") Boolean refreshCustomInstructions,
     /** Instruction source IDs disabled for this session. */
     @JsonProperty("disabledInstructionSources") List<String> disabledInstructionSources,
     /** Whether commit-message coauthor trailers are enabled. */

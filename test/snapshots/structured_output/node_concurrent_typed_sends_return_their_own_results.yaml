@@ -1,0 +1,24 @@
+models:
+  - gpt-4.1
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call first_number exactly once and report its returned number.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: first_number
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "42"
+      - role: assistant
+        content: '{"contract":"first","first":42}'
+      - role: user
+        content: What is 30 + 7? Do not use tools.
+      - role: assistant
+        content: '{"contract":"second","second":37}'

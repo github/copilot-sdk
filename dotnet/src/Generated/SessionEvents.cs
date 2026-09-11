@@ -75,7 +75,11 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(ModelCallFinishedEvent), "model.call_finished")]
 [JsonDerivedType(typeof(ModelCallStartEvent), "model.call_start")]
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
+[JsonDerivedType(typeof(PermissionCarriedForwardEvent), "permission.carriedForward")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
+[JsonDerivedType(typeof(PermissionMessageAuthorizationEvent), "permission.messageAuthorization")]
+[JsonDerivedType(typeof(PermissionMessageAuthorizationDegradedEvent), "permission.messageAuthorizationDegraded")]
+[JsonDerivedType(typeof(PermissionMessageAuthorizationReadEvent), "permission.messageAuthorizationRead")]
 [JsonDerivedType(typeof(PermissionRequestedEvent), "permission.requested")]
 [JsonDerivedType(typeof(PromptCacheBreakEvent), "prompt_cache_break")]
 [JsonDerivedType(typeof(SamplingCompletedEvent), "sampling.completed")]
@@ -1331,6 +1335,62 @@ public sealed partial class PermissionCompletedEvent : SessionEvent
     /// <summary>The <c>permission.completed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required PermissionCompletedData Data { get; set; }
+}
+
+/// <summary>Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.</summary>
+/// <remarks>Represents the <c>permission.carriedForward</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionCarriedForwardEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "permission.carriedForward";
+
+    /// <summary>The <c>permission.carriedForward</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required PermissionCarriedForwardData Data { get; set; }
+}
+
+/// <summary>Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.</summary>
+/// <remarks>Represents the <c>permission.messageAuthorization</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "permission.messageAuthorization";
+
+    /// <summary>The <c>permission.messageAuthorization</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required PermissionMessageAuthorizationData Data { get; set; }
+}
+
+/// <summary>Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.</summary>
+/// <remarks>Represents the <c>permission.messageAuthorizationRead</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationReadEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "permission.messageAuthorizationRead";
+
+    /// <summary>The <c>permission.messageAuthorizationRead</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required PermissionMessageAuthorizationReadData Data { get; set; }
+}
+
+/// <summary>Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.</summary>
+/// <remarks>Represents the <c>permission.messageAuthorizationDegraded</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationDegradedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "permission.messageAuthorizationDegraded";
+
+    /// <summary>The <c>permission.messageAuthorizationDegraded</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required PermissionMessageAuthorizationDegradedData Data { get; set; }
 }
 
 /// <summary>User input request notification with question and optional predefined choices.</summary>
@@ -3825,6 +3885,11 @@ public sealed partial class AssistantMessageData
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
+    /// <summary>Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("originatingMessageId")]
+    public string? OriginatingMessageId { get; set; }
+
     /// <summary>Actual output token count from the API response (completion_tokens), used for accurate token accounting.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("outputTokens")]
@@ -5195,6 +5260,12 @@ public sealed partial class PermissionRequestedData
 /// <summary>Permission request completion notification signaling UI dismissal.</summary>
 public sealed partial class PermissionCompletedData
 {
+    /// <summary>Who decided this permission request. Absent on completions recorded before this field existed, which consumers must treat as "not a human decision" rather than assuming one. Authorization records are minted only for `human_response`; an assisted-approval verdict, a host policy, an unattended fallback, and a hook resolution all produce the same `result` a person does, so this is the only field that distinguishes them.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("decisionSource")]
+    public PermissionDecisionSource? DecisionSource { get; set; }
+
     /// <summary>Request ID of the resolved permission request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
@@ -5207,6 +5278,104 @@ public sealed partial class PermissionCompletedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
     public string? ToolCallId { get; set; }
+}
+
+/// <summary>Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionCarriedForwardData
+{
+    /// <summary>Always `authorization_carry_forward`. Stated explicitly so a consumer reading this event cannot mistake it for a human, host-policy, or assisted-approval decision.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("decisionSource")]
+    public required PermissionDecisionSource DecisionSource { get; set; }
+
+    /// <summary>Identity of the prior authorization record that contained the proposal.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("recordId")]
+    public required string RecordId { get; set; }
+
+    /// <summary>Authorization edge minted for this admission. Not a prompt id: no prompt was raised, so no client should expect a request with this id.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>Tool call this admission authorizes. Its execution receipts the prior grant, which is how a single-effect approval is spent rather than carried forward again.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
+}
+
+/// <summary>Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationData
+{
+    /// <summary>The kind of effect authorized, as an action-class identifier.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("actionClass")]
+    public required string ActionClass { get; set; }
+
+    /// <summary>Whether the claim granted or denied authority.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("polarity")]
+    public required PermissionMessageAuthorizationPolarity Polarity { get; set; }
+
+    /// <summary>Deterministic identity of the record, derived from the turn and span offsets so re-extracting the same span mints nothing new.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("recordId")]
+    public required string RecordId { get; set; }
+
+    /// <summary>End byte offset of the authorizing span within the turn.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("spanEnd")]
+    public required long SpanEnd { get; set; }
+
+    /// <summary>Start byte offset of the authorizing span within the turn.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("spanStart")]
+    public required long SpanStart { get; set; }
+
+    /// <summary>Concrete named targets that appear verbatim inside the span.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("targetMembers")]
+    public string[]? TargetMembers { get; set; }
+
+    /// <summary>The task the permission is scoped to, when the human named one.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("task")]
+    public string? Task { get; set; }
+
+    /// <summary>The human turn the quoted span was read from.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("turnIndex")]
+    public required long TurnIndex { get; set; }
+
+    /// <summary>The trusted version discriminator, when one exists. Exact shell-command grants carry the byte-identical commands grounded in the human span; world-derived classes carry a file object, remote tip, or runner only when that state was captured safely. An opaque object mirroring the runtime's adjacently-tagged resolution.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("world")]
+    public JsonElement? World { get; set; }
+}
+
+/// <summary>Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationReadData
+{
+    /// <summary>The human turn that was read by the proposer.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("turnIndex")]
+    public required long TurnIndex { get; set; }
+}
+
+/// <summary>Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationDegradedData
+{
+    /// <summary>The human turn that could not be represented safely.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("turnIndex")]
+    public required long TurnIndex { get; set; }
 }
 
 /// <summary>User input request notification with question and optional predefined choices.</summary>
@@ -8975,6 +9144,18 @@ public sealed partial class PermissionRequestShell : PermissionRequest
     [JsonPropertyName("requestSandboxPermissive")]
     public bool? RequestSandboxPermissive { get; set; }
 
+    /// <summary>Runtime-resolved canonical object each possiblePaths entry names, keyed by the requested spelling, used for authorization identity checks. Internal and experimental; clients should continue to display possiblePaths.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedPaths")]
+    public IDictionary<string, string>? ResolvedPaths { get; set; }
+
+    /// <summary>Runtime-resolved canonical working directory the command runs in, used for authorization identity checks. Internal and experimental; clients should not display it.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedWorkingDirectory")]
+    public string? ResolvedWorkingDirectory { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
@@ -9034,6 +9215,12 @@ public sealed partial class PermissionRequestWrite : PermissionRequest
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
 
+    /// <summary>Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedPath")]
+    public string? ResolvedPath { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
@@ -9074,6 +9261,12 @@ public sealed partial class PermissionRequestRead : PermissionRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
+
+    /// <summary>Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedPath")]
+    public string? ResolvedPath { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -9602,6 +9795,12 @@ public sealed partial class PermissionPromptRequestWrite : PermissionPromptReque
     [JsonPropertyName("newFileContents")]
     public string? NewFileContents { get; set; }
 
+    /// <summary>Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedPath")]
+    public string? ResolvedPath { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
@@ -9634,6 +9833,12 @@ public sealed partial class PermissionPromptRequestRead : PermissionPromptReques
     /// <summary>Path of the file or directory being read.</summary>
     [JsonPropertyName("path")]
     public required string Path { get; set; }
+
+    /// <summary>Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedPath")]
+    public string? ResolvedPath { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -15196,6 +15401,138 @@ public readonly struct PermissionPromptRequestPathAccessKind : IEquatable<Permis
     }
 }
 
+/// <summary>Controlled reason or actor responsible for a permission response.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionDecisionSource : IEquatable<PermissionDecisionSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionDecisionSource"/>.</param>
+    [JsonConstructor]
+    public PermissionDecisionSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionDecisionSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The response followed the assisted-approval judge recommendation.</summary>
+    public static PermissionDecisionSource AssistedApproval { get; } = new("assisted_approval");
+
+    /// <summary>A human supplied the response through an interactive prompt.</summary>
+    public static PermissionDecisionSource HumanResponse { get; } = new("human_response");
+
+    /// <summary>The host applied a standing policy or override rather than a judge recommendation or human decision.</summary>
+    public static PermissionDecisionSource HostPolicy { get; } = new("host_policy");
+
+    /// <summary>The host denied the request because no interactive user response was available.</summary>
+    public static PermissionDecisionSource UnattendedFallback { get; } = new("unattended_fallback");
+
+    /// <summary>A live authorization record from an earlier human decision in this session contained the proposal, so it ran without another prompt. This is not a new human decision and never mints authority of its own.</summary>
+    public static PermissionDecisionSource AuthorizationCarryForward { get; } = new("authorization_carry_forward");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionDecisionSource left, PermissionDecisionSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionDecisionSource left, PermissionDecisionSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionDecisionSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionDecisionSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionSource}"/> for serializing <see cref="PermissionDecisionSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionDecisionSource>
+    {
+        /// <inheritdoc />
+        public override PermissionDecisionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionDecisionSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionSource));
+        }
+    }
+}
+
+/// <summary>Which direction a message-backed authorization claim moves authority in.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionMessageAuthorizationPolarity : IEquatable<PermissionMessageAuthorizationPolarity>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionMessageAuthorizationPolarity"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionMessageAuthorizationPolarity"/>.</param>
+    [JsonConstructor]
+    public PermissionMessageAuthorizationPolarity(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionMessageAuthorizationPolarity"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The human's words authorized an effect.</summary>
+    public static PermissionMessageAuthorizationPolarity Grant { get; } = new("grant");
+
+    /// <summary>The human's words refused an effect.</summary>
+    public static PermissionMessageAuthorizationPolarity Denial { get; } = new("denial");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionMessageAuthorizationPolarity"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionMessageAuthorizationPolarity left, PermissionMessageAuthorizationPolarity right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionMessageAuthorizationPolarity"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionMessageAuthorizationPolarity left, PermissionMessageAuthorizationPolarity right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionMessageAuthorizationPolarity other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionMessageAuthorizationPolarity other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionMessageAuthorizationPolarity}"/> for serializing <see cref="PermissionMessageAuthorizationPolarity"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionMessageAuthorizationPolarity>
+    {
+        /// <inheritdoc />
+        public override PermissionMessageAuthorizationPolarity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionMessageAuthorizationPolarity value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionMessageAuthorizationPolarity));
+        }
+    }
+}
+
 /// <summary>Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -16851,8 +17188,16 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
 [JsonSerializable(typeof(PermissionAssistedApproval))]
+[JsonSerializable(typeof(PermissionCarriedForwardData))]
+[JsonSerializable(typeof(PermissionCarriedForwardEvent))]
 [JsonSerializable(typeof(PermissionCompletedData))]
 [JsonSerializable(typeof(PermissionCompletedEvent))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationData))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationDegradedData))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationDegradedEvent))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationEvent))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationReadData))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationReadEvent))]
 [JsonSerializable(typeof(PermissionPromptRequest))]
 [JsonSerializable(typeof(PermissionPromptRequestCommands))]
 [JsonSerializable(typeof(PermissionPromptRequestCustomTool))]

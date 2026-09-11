@@ -58,6 +58,103 @@ Setup, build, and test instructions are maintained with each SDK:
 - [Rust](rust/README.md#development)
 - [Java](java/README.md#development-setup)
 
+### Testing an unreleased runtime API
+
+The runtime's Rust contracts under `src/native/sdk-contract` produce both
+`generated/api.schema.json` (RPC methods) and
+`generated/session-events.schema.json` (event payloads). In a local checkout of
+`github/copilot-agent-runtime`, build the runtime and emit these schemas:
+
+```bash
+pnpm run build
+pnpm bazel build //src/native/schema-codegen:schema-codegen
+bazel-bin/src/native/schema-codegen/schema-codegen emit \
+  --api "$PWD/generated/api.schema.json" \
+  --session-events "$PWD/generated/session-events.schema.json"
+```
+
+The SDK generators normally download schemas from the pinned CLI release. To
+use the local schemas instead, pass the event-schema path followed by the
+RPC-schema path. From this repository's `scripts/codegen` directory:
+
+```bash
+npm ci
+for language in typescript csharp python go rust; do
+  node --import tsx "$language.ts" \
+    "$RUNTIME_ROOT/generated/session-events.schema.json" \
+    "$RUNTIME_ROOT/generated/api.schema.json"
+done
+```
+
+Set `RUNTIME_ROOT` to the absolute path of the runtime checkout. Java's generator
+at `java/scripts/codegen/java.ts` reads these files from
+`java/scripts/codegen/target/schemas` instead of accepting positional arguments;
+stage the local schemas there before running it. Do not hand-edit generated
+wrappers. Regenerating against a newer runtime
+also includes any other contract changes since the SDK's pinned release.
+
+If the SDK's pinned release is newer than the runtime feature branch, preserve
+the released APIs rather than overwriting them with older local schemas.
+Three-way merge each feature schema with its runtime-base schema and the pinned
+package's schema, then pass the merged files to the generators. For example,
+with `RUNTIME_BASE` set to the feature branch's base commit and
+`PINNED_SCHEMAS_DIR` pointing to the released package's `schemas` directory:
+
+```bash
+MERGED_SCHEMAS_DIR=$(mktemp -d)
+for name in api session-events; do
+  git -C "$RUNTIME_ROOT" show "$RUNTIME_BASE:generated/$name.schema.json" \
+    > "$MERGED_SCHEMAS_DIR/base-$name.schema.json"
+  git merge-file -p "$RUNTIME_ROOT/generated/$name.schema.json" \
+    "$MERGED_SCHEMAS_DIR/base-$name.schema.json" \
+    "$PINNED_SCHEMAS_DIR/$name.schema.json" \
+    > "$MERGED_SCHEMAS_DIR/$name.schema.json" || break
+done
+```
+
+Resolve any schema conflicts before generating. The existing
+`getApiSchemaPath()` and `getSessionEventsSchemaPath()` helpers in
+`scripts/codegen/utils.ts` locate schemas for the current pin. This approach
+preserves newer released contracts while adding the exact runtime feature delta;
+generated SDK wrappers should never be merged by dropping unrelated APIs.
+
+Set `COPILOT_CLI_PATH` to the built runtime's `dist-cli/index.js` to run SDK E2Es
+against that checkout rather than the packaged runtime. For example:
+
+```bash
+export COPILOT_CLI_PATH="$RUNTIME_ROOT/dist-cli/index.js"
+# Supply GITHUB_TOKEN with Copilot access when recording new provider responses.
+cd nodejs
+npm test -- test/e2e/structured_output.e2e.test.ts
+cd ../dotnet
+dotnet test test/GitHub.Copilot.SDK.Test.csproj \
+  --filter FullyQualifiedName~StructuredOutputE2ETests
+```
+
+The shared harness records real inference responses under `test/snapshots`.
+Record new captures with `GITHUB_TOKEN` set and `GITHUB_ACTIONS` unset;
+never author model responses by hand. Rerun with `GITHUB_ACTIONS=true` and real
+provider credentials removed to require replay instead of forwarding cache
+misses upstream. A draft targeting an unreleased runtime should document the
+required runtime revision; update the pinned release only after it ships.
+Pinned-schema CI can report drift in such a draft. Java codegen reports this
+without automatically rewriting draft branches; automatic updates resume once
+the pull request is ready for review.
+
+For recording behind `HTTPS_PROXY`, Node versions that support environment
+proxies (including Node 24.20) need `NODE_USE_ENV_PROXY=1` in the test runner's
+environment. If the host proxy substitutes a protected credential, set
+`GITHUB_TOKEN="$GH_TOKEN"` using its issued placeholder; do not print or persist
+the credential. Keep localhost and loopback in `NO_PROXY`.
+
+Equivalent cross-language E2Es should share snapshot names and prompts.
+For example, Node's `typed_wait_returns_stop_hook_correction` and C#'s
+`Typed_Wait_Returns_Stop_Hook_Correction` both use
+`test/snapshots/structured_output/typed_wait_returns_stop_hook_correction.yaml`.
+It was recorded once against real `gpt-4.1` inference, then replayed by both SDKs
+against the local runtime. Both typed helpers select the corrected answer at
+idle; there is no final-message flag.
+
 ## Submitting a Pull Request
 
 1. Fork and clone the repository

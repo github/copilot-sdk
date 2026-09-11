@@ -1,0 +1,14 @@
+models:
+  - gpt-4.1
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 19 + 23? Do not use tools.
+      - role: assistant
+        content: '{"answer":42,"contract":"raw_schema"}'
+      - role: user
+        content: Reply exactly SCHEMA_CLEARED without JSON or quotes.
+      - role: assistant
+        content: SCHEMA_CLEARED

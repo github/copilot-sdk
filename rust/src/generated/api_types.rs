@@ -12,9 +12,10 @@ use serde::{Deserialize, Serialize};
 use super::session_events::{
     AbortReason, AgentModelPolicy, AutoTier, ContextTier, McpOauthHttpResponse,
     McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus,
-    ModelChangeSource, OmittedBinaryOmittedReason, PermissionMode, PermissionPromptRequest,
-    PermissionRule, ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode,
-    ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
+    ModelChangeSource, OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode,
+    PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction,
+    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompletionOutcome,
+    UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -1143,7 +1144,7 @@ pub struct CopilotUserResponse {
     /// Per-category monthly quota allotments, keyed by quota category.
     #[serde(rename = "monthly_quotas", skip_serializing_if = "Option::is_none")]
     pub monthly_quotas: Option<HashMap<String, f64>>,
-    /// Organizations the user belongs to, each with an optional login and display name.
+    /// Organizations the user belongs to, each with an optional ID, login, and display name.
     #[serde(rename = "organization_list", skip_serializing_if = "Option::is_none")]
     pub organization_list: Option<serde_json::Value>,
     /// Logins of the organizations the user belongs to.
@@ -4780,11 +4781,11 @@ pub struct EventLogTailResult {
 pub struct EventsReadResult {
     /// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).
     pub cursor: String,
-    /// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.
+    /// Cursor status: 'ok' means the cursor was applied successfully. For session.eventLog.read, 'expired' means the cursor referred to an event that no longer exists in active history and the read fell back to a boundary of the remaining history: the beginning for a forward read or the newest window for a backward read. That fallback may overlap already rendered events, so active-session consumers should reset, rebase, or deduplicate before continuing. sessions.readPersistedEvents has stricter snapshot semantics: 'expired' returns an empty terminal page and never switches to a replacement journal generation. Other persisted-read I/O failures are RPC errors with diagnostics, not cursor expiry.
     pub cursor_status: EventsCursorStatus,
     /// Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.
     pub events: Vec<SessionEvent>,
-    /// True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
+    /// True when more events are available in the read's direction. For a backward read, true means older persisted events remain before the returned window. A persisted-event page may contain fewer than `max` events because of its byte budget while still reporting hasMore true; continue according to this flag rather than the event count.
     pub has_more: bool,
 }
 
@@ -6150,7 +6151,7 @@ pub(crate) struct FactoryToolRunRequest {
     pub tool_call_id: Option<String>,
 }
 
-/// Optional user prompt to combine with the fleet orchestration instructions.
+/// Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
 ///
 /// <div class="warning">
 ///
@@ -6161,9 +6162,19 @@ pub(crate) struct FactoryToolRunRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FleetStartRequest {
+    /// Optional attachments (files, directories, selections, blobs, GitHub references) to include with the fleet request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<serde_json::Value>>,
+    /// If false, this request will not trigger a Premium Request Unit charge. User requests default to billable.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) billable: Option<bool>,
     /// Optional user prompt to combine with fleet instructions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>,
+    /// If true, await completion of the agentic loop for this fleet request before returning. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<bool>,
 }
 
 /// Indicates whether fleet mode was successfully activated.
@@ -7121,6 +7132,29 @@ pub struct InterruptMainTurnRequest {
 pub struct InterruptMainTurnResult {
     /// Whether an in-flight main agent turn was interrupted. False when the main loop was not processing.
     pub interrupted: bool,
+}
+
+/// A JSON Schema output contract. OpenAI receives the name, description, schema and strict setting; Anthropic receives the schema in output_config.format and always uses its native strict enforcement.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JsonSchemaResponseFormat {
+    /// Optional description passed to OpenAI providers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Name of the output schema, subject to the provider's naming restrictions.
+    pub name: String,
+    /// JSON Schema passed unchanged to the inference provider. Schemas larger than 32 MiB when JSON-encoded are rejected before admission, using the runtime's existing request-size ceiling. This is not a guarantee that the entire model request fits. Supported keywords and schema restrictions are determined by the provider.
+    pub schema: serde_json::Value,
+    /// Optional strict enforcement setting for OpenAI providers. Omitted uses the provider default. Anthropic always enforces its supported schema subset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strict: Option<bool>,
 }
 
 /// A request body chunk or cancellation signal.
@@ -11060,6 +11094,9 @@ pub struct ModeSetRequest {
     /// Explicit response to a model-switch compaction preflight.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compaction_decision: Option<String>,
+    /// Mode the session must currently be in for the change to apply. When set and the session is in a different mode the request is a no-op and reports status 'unchanged'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_mode: Option<SessionMode>,
     /// Session whose plan-mode base state should be inherited.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inherit_plan_base_from_session_id: Option<String>,
@@ -11117,6 +11154,9 @@ pub struct ModeSetResult {
     /// User-facing outcome message for the model switch triggered by the mode change.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// Whether the requested mode was applied to the session. False only when an 'expectedMode' precondition did not hold, in which case any model change reported alongside it was still applied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode_applied: Option<bool>,
     /// Whether applying the mode changed the active model.
     pub model_changed: bool,
     /// Lifecycle status of the requested mode change.
@@ -15084,6 +15124,23 @@ pub struct RemoteSessionRepository {
     pub owner: String,
 }
 
+/// Provider-native structured output format. JSON Schema is forwarded without rewriting or validating the schema or the generated output.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResponseFormat {
+    /// JSON Schema and provider options for the turn's output.
+    pub json_schema: JsonSchemaResponseFormat,
+    /// Output format discriminator. Currently only json_schema is supported.
+    pub r#type: ResponseFormatType,
+}
+
 /// Credential-injection capability flags applied while the sandbox is enabled. For the same capability independent of sandboxing, and matched to the credential's GitHub host, see `shell.credentials`; the two are additive.
 ///
 /// <div class="warning">
@@ -15649,6 +15706,15 @@ pub struct SendMessageItem {
     pub(crate) source: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendMessagesRequestResponseFormat {
+    /// JSON Schema and provider options for the turn's output.
+    pub json_schema: JsonSchemaResponseFormat,
+    /// Output format discriminator. Currently only json_schema is supported.
+    pub r#type: SendMessagesRequestResponseFormatType,
+}
+
 /// Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
 ///
 /// <div class="warning">
@@ -15663,7 +15729,7 @@ pub struct SendMessagesRequest {
     /// The UI mode the agent was in when these messages were sent. Defaults to the session's current mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_mode: Option<SendAgentMode>,
-    /// The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.
+    /// The user messages to append to the conversation, in order, before running one agent loop. When the batch starts a run, its final message is the primary initiating message; earlier messages provide context, not separate runs or replies. May be empty, in which case a single turn runs over the existing history with no new user message or originatingMessageId.
     pub messages: Vec<SendMessageItem>,
     /// How to deliver the messages. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -15674,6 +15740,9 @@ pub struct SendMessagesRequest {
     /// Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_headers: Option<HashMap<String, String>>,
+    /// Provider-native output format for the whole turn, including an empty message batch and all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<SendMessagesRequestResponseFormat>,
     /// W3C Trace Context traceparent header for distributed tracing of this agent turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traceparent: Option<String>,
@@ -15696,8 +15765,17 @@ pub struct SendMessagesRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SendMessagesResult {
-    /// Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
+    /// Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId.
     pub message_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendRequestResponseFormat {
+    /// JSON Schema and provider options for the turn's output.
+    pub json_schema: JsonSchemaResponseFormat,
+    /// Output format discriminator. Currently only json_schema is supported.
+    pub r#type: SendRequestResponseFormatType,
 }
 
 /// Parameters for sending a user message to the session
@@ -15737,6 +15815,9 @@ pub struct SendRequest {
     /// If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required_tool: Option<String>,
+    /// Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<SendRequestResponseFormat>,
     /// Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -17454,6 +17535,9 @@ pub struct SessionOpenOptions {
     /// Initial reasoning summary mode for supported model clients.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<SessionOpenOptionsReasoningSummary>,
+    /// Whether to invalidate cached custom-instruction discovery before constructing the session. Use when instruction files may have changed earlier in the same runtime process.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_custom_instructions: Option<bool>,
     /// Telemetry-only remote-defaulted flag.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_defaulted_on: Option<bool>,
@@ -18561,13 +18645,13 @@ pub struct SessionsPruneOldRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionsReadPersistedEventsRequest {
-    /// Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+    /// Opaque, process-local, single-use cursor returned by the previous persisted-event read. Omit on the first call and issue continuations sequentially; reusing the same cursor returns an expired terminal page.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
-    /// Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological.
+    /// Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological. This selects the initial read only; a continuation always uses the direction bound into its cursor.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub direction: Option<EventsReadDirection>,
-    /// Maximum number of events to return in this batch (1–1000, default 200).
+    /// Maximum number of events to return in this batch (1–1000, default 200). Pages may contain fewer events to keep the serialized event array within a soft 1 MiB budget including resolved binary assets; one oversized event is returned alone to guarantee progress.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max: Option<i64>,
     /// Session ID whose persisted event journal should be read.
@@ -22778,11 +22862,11 @@ pub struct SessionsListResult {
 pub struct SessionsReadPersistedEventsResult {
     /// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).
     pub cursor: String,
-    /// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.
+    /// Cursor status: 'ok' means the cursor was applied successfully. For session.eventLog.read, 'expired' means the cursor referred to an event that no longer exists in active history and the read fell back to a boundary of the remaining history: the beginning for a forward read or the newest window for a backward read. That fallback may overlap already rendered events, so active-session consumers should reset, rebase, or deduplicate before continuing. sessions.readPersistedEvents has stricter snapshot semantics: 'expired' returns an empty terminal page and never switches to a replacement journal generation. Other persisted-read I/O failures are RPC errors with diagnostics, not cursor expiry.
     pub cursor_status: EventsCursorStatus,
     /// Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.
     pub events: Vec<SessionEvent>,
-    /// True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
+    /// True when more events are available in the read's direction. For a backward read, true means older persisted events remain before the returned window. A persisted-event page may contain fewer than `max` events because of its byte budget while still reporting hasMore true; continue according to this flag rather than the event count.
     pub has_more: bool,
 }
 
@@ -23023,7 +23107,7 @@ pub struct SessionSendResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSendMessagesResult {
-    /// Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
+    /// Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId.
     pub message_ids: Vec<String>,
 }
 
@@ -24062,6 +24146,9 @@ pub struct SessionModeSetResult {
     /// User-facing outcome message for the model switch triggered by the mode change.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// Whether the requested mode was applied to the session. False only when an 'expectedMode' precondition did not hold, in which case any model change reported alongside it was still applied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode_applied: Option<bool>,
     /// Whether applying the mode changed the active model.
     pub model_changed: bool,
     /// Lifecycle status of the requested mode change.
@@ -27851,11 +27938,11 @@ pub struct SessionQueueProcessParams {
 pub struct SessionEventLogReadResult {
     /// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).
     pub cursor: String,
-    /// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.
+    /// Cursor status: 'ok' means the cursor was applied successfully. For session.eventLog.read, 'expired' means the cursor referred to an event that no longer exists in active history and the read fell back to a boundary of the remaining history: the beginning for a forward read or the newest window for a backward read. That fallback may overlap already rendered events, so active-session consumers should reset, rebase, or deduplicate before continuing. sessions.readPersistedEvents has stricter snapshot semantics: 'expired' returns an empty terminal page and never switches to a replacement journal generation. Other persisted-read I/O failures are RPC errors with diagnostics, not cursor expiry.
     pub cursor_status: EventsCursorStatus,
     /// Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.
     pub events: Vec<SessionEvent>,
-    /// True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
+    /// True when more events are available in the read's direction. For a backward read, true means older persisted events remain before the returned window. A persisted-event page may contain fewer than `max` events because of its byte budget while still reporting hasMore true; continue according to this flag rather than the event count.
     pub has_more: bool,
 }
 
@@ -30469,7 +30556,7 @@ pub enum EventsReadDirection {
     Unknown,
 }
 
-/// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history (the beginning for a forward read, the tail for a backward read). The fallback page is a fresh boundary snapshot, not a continuation of the requested cursor, so it may overlap already-rendered events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate by event id) before continuing from the returned cursor.
+/// Cursor status: 'ok' means the read succeeded against the requested history; 'expired' means the requested continuation is unavailable. Recovery is endpoint-specific: session.eventLog.read returns a boundary window of remaining active history that may overlap prior pages, while sessions.readPersistedEvents returns an empty terminal page and never switches journal generations. An expired persisted read is not successful completion; a complete persisted snapshot requires cursorStatus 'ok' and hasMore false.
 ///
 /// <div class="warning">
 ///
@@ -30479,10 +30566,10 @@ pub enum EventsReadDirection {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventsCursorStatus {
-    /// The cursor was applied successfully.
+    /// The read succeeded against the requested history.
     #[serde(rename = "ok")]
     Ok,
-    /// The cursor referred to history that is no longer available.
+    /// The requested continuation is unavailable; see the endpoint's recovery semantics.
     #[serde(rename = "expired")]
     Expired,
     /// Unknown variant for forward compatibility.
@@ -32978,34 +33065,6 @@ pub enum PermissionResponseCapability {
     Unknown,
 }
 
-/// Controlled reason or actor responsible for a permission response.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionSource {
-    /// The response followed the assisted-approval judge recommendation.
-    #[serde(rename = "assisted_approval")]
-    AssistedApproval,
-    /// A human supplied the response through an interactive prompt.
-    #[serde(rename = "human_response")]
-    HumanResponse,
-    /// The host applied a standing policy or override rather than a judge recommendation or human decision.
-    #[serde(rename = "host_policy")]
-    HostPolicy,
-    /// The host denied the request because no interactive user response was available.
-    #[serde(rename = "unattended_fallback")]
-    UnattendedFallback,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Client surface that submitted a permission response.
 ///
 /// <div class="warning">
@@ -33698,6 +33757,14 @@ pub enum RemoteSessionMetadataTaskType {
     Unknown,
 }
 
+/// Output format discriminator. Currently only json_schema is supported.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ResponseFormatType {
+    #[serde(rename = "json_schema")]
+    #[default]
+    JsonSchema,
+}
+
 /// Origin of the sandbox choice supplied by an internal client.
 ///
 /// <div class="warning">
@@ -33733,6 +33800,22 @@ pub enum SandboxConfigSource {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Output format discriminator. Currently only json_schema is supported.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SendMessagesRequestResponseFormatType {
+    #[serde(rename = "json_schema")]
+    #[default]
+    JsonSchema,
+}
+
+/// Output format discriminator. Currently only json_schema is supported.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SendRequestResponseFormatType {
+    #[serde(rename = "json_schema")]
+    #[default]
+    JsonSchema,
 }
 
 /// Session capability enabled for this session

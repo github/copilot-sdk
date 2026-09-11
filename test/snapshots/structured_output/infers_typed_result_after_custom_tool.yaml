@@ -1,0 +1,24 @@
+models:
+  - gpt-4.1
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call get_inventory, then report the widget count and color.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: get_inventory
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: The inventory contains 42 red widgets.
+      - role: assistant
+        content: '{"color":"red","count":42}'
+      - role: user
+        content: Now reply with exactly the plain text HELLO, not JSON.
+      - role: assistant
+        content: HELLO

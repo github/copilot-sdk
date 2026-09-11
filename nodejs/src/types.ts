@@ -89,10 +89,10 @@ export type { SessionFsSqliteStatement } from "./sessionFsProvider.js";
 export type { SessionFsSqliteTransactionErrorClass } from "./sessionFsProvider.js";
 export { SessionFsSqliteTransactionFailure } from "./sessionFsProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
+export type { PermissionDecisionSource } from "./generated/session-events.js";
 export type {
     PermissionDecisionContext,
     PermissionDecisionOutcome,
-    PermissionDecisionSource,
     PermissionDecisionSurface,
     PermissionResponseCapability,
 } from "./generated/rpc.js";
@@ -708,6 +708,14 @@ export type ToolHandler<TArgs = unknown> = (
 export interface ZodSchema<T = unknown> {
     _output: T;
     toJSONSchema(): Record<string, unknown>;
+}
+
+/**
+ * A Zod-compatible output schema that both describes and parses a typed result.
+ * TypeScript types are erased at runtime, so typed output requires a schema value.
+ */
+export interface ResponseSchema<T = unknown> extends ZodSchema<T> {
+    parse(value: unknown): T;
 }
 
 /**
@@ -3395,6 +3403,20 @@ export interface MessageOptions {
      * If provided, this is shown in the timeline instead of `prompt`.
      */
     displayPrompt?: string;
+
+    /**
+     * JSON Schema or a Zod schema for this run's output, including requests after tool calls.
+     * Independent sends do not inherit it. Ordinary immediate steering retains the active
+     * schema and origin, even when promoted to a follow-up after the model request finishes.
+     * Specifying a schema with mode "immediate" is rejected, even while idle.
+     * This is not a persisted session default and does not survive a context reset.
+     *
+     * sendAndWait still returns an assistant message event. For a typed result, pass a
+     * Zod-compatible schema as sendAndWait's second argument instead.
+     * Streaming events remain text and may include intermediate messages.
+     * Use rpc.send's responseFormat for provider-specific name, description and strict options.
+     */
+    responseSchema?: ZodSchema | Record<string, unknown>;
 }
 
 /**

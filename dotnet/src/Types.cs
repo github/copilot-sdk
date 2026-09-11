@@ -4091,6 +4091,7 @@ public sealed class MessageOptions
         Source = other.Source;
         Prompt = other.Prompt;
         DisplayPrompt = other.DisplayPrompt;
+        ResponseSchema = other.ResponseSchema;
         RequestHeaders = other.RequestHeaders is not null
             ? new Dictionary<string, string>(other.RequestHeaders)
             : null;
@@ -4127,6 +4128,18 @@ public sealed class MessageOptions
     /// If provided, this is shown in the timeline instead of <see cref="Prompt"/>.
     /// </summary>
     public string? DisplayPrompt { get; set; }
+
+    /// <summary>
+    /// Optional provider-native JSON Schema for this turn, including tool continuations.
+    /// The schema is passed unchanged with the name "response" and strict enforcement requested.
+    /// Ordinary immediate steering retains the active run's schema and origin even when promoted
+    /// to a follow-up after the model request finishes. An immediate message must not specify its
+    /// own schema, even while idle. Independent sends and context resets do not inherit this schema;
+    /// it is not a persisted session default.
+    /// Use <see cref="CopilotSession.Rpc"/> for advanced response-format options.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public JsonElement? ResponseSchema { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="MessageOptions"/> instance.

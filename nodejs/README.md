@@ -301,6 +301,87 @@ Send a message and wait until the session becomes idle.
 
 Returns the final assistant message event, or undefined if none was received.
 
+##### Structured output (preview)
+
+Requires a runtime build with `responseFormat` and `originatingMessageId` support.
+Pass a raw JSON Schema or a Zod schema as `responseSchema` to `send` or
+`sendAndWait`. As with custom tool parameters, the SDK converts Zod schemas to
+JSON Schema before sending them:
+
+```typescript
+import { z } from "zod";
+
+const answerSchema = z.object({ answer: z.number().int() });
+const message = await session.sendAndWait({
+    prompt: "What is 19 + 23?",
+    responseSchema: answerSchema,
+});
+console.log(message?.data.content); // JSON text
+```
+
+For a typed result, pass the Zod schema as the **second argument** instead:
+
+```typescript
+const answer = await session.sendAndWait("What is 19 + 23?", answerSchema);
+console.log(answer.answer); // number; TResult is inferred from answerSchema
+```
+
+`sendAndWait<TResult>(options, schema, timeout?)` generates the JSON Schema from
+the schema value, parses the final JSON, and validates it with the schema's
+`parse` method. TypeScript cannot derive a runtime schema from an erased type
+parameter alone. Invalid JSON, a schema mismatch, or a completed run without a
+matching assistant message throws. Do not also set `options.responseSchema` when
+using the typed overload.
+
+The schema belongs to the submitted run, including its tool-call iterations.
+Internally generated stop-hook corrections retain the schema and originating
+message ID, so the wait returns the corrected answer. Independent subsequent
+sends do not inherit it. Ordinary immediate steering inherits the active schema
+and originating message ID, even when it arrives too late for the current model
+request and is promoted into a follow-up run. Specifying a schema with
+`mode: "immediate"` is rejected, even while idle.
+The generated `session.rpc.send` and `session.rpc.sendMessages` wrappers expose
+the full `responseFormat` contract when you need to set its name, description,
+or strict option rather than using the convenience defaults (`name: "response"`,
+`strict: true`).
+Each batch starts one run: the final returned message ID is its origin, preceding
+messages are context, and an empty batch has no origin. An immediate batch
+steers the active run instead and retains its origin.
+The schema is not a persisted session default: autonomous resume-pending work
+after a restart does not restore it. A terminal tool that clears context ends
+the old run; its fresh seed does not inherit the schema or origin. Such a run
+can finish without a structured result, in which case the typed wait throws.
+After a successful terminal tool, the runtime disables tools while the model
+produces the structured result. Stop-hook corrections remain supported.
+Remote sessions and known HydraFusion routes reject response formats before
+admission. Schemas larger than 32 MiB when JSON-encoded are also rejected before
+admission, using the runtime's existing request-size ceiling. This does not
+guarantee the schema plus conversation and tools fits the provider's budget.
+
+Structured waits select the last root-agent message whose `originatingMessageId`
+matches the ID returned by their send, then return at a non-autopilot
+`session.idle`. Other queued work can delay that idle, but cannot replace the
+selected result. The existing unformatted overload retains its session-wide
+behavior. `turnId` identifies an individual model/tool iteration, not the whole
+run; telemetry interaction IDs are not unique run identifiers.
+
+For event-driven consumption with `send`, subscribe before sending and collect
+root `assistant.message` events whose `data.originatingMessageId` matches the ID
+returned by `send`; events may arrive before that acknowledgement. Wait for
+`session.idle`, then parse the last matching message without tool requests.
+An earlier response may be superseded by a stop-hook correction. Handle
+`session.error` and aborted idle events rather than returning a partial result.
+
+Streaming still delivers ordinary text events, including intermediate messages
+and tool calls. Only the final selected message is parsed by the typed overload;
+not every event is necessarily a complete schema-conforming JSON document.
+Provider errors, refusals, cancellation, truncation, session errors, and timeouts
+can prevent a typed result. A timeout stops waiting, not the runtime's work.
+Use a model and endpoint that support native structured output. An API-compatible
+gateway may ignore format fields even when it accepts the request; for example,
+the Claude Chat-completions compatibility route is not equivalent to Anthropic's
+native `output_config.format` endpoint.
+
 ##### `on(eventType: string, handler: TypedSessionEventHandler): () => void`
 
 Subscribe to a specific event type. The handler receives properly typed events.

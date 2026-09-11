@@ -221,6 +221,14 @@ class SessionEventType(Enum):
     SYSTEM_NOTIFICATION = "system.notification"
     PERMISSION_REQUESTED = "permission.requested"
     PERMISSION_COMPLETED = "permission.completed"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    PERMISSION_CARRIED_FORWARD = "permission.carriedForward"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    PERMISSION_MESSAGE_AUTHORIZATION = "permission.messageAuthorization"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    PERMISSION_MESSAGE_AUTHORIZATION_READ = "permission.messageAuthorizationRead"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    PERMISSION_MESSAGE_AUTHORIZATION_DEGRADED = "permission.messageAuthorizationDegraded"
     USER_INPUT_REQUESTED = "user_input.requested"
     USER_INPUT_COMPLETED = "user_input.completed"
     ELICITATION_REQUESTED = "elicitation.requested"
@@ -1485,6 +1493,148 @@ class PermissionAssistedApproval:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class PermissionCarriedForwardData:
+    "Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left."
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    decision_source: PermissionDecisionSource
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    record_id: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    request_id: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    tool_call_id: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionCarriedForwardData":
+        assert isinstance(obj, dict)
+        decision_source = parse_enum(PermissionDecisionSource, obj.get("decisionSource"))
+        record_id = from_str(obj.get("recordId"))
+        request_id = from_str(obj.get("requestId"))
+        tool_call_id = from_str(obj.get("toolCallId"))
+        return PermissionCarriedForwardData(
+            decision_source=decision_source,
+            record_id=record_id,
+            request_id=request_id,
+            tool_call_id=tool_call_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["decisionSource"] = to_enum(PermissionDecisionSource, self.decision_source)
+        result["recordId"] = from_str(self.record_id)
+        result["requestId"] = from_str(self.request_id)
+        result["toolCallId"] = from_str(self.tool_call_id)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionMessageAuthorizationData:
+    "Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume."
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    action_class: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    polarity: PermissionMessageAuthorizationPolarity
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    record_id: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    span_end: int
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    span_start: int
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    turn_index: int
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    target_members: list[str] | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    task: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    world: Any = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionMessageAuthorizationData":
+        assert isinstance(obj, dict)
+        action_class = from_str(obj.get("actionClass"))
+        polarity = parse_enum(PermissionMessageAuthorizationPolarity, obj.get("polarity"))
+        record_id = from_str(obj.get("recordId"))
+        span_end = from_int(obj.get("spanEnd"))
+        span_start = from_int(obj.get("spanStart"))
+        turn_index = from_int(obj.get("turnIndex"))
+        target_members = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("targetMembers"))
+        task = from_union([from_none, from_str], obj.get("task"))
+        world = obj.get("world")
+        return PermissionMessageAuthorizationData(
+            action_class=action_class,
+            polarity=polarity,
+            record_id=record_id,
+            span_end=span_end,
+            span_start=span_start,
+            turn_index=turn_index,
+            target_members=target_members,
+            task=task,
+            world=world,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["actionClass"] = from_str(self.action_class)
+        result["polarity"] = to_enum(PermissionMessageAuthorizationPolarity, self.polarity)
+        result["recordId"] = from_str(self.record_id)
+        result["spanEnd"] = to_int(self.span_end)
+        result["spanStart"] = to_int(self.span_start)
+        result["turnIndex"] = to_int(self.turn_index)
+        if self.target_members is not None:
+            result["targetMembers"] = from_union([from_none, lambda x: from_list(from_str, x)], self.target_members)
+        if self.task is not None:
+            result["task"] = from_union([from_none, from_str], self.task)
+        if self.world is not None:
+            result["world"] = self.world
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionMessageAuthorizationDegradedData:
+    "Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt."
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    turn_index: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionMessageAuthorizationDegradedData":
+        assert isinstance(obj, dict)
+        turn_index = from_int(obj.get("turnIndex"))
+        return PermissionMessageAuthorizationDegradedData(
+            turn_index=turn_index,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["turnIndex"] = to_int(self.turn_index)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionMessageAuthorizationReadData:
+    "Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism."
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    turn_index: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionMessageAuthorizationReadData":
+        assert isinstance(obj, dict)
+        turn_index = from_int(obj.get("turnIndex"))
+        return PermissionMessageAuthorizationReadData(
+            turn_index=turn_index,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["turnIndex"] = to_int(self.turn_index)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class SessionAutoModeResolvedData:
     "Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability."
     chosen_model: str
@@ -2449,6 +2599,7 @@ class AssistantMessageData:
     fusion: FusionAttribution | None = None
     interaction_id: str | None = None
     model: str | None = None
+    originating_message_id: str | None = None
     output_tokens: int | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
@@ -2478,6 +2629,7 @@ class AssistantMessageData:
         fusion = from_union([from_none, FusionAttribution.from_dict], obj.get("fusion"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         model = from_union([from_none, from_str], obj.get("model"))
+        originating_message_id = from_union([from_none, from_str], obj.get("originatingMessageId"))
         output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         phase = from_union([from_none, from_str], obj.get("phase"))
@@ -2503,6 +2655,7 @@ class AssistantMessageData:
             fusion=fusion,
             interaction_id=interaction_id,
             model=model,
+            originating_message_id=originating_message_id,
             output_tokens=output_tokens,
             parent_tool_call_id=parent_tool_call_id,
             phase=phase,
@@ -2540,6 +2693,8 @@ class AssistantMessageData:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
+        if self.originating_message_id is not None:
+            result["originatingMessageId"] = from_union([from_none, from_str], self.originating_message_id)
         if self.output_tokens is not None:
             result["outputTokens"] = from_union([from_none, to_int], self.output_tokens)
         if self.parent_tool_call_id is not None:
@@ -5876,6 +6031,8 @@ class PermissionCompletedData:
     "Permission request completion notification signaling UI dismissal"
     request_id: str
     result: PermissionResult
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    decision_source: PermissionDecisionSource | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -5883,10 +6040,12 @@ class PermissionCompletedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         result = _load_PermissionResult(obj.get("result"))
+        decision_source = from_union([from_none, lambda x: parse_enum(PermissionDecisionSource, x)], obj.get("decisionSource"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionCompletedData(
             request_id=request_id,
             result=result,
+            decision_source=decision_source,
             tool_call_id=tool_call_id,
         )
 
@@ -5894,6 +6053,8 @@ class PermissionCompletedData:
         result: dict = {}
         result["requestId"] = from_str(self.request_id)
         result["result"] = self.result.to_dict()
+        if self.decision_source is not None:
+            result["decisionSource"] = from_union([from_none, lambda x: to_enum(PermissionDecisionSource, x)], self.decision_source)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -6532,6 +6693,8 @@ class PermissionPromptRequestRead:
     # Experimental: this field is part of an experimental API and may change or be removed.
     assisted_approval: PermissionAssistedApproval | None = None
     managed_approval_required: bool | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    resolved_path: str | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -6541,12 +6704,14 @@ class PermissionPromptRequestRead:
         path = from_str(obj.get("path"))
         assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
+        resolved_path = from_union([from_none, from_str], obj.get("resolvedPath"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestRead(
             intention=intention,
             path=path,
             assisted_approval=assisted_approval,
             managed_approval_required=managed_approval_required,
+            resolved_path=resolved_path,
             tool_call_id=tool_call_id,
         )
 
@@ -6559,6 +6724,8 @@ class PermissionPromptRequestRead:
             result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.managed_approval_required is not None:
             result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
+        if self.resolved_path is not None:
+            result["resolvedPath"] = from_union([from_none, from_str], self.resolved_path)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -6632,6 +6799,8 @@ class PermissionPromptRequestWrite:
     assisted_approval: PermissionAssistedApproval | None = None
     managed_approval_required: bool | None = None
     new_file_contents: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    resolved_path: str | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -6644,6 +6813,7 @@ class PermissionPromptRequestWrite:
         assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         new_file_contents = from_union([from_none, from_str], obj.get("newFileContents"))
+        resolved_path = from_union([from_none, from_str], obj.get("resolvedPath"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestWrite(
             can_offer_session_approval=can_offer_session_approval,
@@ -6653,6 +6823,7 @@ class PermissionPromptRequestWrite:
             assisted_approval=assisted_approval,
             managed_approval_required=managed_approval_required,
             new_file_contents=new_file_contents,
+            resolved_path=resolved_path,
             tool_call_id=tool_call_id,
         )
 
@@ -6669,6 +6840,8 @@ class PermissionPromptRequestWrite:
             result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         if self.new_file_contents is not None:
             result["newFileContents"] = from_union([from_none, from_str], self.new_file_contents)
+        if self.resolved_path is not None:
+            result["resolvedPath"] = from_union([from_none, from_str], self.resolved_path)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -7092,6 +7265,8 @@ class PermissionRequestRead:
     managed_approval_required: bool | None = None
     request_sandbox_bypass: bool | None = None
     request_sandbox_bypass_reason: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    resolved_path: str | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -7102,6 +7277,7 @@ class PermissionRequestRead:
         managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         request_sandbox_bypass = from_union([from_none, from_bool], obj.get("requestSandboxBypass"))
         request_sandbox_bypass_reason = from_union([from_none, from_str], obj.get("requestSandboxBypassReason"))
+        resolved_path = from_union([from_none, from_str], obj.get("resolvedPath"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionRequestRead(
             intention=intention,
@@ -7109,6 +7285,7 @@ class PermissionRequestRead:
             managed_approval_required=managed_approval_required,
             request_sandbox_bypass=request_sandbox_bypass,
             request_sandbox_bypass_reason=request_sandbox_bypass_reason,
+            resolved_path=resolved_path,
             tool_call_id=tool_call_id,
         )
 
@@ -7123,6 +7300,8 @@ class PermissionRequestRead:
             result["requestSandboxBypass"] = from_union([from_none, from_bool], self.request_sandbox_bypass)
         if self.request_sandbox_bypass_reason is not None:
             result["requestSandboxBypassReason"] = from_union([from_none, from_str], self.request_sandbox_bypass_reason)
+        if self.resolved_path is not None:
+            result["resolvedPath"] = from_union([from_none, from_str], self.resolved_path)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -7144,6 +7323,10 @@ class PermissionRequestShell:
     request_sandbox_bypass: bool | None = None
     request_sandbox_bypass_reason: str | None = None
     request_sandbox_permissive: bool | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    resolved_paths: dict[str, str] | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    resolved_working_directory: str | None = None
     tool_call_id: str | None = None
     warning: str | None = None
 
@@ -7162,6 +7345,8 @@ class PermissionRequestShell:
         request_sandbox_bypass = from_union([from_none, from_bool], obj.get("requestSandboxBypass"))
         request_sandbox_bypass_reason = from_union([from_none, from_str], obj.get("requestSandboxBypassReason"))
         request_sandbox_permissive = from_union([from_none, from_bool], obj.get("requestSandboxPermissive"))
+        resolved_paths = from_union([from_none, lambda x: from_dict(from_str, x)], obj.get("resolvedPaths"))
+        resolved_working_directory = from_union([from_none, from_str], obj.get("resolvedWorkingDirectory"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         warning = from_union([from_none, from_str], obj.get("warning"))
         return PermissionRequestShell(
@@ -7177,6 +7362,8 @@ class PermissionRequestShell:
             request_sandbox_bypass=request_sandbox_bypass,
             request_sandbox_bypass_reason=request_sandbox_bypass_reason,
             request_sandbox_permissive=request_sandbox_permissive,
+            resolved_paths=resolved_paths,
+            resolved_working_directory=resolved_working_directory,
             tool_call_id=tool_call_id,
             warning=warning,
         )
@@ -7201,6 +7388,10 @@ class PermissionRequestShell:
             result["requestSandboxBypassReason"] = from_union([from_none, from_str], self.request_sandbox_bypass_reason)
         if self.request_sandbox_permissive is not None:
             result["requestSandboxPermissive"] = from_union([from_none, from_bool], self.request_sandbox_permissive)
+        if self.resolved_paths is not None:
+            result["resolvedPaths"] = from_union([from_none, lambda x: from_dict(from_str, x)], self.resolved_paths)
+        if self.resolved_working_directory is not None:
+            result["resolvedWorkingDirectory"] = from_union([from_none, from_str], self.resolved_working_directory)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         if self.warning is not None:
@@ -7335,6 +7526,8 @@ class PermissionRequestWrite:
     new_file_contents: str | None = None
     request_sandbox_bypass: bool | None = None
     request_sandbox_bypass_reason: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    resolved_path: str | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -7348,6 +7541,7 @@ class PermissionRequestWrite:
         new_file_contents = from_union([from_none, from_str], obj.get("newFileContents"))
         request_sandbox_bypass = from_union([from_none, from_bool], obj.get("requestSandboxBypass"))
         request_sandbox_bypass_reason = from_union([from_none, from_str], obj.get("requestSandboxBypassReason"))
+        resolved_path = from_union([from_none, from_str], obj.get("resolvedPath"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionRequestWrite(
             can_offer_session_approval=can_offer_session_approval,
@@ -7358,6 +7552,7 @@ class PermissionRequestWrite:
             new_file_contents=new_file_contents,
             request_sandbox_bypass=request_sandbox_bypass,
             request_sandbox_bypass_reason=request_sandbox_bypass_reason,
+            resolved_path=resolved_path,
             tool_call_id=tool_call_id,
         )
 
@@ -7376,6 +7571,8 @@ class PermissionRequestWrite:
             result["requestSandboxBypass"] = from_union([from_none, from_bool], self.request_sandbox_bypass)
         if self.request_sandbox_bypass_reason is not None:
             result["requestSandboxBypassReason"] = from_union([from_none, from_str], self.request_sandbox_bypass_reason)
+        if self.resolved_path is not None:
+            result["resolvedPath"] = from_union([from_none, from_str], self.resolved_path)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -12126,6 +12323,15 @@ class FusionTurnKind(Enum):
 
 
 # Experimental: this enum is part of an experimental API and may change or be removed.
+class PermissionMessageAuthorizationPolarity(Enum):
+    "Which direction a message-backed authorization claim moves authority in."
+    # The human's words authorized an effect.
+    GRANT = "grant"
+    # The human's words refused an effect.
+    DENIAL = "denial"
+
+
+# Experimental: this enum is part of an experimental API and may change or be removed.
 class PermissionMode(Enum):
     "Permission mode for the session."
     # Permission requests follow the normal approval flow.
@@ -12661,6 +12867,20 @@ class OmittedBinaryType(Enum):
     RESOURCE = "resource"
 
 
+class PermissionDecisionSource(Enum):
+    "Controlled reason or actor responsible for a permission response."
+    # The response followed the assisted-approval judge recommendation.
+    ASSISTED_APPROVAL = "assisted_approval"
+    # A human supplied the response through an interactive prompt.
+    HUMAN_RESPONSE = "human_response"
+    # The host applied a standing policy or override rather than a judge recommendation or human decision.
+    HOST_POLICY = "host_policy"
+    # The host denied the request because no interactive user response was available.
+    UNATTENDED_FALLBACK = "unattended_fallback"
+    # A live authorization record from an earlier human decision in this session contained the proposal, so it ran without another prompt. This is not a new human decision and never mints authority of its own.
+    AUTHORIZATION_CARRY_FORWARD = "authorization_carry_forward"
+
+
 class PermissionPromptRequestPathAccessKind(Enum):
     "Underlying permission kind that needs path approval"
     # Read access to a filesystem path.
@@ -12963,7 +13183,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -13075,6 +13295,10 @@ class SessionEvent:
             case SessionEventType.SYSTEM_NOTIFICATION: data = SystemNotificationData.from_dict(data_obj)
             case SessionEventType.PERMISSION_REQUESTED: data = PermissionRequestedData.from_dict(data_obj)
             case SessionEventType.PERMISSION_COMPLETED: data = PermissionCompletedData.from_dict(data_obj)
+            case SessionEventType.PERMISSION_CARRIED_FORWARD: data = PermissionCarriedForwardData.from_dict(data_obj)
+            case SessionEventType.PERMISSION_MESSAGE_AUTHORIZATION: data = PermissionMessageAuthorizationData.from_dict(data_obj)
+            case SessionEventType.PERMISSION_MESSAGE_AUTHORIZATION_READ: data = PermissionMessageAuthorizationReadData.from_dict(data_obj)
+            case SessionEventType.PERMISSION_MESSAGE_AUTHORIZATION_DEGRADED: data = PermissionMessageAuthorizationDegradedData.from_dict(data_obj)
             case SessionEventType.USER_INPUT_REQUESTED: data = UserInputRequestedData.from_dict(data_obj)
             case SessionEventType.USER_INPUT_COMPLETED: data = UserInputCompletedData.from_dict(data_obj)
             case SessionEventType.ELICITATION_REQUESTED: data = ElicitationRequestedData.from_dict(data_obj)
@@ -13346,12 +13570,18 @@ __all__ = [
     "PermissionApprovedForSession",
     "PermissionAssistedApproval",
     "PermissionCancelled",
+    "PermissionCarriedForwardData",
     "PermissionCompletedData",
+    "PermissionDecisionSource",
     "PermissionDeniedByContentExclusionPolicy",
     "PermissionDeniedByPermissionRequestHook",
     "PermissionDeniedByRules",
     "PermissionDeniedInteractivelyByUser",
     "PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser",
+    "PermissionMessageAuthorizationData",
+    "PermissionMessageAuthorizationDegradedData",
+    "PermissionMessageAuthorizationPolarity",
+    "PermissionMessageAuthorizationReadData",
     "PermissionMode",
     "PermissionPromptRequest",
     "PermissionPromptRequestCommands",

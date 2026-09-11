@@ -289,7 +289,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     /// <param name="options">Options for the message to be sent, including the prompt and optional attachments.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
-    /// <returns>A task that resolves with the ID of the response message, which can be used to correlate events.</returns>
+    /// <returns>The submitted user message's ID, not an assistant response ID. When this send starts
+    /// a run, root assistant messages carry it as <c>OriginatingMessageId</c>.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the session has been disposed.</exception>
     /// <remarks>
     /// <para>
@@ -331,6 +332,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
             Traceparent = traceparent,
             Tracestate = tracestate,
             RequestHeaders = options.RequestHeaders,
+            ResponseFormat = options.ResponseSchema is { } schema ? new ResponseFormat
+            {
+                Type = "json_schema",
+                JsonSchema = new JsonSchemaResponseFormat
+                {
+                    Name = "response",
+                    Schema = schema,
+                    Strict = true,
+                },
+            } : null,
         };
 
         var rpcTimestamp = Stopwatch.GetTimestamp();
@@ -379,6 +390,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(options);
         ThrowIfDisposed();
+
+        if (options.ResponseSchema is not null)
+        {
+            return await SendAndWaitForStructuredMessageAsync(options, timeout, cancellationToken);
+        }
 
         var totalTimestamp = Stopwatch.GetTimestamp();
         var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(60);
@@ -2275,6 +2291,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public string? Traceparent { get; init; }
         public string? Tracestate { get; init; }
         public IDictionary<string, string>? RequestHeaders { get; init; }
+        public ResponseFormat? ResponseFormat { get; init; }
     }
 
     internal record SendMessageResponse
