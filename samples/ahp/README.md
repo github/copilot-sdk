@@ -8,6 +8,9 @@ list and subscribe to that same session and send a prompt. There is no
 custom protocol client. The runtime parses and serializes AHP; the SDK transports
 opaque JSON text and does not own a listener, framework, or authentication policy.
 
+The [equivalent .NET/Kestrel sample](dotnet/README.md) uses the same runtime and
+independent AHP client, including streamed output and fragmented WebSocket reads.
+
 ## Requirements
 
 Requires Node.js 22.12+ and a local runtime build implementing `ahp.createEndpoint`,

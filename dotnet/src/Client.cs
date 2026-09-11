@@ -553,6 +553,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         List<Exception> errors = [];
 
+        var ahpDisposals = _ahpEndpoints.Values.Select(endpoint => endpoint.DisposeAsync().AsTask()).ToArray();
+        try { await Task.WhenAll(ahpDisposals).ConfigureAwait(false); }
+        catch (Exception ex) { errors.Add(ex); }
+
         foreach (var session in _sessions.Values.ToArray())
         {
             try
@@ -597,6 +601,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task ForceStopAsync()
     {
+        RetireAhpEndpoints();
         foreach (var session in _sessions.Values)
         {
             session.CancelPendingExternalTools();
@@ -651,6 +656,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
+        RetireAhpEndpoints(ctx.Rpc);
         if (gracefulRuntimeShutdown && (ctx.CliProcess is not null || ctx.FfiHost is not null))
         {
             var runtimeShutdownTimestamp = Stopwatch.GetTimestamp();
@@ -2682,6 +2688,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 _logger);
 
             var handler = new RpcHandler(this);
+            RegisterAhpHandlers(rpc);
             rpc.SetLocalRpcMethod("session.event", handler.OnSessionEvent);
             rpc.SetLocalRpcMethod("session.lifecycle", handler.OnSessionLifecycle);
             rpc.SetLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
@@ -2738,6 +2745,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private async Task CancelExternalToolsWhenConnectionClosesAsync(JsonRpc rpc)
     {
         await Task.WhenAny(rpc.Completion).ConfigureAwait(false);
+        RetireAhpEndpoints(rpc);
         if (rpc.Completion.Exception is { } exception)
         {
             _logger.LogDebug(exception, "JSON-RPC connection completed with an error");
@@ -2781,6 +2789,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         };
 
         options.TypeInfoResolverChain.Add(ClientJsonContext.Default);
+        options.TypeInfoResolverChain.Add(AhpJsonContext.Default);
         options.TypeInfoResolverChain.Add(TypesJsonContext.Default);
         options.TypeInfoResolverChain.Add(CopilotSession.SessionJsonContext.Default);
         options.TypeInfoResolverChain.Add(SessionEventsJsonContext.Default);

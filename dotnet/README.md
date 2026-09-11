@@ -35,6 +35,29 @@ The manual permission/tool-result resume sample can be run the same way:
 dotnet run --file dotnet/samples/ManualToolResume.cs
 ```
 
+### SDK-owned AHP endpoint (prototype)
+
+With a runtime that supports the endpoint RPCs, `CreateAhpEndpointAsync` lets an
+independent AHP client access the same SDK-owned sessions. The application owns
+HTTP/WebSocket listening and authentication; the SDK does not start a server.
+See the [Kestrel host sample](../samples/ahp/dotnet/README.md).
+
+```csharp
+await using var endpoint = await client.CreateAhpEndpointAsync();
+// Authenticate the peer before accepting. transport implements IAhpTransport.
+await using var connection = endpoint.AcceptConnection(transport);
+await connection.ReceiveAsync(jsonText);
+// For fragmented WebSocket text:
+await connection.ReceiveChunkAsync(fragment, endOfMessage: true);
+```
+
+`IAhpTransport.SendAsync` receives opaque JSON text and a cancellation token.
+`CloseAsync` closes the application's transport. Each direction is serialized,
+with an 8 MiB / 64-pending-message bound and ten-second operation deadlines.
+Observe `connection.Closed` for failures and call `EndAsync` when the physical
+transport closes. Disposing an endpoint closes its connections, not its
+application-owned listener. AHP message parsing remains in the runtime.
+
 ## Quick Start
 
 ```csharp
