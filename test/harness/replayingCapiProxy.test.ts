@@ -1661,6 +1661,21 @@ Always include PINEAPPLE_COCONUT_42.
             data: Array<{ id: string }>;
           };
           expect(parsed.data.map((model) => model.id)).toEqual(["claude-sonnet-5"]);
+          expect(parsed.data[0]).toMatchObject({
+            capabilities: {
+              supports: { vision: true },
+              limits: {
+                vision: {
+                  max_prompt_images: 2,
+                  max_prompt_image_size: expect.any(Number),
+                  supported_media_types: expect.arrayContaining([
+                    "image/png",
+                    "image/jpeg",
+                  ]),
+                },
+              },
+            },
+          });
         } finally {
           await proxy.stop();
         }
@@ -1694,6 +1709,23 @@ Always include PINEAPPLE_COCONUT_42.
         expect(parsed.data).toHaveLength(2);
         expect(parsed.data[0].id).toBe("gpt-4o");
         expect(parsed.data[1].id).toBe("claude-sonnet-4");
+        for (const model of parsed.data) {
+          expect(model).toMatchObject({
+            capabilities: {
+              supports: { vision: true },
+              limits: {
+                vision: {
+                  max_prompt_images: 2,
+                  max_prompt_image_size: expect.any(Number),
+                  supported_media_types: expect.arrayContaining([
+                    "image/png",
+                    "image/jpeg",
+                  ]),
+                },
+              },
+            },
+          });
+        }
       } finally {
         await proxy.stop();
       }
