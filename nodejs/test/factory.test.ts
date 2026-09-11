@@ -1407,6 +1407,7 @@ describe("factories", () => {
                 await session.clientSessionApis.factory!.abort({
                     sessionId: session.sessionId,
                     runId,
+                    executionToken: "execution-token",
                 });
                 await step(
                     "volatile",
@@ -1570,6 +1571,197 @@ describe("factories", () => {
             runId: "run-cancel",
         });
     });
+
+    it("exposes guarded public pause and prevents factory bodies from bypassing ctx.pause", async () => {
+        const paused = { runId: "run-pause", status: "paused" as const };
+        const sendRequest = vi.fn(async () => paused);
+        const session = new CopilotSession("session-pause", { sendRequest } as never);
+
+        await expect(session.factory.pause("run-pause")).resolves.toEqual(paused);
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.pause", {
+            sessionId: session.sessionId,
+            runId: "run-pause",
+        });
+
+        const factory = defineFactory({
+            meta: {
+                name: "pause-bypass",
+                description: "Public pause cannot bypass context restrictions",
+                phases: [],
+            },
+            run: ({ runId, session: factorySession }) => factorySession.factory.pause(runId),
+        });
+        session.registerFactories([factory]);
+        sendRequest.mockClear();
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "pause-bypass",
+                runId: "run-pause-bypass",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).rejects.toThrow("factory.pause");
+        expect(sendRequest).not.toHaveBeenCalled();
+    });
+
+    it("rejects an empty pause checkpoint key before RPC", async () => {
+        const sendRequest = vi.fn();
+        const session = new CopilotSession("session-empty-pause-key", {
+            sendRequest,
+        } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "empty-pause-key",
+                description: "Empty pause key rejection",
+                phases: [],
+            },
+            run: ({ pause }) => pause(""),
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "empty-pause-key",
+                runId: "run-empty-pause-key",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).rejects.toThrow("must not be empty");
+        expect(sendRequest).not.toHaveBeenCalled();
+    });
+
+    it("waits for cooperative abort when a pause checkpoint returns pause", async () => {
+        const checkpointRequested = Promise.withResolvers<void>();
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.pauseAtCheckpoint") {
+                checkpointRequested.resolve();
+                return { action: "pause" };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-checkpoint-pause", {
+            sendRequest,
+        } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "checkpoint-pause",
+                description: "Pause checkpoint abort behavior",
+                phases: [],
+            },
+            run: ({ pause }) => pause("review-ready"),
+        });
+        session.registerFactories([factory]);
+
+        let settled = false;
+        const execution = session.clientSessionApis
+            .factory!.execute({
+                sessionId: session.sessionId,
+                name: "checkpoint-pause",
+                runId: "run-checkpoint-pause",
+                executionToken: "execution-token",
+                args: {},
+            })
+            .finally(() => {
+                settled = true;
+            });
+        await checkpointRequested.promise;
+        await Promise.resolve();
+        expect(settled).toBe(false);
+
+        await session.clientSessionApis.factory!.abort({
+            sessionId: session.sessionId,
+            runId: "run-checkpoint-pause",
+            executionToken: "execution-token",
+        });
+        await expect(execution).rejects.toMatchObject({ name: "AbortError" });
+    });
+
+    it("returns void and continues when a pause checkpoint returns continue", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.pauseAtCheckpoint") {
+                return { action: "continue" };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-checkpoint-continue", {
+            sendRequest,
+        } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "checkpoint-continue",
+                description: "Continue checkpoint behavior",
+                phases: [],
+            },
+            run: async ({ pause }) => {
+                const result = await pause("review-ready");
+                return result === undefined ? "continued" : "unexpected";
+            },
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "checkpoint-continue",
+                runId: "run-checkpoint-continue",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "continued" });
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.pauseAtCheckpoint", {
+            sessionId: session.sessionId,
+            runId: "run-checkpoint-continue",
+            executionToken: "execution-token",
+            key: "review-ready",
+        });
+    });
+
+    it.each(["parallel", "pipeline"] as const)(
+        "rejects pause checkpoints inside %s helper branches before RPC",
+        async (helper) => {
+            const sendRequest = vi.fn();
+            const session = new CopilotSession(`session-pause-${helper}`, {
+                sendRequest,
+            } as never);
+            const factory = defineFactory({
+                meta: {
+                    name: `pause-${helper}`,
+                    description: "Pause helper-scope rejection",
+                    phases: [],
+                },
+                run: async ({ pause, parallel, pipeline }) => {
+                    const attempt = async () => {
+                        try {
+                            await pause("review-ready");
+                            return "unexpected";
+                        } catch (error) {
+                            return (error as Error).message;
+                        }
+                    };
+                    return helper === "parallel"
+                        ? parallel([attempt])
+                        : pipeline(["item"], attempt);
+                },
+            });
+            session.registerFactories([factory]);
+
+            await expect(
+                session.clientSessionApis.factory!.execute({
+                    sessionId: session.sessionId,
+                    name: `pause-${helper}`,
+                    runId: `run-pause-${helper}`,
+                    executionToken: "execution-token",
+                    args: {},
+                })
+            ).resolves.toEqual({
+                result: [`Factory pause checkpoints are not allowed inside ${helper}() branches`],
+            });
+            expect(sendRequest).not.toHaveBeenCalled();
+        }
+    );
 
     it("runs parallel as a barrier and maps a throwing thunk to null", async () => {
         const first = Promise.withResolvers<string>();
@@ -1981,6 +2173,7 @@ describe("factories", () => {
         await session.clientSessionApis.factory!.abort({
             sessionId: session.sessionId,
             runId: "run-abort-signal",
+            executionToken: "execution-token",
         });
 
         expect(signal.aborted).toBe(true);
@@ -2020,10 +2213,67 @@ describe("factories", () => {
         await session.clientSessionApis.factory!.abort({
             sessionId: session.sessionId,
             runId: "run-abort-await",
+            executionToken: "execution-token",
         });
 
         await expect(execution).rejects.toMatchObject({ name: "AbortError" });
         agentResponse.resolve({ result: "late" });
+    });
+
+    it("ignores a late abort for an older execution token with the same run id", async () => {
+        const oldAgent = Promise.withResolvers<{ result: string }>();
+        const currentAgent = Promise.withResolvers<{ result: string }>();
+        const sendRequest = vi.fn(async (method: string, params: { executionToken?: string }) => {
+            if (method !== "session.factory.agent") {
+                return {};
+            }
+            return params.executionToken === "old-token" ? oldAgent.promise : currentAgent.promise;
+        });
+        const session = new CopilotSession("session-token-scoped-abort", {
+            sendRequest,
+        } as never);
+        const signals: AbortSignal[] = [];
+        const factory = defineFactory({
+            meta: {
+                name: "token-scoped-abort",
+                description: "Abort only the matching execution attempt",
+                phases: [],
+            },
+            run: async ({ agent, signal }) => {
+                signals.push(signal);
+                return agent("wait");
+            },
+        });
+        session.registerFactories([factory]);
+
+        const oldExecution = session.clientSessionApis.factory!.execute({
+            sessionId: session.sessionId,
+            name: "token-scoped-abort",
+            runId: "shared-run",
+            executionToken: "old-token",
+            args: {},
+        });
+        const currentExecution = session.clientSessionApis.factory!.execute({
+            sessionId: session.sessionId,
+            name: "token-scoped-abort",
+            runId: "shared-run",
+            executionToken: "current-token",
+            args: {},
+        });
+        await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(2));
+
+        await session.clientSessionApis.factory!.abort({
+            sessionId: session.sessionId,
+            runId: "shared-run",
+            executionToken: "old-token",
+        });
+        expect(signals[0].aborted).toBe(true);
+        expect(signals[1].aborted).toBe(false);
+        await expect(oldExecution).rejects.toMatchObject({ name: "AbortError" });
+
+        currentAgent.resolve({ result: "current completed" });
+        await expect(currentExecution).resolves.toEqual({ result: "current completed" });
+        oldAgent.resolve({ result: "late old result" });
     });
 
     it.each(["parallel", "pipeline"] as const)(
@@ -2066,6 +2316,7 @@ describe("factories", () => {
             await session.clientSessionApis.factory!.abort({
                 sessionId: session.sessionId,
                 runId: `run-abort-${combinator}`,
+                executionToken: "execution-token",
             });
 
             await expect(execution).rejects.toMatchObject({ name: "AbortError" });
@@ -2213,6 +2464,44 @@ describe("factories", () => {
         });
     });
 
+    it("preserves omitted, numeric, and explicit unlimited invocation limit overrides", async () => {
+        const sendRequest = vi.fn(async (method: string) =>
+            method === "session.factory.resume"
+                ? {
+                      factoryName: "stored-name",
+                      run: { runId: "run-limits", status: "completed" },
+                  }
+                : { runId: "run-limits", status: "completed" }
+        );
+        const session = new CopilotSession("session-limit-overrides", {
+            sendRequest,
+        } as never);
+
+        await session.factory.run("omitted");
+        await session.factory.run("numeric", {
+            limits: { maxTotalSubagents: 12 },
+        });
+        await session.factory.run("unlimited", {
+            limits: { maxTotalSubagents: null },
+        });
+        await session.factory.resume("run-limits", {
+            limits: { timeoutSeconds: null },
+        });
+
+        expect(sendRequest.mock.calls[0][1]).toMatchObject({
+            options: { limits: undefined },
+        });
+        expect(sendRequest.mock.calls[1][1]).toMatchObject({
+            options: { limits: { maxTotalSubagents: 12 } },
+        });
+        expect(sendRequest.mock.calls[2][1]).toMatchObject({
+            options: { limits: { maxTotalSubagents: null } },
+        });
+        expect(sendRequest.mock.calls[3][1]).toMatchObject({
+            limits: { timeoutSeconds: null },
+        });
+    });
+
     it("returns the full envelope for a failed foreground run", async () => {
         const envelope = {
             runId: "run-error",
@@ -2289,6 +2578,7 @@ describe("factory run settlement", () => {
         ["completed", true],
         ["error", true],
         ["halted", true],
+        ["paused", true],
         ["cancelled", true],
         ["pending", false],
         ["running", false],
