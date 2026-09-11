@@ -11,7 +11,7 @@ const job = (name: string, next?: string) =>
 
 const inputSection = publish.slice(
     publish.indexOf("    inputs:"),
-    publish.indexOf("\n\npermissions:")
+    publish.indexOf("\npermissions:", publish.indexOf("    inputs:"))
 );
 const validateDispatchJob = job("validate-dispatch", "version");
 const directVersionJob = job("version", "package-nodejs");
