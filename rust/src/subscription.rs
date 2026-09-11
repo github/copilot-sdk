@@ -39,7 +39,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use parking_lot::Mutex;
-use tokio::sync::broadcast::{Receiver, Sender};
+use tokio::sync::broadcast::{Receiver, Sender, WeakSender};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::{Stream, StreamExt as _};
@@ -154,12 +154,14 @@ enum ResumeBootstrapState {
 /// post-resume session subscription catches up.
 pub(crate) struct ResumeBootstrap {
     state: Mutex<ResumeBootstrapState>,
+    live: WeakSender<SessionEvent>,
 }
 
 impl ResumeBootstrap {
-    pub(crate) fn new() -> Arc<Self> {
+    pub(crate) fn new(event_tx: &Sender<SessionEvent>) -> Arc<Self> {
         Arc::new(Self {
             state: Mutex::new(ResumeBootstrapState::Unclaimed(VecDeque::new())),
+            live: event_tx.downgrade(),
         })
     }
 
@@ -167,12 +169,12 @@ impl ResumeBootstrap {
         let mut state = self.state.lock();
         match &mut *state {
             ResumeBootstrapState::Unclaimed(events) | ResumeBootstrapState::Claimed(events) => {
-                events.push_back(event)
+                events.push_back(event.clone());
             }
-            ResumeBootstrapState::Disabled => {
-                let _ = event_tx.send(event);
-            }
+            ResumeBootstrapState::Disabled => {}
         }
+        // Other observers remain live even while the bootstrap owner catches up.
+        let _ = event_tx.send(event);
     }
 
     pub(crate) fn subscribe(
@@ -180,19 +182,22 @@ impl ResumeBootstrap {
         event_tx: &Sender<SessionEvent>,
     ) -> EventSubscription {
         let mut state = self.state.lock();
-        let receiver = event_tx.subscribe();
-        let bootstrap = match &mut *state {
+        match &mut *state {
             ResumeBootstrapState::Unclaimed(events) => {
                 let events = std::mem::take(events);
                 *state = ResumeBootstrapState::Claimed(events);
-                Some(self.clone())
+                EventSubscription {
+                    inner: None,
+                    bootstrap: Some(self.clone()),
+                }
             }
-            ResumeBootstrapState::Claimed(_) | ResumeBootstrapState::Disabled => None,
-        };
-        EventSubscription::with_bootstrap(receiver, bootstrap)
+            ResumeBootstrapState::Claimed(_) | ResumeBootstrapState::Disabled => {
+                EventSubscription::new(event_tx.subscribe())
+            }
+        }
     }
 
-    fn pop(&self) -> Option<SessionEvent> {
+    fn pop(&self, live: &mut Option<BroadcastStream<SessionEvent>>) -> Option<SessionEvent> {
         let mut state = self.state.lock();
         let ResumeBootstrapState::Claimed(events) = &mut *state else {
             return None;
@@ -200,8 +205,21 @@ impl ResumeBootstrap {
         if let Some(event) = events.pop_front() {
             return Some(event);
         }
+        // Installing the live receiver under the publication lock makes the
+        // empty-queue boundary gap-free without replaying broadcast duplicates.
+        *live = self
+            .live
+            .upgrade()
+            .map(|sender| BroadcastStream::new(sender.subscribe()));
         *state = ResumeBootstrapState::Disabled;
         None
+    }
+
+    pub(crate) fn release_unclaimed(&self) {
+        let mut state = self.state.lock();
+        if matches!(*state, ResumeBootstrapState::Unclaimed(_)) {
+            *state = ResumeBootstrapState::Disabled;
+        }
     }
 
     fn abandon(&self) {
@@ -220,19 +238,15 @@ impl ResumeBootstrap {
 /// Drop the value to unsubscribe; there is no separate cancel handle.
 #[must_use = "subscriptions are inert until polled"]
 pub struct EventSubscription {
-    inner: BroadcastStream<SessionEvent>,
+    inner: Option<BroadcastStream<SessionEvent>>,
     bootstrap: Option<Arc<ResumeBootstrap>>,
 }
 
 impl EventSubscription {
     pub(crate) fn new(rx: Receiver<SessionEvent>) -> Self {
-        Self::with_bootstrap(rx, None)
-    }
-
-    fn with_bootstrap(rx: Receiver<SessionEvent>, bootstrap: Option<Arc<ResumeBootstrap>>) -> Self {
         Self {
-            inner: BroadcastStream::new(rx),
-            bootstrap,
+            inner: Some(BroadcastStream::new(rx)),
+            bootstrap: None,
         }
     }
 
@@ -240,7 +254,7 @@ impl EventSubscription {
         let event = self
             .bootstrap
             .as_ref()
-            .and_then(|bootstrap| bootstrap.pop());
+            .and_then(|bootstrap| bootstrap.pop(&mut self.inner));
         if event.is_none() {
             self.bootstrap = None;
         }
@@ -263,12 +277,9 @@ impl EventSubscription {
     /// `tokio::sync::broadcast::Receiver` via `BroadcastStream`, which is
     /// cancel-safe by design.
     pub async fn recv(&mut self) -> Result<SessionEvent, RecvError> {
-        if let Some(event) = self.next_bootstrap_event() {
-            return Ok(event);
-        }
-        match self.inner.next().await {
+        match self.next().await {
             Some(Ok(event)) => Ok(event),
-            Some(Err(BroadcastStreamRecvError::Lagged(n))) => Err(Lagged(n).into()),
+            Some(Err(lagged)) => Err(lagged.into()),
             None => Err(RecvErrorKind::Closed.into()),
         }
     }
@@ -281,7 +292,10 @@ impl Stream for EventSubscription {
         if let Some(event) = self.next_bootstrap_event() {
             return Poll::Ready(Some(Ok(event)));
         }
-        match Pin::new(&mut self.inner).poll_next(cx) {
+        let Some(inner) = self.inner.as_mut() else {
+            return Poll::Ready(None);
+        };
+        match Pin::new(inner).poll_next(cx) {
             Poll::Ready(Some(Ok(event))) => Poll::Ready(Some(Ok(event))),
             Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(n)))) => {
                 Poll::Ready(Some(Err(Lagged(n))))
@@ -444,18 +458,19 @@ mod tests {
     #[tokio::test]
     async fn resume_bootstrap_is_lossless_and_ordered_before_live_events() {
         let (tx, _) = broadcast::channel(1);
-        let bootstrap = ResumeBootstrap::new();
+        let bootstrap = ResumeBootstrap::new(&tx);
         for index in 0..600 {
             bootstrap.publish(&tx, make_event(&format!("bootstrap-{index}")));
         }
 
         let mut sub = bootstrap.subscribe(&tx);
-        bootstrap.publish(&tx, make_event("bootstrap-after-subscribe"));
+        for index in 600..1200 {
+            bootstrap.publish(&tx, make_event(&format!("bootstrap-{index}")));
+        }
 
-        for index in 0..600 {
+        for index in 0..1200 {
             assert_eq!(sub.recv().await.unwrap().id, format!("bootstrap-{index}"));
         }
-        assert_eq!(sub.recv().await.unwrap().id, "bootstrap-after-subscribe");
 
         assert!(sub.next_bootstrap_event().is_none());
         bootstrap.publish(&tx, make_event("live"));
@@ -465,13 +480,16 @@ mod tests {
     #[tokio::test]
     async fn only_first_subscriber_claims_resume_bootstrap() {
         let (tx, _) = broadcast::channel(8);
-        let bootstrap = ResumeBootstrap::new();
+        let bootstrap = ResumeBootstrap::new(&tx);
         bootstrap.publish(&tx, make_event("bootstrap"));
 
         let mut first = bootstrap.subscribe(&tx);
         let mut second = bootstrap.subscribe(&tx);
 
+        bootstrap.publish(&tx, make_event("during-catchup"));
+        assert_eq!(second.recv().await.unwrap().id, "during-catchup");
         assert_eq!(first.recv().await.unwrap().id, "bootstrap");
+        assert_eq!(first.recv().await.unwrap().id, "during-catchup");
         assert!(first.next_bootstrap_event().is_none());
         bootstrap.publish(&tx, make_event("live"));
 
@@ -480,9 +498,98 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bootstrap_stream_drains_before_closing_without_retaining_the_sender() {
+        let (tx, _) = broadcast::channel(1);
+        let bootstrap = ResumeBootstrap::new(&tx);
+        bootstrap.publish(&tx, make_event("first"));
+        let mut events = bootstrap.subscribe(&tx);
+        bootstrap.publish(&tx, make_event("second"));
+        drop(tx);
+
+        assert_eq!(events.next().await.unwrap().unwrap().id, "first");
+        assert_eq!(events.next().await.unwrap().unwrap().id, "second");
+        assert!(events.next().await.is_none());
+        assert!(matches!(
+            events.recv().await.unwrap_err().kind(),
+            RecvErrorKind::Closed
+        ));
+    }
+
+    #[tokio::test]
+    async fn bootstrap_handoff_is_cancel_safe_and_preserves_live_lag() {
+        use futures_util::FutureExt;
+
+        let (tx, _) = broadcast::channel(1);
+        let bootstrap = ResumeBootstrap::new(&tx);
+        let mut events = bootstrap.subscribe(&tx);
+        // Poll through the empty bootstrap and cancel the pending live receive.
+        assert!(events.recv().now_or_never().is_none());
+        bootstrap.publish(&tx, make_event("overwritten"));
+        bootstrap.publish(&tx, make_event("live"));
+        assert!(matches!(
+            events.recv().await.unwrap_err().kind(),
+            RecvErrorKind::Lagged(_)
+        ));
+        assert_eq!(events.recv().await.unwrap().id, "live");
+    }
+
+    #[tokio::test]
+    async fn publication_racing_catchup_has_no_gap_or_duplicate() {
+        for _ in 0..32 {
+            let (tx, _) = broadcast::channel(1024);
+            let bootstrap = ResumeBootstrap::new(&tx);
+            bootstrap.publish(&tx, make_event("prefix"));
+            let mut events = bootstrap.subscribe(&tx);
+            assert_eq!(events.recv().await.unwrap().id, "prefix");
+
+            let barrier = Arc::new(std::sync::Barrier::new(2));
+            let producer = std::thread::spawn({
+                let barrier = barrier.clone();
+                let bootstrap = bootstrap.clone();
+                move || {
+                    barrier.wait();
+                    for index in 0..600 {
+                        bootstrap.publish(&tx, make_event(&format!("event-{index}")));
+                    }
+                }
+            });
+            barrier.wait();
+            for index in 0..600 {
+                let event = tokio::time::timeout(std::time::Duration::from_secs(5), events.recv())
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(event.id, format!("event-{index}"));
+            }
+            producer.join().unwrap();
+            assert!(events.next().await.is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn shutdown_releases_only_unclaimed_bootstrap() {
+        let (tx, _) = broadcast::channel(1);
+        let bootstrap = ResumeBootstrap::new(&tx);
+        bootstrap.publish(&tx, make_event("unclaimed"));
+        bootstrap.release_unclaimed();
+        assert!(matches!(
+            *bootstrap.state.lock(),
+            ResumeBootstrapState::Disabled
+        ));
+
+        let claimed = ResumeBootstrap::new(&tx);
+        claimed.publish(&tx, make_event("claimed"));
+        let mut events = claimed.subscribe(&tx);
+        claimed.release_unclaimed();
+        drop(tx);
+        assert_eq!(events.recv().await.unwrap().id, "claimed");
+        assert!(events.next().await.is_none());
+    }
+
+    #[tokio::test]
     async fn dropping_bootstrap_owner_activates_live_delivery() {
         let (tx, _) = broadcast::channel(8);
-        let bootstrap = ResumeBootstrap::new();
+        let bootstrap = ResumeBootstrap::new(&tx);
         bootstrap.publish(&tx, make_event("discarded-bootstrap"));
 
         let first = bootstrap.subscribe(&tx);

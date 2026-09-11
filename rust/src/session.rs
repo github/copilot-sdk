@@ -426,12 +426,15 @@ impl Session {
     /// subscription also receives every routed event retained while resume
     /// startup had no active [`PreparedSession`] subscriber. That bootstrap
     /// prefix is lossless and ordered before live events. It is a one-shot
-    /// handoff: later subscriptions begin with live delivery, and dropping
+    /// handoff: later subscriptions observe newly dispatched events even while
+    /// the first subscriber is catching up, and dropping
     /// the first subscription before draining it discards its remaining
     /// bootstrap events.
     ///
     /// Bootstrap retention is unbounded until the first subscriber catches
-    /// up, so resume consumers that need events should subscribe promptly.
+    /// up, so resume consumers should subscribe and drain promptly. Stopping
+    /// the event loop releases an unclaimed backlog; dropping a claimed
+    /// subscription releases its unread backlog.
     /// After the bootstrap handoff, each subscriber maintains its own finite
     /// queue. If a consumer cannot keep
     /// up, the oldest live events are dropped and `recv` returns
@@ -1654,8 +1657,8 @@ impl Client {
         // An active prepared subscription already owns startup delivery. The
         // implicit queue is only needed by the compatibility resume wrapper,
         // where Session::subscribe cannot be called until startup returns.
-        let resume_bootstrap =
-            (event_tx.receiver_count() == 0).then(crate::subscription::ResumeBootstrap::new);
+        let resume_bootstrap = (event_tx.receiver_count() == 0)
+            .then(|| crate::subscription::ResumeBootstrap::new(&event_tx));
         let registration = self.register_session(&session_id);
         let registration_token = registration.token;
         let channels = registration.channels;
@@ -2181,6 +2184,9 @@ fn spawn_event_loop(
                     }
                     else => break,
                 }
+            }
+            if let Some(bootstrap) = &resume_bootstrap {
+                bootstrap.release_unclaimed();
             }
             // Channels closed or shutdown signaled — fail any pending
             // send_and_wait so the caller observes a clean error.

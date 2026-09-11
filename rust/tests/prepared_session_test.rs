@@ -969,18 +969,38 @@ async fn resume_session_wrapper_keeps_rpc_sequence() {
     let resume_req = server.read_request().await;
     assert_eq!(resume_req["method"], "session.resume");
     assert_eq!(resume_req["params"]["sessionId"], session_id.as_str());
-    server.send_startup_burst(session_id.as_str()).await;
+    server
+        .send_event(
+            session_id.as_str(),
+            "pre-response",
+            "session.model_change",
+            false,
+        )
+        .await;
     server
         .respond(&resume_req, json!({ "sessionId": session_id.as_str() }))
         .await;
+    // Runtime response-gated notifications can precede the remaining setup RPCs.
+    server.send_startup_burst(session_id.as_str()).await;
     server.answer_skills_reload().await;
 
     let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
     assert_eq!(session.id(), &session_id);
+    server
+        .send_event(session_id.as_str(), "post-setup", "session.idle", true)
+        .await;
     let mut first = session.subscribe();
-    let mut second = session.subscribe();
 
+    assert_eq!(
+        timeout(TIMEOUT, first.recv()).await.unwrap().unwrap().id,
+        "pre-response"
+    );
     expect_startup_burst(&mut first).await;
+    assert_eq!(
+        timeout(TIMEOUT, first.recv()).await.unwrap().unwrap().id,
+        "post-setup"
+    );
+    let mut second = session.subscribe();
     assert!(
         timeout(QUIET, second.recv()).await.is_err(),
         "only the first post-resume subscriber may claim the bootstrap"
