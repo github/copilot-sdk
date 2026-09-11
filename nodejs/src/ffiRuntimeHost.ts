@@ -256,7 +256,7 @@ export class FfiRuntimeHost {
         } finally {
             this.starting = false;
             if (this.disposed) {
-                this.tryFinalizeCleanup();
+                void this.tryFinalizeCleanup();
             }
         }
     }
@@ -329,11 +329,11 @@ export class FfiRuntimeHost {
         }
         this.cleanupRetryTimer = setTimeout(() => {
             this.cleanupRetryTimer = undefined;
-            this.tryFinalizeCleanup();
+            void this.tryFinalizeCleanup();
         }, CLEANUP_RETRY_INTERVAL_MS);
     }
 
-    private tryFinalizeCleanup(): void {
+    private async tryFinalizeCleanup(): Promise<void> {
         if (this.cleanupInProgress) {
             this.scheduleCleanupRetry();
             return;
@@ -344,7 +344,20 @@ export class FfiRuntimeHost {
             if (this.connectionId) {
                 let closed = false;
                 try {
-                    closed = Boolean(this.lib.connectionClose(this.connectionId));
+                    // Close waits for outbound callbacks, which need the JS event loop
+                    // to run and return before native code can report quiescence.
+                    closed = await new Promise<boolean>((resolvePromise, rejectPromise) => {
+                        this.lib.connectionClose.async(
+                            this.connectionId,
+                            (error: Error | null, result: boolean) => {
+                                if (error) {
+                                    rejectPromise(error);
+                                } else {
+                                    resolvePromise(result);
+                                }
+                            }
+                        );
+                    });
                 } catch (error) {
                     console.error(
                         `Failed to close in-process FFI connection: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
@@ -402,7 +415,7 @@ export class FfiRuntimeHost {
         this.disposed = true;
         this.receiveStream.end();
         if (!this.starting) {
-            this.tryFinalizeCleanup();
+            void this.tryFinalizeCleanup();
         }
     }
 }

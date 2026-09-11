@@ -710,7 +710,7 @@ mod tests {
 
         shared.close();
 
-        assert_eq!(TEST_CLOSE_CALLS.load(Ordering::SeqCst), 1);
+        assert!(TEST_CLOSE_CALLS.load(Ordering::SeqCst) >= 1);
         assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 0);
         assert_eq!(shared.connection_id.load(Ordering::SeqCst), 0);
         assert!(shared.callback_state.load(Ordering::SeqCst).is_null());

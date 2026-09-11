@@ -49,9 +49,9 @@ import java.util.logging.Logger;
  * <p>
  * The native runtime can still be inside an outbound callback when
  * {@link #connectionClose} returns {@code false}. Each JNA callback wrapper is
- * therefore retained for the lifetime of the JVM. After connection close
- * reports quiescence, its Java delegate is detached so the wrapper no longer
- * retains the complete host object graph.
+ * therefore retained until connection close reports quiescence. A successful
+ * close detaches its Java delegate and releases the wrapper for garbage
+ * collection.
  *
  * <h2>GraalVM Native Image</h2>
  * <p>
@@ -112,9 +112,9 @@ final class JnaNativeBinding implements NativeBinding {
     private static volatile CopilotRuntimeLibrary loadedLib;
 
     /**
-     * Process-lifetime roots for JNA callback trampolines. Native code can invoke a
-     * callback after connection and host teardown return, so entries are never
-     * removed in production.
+     * Roots for JNA callback trampolines until successful connection close confirms
+     * that native code can no longer invoke them. Host shutdown alone is not a
+     * callback-quiescence barrier.
      */
     private static final Set<OutboundCallback> RETAINED_CALLBACKS = ConcurrentHashMap.newKeySet();
 
@@ -141,7 +141,7 @@ final class JnaNativeBinding implements NativeBinding {
      * <p>
      * Registrations remain here through connection close because native callbacks
      * can still arrive while close reports non-quiescence. Successful connection
-     * close detaches their Java delegates; the wrappers themselves remain rooted by
+     * close detaches their Java delegates and removes their wrapper roots from
      * {@link #RETAINED_CALLBACKS}.
      */
     private final Map<Integer, CallbackRegistration> callbackRegistrations = new ConcurrentHashMap<>();
@@ -238,8 +238,10 @@ final class JnaNativeBinding implements NativeBinding {
     public boolean hostShutdown(int serverId) {
         boolean shutdown = lib.copilot_runtime_host_shutdown(serverId) != 0;
         if (shutdown) {
-            callbackRegistrations.forEach((connectionId, registration) -> {
-                if (registration.serverId == serverId && callbackRegistrations.remove(connectionId, registration)) {
+            // Keep registrations so a later successful close can release their wrapper
+            // roots.
+            callbackRegistrations.values().forEach(registration -> {
+                if (registration.serverId == serverId) {
                     registration.detach();
                 }
             });
@@ -272,6 +274,7 @@ final class JnaNativeBinding implements NativeBinding {
             CallbackRegistration registration = callbackRegistrations.remove(connectionId);
             if (registration != null) {
                 registration.detach();
+                RETAINED_CALLBACKS.remove(registration.wrapper);
             }
         }
         return closed;
