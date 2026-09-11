@@ -106,6 +106,10 @@ export function assertSafeTestWorkflow(workflow: string): void {
         "Runtime release inputs must be validated before acquisition."
     );
     assert(
+        planJob.includes("WORKFLOW_RUN_ID: ${{ github.run_id }}"),
+        "Unstable SDK identity must use the repository-wide workflow run ID."
+    );
+    assert(
         planJob.indexOf("Validate runtime release inputs") <
             planJob.indexOf("Calculate the collision-resistant test release identity"),
         "Runtime inputs must be validated before calculating the SDK release identity."
