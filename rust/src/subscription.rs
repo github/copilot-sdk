@@ -236,7 +236,9 @@ impl ResumeBootstrap {
 /// Created by [`Session::subscribe`](crate::session::Session::subscribe).
 /// Implements [`Stream`] yielding `Result<SessionEvent, Lagged>`.
 /// Drop the value to unsubscribe; there is no separate cancel handle.
-#[must_use = "subscriptions are inert until polled"]
+/// A resume bootstrap is claimed when this subscription is created, not when
+/// it is first polled. Dropping its owner discards any unread bootstrap events.
+#[must_use = "dropping the subscription unsubscribes and discards any owned resume bootstrap backlog"]
 pub struct EventSubscription {
     inner: Option<BroadcastStream<SessionEvent>>,
     bootstrap: Option<Arc<ResumeBootstrap>>,
