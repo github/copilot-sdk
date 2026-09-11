@@ -9,12 +9,24 @@ interface UnsafeIndicator {
 }
 
 const azureFeedUrl = "https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/";
-const githubPackagesRegistry = "https://npm.pkg.github.com";
 const exactPublicationCommand =
     /^node\s+nodejs\/scripts\/npm-release\.js\s+publish-manifest\s+dist\/release-manifest\.json\s+dist\s+"\$DIST_TAG"\s+"https:\/\/pkgs\.dev\.azure\.com\/devdiv\/_packaging\/copilot-canary\/npm\/registry\/"\s+azure\s*$/;
 
 const unsafeIndicators: UnsafeIndicator[] = [
     { description: "public publication job", pattern: /^\s{2}publish-public:/m },
+    { description: "public runtime publication job", pattern: /^\s{2}runtime-publish-public:/m },
+    { description: "GitHub release mutation", pattern: /\bgh\s+release\s+create\b/i },
+    { description: "source tag mutation", pattern: /\bgit\s+(?:tag|push)\b/i },
+    { description: "obsolete runtime workflow path", pattern: /runtime-sdk\.yml/i },
+    {
+        description: "obsolete dispatch contract",
+        pattern:
+            /inputs\.(?:channel|runtime_version|runtime_sha|runtime_run_id)|^\s{6}(?:channel|runtime_version|runtime_sha|runtime_run_id|version):\s*$/im,
+    },
+    {
+        description: "obsolete release mode",
+        pattern: /(?:^\s{10}-\s+tests-only\s*$|inputs\.mode\s*==\s*['"]internal['"])/im,
+    },
     { description: "runtime dispatch claim job", pattern: /^\s{2}claim-runtime-dispatch:/m },
     { description: "runtime dispatch marker", pattern: /sdk-runtime-test-dispatch-/i },
     { description: "runtime dispatch ledger", pattern: /runtime-dispatch-ledger/i },
@@ -58,28 +70,46 @@ export function assertSafeTestWorkflow(workflow: string): void {
     }
     const inputsSection = workflow.match(/inputs:\r?\n([\s\S]*?)\r?\npermissions:/)?.[1];
     assert(inputsSection, "Test workflow dispatch inputs are missing.");
-    const inputNames = [...inputsSection.matchAll(/^\s{6}([a-z][a-z0-9_]*):\s*$/gm)]
+    const inputNames = [...inputsSection.matchAll(/^\s{6}([a-z][a-z0-9_-]*):\s*$/gm)]
         .map((match) => match[1])
         .sort();
     assert.deepEqual(
         inputNames,
-        ["channel", "mode", "runtime_run_id", "runtime_sha", "runtime_version"].sort(),
-        "Test workflow must expose exactly the five approved dispatch inputs."
+        ["dist-tag", "mode", "runtime"].sort(),
+        "Test workflow must expose exactly the three approved dispatch inputs."
+    );
+    const distTagStart = inputsSection.indexOf("      dist-tag:");
+    assert(distTagStart >= 0, "Test workflow dist-tag input is missing.");
+    const distTagRemainder = inputsSection.slice(distTagStart + "      dist-tag:".length);
+    const nextDistTagInput = distTagRemainder.match(/^\s{6}[a-z][a-z0-9_-]*:\s*$/m);
+    const distTagSection = distTagRemainder.slice(
+        0,
+        nextDistTagInput?.index ?? distTagRemainder.length
+    );
+    const distTagOptions = [...distTagSection.matchAll(/^\s{10}-\s+([a-z-]+)\s*$/gm)].map(
+        (match) => match[1]
+    );
+    assert.deepEqual(
+        distTagOptions,
+        ["canary", "unstable"],
+        "Test workflow dist-tags must be exactly canary and unstable."
     );
     const modeStart = inputsSection.indexOf("      mode:");
     assert(modeStart >= 0, "Test workflow mode input is missing.");
     const modeRemainder = inputsSection.slice(modeStart + "      mode:".length);
-    const nextInput = modeRemainder.match(/^\s{6}[a-z][a-z0-9_]*:\s*$/m);
+    const nextInput = modeRemainder.match(/^\s{6}[a-z][a-z0-9_-]*:\s*$/m);
     const modeSection = modeRemainder.slice(0, nextInput?.index ?? modeRemainder.length);
     const modeOptions = [...modeSection.matchAll(/^\s{10}-\s+([a-z-]+)\s*$/gm)].map(
         (match) => match[1]
     );
     assert.deepEqual(
         modeOptions,
-        ["tests-only", "publish"],
-        "Test workflow modes must be exactly tests-only and publish."
+        ["dry-run", "publish"],
+        "Test workflow modes must be exactly dry-run and publish."
     );
-    assert.match(modeSection, /^\s{8}default:\s*publish\s*$/m);
+    assert.match(modeSection, /^\s{8}default:\s*dry-run\s*$/m);
+    const runtimeSection = inputsSection.slice(inputsSection.indexOf("      runtime:"));
+    assert.match(runtimeSection, /^\s{8}required:\s*true\s*$/m);
     const configuredFeeds = [...workflow.matchAll(/^\s*FEED_URL:\s*(\S+)\s*$/gm)];
     assert.equal(
         configuredFeeds.length,
@@ -91,28 +121,53 @@ export function assertSafeTestWorkflow(workflow: string): void {
         azureFeedUrl,
         "Test publication feed must be the exact Azure copilot-canary registry."
     );
+    assert.match(
+        workflow,
+        /^\s{2}TEST_WORKFLOW_PATH:\s*\.github\/workflows\/sdk-canary\.yml\s*$/m,
+        "Test manifest validation must use the registered legacy workflow path."
+    );
 
+    const validationStart = workflow.indexOf("  validate-dispatch:");
     const planStart = workflow.indexOf("  plan:");
     const acquisitionStart = workflow.indexOf("  acquire-runtime:");
     const testStart = workflow.indexOf("  test:", acquisitionStart);
     assert(
-        planStart >= 0 && acquisitionStart > planStart && testStart > acquisitionStart,
+        validationStart >= 0 &&
+            planStart > validationStart &&
+            acquisitionStart > planStart &&
+            testStart > acquisitionStart,
         "Runtime acquisition job is missing."
     );
+    const validationJob = workflow.slice(validationStart, planStart);
     const planJob = workflow.slice(planStart, acquisitionStart);
-    assert(!/^\s{4}needs:/m.test(planJob), "Release planning must be the root job.");
+    assert(!/^\s{4}needs:/m.test(validationJob), "Dispatch validation must be the root job.");
     assert(
-        planJob.includes("npx tsx scripts/runtime-release-identity.ts"),
+        validationJob.includes("npx tsx scripts/runtime-release-identity.ts"),
         "Runtime release inputs must be validated before acquisition."
+    );
+    for (const binding of [
+        "DIST_TAG: ${{ inputs.dist-tag }}",
+        "MODE: ${{ inputs.mode }}",
+        "RUNTIME_JSON: ${{ inputs.runtime }}",
+        'VERSION_OVERRIDE: ""',
+    ]) {
+        assert(validationJob.includes(binding), `Runtime validation must include '${binding}'.`);
+    }
+    assert(
+        validationJob.includes('= "runtime"'),
+        "Test workflow must reject the direct release path."
+    );
+    assert(
+        planJob.includes("needs: validate-dispatch"),
+        "Release planning must depend on dispatch validation."
     );
     assert(
         planJob.includes("WORKFLOW_RUN_ID: ${{ github.run_id }}"),
         "Unstable SDK identity must use the repository-wide workflow run ID."
     );
     assert(
-        planJob.indexOf("Validate runtime release inputs") <
-            planJob.indexOf("Calculate the collision-resistant test release identity"),
-        "Runtime inputs must be validated before calculating the SDK release identity."
+        validationStart < planStart,
+        "Runtime inputs must be validated before release planning."
     );
     const acquisitionJob = workflow.slice(acquisitionStart, testStart);
     assert.match(acquisitionJob, /^\s{6}packages:\s*read\s*$/m);
@@ -121,7 +176,10 @@ export function assertSafeTestWorkflow(workflow: string): void {
         acquisitionJob,
         /echo "\/\/npm\.pkg\.github\.com\/:_authToken=\$\{NODE_AUTH_TOKEN\}" > "\$HOME\/\.npmrc"/
     );
-    assert.match(acquisitionJob, /--registry https:\/\/npm\.pkg\.github\.com\b/);
+    assert(
+        !acquisitionJob.includes("--registry"),
+        "Runtime acquisition must not accept a workflow-level registry override."
+    );
     assert(
         acquisitionJob.includes(
             'tar -czf "$RUNNER_TEMP/runtime-packages.tar.gz" -C "$RUNNER_TEMP" runtime-packages'
@@ -151,11 +209,10 @@ export function assertSafeTestWorkflow(workflow: string): void {
         !acquisitionJob.includes("FEED_URL"),
         "Runtime acquisition must not use the Azure feed."
     );
-    assert(
-        !`${workflow.slice(0, acquisitionStart)}${workflow.slice(testStart)}`.includes(
-            githubPackagesRegistry
-        ),
-        "GitHub Packages must be used only by runtime acquisition."
+    assert.equal(
+        (workflow.match(/npm\.pkg\.github\.com/g) ?? []).length,
+        1,
+        "GitHub Packages authentication must appear only in runtime acquisition."
     );
 
     const packageStart = workflow.indexOf("  package:", testStart);
@@ -213,6 +270,11 @@ export function assertSafeTestWorkflow(workflow: string): void {
     assert(
         packageJob.includes("COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages"),
         "Package construction must use the restored runtime directory."
+    );
+    assert(
+        packageJob.includes("release:manifest -- create") &&
+            packageJob.includes("release:manifest -- verify"),
+        "Package construction must create and verify the test release manifest."
     );
 
     const publicationCommands = normalizedWorkflow
