@@ -260,7 +260,7 @@ describe("runtime-backed Node release implementation", () => {
         expect(runtimeSdk).toContain("npm run acquire:runtime-packages");
         expect(acquisitionJob).toContain("packages: read");
         expect(acquisitionJob).toContain("NODE_AUTH_TOKEN: ${{ github.token }}");
-        expect(acquisitionJob).toContain("--registry https://npm.pkg.github.com");
+        expect(acquisitionJob).not.toContain("--registry");
         expect(acquisitionJob).not.toContain("azure/login");
         expect(acquisitionJob).not.toContain("FEED_URL");
         expect(internalPublicationJob).toContain("azure/login");

@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "glob";
 import * as semver from "semver";
 import { x as extractTar } from "tar";
-import { getRuntimePackageName, RUNTIME_PLATFORMS } from "../src/runtimeArtifacts.js";
+import {
+    packageIntegrity,
+    SDK_PACKAGE_NAMES,
+    verifyPackageSetManifestFiles,
+} from "./package-set-manifest.js";
 import { validateRuntimeVersionChannel } from "./runtime-release-identity.js";
+import { getRuntimePackageName, RUNTIME_PLATFORMS } from "../src/runtimeArtifacts.js";
 
 export interface ReleaseManifestPackage {
     filename: string;
@@ -60,14 +64,12 @@ export interface ReleaseManifestMetadata {
     workflowRunNumber: string;
 }
 
-const expectedPackageNames = new Set([
-    "@github/copilot-sdk",
-    ...RUNTIME_PLATFORMS.map(getRuntimePackageName),
-]);
-
-function integrity(buffer: Buffer): string {
-    return `sha512-${createHash("sha512").update(buffer).digest("base64")}`;
-}
+const expectedPackageNames = new Set(SDK_PACKAGE_NAMES);
+assert.deepEqual(
+    [...expectedPackageNames].sort(),
+    ["@github/copilot-sdk", ...RUNTIME_PLATFORMS.map(getRuntimePackageName)].sort(),
+    "Shared package manifest names must match the supported runtime platforms"
+);
 
 async function readPackedManifest(archive: string): Promise<{ name: string; version: string }> {
     const root = mkdtempSync(join(tmpdir(), "copilot-sdk-release-manifest-"));
@@ -141,7 +143,7 @@ export async function createPackageSetManifest(
         const bytes = readFileSync(archive);
         packages.push({
             filename: basename(archive),
-            integrity: integrity(bytes),
+            integrity: packageIntegrity(bytes),
             name: packed.name,
             size: bytes.length,
         });
@@ -165,29 +167,8 @@ export function verifyPackageSetManifest(
     manifest: PackageSetManifest,
     packageDirectory: string
 ): void {
-    assert.equal(manifest.schemaVersion, 1, "Unsupported release manifest schema");
+    verifyPackageSetManifestFiles(manifest, packageDirectory);
     assert(semver.valid(manifest.sdk.version), "Invalid SDK version");
-    assert.equal(manifest.packages.length, 9, "Release manifest must contain nine packages");
-    assert.deepEqual(
-        manifest.packages.map(({ name }) => name).sort(),
-        [...expectedPackageNames].sort(),
-        "Release manifest package names do not match the expected package set"
-    );
-    for (const packed of manifest.packages) {
-        const archive = resolve(packageDirectory, packed.filename);
-        assert.equal(
-            dirname(archive),
-            resolve(packageDirectory),
-            `Unsafe release filename: ${packed.filename}`
-        );
-        const bytes = readFileSync(archive);
-        assert.equal(statSync(archive).size, packed.size, `Size mismatch for ${packed.filename}`);
-        assert.equal(
-            integrity(bytes),
-            packed.integrity,
-            `Integrity mismatch for ${packed.filename}`
-        );
-    }
 }
 
 export function verifyReleaseManifest(manifest: ReleaseManifest, packageDirectory: string): void {

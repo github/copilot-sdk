@@ -1,20 +1,8 @@
-import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { basename, dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-
-const sdkPackageNames = [
-    "@github/copilot-sdk",
-    "@github/copilot-sdk-darwin-arm64",
-    "@github/copilot-sdk-darwin-x64",
-    "@github/copilot-sdk-linux-arm64",
-    "@github/copilot-sdk-linux-x64",
-    "@github/copilot-sdk-linuxmusl-arm64",
-    "@github/copilot-sdk-linuxmusl-x64",
-    "@github/copilot-sdk-win32-arm64",
-    "@github/copilot-sdk-win32-x64",
-];
+import { verifyPackageSetManifestFiles } from "./package-set-manifest.js";
 const PUBLIC_CONFLICT =
     /^(?:npm (?:error|ERR!) code EPUBLISHCONFLICT|npm (?:error|ERR!) (?:403 [^\r\n]* - )?(?:You )?cannot publish over (?:the )?previously published versions(?:: [^\r\n]+)?\.?)\r?$/im;
 const AZURE_CONFLICT =
@@ -72,28 +60,6 @@ export async function getRegistryVersion(packageName, version, registry, runner 
     );
 }
 
-export async function getRegistryTagVersion(packageName, tag, registry, runner = runCommand) {
-    const result = await runner("npm", [
-        "view",
-        `${packageName}@${tag}`,
-        "version",
-        "--json",
-        "--registry",
-        registry,
-    ]);
-    const parsed = parseNpmJson(result);
-    if (result.status === 0 && typeof parsed === "string") {
-        return parsed;
-    }
-    if (result.status !== 0 && parsed?.error?.code === "E404") {
-        return undefined;
-    }
-    const output = `${result.stdout}\n${result.stderr}`.trim();
-    throw new Error(
-        `Could not read ${packageName}@${tag} from ${registry} (npm exited ${result.status}).${output ? `\n${output}` : ""}`
-    );
-}
-
 export async function assertVersionAbsent(packageName, version, registry, runner = runCommand) {
     const existing = await getRegistryVersion(packageName, version, registry, runner);
     if (existing !== undefined) {
@@ -126,50 +92,7 @@ export async function publishTarball(tarball, tag, registry, mode, runner = runC
 
 function readReleaseManifest(manifestPath, packageDirectory) {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    if (
-        manifest.schemaVersion !== 1 ||
-        typeof manifest.sdk?.version !== "string" ||
-        !Array.isArray(manifest.packages)
-    ) {
-        throw new Error("Unsupported release manifest.");
-    }
-    if (manifest.packages.length !== 9) {
-        throw new Error(`Expected nine release packages, found ${manifest.packages.length}.`);
-    }
-    const expectedNames = new Set(sdkPackageNames);
-    const names = new Set();
-    for (const packed of manifest.packages) {
-        if (
-            typeof packed.name !== "string" ||
-            typeof packed.filename !== "string" ||
-            typeof packed.integrity !== "string" ||
-            typeof packed.size !== "number"
-        ) {
-            throw new Error("Release manifest contains an invalid package entry.");
-        }
-        if (names.has(packed.name)) {
-            throw new Error(`Duplicate package in release manifest: ${packed.name}`);
-        }
-        if (!expectedNames.has(packed.name)) {
-            throw new Error(`Unexpected package in release manifest: ${packed.name}`);
-        }
-        names.add(packed.name);
-        const tarball = resolve(packageDirectory, packed.filename);
-        if (
-            dirname(tarball) !== resolve(packageDirectory) ||
-            basename(tarball) !== packed.filename
-        ) {
-            throw new Error(`Unsafe release package filename: ${packed.filename}`);
-        }
-        const bytes = readFileSync(tarball);
-        const localIntegrity = `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
-        if (bytes.length !== packed.size || localIntegrity !== packed.integrity) {
-            throw new Error(`Local release package does not match manifest: ${packed.filename}`);
-        }
-    }
-    if (names.size !== expectedNames.size) {
-        throw new Error("Release manifest does not contain the exact Node SDK package set.");
-    }
+    verifyPackageSetManifestFiles(manifest, packageDirectory);
     return manifest;
 }
 
@@ -196,7 +119,7 @@ export async function publishManifest(
 
     const semver = await import("semver");
     for (const packed of packages) {
-        const taggedVersion = await getRegistryTagVersion(packed.name, tag, registry, runner);
+        const taggedVersion = await getRegistryVersion(packed.name, tag, registry, runner);
         if (taggedVersion !== undefined && semver.gt(taggedVersion, packed.version)) {
             throw new Error(
                 `${packed.name}@${tag} already points to newer version ${taggedVersion}; refusing to rewind it to ${packed.version}.`
@@ -207,7 +130,7 @@ export async function publishManifest(
         await publishTarball(packed.tarball, tag, registry, mode, runner, packed);
     }
     for (const packed of packages) {
-        const taggedVersion = await getRegistryTagVersion(packed.name, tag, registry, runner);
+        const taggedVersion = await getRegistryVersion(packed.name, tag, registry, runner);
         if (taggedVersion === packed.version) {
             continue;
         }

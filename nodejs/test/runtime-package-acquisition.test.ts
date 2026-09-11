@@ -76,14 +76,11 @@ describe("runtime npm package acquisition", () => {
             runtimeVersion,
             "--sha",
             runtimeSha,
-            "--registry",
-            "https://npm.pkg.github.com",
             "--output",
             "runtime-packages",
         ];
         expect(parseArguments(valid)).toEqual({
             outputDirectory: "runtime-packages",
-            registry: "https://npm.pkg.github.com",
             runtimeSha,
             runtimeVersion,
         });
@@ -135,7 +132,6 @@ describe("runtime npm package acquisition", () => {
         await acquireRuntimePackages(
             {
                 outputDirectory: output,
-                registry: "https://npm.pkg.github.com",
                 runtimeSha,
                 runtimeVersion,
             },
@@ -155,7 +151,7 @@ describe("runtime npm package acquisition", () => {
         }
     });
 
-    it("requires GitHub Packages and strict registry integrity", async () => {
+    it("requires strict GitHub Packages registry integrity", async () => {
         const root = temporaryRoot("copilot-runtime-registry-");
         const runner = vi
             .fn()
@@ -164,26 +160,13 @@ describe("runtime npm package acquisition", () => {
             acquireRuntimePackages(
                 {
                     outputDirectory: join(root, "output"),
-                    registry: "https://pkgs.dev.azure.com/example/npm/registry/",
-                    runtimeSha,
-                    runtimeVersion,
-                },
-                runner
-            )
-        ).rejects.toThrow("must come from GitHub Packages");
-        expect(runner).not.toHaveBeenCalled();
-
-        await expect(
-            acquireRuntimePackages(
-                {
-                    outputDirectory: join(root, "output"),
-                    registry: "https://npm.pkg.github.com",
                     runtimeSha,
                     runtimeVersion,
                 },
                 runner
             )
         ).rejects.toThrow("Invalid registry integrity");
+        expect(runner.mock.calls[0][1]).toContain("https://npm.pkg.github.com");
     });
 
     it("rejects mismatched source identity metadata", async () => {
