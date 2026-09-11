@@ -438,6 +438,8 @@ class TeardownResilientStreamMessageWriter extends StreamMessageWriter {
 }
 
 export class CopilotClient {
+    /** Whether this SDK supports CopilotClientOptions.onExtensionLaunch. */
+    static readonly supportsExtensionLaunchProvider = true;
     private cliStartTimeout: ReturnType<typeof setTimeout> | null = null;
     private cliProcess: ChildProcess | null = null;
     private ffiHost: FfiRuntimeHost | null = null;
@@ -494,6 +496,7 @@ export class CopilotClient {
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+    private onExtensionLaunch?: CopilotClientOptions["onExtensionLaunch"];
     private githubTokenProviders = new Map<
         string,
         { provider: GitHubTokenProvider; sessionId?: string; committed: boolean }
@@ -690,6 +693,7 @@ export class CopilotClient {
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
         this.onGitHubTelemetry = options.onGitHubTelemetry;
+        this.onExtensionLaunch = options.onExtensionLaunch;
         this.setupClientGlobalHandlers();
 
         // Connection-level env (child-process transports only) takes precedence
@@ -834,6 +838,12 @@ export class CopilotClient {
 
     private setupClientGlobalHandlers(): void {
         const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+        if (this.onExtensionLaunch) {
+            const onExtensionLaunch = this.onExtensionLaunch;
+            handlers.extensionLaunchProvider = {
+                resolve: async (request) => onExtensionLaunch(request),
+            };
+        }
         if (this.requestHandler) {
             handlers.llmInference = createCopilotRequestAdapter(this.requestHandler, () => {
                 if (!this.connection) {
@@ -969,6 +979,10 @@ export class CopilotClient {
 
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
+
+            if (this.onExtensionLaunch) {
+                await this.rpc.registerExtensionLaunchProvider();
+            }
 
             if (this.builtinPluginDirectories.length > 0) {
                 try {
