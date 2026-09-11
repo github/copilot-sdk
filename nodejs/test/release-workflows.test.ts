@@ -76,6 +76,7 @@ describe("runtime-driven Node SDK entry contract", () => {
         expect(runtimeSdk).not.toContain("runtime_source:");
         expect(runtimeReleaseIdentity).toContain('inputs.channel === "canary"');
         expect(runtimeReleaseIdentity).toContain('inputs.mode === "tests-only"');
+        expect(runtimeReleaseIdentity).toContain('inputs.mode === "publish"');
         expect(runtimeReleaseIdentity).toContain("Invalid channel or mode combination");
         expect(runtimeSdk).toContain("npx tsx scripts/runtime-release-identity.ts");
     });
@@ -124,12 +125,26 @@ describe("runtime-driven Node SDK entry contract", () => {
 describe("runtime-backed Node release implementation", () => {
     it("enforces the channel, source, and mode matrix", () => {
         expect(runtimeReleaseIdentity).toContain('inputs.mode === "tests-only"');
-        expect(runtimeReleaseIdentity).toContain('inputs.mode === "internal"');
+        expect(runtimeReleaseIdentity).toContain('inputs.mode === "publish"');
+        expect(runtimeReleaseIdentity).not.toContain('inputs.mode === "internal"');
         expect(runtimeReleaseIdentity).toContain("Invalid channel or mode combination");
         expect(runtimeReleaseIdentity).toContain(
             "Runtime workflow run ID must be a positive canonical integer"
         );
         expect(runtimeReleaseIdentity).toContain("validateRuntimeVersionChannel");
+    });
+
+    it("maps publish mode to channel-specific destinations", () => {
+        expect(runtimeSdk).toContain("- tests-only");
+        expect(runtimeSdk).toContain("- publish");
+        expect(runtimeSdk).not.toMatch(/^\s+- internal\s*$/m);
+        expect(runtimeSdk).toContain("default: publish");
+        expect(internalPublicationJob).toContain("inputs.mode == 'publish'");
+        expect(internalPublicationJob).not.toContain("inputs.channel == 'unstable'");
+        expect(publicPublicationJob).toContain(
+            "if: inputs.channel == 'unstable' && inputs.mode == 'publish'"
+        );
+        expect(publicPublicationJob).toContain("needs: [plan, publish-internal]");
     });
 
     it("owns acquisition, cross-platform tests, packaging, and internal verification", () => {

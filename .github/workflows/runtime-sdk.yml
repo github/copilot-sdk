@@ -24,13 +24,13 @@ on:
         required: true
         type: string
       mode:
-        description: "tests-only for canary verification; internal for publication"
+        description: "tests-only validates canary; publish releases to channel destinations"
         required: true
         type: choice
         options:
           - tests-only
-          - internal
-        default: internal
+          - publish
+        default: publish
       version:
         description: "Unstable SemVer base for a direct manual run; workflow identity is appended"
         required: false
@@ -280,7 +280,7 @@ jobs:
     if: |
       always() &&
       !cancelled() &&
-      inputs.mode == 'internal' &&
+      inputs.mode == 'publish' &&
       needs.plan.result == 'success' &&
       needs.package.result == 'success'
     needs: [plan, package]
@@ -353,7 +353,7 @@ jobs:
 
   publish-public:
     name: Publish publicly
-    if: inputs.channel == 'unstable'
+    if: inputs.channel == 'unstable' && inputs.mode == 'publish'
     needs: [plan, publish-internal]
     runs-on: ubuntu-latest
     concurrency:
