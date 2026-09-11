@@ -37,7 +37,6 @@ use crate::session_fs::SessionFsProvider;
 use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
-    AdmitAuthenticatedCrossSessionInputParams, AdmitAuthenticatedCrossSessionInputRequest,
     AutoTier, AutoTierPreference, CommandContext, CommandDefinition, CommandHandler,
     CreateSessionResult, ElicitationRequest, ElicitationResult, ExitPlanModeData,
     GetMessagesResponse, MessageOptions, PermissionRequestData, RequestId, ResumeSessionConfig,
@@ -744,43 +743,6 @@ impl Session {
                 Err(ErrorKind::Session(SessionErrorKind::Timeout(timeout_duration)).into())
             }
         }
-    }
-
-    /// Admit an authenticated cross-session input into this session.
-    ///
-    /// Wraps the runtime's private, direct-host-only
-    /// `session.lifecycle.admitAuthenticatedCrossSessionInput` method. The
-    /// runtime rejects the call unless it arrives on the local direct
-    /// connection, so this is only usable by a host embedding the SDK
-    /// in-process (or over the direct local transport), not by a remote peer.
-    ///
-    /// The caller supplies only the variable fields of
-    /// [`CrossSessionInput`](crate::types::CrossSessionInput). The wire
-    /// payload's `version`, `kind`, `origin`, and `integrity` discriminators
-    /// are stamped by the SDK, so a caller cannot assert a different
-    /// provenance or integrity class for the admitted content.
-    ///
-    /// The runtime's response carries no payload this SDK surfaces; errors
-    /// from the runtime are returned unchanged.
-    ///
-    /// # Cancel safety
-    ///
-    /// **Cancel-safe.** Single RPC dispatched through the writer-actor (see
-    /// [`Client::call`](crate::Client::call)). If the caller's future is
-    /// dropped after the frame is enqueued, the admission still lands and
-    /// the runtime processes it normally.
-    pub async fn admit_authenticated_cross_session_input(
-        &self,
-        request: AdmitAuthenticatedCrossSessionInputRequest,
-    ) -> Result<(), Error> {
-        let params = AdmitAuthenticatedCrossSessionInputParams::new(self.id.clone(), request);
-        self.client
-            .call(
-                "session.lifecycle.admitAuthenticatedCrossSessionInput",
-                Some(serde_json::to_value(params)?),
-            )
-            .await?;
-        Ok(())
     }
 
     /// Retrieve the session's timeline events.
