@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import * as semver from "semver";
 
 export type RuntimeReleaseChannel = "canary" | "unstable";
-export type RuntimeReleaseMode = "internal" | "tests-only";
+export type RuntimeReleaseMode = "publish" | "tests-only";
 
 export interface RuntimeReleaseInputs {
     channel: RuntimeReleaseChannel;
@@ -38,8 +38,8 @@ export function validateRuntimeReleaseInputs(inputs: RuntimeReleaseInputs): void
     assert(inputs.channel === "canary" || inputs.channel === "unstable", "Invalid release channel");
     assert(
         inputs.channel === "canary"
-            ? inputs.mode === "tests-only" || inputs.mode === "internal"
-            : inputs.mode === "internal",
+            ? inputs.mode === "tests-only" || inputs.mode === "publish"
+            : inputs.mode === "publish",
         "Invalid channel or mode combination"
     );
     assert.match(

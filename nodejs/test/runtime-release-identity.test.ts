@@ -6,7 +6,7 @@ import {
 
 const inputs: RuntimeReleaseInputs = {
     channel: "unstable",
-    mode: "internal",
+    mode: "publish",
     runtimeRunId: "100",
     runtimeSha: "a".repeat(40),
     runtimeVersion: "1.2.3-unstable.4",
@@ -28,7 +28,7 @@ describe("runtime release identity", () => {
                 validateRuntimeReleaseInputs({
                     ...inputs,
                     channel,
-                    mode: channel === "canary" ? "tests-only" : "internal",
+                    mode: channel === "canary" ? "tests-only" : "publish",
                     runtimeVersion,
                 })
             ).not.toThrow();
@@ -46,7 +46,7 @@ describe("runtime release identity", () => {
                 validateRuntimeReleaseInputs({
                     ...inputs,
                     channel,
-                    mode: channel === "canary" ? "tests-only" : "internal",
+                    mode: channel === "canary" ? "tests-only" : "publish",
                     runtimeVersion,
                 })
             ).toThrow(`does not belong to the '${channel}' channel`);
@@ -62,6 +62,15 @@ describe("runtime release identity", () => {
                 runtimeVersion: "1.2.3-canary.4",
             })
         ).not.toThrow();
+        expect(() =>
+            validateRuntimeReleaseInputs({
+                ...inputs,
+                channel: "canary",
+                mode: "publish",
+                runtimeVersion: "1.2.3-canary.4",
+            })
+        ).not.toThrow();
+        expect(() => validateRuntimeReleaseInputs(inputs)).not.toThrow();
         expect(() =>
             validateRuntimeReleaseInputs({
                 ...inputs,
@@ -93,7 +102,7 @@ describe("runtime release identity", () => {
             validateRuntimeReleaseInputs({
                 ...inputs,
                 channel: "canary",
-                mode: "internal",
+                mode: "publish",
                 runtimeVersion: "1.2.3-canary.4",
                 versionOverride: "1.2.3-canary.manual",
             })

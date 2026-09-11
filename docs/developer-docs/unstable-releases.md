@@ -19,16 +19,16 @@ optional internal publication, and public unstable npm publication.
 
 The runtime dispatch includes these inputs:
 
-* `channel`: `canary` or `unstable`
-* `runtime_version`: Exact runtime package version
-* `runtime_sha`: Lowercase, 40-character `github/copilot-agent-runtime` SHA
-* `runtime_run_id`: Source runtime workflow run ID for provenance
-* `mode`: `tests-only` or `internal` for canary; `internal` for unstable
+- `channel`: `canary` or `unstable`
+- `runtime_version`: Exact runtime package version
+- `runtime_sha`: Lowercase, 40-character `github/copilot-agent-runtime` SHA
+- `runtime_run_id`: Source runtime workflow run ID for provenance
+- `mode`: `tests-only` or `publish` for canary; `publish` for unstable
 
 Maintainers can dispatch `runtime-sdk.yml` directly with the same inputs. The
 optional `version` input is available only for unstable and must be an unstable
 SemVer base. The workflow appends its run number and SDK SHA so each new
-dispatch still creates a unique version.
+dispatch still creates a unique version. Unstable runs reject `tests-only`.
 
 ## Release gates
 
@@ -52,7 +52,7 @@ or recalculating its identity.
 
 ## Publication order
 
-Canary `tests-only` runs stop after package verification. Canary `internal`
+Canary `tests-only` runs stop after package verification. Canary `publish`
 runs publish platform packages before the umbrella package to the Azure
 `copilot-canary` feed, then perform a clean install and package version check.
 No canary job has a public npm publication path.
