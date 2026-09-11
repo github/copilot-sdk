@@ -1,21 +1,32 @@
 import assert from "node:assert/strict";
+import { appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as semver from "semver";
 
+export type ReleaseDistTag = "canary" | "latest" | "prerelease" | "unstable";
+export type ReleaseMode = "dry-run" | "publish";
 export type RuntimeReleaseChannel = "canary" | "unstable";
-export type RuntimeReleaseMode = "publish" | "tests-only";
 
-export interface RuntimeReleaseInputs {
-    channel: RuntimeReleaseChannel;
-    mode: RuntimeReleaseMode;
+export interface ReleaseDispatchInputs {
+    distTag: ReleaseDistTag;
+    mode: ReleaseMode;
+    runtimeJson: string;
+    version: string;
+}
+
+export interface ReleaseDispatchPlan {
+    kind: "direct" | "runtime";
     runtimeRunId: string;
     runtimeSha: string;
     runtimeVersion: string;
-    versionOverride: string;
 }
 
-const canonicalNumericIdPattern = /^[1-9][0-9]*$/;
+interface RuntimeDescriptor {
+    run_id: string;
+    sha: string;
+    version: string;
+}
 
 export function validateRuntimeVersionChannel(
     version: string,
@@ -34,30 +45,81 @@ export function validateRuntimeVersionChannel(
     );
 }
 
-export function validateRuntimeReleaseInputs(inputs: RuntimeReleaseInputs): void {
-    assert(inputs.channel === "canary" || inputs.channel === "unstable", "Invalid release channel");
+function parseRuntimeDescriptor(value: string): RuntimeDescriptor {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(value);
+    } catch {
+        throw new Error("Runtime input must be valid JSON.");
+    }
     assert(
-        inputs.channel === "canary"
-            ? inputs.mode === "tests-only" || inputs.mode === "publish"
-            : inputs.mode === "publish",
-        "Invalid channel or mode combination"
+        typeof parsed === "object" && parsed !== null && !Array.isArray(parsed),
+        "Runtime input must be a JSON object"
     );
-    assert.match(
-        inputs.runtimeRunId,
-        canonicalNumericIdPattern,
-        "Runtime workflow run ID must be a positive canonical integer"
+    assert.deepEqual(
+        Object.keys(parsed).sort(),
+        ["run_id", "sha", "version"],
+        "Runtime input must contain exactly version, sha, and run_id"
     );
-    assert.match(inputs.runtimeSha, /^[0-9a-f]{40}$/, "Runtime SHA must be lowercase full SHA");
-    validateRuntimeVersionChannel(inputs.runtimeVersion, inputs.channel);
+    const runtime = parsed as Partial<RuntimeDescriptor>;
+    for (const name of ["version", "sha", "run_id"] as const) {
+        assert.equal(typeof runtime[name], "string", `Runtime ${name} must be a string`);
+    }
+    return runtime as RuntimeDescriptor;
+}
+
+export function validateReleaseDispatch(inputs: ReleaseDispatchInputs): ReleaseDispatchPlan {
+    assert(
+        inputs.distTag === "latest" ||
+            inputs.distTag === "prerelease" ||
+            inputs.distTag === "unstable" ||
+            inputs.distTag === "canary",
+        "Invalid release dist-tag"
+    );
+    assert(inputs.mode === "publish" || inputs.mode === "dry-run", "Invalid release mode");
+
+    if (inputs.runtimeJson === "") {
+        assert(inputs.distTag !== "canary", "Canary releases require runtime JSON");
+        assert(
+            inputs.mode !== "dry-run" || inputs.distTag === "unstable",
+            "Dry-run mode is supported only for canary and unstable releases"
+        );
+        return {
+            kind: "direct",
+            runtimeRunId: "",
+            runtimeSha: "",
+            runtimeVersion: "",
+        };
+    }
+
     assert.equal(
-        inputs.versionOverride,
-        inputs.versionOverride.trim(),
-        "SDK version override must not contain surrounding whitespace"
+        inputs.runtimeJson,
+        inputs.runtimeJson.trim(),
+        "Runtime input must not contain surrounding whitespace"
     );
     assert(
-        inputs.channel !== "canary" || inputs.versionOverride === "",
-        "Canary runs do not accept a version override"
+        inputs.distTag === "canary" || inputs.distTag === "unstable",
+        "Runtime JSON is supported only for canary and unstable releases"
     );
+    assert.equal(
+        inputs.version,
+        "",
+        "The direct version input cannot be combined with runtime JSON"
+    );
+    const runtime = parseRuntimeDescriptor(inputs.runtimeJson);
+    assert.match(
+        runtime.run_id,
+        /^[1-9][0-9]*$/,
+        "Runtime run_id must be a positive canonical integer"
+    );
+    assert.match(runtime.sha, /^[0-9a-f]{40}$/, "Runtime sha must be a lowercase full SHA");
+    validateRuntimeVersionChannel(runtime.version, inputs.distTag);
+    return {
+        kind: "runtime",
+        runtimeRunId: runtime.run_id,
+        runtimeSha: runtime.sha,
+        runtimeVersion: runtime.version,
+    };
 }
 
 function requiredEnvironment(name: string): string {
@@ -69,14 +131,22 @@ function requiredEnvironment(name: string): string {
 }
 
 function main(): void {
-    validateRuntimeReleaseInputs({
-        channel: requiredEnvironment("CHANNEL") as RuntimeReleaseChannel,
-        mode: requiredEnvironment("MODE") as RuntimeReleaseMode,
-        runtimeRunId: requiredEnvironment("RUNTIME_RUN_ID"),
-        runtimeSha: requiredEnvironment("RUNTIME_SHA"),
-        runtimeVersion: requiredEnvironment("RUNTIME_VERSION"),
-        versionOverride: process.env.VERSION_OVERRIDE ?? "",
+    const plan = validateReleaseDispatch({
+        distTag: requiredEnvironment("DIST_TAG") as ReleaseDistTag,
+        mode: requiredEnvironment("MODE") as ReleaseMode,
+        runtimeJson: process.env.RUNTIME_JSON ?? "",
+        version: process.env.VERSION_OVERRIDE ?? "",
     });
+    appendFileSync(
+        requiredEnvironment("GITHUB_OUTPUT"),
+        [
+            `kind=${plan.kind}`,
+            `runtime_run_id=${plan.runtimeRunId}`,
+            `runtime_sha=${plan.runtimeSha}`,
+            `runtime_version=${plan.runtimeVersion}`,
+            "",
+        ].join("\n")
+    );
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
