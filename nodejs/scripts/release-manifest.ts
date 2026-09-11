@@ -46,8 +46,8 @@ export interface ReleaseManifest extends PackageSetManifest {
     };
     workflow: {
         createdAt: string;
-        name: "TEST ONLY - Runtime-driven Node SDK";
-        path: ".github/workflows/sdk-canary.yml";
+        name?: "TEST ONLY - Runtime-driven Node SDK";
+        path?: ".github/workflows/sdk-canary.yml";
         runId: string;
         runNumber: string;
     };
@@ -64,19 +64,18 @@ export interface ReleaseManifestMetadata {
     sdkVersion: string;
     workflowRunId: string;
     workflowRunNumber: string;
+    workflowPath?: string;
 }
 
 const testWorkflowName = "TEST ONLY - Runtime-driven Node SDK";
 const testWorkflowPath = ".github/workflows/sdk-canary.yml";
 
-const expectedPackageNames = new Set([
-    "@github/copilot-sdk",
-    ...RUNTIME_PLATFORMS.map(getRuntimePackageName),
-]);
-
-function integrity(buffer: Buffer): string {
-    return `sha512-${createHash("sha512").update(buffer).digest("base64")}`;
-}
+const expectedPackageNames = new Set(SDK_PACKAGE_NAMES);
+assert.deepEqual(
+    [...expectedPackageNames].sort(),
+    ["@github/copilot-sdk", ...RUNTIME_PLATFORMS.map(getRuntimePackageName)].sort(),
+    "Shared package manifest names must match the supported runtime platforms"
+);
 
 async function readPackedManifest(archive: string): Promise<{ name: string; version: string }> {
     const root = mkdtempSync(join(tmpdir(), "copilot-sdk-release-manifest-"));
@@ -108,6 +107,10 @@ export async function createReleaseManifest(
     validateFullSha(metadata.runtimeSha, "Runtime SHA");
     validateRuntimeVersionChannel(metadata.runtimeVersion, metadata.channel);
     assert(Number.isFinite(Date.parse(metadata.createdAt)), "Workflow creation time is invalid");
+    assert(
+        metadata.workflowPath === undefined || metadata.workflowPath === testWorkflowPath,
+        "Unexpected test workflow path"
+    );
     const packageSet = await createPackageSetManifest(packageDirectory, metadata.sdkVersion);
     return {
         ...packageSet,
@@ -129,8 +132,9 @@ export async function createReleaseManifest(
             runId: metadata.workflowRunId,
             runNumber: metadata.workflowRunNumber,
             createdAt: metadata.createdAt,
-            name: testWorkflowName,
-            path: testWorkflowPath,
+            ...(metadata.workflowPath === testWorkflowPath
+                ? { name: testWorkflowName, path: testWorkflowPath }
+                : {}),
         },
     };
 }
@@ -180,7 +184,11 @@ export function verifyPackageSetManifest(
     assert(semver.valid(manifest.sdk.version), "Invalid SDK version");
 }
 
-export function verifyReleaseManifest(manifest: ReleaseManifest, packageDirectory: string): void {
+export function verifyReleaseManifest(
+    manifest: ReleaseManifest,
+    packageDirectory: string,
+    expectedWorkflowPath?: string
+): void {
     verifyPackageSetManifest(manifest, packageDirectory);
     assert(
         manifest.channel === "canary" || manifest.channel === "unstable",
@@ -199,26 +207,29 @@ export function verifyReleaseManifest(manifest: ReleaseManifest, packageDirector
     assert.equal(manifest.sdk.repository, "github/copilot-sdk");
     assert.equal(manifest.runtime.repository, "github/copilot-agent-runtime");
     assert.equal(manifest.runtime.source, "github-packages", "Invalid runtime package source");
-    assert.equal(manifest.workflow.name, testWorkflowName, "Unexpected test workflow name");
-    assert.equal(manifest.workflow.path, testWorkflowPath, "Unexpected test workflow path");
-    const sdkVersion = semver.parse(manifest.sdk.version);
-    assert(sdkVersion, "Invalid SDK version");
-    const prerelease = sdkVersion.prerelease.map(String);
-    assert.deepEqual(
-        prerelease.slice(-2),
-        ["test", manifest.workflow.runId],
-        "Test SDK version must end in its deterministic workflow run namespace"
-    );
-    assert.equal(
-        prerelease.at(-3),
-        `g${manifest.sdk.sha.slice(0, 7)}`,
-        "Test SDK version must contain the SDK source SHA"
-    );
-    assert.equal(
-        prerelease.at(-4),
-        manifest.channel === "unstable" ? manifest.workflow.runId : manifest.workflow.runNumber,
-        `Test ${manifest.channel} SDK version must use the expected workflow run identity`
-    );
+    if (expectedWorkflowPath !== undefined) {
+        assert.equal(expectedWorkflowPath, testWorkflowPath, "Unexpected test workflow path");
+        assert.equal(manifest.workflow.name, testWorkflowName, "Unexpected test workflow name");
+        assert.equal(manifest.workflow.path, testWorkflowPath, "Unexpected test workflow path");
+        const sdkVersion = semver.parse(manifest.sdk.version);
+        assert(sdkVersion, "Invalid SDK version");
+        const prerelease = sdkVersion.prerelease.map(String);
+        assert.deepEqual(
+            prerelease.slice(-2),
+            ["test", manifest.workflow.runId],
+            "Test SDK version must end in its deterministic workflow run namespace"
+        );
+        assert.equal(
+            prerelease.at(-3),
+            `g${manifest.sdk.sha.slice(0, 7)}`,
+            "Test SDK version must contain the SDK source SHA"
+        );
+        assert.equal(
+            prerelease.at(-4),
+            manifest.channel === "unstable" ? manifest.workflow.runId : manifest.workflow.runNumber,
+            `Test ${manifest.channel} SDK version must use the expected workflow run identity`
+        );
+    }
 }
 
 function requiredEnvironment(name: string): string {
@@ -253,14 +264,15 @@ async function main(): Promise<void> {
             sdkVersion: requiredEnvironment("SDK_VERSION"),
             workflowRunId: requiredEnvironment("WORKFLOW_RUN_ID"),
             workflowRunNumber: requiredEnvironment("WORKFLOW_RUN_NUMBER"),
+            workflowPath: process.env.TEST_WORKFLOW_PATH,
         });
         writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-        verifyReleaseManifest(manifest, packageDirectory);
+        verifyReleaseManifest(manifest, packageDirectory, process.env.TEST_WORKFLOW_PATH);
         return;
     }
     if (command === "verify") {
         const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as ReleaseManifest;
-        verifyReleaseManifest(manifest, packageDirectory);
+        verifyReleaseManifest(manifest, packageDirectory, process.env.TEST_WORKFLOW_PATH);
         return;
     }
     if (command === "verify-package-set") {

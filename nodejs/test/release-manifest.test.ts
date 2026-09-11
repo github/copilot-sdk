@@ -60,7 +60,7 @@ describe("release manifest", () => {
     it("freezes and verifies the exact nine-package release identity", async () => {
         const root = mkdtempSync(join(tmpdir(), "copilot-sdk-manifest-"));
         roots.push(root);
-        const version = "1.0.13-unstable.812300.gabcdef0.test.812300";
+        const version = "1.0.13-unstable.34640000001.gabcdef0";
         for (const name of [
             "@github/copilot-sdk",
             ...RUNTIME_PLATFORMS.map(getRuntimePackageName),
@@ -83,10 +83,6 @@ describe("release manifest", () => {
         expect(manifest.packages).toHaveLength(9);
         expect(manifest.runtime.runId).toBe("9001");
         expect(manifest.runtime.source).toBe("github-packages");
-        expect(manifest.workflow).toMatchObject({
-            name: "TEST ONLY - Runtime-driven Node SDK",
-            path: ".github/workflows/sdk-canary.yml",
-        });
         expect(() => verifyReleaseManifest(manifest, root)).not.toThrow();
 
         const mismatched = structuredClone(manifest);
@@ -109,17 +105,55 @@ describe("release manifest", () => {
             })
         ).rejects.toThrow("does not belong to the 'canary' channel");
 
+        const damaged = join(root, manifest.packages[0].filename);
+        writeFileSync(damaged, Buffer.concat([readFileSync(damaged), Buffer.from("tampered")]));
+        expect(() => verifyReleaseManifest(manifest, root)).toThrow("Size mismatch");
+    });
+
+    it("enforces the isolated unstable test workflow identity", async () => {
+        const root = mkdtempSync(join(tmpdir(), "copilot-sdk-unstable-test-manifest-"));
+        roots.push(root);
+        const version = "1.0.13-unstable.812300.gabcdef0.test.812300";
+        for (const name of [
+            "@github/copilot-sdk",
+            ...RUNTIME_PLATFORMS.map(getRuntimePackageName),
+        ]) {
+            await packageTarball(root, name, version);
+        }
+
+        const manifest = await createReleaseManifest(root, {
+            channel: "unstable",
+            createdAt: "2026-09-04T00:00:00Z",
+            runtimeRunId: "9001",
+            runtimeSha,
+            runtimeVersion: "1.0.83-5.unstable.123.g1234567.test.9001",
+            sdkRef: "feature/unstable",
+            sdkSha,
+            sdkVersion: version,
+            workflowRunId: "812300",
+            workflowRunNumber: "8123",
+            workflowPath: ".github/workflows/sdk-canary.yml",
+        });
+
+        expect(manifest.workflow).toMatchObject({
+            name: "TEST ONLY - Runtime-driven Node SDK",
+            path: ".github/workflows/sdk-canary.yml",
+        });
+        expect(() =>
+            verifyReleaseManifest(manifest, root, ".github/workflows/sdk-canary.yml")
+        ).not.toThrow();
+
         const wrongWorkflow = structuredClone(manifest);
         Reflect.set(wrongWorkflow.workflow, "path", ".github/workflows/runtime-sdk.yml");
-        expect(() => verifyReleaseManifest(wrongWorkflow, root)).toThrow(
-            "Unexpected test workflow path"
-        );
+        expect(() =>
+            verifyReleaseManifest(wrongWorkflow, root, ".github/workflows/sdk-canary.yml")
+        ).toThrow("Unexpected test workflow path");
 
         const wrongNamespace = structuredClone(manifest);
-        Reflect.set(wrongNamespace.sdk, "version", "1.0.13-unstable.8123.gabcdef0");
-        expect(() => verifyReleaseManifest(wrongNamespace, root)).toThrow(
-            "deterministic workflow run namespace"
-        );
+        Reflect.set(wrongNamespace.sdk, "version", "1.0.13-unstable.812300.gabcdef0");
+        expect(() =>
+            verifyReleaseManifest(wrongNamespace, root, ".github/workflows/sdk-canary.yml")
+        ).toThrow("deterministic workflow run namespace");
 
         const staleRunNumberIdentity = structuredClone(manifest);
         Reflect.set(
@@ -127,12 +161,38 @@ describe("release manifest", () => {
             "version",
             "1.0.13-unstable.8123.gabcdef0.test.812300"
         );
-        expect(() => verifyReleaseManifest(staleRunNumberIdentity, root)).toThrow(
-            "Test unstable SDK version must use the expected workflow run identity"
-        );
+        expect(() =>
+            verifyReleaseManifest(staleRunNumberIdentity, root, ".github/workflows/sdk-canary.yml")
+        ).toThrow("Test unstable SDK version must use the expected workflow run identity");
+    });
 
-        const damaged = join(root, manifest.packages[0].filename);
-        writeFileSync(damaged, Buffer.concat([readFileSync(damaged), Buffer.from("tampered")]));
-        expect(() => verifyReleaseManifest(manifest, root)).toThrow("Size mismatch");
+    it("accepts a matching canary runtime and test release identity", async () => {
+        const root = mkdtempSync(join(tmpdir(), "copilot-sdk-canary-manifest-"));
+        roots.push(root);
+        const version = "1.0.13-canary.8123.gabcdef0.test.812300";
+        for (const name of [
+            "@github/copilot-sdk",
+            ...RUNTIME_PLATFORMS.map(getRuntimePackageName),
+        ]) {
+            await packageTarball(root, name, version);
+        }
+
+        const manifest = await createReleaseManifest(root, {
+            channel: "canary",
+            createdAt: "2026-09-04T00:00:00Z",
+            runtimeRunId: "9001",
+            runtimeSha,
+            runtimeVersion: "1.0.83-5.canary.123.g1234567.test.9001",
+            sdkRef: "feature/canary",
+            sdkSha,
+            sdkVersion: version,
+            workflowRunId: "812300",
+            workflowRunNumber: "8123",
+            workflowPath: ".github/workflows/sdk-canary.yml",
+        });
+
+        expect(() =>
+            verifyReleaseManifest(manifest, root, ".github/workflows/sdk-canary.yml")
+        ).not.toThrow();
     });
 });

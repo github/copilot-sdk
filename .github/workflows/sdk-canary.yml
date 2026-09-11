@@ -1,36 +1,28 @@
 name: "TEST ONLY - Runtime-driven Node SDK"
-run-name: "TEST ONLY - Runtime-driven SDK #${{ github.run_number }} from runtime run ${{ inputs.runtime_run_id }}"
+run-name: "TEST ONLY - Runtime-driven SDK #${{ github.run_number }} (${{ inputs.dist-tag }}, ${{ inputs.mode }})"
 
 on:
   workflow_dispatch:
     inputs:
-      channel:
-        description: "Release channel"
+      dist-tag:
+        description: "Runtime-backed SDK release channel"
         required: true
         type: choice
         options:
           - canary
           - unstable
-      runtime_version:
-        description: "Exact runtime package version"
-        required: true
-        type: string
-      runtime_sha:
-        description: "Lowercase full github/copilot-agent-runtime source SHA"
-        required: true
-        type: string
-      runtime_run_id:
-        description: "Source runtime workflow run ID for provenance"
-        required: true
-        type: string
       mode:
-        description: "tests-only validates canary; publish writes only to isolated Azure test tags"
+        description: "dry-run verifies without mutation; publish writes only to isolated Azure test tags"
         required: true
         type: choice
         options:
-          - tests-only
+          - dry-run
           - publish
-        default: publish
+        default: dry-run
+      runtime:
+        description: 'Required runtime JSON: {"version":"...","sha":"...","run_id":"..."}'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -42,24 +34,22 @@ env:
   TEST_WORKFLOW_PATH: .github/workflows/sdk-canary.yml
 
 jobs:
-  plan:
-    name: Plan
+  validate-dispatch:
+    name: Validate dispatch
     runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
     outputs:
-      artifact_name: ${{ steps.plan.outputs.artifact_name }}
-      sdk_version: ${{ steps.plan.outputs.sdk_version }}
-      workflow_created_at: ${{ steps.plan.outputs.workflow_created_at }}
+      runtime_run_id: ${{ steps.validate.outputs.runtime_run_id }}
+      runtime_sha: ${{ steps.validate.outputs.runtime_sha }}
+      runtime_version: ${{ steps.validate.outputs.runtime_version }}
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           cache: npm
           cache-dependency-path: ./nodejs/package-lock.json
@@ -81,23 +71,51 @@ jobs:
             nodejs/scripts/sdk-canary-safety.ts "$REMOTE_WORKFLOW"
           cmp --silent "$REMOTE_WORKFLOW" "$TEST_WORKFLOW_PATH" ||
             { echo "::error::Checked-out workflow differs from the remote branch workflow."; exit 1; }
-      - name: Validate runtime release inputs
+      - name: Validate required runtime-backed dispatch
+        id: validate
         working-directory: ./nodejs
         env:
-          CHANNEL: ${{ inputs.channel }}
+          DIST_TAG: ${{ inputs.dist-tag }}
           MODE: ${{ inputs.mode }}
-          RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
-          RUNTIME_SHA: ${{ inputs.runtime_sha }}
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          RUNTIME_JSON: ${{ inputs.runtime }}
           VERSION_OVERRIDE: ""
-        run: npx tsx scripts/runtime-release-identity.ts
+        run: |
+          npx tsx scripts/runtime-release-identity.ts
+          [ "$(cat "$GITHUB_OUTPUT" | sed -n 's/^kind=//p')" = "runtime" ] ||
+            { echo "::error::The test workflow requires runtime JSON."; exit 1; }
+
+  plan:
+    name: Plan
+    needs: validate-dispatch
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.plan.outputs.artifact_name }}
+      sdk_version: ${{ steps.plan.outputs.sdk_version }}
+      workflow_created_at: ${{ steps.plan.outputs.workflow_created_at }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
+          node-version: 22
+      - run: npm ci --ignore-scripts
+        working-directory: ./nodejs
       - name: Calculate the collision-resistant test release identity
         id: plan
         working-directory: ./nodejs
         env:
-          CHANNEL: ${{ inputs.channel }}
+          CHANNEL: ${{ inputs.dist-tag }}
           GH_TOKEN: ${{ github.token }}
-          SDK_CHANNEL: ${{ inputs.channel }}
+          SDK_CHANNEL: ${{ inputs.dist-tag }}
           SDK_SHA: ${{ github.sha }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_NUMBER: ${{ github.run_number }}
@@ -120,7 +138,7 @@ jobs:
 
   acquire-runtime:
     name: Acquire runtime
-    needs: plan
+    needs: [validate-dispatch, plan]
     runs-on: ubuntu-latest
     environment: cicd
     permissions:
@@ -131,8 +149,8 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           cache: npm
           cache-dependency-path: ./nodejs/package-lock.json
@@ -145,27 +163,26 @@ jobs:
       - name: Download and validate all runtime platforms
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
-          RUNTIME_SHA: ${{ inputs.runtime_sha }}
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          RUNTIME_SHA: ${{ needs.validate-dispatch.outputs.runtime_sha }}
+          RUNTIME_VERSION: ${{ needs.validate-dispatch.outputs.runtime_version }}
         run: |
           npm run acquire:runtime-packages -- \
             --version "$RUNTIME_VERSION" \
             --sha "$RUNTIME_SHA" \
-            --registry https://npm.pkg.github.com \
             --output "$RUNNER_TEMP/runtime-packages"
       - name: Archive validated runtime packages
         run: tar -czf "$RUNNER_TEMP/runtime-packages.tar.gz" -C "$RUNNER_TEMP" runtime-packages
       - name: Upload validated runtime packages
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: runtime-test-${{ inputs.channel }}-${{ inputs.runtime_run_id }}-${{ inputs.runtime_version }}-${{ inputs.runtime_sha }}
+          name: runtime-test-${{ inputs.dist-tag }}-${{ needs.validate-dispatch.outputs.runtime_version }}-${{ needs.validate-dispatch.outputs.runtime_sha }}
           path: ${{ runner.temp }}/runtime-packages.tar.gz
           if-no-files-found: error
           retention-days: 7
 
   test:
     name: Test (${{ matrix.os }})
-    needs: [plan, acquire-runtime]
+    needs: [validate-dispatch, plan, acquire-runtime]
     permissions:
       contents: read
     strategy:
@@ -179,8 +196,8 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           cache: npm
           cache-dependency-path: ./nodejs/package-lock.json
@@ -190,9 +207,9 @@ jobs:
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
       - name: Download validated runtime packages
-        uses: actions/download-artifact@v8.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: runtime-test-${{ inputs.channel }}-${{ inputs.runtime_run_id }}-${{ inputs.runtime_version }}-${{ inputs.runtime_sha }}
+          name: runtime-test-${{ inputs.dist-tag }}-${{ needs.validate-dispatch.outputs.runtime_version }}-${{ needs.validate-dispatch.outputs.runtime_sha }}
           path: ${{ runner.temp }}/runtime-package-artifact
       - name: Extract validated runtime packages
         run: |
@@ -205,7 +222,7 @@ jobs:
       - name: Select the acquired runtime
         env:
           COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          RUNTIME_VERSION: ${{ needs.validate-dispatch.outputs.runtime_version }}
         run: |
           node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
           runtime_path="$(npm run --silent prepare:runtime -- --print-path)"
@@ -222,7 +239,7 @@ jobs:
 
   package:
     name: Build and verify
-    needs: [plan, acquire-runtime, test]
+    needs: [validate-dispatch, plan, acquire-runtime, test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -231,17 +248,17 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           cache: npm
           cache-dependency-path: ./nodejs/package-lock.json
           node-version: 22
       - run: npm ci --ignore-scripts
       - name: Download validated runtime packages
-        uses: actions/download-artifact@v8.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: runtime-test-${{ inputs.channel }}-${{ inputs.runtime_run_id }}-${{ inputs.runtime_version }}-${{ inputs.runtime_sha }}
+          name: runtime-test-${{ inputs.dist-tag }}-${{ needs.validate-dispatch.outputs.runtime_version }}-${{ needs.validate-dispatch.outputs.runtime_sha }}
           path: ${{ runner.temp }}/runtime-package-artifact
       - name: Extract validated runtime packages
         run: |
@@ -254,7 +271,7 @@ jobs:
       - name: Build and verify exact package set
         env:
           COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          RUNTIME_VERSION: ${{ needs.validate-dispatch.outputs.runtime_version }}
           SDK_VERSION: ${{ needs.plan.outputs.sdk_version }}
         run: |
           VERSION="$SDK_VERSION" node scripts/set-version.js
@@ -265,10 +282,10 @@ jobs:
           npm run verify:release-packages
       - name: Create immutable test release manifest
         env:
-          RELEASE_CHANNEL: ${{ inputs.channel }}
-          RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
-          RUNTIME_SHA: ${{ inputs.runtime_sha }}
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          RELEASE_CHANNEL: ${{ inputs.dist-tag }}
+          RUNTIME_RUN_ID: ${{ needs.validate-dispatch.outputs.runtime_run_id }}
+          RUNTIME_SHA: ${{ needs.validate-dispatch.outputs.runtime_sha }}
+          RUNTIME_VERSION: ${{ needs.validate-dispatch.outputs.runtime_version }}
           SDK_REF: ${{ github.ref }}
           SDK_SHA: ${{ github.sha }}
           SDK_VERSION: ${{ needs.plan.outputs.sdk_version }}
@@ -278,7 +295,7 @@ jobs:
         run: |
           npm run release:manifest -- create release-manifest.json .
           npm run release:manifest -- verify release-manifest.json .
-      - uses: actions/upload-artifact@v7.0.0
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ needs.plan.outputs.artifact_name }}
           path: |
@@ -295,7 +312,7 @@ jobs:
       inputs.mode == 'publish' &&
       needs.plan.result == 'success' &&
       needs.package.result == 'success'
-    needs: [plan, package]
+    needs: [validate-dispatch, plan, package]
     runs-on: ubuntu-latest
     concurrency:
       group: sdk-runtime-test-internal
@@ -307,14 +324,14 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22
       - run: npm ci --ignore-scripts
         working-directory: ./nodejs
       - name: Download retained test release
-        uses: actions/download-artifact@v8.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: ${{ needs.plan.outputs.artifact_name }}
           path: ./dist
@@ -323,7 +340,7 @@ jobs:
           nodejs/node_modules/.bin/tsx nodejs/scripts/release-manifest.ts verify dist/release-manifest.json dist
           [ "$(jq -r .workflow.runId dist/release-manifest.json)" = "${{ github.run_id }}" ] ||
             { echo "::error::Retained test release belongs to a different workflow run."; exit 1; }
-          [ "$(jq -r .channel dist/release-manifest.json)" = "${{ inputs.channel }}" ] ||
+          [ "$(jq -r .channel dist/release-manifest.json)" = "${{ inputs.dist-tag }}" ] ||
             { echo "::error::Retained test release channel does not match the requested channel."; exit 1; }
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -342,7 +359,7 @@ jobs:
             "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
       - name: Publish exact tarballs under isolated test tags
         env:
-          CHANNEL: ${{ inputs.channel }}
+          CHANNEL: ${{ inputs.dist-tag }}
         run: |
           if [ "$CHANNEL" = "canary" ]; then
             DIST_TAG=runtime-sdk-canary-test
@@ -354,10 +371,10 @@ jobs:
             "https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/" azure
       - name: Clean install and package version check
         env:
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          RUNTIME_VERSION: ${{ needs.validate-dispatch.outputs.runtime_version }}
           SDK_VERSION: ${{ needs.plan.outputs.sdk_version }}
         run: |
-          VERIFY_ROOT="$RUNNER_TEMP/sdk-${{ inputs.channel }}-test-verification"
+          VERIFY_ROOT="$RUNNER_TEMP/sdk-${{ inputs.dist-tag }}-test-verification"
           mkdir -p "$VERIFY_ROOT"
           cd "$VERIFY_ROOT"
           npm init -y >/dev/null
