@@ -1,22 +1,19 @@
 # One live session, two clients
 
-This MVP starts an AHP WebSocket endpoint **inside the Copilot runtime**. The
+This MVP hosts an AHP WebSocket listener **in the application**, using Express
+and `ws` (sample dependencies, not SDK dependencies). The
 Node SDK creates Bert through the ordinary `createSession` API. A separate
 process uses the standard `@microsoft/agent-host-protocol` **0.7.0** client to
 list and subscribe to that same session and send a prompt. There is no
-SDK-hosted WebSocket server or custom protocol client.
-
-## Verified MVP
-
-The two-process example was verified against the local debug runtime on
-2026-09-11: the standard AHP 0.7.0 client listed and attached to the SDK-created
-session, sent `who are you`, and received `I am Bert.` The SDK host stays alive
-and logs assistant messages through its normal session observer.
+custom protocol client. The runtime parses and serializes AHP; the SDK transports
+opaque JSON text and does not own a listener, framework, or authentication policy.
 
 ## Requirements
 
-Requires Node.js 22.12+ and a local runtime build implementing `ahp.start` and
-`ahp.stop`. Keep `libruntime.so` next to `copilot-runtime`. The host uses
+Requires Node.js 22.12+ and a local runtime build implementing `ahp.createEndpoint`,
+`ahp.disposeEndpoint`, `ahp.openConnection`, `ahp.receive`, and `ahp.closeConnection`,
+plus the `ahpTransport.send` request and `ahpTransport.closed` notification.
+Keep `libruntime.so` next to `copilot-runtime`. The host uses
 `GITHUB_TOKEN` or `GH_TOKEN` when provided, otherwise normal SDK authentication.
 The existing credential-injecting proxy environment can be used when testing
 locally. Never print or commit credentials.
@@ -39,14 +36,14 @@ In another terminal:
 
 ```sh
 cd /workspace/copilot-sdk/samples/ahp
-npm run client -- 'ws://127.0.0.1:PORT' 'SESSION-ID'
+npm run client -- 'ws://127.0.0.1:PORT/ahp?token=TOKEN' 'SESSION-ID'
 ```
 
 The session ID is optional; omitted, the client selects the first listed
 session. To supply another prompt, append it after the session ID:
 
 ```sh
-npm run client -- 'ws://127.0.0.1:PORT' 'SESSION-ID' 'who are you'
+npm run client -- 'ws://127.0.0.1:PORT/ahp?token=TOKEN' 'SESSION-ID' 'who are you'
 ```
 
 The AHP process prints `AHP response: I am Bert.` and exits. The SDK process
@@ -54,20 +51,46 @@ prints `[SDK observed SESSION-ID] I am Bert.` and remains alive until Ctrl+C.
 This proves the AHP turn uses the SDK-created session's system prompt and
 event stream, rather than creating another session. Permission requests are
 denied by the SDK's normal `onPermissionRequest` callback.
+Streaming is enabled: both processes also print their delta counts. The AHP
+client receives successive complete `chat/delta` messages, not fragments of a
+single JSON document. Run the client again to attach a new physical connection
+to the same still-live session.
 Set `COPILOT_MODEL` to override the sample's `gpt-4.1` model.
 
-The public SDK facade is:
+The public SDK transport API is:
 
 ```js
 await client.start();
-const { url } = await client.startAhpHost();
-// Create sessions normally; connect an AHP client to url.
-await client.stopAhpHost(); // Stops the endpoint, not the SDK sessions.
+const endpoint = await client.createAhpEndpoint();
+// After the application authenticates and accepts a physical connection:
+const connection = endpoint.acceptConnection({
+    send: (jsonText, signal) => transport.write(jsonText, signal),
+    close: (error) => transport.close(error),
+}); // Synchronous: wire message handlers immediately, without waiting for runtime open.
+await connection.receive(text); // Bounded admission, NOT completion of the AHP operation.
+// Alternatively, assemble UTF-8 fragments (including splits within a code point):
+await connection.receiveChunk(bytes, { endOfMessage: true });
+await connection.end(); // Idempotent; immediately releases local transport ownership.
+await endpoint.dispose(); // Disposes all connections, not ordinary SDK sessions.
 ```
 
+Observe `connection.closed` for normal closure or errors. Consumer writes receive
+an `AbortSignal`; a blocked write never prevents local cleanup or physical close.
+Writes are ordered, with one in flight per connection. Complete messages and queued
+bytes are limited to 8 MiB per direction, with at most 64 pending messages;
+transport waits have a 10-second deadline.
+Pause incoming reads while awaiting admission, as the sample does. `receive` and
+`receiveChunk` are alternative message input paths; do not interleave a complete
+message with unfinished fragments. Stop, force-stop, and SDK RPC disconnect retire
+all endpoint connections. Runtime cleanup also follows SDK RPC disconnect.
+
 This is a local MVP, not a remote hosting deployment guide. Do not expose the
-endpoint to untrusted networks. It demonstrates a single text turn; it does
-not demonstrate full AHP features, reconnection, or remote authentication.
+endpoint to untrusted networks. The application filters upgrades to `/ahp` and
+authenticates them with a fresh demo capability in the printed URL; treat that URL
+as a secret. Production applications must implement their own authentication and
+TLS policy. It demonstrates streaming text turns and fresh connections to a
+live session, not full AHP features, automatic replay/reconnection, or remote
+authentication.
 
 ## Regenerate only Node RPC bindings
 

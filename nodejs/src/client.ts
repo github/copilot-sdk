@@ -42,6 +42,7 @@ import type {
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
+import { AhpEndpointImpl, type AhpEndpoint } from "./ahp.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
 import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
 import { COPILOT_CLI_VERSION } from "./cliVersion.js";
@@ -451,6 +452,7 @@ export class CopilotClient {
     /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
     private startPromise: Promise<void> | null = null;
     private sessions: Map<string, CopilotSession> = new Map();
+    private ahpEndpoints = new Map<string, AhpEndpointImpl>();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
     private connectionConfig: InternalRuntimeConnection;
@@ -1033,6 +1035,17 @@ export class CopilotClient {
      */
     async stop(): Promise<Error[]> {
         const errors: Error[] = [];
+        const ahpDisposals = [...this.ahpEndpoints.values()].map((endpoint) => endpoint.dispose());
+        const ahpResults = await Promise.allSettled(ahpDisposals);
+        for (const result of ahpResults) {
+            if (result.status === "rejected") {
+                errors.push(
+                    result.reason instanceof Error
+                        ? result.reason
+                        : new Error(String(result.reason))
+                );
+            }
+        }
 
         // Disconnect all active sessions with retry logic
         const activeSessions = [...this.sessions.values()];
@@ -1265,6 +1278,10 @@ export class CopilotClient {
      */
     async forceStop(): Promise<void> {
         this.forceStopping = true;
+        for (const endpoint of this.ahpEndpoints.values()) {
+            endpoint.retire(new Error("SDK client force stopped"));
+        }
+        this.ahpEndpoints.clear();
 
         // Clear sessions immediately without trying to destroy them
         for (const session of this.sessions.values()) {
@@ -2094,30 +2111,22 @@ export class CopilotClient {
     }
 
     /**
-     * Start the runtime-hosted Agent Host Protocol endpoint for this runtime's sessions.
-     * Connect an AHP client to the returned WebSocket URL.
+     * Create an AHP endpoint for this runtime's sessions. The application owns
+     * its listener, authentication, and physical transports; the runtime owns AHP.
      *
      * @experimental
      * @throws Error if the client is not connected or the runtime does not support AHP.
      */
-    async startAhpHost(): Promise<{ url: string }> {
-        if (!this.connection) {
+    async createAhpEndpoint(): Promise<AhpEndpoint> {
+        if (!this.connection || this.connectionClosed) {
             throw new Error("Client is not connected. Call start() first.");
         }
-        return this.connection.sendRequest("ahp.start", {});
-    }
-
-    /**
-     * Stop the runtime-hosted AHP endpoint without stopping the SDK's sessions.
-     *
-     * @experimental
-     * @throws Error if the client is not connected or the runtime does not support AHP.
-     */
-    async stopAhpHost(): Promise<void> {
-        if (!this.connection) {
-            throw new Error("Client is not connected. Call start() first.");
-        }
-        await this.connection.sendRequest("ahp.stop", {});
+        const endpoint = new AhpEndpointImpl(this.connection, () =>
+            this.ahpEndpoints.delete(endpoint.id)
+        );
+        this.ahpEndpoints.set(endpoint.id, endpoint);
+        await endpoint.initialize();
+        return endpoint;
     }
 
     /**
@@ -3093,7 +3102,25 @@ export class CopilotClient {
         // Register client *global* API handlers (e.g. LLM inference) on the
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
-        registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
+        registerClientGlobalApiHandlers(this.connection, {
+            ...this.clientGlobalHandlers,
+            ahpTransport: {
+                send: async (params) => {
+                    const connection = this.ahpEndpoints
+                        .get(params.endpointId)
+                        ?.connections.get(params.connectionId);
+                    if (!connection) throw new Error("Unknown AHP connection");
+                    await connection.send(params.message);
+                    return {};
+                },
+                closed: async (params) => {
+                    this.ahpEndpoints
+                        .get(params.endpointId)
+                        ?.connections.get(params.connectionId)
+                        ?.retire(params.error === undefined ? undefined : new Error(params.error));
+                },
+            },
+        });
 
         // `hooks.invoke` is an internal RPC method: the runtime calls it to
         // invoke a hook callback on the client. Route each call to the matching
@@ -3118,6 +3145,14 @@ export class CopilotClient {
             }
             this.sessions.clear();
             this.githubTokenProviders.clear();
+            for (const endpoint of this.ahpEndpoints.values()) {
+                endpoint.retire(new Error("SDK RPC connection closed"));
+            }
+            this.ahpEndpoints.clear();
+            // vscode-jsonrpc onClose does not reject pending request promises.
+            // Dispose the dead connection so AHP and ordinary SDK callers settle.
+            if (this.messageWriter) this.messageWriter.suppressWriteErrors = true;
+            connection.dispose();
         };
         this.connection.onClose(markDisconnected);
         this.connection.onError(() => {

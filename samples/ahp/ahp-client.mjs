@@ -61,6 +61,7 @@ try {
     }, 120_000);
     try {
         const parts = new Map();
+        let streamedDeltas = 0;
         for await (const event of subscription) {
             if (event.type !== "action" || event.params.action.turnId !== turnId) continue;
             const action = event.params.action;
@@ -70,9 +71,11 @@ try {
             ) {
                 parts.set(action.part.id, action.part.content);
             } else if (action.type === ActionType.ChatDelta) {
+                streamedDeltas++;
                 parts.set(action.partId, (parts.get(action.partId) ?? "") + action.content);
             } else if (action.type === ActionType.ChatTurnComplete) {
                 console.log(`AHP response: ${[...parts.values()].join("")}`);
+                console.log(`AHP streaming: ${streamedDeltas} chat/delta messages`);
                 break;
             } else if (action.type === ActionType.ChatError) {
                 throw new Error(action.error.message);

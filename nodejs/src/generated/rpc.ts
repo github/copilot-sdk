@@ -5306,19 +5306,34 @@ export interface AgentsGetDiscoveryPathsRequest {
    */
   excludeHostAgents?: boolean;
 }
-/**
- * The loopback WebSocket endpoint serving live SDK sessions.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AhpStartResult".
- */
+
 /** @experimental */
-export interface AhpStartResult {
-  url: string;
+export interface AhpConnectionClosedNotification {
+  endpointId: string;
+  connectionId: string;
+  error?: string;
 }
 
 /** @experimental */
-export interface AhpStopResult {}
+export interface AhpConnectionRequest {
+  endpointId: string;
+  connectionId: string;
+}
+
+/** @experimental */
+export interface AhpEmptyResult {}
+
+/** @experimental */
+export interface AhpEndpointRequest {
+  endpointId: string;
+}
+
+/** @experimental */
+export interface AhpMessageRequest {
+  endpointId: string;
+  connectionId: string;
+  message: string;
+}
 /**
  * Credential-free authentication identity safe to expose to hosts and user interfaces.
  *
@@ -24001,6 +24016,50 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
 }
 
 /** @experimental */
+export interface AhpCreateEndpointResult {}
+
+/** @experimental */
+export interface AhpCreateEndpointRequest {
+  endpointId: string;
+}
+
+/** @experimental */
+export interface AhpDisposeEndpointResult {}
+
+/** @experimental */
+export interface AhpDisposeEndpointRequest {
+  endpointId: string;
+}
+
+/** @experimental */
+export interface AhpOpenConnectionResult {}
+
+/** @experimental */
+export interface AhpOpenConnectionRequest {
+  endpointId: string;
+  connectionId: string;
+}
+
+/** @experimental */
+export interface AhpReceiveResult {}
+
+/** @experimental */
+export interface AhpReceiveRequest {
+  endpointId: string;
+  connectionId: string;
+  message: string;
+}
+
+/** @experimental */
+export interface AhpCloseConnectionResult {}
+
+/** @experimental */
+export interface AhpCloseConnectionRequest {
+  endpointId: string;
+  connectionId: string;
+}
+
+/** @experimental */
 export interface SessionFactoryPauseAtCheckpointResult {
   action: FactoryPauseCheckpointAction;
 }
@@ -24137,23 +24196,53 @@ export interface SessionFsSqliteExistsRequest {
   sessionId: string;
 }
 
+/** @experimental */
+export interface AhpTransportSendResult {}
+
+/** @experimental */
+export interface AhpTransportSendRequest {
+  endpointId: string;
+  connectionId: string;
+  message: string;
+}
+
+/** @experimental */
+export interface AhpTransportClosedRequest {
+  endpointId: string;
+  connectionId: string;
+  error?: string;
+}
+
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
         /** @experimental */
         ahp: {
             /**
-             * Starts a loopback-only AHP endpoint over this runtime's live SDK sessions. Experimental proof of concept.
-             *
-             * @returns The loopback WebSocket endpoint serving live SDK sessions.
+             * Creates an AHP endpoint owned by this SDK connection without opening a network listener.
              */
-            start: async (): Promise<AhpStartResult> =>
-                connection.sendRequest("ahp.start", {}),
+            createEndpoint: async (params: AhpCreateEndpointRequest): Promise<AhpCreateEndpointResult> =>
+                connection.sendRequest("ahp.createEndpoint", params),
             /**
-             * Stops the AHP endpoint and disconnects its clients without stopping SDK sessions.
+             * Disposes an SDK-owned AHP endpoint and its connections without stopping SDK sessions.
              */
-            stop: async (): Promise<AhpStopResult> =>
-                connection.sendRequest("ahp.stop", {}),
+            disposeEndpoint: async (params: AhpDisposeEndpointRequest): Promise<AhpDisposeEndpointResult> =>
+                connection.sendRequest("ahp.disposeEndpoint", params),
+            /**
+             * Opens a logical AHP connection whose transport is supplied by the SDK.
+             */
+            openConnection: async (params: AhpOpenConnectionRequest): Promise<AhpOpenConnectionResult> =>
+                connection.sendRequest("ahp.openConnection", params),
+            /**
+             * Admits one complete JSON-encoded AHP message to a bounded connection queue.
+             */
+            receive: async (params: AhpReceiveRequest): Promise<AhpReceiveResult> =>
+                connection.sendRequest("ahp.receive", params),
+            /**
+             * Closes a logical AHP connection and cancels its pending transport callbacks.
+             */
+            closeConnection: async (params: AhpCloseConnectionRequest): Promise<AhpCloseConnectionResult> =>
+                connection.sendRequest("ahp.closeConnection", params),
         },
         /**
          * Checks server responsiveness and returns protocol information.
@@ -27657,6 +27746,19 @@ export function registerClientSessionApiHandlers(
     });
 }
 
+/** Handler for `ahpTransport` client global API methods. */
+/** @experimental */
+export interface AhpTransportHandler {
+    /**
+     * Writes one complete JSON-encoded AHP message to an SDK-owned transport, acknowledging write completion.
+     */
+    send(params: AhpTransportSendRequest): Promise<AhpTransportSendResult>;
+    /**
+     * Notifies the SDK that a logical AHP connection has closed. No acknowledgement is needed for runtime cleanup.
+     */
+    closed(params: AhpTransportClosedRequest): Promise<void>;
+}
+
 /** Handler for `extensionLaunchProvider` client global API methods. */
 /** @experimental */
 export interface ExtensionLaunchProviderHandler {
@@ -27717,6 +27819,7 @@ export interface GitHubTokenHandler {
 
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
+    ahpTransport?: AhpTransportHandler;
     extensionLaunchProvider?: ExtensionLaunchProviderHandler;
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
@@ -27734,6 +27837,16 @@ export function registerClientGlobalApiHandlers(
     connection: MessageConnection,
     handlers: ClientGlobalApiHandlers,
 ): void {
+    connection.onRequest("ahpTransport.send", async (params: AhpTransportSendRequest) => {
+        const handler = handlers.ahpTransport;
+        if (!handler) throw new Error("No ahpTransport client-global handler registered");
+        return handler.send(params);
+    });
+    connection.onNotification("ahpTransport.closed", async (params: AhpTransportClosedRequest) => {
+        const handler = handlers.ahpTransport;
+        if (!handler) return;
+        await handler.closed(params);
+    });
     connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest) => {
         const handler = handlers.extensionLaunchProvider;
         if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");

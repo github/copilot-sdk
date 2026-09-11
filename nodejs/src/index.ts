@@ -9,6 +9,7 @@
  */
 
 export { CopilotClient } from "./client.js";
+export type { AhpEndpoint, AhpConnection, AhpTransport } from "./ahp.js";
 export { DisableBypassPermissionsModes, RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
