@@ -551,39 +551,6 @@ public class SerializationTests
         Assert.False(resumeRoot.GetProperty("memory").GetProperty("enabled").GetBoolean());
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void SessionRequests_SerializeExplicitMcpServerInstructionPolicy(bool value)
-    {
-        var options = GetSerializerOptions();
-        foreach (var typeName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
-        {
-            var requestType = GetNestedType(typeof(CopilotClient), typeName);
-            var request = CreateInternalRequest(
-                requestType,
-                ("SessionId", "session-id"),
-                ("AllowAllMcpServerInstructions", value));
-            var json = JsonSerializer.Serialize(request, requestType, options);
-            using var document = JsonDocument.Parse(json);
-            Assert.Equal(value, document.RootElement.GetProperty("allowAllMcpServerInstructions").GetBoolean());
-        }
-    }
-
-    [Fact]
-    public void SessionRequests_OmitUnsetMcpServerInstructionPolicy()
-    {
-        var options = GetSerializerOptions();
-        foreach (var typeName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
-        {
-            var requestType = GetNestedType(typeof(CopilotClient), typeName);
-            var request = CreateInternalRequest(requestType, ("SessionId", "session-id"));
-            var json = JsonSerializer.Serialize(request, requestType, options);
-            using var document = JsonDocument.Parse(json);
-            Assert.False(document.RootElement.TryGetProperty("allowAllMcpServerInstructions", out _));
-        }
-    }
-
     [Fact]
     public void SessionRequests_CanSerializeCitationAgentExclusionAndLimits_WithSdkOptions()
     {

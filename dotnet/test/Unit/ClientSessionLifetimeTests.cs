@@ -513,6 +513,54 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SessionRequests_Forward_McpServerInstructionPolicy(bool value)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            AllowAllMcpServerInstructions = value,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        await using var resumed = await client.ResumeSessionAsync("resume-with-mcp-instruction-policy", new ResumeSessionConfig
+        {
+            AllowAllMcpServerInstructions = value,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        foreach (var method in new[] { "session.create", "session.resume" })
+        {
+            var request = Assert.Single(server.Requests, request => request.Method == method);
+            Assert.Equal(value, request.Params.GetProperty("allowAllMcpServerInstructions").GetBoolean());
+        }
+    }
+
+    [Fact]
+    public async Task SessionRequests_Omit_McpServerInstructionPolicy_WhenUnset()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        await using var resumed = await client.ResumeSessionAsync("resume-without-mcp-instruction-policy", new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        foreach (var method in new[] { "session.create", "session.resume" })
+        {
+            var request = Assert.Single(server.Requests, request => request.Method == method);
+            Assert.False(request.Params.TryGetProperty("allowAllMcpServerInstructions", out _));
+        }
+    }
+
+    [Theory]
     [InlineData("efficiency")]
     [InlineData("balance")]
     [InlineData("intelligence")]
