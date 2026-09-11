@@ -224,8 +224,9 @@ jobs:
         # shared runtime cdylib rather than anything fixable from this SDK's
         # FFI bindings. An identical crash class (AccessViolationException)
         # was independently reproduced on Windows in-process in the .NET SDK
-        # in the same PR, ruling out a per-language binding bug. Tracked
-        # upstream at github/copilot-agent-runtime#18990; re-add
+        # in the same PR, ruling out a per-language binding bug. Retrying
+        # after rebasing onto CLI 1.0.84-4 reproduced the same blocker.
+        # Tracked upstream at github/copilot-agent-runtime#18990; re-add
         # windows-latest here once that's resolved. See github/copilot-sdk#2525.
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}

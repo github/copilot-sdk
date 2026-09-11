@@ -196,7 +196,8 @@ jobs:
           # ordinary connection I/O -- unrelated to shutdown/disposal, and independently
           # matched by a SIGSEGV in the Rust SDK's own Windows in-process CI in the same
           # PR. That rules out an SDK-side binding bug; tracked upstream at
-          # github/copilot-agent-runtime#18990. Re-add windows-latest here once resolved.
+          # github/copilot-agent-runtime#18990. Retrying after rebasing onto CLI 1.0.84-4
+          # reproduced the same blocker, so re-add windows-latest here once resolved.
     runs-on: ${{ matrix.os }}
     # A hung test used to run until the runner died (~50 min) and the dying
     # runner never uploaded its logs, so the failures were undiagnosable.
