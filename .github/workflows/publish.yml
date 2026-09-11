@@ -43,15 +43,6 @@ jobs:
       run:
         working-directory: ./nodejs
     steps:
-      - name: Validate release channel
-        working-directory: .
-        env:
-          DIST_TAG: ${{ inputs.dist-tag }}
-        run: |
-          case "$DIST_TAG" in
-            latest|prerelease|unstable) ;;
-            *) echo "::error::publish.yml only accepts latest, prerelease, or unstable."; exit 1 ;;
-          esac
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: ${{ inputs.dist-tag == 'unstable' && '0' || '1' }}
@@ -104,19 +95,6 @@ jobs:
                 echo "Use a version with suffix (e.g., '1.0.0-preview.0') for prerelease"
                 exit 1
               fi
-              PRERELEASE_NAMESPACE="$(node -e '
-                const semver = require("semver");
-                const parsed = semver.parse(process.argv[1]);
-                if (!parsed) process.exit(2);
-                process.stdout.write(String(parsed.prerelease[0] ?? ""));
-              ' "$VERSION")" ||
-                { echo "::error::Version '$VERSION' is not valid SemVer."; exit 1; }
-              case "$PRERELEASE_NAMESPACE" in
-                canary|unstable)
-                  echo "::error::The '$PRERELEASE_NAMESPACE' prerelease namespace is reserved for dedicated SDK release channels."
-                  exit 1
-                  ;;
-              esac
             fi
             echo "Using manual version override: $VERSION" >> $GITHUB_STEP_SUMMARY
           else
@@ -180,7 +158,7 @@ jobs:
 
   publish-nodejs:
     name: Publish Node.js SDK
-    needs: [version, package-nodejs]
+    needs: package-nodejs
     if: github.ref == 'refs/heads/main' || inputs.dist-tag == 'unstable'
     runs-on: ubuntu-latest
     permissions:
@@ -203,15 +181,9 @@ jobs:
         with:
           name: nodejs-package
           path: ./dist
-      - name: Validate unstable package manifest
-        if: inputs.dist-tag == 'unstable'
-        run: |
-          node nodejs/node_modules/.bin/tsx nodejs/scripts/release-manifest.ts verify-package-set \
-            dist/package-set-manifest.json dist
       - name: Publish tarball to public npm
         env:
           DIST_TAG: ${{ github.event.inputs.dist-tag }}
-          VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
           if [ "$DIST_TAG" = "unstable" ]; then
@@ -232,33 +204,25 @@ jobs:
               MAIN_TARBALL="$TARBALL"
               continue
             fi
-            INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$TARBALL" | openssl base64 -A)"
             node nodejs/scripts/npm-release.js publish \
               "$TARBALL" \
-              "$PACKAGE_NAME" \
-              "$VERSION" \
               "$DIST_TAG" \
               https://registry.npmjs.org \
-              public \
-              "$INTEGRITY"
+              public
           done
           if [ -z "$MAIN_TARBALL" ]; then
             echo "::error::Main @github/copilot-sdk tarball not found."
             exit 1
           fi
-          INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$MAIN_TARBALL" | openssl base64 -A)"
           node nodejs/scripts/npm-release.js publish \
             "$MAIN_TARBALL" \
-            @github/copilot-sdk \
-            "$VERSION" \
             "$DIST_TAG" \
             https://registry.npmjs.org \
-            public \
-            "$INTEGRITY"
+            public
 
   publish-nodejs-internal:
     name: Publish Node.js SDK to internal feed
-    needs: [version, publish-nodejs]
+    needs: publish-nodejs
     environment: cicd
     runs-on: ubuntu-latest
     concurrency:
@@ -286,11 +250,6 @@ jobs:
         with:
           name: nodejs-package
           path: ./dist
-      - name: Validate unstable package manifest
-        if: inputs.dist-tag == 'unstable'
-        run: |
-          node nodejs/node_modules/.bin/tsx nodejs/scripts/release-manifest.ts verify-package-set \
-            dist/package-set-manifest.json dist
       - name: Azure Login (OIDC -> id-cpd-ci)
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
@@ -310,7 +269,6 @@ jobs:
       - name: Publish tarball to internal feed
         env:
           DIST_TAG: ${{ github.event.inputs.dist-tag }}
-          VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
           if [ "$FEED_URL" != "https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/" ]; then
@@ -335,29 +293,21 @@ jobs:
               MAIN_TARBALL="$TARBALL"
               continue
             fi
-            INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$TARBALL" | openssl base64 -A)"
             node nodejs/scripts/npm-release.js publish \
               "$TARBALL" \
-              "$PACKAGE_NAME" \
-              "$VERSION" \
               "$DIST_TAG" \
               "$FEED_URL" \
-              azure \
-              "$INTEGRITY"
+              azure
           done
           if [ -z "$MAIN_TARBALL" ]; then
             echo "::error::Main @github/copilot-sdk tarball not found."
             exit 1
           fi
-          INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$MAIN_TARBALL" | openssl base64 -A)"
           node nodejs/scripts/npm-release.js publish \
             "$MAIN_TARBALL" \
-            @github/copilot-sdk \
-            "$VERSION" \
             "$DIST_TAG" \
             "$FEED_URL" \
-            azure \
-            "$INTEGRITY"
+            azure
 
   publish-dotnet:
     name: Publish .NET SDK

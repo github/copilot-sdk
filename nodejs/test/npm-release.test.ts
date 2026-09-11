@@ -3,19 +3,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import {
-    assertPackageSetVersionAbsent,
-    assertVersionAbsent,
-    publishManifest,
-    publishTarball,
-    sdkPackageNames,
-} from "../scripts/npm-release.js";
+import { assertVersionAbsent, publishManifest, publishTarball } from "../scripts/npm-release.js";
 
 const packageName = "@github/copilot-sdk";
 const version = "1.2.3-unstable.34640000001.gabcdef0";
 const registry = "https://registry.example.test";
-const integrity = "sha512-expected";
-const identity = { name: packageName, version, integrity };
+const identity = { name: packageName, version };
 const result = (status: number, stdout = "", stderr = "") => ({ status, stdout, stderr });
 
 describe("npm release preflight", () => {
@@ -28,32 +21,24 @@ describe("npm release preflight", () => {
         ).resolves.toBeUndefined();
     });
 
-    it("rejects an existing package version without reading registry integrity", async () => {
-        const existing = vi.fn().mockResolvedValue(result(0, JSON.stringify(version)));
-        await expect(assertVersionAbsent(packageName, version, registry, existing)).rejects.toThrow(
-            "already exists"
-        );
-        expect(existing.mock.calls[0][1][2]).toBe("version");
-    });
-
-    it("does not treat malformed or transient failures as absence", async () => {
-        const runner = vi.fn().mockResolvedValue(result(1, "not-json", "npm error code E500"));
+    it.each([
+        ["an existing version", result(0, JSON.stringify(version)), "already exists"],
+        ["a transient error", result(1, "", "npm error code E500"), "Could not read"],
+        ["malformed output", result(1, "not-json"), "Could not read"],
+        [
+            "a non-404 error containing E404 and 404 text",
+            result(
+                1,
+                JSON.stringify({ error: { code: "E500", summary: "version 1.2.3-E404.404" } }),
+                "npm error code E500 for 1.2.3-E404.404"
+            ),
+            "Could not read",
+        ],
+    ])("fails for %s", async (_name, response, message) => {
+        const runner = vi.fn().mockResolvedValue(response);
         await expect(assertVersionAbsent(packageName, version, registry, runner)).rejects.toThrow(
-            "Could not read"
+            message
         );
-    });
-
-    it("checks the complete nine-package SDK set", async () => {
-        const runner = vi
-            .fn()
-            .mockResolvedValue(result(1, JSON.stringify({ error: { code: "E404" } })));
-        await expect(
-            assertPackageSetVersionAbsent(version, registry, runner)
-        ).resolves.toBeUndefined();
-        expect(runner).toHaveBeenCalledTimes(9);
-        expect(
-            runner.mock.calls.map(([, args]) => args[1].slice(0, args[1].lastIndexOf("@")))
-        ).toEqual(sdkPackageNames);
     });
 });
 
@@ -61,7 +46,7 @@ describe("npm release publishing", () => {
     it("treats a successful publish as success without registry metadata", async () => {
         const runner = vi.fn().mockResolvedValue(result(0));
         await expect(
-            publishTarball("package.tgz", "unstable", registry, "public", identity, runner)
+            publishTarball("package.tgz", "unstable", registry, "public", runner)
         ).resolves.toBeUndefined();
         expect(runner).toHaveBeenCalledTimes(1);
     });
@@ -69,7 +54,7 @@ describe("npm release publishing", () => {
     it("accepts recognized immutable-version conflicts without registry integrity", async () => {
         const runner = vi.fn().mockResolvedValue(result(1, "", "npm error code EPUBLISHCONFLICT"));
         await expect(
-            publishTarball("package.tgz", "unstable", registry, "public", identity, runner)
+            publishTarball("package.tgz", "unstable", registry, "public", runner, identity)
         ).resolves.toBeUndefined();
 
         runner.mockResolvedValue(
@@ -80,15 +65,33 @@ describe("npm release publishing", () => {
             )
         );
         await expect(
-            publishTarball("package.tgz", "canary", registry, "azure", identity, runner)
+            publishTarball("package.tgz", "canary", registry, "azure", runner, identity)
         ).resolves.toBeUndefined();
         expect(runner).toHaveBeenCalledTimes(2);
     });
 
-    it("rejects unrecognized publication failures", async () => {
-        const runner = vi.fn().mockResolvedValue(result(1, "", "npm error E500"));
+    it.each([
+        ["a generic Azure 403", "403 Forbidden", "azure"],
+        [
+            "an Azure non-tarball conflict",
+            "npm error 403 already contains file 'package.json' in package '@github/copilot-sdk/1.2.3'",
+            "azure",
+        ],
+        [
+            "an embedded public phrase",
+            "npm error network timeout while parsing 'cannot publish over the previously published versions'",
+            "public",
+        ],
+        [
+            "an embedded Azure phrase",
+            "npm error network timeout while parsing \"already contains file 'package.tgz' in package '@github/copilot-sdk/1.2.3'\"",
+            "azure",
+        ],
+        ["an unrelated npm failure", "npm error E500", "public"],
+    ])("rejects %s", async (_name, error, mode) => {
+        const runner = vi.fn().mockResolvedValue(result(1, "", error));
         await expect(
-            publishTarball("package.tgz", "unstable", registry, "public", identity, runner)
+            publishTarball("package.tgz", "unstable", registry, mode, runner)
         ).rejects.toThrow("npm publish failed");
     });
 

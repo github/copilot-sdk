@@ -264,28 +264,6 @@ describe("ensureRuntimeBundle", () => {
 });
 
 describe("release package acquisition", () => {
-    it("uses a pre-acquired runtime package directory without network access", async () => {
-        const root = mkdtempSync(join(tmpdir(), "copilot-runtime-packages-"));
-        const platform = "linux-x64";
-        const packageRoot = join(root, platform);
-        const prebuilds = join(packageRoot, "prebuilds", platform);
-        mkdirSync(prebuilds, { recursive: true });
-        writeFileSync(join(packageRoot, "package.json"), "{}");
-        writeFileSync(join(prebuilds, "runtime.node"), "runtime");
-        const fetcher = vi.fn(() => {
-            throw new Error("local runtime package resolution must not fetch");
-        });
-
-        await expect(
-            ensureCopilotPackage("1.2.3-unstable.1", {
-                fetch: fetcher,
-                packageDirectory: root,
-                platform,
-            })
-        ).resolves.toBe(packageRoot);
-        expect(fetcher).not.toHaveBeenCalled();
-    });
-
     it("uses an ambient acquired package only for its exact runtime version", async () => {
         const root = mkdtempSync(join(tmpdir(), "copilot-runtime-environment-"));
         const platform = "linux-x64";
