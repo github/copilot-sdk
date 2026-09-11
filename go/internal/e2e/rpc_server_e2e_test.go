@@ -17,6 +17,21 @@ import (
 // Mirrors dotnet/test/RpcServerTests.cs (snapshot category "rpc_server").
 // Tests server-scoped (non-session) RPCs.
 func TestRPCServerE2E(t *testing.T) {
+	t.Run("should clear the managed settings cache", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		ctx.ConfigureForTest(t)
+		client := ctx.NewClient()
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+
+		if _, err := client.RPC.ManagedSettings.ClearCache(t.Context()); err != nil {
+			t.Fatalf("ManagedSettings.ClearCache failed: %v", err)
+		}
+	})
+
 	t.Run("should call rpc ping with typed params and result", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureForTest(t)
@@ -64,12 +79,12 @@ func TestRPCServerE2E(t *testing.T) {
 			if strings.TrimSpace(model.Name) == "" {
 				t.Errorf("Model %q has empty Name", model.ID)
 			}
-			if model.ID == "claude-sonnet-4.5" {
+			if model.ID == "claude-sonnet-5" {
 				hasClaude = true
 			}
 		}
 		if !hasClaude {
-			t.Errorf("Expected models list to contain 'claude-sonnet-4.5'")
+			t.Errorf("Expected models list to contain 'claude-sonnet-5'")
 		}
 	})
 
@@ -532,6 +547,7 @@ func TestRPCServerE2E(t *testing.T) {
 
 	t.Run("should report implemented error when connecting unknown remote session", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
+		ctx.ConfigureWithoutSnapshot(t)
 		client := ctx.NewClient()
 		t.Cleanup(func() { client.ForceStop() })
 		if err := client.Start(t.Context()); err != nil {

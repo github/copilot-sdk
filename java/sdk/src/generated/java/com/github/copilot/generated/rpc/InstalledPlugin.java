@@ -36,6 +36,8 @@ public record InstalledPlugin(
     /** Source for direct repo installs (when marketplace is empty) */
     @JsonProperty("source") Object source,
     /** Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs. */
-    @JsonProperty("source_sha") String sourceSha
+    @JsonProperty("source_sha") String sourceSha,
+    /** Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — those synthesized at session start for a directory/local marketplace, whose cache_path points at the real plugin directory on disk rather than a copy under the installed-plugins cache. Its presence is what marks a record as live, and no record carrying it is ever written to the persisted installedPlugins key. */
+    @JsonProperty("installed_from") String installedFrom
 ) {
 }

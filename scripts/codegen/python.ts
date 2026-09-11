@@ -143,12 +143,22 @@ function placeholderToQuicktypeIdentifiers(placeholder: string): string[] {
     return [...new Set([basic, basic.replace(/Mcp/g, "MCP")])];
 }
 
-function postProcessExternalRefsForPython(
+export function postProcessExternalRefsForPython(
     code: string,
     placeholderToReal: Map<string, string>,
     externalEnumNames: Set<string> = new Set()
 ): string {
     for (const [placeholder, realName] of placeholderToReal) {
+        const markerProperty = `__externalRefMarker_${placeholder}`;
+        const markerClass = [
+            ...code.matchAll(
+                /(?:^|\n)(@dataclass\r?\nclass (\w+)\b[\s\S]*?)(?=\n@dataclass\b|\nclass\s+\w|\ndef\s+\w|$)/g
+            ),
+        ].find((match) => match[1].includes(`"${markerProperty}"`));
+        if (markerClass) {
+            code = code.replace(markerClass[0], "\n");
+            code = code.replace(new RegExp(`\\b${escapeRegExp(markerClass[2])}\\b`, "g"), realName);
+        }
         for (const quicktypeName of placeholderToQuicktypeIdentifiers(placeholder)) {
             code = code.replace(
                 new RegExp(
@@ -3763,12 +3773,13 @@ function clientSessionHandlerMethodName(rpcMethod: string): string {
     return toSnakeCase(parts[parts.length - 1]);
 }
 
-function emitClientSessionApiRegistration(
+export function emitClientSessionApiRegistration(
     lines: string[],
     node: Record<string, unknown>,
     resolveType: (name: string) => string
 ): void {
-    const groups = Object.entries(node).filter(([, value]) => typeof value === "object" && value !== null && !isRpcMethod(value));
+    const publicNode = filterNodeByVisibility(node, "public") ?? {};
+    const groups = Object.entries(publicNode).filter(([, value]) => typeof value === "object" && value !== null && !isRpcMethod(value));
 
     for (const [groupName, groupNode] of groups) {
         const handlerName = `${toPascalCase(groupName)}Handler`;

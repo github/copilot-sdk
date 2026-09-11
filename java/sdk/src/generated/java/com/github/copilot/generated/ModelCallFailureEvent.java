@@ -82,7 +82,9 @@ public final class ModelCallFailureEvent extends SessionEvent {
         /** Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure. */
         @JsonProperty("quotaSnapshots") Map<String, AssistantUsageQuotaSnapshot> quotaSnapshots,
         /** Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures. */
-        @JsonProperty("requestFingerprint") ModelCallFailureRequestFingerprint requestFingerprint
+        @JsonProperty("requestFingerprint") ModelCallFailureRequestFingerprint requestFingerprint,
+        /** Experimental HydraFusion attribution for this failed concrete model call. */
+        @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }
 }

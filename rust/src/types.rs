@@ -21,9 +21,14 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
 use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
+/// Acknowledgement and Auto preference snapshot returned by an Auto tier switch.
+pub use crate::generated::api_types::{ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus};
+/// Routing tier for the `auto` model with Auto mode V2.
+pub use crate::generated::session_events::AutoTier;
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
+use crate::github_token::GitHubTokenProvider;
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, McpAuthHandler,
     PermissionHandler, UserInputHandler,
@@ -1416,6 +1421,19 @@ impl ProviderConfig {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct CapiSessionOptions {
+    /// Routing tier, meaningful only with model `auto` (Auto mode V2).
+    /// Requires a runtime version that supports `capi.autoTier`.
+    ///
+    /// When omitted, the runtime chooses its default on create and restores
+    /// the last committed tier on cold resume. On resident resume, a different
+    /// tier requests a safe switch that takes effect after resume succeeds and
+    /// never disturbs a turn that is already running.
+    ///
+    /// To change the preference on a live session, use
+    /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
+
     /// Whether to use WebSocket transport for CAPI Responses API calls.
     ///
     /// When `Some(false)`, the runtime uses HTTP Responses transport even if
@@ -1429,6 +1447,12 @@ impl CapiSessionOptions {
     /// Construct CAPI session options with all fields unset.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the routing tier for the `auto` model (Auto mode V2).
+    pub fn with_auto_tier(mut self, auto_tier: AutoTier) -> Self {
+        self.auto_tier = Some(auto_tier);
+        self
     }
 
     /// Set whether to use WebSocket transport for CAPI Responses API calls.
@@ -1760,13 +1784,14 @@ pub struct CopilotExpAssignmentResponse {
     pub assignment_context: String,
 }
 
-/// Controls whether bypass-permissions mode is available in a managed session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-#[non_exhaustive]
-pub enum DisableBypassPermissionsMode {
-    /// Turn off bypass-permissions mode.
-    Disable,
+/// Well-known managed bypass-permissions policies.
+pub struct DisableBypassPermissionsModes;
+
+impl DisableBypassPermissionsModes {
+    /// Permit automatic bypass but block full allow-all.
+    pub const ALLOW_AUTO_ONLY: &'static str = "allow-auto-only";
+    /// Turn off bypass-permissions mode entirely.
+    pub const DISABLE: &'static str = "disable";
 }
 
 /// Permission rules injected as a managed-settings layer at session bootstrap.
@@ -1775,18 +1800,17 @@ pub enum DisableBypassPermissionsMode {
 /// layer. This layer composes restrictively with any server- or device-level
 /// managed settings: [`deny`](Self::deny) and [`ask`](Self::ask) rules are
 /// unioned across layers, every present [`allow`](Self::allow) list must admit a
-/// tool for it to be allowed, and
-/// [`disable_bypass_permissions_mode`](Self::disable_bypass_permissions_mode) is
-/// honored if any layer sets it (deny-wins).
+/// tool for it to be allowed, and bypass-mode restrictions compose to the most
+/// restrictive setting.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ManagedSettingsPermissions {
-    /// When set to `"disable"`, bypass-permissions mode is turned off for the
-    /// session regardless of other layers. Serialized as
-    /// `disableBypassPermissionsMode`.
+    /// Restricts bypass-permissions mode for the session. See
+    /// [`DisableBypassPermissionsModes`] for well-known values. Unknown values
+    /// are forwarded so newer runtime policies fail closed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub disable_bypass_permissions_mode: Option<DisableBypassPermissionsMode>,
+    pub disable_bypass_permissions_mode: Option<String>,
     /// Tool-permission patterns that are always denied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deny: Option<Vec<String>>,
@@ -1800,11 +1824,8 @@ pub struct ManagedSettingsPermissions {
 
 impl ManagedSettingsPermissions {
     /// Sets the bypass-permissions policy for this managed layer.
-    pub fn with_disable_bypass_permissions_mode(
-        mut self,
-        value: DisableBypassPermissionsMode,
-    ) -> Self {
-        self.disable_bypass_permissions_mode = Some(value);
+    pub fn with_disable_bypass_permissions_mode(mut self, value: impl Into<String>) -> Self {
+        self.disable_bypass_permissions_mode = Some(value.into());
         self
     }
 
@@ -1851,6 +1872,18 @@ impl ManagedSettings {
         self.permissions = Some(permissions);
         self
     }
+}
+
+/// Selects the model-facing shape of the built-in `ask_user` tool.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum AskUserVariant {
+    /// Use the legacy user-input request flow.
+    #[default]
+    Legacy,
+    /// Use the elicitation request flow.
+    Elicitation,
 }
 
 /// Configuration for creating a new session via the `session.create` RPC.
@@ -1926,6 +1959,11 @@ pub struct SessionConfig {
     pub streaming: Option<bool>,
     /// Custom system message configuration.
     pub system_message: Option<SystemMessageConfig>,
+    /// Selects the model-facing shape of the built-in `ask_user` tool.
+    ///
+    /// When omitted, the runtime uses [`AskUserVariant::Legacy`]. To use
+    /// [`AskUserVariant::Elicitation`], also install an [`ElicitationHandler`].
+    pub ask_user_variant: Option<AskUserVariant>,
     /// Client-defined tool declarations to expose to the agent.
     pub tools: Option<Vec<Tool>>,
     /// Canvas declarations this connection provides to the runtime.
@@ -1958,8 +1996,16 @@ pub struct SessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
+    /// Built-in skill names to include in the session. In
+    /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
+    /// runtime-bundled skills; `Some` opts the named built-ins back in.
+    pub included_builtin_skills: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
+    /// Whether instructions from every configured MCP server are included in
+    /// the system prompt. Enabling this broadens the default trust boundary;
+    /// only use it with trusted servers. `None` leaves the runtime default.
+    pub allow_all_mcp_server_instructions: Option<bool>,
     /// Controls how MCP OAuth tokens are stored for this session.
     ///
     /// - `"persistent"` — tokens are stored in the OS keychain (shared across sessions).
@@ -1969,6 +2015,13 @@ pub struct SessionConfig {
     /// applied automatically at session creation/resume time. `None` means no
     /// explicit value is set and the runtime default takes effect.
     pub mcp_oauth_token_storage: Option<String>,
+    /// URL identifying this host's OAuth client metadata document.
+    ///
+    /// Authorization servers that support client ID metadata documents can use
+    /// this URL as the MCP OAuth client ID. When unset, the SDK does not supply
+    /// a first-party host identity and the runtime uses its generic,
+    /// session-isolated OAuth client behavior.
+    pub auth_client_id_metadata_url: Option<String>,
     /// Enables runtime discovery of supported configuration. Explicitly supplied
     /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
@@ -2116,6 +2169,12 @@ pub struct SessionConfig {
     /// the GitHub identity used for content exclusion, model routing, and
     /// quota checks for *this session*.
     pub github_token: Option<String>,
+    /// Provider used to acquire rotating GitHub tokens for this session.
+    ///
+    /// Mutually exclusive with [`github_token`](Self::github_token). The callback
+    /// receives the effective host, optional assigned session ID, and acquisition
+    /// reason; its opaque registration ID is never exposed.
+    pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     /// Per-session remote behavior control:
     /// - `Off` — local only, no remote export (default)
     /// - `Export` — export session events to GitHub without
@@ -2133,6 +2192,12 @@ pub struct SessionConfig {
     /// each command appears as `/name` for the user to invoke and the
     /// associated [`CommandHandler`] is called when executed.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Feature-flag values resolved by the host for this session.
+    ///
+    /// Re-supply these values through [`ResumeSessionConfig::feature_flags`]
+    /// when resuming after a CLI process restart. Set via
+    /// [`with_feature_flags`](Self::with_feature_flags).
+    pub feature_flags: Option<HashMap<String, bool>>,
     /// ExP assignment ("flight") data injected by a trusted integrator, in
     /// the same JSON shape the Copilot CLI fetches from the experimentation
     /// service (`CopilotExpAssignmentResponse`). When supplied, the runtime
@@ -2143,9 +2208,10 @@ pub struct SessionConfig {
     pub exp_assignments: Option<CopilotExpAssignmentResponse>,
     /// Opt-in: when `Some(true)`, the runtime self-fetches enterprise managed
     /// settings (bypass-permissions policy) at session bootstrap using the
-    /// session's [`github_token`](Self::github_token). Requires `github_token`
-    /// to be set; if omitted, the runtime is expected to reject session creation
-    /// (fail-closed). When `None`, behaves exactly as before. Set via
+    /// session's static [`github_token`](Self::github_token) or
+    /// [`github_token_provider`](Self::github_token_provider). Requires one of
+    /// those credentials; if both are omitted, the runtime is expected to reject
+    /// session creation (fail-closed). When `None`, behaves exactly as before. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
     /// Optional managed-settings layer injected at session bootstrap. Currently
@@ -2172,9 +2238,9 @@ pub struct SessionConfig {
     /// Optional MCP OAuth request handler. When set, the SDK can satisfy MCP
     /// server OAuth requests with host-acquired token data or cancellation.
     pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
-    /// Optional user-input handler. When `None`,
-    /// `requestUserInput: false` goes on the wire and the `ask_user`
-    /// tool is disabled.
+    /// Optional handler for the legacy question-and-answer `ask_user` variant.
+    /// When `None`, `requestUserInput: false` goes on the wire, so this client
+    /// cannot handle legacy user-input requests.
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
     /// Optional exit-plan-mode handler. When `None`,
     /// `requestExitPlanMode: false` goes on the wire.
@@ -2216,6 +2282,23 @@ pub struct SessionConfig {
     /// `session.options.update` after create/resume. Defaults to `false` in
     /// [`crate::ClientMode::Empty`] when unset.
     pub manage_schedule_enabled: Option<bool>,
+    /// Capacity of the per-session broadcast buffer backing
+    /// [`Session::subscribe`](crate::session::Session::subscribe) and
+    /// [`PreparedSession::subscribe`](crate::session::PreparedSession::subscribe).
+    ///
+    /// Runtime-only — never sent on the wire. Defaults to
+    /// [`DEFAULT_EVENT_BUFFER_CAPACITY`](crate::session::DEFAULT_EVENT_BUFFER_CAPACITY)
+    /// when unset. Must be non-zero;
+    /// `Some(0)` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_session`](crate::Client::prepare_session).
+    ///
+    /// The buffer is finite: subscribers that fall behind observe
+    /// [`Lagged`](crate::subscription::Lagged) rather than applying
+    /// backpressure to the event loop. Raise this when a consumer needs a
+    /// lossless view of a large startup burst without draining
+    /// concurrently.
+    pub event_buffer_capacity: Option<usize>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -2229,6 +2312,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
+            .field("ask_user_variant", &self.ask_user_variant)
             .field("tools", &self.tools)
             .field("canvases", &self.canvases)
             .field(
@@ -2243,8 +2327,17 @@ impl std::fmt::Debug for SessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
+            .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
+            .field(
+                "allow_all_mcp_server_instructions",
+                &self.allow_all_mcp_server_instructions,
+            )
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field(
+                "auth_client_id_metadata_url",
+                &self.auth_client_id_metadata_url,
+            )
             .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
@@ -2297,6 +2390,10 @@ impl std::fmt::Debug for SessionConfig {
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
             )
+            .field(
+                "github_token_provider",
+                &self.github_token_provider.as_ref().map(|_| "<set>"),
+            )
             .field("remote_session", &self.remote_session)
             .field("cloud", &self.cloud)
             .field(
@@ -2304,6 +2401,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("feature_flags", &self.feature_flags)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
@@ -2344,6 +2442,7 @@ impl std::fmt::Debug for SessionConfig {
                 "system_message_transform",
                 &self.system_message_transform.as_ref().map(|_| "<set>"),
             )
+            .field("event_buffer_capacity", &self.event_buffer_capacity)
             .finish()
     }
 }
@@ -2364,6 +2463,7 @@ impl Default for SessionConfig {
             context_tier: None,
             streaming: None,
             system_message: None,
+            ask_user_variant: None,
             tools: None,
             canvases: None,
             canvas_handler: None,
@@ -2375,8 +2475,11 @@ impl Default for SessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
+            included_builtin_skills: None,
             mcp_servers: None,
+            allow_all_mcp_server_instructions: None,
             mcp_oauth_token_storage: None,
+            auth_client_id_metadata_url: None,
             enable_config_discovery: None,
             skip_embedding_retrieval: None,
             organization_custom_instructions: None,
@@ -2414,10 +2517,12 @@ impl Default for SessionConfig {
             working_directory: None,
             additional_directories: None,
             github_token: None,
+            github_token_provider: None,
             remote_session: None,
             cloud: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
             managed_settings: None,
@@ -2436,6 +2541,7 @@ impl Default for SessionConfig {
             enable_experimental_mode: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
+            event_buffer_capacity: None,
         }
     }
 }
@@ -2459,6 +2565,7 @@ pub(crate) struct SessionConfigRuntime {
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     pub bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
+    pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     pub commands: Option<Vec<CommandDefinition>>,
 }
 
@@ -2478,6 +2585,12 @@ impl SessionConfig {
         mut self,
         session_id: Option<SessionId>,
     ) -> Result<(crate::wire::SessionCreateWire, SessionConfigRuntime), crate::Error> {
+        if self.github_token.is_some() && self.github_token_provider.is_some() {
+            return Err(crate::Error::with_message(
+                crate::ErrorKind::InvalidConfig,
+                "github_token and github_token_provider are mutually exclusive",
+            ));
+        }
         let permission_active =
             self.permission_handler.is_some() || self.permission_policy.is_some();
         let request_user_input = self.user_input_handler.is_some();
@@ -2522,6 +2635,7 @@ impl SessionConfig {
             context_tier: self.context_tier,
             streaming: self.streaming,
             system_message: self.system_message,
+            ask_user_variant: self.ask_user_variant,
             tools: self.tools,
             canvases: wire_canvases,
             request_canvas_renderer: self.request_canvas_renderer,
@@ -2534,7 +2648,9 @@ impl SessionConfig {
             excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
+            allow_all_mcp_server_instructions: self.allow_all_mcp_server_instructions,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -2579,11 +2695,13 @@ impl SessionConfig {
             working_directory: self.working_directory,
             additional_directories: self.additional_directories,
             github_token: self.github_token,
+            github_token_provider_registration_id: None,
             remote_session: self.remote_session,
             cloud: self.cloud,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
+            feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
@@ -2604,6 +2722,7 @@ impl SessionConfig {
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
             bearer_token_providers,
+            github_token_provider: self.github_token_provider,
             commands: self.commands,
         };
 
@@ -2631,10 +2750,16 @@ impl SessionConfig {
         self
     }
 
-    /// Install a [`UserInputHandler`]. Required for the `ask_user` tool
-    /// to be enabled.
+    /// Install a [`UserInputHandler`] for the legacy question-and-answer
+    /// `ask_user` variant.
     pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
         self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Select the model-facing shape of the built-in `ask_user` tool.
+    pub fn with_ask_user_variant(mut self, variant: AskUserVariant) -> Self {
+        self.ask_user_variant = Some(variant);
         self
     }
 
@@ -2855,6 +2980,15 @@ impl SessionConfig {
         self
     }
 
+    /// Include instructions from every configured MCP server.
+    ///
+    /// Enabling this broadens the default trust boundary; only use it with
+    /// trusted servers.
+    pub fn with_allow_all_mcp_server_instructions(mut self, allow: bool) -> Self {
+        self.allow_all_mcp_server_instructions = Some(allow);
+        self
+    }
+
     /// Set MCP OAuth token storage mode.
     ///
     /// - `"persistent"` — tokens stored in the OS keychain.
@@ -2864,6 +2998,12 @@ impl SessionConfig {
     /// applied automatically at session creation/resume time.
     pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
         self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
+    /// Set the URL identifying this host's OAuth client metadata document.
+    pub fn with_auth_client_id_metadata_url(mut self, url: impl Into<String>) -> Self {
+        self.auth_client_id_metadata_url = Some(url.into());
         self
     }
 
@@ -2951,6 +3091,16 @@ impl SessionConfig {
         P: Into<PathBuf>,
     {
         self.skill_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the runtime-bundled skill allowlist.
+    pub fn with_included_builtin_skills<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.included_builtin_skills = Some(names.into_iter().map(Into::into).collect());
         self
     }
 
@@ -3144,6 +3294,16 @@ impl SessionConfig {
         self
     }
 
+    /// Install a rotating GitHub token provider for this session.
+    ///
+    /// The provider must return a positive remaining lifetime in seconds when
+    /// its callback completes. Production GitHub tokens typically last eight
+    /// hours. This option is mutually exclusive with [`with_github_token`](Self::with_github_token).
+    pub fn with_github_token_provider(mut self, provider: Arc<dyn GitHubTokenProvider>) -> Self {
+        self.github_token_provider = Some(provider);
+        self
+    }
+
     /// Forward sub-agent streaming events to this connection. Defaults
     /// to true on the CLI when unset.
     pub fn with_include_sub_agent_streaming_events(mut self, include: bool) -> Self {
@@ -3196,6 +3356,24 @@ impl SessionConfig {
         self
     }
 
+    /// Set feature-flag values resolved by the host for this session.
+    pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
+        self.feature_flags = Some(feature_flags);
+        self
+    }
+
+    /// Set [`Self::event_buffer_capacity`].
+    ///
+    /// A capacity of `0` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_session`](crate::Client::prepare_session) and
+    /// [`Client::create_session`](crate::Client::create_session); the value
+    /// is never clamped.
+    pub fn with_event_buffer_capacity(mut self, capacity: usize) -> Self {
+        self.event_buffer_capacity = Some(capacity);
+        self
+    }
+
     /// Inject ExP assignment ("flight") data for this session, in the same
     /// JSON shape the Copilot CLI fetches from the experimentation service
     /// (`CopilotExpAssignmentResponse`). The runtime feeds it into the same
@@ -3211,9 +3389,10 @@ impl SessionConfig {
 
     /// Opt the runtime into self-fetching enterprise managed settings
     /// (bypass-permissions policy) at session bootstrap using the session's
-    /// [`github_token`](Self::github_token). Requires `github_token` to be set;
-    /// if omitted, the runtime is expected to reject session creation
-    /// (fail-closed).
+    /// static [`github_token`](Self::github_token) or
+    /// [`github_token_provider`](Self::github_token_provider). Requires one of
+    /// those credentials; if both are omitted, the runtime is expected to reject
+    /// session creation (fail-closed).
     pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
         self.enable_managed_settings = Some(enabled);
         self
@@ -3258,6 +3437,11 @@ pub struct ResumeSessionConfig {
     /// Re-supply the system message so the agent retains workspace context
     /// across CLI process restarts.
     pub system_message: Option<SystemMessageConfig>,
+    /// Selects the model-facing shape of the built-in `ask_user` tool on a cold resume.
+    ///
+    /// When omitted, the runtime uses [`AskUserVariant::Legacy`]. To use
+    /// [`AskUserVariant::Elicitation`], also install an [`ElicitationHandler`].
+    pub ask_user_variant: Option<AskUserVariant>,
     /// Client-defined tool declarations to re-supply on resume.
     pub tools: Option<Vec<Tool>>,
     /// Canvas declarations this connection provides to the runtime.
@@ -3290,11 +3474,25 @@ pub struct ResumeSessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
+    /// Built-in skill names to include in the resumed session. In
+    /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
+    /// runtime-bundled skills; `Some` opts the named built-ins back in.
+    pub included_builtin_skills: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
+    /// Whether instructions from every configured MCP server are included in
+    /// the system prompt. Enabling this broadens the default trust boundary;
+    /// only use it with trusted servers. `None` leaves the runtime default.
+    pub allow_all_mcp_server_instructions: Option<bool>,
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
+    /// Re-supply the host OAuth client metadata document URL on resume.
+    ///
+    /// Set this to the same host identity used when the session was created.
+    /// When unset, the SDK does not supply a first-party host identity.
+    /// See [`SessionConfig::auth_client_id_metadata_url`] for details.
+    pub auth_client_id_metadata_url: Option<String>,
     /// Enables runtime discovery of supported configuration. Explicitly supplied
     /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
@@ -3402,6 +3600,9 @@ pub struct ResumeSessionConfig {
     /// Per-session GitHub token on resume. See
     /// [`SessionConfig::github_token`].
     pub github_token: Option<String>,
+    /// Rotating GitHub token provider on resume. See
+    /// [`SessionConfig::github_token_provider`].
+    pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     /// Per-session remote behavior control on resume. See
     /// [`SessionConfig::remote_session`].
     pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
@@ -3411,6 +3612,10 @@ pub struct ResumeSessionConfig {
     /// [`SessionConfig::commands`] — commands are not persisted server-side,
     /// so the resume payload re-supplies the registration.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Feature-flag values resolved by the host to apply on resume.
+    ///
+    /// See [`SessionConfig::feature_flags`].
+    pub feature_flags: Option<HashMap<String, bool>>,
     /// ExP assignment ("flight") data injected on resume. See
     /// [`SessionConfig::exp_assignments`]. Re-supply on resume so the runtime
     /// re-applies the assignments after a CLI process restart. Set via
@@ -3481,6 +3686,8 @@ pub struct ResumeSessionConfig {
     pub coauthor_enabled: Option<bool>,
     /// See [`SessionConfig::manage_schedule_enabled`].
     pub manage_schedule_enabled: Option<bool>,
+    /// See [`SessionConfig::event_buffer_capacity`].
+    pub event_buffer_capacity: Option<usize>,
 }
 
 impl std::fmt::Debug for ResumeSessionConfig {
@@ -3494,6 +3701,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
+            .field("ask_user_variant", &self.ask_user_variant)
             .field("tools", &self.tools)
             .field("canvases", &self.canvases)
             .field(
@@ -3509,8 +3717,17 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
+            .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
+            .field(
+                "allow_all_mcp_server_instructions",
+                &self.allow_all_mcp_server_instructions,
+            )
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field(
+                "auth_client_id_metadata_url",
+                &self.auth_client_id_metadata_url,
+            )
             .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
@@ -3563,12 +3780,17 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
             )
+            .field(
+                "github_token_provider",
+                &self.github_token_provider.as_ref().map(|_| "<set>"),
+            )
             .field("remote_session", &self.remote_session)
             .field(
                 "include_sub_agent_streaming_events",
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("feature_flags", &self.feature_flags)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
@@ -3607,6 +3829,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("suppress_resume_event", &self.suppress_resume_event)
             .field("continue_pending_work", &self.continue_pending_work)
+            .field("event_buffer_capacity", &self.event_buffer_capacity)
             .finish()
     }
 }
@@ -3622,6 +3845,12 @@ impl ResumeSessionConfig {
     pub(crate) fn into_wire(
         mut self,
     ) -> Result<(crate::wire::SessionResumeWire, SessionConfigRuntime), crate::Error> {
+        if self.github_token.is_some() && self.github_token_provider.is_some() {
+            return Err(crate::Error::with_message(
+                crate::ErrorKind::InvalidConfig,
+                "github_token and github_token_provider are mutually exclusive",
+            ));
+        }
         let permission_active =
             self.permission_handler.is_some() || self.permission_policy.is_some();
         let request_user_input = self.user_input_handler.is_some();
@@ -3666,6 +3895,7 @@ impl ResumeSessionConfig {
             context_tier: self.context_tier,
             streaming: self.streaming,
             system_message: self.system_message,
+            ask_user_variant: self.ask_user_variant,
             tools: self.tools,
             canvases: wire_canvases,
             open_canvases: self.open_canvases,
@@ -3679,7 +3909,9 @@ impl ResumeSessionConfig {
             excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
+            allow_all_mcp_server_instructions: self.allow_all_mcp_server_instructions,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -3724,10 +3956,12 @@ impl ResumeSessionConfig {
             working_directory: self.working_directory,
             additional_directories: self.additional_directories,
             github_token: self.github_token,
+            github_token_provider_registration_id: None,
             remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
+            feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
@@ -3750,6 +3984,7 @@ impl ResumeSessionConfig {
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
             bearer_token_providers,
+            github_token_provider: self.github_token_provider,
             commands: self.commands,
         };
 
@@ -3770,6 +4005,7 @@ impl ResumeSessionConfig {
             context_tier: None,
             streaming: None,
             system_message: None,
+            ask_user_variant: None,
             tools: None,
             canvases: None,
             canvas_handler: None,
@@ -3782,8 +4018,11 @@ impl ResumeSessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
+            included_builtin_skills: None,
             mcp_servers: None,
+            allow_all_mcp_server_instructions: None,
             mcp_oauth_token_storage: None,
+            auth_client_id_metadata_url: None,
             enable_config_discovery: None,
             skip_embedding_retrieval: None,
             organization_custom_instructions: None,
@@ -3821,9 +4060,11 @@ impl ResumeSessionConfig {
             working_directory: None,
             additional_directories: None,
             github_token: None,
+            github_token_provider: None,
             remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
             managed_settings: None,
@@ -3844,6 +4085,7 @@ impl ResumeSessionConfig {
             enable_experimental_mode: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
+            event_buffer_capacity: None,
         }
     }
 
@@ -3868,6 +4110,12 @@ impl ResumeSessionConfig {
     /// Install a [`UserInputHandler`] for the resumed session.
     pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
         self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Select the model-facing shape of the built-in `ask_user` tool on resume.
+    pub fn with_ask_user_variant(mut self, variant: AskUserVariant) -> Self {
+        self.ask_user_variant = Some(variant);
         self
     }
 
@@ -4081,10 +4329,25 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Include instructions from every configured MCP server on resume.
+    ///
+    /// Enabling this broadens the default trust boundary; only use it with
+    /// trusted servers.
+    pub fn with_allow_all_mcp_server_instructions(mut self, allow: bool) -> Self {
+        self.allow_all_mcp_server_instructions = Some(allow);
+        self
+    }
+
     /// Set MCP OAuth token storage mode on resume.
     /// See [`SessionConfig::with_mcp_oauth_token_storage`] for details.
     pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
         self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
+    /// Set the host OAuth client metadata document URL on resume.
+    pub fn with_auth_client_id_metadata_url(mut self, url: impl Into<String>) -> Self {
+        self.auth_client_id_metadata_url = Some(url.into());
         self
     }
 
@@ -4172,6 +4435,16 @@ impl ResumeSessionConfig {
         P: Into<PathBuf>,
     {
         self.skill_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the runtime-bundled skill allowlist on resume.
+    pub fn with_included_builtin_skills<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.included_builtin_skills = Some(names.into_iter().map(Into::into).collect());
         self
     }
 
@@ -4361,6 +4634,16 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Install a rotating GitHub token provider for the resumed session.
+    ///
+    /// The provider must return a positive remaining lifetime in seconds when
+    /// its callback completes. Production GitHub tokens typically last eight
+    /// hours. Mutually exclusive with [`with_github_token`](Self::with_github_token).
+    pub fn with_github_token_provider(mut self, provider: Arc<dyn GitHubTokenProvider>) -> Self {
+        self.github_token_provider = Some(provider);
+        self
+    }
+
     /// Forward sub-agent streaming events to this connection on resume.
     pub fn with_include_sub_agent_streaming_events(mut self, include: bool) -> Self {
         self.include_sub_agent_streaming_events = Some(include);
@@ -4420,6 +4703,24 @@ impl ResumeSessionConfig {
     /// Set [`Self::manage_schedule_enabled`].
     pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
         self.manage_schedule_enabled = Some(value);
+        self
+    }
+
+    /// Re-supply feature-flag values resolved by the host on resume.
+    pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
+        self.feature_flags = Some(feature_flags);
+        self
+    }
+
+    /// Set [`Self::event_buffer_capacity`].
+    ///
+    /// A capacity of `0` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_resume_session`](crate::Client::prepare_resume_session)
+    /// and [`Client::resume_session`](crate::Client::resume_session); the
+    /// value is never clamped.
+    pub fn with_event_buffer_capacity(mut self, capacity: usize) -> Self {
+        self.event_buffer_capacity = Some(capacity);
         self
     }
 
@@ -4617,6 +4918,30 @@ pub struct SetModelOptions {
     /// fields set on the override are applied; the rest fall back to the
     /// runtime-resolved values for the model.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Auto routing preference to stage atomically with selecting the `auto`
+    /// model.
+    ///
+    /// Leave as `None` to leave the current preference alone. The runtime
+    /// rejects this option when the model is anything other than `auto`; use
+    /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier) to
+    /// change the preference without changing the selected model.
+    pub auto_tier: Option<AutoTierPreference>,
+}
+
+/// Auto routing preference requested alongside a model switch.
+///
+/// **Experimental.** Part of an experimental Auto routing surface and may change
+/// or be removed in a future release.
+///
+/// This is a three-state choice. Leaving [`SetModelOptions::auto_tier`] as
+/// `None` leaves the current preference alone, which is different from
+/// [`AutoTierPreference::Reset`], which actively resets it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AutoTierPreference {
+    /// Route using a specific tier.
+    Tier(AutoTier),
+    /// Return to the provider's default Auto routing.
+    Reset,
 }
 
 impl SetModelOptions {
@@ -4644,6 +4969,19 @@ impl SetModelOptions {
         caps: crate::generated::api_types::ModelCapabilitiesOverride,
     ) -> Self {
         self.model_capabilities = Some(caps);
+        self
+    }
+
+    /// Set [`auto_tier`](Self::auto_tier) to a specific routing tier.
+    pub fn with_auto_tier(mut self, tier: AutoTier) -> Self {
+        self.auto_tier = Some(AutoTierPreference::Tier(tier));
+        self
+    }
+
+    /// Set [`auto_tier`](Self::auto_tier) to return to the provider's default
+    /// Auto routing.
+    pub fn with_reset_auto_tier(mut self) -> Self {
+        self.auto_tier = Some(AutoTierPreference::Reset);
         self
     }
 }
@@ -5052,6 +5390,51 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
     }
 }
 
+/// Provenance of a message sent through `session.send`.
+///
+/// Source is independent of delivery mode. Leaving [`MessageOptions::source`]
+/// unset omits the field and preserves the runtime's default for user messages.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum MessageSource {
+    /// A message from a human user.
+    User,
+    /// An automated message from the integrating application.
+    System,
+    /// A message from the agent with this opaque sender ID.
+    Agent(String),
+}
+
+impl std::fmt::Display for MessageSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::User => f.write_str("user"),
+            Self::System => f.write_str("system"),
+            Self::Agent(id) => write!(f, "agent-{id}"),
+        }
+    }
+}
+
+impl Serialize for MessageSource {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for MessageSource {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "user" => Ok(Self::User),
+            "system" => Ok(Self::System),
+            value => value
+                .strip_prefix("agent-")
+                .map(|id| Self::Agent(id.to_owned()))
+                .ok_or_else(|| serde::de::Error::custom("expected user, system, or agent-<id>")),
+        }
+    }
+}
+
 /// Message delivery mode for [`MessageOptions::mode`].
 ///
 /// Controls how a prompt is delivered relative to in-flight session work.
@@ -5117,6 +5500,9 @@ pub enum AgentMode {
 pub struct MessageOptions {
     /// The user prompt to send.
     pub prompt: String,
+    /// Optional message provenance. When `None`, the field is omitted,
+    /// preserving the runtime's default for user messages.
+    pub source: Option<MessageSource>,
     /// Optional message delivery mode for this turn.
     ///
     /// Controls whether the prompt is queued behind in-flight work
@@ -5156,6 +5542,7 @@ impl MessageOptions {
     pub fn new(prompt: impl Into<String>) -> Self {
         Self {
             prompt: prompt.into(),
+            source: None,
             mode: None,
             agent_mode: None,
             attachments: None,
@@ -5165,6 +5552,12 @@ impl MessageOptions {
             tracestate: None,
             display_prompt: None,
         }
+    }
+
+    /// Set the message provenance without changing its delivery mode.
+    pub fn with_source(mut self, source: MessageSource) -> Self {
+        self.source = Some(source);
+        self
     }
 
     /// Set the message delivery mode for this turn.
@@ -5772,7 +6165,7 @@ pub use crate::generated::api_types::{
     ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
     PermissionDecisionApproveOnce, PermissionDecisionContext, PermissionDecisionOutcome,
     PermissionDecisionReject, PermissionDecisionSource, PermissionDecisionSurface,
-    PermissionDecisionUserNotAvailable,
+    PermissionDecisionUserNotAvailable, PermissionResponseCapability,
 };
 
 /// Permission categories the CLI may request approval for.
@@ -5878,16 +6271,24 @@ mod tests {
 
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
-        AttachmentSelectionRange, AzureProviderOptions, CapiSessionOptions, ConnectionState,
-        CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode, ExpConfigEntry,
-        ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
+        AttachmentSelectionRange, AutoTier, AzureProviderOptions, CapiSessionOptions,
+        ConnectionState, CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode,
+        ExpConfigEntry, ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
         InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
-        MemoryConfiguration, NamedProviderConfig, ProviderConfig, ProviderModelConfig,
-        ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
-        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
+        ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
+        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
         ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
+
+    #[test]
+    fn permission_response_capability_is_publicly_exported() {
+        assert_eq!(
+            serde_json::to_value(PermissionResponseCapability::Interactive).unwrap(),
+            json!("interactive")
+        );
+    }
 
     #[test]
     fn tool_builder_composes() {
@@ -6143,6 +6544,8 @@ mod tests {
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
         assert!(!wire.request_mcp_apps);
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("askUserVariant").is_none());
     }
 
     #[test]
@@ -6159,6 +6562,8 @@ mod tests {
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
         assert!(!wire.request_mcp_apps);
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("askUserVariant").is_none());
     }
 
     #[test]
@@ -6309,6 +6714,46 @@ mod tests {
             .expect("no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("memory").is_none());
+    }
+
+    #[test]
+    fn feature_flags_serialize_on_create_and_resume() {
+        let feature_flags = HashMap::from([
+            ("BACKGROUND_TASK_NOTIFICATION_PAYLOADS".to_string(), true),
+            ("DISABLED_TEST_FLAG".to_string(), false),
+        ]);
+        let expected = serde_json::json!({
+            "BACKGROUND_TASK_NOTIFICATION_PAYLOADS": true,
+            "DISABLED_TEST_FLAG": false,
+        });
+
+        let create_config = SessionConfig::default().with_feature_flags(feature_flags.clone());
+        assert_eq!(create_config.feature_flags.as_ref(), Some(&feature_flags));
+        let (create_wire, _) = create_config
+            .into_wire(Some(SessionId::from("feature-flags-create")))
+            .expect("no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(create_json["featureFlags"], expected);
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("feature-flags-resume"))
+            .with_feature_flags(feature_flags)
+            .into_wire()
+            .expect("no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(resume_json["featureFlags"], expected);
+
+        let (unset_create_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("feature-flags-create-unset")))
+            .expect("no duplicate handlers");
+        let unset_create_json = serde_json::to_value(&unset_create_wire).unwrap();
+        assert!(unset_create_json.get("featureFlags").is_none());
+
+        let (unset_resume_wire, _) =
+            ResumeSessionConfig::new(SessionId::from("feature-flags-resume-unset"))
+                .into_wire()
+                .expect("no duplicate handlers");
+        let unset_resume_json = serde_json::to_value(&unset_resume_wire).unwrap();
+        assert!(unset_resume_json.get("featureFlags").is_none());
     }
 
     fn sample_exp_assignments(context: &str) -> CopilotExpAssignmentResponse {
@@ -6664,6 +7109,67 @@ mod tests {
         assert!(empty_json.get("pluginDirectories").is_none());
         assert!(empty_json.get("disabledMcpServers").is_none());
         assert!(empty_json.get("largeOutput").is_none());
+    }
+
+    #[test]
+    fn auth_client_id_metadata_url_reaches_create_and_resume_wire_payloads() {
+        let url = "https://example.com/oauth/client-metadata.json";
+
+        let (create_wire, _) = SessionConfig::default()
+            .with_auth_client_id_metadata_url(url)
+            .into_wire(None)
+            .expect("default create has no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(create_json["authClientIdMetadataUrl"], url);
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-1"))
+            .with_auth_client_id_metadata_url(url)
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(resume_json["authClientIdMetadataUrl"], url);
+
+        let (empty_create_wire, _) = SessionConfig::default()
+            .into_wire(None)
+            .expect("default create has no duplicate handlers");
+        let empty_create_json = serde_json::to_value(&empty_create_wire).unwrap();
+        assert!(empty_create_json.get("authClientIdMetadataUrl").is_none());
+
+        let (empty_resume_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let empty_resume_json = serde_json::to_value(&empty_resume_wire).unwrap();
+        assert!(empty_resume_json.get("authClientIdMetadataUrl").is_none());
+    }
+
+    #[test]
+    fn mcp_server_instruction_policy_reaches_create_and_resume_wire_payloads() {
+        for value in [true, false] {
+            let (create_wire, _) = SessionConfig::default()
+                .with_allow_all_mcp_server_instructions(value)
+                .into_wire(None)
+                .expect("create config is valid");
+            let create_json = serde_json::to_value(&create_wire).unwrap();
+            assert_eq!(create_json["allowAllMcpServerInstructions"], value);
+
+            let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("policy"))
+                .with_allow_all_mcp_server_instructions(value)
+                .into_wire()
+                .expect("resume config is valid");
+            let resume_json = serde_json::to_value(&resume_wire).unwrap();
+            assert_eq!(resume_json["allowAllMcpServerInstructions"], value);
+        }
+
+        let (create_wire, _) = SessionConfig::default().into_wire(None).unwrap();
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("policy"))
+            .into_wire()
+            .unwrap();
+        assert!(
+            serde_json::to_value(create_wire).unwrap()["allowAllMcpServerInstructions"].is_null()
+        );
+        assert!(
+            serde_json::to_value(resume_wire).unwrap()["allowAllMcpServerInstructions"].is_null()
+        );
     }
 
     #[test]
@@ -7114,6 +7620,56 @@ mod tests {
         let unset = CapiSessionOptions::new();
         let wire_unset = serde_json::to_value(&unset).unwrap();
         assert!(wire_unset.get("enableWebSocketResponses").is_none());
+        assert!(wire_unset.get("autoTier").is_none());
+        assert_eq!(wire_unset, json!({}));
+    }
+
+    #[test]
+    fn capi_auto_tier_canonical_values_round_trip_and_forward() {
+        for (tier, value) in [
+            (AutoTier::Efficiency, "efficiency"),
+            (AutoTier::Balance, "balance"),
+            (AutoTier::Intelligence, "intelligence"),
+        ] {
+            let exported: crate::AutoTier = tier.clone();
+            let capi = CapiSessionOptions::new().with_auto_tier(exported);
+            assert_eq!(capi.auto_tier, Some(tier));
+            assert_eq!(
+                serde_json::to_value(&capi).unwrap(),
+                json!({"autoTier": value})
+            );
+            assert_eq!(
+                serde_json::from_value::<CapiSessionOptions>(json!({"autoTier": value})).unwrap(),
+                capi
+            );
+
+            let capi = capi.with_enable_web_socket_responses(false);
+            let expected = json!({"autoTier": value, "enableWebSocketResponses": false});
+            let (create, _) = SessionConfig::default()
+                .with_model("auto")
+                .with_capi(capi.clone())
+                .into_wire(Some(SessionId::from("capi-create")))
+                .unwrap();
+            assert_eq!(serde_json::to_value(create).unwrap()["capi"], expected);
+
+            let (resume, _) = ResumeSessionConfig::new(SessionId::from("capi-resume"))
+                .with_capi(capi)
+                .into_wire()
+                .unwrap();
+            assert_eq!(serde_json::to_value(resume).unwrap()["capi"], expected);
+        }
+    }
+
+    #[test]
+    fn capi_auto_tier_accepts_unknown_values_for_forward_compatibility() {
+        for value in ["balanced", "Balance", "unknown"] {
+            assert_eq!(
+                serde_json::from_value::<AutoTier>(json!(value)).unwrap(),
+                AutoTier::Unknown
+            );
+        }
+        let capi: CapiSessionOptions = serde_json::from_value(json!({})).unwrap();
+        assert_eq!(capi.auto_tier, None);
     }
 
     #[test]

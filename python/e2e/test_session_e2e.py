@@ -2,6 +2,7 @@
 
 import base64
 import os
+import uuid
 from datetime import datetime
 
 import pytest
@@ -25,7 +26,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 class TestSessions:
     async def test_should_create_and_disconnect_sessions(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all, model="claude-sonnet-4.5"
+            on_permission_request=PermissionHandler.approve_all, model="claude-sonnet-5"
         )
         assert session.session_id
 
@@ -33,7 +34,7 @@ class TestSessions:
         assert len(messages) > 0
         assert messages[0].type.value == "session.start"
         assert messages[0].data.session_id == session.session_id
-        assert messages[0].data.selected_model == "claude-sonnet-4.5"
+        assert messages[0].data.selected_model == "claude-sonnet-5"
 
         await session.disconnect()
 
@@ -314,6 +315,57 @@ class TestSessions:
             await session2.disconnect()
         finally:
             await new_client.force_stop()
+
+    async def test_should_recover_marker_after_cold_resume_with_explicit_session_id(
+        self, ctx: E2ETestContext
+    ):
+        session_id = f"e2e-cold-resume-{uuid.uuid4()}"
+        github_token = DEFAULT_GITHUB_TOKEN if os.environ.get("GITHUB_ACTIONS") == "true" else None
+
+        client1 = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=github_token,
+        )
+        try:
+            session1 = await client1.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                session_id=session_id,
+            )
+            assert session1.session_id == session_id
+
+            answer = await session1.send_and_wait(
+                "Please remember this exact secret marker for later - MARKER-7f3ac21e. "
+                'Reply with only the single word "Acknowledged".'
+            )
+            assert answer is not None
+            assert "Acknowledged" in answer.data.content
+
+            await session1.disconnect()
+        finally:
+            await client1.force_stop()
+
+        client2 = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=github_token,
+        )
+        try:
+            session2 = await client2.resume_session(
+                session_id, on_permission_request=PermissionHandler.approve_all
+            )
+            assert session2.session_id == session_id
+
+            answer2 = await session2.send_and_wait(
+                "What was the exact secret marker I asked you to remember earlier? "
+                "Reply with only that marker value and nothing else."
+            )
+            assert answer2 is not None
+            assert "MARKER-7f3ac21e" in answer2.data.content
+        finally:
+            await client2.force_stop()
 
     async def test_should_throw_error_resuming_nonexistent_session(self, ctx: E2ETestContext):
         with pytest.raises(Exception):

@@ -19,6 +19,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import Enum
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, cast
 
@@ -27,6 +28,9 @@ from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
 from .canvas import CanvasError, CanvasHandler, OpenCanvasInstance
 from .generated.rpc import (
+    AutoTier as _RpcAutoTier,
+)
+from .generated.rpc import (
     BuiltinToolInputSchemaType,
     CanvasProviderCloseRequest,
     CanvasProviderInvokeActionRequest,
@@ -34,11 +38,12 @@ from .generated.rpc import (
     CanvasProviderOpenResult,
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
+    GitHubTokenAcquireResultKind,
     HandlePendingToolCallRequest,
     LogRequest,
     MCPOauthHandlePendingRequest,
     MCPOauthPendingRequestResponse,
-    MCPOauthPendingRequestResponseKind,
+    ModelSwitchAutoTierResult,
     ModelSwitchToRequest,
     PermissionDecision,
     PermissionDecisionApproveOnce,
@@ -69,6 +74,7 @@ from .generated.session_events import (
     CapabilitiesChangedData,
     CommandExecuteData,
     ElicitationRequestedData,
+    ExternalToolCompletedData,
     ExternalToolRequestedData,
     McpOauthRequiredData,
     PermissionRequest,
@@ -78,6 +84,7 @@ from .generated.session_events import (
     SessionErrorData,
     SessionEvent,
     SessionIdleData,
+    SessionMode,
     session_event_from_dict,
 )
 from .generated.session_events import (
@@ -173,7 +180,35 @@ def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
 ReasoningEffort = Literal["low", "medium", "high", "xhigh", "max"]
 ReasoningSummary = Literal["none", "concise", "detailed"]
 ContextTier = Literal["default", "long_context"]
+AutoTier = Literal["efficiency", "balance", "intelligence"]
 SessionFsConventions = Literal["posix", "windows"]
+
+
+class _Unset:
+    """Sentinel distinguishing an omitted argument from an explicit ``None``.
+
+    Auto routing treats ``None`` as a meaningful value: it means "return to the
+    provider's default routing". Omitting the argument instead means "leave the
+    current preference alone", so the two cases cannot share a default.
+    """
+
+    def __repr__(self) -> str:
+        return "UNSET"
+
+
+_UNSET = _Unset()
+
+
+def _auto_tier_to_wire(auto_tier: AutoTier | _RpcAutoTier | None) -> str | None:
+    """Normalize an Auto tier to its wire value.
+
+    Callers may pass either the ``AutoTier`` string literal or the generated
+    ``AutoTier`` enum, which is the type the SDK hands back on results and
+    events. The JSON-RPC encoder only understands plain strings.
+    """
+    if isinstance(auto_tier, Enum):
+        return str(auto_tier.value)
+    return auto_tier
 
 
 class SessionFsCapabilities(TypedDict, total=False):
@@ -240,6 +275,24 @@ class BlobAttachment(TypedDict):
 
 
 Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment | BlobAttachment
+
+
+@dataclass(frozen=True)
+class AgentMessageSource:
+    """Identify the agent that produced a message.
+
+    The agent ID is opaque and is sent unchanged after the ``agent-`` prefix.
+    """
+
+    agent_id: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.agent_id, str):
+            raise TypeError("agent_id must be a string")
+
+
+MessageSource = Literal["user", "system"] | AgentMessageSource
+"""Message provenance, independent of delivery mode."""
 
 # ============================================================================
 # System Message Configuration
@@ -503,7 +556,7 @@ McpAuthHandler = Callable[
 
 
 class UserInputRequest(TypedDict, total=False):
-    """Request for user input from the agent (enables ask_user tool)"""
+    """Legacy question-and-answer request from the ask_user tool."""
 
     question: str
     choices: list[str]
@@ -1548,6 +1601,7 @@ class CopilotSession:
         client: Any,
         workspace_path: os.PathLike[str] | str | None = None,
         managed_settings_enabled: bool = False,
+        on_disconnect: Callable[[], None] | None = None,
     ):
         """
         Initialize a new CopilotSession.
@@ -1572,6 +1626,7 @@ class CopilotSession:
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
+        self._pending_external_tools: dict[str, asyncio.Task[None]] = {}
         self._permission_handler: _PermissionHandlerFn | None = None
         self._permission_handler_lock = threading.Lock()
         self._mcp_auth_handler: McpAuthHandler | None = None
@@ -1600,6 +1655,31 @@ class CopilotSession:
         self._open_canvases_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
+        self._disconnect_lock = asyncio.Lock()
+        self._on_disconnect = on_disconnect
+
+    def _set_disconnect_callback(self, callback: Callable[[], None]) -> None:
+        """Set the client-owned cleanup callback before the session becomes active."""
+        self._on_disconnect = callback
+
+    def _run_disconnect_callback(self) -> None:
+        callback = self._on_disconnect
+        self._on_disconnect = None
+        if callback is not None:
+            callback()
+
+    def _cancel_pending_external_tools(self) -> None:
+        pending_external_tools = list(self._pending_external_tools.values())
+        self._pending_external_tools.clear()
+        current_task = asyncio.current_task()
+        for task in pending_external_tools:
+            if task is not current_task:
+                task.cancel()
+
+    def _mark_disconnected(self) -> None:
+        self._destroyed = True
+        self._cancel_pending_external_tools()
+        self._run_disconnect_callback()
 
     @property
     def rpc(self) -> SessionRpc:
@@ -1649,6 +1729,7 @@ class CopilotSession:
         prompt: str,
         *,
         attachments: list[Attachment] | None = None,
+        source: MessageSource | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
@@ -1664,6 +1745,9 @@ class CopilotSession:
         Args:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
+            source: Optional message provenance (``"user"``, ``"system"``, or
+                :class:`AgentMessageSource` for an identified agent).
+                Omitted when None, preserving the runtime's default for user messages.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
                 (for example ``"plan"`` or ``"autopilot"``). Defaults to the
@@ -1690,6 +1774,10 @@ class CopilotSession:
         }
         if attachments is not None:
             params["attachments"] = attachments
+        if source is not None:
+            params["source"] = (
+                "agent-" + source.agent_id if isinstance(source, AgentMessageSource) else source
+            )
         if mode is not None:
             params["mode"] = mode
         if agent_mode is not None:
@@ -1718,6 +1806,7 @@ class CopilotSession:
         prompt: str,
         *,
         attachments: list[Attachment] | None = None,
+        source: MessageSource | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
@@ -1736,6 +1825,9 @@ class CopilotSession:
         Args:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
+            source: Optional message provenance (``"user"``, ``"system"``, or
+                :class:`AgentMessageSource` for an identified agent),
+                independent of delivery mode. Omitted when None.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
                 (for example ``"plan"`` or ``"autopilot"``). Defaults to the
@@ -1781,7 +1873,7 @@ class CopilotSession:
                             total_start,
                             session_id=self.session_id,
                         )
-                case SessionIdleData():
+                case SessionIdleData() as data if data.mode != SessionMode.AUTOPILOT:
                     log_timing(
                         logger,
                         logging.DEBUG,
@@ -1799,6 +1891,7 @@ class CopilotSession:
             await self.send(
                 prompt,
                 attachments=attachments,
+                source=source,
                 mode=mode,
                 agent_mode=agent_mode,
                 request_headers=request_headers,
@@ -1919,7 +2012,7 @@ class CopilotSession:
             case ExternalToolRequestedData() as data:
                 request_id = data.request_id
                 tool_name = data.tool_name
-                if not request_id or not tool_name:
+                if self._destroyed or not request_id or not tool_name:
                     return
 
                 handler = self._get_tool_handler(tool_name)
@@ -1930,11 +2023,26 @@ class CopilotSession:
                 arguments = data.arguments
                 tp = getattr(data, "traceparent", None)
                 ts = getattr(data, "tracestate", None)
-                asyncio.ensure_future(
+                task = asyncio.create_task(
                     self._execute_tool_and_respond(
                         request_id, tool_name, tool_call_id, arguments, handler, tp, ts
                     )
                 )
+                if request_id in self._pending_external_tools:
+                    task.cancel()
+                    return
+                self._pending_external_tools[request_id] = task
+                task.add_done_callback(
+                    lambda completed, rid=request_id: self._remove_pending_external_tool(
+                        rid, completed
+                    )
+                )
+
+            case ExternalToolCompletedData() as data:
+                if data.request_id:
+                    task = self._pending_external_tools.pop(data.request_id, None)
+                    if task is not None:
+                        task.cancel()
 
             case PermissionRequestedData() as data:
                 if logger.isEnabledFor(logging.DEBUG):
@@ -2142,6 +2250,8 @@ class CopilotSession:
             # standard "Failed to execute..." message. Deliberate user-returned
             # failures send the full structured result to preserve metadata.
             if tool_result._from_exception:
+                if not self._claim_external_tool(request_id):
+                    return
                 rpc_start = time.perf_counter()
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
@@ -2160,6 +2270,8 @@ class CopilotSession:
                     tool_name=tool_name,
                 )
             else:
+                if not self._claim_external_tool(request_id):
+                    return
                 rpc_start = time.perf_counter()
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
@@ -2178,6 +2290,8 @@ class CopilotSession:
                     tool_name=tool_name,
                 )
         except Exception as exc:
+            if not self._claim_external_tool(request_id):
+                return
             try:
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
@@ -2187,6 +2301,17 @@ class CopilotSession:
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
                 pass  # Connection lost or RPC error — nothing we can do
+
+    def _remove_pending_external_tool(self, request_id: str, completed: asyncio.Task[None]) -> None:
+        if self._pending_external_tools.get(request_id) is completed:
+            self._pending_external_tools.pop(request_id, None)
+
+    def _claim_external_tool(self, request_id: str) -> bool:
+        current = asyncio.current_task()
+        if self._destroyed or self._pending_external_tools.get(request_id) is not current:
+            return False
+        self._pending_external_tools.pop(request_id, None)
+        return True
 
     async def _execute_permission_and_respond(
         self,
@@ -2279,14 +2404,14 @@ class CopilotSession:
 
             if result and result.get("kind", "token") == "token":
                 rpc_result = MCPOauthPendingRequestResponse(
-                    kind=MCPOauthPendingRequestResponseKind.TOKEN,
+                    kind=GitHubTokenAcquireResultKind.TOKEN,
                     access_token=result["accessToken"],
                     expires_in=result.get("expiresIn"),
                     token_type=result.get("tokenType"),
                 )
             else:
                 rpc_result = MCPOauthPendingRequestResponse(
-                    kind=MCPOauthPendingRequestResponseKind.CANCELLED
+                    kind=GitHubTokenAcquireResultKind.CANCELLED
                 )
             await self.rpc.mcp.oauth.handle_pending_request(
                 MCPOauthHandlePendingRequest(
@@ -2300,7 +2425,7 @@ class CopilotSession:
                     MCPOauthHandlePendingRequest(
                         request_id=request_id,
                         result=MCPOauthPendingRequestResponse(
-                            kind=MCPOauthPendingRequestResponseKind.CANCELLED
+                            kind=GitHubTokenAcquireResultKind.CANCELLED
                         ),
                     )
                 )
@@ -2963,18 +3088,20 @@ class CopilotSession:
             >>> # Clean up when done — session can still be resumed later
             >>> await session.disconnect()
         """
-        # Ensure that the check and update of _destroyed are atomic so that
-        # only the first caller proceeds to send the destroy RPC.
-        with self._event_handlers_lock:
-            if self._destroyed:
-                return
-            self._destroyed = True
-
-        try:
-            await self._client.request("session.destroy", {"sessionId": self.session_id})
-        finally:
-            # Clear handlers even if the request fails.
+        async with self._disconnect_lock:
             with self._event_handlers_lock:
+                if self._destroyed:
+                    return
+
+            response = await self._client.request("session.detach", {"sessionId": self.session_id})
+            if not response.get("success"):
+                detail = response.get("error") or "unknown error"
+                raise RuntimeError(f"Failed to detach session {self.session_id}: {detail}")
+
+            self._cancel_pending_external_tools()
+            self._run_disconnect_callback()
+            with self._event_handlers_lock:
+                self._destroyed = True
                 self._event_handlers.clear()
             with self._tool_handlers_lock:
                 self._tool_handlers.clear()
@@ -3036,6 +3163,7 @@ class CopilotSession:
         reasoning_summary: ReasoningSummary | None = None,
         context_tier: ContextTier | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
+        auto_tier: AutoTier | _RpcAutoTier | None | _Unset = _UNSET,
     ) -> None:
         """
         Change the model for this session.
@@ -3053,6 +3181,14 @@ class CopilotSession:
             context_tier: Optional context window tier for supported models.
                 Omit to use normal model behavior with no explicit tier.
             model_capabilities: Override individual model capabilities resolved by the runtime.
+            auto_tier: **Experimental.** Part of an experimental Auto routing
+                surface and may change or be removed in a future release.
+                Routing preference to apply when ``model`` is ``"auto"``.
+                Pass ``None`` to return to the provider's default Auto routing.
+                Omit the argument to leave the current preference alone. The
+                runtime rejects this option when ``model`` is anything other than
+                ``"auto"``; use :meth:`set_auto_tier` to change the preference
+                without changing the selected model.
 
         Raises:
             Exception: If the session has been destroyed or the connection fails.
@@ -3060,23 +3196,79 @@ class CopilotSession:
         Example:
             >>> await session.set_model("gpt-5.4")
             >>> await session.set_model("claude-sonnet-4.6", reasoning_effort="high")
+            >>> await session.set_model("auto", auto_tier="intelligence")
         """
         rpc_caps = None
         if model_capabilities is not None:
             rpc_caps = _RpcModelCapabilitiesOverride.from_dict(
                 _capabilities_to_dict(model_capabilities)
             )
-        await self.rpc.model.switch_to(
-            ModelSwitchToRequest(
-                model_id=model,
-                reasoning_effort=reasoning_effort,
-                reasoning_summary=(
-                    _RpcReasoningSummary(reasoning_summary)
-                    if reasoning_summary is not None
-                    else None
-                ),
-                context_tier=(_RpcContextTier(context_tier) if context_tier is not None else None),
-                model_capabilities=rpc_caps,
+        request = ModelSwitchToRequest(
+            model_id=model,
+            reasoning_effort=reasoning_effort,
+            reasoning_summary=(
+                _RpcReasoningSummary(reasoning_summary) if reasoning_summary is not None else None
+            ),
+            context_tier=(_RpcContextTier(context_tier) if context_tier is not None else None),
+            model_capabilities=rpc_caps,
+        )
+        if isinstance(auto_tier, _Unset):
+            await self.rpc.model.switch_to(request)
+            return
+
+        # The generated wrapper drops null fields, which would silently turn a
+        # request for default Auto routing into "leave the preference alone", so
+        # send the payload directly to preserve an explicit null.
+        params = {k: v for k, v in request.to_dict().items() if v is not None}
+        params["autoTier"] = _auto_tier_to_wire(auto_tier)
+        params["sessionId"] = self.session_id
+        await self._client.request("session.model.switchTo", params)
+
+    async def set_auto_tier(
+        self, auto_tier: AutoTier | _RpcAutoTier | None
+    ) -> ModelSwitchAutoTierResult:
+        """
+        Change the Auto routing preference without changing the selected model.
+
+        **Experimental.** Part of an experimental Auto routing surface and may
+        change or be removed in a future release.
+
+        The runtime does not apply the preference immediately. It records the
+        request and commits it only when a later user turn using the ``auto``
+        model successfully obtains a usable model from the provider. A
+        ``"pending"`` status therefore confirms that the request was accepted,
+        not that it took effect.
+
+        Watch for the outcome through the ``session.model_change`` event on
+        success, or the ephemeral ``session.auto_tier_switch_failed`` event on
+        failure. You can also read the current committed and in-flight state at
+        any time with ``session.rpc.model.get_current()``.
+
+        Only the most recent request survives: issuing a new request replaces any
+        earlier one that has not yet been claimed by a turn.
+
+        Args:
+            auto_tier: Routing preference to activate, or ``None`` to return to
+                the provider's default Auto routing.
+
+        Returns:
+            The runtime's immediate acknowledgement and Auto preference snapshot.
+
+        Raises:
+            Exception: If the session has been destroyed or the connection fails.
+
+        Example:
+            >>> result = await session.set_auto_tier("intelligence")
+            >>> if result.status == ModelSwitchAutoTierStatus.PENDING:
+            ...     pass  # Takes effect on a later turn that uses the `auto` model.
+        """
+        # `autoTier` is a required field whose null value means "use provider
+        # default routing", so this cannot go through the generated wrapper,
+        # which omits null fields.
+        return ModelSwitchAutoTierResult.from_dict(
+            await self._client.request(
+                "session.model.switchAutoTier",
+                {"sessionId": self.session_id, "autoTier": _auto_tier_to_wire(auto_tier)},
             )
         )
 

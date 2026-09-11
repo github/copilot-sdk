@@ -26,17 +26,21 @@ import javax.annotation.processing.Generated;
 public record SessionFactoryGetRunResult(
     /** Factory run identifier. */
     @JsonProperty("runId") String runId,
+    /** One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime. */
+    @JsonProperty("attempt") Long attempt,
     /** Current or terminal factory run status. */
     @JsonProperty("status") FactoryRunStatus status,
     /** Completed factory result. */
     @JsonProperty("result") Object result,
     /** Error message for an errored run. */
     @JsonProperty("error") String error,
-    /** Machine-readable failure details for an errored run. */
+    /** Machine-readable failure details for a halted or errored run. */
     @JsonProperty("failure") Object failure,
     /** Reason for a halted or cancelled run. */
     @JsonProperty("reason") String reason,
     /** Partial journal and progress snapshot for a halted, cancelled, or errored run. */
-    @JsonProperty("snapshot") Object snapshot
+    @JsonProperty("snapshot") Object snapshot,
+    /** Structured pause initiator metadata for a paused attempt. */
+    @JsonProperty("pauseInfo") Object pauseInfo
 ) {
 }

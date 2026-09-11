@@ -45,6 +45,9 @@ public final class CreateSessionRequest {
     @JsonProperty("contextTier")
     private String contextTier;
 
+    @JsonProperty("askUserVariant")
+    private AskUserVariant askUserVariant;
+
     @JsonProperty("tools")
     private List<ToolDefinition> tools;
 
@@ -113,8 +116,14 @@ public final class CreateSessionRequest {
     @JsonProperty("mcpServers")
     private Map<String, McpServerConfig> mcpServers;
 
+    @JsonProperty("allowAllMcpServerInstructions")
+    private Boolean allowAllMcpServerInstructions;
+
     @JsonProperty("mcpOAuthTokenStorage")
     private String mcpOAuthTokenStorage;
+
+    @JsonProperty("authClientIdMetadataUrl")
+    private String authClientIdMetadataUrl;
 
     @JsonProperty("envValueMode")
     private String envValueMode;
@@ -224,6 +233,9 @@ public final class CreateSessionRequest {
     @JsonProperty("gitHubToken")
     private String gitHubToken;
 
+    @JsonProperty("gitHubTokenProviderRegistrationId")
+    private String gitHubTokenProviderRegistrationId;
+
     @JsonProperty("remoteSession")
     private String remoteSession;
 
@@ -232,6 +244,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("expAssignments")
     private CopilotExpAssignmentResponse expAssignments;
+
+    @JsonProperty("featureFlags")
+    private Map<String, Boolean> featureFlags;
 
     @JsonProperty("enableManagedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -304,6 +319,16 @@ public final class CreateSessionRequest {
     /** Sets the context window tier. @param contextTier the context window tier */
     public void setContextTier(String contextTier) {
         this.contextTier = contextTier;
+    }
+
+    /** Gets the ask-user variant. @return the ask-user variant */
+    public AskUserVariant getAskUserVariant() {
+        return askUserVariant;
+    }
+
+    /** Sets the ask-user variant. @param askUserVariant the ask-user variant */
+    public void setAskUserVariant(AskUserVariant askUserVariant) {
+        this.askUserVariant = askUserVariant;
     }
 
     /** Gets the tools. @return the tool definitions */
@@ -572,6 +597,16 @@ public final class CreateSessionRequest {
         this.mcpServers = mcpServers;
     }
 
+    /** Gets the MCP server instruction policy. @return the policy value */
+    public Boolean getAllowAllMcpServerInstructions() {
+        return allowAllMcpServerInstructions;
+    }
+
+    /** Sets the MCP server instruction policy. @param value the policy value */
+    public void setAllowAllMcpServerInstructions(Boolean value) {
+        this.allowAllMcpServerInstructions = value;
+    }
+
     /** Gets MCP OAuth token storage mode. @return the storage mode */
     public String getMcpOAuthTokenStorage() {
         return mcpOAuthTokenStorage;
@@ -583,6 +618,16 @@ public final class CreateSessionRequest {
      */
     public void setMcpOAuthTokenStorage(String mcpOAuthTokenStorage) {
         this.mcpOAuthTokenStorage = mcpOAuthTokenStorage;
+    }
+
+    /** Gets the host OAuth client metadata URL. @return the metadata URL */
+    public String getAuthClientIdMetadataUrl() {
+        return authClientIdMetadataUrl;
+    }
+
+    /** Sets the host OAuth client metadata URL. @param url the metadata URL */
+    public void setAuthClientIdMetadataUrl(String url) {
+        this.authClientIdMetadataUrl = url;
     }
 
     /** Gets MCP environment variable value mode. @return the mode */
@@ -1061,6 +1106,21 @@ public final class CreateSessionRequest {
         this.gitHubToken = gitHubToken;
     }
 
+    /**
+     * Gets the token-provider registration ID. @return the opaque registration ID
+     */
+    public String getGitHubTokenProviderRegistrationId() {
+        return gitHubTokenProviderRegistrationId;
+    }
+
+    /**
+     * Sets the token-provider registration ID. @param registrationId the opaque
+     * registration ID
+     */
+    public void setGitHubTokenProviderRegistrationId(String registrationId) {
+        this.gitHubTokenProviderRegistrationId = registrationId;
+    }
+
     /** Gets the remote session mode. @return the remote session mode */
     public String getRemoteSession() {
         return remoteSession;
@@ -1093,6 +1153,16 @@ public final class CreateSessionRequest {
      */
     public void setExpAssignments(CopilotExpAssignmentResponse expAssignments) {
         this.expAssignments = expAssignments;
+    }
+
+    /** Gets host-resolved feature flags. @return the feature flags */
+    public Map<String, Boolean> getFeatureFlags() {
+        return featureFlags;
+    }
+
+    /** Sets host-resolved feature flags. @param featureFlags the feature flags */
+    public void setFeatureFlags(Map<String, Boolean> featureFlags) {
+        this.featureFlags = featureFlags;
     }
 
     /**

@@ -46,6 +46,7 @@ public class SessionConfig {
     private String reasoningEffort;
     private String reasoningSummary;
     private String contextTier;
+    private AskUserVariant askUserVariant;
     private List<ToolDefinition> tools;
     private SystemMessageConfig systemMessage;
     private List<String> availableTools;
@@ -73,12 +74,15 @@ public class SessionConfig {
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
+    private Boolean allowAllMcpServerInstructions;
     private String mcpOAuthTokenStorage;
+    private String authClientIdMetadataUrl;
     private List<CustomAgentConfig> customAgents;
     private DefaultAgentConfig defaultAgent;
     private String agent;
     private InfiniteSessionConfig infiniteSessions;
     private List<String> skillDirectories;
+    private List<String> includedBuiltinSkills;
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
@@ -105,10 +109,13 @@ public class SessionConfig {
     private boolean enableMcpApps;
     private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
+    @JsonIgnore
+    private GitHubTokenProvider gitHubTokenProvider;
     private String remoteSession;
     private CloudSessionOptions cloud;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private Map<String, Boolean> featureFlags;
     private ManagedSettings managedSettings;
 
     /**
@@ -248,6 +255,30 @@ public class SessionConfig {
      */
     public SessionConfig setContextTier(String contextTier) {
         this.contextTier = contextTier;
+        return this;
+    }
+
+    /**
+     * Gets the experience used by the built-in {@code ask_user} tool.
+     *
+     * @return the ask-user variant, or {@code null} to use the legacy experience
+     */
+    public AskUserVariant getAskUserVariant() {
+        return askUserVariant;
+    }
+
+    /**
+     * Sets the model-facing shape of the built-in {@code ask_user} tool.
+     * <p>
+     * When unset, the option is omitted and the legacy shape is used. Set an
+     * elicitation handler when selecting {@link AskUserVariant#ELICITATION}.
+     *
+     * @param askUserVariant
+     *            the ask-user variant
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setAskUserVariant(AskUserVariant askUserVariant) {
+        this.askUserVariant = askUserVariant;
         return this;
     }
 
@@ -891,7 +922,9 @@ public class SessionConfig {
     /**
      * Sets a handler for user input requests from the agent.
      * <p>
-     * When provided, enables the ask_user tool for the agent to request user input.
+     * When provided, enables the legacy question-and-answer form of the
+     * {@code ask_user} tool. Use an elicitation handler with
+     * {@link AskUserVariant#ELICITATION}.
      *
      * @param onUserInputRequest
      *            the user input handler
@@ -1019,6 +1052,30 @@ public class SessionConfig {
     }
 
     /**
+     * Gets whether instructions from every configured MCP server are included in
+     * the system prompt.
+     *
+     * @return the policy value, or {@code null} when the runtime default applies
+     */
+    public Boolean getAllowAllMcpServerInstructions() {
+        return allowAllMcpServerInstructions;
+    }
+
+    /**
+     * Controls whether instructions from every configured MCP server are included
+     * in the system prompt. Enabling this broadens the default trust boundary; only
+     * use it with trusted servers.
+     *
+     * @param allowAllMcpServerInstructions
+     *            the explicit policy value, or {@code null} for the runtime default
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setAllowAllMcpServerInstructions(Boolean allowAllMcpServerInstructions) {
+        this.allowAllMcpServerInstructions = allowAllMcpServerInstructions;
+        return this;
+    }
+
+    /**
      * Gets the MCP OAuth token storage mode.
      *
      * @return the storage mode, or {@code null} if not set
@@ -1047,6 +1104,28 @@ public class SessionConfig {
      */
     public SessionConfig setMcpOAuthTokenStorage(String mcpOAuthTokenStorage) {
         this.mcpOAuthTokenStorage = mcpOAuthTokenStorage;
+        return this;
+    }
+
+    /**
+     * Gets the OAuth Client ID Metadata Document URL identifying the host.
+     *
+     * @return the metadata URL, or {@code null} if not set
+     */
+    public String getAuthClientIdMetadataUrl() {
+        return authClientIdMetadataUrl;
+    }
+
+    /**
+     * Sets the OAuth Client ID Metadata Document URL identifying the host for MCP
+     * authorization. When unset, no host identity is supplied.
+     *
+     * @param authClientIdMetadataUrl
+     *            the metadata URL
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setAuthClientIdMetadataUrl(String authClientIdMetadataUrl) {
+        this.authClientIdMetadataUrl = authClientIdMetadataUrl;
         return this;
     }
 
@@ -1172,6 +1251,28 @@ public class SessionConfig {
      */
     public SessionConfig setSkillDirectories(List<String> skillDirectories) {
         this.skillDirectories = skillDirectories;
+        return this;
+    }
+
+    /**
+     * Gets the runtime-bundled skill allowlist.
+     *
+     * @return the built-in skill names, or {@code null} when unspecified
+     */
+    public List<String> getIncludedBuiltinSkills() {
+        return includedBuiltinSkills == null ? null : Collections.unmodifiableList(includedBuiltinSkills);
+    }
+
+    /**
+     * Sets the runtime-bundled skill allowlist. In empty mode, omitting this option
+     * excludes all built-in skills; specifying names opts those built-ins back in.
+     *
+     * @param includedBuiltinSkills
+     *            the built-in skill names to allow
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setIncludedBuiltinSkills(List<String> includedBuiltinSkills) {
+        this.includedBuiltinSkills = includedBuiltinSkills;
         return this;
     }
 
@@ -1946,6 +2047,33 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the rotating GitHub token provider for this session.
+     *
+     * @return the provider, or {@code null} when a static token is used
+     */
+    public GitHubTokenProvider getGitHubTokenProvider() {
+        return gitHubTokenProvider;
+    }
+
+    /**
+     * Sets the rotating GitHub token provider for this session.
+     * <p>
+     * The provider receives only the effective host, optional assigned session ID,
+     * and acquisition reason. It must return a positive remaining lifetime in
+     * seconds when its callback completes. Production GitHub tokens typically last
+     * eight hours. This option is mutually exclusive with
+     * {@link #setGitHubToken(String)}.
+     *
+     * @param gitHubTokenProvider
+     *            provider used for initial acquisition and refresh
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setGitHubTokenProvider(GitHubTokenProvider gitHubTokenProvider) {
+        this.gitHubTokenProvider = gitHubTokenProvider;
+        return this;
+    }
+
+    /**
      * Gets the per-session remote behavior control.
      * <p>
      * Possible values:
@@ -2045,6 +2173,23 @@ public class SessionConfig {
         return this;
     }
 
+    /** Gets host-resolved feature-flag values. @return the feature flags */
+    public Map<String, Boolean> getFeatureFlags() {
+        return featureFlags;
+    }
+
+    /**
+     * Sets feature-flag values resolved by the host for this session.
+     *
+     * @param featureFlags
+     *            the feature flags
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setFeatureFlags(Map<String, Boolean> featureFlags) {
+        this.featureFlags = featureFlags;
+        return this;
+    }
+
     /**
      * Gets whether the runtime self-fetches enterprise managed settings at session
      * bootstrap.
@@ -2063,10 +2208,11 @@ public class SessionConfig {
      * (bypass-permissions policy) at session bootstrap.
      * <p>
      * When {@code true}, the runtime self-fetches enterprise managed settings using
-     * the session's {@link #getGitHubToken() gitHubToken}. Requires
-     * {@code gitHubToken} to be set; if omitted, the runtime is expected to reject
-     * session creation (fail-closed). When unset, behaves exactly as before.
-     * Serialized on the wire as {@code enableManagedSettings}.
+     * the session's static {@link #getGitHubToken() gitHubToken} or
+     * {@link #getGitHubTokenProvider() gitHubTokenProvider}. Requires one of those
+     * credentials; if both are omitted, the runtime is expected to reject session
+     * creation (fail-closed). When unset, behaves exactly as before. Serialized on
+     * the wire as {@code enableManagedSettings}.
      *
      * @param enableManagedSettings
      *            {@code true} to opt into self-fetching managed settings
@@ -2120,6 +2266,7 @@ public class SessionConfig {
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
         copy.contextTier = this.contextTier;
+        copy.askUserVariant = this.askUserVariant;
         copy.tools = this.tools != null ? new ArrayList<>(this.tools) : null;
         copy.systemMessage = this.systemMessage;
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
@@ -2150,11 +2297,17 @@ public class SessionConfig {
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.allowAllMcpServerInstructions = this.allowAllMcpServerInstructions;
+        copy.mcpOAuthTokenStorage = this.mcpOAuthTokenStorage;
+        copy.authClientIdMetadataUrl = this.authClientIdMetadataUrl;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
         copy.defaultAgent = this.defaultAgent;
         copy.agent = this.agent;
         copy.infiniteSessions = this.infiniteSessions;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
+        copy.includedBuiltinSkills = this.includedBuiltinSkills != null
+                ? new ArrayList<>(this.includedBuiltinSkills)
+                : null;
         copy.instructionDirectories = this.instructionDirectories != null
                 ? new ArrayList<>(this.instructionDirectories)
                 : null;
@@ -2184,8 +2337,10 @@ public class SessionConfig {
         copy.enableMcpApps = this.enableMcpApps;
         copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
+        copy.gitHubTokenProvider = this.gitHubTokenProvider;
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;
+        copy.featureFlags = this.featureFlags != null ? new java.util.HashMap<>(this.featureFlags) : null;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
         copy.managedSettings = this.managedSettings;

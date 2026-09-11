@@ -8,6 +8,6 @@ const inProcessAvailable = false
 
 var errInProcessUnavailable = errors.New("in-process transport unavailable")
 
-func createInProcessHost(string, inProcessHostConfig) (inProcessHost, error) {
+func createInProcessHost(string, string, inProcessHostConfig) (inProcessHost, error) {
 	return nil, errInProcessUnavailable
 }

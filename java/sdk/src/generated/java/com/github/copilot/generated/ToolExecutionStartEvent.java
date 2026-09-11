@@ -57,7 +57,9 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         /** Tool definition metadata, present for MCP tools with MCP Apps support */
         @JsonProperty("toolDescription") ToolExecutionStartToolDescription toolDescription,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
-        @JsonProperty("parentToolCallId") String parentToolCallId
+        @JsonProperty("parentToolCallId") String parentToolCallId,
+        /** Experimental HydraFusion attribution for this tool execution. */
+        @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }
 }

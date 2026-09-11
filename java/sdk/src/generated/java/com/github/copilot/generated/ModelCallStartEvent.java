@@ -39,7 +39,9 @@ public final class ModelCallStartEvent extends SessionEvent {
         /** Model identifier used for this API call, when known */
         @JsonProperty("model") String model,
         /** Previous response or interaction identifier included in the model request, when present */
-        @JsonProperty("previousResponseId") String previousResponseId
+        @JsonProperty("previousResponseId") String previousResponseId,
+        /** Experimental HydraFusion attribution for this concrete model call. */
+        @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }
 }

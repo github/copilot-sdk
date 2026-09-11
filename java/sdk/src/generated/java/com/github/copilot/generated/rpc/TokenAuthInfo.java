@@ -36,6 +36,10 @@ public final class TokenAuthInfo extends AuthInfo {
     @JsonProperty("token")
     private String token;
 
+    /** Opaque native GitHub credential registration backing this token identity, when applicable. */
+    @JsonProperty("registrationId")
+    private String registrationId;
+
     /** Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set. */
     @JsonProperty("copilotUser")
     private CopilotUserResponse copilotUser;
@@ -45,6 +49,9 @@ public final class TokenAuthInfo extends AuthInfo {
 
     public String getToken() { return token; }
     public void setToken(String token) { this.token = token; }
+
+    public String getRegistrationId() { return registrationId; }
+    public void setRegistrationId(String registrationId) { this.registrationId = registrationId; }
 
     public CopilotUserResponse getCopilotUser() { return copilotUser; }
     public void setCopilotUser(CopilotUserResponse copilotUser) { this.copilotUser = copilotUser; }

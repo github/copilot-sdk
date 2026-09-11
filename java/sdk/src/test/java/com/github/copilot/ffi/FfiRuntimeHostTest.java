@@ -6,7 +6,6 @@ package com.github.copilot.ffi;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -97,6 +96,47 @@ class FfiRuntimeHostTest {
         assertEquals("gh-token", env.get("COPILOT_SDK_AUTH_TOKEN"));
         assertEquals("/tmp/copilot-home", env.get("COPILOT_HOME"));
         assertEquals("1", env.get("COPILOT_DISABLE_KEYTAR"));
+    }
+
+    @Test
+    void startWithoutEntrypointPassesOnlyRuntimeOptions() throws Exception {
+        AtomicReference<byte[]> argvJson = new AtomicReference<>();
+        NativeBinding binding = new NativeBinding() {
+            @Override
+            public int hostStart(byte[] argv, int argvLen, byte[] env, int envLen) {
+                argvJson.set(argv);
+                return 11;
+            }
+
+            @Override
+            public boolean hostShutdown(int serverId) {
+                return true;
+            }
+
+            @Override
+            public int connectionOpen(int serverId, OutboundCallback callback, Pointer userData, byte[] extSource,
+                    int extSourceLen, byte[] extName, int extNameLen, byte[] connToken, int connTokenLen) {
+                return 21;
+            }
+
+            @Override
+            public boolean connectionWrite(int connectionId, byte[] data, int dataLen) {
+                return true;
+            }
+
+            @Override
+            public boolean connectionClose(int connectionId) {
+                return true;
+            }
+        };
+
+        try (FfiRuntimeHost host = new FfiRuntimeHost(binding, "/tmp/runtime.node")) {
+            host.start(null, new CopilotClientOptions().setLogLevel("debug"));
+        }
+
+        List<String> argv = MAPPER.readValue(argvJson.get(), new TypeReference<List<String>>() {
+        });
+        assertEquals(List.of("--log-level", "debug"), argv);
     }
 
     @Test
@@ -289,11 +329,14 @@ class FfiRuntimeHostTest {
     }
 
     @Test
-    void closeDrainsActiveCallbacksBeforeHostShutdown() throws Exception {
+    void closeRetriesUntilCallbackQuiescenceIsReported() throws Exception {
         CountDownLatch callbackEntered = new CountDownLatch(1);
         CountDownLatch allowCallbackToReturn = new CountDownLatch(1);
+        CountDownLatch shutdownCalled = new CountDownLatch(1);
         AtomicBoolean shutdownObservedAfterCallbackReturn = new AtomicBoolean(false);
         AtomicBoolean callbackFinished = new AtomicBoolean(false);
+        AtomicInteger closeCalls = new AtomicInteger(0);
+        AtomicInteger shutdownCalls = new AtomicInteger(0);
         AtomicReference<OutboundCallback> callbackRef = new AtomicReference<>();
 
         NativeBinding binding = new NativeBinding() {
@@ -304,7 +347,9 @@ class FfiRuntimeHostTest {
 
             @Override
             public boolean hostShutdown(int serverId) {
+                shutdownCalls.incrementAndGet();
                 shutdownObservedAfterCallbackReturn.set(callbackFinished.get());
+                shutdownCalled.countDown();
                 return true;
             }
 
@@ -322,7 +367,8 @@ class FfiRuntimeHostTest {
 
             @Override
             public boolean connectionClose(int connectionId) {
-                return true;
+                closeCalls.incrementAndGet();
+                return callbackFinished.get();
             }
         };
 
@@ -352,11 +398,17 @@ class FfiRuntimeHostTest {
 
         assertTrue(callbackEntered.await(2, TimeUnit.SECONDS));
         CompletableFuture<Void> closeFuture = CompletableFuture.runAsync(host::close);
-        Thread.sleep(150);
-        assertFalse(closeFuture.isDone(), "close should wait for active callback to drain");
+        closeFuture.get(5, TimeUnit.SECONDS);
+        assertEquals(0, shutdownCalls.get(), "host shutdown must wait for a successful connection close");
+
         allowCallbackToReturn.countDown();
         callbackFuture.get(5, TimeUnit.SECONDS);
-        closeFuture.get(5, TimeUnit.SECONDS);
+        assertTrue(shutdownCalled.await(5, TimeUnit.SECONDS), "deferred cleanup should retry connection close");
+        assertTrue(closeCalls.get() >= 2, "connection close should be retried after reporting non-quiescence");
         assertTrue(shutdownObservedAfterCallbackReturn.get(), "host_shutdown should run after callback drains");
+
+        host.close();
+        Thread.sleep(150);
+        assertEquals(1, shutdownCalls.get(), "host shutdown should happen exactly once");
     }
 }

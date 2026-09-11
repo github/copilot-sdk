@@ -9,20 +9,31 @@ package com.github.copilot.generated.rpc;
 
 import javax.annotation.processing.Generated;
 
+/**
+ * Routing preference used when the session model is `auto`. `fast` is an integrator-only latency preset and is not a first-party GitHub Copilot product preference.
+ *
+ * @since 1.0.0
+ */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum DisableBypassPermissionsMode {
-    /** The {@code disable} variant. */
-    DISABLE("disable");
+public enum AutoTier {
+    /** The {@code efficiency} variant. */
+    EFFICIENCY("efficiency"),
+    /** The {@code balance} variant. */
+    BALANCE("balance"),
+    /** The {@code intelligence} variant. */
+    INTELLIGENCE("intelligence"),
+    /** The {@code fast} variant. */
+    FAST("fast");
 
     private final String value;
-    DisableBypassPermissionsMode(String value) { this.value = value; }
+    AutoTier(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static DisableBypassPermissionsMode fromValue(String value) {
-        for (DisableBypassPermissionsMode v : values()) {
+    public static AutoTier fromValue(String value) {
+        for (AutoTier v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown DisableBypassPermissionsMode value: " + value);
+        throw new IllegalArgumentException("Unknown AutoTier value: " + value);
     }
 }

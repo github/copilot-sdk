@@ -27,7 +27,7 @@ import javax.annotation.processing.Generated;
 public record CatalogSearchParams(
     /** Protocol version and capabilities the caller requires. */
     @JsonProperty("contract") CatalogClientContract contract,
-    /** Free-text search query. Never written to logs or telemetry. */
+    /** Free-text search query. Persisted as tool input for session continuity, but omitted from telemetry. */
     @JsonProperty("query") String query,
     /** Maximum number of candidates to return. Defaults to 10 when omitted. */
     @JsonProperty("limit") Long limit,

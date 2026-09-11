@@ -17,6 +17,85 @@ namespace GitHub.Copilot.Test.Unit;
 /// </summary>
 public class SerializationTests
 {
+    public static IEnumerable<object?[]> MessageSources =>
+    [
+        new object?[] { null, null },
+        new object?[] { MessageSource.User, "user" },
+        new object?[] { MessageSource.System, "system" },
+        new object?[] { MessageSource.Agent("Reviewer-7"), "agent-Reviewer-7" },
+        new object?[] { MessageSource.Agent("agent-Worker"), "agent-agent-Worker" },
+        new object?[] { MessageSource.Agent(" Team/α "), "agent- Team/α " },
+        new object?[] { MessageSource.Agent(""), "agent-" },
+    ];
+
+    [Theory]
+    [MemberData(nameof(MessageSources))]
+    public void MessageSource_RoundTrips_And_Omits_Null(MessageSource? source, string? wireSource)
+    {
+        var options = GetSerializerOptions();
+        var json = JsonSerializer.Serialize(new MessageOptions { Prompt = "hello", Source = source }, options);
+        using var document = JsonDocument.Parse(json);
+        if (wireSource is null)
+        {
+            Assert.False(document.RootElement.TryGetProperty("source", out _));
+        }
+        else
+        {
+            Assert.Equal(wireSource, document.RootElement.GetProperty("source").GetString());
+        }
+        Assert.Equal(source, JsonSerializer.Deserialize<MessageOptions>(json, options)!.Source);
+        Assert.Null(JsonSerializer.Deserialize<MessageOptions>("{\"prompt\":\"hello\",\"source\":null}", options)!.Source);
+    }
+
+    [Theory]
+    [InlineData("\"unknown\"")]
+    [InlineData("\"USER\"")]
+    [InlineData("\"SYSTEM\"")]
+    [InlineData("\"Agent-worker\"")]
+    [InlineData("\"agent\"")]
+    [InlineData("\"\"")]
+    [InlineData("0")]
+    [InlineData("true")]
+    [InlineData("{}")]
+    [InlineData("[]")]
+    public void MessageSource_Rejects_Invalid_Json(string sourceJson)
+    {
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<MessageOptions>(
+            "{\"prompt\":\"hello\",\"source\":" + sourceJson + "}", GetSerializerOptions()));
+    }
+
+    [Fact]
+    public void MessageSource_Agent_Uses_CaseSensitive_Value_Equality()
+    {
+        var source = MessageSource.Agent("Reviewer");
+        var same = MessageSource.Agent("Reviewer");
+        Assert.Equal(source, same);
+        Assert.True(source == same);
+        Assert.Equal(source.GetHashCode(), same.GetHashCode());
+        Assert.NotEqual(source, MessageSource.Agent("reviewer"));
+        Assert.NotEqual(source, MessageSource.System);
+        Assert.Throws<ArgumentNullException>(() => MessageSource.Agent(null!));
+    }
+
+    [Fact]
+    public void SandboxConfig_RoundtripsAllowBypass_AndOmitsWhenAbsent()
+    {
+        var options = GetSerializerOptions();
+        var configured = new SandboxConfig { Enabled = true, AllowBypass = true };
+
+        var json = JsonSerializer.Serialize(configured, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.True(document.RootElement.GetProperty("allowBypass").GetBoolean());
+
+        var roundTripped = JsonSerializer.Deserialize<SandboxConfig>(json, options);
+        Assert.NotNull(roundTripped);
+        Assert.True(roundTripped.AllowBypass);
+
+        var omitted = JsonSerializer.Serialize(new SandboxConfig { Enabled = true }, options);
+        using var omittedDocument = JsonDocument.Parse(omitted);
+        Assert.False(omittedDocument.RootElement.TryGetProperty("allowBypass", out _));
+    }
+
     [Fact]
     public void ProviderConfig_CanSerializeHeaders_WithSdkOptions()
     {
@@ -472,6 +551,39 @@ public class SerializationTests
         Assert.False(resumeRoot.GetProperty("memory").GetProperty("enabled").GetBoolean());
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SessionRequests_SerializeExplicitMcpServerInstructionPolicy(bool value)
+    {
+        var options = GetSerializerOptions();
+        foreach (var typeName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
+        {
+            var requestType = GetNestedType(typeof(CopilotClient), typeName);
+            var request = CreateInternalRequest(
+                requestType,
+                ("SessionId", "session-id"),
+                ("AllowAllMcpServerInstructions", value));
+            var json = JsonSerializer.Serialize(request, requestType, options);
+            using var document = JsonDocument.Parse(json);
+            Assert.Equal(value, document.RootElement.GetProperty("allowAllMcpServerInstructions").GetBoolean());
+        }
+    }
+
+    [Fact]
+    public void SessionRequests_OmitUnsetMcpServerInstructionPolicy()
+    {
+        var options = GetSerializerOptions();
+        foreach (var typeName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
+        {
+            var requestType = GetNestedType(typeof(CopilotClient), typeName);
+            var request = CreateInternalRequest(requestType, ("SessionId", "session-id"));
+            var json = JsonSerializer.Serialize(request, requestType, options);
+            using var document = JsonDocument.Parse(json);
+            Assert.False(document.RootElement.TryGetProperty("allowAllMcpServerInstructions", out _));
+        }
+    }
+
     [Fact]
     public void SessionRequests_CanSerializeCitationAgentExclusionAndLimits_WithSdkOptions()
     {
@@ -628,6 +740,46 @@ public class SerializationTests
 
         Assert.NotNull(clone.ExpAssignments);
         Assert.Equal("exp-resume", clone.ExpAssignments!.Configs[0].Id);
+    }
+
+    [Fact]
+    public void SessionRequests_CanSerializeFeatureFlags_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var flags = new Dictionary<string, bool>
+        {
+            ["ENABLED_TEST_FLAG"] = true,
+            ["DISABLED_TEST_FLAG"] = false,
+        };
+
+        foreach (var requestName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
+        {
+            var requestType = GetNestedType(typeof(CopilotClient), requestName);
+            var request = CreateInternalRequest(
+                requestType,
+                ("SessionId", "session-id"),
+                ("FeatureFlags", flags));
+            using var document = JsonDocument.Parse(
+                JsonSerializer.Serialize(request, requestType, options));
+            var serializedFlags = document.RootElement.GetProperty("featureFlags");
+            Assert.True(serializedFlags.GetProperty("ENABLED_TEST_FLAG").GetBoolean());
+            Assert.False(serializedFlags.GetProperty("DISABLED_TEST_FLAG").GetBoolean());
+        }
+    }
+
+    [Fact]
+    public void SessionConfigClone_CopiesFeatureFlags()
+    {
+        var config = new SessionConfig
+        {
+            FeatureFlags = new Dictionary<string, bool> { ["TEST_FLAG"] = true },
+        };
+
+        var clone = config.Clone();
+        clone.FeatureFlags!["TEST_FLAG"] = false;
+
+        Assert.True(config.FeatureFlags["TEST_FLAG"]);
+        Assert.False(clone.FeatureFlags["TEST_FLAG"]);
     }
 
     [Fact]
@@ -1080,6 +1232,69 @@ public class SerializationTests
         var json = JsonSerializer.Serialize(original, options);
         using var document = JsonDocument.Parse(json);
         Assert.False(document.RootElement.TryGetProperty("toolReferences", out _));
+    }
+
+#pragma warning disable GHCP001 // The queue management surface is intentionally experimental.
+    [Theory]
+    [InlineData("message-1")]
+    [InlineData(null)]
+    public void QueuePendingItems_MessageId_UsesCamelCaseAndIsOptional(string? messageId)
+    {
+        var options = GetSerializerOptions();
+        var messageIdProperty = messageId is null ? "" : $""","messageId":"{messageId}" """;
+        var json = $$"""
+            {
+                "id": "queue-1",
+                "kind": "message",
+                "displayText": "hello",
+                "agentMode": "interactive"
+                {{messageIdProperty}}
+            }
+            """;
+
+        var item = JsonSerializer.Deserialize<QueuePendingItems>(json, options);
+        Assert.NotNull(item);
+        Assert.Equal(messageId, item.MessageId);
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(item, options));
+        if (messageId is null)
+        {
+            Assert.False(document.RootElement.TryGetProperty("messageId", out _));
+        }
+        else
+        {
+            Assert.Equal(messageId, document.RootElement.GetProperty("messageId").GetString());
+        }
+    }
+#pragma warning restore GHCP001
+
+    [Fact]
+    public void ModelSwitchRequests_DistinguishRequiredNullFromOmittedOptionalValue()
+    {
+        var options = GetSerializerOptions();
+        var assembly = typeof(CopilotClient).Assembly;
+
+        var switchAutoTierType = assembly.GetType("GitHub.Copilot.Rpc.ModelSwitchAutoTierRequest");
+        Assert.NotNull(switchAutoTierType);
+        var switchAutoTierRequest = CreateInternalRequest(
+            switchAutoTierType!,
+            ("SessionId", "session-id"),
+            ("AutoTier", null));
+        using var switchAutoTierDocument = JsonDocument.Parse(
+            JsonSerializer.Serialize(switchAutoTierRequest, switchAutoTierType!, options));
+        Assert.True(switchAutoTierDocument.RootElement.TryGetProperty("autoTier", out var requiredAutoTier));
+        Assert.Equal(JsonValueKind.Null, requiredAutoTier.ValueKind);
+
+        var switchToType = assembly.GetType("GitHub.Copilot.Rpc.ModelSwitchToRequest");
+        Assert.NotNull(switchToType);
+        var switchToRequest = CreateInternalRequest(
+            switchToType!,
+            ("SessionId", "session-id"),
+            ("ModelId", "auto"),
+            ("AutoTier", null));
+        using var switchToDocument = JsonDocument.Parse(
+            JsonSerializer.Serialize(switchToRequest, switchToType!, options));
+        Assert.False(switchToDocument.RootElement.TryGetProperty("autoTier", out _));
     }
 
     private static JsonSerializerOptions GetSerializerOptions()

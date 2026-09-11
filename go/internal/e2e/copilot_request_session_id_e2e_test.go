@@ -139,14 +139,14 @@ func TestCopilotRequestSessionID(t *testing.T) {
 		before := len(transport.inferenceRecords())
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Model:               "claude-sonnet-4.5",
+			Model:               "claude-sonnet-5",
 			Provider: &copilot.ProviderConfig{
 				Type:      "openai",
 				WireAPI:   "responses",
 				BaseURL:   "https://byok.invalid/v1",
 				APIKey:    "byok-secret",
-				ModelID:   "claude-sonnet-4.5",
-				WireModel: "claude-sonnet-4.5",
+				ModelID:   "claude-sonnet-5",
+				WireModel: "claude-sonnet-5",
 			},
 		})
 		if err != nil {

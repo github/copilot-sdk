@@ -18,19 +18,77 @@ import (
 )
 
 // newTestSession creates a session with an event channel and starts the consumer goroutine.
-// Returns a cleanup function that closes the channel (stopping the consumer).
+// Returns a cleanup function that stops the consumer.
 func newTestSession() (*Session, func()) {
 	s := &Session{
 		handlers:        make([]sessionHandler, 0),
 		commandHandlers: make(map[string]CommandHandler),
 		eventCh:         make(chan SessionEvent, 128),
+		eventDone:       make(chan struct{}),
 	}
 	go s.processEvents()
-	return s, func() { close(s.eventCh) }
+	return s, s.stopEventProcessing
 }
 
 func newTestEvent() SessionEvent {
 	return SessionEvent{Data: &SessionIdleData{}}
+}
+
+func TestExternalToolCompletedCancelsBlockedHandler(t *testing.T) {
+	session, cleanup := newTestSession()
+	defer cleanup()
+
+	started := make(chan struct{})
+	cancelled := make(chan struct{})
+	session.registerTools([]Tool{{
+		Name: "blocked_tool",
+		Handler: func(invocation ToolInvocation) (ToolResult, error) {
+			close(started)
+			<-invocation.TraceContext.Done()
+			close(cancelled)
+			return ToolResult{}, invocation.TraceContext.Err()
+		},
+	}})
+
+	session.dispatchEvent(SessionEvent{Data: &ExternalToolRequestedData{
+		RequestID:  "request-1",
+		SessionID:  "session-1",
+		ToolCallID: "tool-call-1",
+		ToolName:   "blocked_tool",
+	}})
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("tool handler did not start")
+	}
+
+	session.dispatchEvent(SessionEvent{Data: &ExternalToolCompletedData{RequestID: "request-1"}})
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("tool handler was not cancelled")
+	}
+}
+
+func TestDispatchEventReturnsAfterEventProcessingStops(t *testing.T) {
+	session := &Session{
+		eventCh:   make(chan SessionEvent),
+		eventDone: make(chan struct{}),
+	}
+
+	dispatched := make(chan struct{})
+	go func() {
+		session.dispatchEvent(newTestEvent())
+		close(dispatched)
+	}()
+
+	session.stopEventProcessing()
+
+	select {
+	case <-dispatched:
+	case <-time.After(time.Second):
+		t.Fatal("dispatchEvent remained blocked after event processing stopped")
+	}
 }
 
 func ptr[T any](value T) *T {
@@ -57,6 +115,72 @@ func TestSession_SetModelOmitsContextTierWhenUnset(t *testing.T) {
 
 	if _, ok := params["contextTier"]; ok {
 		t.Fatalf("expected contextTier to be omitted, got %v", params["contextTier"])
+	}
+	if _, ok := params["autoTier"]; ok {
+		t.Fatalf("expected autoTier to be omitted, got %v", params["autoTier"])
+	}
+}
+
+func TestSession_SetModelForwardsAutoTier(t *testing.T) {
+	tier := AutoTierIntelligence
+	params := captureSetModelRequestForModel(t, "auto", &SetModelOptions{AutoTier: &tier})
+
+	if params["modelId"] != "auto" {
+		t.Fatalf("expected modelId auto, got %v", params["modelId"])
+	}
+	if params["autoTier"] != "intelligence" {
+		t.Fatalf("expected autoTier intelligence, got %v", params["autoTier"])
+	}
+}
+
+func TestSession_SetModelSendsExplicitNullAutoTierWhenCleared(t *testing.T) {
+	params := captureSetModelRequestForModel(t, "auto", &SetModelOptions{ResetAutoTier: true})
+
+	// An explicit null must survive to the wire. Omitting it would mean "leave
+	// the preference alone" rather than "use provider-default routing".
+	value, ok := params["autoTier"]
+	if !ok {
+		t.Fatal("expected autoTier to be present")
+	}
+	if value != nil {
+		t.Fatalf("expected autoTier to be null, got %v", value)
+	}
+}
+
+func TestSession_SetModelRejectsConflictingAutoTierOptions(t *testing.T) {
+	tier := AutoTierBalance
+	session := &Session{SessionID: "session-1"}
+
+	err := session.SetModel(context.Background(), "auto", &SetModelOptions{
+		AutoTier:      &tier,
+		ResetAutoTier: true,
+	})
+	if err == nil {
+		t.Fatal("expected an error when AutoTier and ResetAutoTier are both set")
+	}
+}
+
+func TestSession_SetAutoTierForwardsTier(t *testing.T) {
+	tier := AutoTierEfficiency
+	params := captureSetAutoTierRequest(t, &tier)
+
+	if params["sessionId"] != "session-1" {
+		t.Fatalf("expected sessionId session-1, got %v", params["sessionId"])
+	}
+	if params["autoTier"] != "efficiency" {
+		t.Fatalf("expected autoTier efficiency, got %v", params["autoTier"])
+	}
+}
+
+func TestSession_SetAutoTierSendsExplicitNull(t *testing.T) {
+	params := captureSetAutoTierRequest(t, nil)
+
+	value, ok := params["autoTier"]
+	if !ok {
+		t.Fatal("expected autoTier to be present")
+	}
+	if value != nil {
+		t.Fatalf("expected autoTier to be null, got %v", value)
 	}
 }
 
@@ -261,6 +385,28 @@ func TestMCPOauthRequiredDataAllowsOptionalMetadata(t *testing.T) {
 
 func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any {
 	t.Helper()
+	return captureModelRequest(t, "session.model.switchTo", func(session *Session) error {
+		return session.SetModel(context.Background(), "gpt-4.1", opts)
+	})
+}
+
+func captureSetModelRequestForModel(t *testing.T, model string, opts *SetModelOptions) map[string]any {
+	t.Helper()
+	return captureModelRequest(t, "session.model.switchTo", func(session *Session) error {
+		return session.SetModel(context.Background(), model, opts)
+	})
+}
+
+func captureSetAutoTierRequest(t *testing.T, autoTier *AutoTier) map[string]any {
+	t.Helper()
+	return captureModelRequest(t, "session.model.switchAutoTier", func(session *Session) error {
+		_, err := session.SetAutoTier(context.Background(), autoTier)
+		return err
+	})
+}
+
+func captureModelRequest(t *testing.T, method string, invoke func(*Session) error) map[string]any {
+	t.Helper()
 
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
@@ -292,8 +438,8 @@ func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any 
 			errCh <- err
 			return
 		}
-		if request.Method != "session.model.switchTo" {
-			errCh <- fmt.Errorf("expected session.model.switchTo, got %s", request.Method)
+		if request.Method != method {
+			errCh <- fmt.Errorf("expected %s, got %s", method, request.Method)
 			return
 		}
 
@@ -302,7 +448,7 @@ func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any 
 		response := map[string]any{
 			"jsonrpc": "2.0",
 			"id":      json.RawMessage(request.ID),
-			"result":  map[string]any{},
+			"result":  map[string]any{"status": "pending"},
 		}
 		data, err := json.Marshal(response)
 		if err != nil {
@@ -320,8 +466,8 @@ func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any 
 		client:    client,
 		RPC:       rpc.NewSessionRPC(client, "session-1"),
 	}
-	if err := session.SetModel(context.Background(), "gpt-4.1", opts); err != nil {
-		t.Fatalf("SetModel failed: %v", err)
+	if err := invoke(session); err != nil {
+		t.Fatalf("model request failed: %v", err)
 	}
 
 	select {
@@ -330,7 +476,7 @@ func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any 
 	case err := <-errCh:
 		t.Fatal(err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for session.model.switchTo request")
+		t.Fatalf("timed out waiting for %s request", method)
 	}
 	return nil
 }
@@ -364,6 +510,139 @@ func readTestJSONRPCFrame(r io.Reader) ([]byte, error) {
 	data := make([]byte, contentLength)
 	_, err := io.ReadFull(reader, data)
 	return data, err
+}
+
+func TestSession_SendAndWaitSkipsAutopilotContinuationIdle(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdinW.Close()
+	defer stdoutR.Close()
+	defer stdoutW.Close()
+
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+	defer client.Stop()
+
+	requestReceived := make(chan struct{})
+	errCh := make(chan error, 1)
+	go func() {
+		frame, err := readTestJSONRPCFrame(stdinR)
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		var request struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+		}
+		if err := json.Unmarshal(frame, &request); err != nil {
+			errCh <- err
+			return
+		}
+		if request.Method != "session.send" {
+			errCh <- fmt.Errorf("expected session.send, got %s", request.Method)
+			return
+		}
+
+		response := map[string]any{
+			"jsonrpc": "2.0",
+			"id":      json.RawMessage(request.ID),
+			"result":  map[string]any{"messageId": "message-1"},
+		}
+		data, err := json.Marshal(response)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if _, err := fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(data), data); err != nil {
+			errCh <- err
+			return
+		}
+		close(requestReceived)
+	}()
+
+	session := &Session{
+		SessionID: "session-1",
+		client:    client,
+		RPC:       rpc.NewSessionRPC(client, "session-1"),
+		handlers:  make([]sessionHandler, 0),
+		eventCh:   make(chan SessionEvent, 8),
+		eventDone: make(chan struct{}),
+	}
+	go session.processEvents()
+	defer session.stopEventProcessing()
+
+	resultCh := make(chan *SessionEvent, 1)
+	go func() {
+		result, err := session.SendAndWait(t.Context(), MessageOptions{Prompt: "keep going"})
+		if err != nil {
+			errCh <- err
+			return
+		}
+		resultCh <- result
+	}()
+
+	select {
+	case <-requestReceived:
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for session.send request")
+	}
+
+	continuationIdleProcessed := make(chan struct{})
+	unsubscribe := session.On(func(event SessionEvent) {
+		if idle, ok := event.Data.(*SessionIdleData); ok &&
+			idle.Mode != nil && *idle.Mode == SessionModeAutopilot {
+			close(continuationIdleProcessed)
+		}
+	})
+	defer unsubscribe()
+
+	autopilot := SessionModeAutopilot
+	session.dispatchEvent(SessionEvent{Data: &AssistantMessageData{
+		Content:   "intermediate",
+		MessageID: "assistant-1",
+	}})
+	session.dispatchEvent(SessionEvent{Data: &SessionIdleData{Mode: &autopilot}})
+
+	select {
+	case <-continuationIdleProcessed:
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for autopilot continuation idle")
+	}
+
+	select {
+	case <-resultCh:
+		t.Fatal("SendAndWait returned at an autopilot continuation idle")
+	default:
+	}
+
+	interactive := SessionModeInteractive
+	session.dispatchEvent(SessionEvent{Data: &AssistantMessageData{
+		Content:   "final",
+		MessageID: "assistant-2",
+	}})
+	session.dispatchEvent(SessionEvent{Data: &SessionIdleData{Mode: &interactive}})
+
+	select {
+	case result := <-resultCh:
+		message, ok := result.Data.(*AssistantMessageData)
+		if !ok {
+			t.Fatalf("expected assistant message, got %T", result.Data)
+		}
+		if message.Content != "final" {
+			t.Fatalf("expected final assistant message, got %q", message.Content)
+		}
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for terminal idle")
+	}
 }
 
 func TestSession_On(t *testing.T) {

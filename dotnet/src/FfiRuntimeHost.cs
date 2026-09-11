@@ -17,11 +17,9 @@ namespace GitHub.Copilot;
 /// and communicating over stdio/TCP.
 /// </summary>
 /// <remarks>
-/// The Rust <c>host_start</c> export spawns the residual TypeScript worker itself —
-/// typically the packaged single-file CLI (<c>copilot --embedded-host</c>, which embeds
-/// its own Node) or, for dev, <c>node dist-cli/index.js --embedded-host</c> — so the .NET
-/// host never launches Node directly. JSON-RPC frames are pumped across the ABI: writes go
-/// to <c>connection_write</c>; inbound frames arrive on a native callback that feeds
+/// The Rust <c>host_start</c> export constructs the server synchronously in this
+/// process. JSON-RPC frames are pumped across the ABI: writes go to
+/// <c>connection_write</c>; inbound frames arrive on a native callback that feeds
 /// <see cref="ReceiveStream"/>.
 /// <para>
 /// The native interop layer has two implementations selected by target framework. On
@@ -37,14 +35,28 @@ namespace GitHub.Copilot;
 /// </remarks>
 internal sealed partial class FfiRuntimeHost : IDisposable
 {
+    private enum NativeCleanupResult
+    {
+        Complete,
+        Retry,
+        Failed,
+    }
+
     /// <summary>Logical name the native interop layer binds the cdylib to.</summary>
     private const string LibraryName = "copilot_runtime";
+    private const int CleanupRetryDelayMilliseconds = 100;
+    private static readonly object QuarantineLock = new();
+    private static readonly HashSet<FfiRuntimeHost> QuarantinedHosts = [];
 
     private readonly ILogger _logger;
-    private readonly string _cliEntrypoint;
+    private readonly string? _cliEntrypoint;
     private readonly string _libraryPath;
     private readonly IReadOnlyDictionary<string, string>? _environment;
     private readonly IReadOnlyList<string> _args;
+    private readonly Func<uint, bool> _connectionClose;
+    private readonly Func<uint, bool> _hostShutdown;
+    private readonly Action _releaseNativeCallback;
+    private readonly object _lifecycleLock = new();
 
     private readonly CallbackReceiveStream _receiveStream = new();
     private CallbackSendStream? _sendStream;
@@ -52,14 +64,31 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private uint _serverId;
     private uint _connectionId;
     private bool _disposed;
+    private bool _cleanupRetryScheduled;
 
-    private FfiRuntimeHost(string libraryPath, string cliEntrypoint, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
+    private FfiRuntimeHost(string libraryPath, string? cliEntrypoint, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
+        : this(libraryPath, cliEntrypoint, environment, args, logger, null, null, null)
+    {
+    }
+
+    private FfiRuntimeHost(
+        string libraryPath,
+        string? cliEntrypoint,
+        IReadOnlyDictionary<string, string>? environment,
+        IReadOnlyList<string> args,
+        ILogger logger,
+        Func<uint, bool>? connectionClose,
+        Func<uint, bool>? hostShutdown,
+        Action? releaseNativeCallback)
     {
         _libraryPath = libraryPath;
         _cliEntrypoint = cliEntrypoint;
         _environment = environment;
         _args = args;
         _logger = logger;
+        _connectionClose = connectionClose ?? NativeConnectionClose;
+        _hostShutdown = hostShutdown ?? NativeHostShutdown;
+        _releaseNativeCallback = releaseNativeCallback ?? DisposeNativeCallback;
     }
 
     /// <summary>The stream JSON-RPC reads server→client frames from.</summary>
@@ -70,35 +99,22 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         ?? throw new InvalidOperationException("FfiRuntimeHost has not been started.");
 
     /// <summary>
-    /// Loads the cdylib next to the given CLI entrypoint and prepares the FFI host.
-    /// The entrypoint is either the packaged single-file CLI binary (e.g.
-    /// <c>runtimes/&lt;rid&gt;/native/copilot</c>) or, for dev, a <c>.js</c> file (e.g.
-    /// <c>dist-cli/index.js</c>) launched via <c>node</c>. The cdylib is resolved
-    /// relative to the entrypoint directory, preferring the flat, natural
-    /// shared-library name the .NET build emits (e.g. <c>libcopilot_runtime.so</c>)
-    /// and falling back to the dev tarball layout
-    /// <c>prebuilds/&lt;prebuildsFolder&gt;/runtime.node</c>, where
-    /// <paramref name="prebuildsFolder"/> is the napi-rs
-    /// <c>&lt;node-platform&gt;-&lt;arch&gt;</c> folder name (e.g. <c>win32-x64</c>).
+    /// Loads the runtime cdylib and prepares the FFI host.
     /// </summary>
-    public static FfiRuntimeHost Create(string cliEntrypoint, string prebuildsFolder, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
+    public static FfiRuntimeHost Create(string libraryPath, string? cliEntrypoint, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
     {
-        var fullEntrypoint = Path.GetFullPath(cliEntrypoint);
-        var distDir = Path.GetDirectoryName(fullEntrypoint)
-            ?? throw new InvalidOperationException($"Could not determine directory for '{cliEntrypoint}'.");
-
-        // Bundled .NET layout: flat, natural shared-library name next to the CLI.
-        var flatLibraryPath = Path.Combine(distDir, GetRuntimeLibraryFileName());
-        // Dev/tarball layout: dist-cli/prebuilds/<node-platform>-<arch>/runtime.node.
-        var prebuildsLibraryPath = Path.Combine(distDir, "prebuilds", prebuildsFolder, "runtime.node");
-
-        var libraryPath = File.Exists(flatLibraryPath) ? flatLibraryPath
-            : File.Exists(prebuildsLibraryPath) ? prebuildsLibraryPath
-            : throw new InvalidOperationException(
-                $"FFI runtime library not found. Looked for '{flatLibraryPath}' and '{prebuildsLibraryPath}'.");
-
-        PrepareNativeLibrary(libraryPath);
-        return new FfiRuntimeHost(libraryPath, fullEntrypoint, environment, args, logger);
+        var fullLibraryPath = Path.GetFullPath(libraryPath);
+        if (!File.Exists(fullLibraryPath))
+        {
+            throw new InvalidOperationException($"FFI runtime library not found at '{fullLibraryPath}'.");
+        }
+        PrepareNativeLibrary(fullLibraryPath);
+        return new FfiRuntimeHost(
+            fullLibraryPath,
+            cliEntrypoint is null ? null : Path.GetFullPath(cliEntrypoint),
+            environment,
+            args,
+            logger);
     }
 
     /// <summary>
@@ -106,7 +122,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     /// emitted by the .NET build (the .node file renamed to what the Rust cdylib
     /// would be called on this OS).
     /// </summary>
-    private static string GetRuntimeLibraryFileName()
+    internal static string GetRuntimeLibraryFileName()
     {
         if (OperatingSystem.IsWindows()) return "copilot_runtime.dll";
         if (OperatingSystem.IsMacOS()) return "libcopilot_runtime.dylib";
@@ -114,36 +130,46 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     }
 
     /// <summary>
-    /// Starts the in-process runtime: spawns the CLI worker via the Rust host,
-    /// waits for readiness, and opens the FFI JSON-RPC connection.
+    /// Starts the in-process Rust runtime and opens the FFI JSON-RPC connection.
     /// </summary>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        // host_start blocks until the worker connects back and signals readiness
-        // (up to ~30s), and connection_open must run outside any async runtime, so
-        // perform the blocking FFI handshake on a background thread.
+        // Keep synchronous native startup off the caller's async context.
         await Task.Run(() =>
         {
             var argvJson = BuildArgvJson(_cliEntrypoint, _args);
             var envJson = BuildEnvJson(_environment);
 
-            _serverId = NativeHostStart(argvJson, envJson);
-            if (_serverId == 0)
+            var serverId = NativeHostStart(argvJson, envJson);
+            if (serverId == 0)
             {
                 throw new InvalidOperationException(
-                    $"copilot_runtime_host_start failed (library '{_libraryPath}', entrypoint '{_cliEntrypoint}').");
+                    $"copilot_runtime_host_start failed (library '{_libraryPath}').");
             }
 
-            _connectionId = NativeOpenConnection(_serverId);
-            if (_connectionId == 0)
+            var connectionId = NativeOpenConnection(serverId);
+            if (connectionId == 0)
             {
-                DisposeNativeCallback();
-                NativeHostShutdown(_serverId);
-                _serverId = 0;
+                _releaseNativeCallback();
+                NativeHostShutdown(serverId);
                 throw new InvalidOperationException("copilot_runtime_connection_open failed.");
             }
 
-            _sendStream = new CallbackSendStream(SendFrame);
+            lock (_lifecycleLock)
+            {
+                _serverId = serverId;
+                _connectionId = connectionId;
+                _sendStream = new CallbackSendStream(SendFrame);
+                if (_disposed)
+                {
+                    if (TryFinalizeNativeCleanup() == NativeCleanupResult.Retry)
+                    {
+                        ScheduleNativeCleanupRetry();
+                    }
+                    throw new InvalidOperationException(
+                        "FfiRuntimeHost was disposed during startup.");
+                }
+            }
         }, cancellationToken).ConfigureAwait(false);
 
         if (_logger.IsEnabled(LogLevel.Debug))
@@ -154,24 +180,22 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         }
     }
 
-    private static byte[] BuildArgvJson(string cliEntrypoint, IReadOnlyList<string> args)
+    private static byte[] BuildArgvJson(string? cliEntrypoint, IReadOnlyList<string> args)
     {
-        // A .js entrypoint (dev / dist-cli) is launched via node; the packaged
-        // single-file CLI binary embeds its own Node and is invoked directly.
-        var isJsFile = cliEntrypoint.EndsWith(".js", StringComparison.OrdinalIgnoreCase);
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartArray();
-            if (isJsFile)
+            if (cliEntrypoint is not null)
             {
-                writer.WriteStringValue("node");
+                if (cliEntrypoint.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
+                {
+                    writer.WriteStringValue("node");
+                }
+                writer.WriteStringValue(cliEntrypoint);
+                writer.WriteStringValue("--embedded-host");
+                writer.WriteStringValue("--no-auto-update");
             }
-            writer.WriteStringValue(cliEntrypoint);
-            writer.WriteStringValue("--embedded-host");
-            // Pin the worker to the bundled pkg matching the loaded cdylib, instead of
-            // drifting to a newer version under the user's ~/.copilot/pkg (ABI skew).
-            writer.WriteStringValue("--no-auto-update");
             foreach (var arg in args)
             {
                 writer.WriteStringValue(arg);
@@ -209,11 +233,18 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private bool SendFrame(ReadOnlySpan<byte> frame)
     {
-        if (_disposed || _connectionId == 0)
+        if (Volatile.Read(ref _disposed))
         {
             return false;
         }
-        return NativeConnectionWrite(_connectionId, frame);
+        lock (_lifecycleLock)
+        {
+            if (_disposed || _connectionId == 0)
+            {
+                return false;
+            }
+            return NativeConnectionWrite(_connectionId, frame);
+        }
     }
 
     private void FeedInbound(IntPtr bytesPtr, UIntPtr bytesLen)
@@ -226,40 +257,100 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        lock (_lifecycleLock)
         {
-            return;
-        }
-        _disposed = true;
-
-        try
-        {
-            if (_connectionId != 0)
+            if (_disposed)
             {
-                NativeConnectionClose(_connectionId);
-                _connectionId = 0;
+                return;
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "FfiRuntimeHost: connection_close failed");
-        }
-
-        try
-        {
-            if (_serverId != 0)
-            {
-                NativeHostShutdown(_serverId);
-                _serverId = 0;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "FfiRuntimeHost: host_shutdown failed");
+            _disposed = true;
         }
 
         _receiveStream.Complete();
-        DisposeNativeCallback();
+
+        lock (_lifecycleLock)
+        {
+            if (TryFinalizeNativeCleanup() == NativeCleanupResult.Retry)
+            {
+                ScheduleNativeCleanupRetry();
+            }
+        }
+    }
+
+    private NativeCleanupResult TryFinalizeNativeCleanup()
+    {
+        if (_connectionId != 0)
+        {
+            bool closed;
+            try
+            {
+                closed = _connectionClose(_connectionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "FfiRuntimeHost: connection_close failed");
+                lock (QuarantineLock)
+                {
+                    QuarantinedHosts.Add(this);
+                }
+                return NativeCleanupResult.Failed;
+            }
+            if (!closed)
+            {
+                return NativeCleanupResult.Retry;
+            }
+
+            _connectionId = 0;
+            _releaseNativeCallback();
+        }
+
+        if (_serverId != 0)
+        {
+            try
+            {
+                if (!_hostShutdown(_serverId) && _logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "FfiRuntimeHost: host_shutdown did not recognize server {ServerId}",
+                        _serverId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "FfiRuntimeHost: host_shutdown failed");
+            }
+
+            _serverId = 0;
+        }
+
+        return NativeCleanupResult.Complete;
+    }
+
+    private void ScheduleNativeCleanupRetry()
+    {
+        if (_cleanupRetryScheduled)
+        {
+            return;
+        }
+        _cleanupRetryScheduled = true;
+        _ = RetryNativeCleanupAsync();
+    }
+
+    private async Task RetryNativeCleanupAsync()
+    {
+        while (true)
+        {
+            await Task.Delay(CleanupRetryDelayMilliseconds).ConfigureAwait(false);
+            lock (_lifecycleLock)
+            {
+                var result = TryFinalizeNativeCleanup();
+                if (result != NativeCleanupResult.Retry)
+                {
+                    _cleanupRetryScheduled = false;
+                    return;
+                }
+            }
+        }
     }
 
     /// <summary>Length as the native pointer-sized unsigned integer the ABI expects.</summary>

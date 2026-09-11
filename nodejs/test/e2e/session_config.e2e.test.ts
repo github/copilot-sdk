@@ -119,6 +119,7 @@ describe("Session Configuration", async () => {
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
+            model: "claude-sonnet-5",
             modelCapabilities: { supports: { vision: false } },
         });
 
@@ -129,7 +130,7 @@ describe("Session Configuration", async () => {
         expect(hasImageUrlContent(t1Messages)).toBe(false);
 
         // Switch vision on (re-specify same model with updated capabilities)
-        await session.setModel("claude-sonnet-4.5", {
+        await session.setModel("claude-sonnet-5", {
             modelCapabilities: { supports: { vision: true } },
         });
 
@@ -149,6 +150,7 @@ describe("Session Configuration", async () => {
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
+            model: "claude-sonnet-5",
             modelCapabilities: { supports: { vision: true } },
         });
 
@@ -159,7 +161,7 @@ describe("Session Configuration", async () => {
         expect(hasImageUrlContent(t1Messages)).toBe(true);
 
         // Switch vision off
-        await session.setModel("claude-sonnet-4.5", {
+        await session.setModel("claude-sonnet-5", {
             modelCapabilities: { supports: { vision: false } },
         });
 
@@ -342,7 +344,7 @@ describe("Session Configuration", async () => {
                         id: "msg_stub_1",
                         type: "message",
                         role: "assistant",
-                        model: "claude-sonnet-4.5",
+                        model: "claude-sonnet-5",
                         content: [],
                         stop_reason: null,
                         stop_sequence: null,
@@ -384,8 +386,8 @@ describe("Session Configuration", async () => {
             return json({
                 data: [
                     {
-                        id: "claude-sonnet-4.5",
-                        name: "Claude Sonnet 4.5",
+                        id: "claude-sonnet-5",
+                        name: "Claude Sonnet 5",
                         object: "model",
                         vendor: "Anthropic",
                         version: "1",
@@ -393,7 +395,7 @@ describe("Session Configuration", async () => {
                         model_picker_enabled: true,
                         capabilities: {
                             type: "chat",
-                            family: "claude-sonnet-4.5",
+                            family: "claude-sonnet-5",
                             tokenizer: "o200k_base",
                             limits: { max_context_window_tokens: 200000, max_output_tokens: 8192 },
                             supports: {
@@ -423,7 +425,7 @@ describe("Session Configuration", async () => {
                 id: "msg_stub_1",
                 type: "message",
                 role: "assistant",
-                model: "claude-sonnet-4.5",
+                model: "claude-sonnet-5",
                 content: [{ type: "text", text: "OK from the synthetic stream." }],
                 stop_reason: "end_turn",
                 stop_sequence: null,
@@ -434,7 +436,7 @@ describe("Session Configuration", async () => {
             id: "chatcmpl-stub-1",
             object: "chat.completion",
             created: 1,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
             choices: [
                 {
                     index: 0,
@@ -462,8 +464,8 @@ describe("Session Configuration", async () => {
             type: "anthropic" as const,
             baseUrl: "https://anthropic-citations.invalid/v1",
             apiKey: "test-provider-key",
-            modelId: "claude-sonnet-4.5",
-            wireModel: "claude-sonnet-4.5",
+            modelId: "claude-sonnet-5",
+            wireModel: "claude-sonnet-5",
         };
     }
 
@@ -563,7 +565,7 @@ describe("Session Configuration", async () => {
         try {
             const session = await citationClient.createSession({
                 onPermissionRequest: approveAll,
-                model: "claude-sonnet-4.5",
+                model: "claude-sonnet-5",
                 enableCitations: true,
                 provider: createAnthropicProvider(),
             });
@@ -607,7 +609,7 @@ describe("Session Configuration", async () => {
             try {
                 const session2 = await resumeClient.resumeSession(session1.sessionId, {
                     onPermissionRequest: approveAll,
-                    model: "claude-sonnet-4.5",
+                    model: "claude-sonnet-5",
                     enableCitations: true,
                     provider: createAnthropicProvider(),
                 });
@@ -711,7 +713,7 @@ describe("Session Configuration", async () => {
     it("should forward custom provider headers on create", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
             provider: createProxyProvider("create-provider-header"),
         });
 
@@ -734,7 +736,7 @@ describe("Session Configuration", async () => {
 
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
             provider: createProxyProvider("resume-provider-header"),
         });
 
@@ -762,7 +764,7 @@ describe("Session Configuration", async () => {
         // tests for serialization coverage).
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
             provider: {
                 type: "openai",
                 baseUrl: openAiEndpoint.url,
@@ -791,7 +793,7 @@ describe("Session Configuration", async () => {
                 type: "openai",
                 baseUrl: openAiEndpoint.url,
                 apiKey: "test-provider-key",
-                modelId: "claude-sonnet-4.5",
+                modelId: "claude-sonnet-5",
             },
         });
 
@@ -799,7 +801,7 @@ describe("Session Configuration", async () => {
 
         const exchanges = await openAiEndpoint.getExchanges();
         expect(exchanges.length).toBe(1);
-        expect(exchanges[0].request.model).toBe("claude-sonnet-4.5");
+        expect(exchanges[0].request.model).toBe("claude-sonnet-5");
 
         await session.disconnect();
     });

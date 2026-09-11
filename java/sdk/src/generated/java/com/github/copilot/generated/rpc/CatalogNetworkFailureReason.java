@@ -26,6 +26,12 @@ public enum CatalogNetworkFailureReason {
     TLS("tls"),
     /** The {@code connection-refused} variant. */
     CONNECTION_REFUSED("connection-refused"),
+    /** The {@code proxy-authentication-required} variant. */
+    PROXY_AUTHENTICATION_REQUIRED("proxy-authentication-required"),
+    /** The {@code rate-limited} variant. */
+    RATE_LIMITED("rate-limited"),
+    /** The {@code service-unavailable} variant. */
+    SERVICE_UNAVAILABLE("service-unavailable"),
     /** The {@code http-status} variant. */
     HTTP_STATUS("http-status"),
     /** The {@code response-too-large} variant. */

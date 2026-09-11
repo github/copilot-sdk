@@ -1,9 +1,6 @@
 name: "Go SDK Tests"
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 
@@ -11,6 +8,36 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: "Go SDK Format and Lint"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./go
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.24"
+      - name: Run go fmt
+        run: |
+          go fmt ./...
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "❌ go fmt produced changes. Please run 'go fmt ./...' in go"
+            git --no-pager diff
+            exit 1
+          fi
+          echo "✅ go fmt produced no changes"
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          working-directory: ./go
+          version: latest
+          args: --timeout=5m
+
   test:
     name: "Go SDK Tests (${{ matrix.os }}, ${{ matrix.transport }})"
     if: github.event.repository.fork == false
@@ -22,37 +49,18 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         transport: ["default", "inprocess"]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
         working-directory: ./go
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: ./.github/actions/setup-copilot
         id: setup-copilot
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.24"
-
-      - name: Run go fmt
-        if: runner.os == 'Linux'
-        working-directory: ./go
-        run: |
-          go fmt ./...
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "❌ go fmt produced changes. Please run 'go fmt ./...' in go"
-            git --no-pager diff
-            exit 1
-          fi
-          echo "✅ go fmt produced no changes"
-
-      - name: Install golangci-lint
-        if: runner.os == 'Linux'
-        uses: golangci/golangci-lint-action@v9
-        with:
-          working-directory: ./go
-          version: latest
-          args: --timeout=5m
 
       - name: Install test harness dependencies
         working-directory: ./test/harness
@@ -73,3 +81,51 @@ jobs:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
         run: /bin/bash test.sh
+
+  # JavaScript actions use a glibc-linked Node runtime, so Alpine runs through Docker.
+  test-musl-arm64:
+    name: "Go SDK Tests (Alpine ARM64, ${{ matrix.transport }})"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: ["default", "inprocess"]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run Go SDK tests on musl ARM64 (${{ matrix.transport }})
+        uses: ./.github/actions/run-alpine-tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        with:
+          image: golang:1.24-alpine
+          workdir: /workspace
+          transport: ${{ matrix.transport }}
+          command: |
+            apk add --no-cache build-base nodejs npm
+            npm --prefix nodejs ci --ignore-scripts
+            npm --prefix test/harness ci --ignore-scripts
+            runtime_path="$(npm --prefix nodejs run --silent prepare:runtime -- --print-path)"
+            case "$runtime_path" in
+              */prebuilds/linuxmusl-arm64/copilot-runtime) ;;
+              *)
+                echo "Expected the linuxmusl-arm64 runtime bundle, got: $runtime_path" >&2
+                exit 1
+                ;;
+            esac
+            test -x "$runtime_path"
+            test -f "$(dirname "$runtime_path")/runtime.node"
+
+            export COPILOT_CLI_PATH="$runtime_path"
+            if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
+              export GOFLAGS="-tags=copilot_inprocess"
+            else
+              unset GOFLAGS
+            fi
+            export CGO_ENABLED=1
+            test "$(go env GOARCH)" = "arm64"
+            test "$(go env CGO_ENABLED)" = "1"
+            cd go
+            /bin/bash test.sh

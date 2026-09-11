@@ -63,7 +63,8 @@ func PrebuildsFolder() string {
 // entrypoint. It checks, in order:
 //
 //  1. The natural platform library name next to the CLI (bundled/flat layout).
-//  2. prebuilds/<platform>/runtime.node next to the CLI (dev/package layout).
+//  2. runtime.node next to the CLI (out-of-process wrapper layout).
+//  3. prebuilds/<platform>/runtime.node next to the CLI (dev/package layout).
 //
 // It returns an error when neither exists.
 func ResolveLibraryPath(cliEntrypoint string) (string, error) {
@@ -78,6 +79,11 @@ func ResolveLibraryPath(cliEntrypoint string) (string, error) {
 		return flat, nil
 	}
 
+	adjacent := filepath.Join(dir, "runtime.node")
+	if fileExists(adjacent) {
+		return adjacent, nil
+	}
+
 	if folder := PrebuildsFolder(); folder != "" {
 		prebuilt := filepath.Join(dir, "prebuilds", folder, "runtime.node")
 		if fileExists(prebuilt) {
@@ -86,7 +92,7 @@ func ResolveLibraryPath(cliEntrypoint string) (string, error) {
 	}
 
 	return "", fmt.Errorf(
-		"in-process FFI runtime library not found next to %q (looked for %q and prebuilds/%s/runtime.node); "+
+		"in-process FFI runtime library not found next to %q (looked for %q, runtime.node, and prebuilds/%s/runtime.node); "+
 			"use a runtime package that ships the native library",
 		abs, NaturalLibraryName(), PrebuildsFolder())
 }

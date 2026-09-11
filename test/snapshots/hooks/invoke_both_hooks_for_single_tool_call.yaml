@@ -1,5 +1,5 @@
 models:
-  - claude-sonnet-4.5
+  - claude-sonnet-5
 conversations:
   - messages:
       - role: system
@@ -44,7 +44,7 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: 1. Testing both hooks!
+        content: Testing both hooks!
       - role: assistant
         content: |-
           The file **both.txt** contains:

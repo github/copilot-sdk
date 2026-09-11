@@ -152,6 +152,9 @@ pub enum SessionErrorKind {
         /// Session ID returned by the CLI.
         returned: SessionId,
     },
+
+    /// The CLI could not detach the session.
+    DetachFailed,
 }
 
 impl fmt::Display for SessionErrorKind {
@@ -186,6 +189,7 @@ impl fmt::Display for SessionErrorKind {
                 f,
                 "CLI returned session ID {returned} after SDK registered {requested}"
             ),
+            SessionErrorKind::DetachFailed => write!(f, "failed to detach session"),
         }
     }
 }
@@ -218,6 +222,8 @@ pub enum ErrorKind {
     },
     /// Invalid combination of options or configuration.
     InvalidConfig,
+    /// A session-scoped GitHub token provider failed or returned invalid data.
+    GitHubTokenProvider,
 }
 
 impl fmt::Display for ErrorKind {
@@ -238,6 +244,7 @@ impl fmt::Display for ErrorKind {
                 write!(f, "binary not found: {name}")
             }
             ErrorKind::InvalidConfig => write!(f, "invalid configuration"),
+            ErrorKind::GitHubTokenProvider => write!(f, "GitHub token provider error"),
         }
     }
 }
@@ -397,7 +404,7 @@ fn capture_backtrace() -> Option<Box<Backtrace>> {
 ///
 /// `Client::stop` performs cooperative shutdown across every active
 /// session before killing the CLI child process. Errors from any
-/// per-session `session.destroy` RPC and from the terminal child-kill
+/// per-session `session.detach` RPC and from the terminal child-kill
 /// step are collected here rather than short-circuiting on the first
 /// failure, so callers see the full picture of what went wrong during
 /// teardown.

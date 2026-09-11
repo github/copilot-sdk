@@ -8,7 +8,7 @@ File: `test/snapshots/system_message_sections/should_use_replaced_identity_secti
 
 ```yaml
 models:
-  - claude-sonnet-4.5
+  - claude-sonnet-5
 conversations:
   - messages:
       - role: system
@@ -73,7 +73,7 @@ File: `test/snapshots/system_message_transform/should_invoke_transform_callbacks
 
 ```yaml
 models:
-  - claude-sonnet-4.5
+  - claude-sonnet-5
 conversations:
   # First exchange: model decides to call tools
   - messages:

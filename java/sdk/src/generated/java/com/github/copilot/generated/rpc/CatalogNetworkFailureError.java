@@ -36,6 +36,10 @@ public final class CatalogNetworkFailureError extends CatalogSearchResult {
     @JsonProperty("statusCode")
     private Long statusCode;
 
+    /** Bounded cooldown in seconds before another catalog request should be attempted, when the authority supplied a numeric Retry-After value or the runtime applied its documented fallback. */
+    @JsonProperty("retryAfterSeconds")
+    private Long retryAfterSeconds;
+
     /** Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret. */
     @JsonProperty("message")
     private String message;
@@ -45,6 +49,9 @@ public final class CatalogNetworkFailureError extends CatalogSearchResult {
 
     public Long getStatusCode() { return statusCode; }
     public void setStatusCode(Long statusCode) { this.statusCode = statusCode; }
+
+    public Long getRetryAfterSeconds() { return retryAfterSeconds; }
+    public void setRetryAfterSeconds(Long retryAfterSeconds) { this.retryAfterSeconds = retryAfterSeconds; }
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }

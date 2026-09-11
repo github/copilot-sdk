@@ -56,6 +56,8 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("duration") Long duration,
         /** Time to first token in milliseconds. Only available for streaming requests */
         @JsonProperty("timeToFirstTokenMs") Double timeToFirstTokenMs,
+        /** Time to first observable model output in milliseconds. Includes text, reasoning, and tool-call output; only available for streaming requests that produce observable output. */
+        @JsonProperty("outputTtftMs") Double outputTtftMs,
         /** Average inter-token latency in milliseconds. Only available for streaming requests */
         @JsonProperty("interTokenLatencyMs") Double interTokenLatencyMs,
         /** What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls */
@@ -113,7 +115,9 @@ public final class AssistantUsageEvent extends SessionEvent {
         /** Finish reason reported by the model for this API call (e.g. "stop", "length", "tool_calls", "content_filter"). Normalized to OpenAI vocabulary; for Anthropic models a "refusal" stop reason maps to "content_filter". */
         @JsonProperty("finishReason") String finishReason,
         /** Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason. */
-        @JsonProperty("contentFilterTriggered") Boolean contentFilterTriggered
+        @JsonProperty("contentFilterTriggered") Boolean contentFilterTriggered,
+        /** Experimental HydraFusion attribution for this concrete model call's usage. */
+        @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }
 }

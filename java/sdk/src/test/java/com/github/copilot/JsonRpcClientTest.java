@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
@@ -115,6 +116,22 @@ class JsonRpcClientTest {
         }
     }
 
+    @Test
+    void testCredentialValuesAreRedactedOnlyFromDiagnosticRendering() throws Exception {
+        String json = """
+                {"jsonrpc":"2.0","result":{"accessToken":"secret","nested":{"gitHubToken":"static"}},
+                "metadata":{"tokenType":"Bearer"}}
+                """;
+
+        String rendered = JsonRpcClient.redactCredentialsForLogging(json);
+
+        assertFalse(rendered.contains("secret"));
+        assertFalse(rendered.contains("static"));
+        assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/accessToken").asText());
+        assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/nested/gitHubToken").asText());
+        assertEquals("Bearer", MAPPER.readTree(rendered).at("/metadata/tokenType").asText());
+    }
+
     // ---- isConnected() ----
 
     @Test
@@ -165,6 +182,36 @@ class JsonRpcClientTest {
     void testGetProcessNullForSocket() throws Exception {
         try (var pair = createSocketPair()) {
             assertNull(pair.client.getProcess());
+        }
+    }
+
+    @Test
+    void testCloseHandlerRunsOnceOnRemoteAndExplicitClose() throws Exception {
+        try (var pair = createSocketPair()) {
+            var closeCount = new AtomicInteger();
+            var closed = new CompletableFuture<Void>();
+            pair.client.setCloseHandler(() -> {
+                closeCount.incrementAndGet();
+                closed.complete(null);
+            });
+
+            pair.serverSide.close();
+            closed.get(5, TimeUnit.SECONDS);
+            pair.client.close();
+
+            assertEquals(1, closeCount.get());
+        }
+    }
+
+    @Test
+    void testCloseHandlerRunsWhenRegisteredAfterClose() throws Exception {
+        try (var pair = createSocketPair()) {
+            pair.client.close();
+            var closed = new CompletableFuture<Void>();
+
+            pair.client.setCloseHandler(() -> closed.complete(null));
+
+            closed.get(5, TimeUnit.SECONDS);
         }
     }
 

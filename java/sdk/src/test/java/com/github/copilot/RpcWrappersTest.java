@@ -149,7 +149,7 @@ class RpcWrappersTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = new McpDiscoverParams("/workspace");
+        var params = new McpDiscoverParams("/workspace", null);
         server.mcp.discover(params);
 
         assertEquals(1, stub.calls.size());
@@ -206,7 +206,7 @@ class RpcWrappersTest {
 
         // switchTo takes extra params beyond sessionId
         var switchParams = new SessionModelSwitchToParams(null, "gpt-5", null, null, null, null, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         session.model.switchTo(switchParams);
 
         assertEquals(1, stub.calls.size());

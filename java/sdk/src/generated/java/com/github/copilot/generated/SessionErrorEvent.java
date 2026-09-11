@@ -42,6 +42,8 @@ public final class SessionErrorEvent extends SessionEvent {
         @JsonProperty("eligibleForAutoSwitch") Boolean eligibleForAutoSwitch,
         /** Human-readable error message */
         @JsonProperty("message") String message,
+        /** What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value. */
+        @JsonProperty("remediation") RemediationAction remediation,
         /** Error stack trace, when available */
         @JsonProperty("stack") String stack,
         /** HTTP status code from the upstream request, if applicable */

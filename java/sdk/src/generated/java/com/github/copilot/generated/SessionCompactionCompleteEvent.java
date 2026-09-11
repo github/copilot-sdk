@@ -52,6 +52,10 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         @JsonProperty("customInstructions") String customInstructions,
         /** LLM-generated summary of the compacted conversation history */
         @JsonProperty("summaryContent") String summaryContent,
+        /** Authoritative active-factory reminder appended to the compacted context */
+        @JsonProperty("activeFactorySummary") String activeFactorySummary,
+        /** Canonical model identifier used for model-specific behavior when replaying compaction */
+        @JsonProperty("behaviorModelId") String behaviorModelId,
         /** Checkpoint snapshot number created for recovery */
         @JsonProperty("checkpointNumber") Long checkpointNumber,
         /** File path where the checkpoint was stored */

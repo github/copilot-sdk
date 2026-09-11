@@ -30,6 +30,8 @@ public record SessionModelApplyStartupOverlayParams(
     @JsonProperty("deviceManagedModel") String deviceManagedModel,
     /** Model required by server-managed policy, when configured. */
     @JsonProperty("serverManagedModel") String serverManagedModel,
+    /** Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins. */
+    @JsonProperty("policyHelperModel") String policyHelperModel,
     /** Model selected by repository settings, when configured. */
     @JsonProperty("repoModel") String repoModel,
     /** Reasoning effort selected by repository settings, when configured. */

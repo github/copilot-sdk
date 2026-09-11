@@ -1,5 +1,5 @@
 models:
-  - claude-sonnet-4.5
+  - claude-sonnet-5
 conversations:
   - messages:
       - role: system
@@ -25,7 +25,7 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: 1. I am in the resume working directory
+        content: I am in the resume working directory
       - role: assistant
         content: |-
           The file `resume-marker.txt` says:

@@ -11,7 +11,11 @@ import inspect
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import date, datetime, time
+from decimal import Decimal
+from enum import Enum
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, get_type_hints, overload
+from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
 
@@ -363,10 +367,18 @@ def _normalize_result(result: Any) -> ToolResult:
             result_type="success",
         )
 
-    # Everything else gets JSON-serialized (with Pydantic model support)
+    # Everything else gets JSON-serialized (with common Python and Pydantic values)
     def default(obj: Any) -> Any:
         if isinstance(obj, BaseModel):
             return obj.model_dump(mode="json")
+        if isinstance(obj, (date, datetime, time)):
+            return obj.isoformat()
+        if isinstance(obj, (Decimal, UUID)):
+            return str(obj)
+        if isinstance(obj, Enum):
+            return obj.value
+        if isinstance(obj, set):
+            return list(obj)
         raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
     try:

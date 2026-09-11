@@ -85,6 +85,8 @@ export {
     type FactoryRunResult,
     type FactoryRunStatus,
     type FactoryRunSummary,
+    type FactoryListRunsOptions,
+    type FactoryRunsPage,
     type FactoryRunDetail,
     type FactoryProgressPage,
     type FactoryProgressLine,

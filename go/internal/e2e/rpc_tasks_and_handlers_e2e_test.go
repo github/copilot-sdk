@@ -127,6 +127,7 @@ func TestRPCTasksAndHandlersE2E(t *testing.T) {
 	})
 
 	t.Run("should report implemented error for invalid task agent model", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		})

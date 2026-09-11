@@ -27,7 +27,7 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
             SessionConfig::default()
                 .with_session_id("advanced-session-id")
                 .with_client_name("rust-sdk-e2e-client")
-                .with_model("claude-sonnet-4.5")
+                .with_model("claude-sonnet-5")
                 .with_reasoning_effort("low")
                 .with_reasoning_summary(ReasoningSummary::None)
                 .with_context_tier("long_context")
@@ -90,7 +90,7 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
         [
             ("sessionId", json!("advanced-session-id")),
             ("clientName", json!("rust-sdk-e2e-client")),
-            ("model", json!("claude-sonnet-4.5")),
+            ("model", json!("claude-sonnet-5")),
             ("reasoningEffort", json!("low")),
             ("reasoningSummary", json!("none")),
             ("contextTier", json!("long_context")),
@@ -488,6 +488,10 @@ function handleMessage(message) {
     return;
   }
   if (message.method === "session.options.update") {
+    writeResponse(message.id, { success: true });
+    return;
+  }
+  if (message.method === "session.detach") {
     writeResponse(message.id, { success: true });
     return;
   }

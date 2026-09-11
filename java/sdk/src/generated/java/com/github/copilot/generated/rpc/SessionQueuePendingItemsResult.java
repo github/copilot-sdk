@@ -28,6 +28,8 @@ public record SessionQueuePendingItemsResult(
     /** Pending queued items in submission order. Includes user messages, queued slash commands, and queued model changes; omits internal system items. */
     @JsonProperty("items") List<QueuePendingItems> items,
     /** Display text for messages currently in the immediate steering queue (interjections sent during a running turn). */
-    @JsonProperty("steeringMessages") List<String> steeringMessages
+    @JsonProperty("steeringMessages") List<String> steeringMessages,
+    /** How many leading entries of `steeringMessages` have already been folded into the running turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent for hosts that do not distinguish the two. */
+    @JsonProperty("inFlightSteeringCount") Long inFlightSteeringCount
 ) {
 }

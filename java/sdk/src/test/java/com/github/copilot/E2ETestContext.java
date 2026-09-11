@@ -65,8 +65,8 @@ public class E2ETestContext implements AutoCloseable {
      */
     private static final String DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
     private static final Pattern SNAKE_CASE = Pattern.compile("[^a-zA-Z0-9]");
-    private static final Pattern USER_CONTENT_PATTERN = Pattern
-            .compile("^\\s+-\\s+role:\\s+user\\s*$\\s+content:\\s*(.+?)$", Pattern.MULTILINE);
+    private static final Pattern USER_ROLE_PATTERN = Pattern.compile("^(\\s*)-\\s+role:\\s+user\\s*$");
+    private static final Pattern CONTENT_PATTERN = Pattern.compile("^(\\s*)content:\\s*(.*)$");
 
     private final String cliPath;
     private final Path homeDir;
@@ -227,25 +227,109 @@ public class E2ETestContext implements AutoCloseable {
             return List.of();
         }
         try {
-            String content = Files.readString(currentSnapshotFile);
-            List<String> prompts = new ArrayList<>();
-            Matcher matcher = USER_CONTENT_PATTERN.matcher(content);
-            while (matcher.find()) {
-                String prompt = matcher.group(1).trim();
-                // Remove quotes if present
-                if ((prompt.startsWith("\"") && prompt.endsWith("\""))
-                        || (prompt.startsWith("'") && prompt.endsWith("'"))) {
-                    prompt = prompt.substring(1, prompt.length() - 1);
-                }
-                if (!prompts.contains(prompt)) {
-                    prompts.add(prompt);
-                }
-            }
-            return prompts;
+            return parseExpectedUserPrompts(Files.readString(currentSnapshotFile));
         } catch (IOException e) {
             LOG.warning("Failed to read snapshot file: " + e.getMessage());
             return List.of();
         }
+    }
+
+    static List<String> parseExpectedUserPrompts(String yaml) {
+        String[] lines = yaml.split("\\R", -1);
+        List<String> prompts = new ArrayList<>();
+
+        for (int i = 0; i < lines.length; i++) {
+            Matcher roleMatcher = USER_ROLE_PATTERN.matcher(lines[i]);
+            if (!roleMatcher.matches()) {
+                continue;
+            }
+
+            int roleIndent = roleMatcher.group(1).length();
+            for (i++; i < lines.length; i++) {
+                String line = lines[i];
+                if (!line.isBlank() && leadingWhitespace(line) <= roleIndent) {
+                    i--;
+                    break;
+                }
+
+                Matcher contentMatcher = CONTENT_PATTERN.matcher(line);
+                if (!contentMatcher.matches()) {
+                    continue;
+                }
+
+                int contentIndent = contentMatcher.group(1).length();
+                String value = contentMatcher.group(2).trim();
+                List<String> continuation = new ArrayList<>();
+                while (i + 1 < lines.length
+                        && (lines[i + 1].isBlank() || leadingWhitespace(lines[i + 1]) > contentIndent)) {
+                    continuation.add(lines[++i]);
+                }
+
+                String prompt = isBlockScalar(value)
+                        ? parseBlockScalar(value.charAt(0), continuation)
+                        : parsePlainScalar(value, continuation);
+                if (!prompt.isEmpty() && !prompts.contains(prompt)) {
+                    prompts.add(prompt);
+                }
+                break;
+            }
+        }
+
+        return prompts;
+    }
+
+    private static String parsePlainScalar(String firstLine, List<String> continuation) {
+        StringBuilder value = new StringBuilder(unquote(firstLine));
+        for (String line : continuation) {
+            if (!line.isBlank()) {
+                if (!value.isEmpty()) {
+                    value.append(' ');
+                }
+                value.append(line.trim());
+            }
+        }
+        return value.toString();
+    }
+
+    private static String parseBlockScalar(char style, List<String> lines) {
+        int contentIndent = lines.stream().filter(line -> !line.isBlank()).mapToInt(E2ETestContext::leadingWhitespace)
+                .min().orElse(0);
+        StringBuilder value = new StringBuilder();
+        boolean previousWasContent = false;
+        for (String line : lines) {
+            String text = line.isBlank() ? "" : line.substring(Math.min(contentIndent, line.length()));
+            if (text.isEmpty()) {
+                value.append('\n');
+                previousWasContent = false;
+            } else {
+                if (previousWasContent) {
+                    value.append(style == '>' ? ' ' : '\n');
+                }
+                value.append(text);
+                previousWasContent = true;
+            }
+        }
+        return value.toString().stripTrailing();
+    }
+
+    private static boolean isBlockScalar(String value) {
+        return value.matches("[>|][+-]?");
+    }
+
+    private static String unquote(String value) {
+        if (value.length() >= 2 && ((value.startsWith("\"") && value.endsWith("\""))
+                || (value.startsWith("'") && value.endsWith("'")))) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
+    }
+
+    private static int leadingWhitespace(String value) {
+        int index = 0;
+        while (index < value.length() && Character.isWhitespace(value.charAt(index))) {
+            index++;
+        }
+        return index;
     }
 
     /**
@@ -512,53 +596,15 @@ public class E2ETestContext implements AutoCloseable {
             return envPath;
         }
 
-        // Try test harness platform-specific binary (preferred as it has correct
-        // version)
-        String os = System.getProperty("os.name").toLowerCase();
-        String arch = System.getProperty("os.arch").toLowerCase();
-        String platform = os.contains("mac") ? "darwin" : os.contains("win") ? "win32" : "linux";
-        String cpuArch = arch.contains("aarch64") || arch.contains("arm64") ? "arm64" : "x64";
-        Path platformBinary = repoRoot
-                .resolve("test/harness/node_modules/@github/copilot-" + platform + "-" + cpuArch + "/copilot");
-        if (os.contains("win")) {
-            platformBinary = repoRoot
-                    .resolve("test/harness/node_modules/@github/copilot-" + platform + "-" + cpuArch + "/copilot.exe");
-        }
-        if (Files.exists(platformBinary)) {
-            return platformBinary.toString();
-        }
-
-        // Try test harness npm-loader.js
-        Path harnessCliPath = repoRoot.resolve("test/harness/node_modules/@github/copilot/npm-loader.js");
-        if (Files.exists(harnessCliPath)) {
-            return harnessCliPath.toString();
-        }
-
-        // Try nodejs installation. As of CLI 1.0.64-1 the @github/copilot package
-        // is a thin loader; the runnable index.js ships in the installed
-        // platform-specific package (e.g. @github/copilot-linux-x64). Exactly one
-        // is installed. Running index.js under Node.js is the documented preferred
-        // entry point and matches the Go, Python, Rust, and .NET test harnesses.
-        Path githubModules = repoRoot.resolve("nodejs/node_modules/@github");
-        if (Files.isDirectory(githubModules)) {
-            try (var modules = Files.newDirectoryStream(githubModules, "copilot-*")) {
-                for (Path module : modules) {
-                    Path indexJs = module.resolve("index.js");
-                    if (Files.exists(indexJs)) {
-                        return indexJs.toString();
-                    }
-                }
+        try {
+            return TestUtil.preparePinnedCli(repoRoot);
+        } catch (Exception e) {
+            String copilotInPath = findCopilotInPath();
+            if (copilotInPath != null) {
+                return copilotInPath;
             }
+            throw new IOException("The pinned CLI could not be prepared and no CLI was found on PATH.", e);
         }
-
-        // Fallback: try to find 'copilot' in PATH
-        String copilotInPath = findCopilotInPath();
-        if (copilotInPath != null) {
-            return copilotInPath;
-        }
-
-        throw new IOException("CLI not found. Either install 'copilot' globally, set COPILOT_CLI_PATH, "
-                + "or run 'npm install' in the nodejs directory or test/harness directory.");
     }
 
     private static String findCopilotInPath() {

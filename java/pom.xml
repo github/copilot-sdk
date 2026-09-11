@@ -7,7 +7,7 @@
 
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java-parent</artifactId>
-    <version>1.0.13-preview.0-SNAPSHOT</version>
+    <version>1.0.14-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>GitHub Copilot SDK :: Java :: Parent</name>
@@ -55,15 +55,6 @@
             adjust for their directory depth (e.g. sdk/ overrides with ../../).
         -->
         <copilot.sdk.root>${project.basedir}/..</copilot.sdk.root>
-        <!--
-            The pinned version of the @github/copilot npm package used by CI
-            workflows (java-smoke-test.yml, update-copilot-dependency.yml) to
-            install the correct CLI for smoke tests and codegen updates.
-
-            DO NOT EDIT MANUALLY. Updated by the update-copilot-dependency
-            workflow.
-        -->
-        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.81-6</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
         <!-- The parent POM is not published to Maven Central. -->
         <maven.deploy.skip>true</maven.deploy.skip>
     </properties>
@@ -79,7 +70,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.15.0</version>
+                    <version>3.16.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -104,12 +95,12 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.5.6</version>
+                    <version>3.6.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>3.5.6</version>
+                    <version>3.6.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -129,7 +120,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-release-plugin</artifactId>
-                    <version>3.1.1</version>
+                    <version>3.3.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -139,7 +130,7 @@
                 <plugin>
                     <groupId>com.github.spotbugs</groupId>
                     <artifactId>spotbugs-maven-plugin</artifactId>
-                    <version>4.10.3.0</version>
+                    <version>4.10.4.1</version>
                 </plugin>
                 <plugin>
                     <groupId>com.diffplug.spotless</groupId>
@@ -169,7 +160,7 @@
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>flatten-maven-plugin</artifactId>
-                    <version>1.7.0</version>
+                    <version>1.8.0</version>
                     <configuration>
                         <flattenMode>ossrh</flattenMode>
                     </configuration>

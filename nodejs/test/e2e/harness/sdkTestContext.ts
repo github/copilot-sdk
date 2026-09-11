@@ -12,6 +12,8 @@ import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vite
 import { CopilotClient, CopilotClientOptions, RuntimeConnection } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
 import { formatError, retry } from "./sdkTestHelper";
+import { ensureCopilotPackage } from "../../../scripts/releaseArtifacts";
+import { COPILOT_CLI_VERSION } from "../../../src/cliVersion";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";
 export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
@@ -48,6 +50,12 @@ function getCliPathForTests(): string | undefined {
         return process.env.COPILOT_CLI_PATH;
     }
     return undefined;
+}
+
+/** Resolves the legacy SEA only for tests that explicitly exercise Node-hosted features. */
+export async function getLegacyCliPathForTests(): Promise<string> {
+    const packageRoot = await ensureCopilotPackage(COPILOT_CLI_VERSION);
+    return join(packageRoot, "app.js");
 }
 
 export async function createSdkTestContext({
@@ -286,8 +294,13 @@ export async function createSdkTestContext({
             process.chdir(restoreCwd);
             restoreCwd = undefined;
         }
-        // Empty directories but leave them in place for next test
-        await rimraf([join(homeDir, "*"), join(workDir, "*")], { glob: true });
+        // The in-process runtime retains open state files until afterAll shuts it down.
+        // Keep its isolated home intact while it is alive; removing open files on POSIX
+        // can leave later tests using unlinked database state.
+        const cleanupPaths = isInProcess
+            ? [join(workDir, "*")]
+            : [join(homeDir, "*"), join(workDir, "*")];
+        await rimraf(cleanupPaths, { glob: true });
     });
 
     afterAll(async () => {

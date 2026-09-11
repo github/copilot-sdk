@@ -26,8 +26,6 @@ import javax.annotation.processing.Generated;
 public record SessionToolsGetBuiltinDescriptorsParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Whether line numbers should be omitted from the view tool descriptor. */
-    @JsonProperty("noViewLineNumbers") Boolean noViewLineNumbers,
     /** Whether descriptors should favor fewer user-intervention prompts. */
     @JsonProperty("reduceUserIntervention") Boolean reduceUserIntervention,
     /** Whether tool descriptors should include authoring metadata. */
@@ -36,8 +34,6 @@ public record SessionToolsGetBuiltinDescriptorsParams(
     @JsonProperty("skillEmbeddingEnabled") Boolean skillEmbeddingEnabled,
     /** Shell-specific names and description lines for shell tools. */
     @JsonProperty("shellConfig") ToolsShellDescriptorConfig shellConfig,
-    /** Whether shell commands may only run asynchronously. */
-    @JsonProperty("shellAsyncOnlyEnabled") Boolean shellAsyncOnlyEnabled,
     /** Whether the configured shell supports PowerShell 7 syntax. */
     @JsonProperty("shellSupportsPowerShell7Syntax") Boolean shellSupportsPowerShell7Syntax,
     /** Default shell timeout in milliseconds. */

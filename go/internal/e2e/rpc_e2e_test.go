@@ -128,7 +128,7 @@ func TestSessionRPCE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Model:               "claude-sonnet-4.5",
+			Model:               "claude-sonnet-5",
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -150,7 +150,7 @@ func TestSessionRPCE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Model:               "claude-sonnet-4.5",
+			Model:               "claude-sonnet-5",
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -194,7 +194,7 @@ func TestSessionRPCE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Model:               "claude-sonnet-4.5",
+			Model:               "claude-sonnet-5",
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)

@@ -20,11 +20,12 @@ from copilot.rpc import (
     HandlePendingToolCallRequest,
     PermissionDecisionRequest,
     PermissionDecisionUserNotAvailable,
+    SessionsCheckInUseRequest,
 )
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
-from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext
+from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext, wait_for_condition
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -464,6 +465,7 @@ class TestPendingWorkResume:
         await server.start()
         try:
             cli_url = f"localhost:{server.runtime_port}"
+            lock_observer: CopilotClient | None = None
 
             suspended_client = CopilotClient(
                 connection=RuntimeConnection.for_uri(
@@ -487,7 +489,40 @@ class TestPendingWorkResume:
                 assert (await asyncio.wait_for(tool_started, PENDING_WORK_TIMEOUT)) == "beta"
 
                 if disconnect_original_client:
+                    # force_stop closes the local socket before the server necessarily
+                    # processes that disconnect. Observe the session lock from another
+                    # runtime so resume cannot race the server's active-session cleanup.
+                    lock_observer = _make_subprocess_client(ctx)
+                    await lock_observer.start()
+
+                    async def session_lock_is_held() -> bool:
+                        result = await lock_observer.rpc.sessions.check_in_use(
+                            SessionsCheckInUseRequest(session_ids=[session_id])
+                        )
+                        return session_id in result.in_use
+
+                    await wait_for_condition(
+                        session_lock_is_held,
+                        timeout=PENDING_WORK_TIMEOUT,
+                        timeout_message=(
+                            f"Timed out waiting for session '{session_id}' to acquire its lock."
+                        ),
+                    )
                     await suspended_client.force_stop()
+
+                    async def session_lock_is_released() -> bool:
+                        result = await lock_observer.rpc.sessions.check_in_use(
+                            SessionsCheckInUseRequest(session_ids=[session_id])
+                        )
+                        return session_id not in result.in_use
+
+                    await wait_for_condition(
+                        session_lock_is_released,
+                        timeout=PENDING_WORK_TIMEOUT,
+                        timeout_message=(
+                            f"Timed out waiting for session '{session_id}' to release its lock."
+                        ),
+                    )
 
                 resumed_client = CopilotClient(
                     connection=RuntimeConnection.for_uri(
@@ -550,6 +585,8 @@ class TestPendingWorkResume:
                 if not release_original.done():
                     release_original.set_result("ORIGINAL_SHOULD_NOT_WIN")
                 await _safe_force_stop(suspended_client)
+                if lock_observer is not None:
+                    await _safe_force_stop(lock_observer)
         finally:
             await _safe_force_stop(server)
 

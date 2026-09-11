@@ -7,7 +7,10 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { CopilotSession } from "../src/session.js";
 import type { SessionEvent } from "../src/generated/session-events.js";
 
-function sessionEvent(type: "session.idle", data: Record<string, never> = {}): SessionEvent {
+function sessionEvent(
+    type: "session.idle",
+    data: { mode?: "interactive" | "plan" | "autopilot" } = {}
+): SessionEvent {
     return {
         type,
         id: "00000000-0000-4000-8000-000000000001",
@@ -103,6 +106,24 @@ describe("sendAndWait", () => {
         expect(stateBeforeSend).toBe("pending");
 
         resolveSend();
+        await expect(pending).resolves.toBeUndefined();
+    });
+
+    it("ignores autopilot continuation idle events", async () => {
+        const { session, sendStarted, resolveSend } = controlledSession();
+        const pending = session.sendAndWait({ prompt: "hi" });
+        await sendStarted;
+
+        session._dispatchEvent(sessionEvent("session.idle", { mode: "autopilot" }));
+        resolveSend();
+
+        const stateAfterContinuation = await Promise.race([
+            pending.then(() => "settled"),
+            new Promise<"pending">((resolve) => setTimeout(() => resolve("pending"), 0)),
+        ]);
+        expect(stateAfterContinuation).toBe("pending");
+
+        session._dispatchEvent(sessionEvent("session.idle", { mode: "interactive" }));
         await expect(pending).resolves.toBeUndefined();
     });
 

@@ -4,9 +4,6 @@ env:
   PYTHONUTF8: 1
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 
@@ -14,6 +11,33 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: "Python SDK Format and Typecheck"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./python
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          enable-cache: true
+      - name: Install Python dev dependencies
+        run: uv sync --all-extras --dev
+      - name: Run ruff format check
+        run: uv run ruff format --check .
+      - name: Run ruff lint
+        run: uv run ruff check
+      - name: Run ty type checking
+        run: uv run ty check copilot
+
   test:
     name: "Python SDK Tests (${{ matrix.os }}, ${{ matrix.transport }})"
     if: github.event.repository.fork == false
@@ -27,23 +51,24 @@ jobs:
         python-version: ["3.11"]
         transport: ["default", "inprocess"]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
         working-directory: ./python
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
           cache: "npm"
           cache-dependency-path: "./nodejs/package-lock.json"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           enable-cache: true
 
@@ -52,20 +77,11 @@ jobs:
 
       - name: Install Node.js dependencies (for CLI in tests)
         working-directory: ./nodejs
-        run: npm ci --ignore-scripts
-
-      - name: Run ruff format check
-        run: uv run ruff format --check .
-
-      - name: Run ruff lint
-        run: uv run ruff check
-
-      - name: Run ty type checking
-        run: uv run ty check copilot
+        run: npm ci --ignore-scripts --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000
 
       - name: Install test harness dependencies
         working-directory: ./test/harness
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000
 
       - name: Warm up PowerShell
         if: runner.os == 'Windows'
@@ -82,3 +98,41 @@ jobs:
         # Keep each module's shared E2E client and proxy on one process while
         # running independent modules concurrently in isolated workers.
         run: uv run pytest -v -s -n 2 --dist=loadfile
+
+  # JavaScript actions use a glibc-linked Node runtime, so Alpine runs through Docker.
+  test-musl-arm64:
+    name: "Python SDK Tests (Alpine ARM64, ${{ matrix.transport }})"
+    if: github.event.repository.fork == false
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: ["default", "inprocess"]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run Python SDK tests on musl
+        uses: ./.github/actions/run-alpine-tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        with:
+          image: python:3.11-alpine
+          workdir: /workspace
+          transport: ${{ matrix.transport }}
+          command: |
+            apk add --no-cache nodejs npm
+            python -m pip install --no-cache-dir uv
+
+            (
+              cd nodejs
+              npm ci --ignore-scripts --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000
+            )
+            (
+              cd test/harness
+              npm ci --ignore-scripts --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000
+            )
+
+            cd python
+            uv sync --all-extras --dev
+            uv run pytest -v -s -n 2 --dist=loadfile

@@ -29,27 +29,8 @@ jobs:
           distribution: "microsoft"
           cache: "maven"
 
-      - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v6
-        with:
-          node-version: 22
-
-      - name: Read pinned @github/copilot version from pom.xml
-        id: cli-version
-        run: |
-          PROP="readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync"
-          VERSION=$(sed -n "s|.*<${PROP}>\(.*\)</${PROP}>.*|\1|p" pom.xml | head -n 1 | tr -d '[:space:]')
-          if [[ -z "$VERSION" || "$VERSION" == "PRIMER_TO_REPLACE" ]]; then
-            echo "::error::Could not read pinned @github/copilot version from pom.xml property <${PROP}>" >&2
-            exit 1
-          fi
-          echo "Pinned @github/copilot version: $VERSION"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Install Copilot CLI globally (pinned to pom.xml version)
-        run: npm install -g "@github/copilot@${{ steps.cli-version.outputs.version }}"
-
-      - name: Verify CLI works
-        run: copilot --version
+      - uses: ./.github/actions/setup-copilot
+        id: setup-copilot
 
       - name: Build SDK and install to local repo
         run: mvn -DskipTests -Pskip-test-harness clean install
@@ -57,6 +38,7 @@ jobs:
       - name: Create and run smoke test via Copilot CLI
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          COPILOT_CLI_JS: ${{ steps.setup-copilot.outputs.javascript-cli-path }}
         run: |
           cat > /tmp/smoke-test-prompt.txt << 'PROMPT_EOF'
           You are running inside the copilot-sdk monorepo, in the java/ subdirectory.
@@ -74,7 +56,7 @@ jobs:
           If any step fails, exit with a non-zero exit code. Do not silently fix errors.
           PROMPT_EOF
 
-          copilot --yolo --prompt "$(cat /tmp/smoke-test-prompt.txt)"
+          node "$COPILOT_CLI_JS" --yolo --prompt "$(cat /tmp/smoke-test-prompt.txt)"
 
       - name: Run smoke test jar
         env:
@@ -102,27 +84,8 @@ jobs:
           distribution: "microsoft"
           cache: "maven"
 
-      - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v6
-        with:
-          node-version: 22
-
-      - name: Read pinned @github/copilot version from pom.xml
-        id: cli-version
-        run: |
-          PROP="readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync"
-          VERSION=$(sed -n "s|.*<${PROP}>\(.*\)</${PROP}>.*|\1|p" pom.xml | head -n 1 | tr -d '[:space:]')
-          if [[ -z "$VERSION" || "$VERSION" == "PRIMER_TO_REPLACE" ]]; then
-            echo "::error::Could not read pinned @github/copilot version from pom.xml property <${PROP}>" >&2
-            exit 1
-          fi
-          echo "Pinned @github/copilot version: $VERSION"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Install Copilot CLI globally (pinned to pom.xml version)
-        run: npm install -g "@github/copilot@${{ steps.cli-version.outputs.version }}"
-
-      - name: Verify CLI works
-        run: copilot --version
+      - uses: ./.github/actions/setup-copilot
+        id: setup-copilot
 
       - name: Build SDK and install to local repo
         run: mvn -DskipTests -Pskip-test-harness clean install
@@ -130,6 +93,7 @@ jobs:
       - name: Create and run smoke test via Copilot CLI
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          COPILOT_CLI_JS: ${{ steps.setup-copilot.outputs.javascript-cli-path }}
         run: |
           cat > /tmp/smoke-test-prompt.txt << 'PROMPT_EOF'
           You are running inside the copilot-sdk monorepo, in the java/ subdirectory.
@@ -150,7 +114,7 @@ jobs:
           If any step fails, exit with a non-zero exit code. Do not silently fix errors.
           PROMPT_EOF
 
-          copilot --yolo --prompt "$(cat /tmp/smoke-test-prompt.txt)"
+          node "$COPILOT_CLI_JS" --yolo --prompt "$(cat /tmp/smoke-test-prompt.txt)"
 
       - name: Run smoke test jar
         env:

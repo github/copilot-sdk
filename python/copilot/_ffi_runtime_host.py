@@ -3,9 +3,9 @@
 Instead of spawning the Copilot CLI as a child process and talking JSON-RPC over
 stdio/TCP, the in-process transport loads the runtime's native shared library
 (``runtime.node`` — a Rust ``cdylib``) into this process and drives JSON-RPC over
-its C ABI (FFI). The native ``host_start`` export spawns the residual worker
-itself, so the SDK never launches the worker directly; it only pumps opaque LSP
-``Content-Length:``-framed JSON-RPC bytes across the boundary:
+its C ABI (FFI). The native ``host_start`` export constructs the Rust server
+synchronously; the SDK only pumps opaque LSP ``Content-Length:``-framed JSON-RPC
+bytes across the boundary:
 
 - client → server frames go to ``copilot_runtime_connection_write``
 - server → client frames arrive on a native callback that feeds a thread-safe
@@ -41,13 +41,13 @@ import logging
 import os
 import sys
 import threading
-import time
 from collections.abc import Sequence
 from pathlib import Path
 
 logger = logging.getLogger("copilot.ffi")
 
 _SYMBOL_PREFIX = "copilot_runtime_"
+_CLEANUP_RETRY_INTERVAL_SECONDS = 0.1
 
 # The C ABI outbound callback: void(void *user_data, uint8 *bytes, size_t len).
 _OutboundCallback = ctypes.CFUNCTYPE(
@@ -114,22 +114,27 @@ def _natural_library_name() -> str:
     return "libcopilot_runtime.so"
 
 
-def resolve_library_path(cli_entrypoint: str) -> str | None:
-    """Resolve the native runtime library next to the given CLI entrypoint.
+def resolve_library_path(runtime_entrypoint: str) -> str | None:
+    """Resolve the native runtime library next to the given runtime entrypoint.
 
     Checks, in order:
 
     1. The natural platform library name next to the CLI (bundled/flat layout,
        what the Python download-at-first-use path writes).
-    2. ``prebuilds/<platform>/runtime.node`` next to the CLI (dev/package layout).
+    2. ``runtime.node`` next to the CLI (prepared release-package layout).
+    3. ``prebuilds/<platform>/runtime.node`` next to the CLI (package-root layout).
 
     Returns the absolute path, or ``None`` when neither exists.
     """
-    directory = Path(cli_entrypoint).resolve().parent
+    directory = Path(runtime_entrypoint).resolve().parent
 
     flat = directory / _natural_library_name()
     if flat.is_file():
         return str(flat)
+
+    adjacent_prebuilt = directory / "runtime.node"
+    if adjacent_prebuilt.is_file():
+        return str(adjacent_prebuilt)
 
     folder = get_prebuilds_folder()
     if folder is not None:
@@ -206,7 +211,7 @@ def _load_library(library_path: str) -> _FfiLibrary:
             return _FfiLibrary(_loaded_library)
 
         # Load with immediate binding (RTLD_NOW) on POSIX, matching the .NET/Rust
-        # hosts. The runtime cdylib from the npm platform package is self-contained;
+        # hosts. The runtime cdylib from the platform release package is self-contained;
         # eager binding surfaces any load problem here rather than at first call.
         if sys.platform == "win32":
             lib = ctypes.WinDLL(library_path)
@@ -327,15 +332,17 @@ class _FfiProcessAdapter:
 class FfiRuntimeHost:
     """Hosts the Copilot runtime in-process via its native C ABI.
 
-    Construct with :meth:`create`, then :meth:`start` to spawn the worker and open
-    the FFI connection. Expose :attr:`process` to :class:`JsonRpcClient`, and call
-    :meth:`dispose` to tear everything down.
+    Construct with :meth:`create`, then :meth:`start` to start the native engine
+    and open the FFI connection. Expose :attr:`process` to
+    :class:`JsonRpcClient`, and call :meth:`dispose` to tear everything down.
     """
+
+    _quarantined_hosts: set[FfiRuntimeHost] = set()
 
     def __init__(
         self,
         library_path: str,
-        cli_entrypoint: str,
+        cli_entrypoint: str | None,
         environment: dict[str, str] | None = None,
         args: Sequence[str] = (),
     ) -> None:
@@ -349,15 +356,14 @@ class FfiRuntimeHost:
         self._connection_id = 0
         self._disposed = False
         self._dispose_lock = threading.Lock()
+        self._operation_lock = threading.Lock()
+        self._cleanup_timer: threading.Timer | None = None
+        self._starting = False
 
         self._receive_buffer = _ReceiveBuffer()
         # Keep a strong reference to the ctypes callback for its whole lifetime;
         # dropping it while native code can still invoke it is a use-after-free.
         self._outbound_callback: ctypes._FuncPointer | None = None
-        # Serializes teardown against in-flight native callbacks.
-        self._active_callbacks = 0
-        self._callback_lock = threading.Lock()
-
         self._process = _FfiProcessAdapter(self)
 
     @property
@@ -367,31 +373,30 @@ class FfiRuntimeHost:
 
     @staticmethod
     def create(
-        cli_entrypoint: str,
+        library_path: str,
+        cli_entrypoint: str | None = None,
         environment: dict[str, str] | None = None,
         args: Sequence[str] = (),
     ) -> FfiRuntimeHost:
-        """Resolve the cdylib next to the CLI entrypoint and prepare the host.
+        """Load the runtime cdylib and prepare the host.
 
         Raises:
             RuntimeError: If the native runtime library cannot be found.
         """
-        full_entrypoint = str(Path(cli_entrypoint).resolve())
-        library_path = resolve_library_path(full_entrypoint)
-        if library_path is None:
+        full_library_path = str(Path(library_path).resolve())
+        if not Path(full_library_path).is_file():
             raise RuntimeError(
-                "In-process FFI runtime library not found next to "
-                f"'{full_entrypoint}'. Download it with "
-                "`python -m copilot download-runtime --in-process`, or set "
-                "COPILOT_CLI_PATH to a runtime package that ships it."
+                f"In-process FFI runtime library not found at '{full_library_path}'."
             )
-        return FfiRuntimeHost(library_path, full_entrypoint, environment, args)
+        full_entrypoint = (
+            str(Path(cli_entrypoint).resolve()) if cli_entrypoint is not None else None
+        )
+        return FfiRuntimeHost(full_library_path, full_entrypoint, environment, args)
 
     def _build_argv(self) -> bytes:
-        # A `.js` entrypoint (dev) is launched via node; the packaged single-file
-        # CLI embeds its own Node and is invoked directly. `--no-auto-update`
-        # pins the worker to the runtime package matching the loaded cdylib.
-        if self._cli_entrypoint.lower().endswith(".js"):
+        if self._cli_entrypoint is None:
+            argv: list[str] = []
+        elif self._cli_entrypoint.lower().endswith(".js"):
             argv = ["node", self._cli_entrypoint, "--embedded-host", "--no-auto-update"]
         else:
             argv = [self._cli_entrypoint, "--embedded-host", "--no-auto-update"]
@@ -407,39 +412,51 @@ class FfiRuntimeHost:
         return json.dumps(obj).encode("utf-8")
 
     def start_blocking(self) -> None:
-        """Spawn the worker and open the FFI connection (blocks up to ~30s).
+        """Start the native engine and open the FFI connection.
 
-        Must be run off the event loop (e.g. via :func:`asyncio.to_thread`);
-        ``host_start`` blocks until the worker connects back and signals
-        readiness.
+        Must be run off the event loop (e.g. via :func:`asyncio.to_thread`).
         """
+        with self._dispose_lock:
+            if self._disposed:
+                raise RuntimeError("The in-process runtime host is disposed.")
+            self._starting = True
+
         argv = self._build_argv()
         env = self._build_env()
 
-        self._server_id = self._lib.host_start(argv, len(argv), env, len(env) if env else 0)
-        if not self._server_id:
-            raise RuntimeError(
-                f"copilot_runtime_host_start failed (library '{self._library_path}', "
-                f"entrypoint '{self._cli_entrypoint}')."
-            )
+        try:
+            self._server_id = self._lib.host_start(argv, len(argv), env, len(env) if env else 0)
+            if not self._server_id:
+                raise RuntimeError(
+                    f"copilot_runtime_host_start failed (library '{self._library_path}')."
+                )
+            with self._dispose_lock:
+                if self._disposed:
+                    raise RuntimeError("The in-process runtime host was disposed during startup.")
 
-        self._outbound_callback = _OutboundCallback(self._on_outbound)
-        self._connection_id = self._lib.connection_open(
-            self._server_id,
-            self._outbound_callback,
-            None,
-            None,
-            0,
-            None,
-            0,
-            None,
-            0,
-        )
-        if not self._connection_id:
-            self._outbound_callback = None
-            self._lib.host_shutdown(self._server_id)
-            self._server_id = 0
-            raise RuntimeError("copilot_runtime_connection_open failed.")
+            self._outbound_callback = _OutboundCallback(self._on_outbound)
+            self._connection_id = self._lib.connection_open(
+                self._server_id,
+                self._outbound_callback,
+                None,
+                None,
+                0,
+                None,
+                0,
+                None,
+                0,
+            )
+            if not self._connection_id:
+                self._outbound_callback = None
+                self._lib.host_shutdown(self._server_id)
+                self._server_id = 0
+                raise RuntimeError("copilot_runtime_connection_open failed.")
+        finally:
+            with self._dispose_lock:
+                self._starting = False
+                disposed = self._disposed
+            if disposed:
+                self._try_finalize_cleanup()
 
     def _on_outbound(
         self,
@@ -453,62 +470,81 @@ class FfiRuntimeHost:
         out before returning. Exceptions must not cross the FFI boundary, so
         everything is caught and logged.
         """
-        with self._callback_lock:
-            if self._disposed:
-                return
-            self._active_callbacks += 1
+        if self._disposed:
+            return
         try:
             if bytes_ptr and bytes_len > 0:
                 data = ctypes.string_at(bytes_ptr, bytes_len)
                 self._receive_buffer.feed(data)
         except Exception:  # noqa: BLE001
             logger.error("In-process FFI inbound callback failed", exc_info=True)
-        finally:
-            with self._callback_lock:
-                self._active_callbacks -= 1
 
     def _write_frame(self, frame: bytes) -> None:
-        if self._disposed or not self._connection_id:
+        if self._disposed:
             raise RuntimeError("The in-process runtime connection is closed.")
-        ok = self._lib.connection_write(self._connection_id, frame, len(frame))
-        if not ok:
-            raise RuntimeError("Failed to write a frame to the in-process runtime connection.")
+        with self._operation_lock:
+            if self._disposed or not self._connection_id:
+                raise RuntimeError("The in-process runtime connection is closed.")
+            ok = self._lib.connection_write(self._connection_id, frame, len(frame))
+            if not ok:
+                raise RuntimeError("Failed to write a frame to the in-process runtime connection.")
 
     def dispose(self) -> None:
         """Close the FFI connection, shut down the native host, release resources.
 
-        Idempotent. Waits for any in-flight outbound callback to finish before
-        dropping the callback reference to avoid a use-after-free.
+        Idempotent. Callback state remains rooted until connection_close reports
+        that native callbacks are quiescent.
         """
         with self._dispose_lock:
             if self._disposed:
                 return
             self._disposed = True
 
-        # Stop accepting new callbacks and wait for in-flight ones to drain.
-        with self._callback_lock:
-            pass  # _disposed is set; new callbacks bail out immediately.
-        while True:
-            with self._callback_lock:
-                if self._active_callbacks == 0:
-                    break
-            time.sleep(0.001)
-
-        try:
-            if self._connection_id:
-                self._lib.connection_close(self._connection_id)
-                self._connection_id = 0
-        except Exception:  # noqa: BLE001
-            logger.debug("Error closing in-process FFI connection", exc_info=True)
-
-        try:
-            if self._server_id:
-                self._lib.host_shutdown(self._server_id)
-                self._server_id = 0
-        except Exception:  # noqa: BLE001
-            logger.debug("Error shutting down in-process FFI host", exc_info=True)
-
         self._receive_buffer.close()
-        # Safe to drop now: no native code can invoke the callback after
-        # connection_close, and all in-flight callbacks have drained.
-        self._outbound_callback = None
+        with self._dispose_lock:
+            starting = self._starting
+        if not starting:
+            self._try_finalize_cleanup()
+
+    def _try_finalize_cleanup(self) -> None:
+        with self._dispose_lock:
+            if self._cleanup_timer is not None:
+                return
+            with self._operation_lock:
+                if self._connection_id:
+                    try:
+                        closed = self._lib.connection_close(self._connection_id)
+                    except Exception:  # noqa: BLE001
+                        logger.debug("Error closing in-process FFI connection", exc_info=True)
+                        self._quarantined_hosts.add(self)
+                        return
+                    if not closed:
+                        self._schedule_cleanup_retry()
+                        return
+                    self._connection_id = 0
+                    self._outbound_callback = None
+                    self._quarantined_hosts.discard(self)
+
+                if self._server_id:
+                    try:
+                        if not self._lib.host_shutdown(self._server_id):
+                            logger.debug(
+                                "In-process FFI host shutdown did not recognize server %s",
+                                self._server_id,
+                            )
+                    except Exception:  # noqa: BLE001
+                        logger.debug("Error shutting down in-process FFI host", exc_info=True)
+                    self._server_id = 0
+
+    def _schedule_cleanup_retry(self) -> None:
+        if self._cleanup_timer is not None:
+            return
+        timer = threading.Timer(_CLEANUP_RETRY_INTERVAL_SECONDS, self._run_cleanup_retry)
+        timer.daemon = True
+        self._cleanup_timer = timer
+        timer.start()
+
+    def _run_cleanup_retry(self) -> None:
+        with self._dispose_lock:
+            self._cleanup_timer = None
+        self._try_finalize_cleanup()

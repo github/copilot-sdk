@@ -14,8 +14,10 @@ import (
 )
 
 const (
-	rewindFileName    = "rewind-sdk.txt"
-	rewindFileContent = "SDK rewind content"
+	rewindFileName            = "rewind-sdk.txt"
+	rewindFileOriginalContent = "Original rewind content"
+	rewindFilePreparedContent = "Prepared rewind content"
+	rewindFileContent         = "SDK rewind content"
 )
 
 func TestRewindE2E(t *testing.T) {
@@ -26,8 +28,11 @@ func TestRewindE2E(t *testing.T) {
 	t.Run("should restore tracked file and conversation", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 		filePath := filepath.Join(ctx.WorkDir, rewindFileName)
+		if err := os.WriteFile(filePath, []byte(rewindFileOriginalContent), 0o600); err != nil {
+			t.Fatalf("Failed to create original file: %v", err)
+		}
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			Model:                    "claude-sonnet-4.5",
+			Model:                    "claude-sonnet-5",
 			EnableFileChangeTracking: copilot.Bool(true),
 			OnPermissionRequest:      copilot.PermissionHandler.ApproveAll,
 		})
@@ -36,9 +41,30 @@ func TestRewindE2E(t *testing.T) {
 		}
 		defer session.Disconnect()
 
+		ready, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Use the edit tool to replace the exact contents of " + rewindFileName + " from " +
+				rewindFileOriginalContent + " to " + rewindFilePreparedContent +
+				". After the tool succeeds, reply with exactly SDK_REWIND_READY.",
+		})
+		if err != nil {
+			t.Fatalf("SendAndWait readiness turn failed: %v", err)
+		}
+		readyData, ok := ready.Data.(*copilot.AssistantMessageData)
+		if !ok || readyData.Content != "SDK_REWIND_READY" {
+			t.Fatalf("Expected SDK_REWIND_READY response, got %+v", ready)
+		}
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("Failed to read prepared file: %v", err)
+		}
+		if string(content) != rewindFilePreparedContent {
+			t.Fatalf("Expected file content %q, got %q", rewindFilePreparedContent, content)
+		}
+
 		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: "Use the create tool to create " + rewindFileName + " containing exactly " +
-				rewindFileContent + ". After the tool succeeds, reply with exactly SDK_REWIND_DONE.",
+			Prompt: "Use the edit tool to replace the exact contents of " + rewindFileName + " from " +
+				rewindFilePreparedContent + " to " + rewindFileContent +
+				". After the tool succeeds, reply with exactly SDK_REWIND_DONE.",
 		})
 		if err != nil {
 			t.Fatalf("SendAndWait failed: %v", err)
@@ -47,9 +73,9 @@ func TestRewindE2E(t *testing.T) {
 		if !ok || responseData.Content != "SDK_REWIND_DONE" {
 			t.Fatalf("Expected SDK_REWIND_DONE response, got %+v", response)
 		}
-		content, err := os.ReadFile(filePath)
+		content, err = os.ReadFile(filePath)
 		if err != nil {
-			t.Fatalf("Failed to read created file: %v", err)
+			t.Fatalf("Failed to read updated file: %v", err)
 		}
 		if string(content) != rewindFileContent {
 			t.Fatalf("Expected file content %q, got %q", rewindFileContent, content)
@@ -59,10 +85,13 @@ func TestRewindE2E(t *testing.T) {
 		if !rewindPoints.FileChangeTrackingEnabled {
 			t.Fatal("Expected file change tracking to be enabled")
 		}
-		if len(rewindPoints.Points) != 1 {
-			t.Fatalf("Expected one rewind point, got %+v", rewindPoints.Points)
+		if len(rewindPoints.Points) != 2 {
+			t.Fatalf("Expected two rewind points, got %+v", rewindPoints.Points)
 		}
-		rewindPoint := rewindPoints.Points[0]
+		rewindPoint := rewindPoints.Points[1]
+		if !rewindPoint.TurnChangedFiles {
+			t.Fatalf("Expected the edit turn to report changed files, got %+v", rewindPoint)
+		}
 		if !rewindPoint.CanRestoreFiles || rewindPoint.FileCount != 1 {
 			t.Fatalf("Expected one restorable file, got %+v", rewindPoint)
 		}
@@ -95,8 +124,12 @@ func TestRewindE2E(t *testing.T) {
 			t.Fatalf("Expected one restored file, got %+v", rewind.RestoredFiles)
 		}
 		assertSameRewindPath(t, filePath, rewind.RestoredFiles[0])
-		if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-			t.Fatalf("Expected rewound file to be removed, stat error: %v", err)
+		content, err = os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("Failed to read restored file: %v", err)
+		}
+		if string(content) != rewindFilePreparedContent {
+			t.Fatalf("Expected restored file content %q, got %q", rewindFilePreparedContent, content)
 		}
 
 		events, err := session.GetEvents(t.Context())
@@ -113,17 +146,21 @@ func TestRewindE2E(t *testing.T) {
 
 func waitForRewindPoints(t *testing.T, session *copilot.Session) *rpc.HistoryListRewindPointsResult {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for {
 		result, err := session.RPC.History.ListRewindPoints(t.Context())
 		if err != nil {
 			t.Fatalf("ListRewindPoints failed: %v", err)
 		}
-		if result.UnavailableReason == nil {
+		if result.UnavailableReason == nil &&
+			len(result.Points) == 2 &&
+			result.Points[1].TurnChangedFiles &&
+			result.Points[1].CanRestoreFiles &&
+			result.Points[1].FileCount == 1 {
 			return result
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("Timed out waiting for rewind points: %s", *result.UnavailableReason)
+			t.Fatalf("Timed out waiting for a restorable rewind point: %+v", result)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}

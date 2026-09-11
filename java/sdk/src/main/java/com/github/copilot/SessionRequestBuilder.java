@@ -119,6 +119,7 @@ final class SessionRequestBuilder {
         request.setReasoningEffort(config.getReasoningEffort());
         request.setReasoningSummary(config.getReasoningSummary());
         request.setContextTier(config.getContextTier());
+        request.setAskUserVariant(config.getAskUserVariant());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
@@ -147,7 +148,9 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setAllowAllMcpServerInstructions(config.getAllowAllMcpServerInstructions());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
+        request.setAuthClientIdMetadataUrl(config.getAuthClientIdMetadataUrl());
         request.setCustomAgents(config.getCustomAgents());
         request.setCustomAgentsLocalOnly(
                 resolveCustomAgentsLocalOnly(config.getCustomAgentsLocalOnly().orElse(null), mode));
@@ -200,6 +203,7 @@ final class SessionRequestBuilder {
         request.setGitHubToken(config.getGitHubToken());
         request.setRemoteSession(config.getRemoteSession());
         request.setCloud(config.getCloud());
+        request.setFeatureFlags(config.getFeatureFlags());
         request.setExpAssignments(config.getExpAssignments());
         config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
         request.setManagedSettings(config.getManagedSettings());
@@ -255,6 +259,7 @@ final class SessionRequestBuilder {
         request.setReasoningEffort(config.getReasoningEffort());
         request.setReasoningSummary(config.getReasoningSummary());
         request.setContextTier(config.getContextTier());
+        request.setAskUserVariant(config.getAskUserVariant());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
@@ -300,7 +305,9 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setAllowAllMcpServerInstructions(config.getAllowAllMcpServerInstructions());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
+        request.setAuthClientIdMetadataUrl(config.getAuthClientIdMetadataUrl());
         request.setCustomAgents(config.getCustomAgents());
         request.setCustomAgentsLocalOnly(
                 resolveCustomAgentsLocalOnly(config.getCustomAgentsLocalOnly().orElse(null), mode));
@@ -338,6 +345,7 @@ final class SessionRequestBuilder {
         }
         request.setGitHubToken(config.getGitHubToken());
         request.setRemoteSession(config.getRemoteSession());
+        request.setFeatureFlags(config.getFeatureFlags());
         request.setExpAssignments(config.getExpAssignments());
         config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
         request.setManagedSettings(config.getManagedSettings());

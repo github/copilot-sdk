@@ -7,10 +7,8 @@
  * and speaking JSON-RPC over its C ABI (FFI) instead of spawning a CLI child process
  * and communicating over stdio/TCP.
  *
- * The native `host_start` export spawns the CLI worker itself
- * (`node <entrypoint> --embedded-host` for a `.js` entrypoint, or `<entrypoint>
- * --embedded-host` for a packaged binary), so the SDK never launches the worker
- * directly. LSP `Content-Length:`-framed JSON-RPC bytes are pumped across the ABI:
+ * The native `host_start` export constructs the Rust server synchronously in this
+ * process. LSP `Content-Length:`-framed JSON-RPC bytes are pumped across the ABI:
  * writes go to `connection_write`; inbound frames arrive on a native callback that
  * feeds {@link FfiRuntimeHost.receiveStream}. The existing `vscode-jsonrpc`
  * `StreamMessageReader`/`StreamMessageWriter` handle framing unchanged — this is a
@@ -19,7 +17,7 @@
 
 import { existsSync } from "node:fs";
 import koffi from "koffi";
-import { dirname, join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { PassThrough, Writable } from "node:stream";
 
 const SYMBOL_PREFIX = "copilot_runtime_";
@@ -27,6 +25,7 @@ const SYMBOL_PREFIX = "copilot_runtime_";
 // A long, referenced no-op timer keeps the Node event loop alive while the in-process
 // connection is open (see start()); the exact interval is irrelevant.
 const KEEP_ALIVE_INTERVAL_MS = 1 << 30;
+const CLEANUP_RETRY_INTERVAL_MS = 100;
 
 type KoffiFunction = ReturnType<ReturnType<typeof koffi.load>["func"]>;
 type KoffiType = ReturnType<typeof koffi.pointer>;
@@ -97,14 +96,12 @@ function loadLibrary(libraryPath: string): FfiLibrary {
     return loadedLibrary;
 }
 
-function buildArgvJson(cliEntrypoint: string, args: readonly string[]): Buffer {
-    // A `.js` entrypoint is launched via node; the packaged single-file CLI binary
-    // embeds its own Node and is invoked directly. `--no-auto-update` pins the worker
-    // to the bundled pkg matching the loaded cdylib, instead of drifting to a newer
-    // version installed under the user's `~/.copilot/pkg` (which would cause ABI skew).
-    const argv = cliEntrypoint.toLowerCase().endsWith(".js")
-        ? ["node", cliEntrypoint, "--embedded-host", "--no-auto-update"]
-        : [cliEntrypoint, "--embedded-host", "--no-auto-update"];
+function buildArgvJson(cliEntrypoint: string | undefined, args: readonly string[]): Buffer {
+    const argv = cliEntrypoint
+        ? cliEntrypoint.toLowerCase().endsWith(".js")
+            ? ["node", cliEntrypoint, "--embedded-host", "--no-auto-update"]
+            : [cliEntrypoint, "--embedded-host", "--no-auto-update"]
+        : [];
     argv.push(...args);
     return Buffer.from(JSON.stringify(argv), "utf8");
 }
@@ -126,12 +123,17 @@ function buildEnvJson(environment?: Record<string, string | undefined>): Buffer 
 }
 
 export class FfiRuntimeHost {
+    private static readonly quarantinedHosts = new Set<FfiRuntimeHost>();
+
     private readonly lib: FfiLibrary;
     private serverId = 0;
     private connectionId = 0;
     private disposed = false;
+    private starting = false;
     private outboundCallback: KoffiRegisteredCallback | undefined;
     private keepAliveTimer: ReturnType<typeof setInterval> | undefined;
+    private cleanupRetryTimer: ReturnType<typeof setTimeout> | undefined;
+    private cleanupInProgress = false;
 
     /** The stream JSON-RPC reads server→client frames from. */
     readonly receiveStream: PassThrough;
@@ -140,7 +142,7 @@ export class FfiRuntimeHost {
 
     private constructor(
         private readonly libraryPath: string,
-        private readonly cliEntrypoint: string,
+        private readonly cliEntrypoint: string | undefined,
         private readonly environment: Record<string, string | undefined> | undefined,
         private readonly args: readonly string[]
     ) {
@@ -161,91 +163,102 @@ export class FfiRuntimeHost {
     }
 
     /**
-     * Resolves the cdylib next to the given CLI entrypoint and prepares the FFI host.
-     * The cdylib is resolved as `prebuilds/<prebuildsFolder>/runtime.node` relative to
-     * the entrypoint directory (the napi-rs `<node-platform>-<arch>` layout, e.g.
-     * `linux-x64`). Throws if it cannot be found.
+     * Loads the runtime cdylib at the given path and prepares the FFI host.
      */
     static create(
-        cliEntrypoint: string,
-        prebuildsFolder: string,
+        libraryPath: string,
+        cliEntrypoint: string | undefined,
         environment: Record<string, string | undefined> | undefined,
         args: readonly string[]
     ): FfiRuntimeHost {
-        const fullEntrypoint = resolve(cliEntrypoint);
-        const distDir = dirname(fullEntrypoint);
-        const libraryPath = join(distDir, "prebuilds", prebuildsFolder, "runtime.node");
-        if (!existsSync(libraryPath)) {
-            throw new Error(`FFI runtime library not found. Looked for '${libraryPath}'.`);
+        const fullLibraryPath = resolve(libraryPath);
+        if (!existsSync(fullLibraryPath)) {
+            throw new Error(`FFI runtime library not found at '${fullLibraryPath}'.`);
         }
-        return new FfiRuntimeHost(libraryPath, fullEntrypoint, environment, args);
+        return new FfiRuntimeHost(
+            fullLibraryPath,
+            cliEntrypoint ? resolve(cliEntrypoint) : undefined,
+            environment,
+            args
+        );
     }
 
-    /**
-     * Starts the in-process runtime: spawns the CLI worker via the native host,
-     * waits for readiness, and opens the FFI JSON-RPC connection.
-     */
+    /** Starts the in-process Rust runtime and opens the FFI JSON-RPC connection. */
     async start(): Promise<void> {
+        if (this.disposed) {
+            throw new Error("The in-process runtime host is disposed.");
+        }
+        this.starting = true;
         const argvJson = buildArgvJson(this.cliEntrypoint, this.args);
         const envJson = buildEnvJson(this.environment);
 
-        // The native host spawns the CLI worker itself and has no cwd parameter, so the
-        // worker inherits this process's cwd. A custom working directory is intentionally
-        // unsupported for the in-process transport (rejected by the client constructor)
-        // rather than mutating the shared process-global cwd here.
+        try {
+            // The native host has no cwd parameter, so it uses this process's cwd. A custom
+            // working directory is intentionally
+            // unsupported for the in-process transport (rejected by the client constructor)
+            // rather than mutating the shared process-global cwd here.
 
-        // host_start blocks until the worker connects back and signals readiness
-        // (up to ~30s); run it as an async FFI call so the Node event loop isn't blocked.
-        this.serverId = await new Promise<number>((resolvePromise, rejectPromise) => {
-            this.lib.hostStart.async(
-                argvJson,
-                argvJson.length,
-                envJson,
-                envJson ? envJson.length : 0,
-                (error: Error | null, result: number) => {
-                    if (error) {
-                        rejectPromise(error);
-                    } else {
-                        resolvePromise(result);
+            // host_start constructs the native engine synchronously; run it as an async FFI
+            // call so the Node event loop isn't blocked.
+            this.serverId = await new Promise<number>((resolvePromise, rejectPromise) => {
+                this.lib.hostStart.async(
+                    argvJson,
+                    argvJson.length,
+                    envJson,
+                    envJson ? envJson.length : 0,
+                    (error: Error | null, result: number) => {
+                        if (error) {
+                            rejectPromise(error);
+                        } else {
+                            resolvePromise(result);
+                        }
                     }
-                }
+                );
+            });
+            if (!this.serverId) {
+                throw new Error(
+                    `copilot_runtime_host_start failed (library '${this.libraryPath}').`
+                );
+            }
+            if (this.disposed) {
+                throw new Error("The in-process runtime host was disposed during startup.");
+            }
+
+            this.outboundCallback = koffi.register(
+                (_userData: unknown, bytesPtr: unknown, bytesLen: number | bigint) =>
+                    this.feedInbound(bytesPtr, bytesLen),
+                this.lib.outboundCallbackType
             );
-        });
-        if (!this.serverId) {
-            throw new Error(
-                `copilot_runtime_host_start failed (library '${this.libraryPath}', entrypoint '${this.cliEntrypoint}').`
+
+            this.connectionId = this.lib.connectionOpen(
+                this.serverId,
+                this.outboundCallback,
+                null,
+                null,
+                0,
+                null,
+                0,
+                null,
+                0
             );
+            if (!this.connectionId) {
+                this.unregisterCallback();
+                this.lib.hostShutdown(this.serverId);
+                this.serverId = 0;
+                throw new Error("copilot_runtime_connection_open failed.");
+            }
+
+            // The in-process transport has no socket/pipe handle to keep the Node event loop
+            // alive while the SDK is idle awaiting a server→client frame. koffi delivers the
+            // outbound callback on the loop but does not reference it, so hold one referenced
+            // timer for the lifetime of the connection.
+            this.keepAliveTimer = setInterval(() => {}, KEEP_ALIVE_INTERVAL_MS);
+        } finally {
+            this.starting = false;
+            if (this.disposed) {
+                void this.tryFinalizeCleanup();
+            }
         }
-
-        this.outboundCallback = koffi.register(
-            (_userData: unknown, bytesPtr: unknown, bytesLen: number | bigint) =>
-                this.feedInbound(bytesPtr, bytesLen),
-            this.lib.outboundCallbackType
-        );
-
-        this.connectionId = this.lib.connectionOpen(
-            this.serverId,
-            this.outboundCallback,
-            null,
-            null,
-            0,
-            null,
-            0,
-            null,
-            0
-        );
-        if (!this.connectionId) {
-            this.unregisterCallback();
-            this.lib.hostShutdown(this.serverId);
-            this.serverId = 0;
-            throw new Error("copilot_runtime_connection_open failed.");
-        }
-
-        // The in-process transport has no socket/pipe handle to keep the Node event loop
-        // alive while the SDK is idle awaiting a server→client frame. koffi delivers the
-        // outbound callback on the loop but does not reference it, so hold one referenced
-        // timer for the lifetime of the connection.
-        this.keepAliveTimer = setInterval(() => {}, KEEP_ALIVE_INTERVAL_MS);
     }
 
     private writeFrame(frame: Buffer): void {
@@ -292,50 +305,117 @@ export class FfiRuntimeHost {
         }
     }
 
-    private unregisterCallback(): void {
+    private unregisterCallback(): boolean {
         if (this.outboundCallback === undefined) {
-            return;
+            return true;
         }
         const callback = this.outboundCallback;
-        this.outboundCallback = undefined;
         try {
             koffi.unregister(callback);
-        } catch {
-            // Ignore teardown failures.
+            this.outboundCallback = undefined;
+            return true;
+        } catch (error) {
+            console.error(
+                `Failed to unregister in-process FFI callback: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+            );
+            FfiRuntimeHost.quarantinedHosts.add(this);
+            return false;
         }
     }
 
-    /** Closes the FFI connection, shuts down the native host, and releases resources. */
-    dispose(): void {
+    private scheduleCleanupRetry(): void {
+        if (this.cleanupRetryTimer !== undefined) {
+            return;
+        }
+        this.cleanupRetryTimer = setTimeout(() => {
+            this.cleanupRetryTimer = undefined;
+            void this.tryFinalizeCleanup();
+        }, CLEANUP_RETRY_INTERVAL_MS);
+    }
+
+    private async tryFinalizeCleanup(): Promise<void> {
+        if (this.cleanupInProgress) {
+            this.scheduleCleanupRetry();
+            return;
+        }
+        this.cleanupInProgress = true;
+
+        try {
+            if (this.connectionId) {
+                let closed = false;
+                try {
+                    // Close waits for outbound callbacks, which need the JS event loop
+                    // to run and return before native code can report quiescence.
+                    closed = await new Promise<boolean>((resolvePromise, rejectPromise) => {
+                        this.lib.connectionClose.async(
+                            this.connectionId,
+                            (error: Error | null, result: boolean) => {
+                                if (error) {
+                                    rejectPromise(error);
+                                } else {
+                                    resolvePromise(result);
+                                }
+                            }
+                        );
+                    });
+                } catch (error) {
+                    console.error(
+                        `Failed to close in-process FFI connection: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+                    );
+                    FfiRuntimeHost.quarantinedHosts.add(this);
+                    if (this.keepAliveTimer !== undefined) {
+                        clearInterval(this.keepAliveTimer);
+                        this.keepAliveTimer = undefined;
+                    }
+                    return;
+                }
+                if (!closed) {
+                    this.scheduleCleanupRetry();
+                    return;
+                }
+                this.connectionId = 0;
+            }
+            const callbackUnregistered = this.unregisterCallback();
+
+            // The referenced timer is part of the callback lifetime. Clearing it
+            // before connection_close reports quiescence can let the process exit
+            // while native code still owns the Koffi registration.
+            if (this.keepAliveTimer !== undefined) {
+                clearInterval(this.keepAliveTimer);
+                this.keepAliveTimer = undefined;
+            }
+
+            if (this.serverId) {
+                try {
+                    if (!this.lib.hostShutdown(this.serverId)) {
+                        console.error(
+                            `In-process FFI host shutdown did not recognize server ${this.serverId}.`
+                        );
+                    }
+                } catch (error) {
+                    console.error(
+                        `Failed to shut down in-process FFI host: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+                    );
+                }
+                this.serverId = 0;
+            }
+            if (callbackUnregistered) {
+                FfiRuntimeHost.quarantinedHosts.delete(this);
+            }
+        } finally {
+            this.cleanupInProgress = false;
+        }
+    }
+
+    /** Awaits the initial cleanup attempt; a non-quiescent close is retried in the background. */
+    async dispose(): Promise<void> {
         if (this.disposed) {
             return;
         }
         this.disposed = true;
-
-        if (this.keepAliveTimer !== undefined) {
-            clearInterval(this.keepAliveTimer);
-            this.keepAliveTimer = undefined;
-        }
-
-        try {
-            if (this.connectionId) {
-                this.lib.connectionClose(this.connectionId);
-                this.connectionId = 0;
-            }
-        } catch {
-            // Ignore teardown failures.
-        }
-
-        try {
-            if (this.serverId) {
-                this.lib.hostShutdown(this.serverId);
-                this.serverId = 0;
-            }
-        } catch {
-            // Ignore teardown failures.
-        }
-
         this.receiveStream.end();
-        this.unregisterCallback();
+        if (!this.starting) {
+            await this.tryFinalizeCleanup();
+        }
     }
 }

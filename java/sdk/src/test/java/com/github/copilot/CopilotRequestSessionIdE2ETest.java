@@ -77,11 +77,11 @@ public class CopilotRequestSessionIdE2ETest {
             // BYOK session.
             int before = handler.inferenceRequests().size();
             ProviderConfig provider = new ProviderConfig().setType("openai").setWireApi("responses")
-                    .setBaseUrl("https://byok.invalid/v1").setApiKey("byok-secret").setModelId("claude-sonnet-4.5")
-                    .setWireModel("claude-sonnet-4.5");
+                    .setBaseUrl("https://byok.invalid/v1").setApiKey("byok-secret").setModelId("claude-sonnet-5")
+                    .setWireModel("claude-sonnet-5");
             CopilotSession byokSession = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setModel("claude-sonnet-4.5").setProvider(provider))
+                            .setModel("claude-sonnet-5").setProvider(provider))
                     .get();
             String byokSessionId = byokSession.getSessionId();
 

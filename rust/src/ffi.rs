@@ -2,25 +2,24 @@
 //! library and speaking JSON-RPC over its C ABI,
 //! instead of spawning a CLI child process and communicating over stdio/TCP.
 //!
-//! The runtime's `host_start` export spawns the residual TypeScript worker
-//! itself — the packaged single-file CLI (`copilot --embedded-host`) or, for
-//! dev, `node dist-cli/index.js --embedded-host`. JSON-RPC frames are pumped
-//! across the ABI: writes go to `connection_write`; inbound frames arrive on a
-//! native callback that feeds an async reader. The framing is unchanged — the
-//! same LSP `Content-Length:` frames the stdio transport uses.
+//! The runtime's `host_start` export constructs the Rust server synchronously in
+//! this process. JSON-RPC frames are pumped across the ABI: writes go to
+//! `connection_write`; inbound frames arrive on a native callback that feeds an
+//! async reader. The framing is unchanged — the same LSP `Content-Length:`
+//! frames the stdio transport uses.
 
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 
 use libloading::Library;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{Error, ErrorKind};
 
@@ -46,7 +45,6 @@ type ConnectionCloseFn = unsafe extern "C" fn(u32) -> bool;
 /// route inbound frames back to the reader.
 struct CallbackState {
     tx: mpsc::UnboundedSender<Vec<u8>>,
-    active_callbacks: AtomicUsize,
     closing: AtomicBool,
 }
 
@@ -55,14 +53,11 @@ extern "C" fn on_outbound(user_data: *mut c_void, bytes: *const u8, len: usize) 
         return;
     }
     let state = unsafe { &*(user_data as *const CallbackState) };
-    state.active_callbacks.fetch_add(1, Ordering::SeqCst);
     if state.closing.load(Ordering::SeqCst) {
-        state.active_callbacks.fetch_sub(1, Ordering::SeqCst);
         return;
     }
     let slice = unsafe { std::slice::from_raw_parts(bytes, len) };
     let _ = state.tx.send(slice.to_vec());
-    state.active_callbacks.fetch_sub(1, Ordering::SeqCst);
 }
 
 /// Bound exports and connection lifecycle state, shared between the
@@ -99,24 +94,56 @@ impl FfiShared {
         if !state.is_null() {
             unsafe { &*state }.closing.store(true, Ordering::SeqCst);
         }
-        let conn = self.connection_id.swap(0, Ordering::SeqCst);
+        let conn = self.connection_id.load(Ordering::SeqCst);
         if conn != 0 {
-            unsafe { (self.connection_close)(conn) };
+            let quiesced = unsafe { (self.connection_close)(conn) };
+            if !quiesced {
+                let conn = self.connection_id.swap(0, Ordering::SeqCst);
+                let server = self.server_id.swap(0, Ordering::SeqCst);
+                let state =
+                    self.callback_state
+                        .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
+                let connection_close = self.connection_close;
+                let host_shutdown = self.host_shutdown;
+                let library_path = self.library_path.clone();
+                if let Err(error) = std::thread::Builder::new()
+                    .name("copilot-ffi-cleanup".to_owned())
+                    .spawn(move || {
+                        while !unsafe { connection_close(conn) } {
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                        }
+                        release_callback_state(state);
+                        if server != 0 && !unsafe { host_shutdown(server) } {
+                            warn!(
+                                library = %library_path.display(),
+                                server_id = server,
+                                "FFI runtime host shutdown did not recognize server"
+                            );
+                        }
+                        debug!(library = %library_path.display(), "FFI runtime connection closed");
+                    })
+                {
+                    warn!(
+                        error = %error,
+                        library = %self.library_path.display(),
+                        "failed to start deferred FFI cleanup thread; callback state retained"
+                    );
+                }
+                return;
+            }
+            self.connection_id.store(0, Ordering::SeqCst);
         }
         let server = self.server_id.swap(0, Ordering::SeqCst);
-        if server != 0 {
-            unsafe { (self.host_shutdown)(server) };
-        }
-        // Free the callback state only after the connection is closed and the
-        // host is shut down, so native can no longer invoke the callback.
         let state = self
             .callback_state
-            .swap(std::ptr::null_mut(), Ordering::SeqCst);
-        if !state.is_null() {
-            while unsafe { &*state }.active_callbacks.load(Ordering::SeqCst) != 0 {
-                std::thread::yield_now();
-            }
-            drop(unsafe { Box::from_raw(state) });
+            .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
+        release_callback_state(state);
+        if server != 0 && !unsafe { (self.host_shutdown)(server) } {
+            warn!(
+                library = %self.library_path.display(),
+                server_id = server,
+                "FFI runtime host shutdown did not recognize server"
+            );
         }
         debug!(library = %self.library_path.display(), "FFI runtime connection closed");
     }
@@ -126,12 +153,21 @@ impl FfiShared {
         if self.closed.load(Ordering::SeqCst) {
             return false;
         }
+
         let conn = self.connection_id.load(Ordering::SeqCst);
         if conn == 0 {
             return false;
         }
         unsafe { (self.connection_write)(conn, frame.as_ptr(), frame.len()) }
     }
+}
+
+fn release_callback_state(state: usize) {
+    if state == 0 {
+        return;
+    }
+    let state = state as *mut CallbackState;
+    drop(unsafe { Box::from_raw(state) });
 }
 
 impl Drop for FfiShared {
@@ -204,12 +240,11 @@ impl AsyncWrite for FfiWriter {
     }
 }
 
-/// Prepared FFI host: the bound cdylib exports plus the spawn arguments needed
-/// to start the runtime worker. The cdylib is loaded process-globally and never
-/// unloaded (see [`load_library`]).
+/// Prepared FFI host. The cdylib is loaded process-globally and never unloaded
+/// (see [`load_library`]).
 pub(crate) struct FfiHost {
     library_path: PathBuf,
-    entrypoint: PathBuf,
+    cli_entrypoint: Option<PathBuf>,
     environment: Vec<(String, String)>,
     args: Vec<String>,
     host_start: HostStartFn,
@@ -224,30 +259,34 @@ pub(crate) struct FfiHost {
 unsafe impl Send for FfiHost {}
 
 impl FfiHost {
-    /// Load the cdylib next to `entrypoint` and bind its exports.
-    ///
-    /// `entrypoint` is the packaged single-file CLI binary or, for dev, a
-    /// `.js` file launched via `node`. The native library is resolved relative
-    /// to the entrypoint directory, supporting both packaged and development
-    /// layouts.
+    /// Load the cdylib next to `runtime_entrypoint` and bind its exports.
     pub(crate) fn create(
-        entrypoint: &Path,
+        runtime_entrypoint: &Path,
+        cli_entrypoint: Option<&Path>,
         environment: Vec<(String, String)>,
         args: Vec<String>,
     ) -> Result<Self, Error> {
-        let entrypoint = std::fs::canonicalize(entrypoint)
-            .map(path_for_child_process)
+        let runtime_entrypoint = std::fs::canonicalize(runtime_entrypoint).map_err(|e| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                format!(
+                    "failed to resolve in-process runtime entrypoint '{}': {e}",
+                    runtime_entrypoint.display()
+                ),
+            )
+        })?;
+        let cli_entrypoint = cli_entrypoint
+            .map(std::fs::canonicalize)
+            .transpose()
             .map_err(|e| {
                 Error::with_message(
                     ErrorKind::InvalidConfig,
-                    format!(
-                        "failed to resolve in-process CLI entrypoint '{}': {e}",
-                        entrypoint.display()
-                    ),
+                    format!("failed to resolve explicit in-process CLI entrypoint: {e}"),
                 )
-            })?;
-        let library_path =
-            std::fs::canonicalize(resolve_library_path(&entrypoint)?).map_err(|e| {
+            })?
+            .map(path_for_child_process);
+        let library_path = std::fs::canonicalize(resolve_library_path(&runtime_entrypoint)?)
+            .map_err(|e| {
                 Error::with_message(
                     ErrorKind::InvalidConfig,
                     format!("failed to resolve in-process runtime library: {e}"),
@@ -267,7 +306,7 @@ impl FfiHost {
 
         Ok(Self {
             library_path,
-            entrypoint,
+            cli_entrypoint,
             environment,
             args,
             host_start,
@@ -278,11 +317,7 @@ impl FfiHost {
         })
     }
 
-    /// Start the runtime worker and open the FFI JSON-RPC connection.
-    ///
-    /// `host_start` blocks until the worker connects back and signals
-    /// readiness (up to ~30s), and must not run on an async executor thread, so
-    /// the blocking handshake is offloaded to [`tokio::task::spawn_blocking`].
+    /// Start the native runtime and open the FFI JSON-RPC connection.
     pub(crate) async fn start(self) -> Result<(FfiReader, FfiWriter, Arc<FfiShared>), Error> {
         tokio::task::spawn_blocking(move || self.start_blocking())
             .await
@@ -295,7 +330,7 @@ impl FfiHost {
     }
 
     fn start_blocking(self) -> Result<(FfiReader, FfiWriter, Arc<FfiShared>), Error> {
-        let argv = build_argv_json(&self.entrypoint, &self.args);
+        let argv = build_argv_json(self.cli_entrypoint.as_deref(), &self.args);
         let env = build_env_json(&self.environment);
 
         let (env_ptr, env_len) = match &env {
@@ -309,9 +344,8 @@ impl FfiHost {
             return Err(Error::with_message(
                 ErrorKind::InvalidConfig,
                 format!(
-                    "copilot_runtime_host_start failed (library '{}', entrypoint '{}')",
-                    self.library_path.display(),
-                    self.entrypoint.display()
+                    "copilot_runtime_host_start failed (library '{}')",
+                    self.library_path.display()
                 ),
             ));
         }
@@ -319,7 +353,6 @@ impl FfiHost {
         let (tx, rx) = mpsc::unbounded_channel::<Vec<u8>>();
         let state_ptr = Box::into_raw(Box::new(CallbackState {
             tx,
-            active_callbacks: AtomicUsize::new(0),
             closing: AtomicBool::new(false),
         }));
         let connection_id = unsafe {
@@ -440,6 +473,8 @@ pub(crate) fn prebuilds_folder() -> Option<String> {
         "win32"
     } else if cfg!(target_os = "macos") {
         "darwin"
+    } else if cfg!(all(target_os = "linux", target_env = "musl")) {
+        "linuxmusl"
     } else if cfg!(target_os = "linux") {
         "linux"
     } else {
@@ -470,6 +505,11 @@ fn resolve_library_path(entrypoint: &Path) -> Result<PathBuf, Error> {
     let flat = dir.join(natural_library_name());
     if flat.is_file() {
         return Ok(flat);
+    }
+
+    let adjacent = dir.join("runtime.node");
+    if adjacent.is_file() {
+        return Ok(adjacent);
     }
 
     // Development package layout.
@@ -521,28 +561,23 @@ fn path_for_child_process(path: PathBuf) -> PathBuf {
     path
 }
 
-fn build_argv_json(entrypoint: &Path, extra_args: &[String]) -> Vec<u8> {
-    // A `.js` entrypoint (dev / dist-cli) is launched via node; the packaged
-    // single-file CLI binary embeds its own Node and is invoked directly.
-    let entrypoint_str = entrypoint.to_string_lossy().into_owned();
-    let is_js = entrypoint
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("js"));
-    let mut argv: Vec<String> = if is_js {
-        vec![
-            "node".to_string(),
+fn build_argv_json(entrypoint: Option<&Path>, extra_args: &[String]) -> Vec<u8> {
+    let mut argv = Vec::new();
+    if let Some(entrypoint) = entrypoint {
+        let entrypoint_str = entrypoint.to_string_lossy().into_owned();
+        if entrypoint
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("js"))
+        {
+            argv.push("node".to_string());
+        }
+        argv.extend([
             entrypoint_str,
             "--embedded-host".to_string(),
             "--no-auto-update".to_string(),
-        ]
-    } else {
-        vec![
-            entrypoint_str,
-            "--embedded-host".to_string(),
-            "--no-auto-update".to_string(),
-        ]
-    };
+        ]);
+    }
     argv.extend_from_slice(extra_args);
     serde_json::to_vec(&argv).expect("argv serializes")
 }
@@ -560,32 +595,50 @@ fn build_env_json(environment: &[(String, String)]) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+    use std::sync::atomic::AtomicUsize;
+    use std::time::{Duration, Instant};
+
     use super::*;
 
+    static FFI_LIFECYCLE_TEST_LOCK: Mutex<()> = Mutex::new(());
+    static TEST_ALLOW_CLOSE: AtomicBool = AtomicBool::new(false);
+    static TEST_CLOSE_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static TEST_SHUTDOWN_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    unsafe extern "C" fn test_host_shutdown(_server_id: u32) -> bool {
+        TEST_SHUTDOWN_CALLS.fetch_add(1, Ordering::SeqCst);
+        true
+    }
+
+    unsafe extern "C" fn test_connection_write(
+        _connection_id: u32,
+        _bytes: *const u8,
+        _length: usize,
+    ) -> bool {
+        true
+    }
+
+    unsafe extern "C" fn test_connection_close(_connection_id: u32) -> bool {
+        TEST_CLOSE_CALLS.fetch_add(1, Ordering::SeqCst);
+        TEST_ALLOW_CLOSE.load(Ordering::SeqCst)
+    }
+
     #[test]
-    fn argv_pins_worker_and_appends_client_options() {
+    fn argv_without_entrypoint_contains_only_client_options() {
         let argv: Vec<String> = serde_json::from_slice(&build_argv_json(
-            Path::new("copilot"),
+            None,
             &["--log-level".into(), "debug".into()],
         ))
         .unwrap();
 
-        assert_eq!(
-            argv,
-            [
-                "copilot",
-                "--embedded-host",
-                "--no-auto-update",
-                "--log-level",
-                "debug"
-            ]
-        );
+        assert_eq!(argv, ["--log-level", "debug"]);
     }
 
     #[test]
-    fn javascript_entrypoint_uses_node() {
+    fn explicit_javascript_entrypoint_uses_node() {
         let argv: Vec<String> =
-            serde_json::from_slice(&build_argv_json(Path::new("index.js"), &[])).unwrap();
+            serde_json::from_slice(&build_argv_json(Some(Path::new("index.js")), &[])).unwrap();
 
         assert_eq!(
             argv,
@@ -629,5 +682,63 @@ mod tests {
                 "COPILOT_DISABLE_KEYTAR": "1",
             })
         );
+    }
+
+    #[test]
+    fn callback_state_is_retained_until_connection_close_succeeds() {
+        let _guard = FFI_LIFECYCLE_TEST_LOCK.lock().unwrap();
+        TEST_ALLOW_CLOSE.store(false, Ordering::SeqCst);
+        TEST_CLOSE_CALLS.store(0, Ordering::SeqCst);
+        TEST_SHUTDOWN_CALLS.store(0, Ordering::SeqCst);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let state_ptr = Box::into_raw(Box::new(CallbackState {
+            tx,
+            closing: AtomicBool::new(false),
+        }));
+        let shared = FfiShared {
+            host_shutdown: test_host_shutdown,
+            connection_write: test_connection_write,
+            connection_close: test_connection_close,
+            server_id: AtomicU32::new(11),
+            connection_id: AtomicU32::new(21),
+            callback_state: AtomicPtr::new(state_ptr),
+            closed: AtomicBool::new(false),
+            operation_lock: parking_lot::Mutex::new(()),
+            library_path: PathBuf::from("test-runtime"),
+        };
+
+        shared.close();
+
+        assert!(TEST_CLOSE_CALLS.load(Ordering::SeqCst) >= 1);
+        assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 0);
+        assert_eq!(shared.connection_id.load(Ordering::SeqCst), 0);
+        assert!(shared.callback_state.load(Ordering::SeqCst).is_null());
+
+        assert!(matches!(
+            rx.try_recv(),
+            Err(mpsc::error::TryRecvError::Empty)
+        ));
+
+        TEST_ALLOW_CLOSE.store(true, Ordering::SeqCst);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline && TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst) == 0 {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        assert!(TEST_CLOSE_CALLS.load(Ordering::SeqCst) >= 2);
+        assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 1);
+        assert!(matches!(
+            rx.try_recv(),
+            Err(mpsc::error::TryRecvError::Disconnected)
+        ));
+
+        let close_calls_after_cleanup = TEST_CLOSE_CALLS.load(Ordering::SeqCst);
+        shared.close();
+        assert_eq!(
+            TEST_CLOSE_CALLS.load(Ordering::SeqCst),
+            close_calls_after_cleanup
+        );
+        assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 1);
     }
 }

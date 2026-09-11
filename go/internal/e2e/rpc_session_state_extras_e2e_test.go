@@ -22,7 +22,7 @@ func TestRpcSessionStateExtras(t *testing.T) {
 		authClient := newAuthenticatedClient(ctx, token)
 		defer authClient.ForceStop()
 
-		session := createPortedSession(t, authClient, &copilot.SessionConfig{Model: "claude-sonnet-4.5"})
+		session := createPortedSession(t, authClient, &copilot.SessionConfig{Model: "claude-sonnet-5"})
 		defer session.Disconnect()
 
 		result, err := session.RPC.Model.List(t.Context())
@@ -38,13 +38,13 @@ func TestRpcSessionStateExtras(t *testing.T) {
 		found := false
 		for _, model := range result.List {
 			data, err := json.Marshal(model)
-			if err == nil && strings.Contains(string(data), "claude-sonnet-4.5") {
+			if err == nil && strings.Contains(string(data), "claude-sonnet-5") {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Fatalf("Expected model list to include claude-sonnet-4.5, got %+v", result.List)
+			t.Fatalf("Expected model list to include claude-sonnet-5, got %+v", result.List)
 		}
 	})
 

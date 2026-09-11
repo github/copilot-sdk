@@ -14,6 +14,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,15 +42,15 @@ public final class FfiRuntimeHost implements AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(FfiRuntimeHost.class.getName());
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Set<FfiRuntimeHost> QUARANTINED_HOSTS = ConcurrentHashMap.newKeySet();
 
     private final NativeBinding nativeBinding;
     private final QueueInputStream receiveStream;
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final AtomicBoolean disposed = new AtomicBoolean(false);
+    private final AtomicBoolean cleanupScheduled = new AtomicBoolean(false);
     private final AtomicInteger serverId = new AtomicInteger(0);
     private final AtomicInteger connectionId = new AtomicInteger(0);
-    private final AtomicInteger activeCallbacks = new AtomicInteger(0);
-    private final Object callbackDrainMonitor = new Object();
     private final ReentrantLock operationLock = new ReentrantLock();
     private final FfiOutputStream sendStream;
     private final String libraryPath;
@@ -88,13 +91,13 @@ public final class FfiRuntimeHost implements AutoCloseable {
      * Starts the in-process runtime and opens a connection.
      *
      * @param entrypointPath
-     *            runtime entrypoint path passed in {@code argv_json}
+     *            optional explicit legacy CLI entrypoint passed in
+     *            {@code argv_json}
      * @param options
      *            client options used to construct {@code argv_json} and
      *            {@code env_json}
      */
     public void start(String entrypointPath, CopilotClientOptions options) {
-        Objects.requireNonNull(entrypointPath, "entrypointPath must not be null");
         Objects.requireNonNull(options, "options must not be null");
         if (disposed.get()) {
             throw new IllegalStateException("FfiRuntimeHost is already closed.");
@@ -108,8 +111,7 @@ public final class FfiRuntimeHost implements AutoCloseable {
         int hostHandle = runHostStartOnBlockingThread(argvJson, envJson);
         if (hostHandle == 0) {
             String lib = libraryPath != null ? libraryPath : "<unknown>";
-            throw new IllegalStateException(
-                    "copilot_runtime_host_start failed (library '" + lib + "', entrypoint '" + entrypointPath + "').");
+            throw new IllegalStateException("copilot_runtime_host_start failed (library '" + lib + "').");
         }
 
         // Hold operationLock while publishing handles to serialize with close().
@@ -164,54 +166,66 @@ public final class FfiRuntimeHost implements AutoCloseable {
 
         closing.set(true);
 
-        operationLock.lock();
-        try {
-            int connHandle = connectionId.getAndSet(0);
-            if (connHandle != 0) {
-                try {
-                    nativeBinding.connectionClose(connHandle);
-                } catch (Throwable t) {
-                    LOG.log(Level.FINE, "Failed to close FFI connection", t);
-                }
-            }
-        } finally {
-            operationLock.unlock();
-        }
-
-        drainActiveCallbacks();
-
-        int hostHandle = serverId.getAndSet(0);
-        if (hostHandle != 0) {
-            try {
-                nativeBinding.hostShutdown(hostHandle);
-            } catch (Throwable t) {
-                LOG.log(Level.FINE, "Failed to shut down FFI host", t);
-            }
-        }
-
         try {
             receiveStream.close();
         } catch (Throwable ignored) {
             // never throw from close
         }
 
-        callbackRef = null;
+        if (!tryFinalizeCleanup()) {
+            scheduleCleanupRetry();
+        }
     }
 
-    private void drainActiveCallbacks() {
-        while (activeCallbacks.get() > 0) {
-            synchronized (callbackDrainMonitor) {
-                if (activeCallbacks.get() == 0) {
-                    return;
-                }
+    private boolean tryFinalizeCleanup() {
+        operationLock.lock();
+        try {
+            int connHandle = connectionId.get();
+            if (connHandle != 0) {
                 try {
-                    callbackDrainMonitor.wait(10L);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
+                    if (!nativeBinding.connectionClose(connHandle)) {
+                        return false;
+                    }
+                } catch (Throwable t) {
+                    LOG.log(Level.FINE, "Failed to close FFI connection", t);
+                    QUARANTINED_HOSTS.add(this);
+                    return true;
                 }
+                connectionId.set(0);
+                callbackRef = null;
+                QUARANTINED_HOSTS.remove(this);
             }
+
+            int hostHandle = serverId.get();
+            if (hostHandle != 0) {
+                try {
+                    if (!nativeBinding.hostShutdown(hostHandle)) {
+                        LOG.fine(() -> "FFI host shutdown did not recognize server " + hostHandle);
+                    }
+                } catch (Throwable t) {
+                    LOG.log(Level.FINE, "Failed to shut down FFI host", t);
+                }
+                serverId.set(0);
+            }
+            return true;
+        } finally {
+            operationLock.unlock();
         }
+    }
+
+    private void scheduleCleanupRetry() {
+        if (!cleanupScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        CompletableFuture.delayedExecutor(100, TimeUnit.MILLISECONDS).execute(this::retryCleanup);
+    }
+
+    private void retryCleanup() {
+        if (tryFinalizeCleanup()) {
+            cleanupScheduled.set(false);
+            return;
+        }
+        CompletableFuture.delayedExecutor(100, TimeUnit.MILLISECONDS).execute(this::retryCleanup);
     }
 
     private OutboundCallback createOutboundCallback() {
@@ -219,7 +233,6 @@ public final class FfiRuntimeHost implements AutoCloseable {
             if (closing.get()) {
                 return;
             }
-            activeCallbacks.incrementAndGet();
             try {
                 int length = len.intValue();
                 if (closing.get() || data == null || length <= 0) {
@@ -231,12 +244,6 @@ public final class FfiRuntimeHost implements AutoCloseable {
                 }
             } catch (Throwable t) {
                 LOG.log(Level.WARNING, "Exception in FFI outbound callback", t);
-            } finally {
-                if (activeCallbacks.decrementAndGet() == 0) {
-                    synchronized (callbackDrainMonitor) {
-                        callbackDrainMonitor.notifyAll();
-                    }
-                }
             }
         };
     }
@@ -270,12 +277,14 @@ public final class FfiRuntimeHost implements AutoCloseable {
 
     private static byte[] buildArgvJson(String entrypointPath, CopilotClientOptions options) {
         List<String> argv = new ArrayList<>();
-        if (entrypointPath.toLowerCase().endsWith(".js")) {
-            argv.add("node");
+        if (entrypointPath != null) {
+            if (entrypointPath.toLowerCase().endsWith(".js")) {
+                argv.add("node");
+            }
+            argv.add(entrypointPath);
+            argv.add("--embedded-host");
+            argv.add("--no-auto-update");
         }
-        argv.add(entrypointPath);
-        argv.add("--embedded-host");
-        argv.add("--no-auto-update");
 
         String logLevel = options.getLogLevel();
         if (logLevel != null && !logLevel.isBlank()) {

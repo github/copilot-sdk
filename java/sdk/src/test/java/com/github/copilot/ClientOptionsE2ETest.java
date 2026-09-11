@@ -263,6 +263,8 @@ class ClientOptionsE2ETest {
                   return { sessionId: message.params?.sessionId ?? 'fake-session', openCanvases: [] };
                 case 'session.resume':
                   return { sessionId: message.params?.sessionId ?? 'fake-session', openCanvases: [] };
+                case 'session.detach':
+                  return { success: true };
                 case 'session.options.update':
                   return { success: true };
                 default:

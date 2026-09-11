@@ -1,5 +1,5 @@
 models:
-  - claude-sonnet-4.5
+  - claude-sonnet-5
 conversations:
   - messages:
       - role: system
@@ -13,5 +13,5 @@ conversations:
           watering, pests, plant identification, or growing tips, I'm here to help!
 
 
-          I'm powered by claude-sonnet-4.5, but I focus specifically on gardening topics. What plant or gardening
+          I'm powered by claude-sonnet-5, but I focus specifically on gardening topics. What plant or gardening
           question can I help you with today?

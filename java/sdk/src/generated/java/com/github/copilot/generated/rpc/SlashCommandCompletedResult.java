@@ -32,12 +32,19 @@ public final class SlashCommandCompletedResult extends SlashCommandInvocationRes
     @JsonProperty("message")
     private String message;
 
+    /** Optional target session mode applied without submitting an agent prompt */
+    @JsonProperty("mode")
+    private SessionMode mode;
+
     /** True when the invocation mutated user runtime settings; consumers caching settings should refresh */
     @JsonProperty("runtimeSettingsChanged")
     private Boolean runtimeSettingsChanged;
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
+
+    public SessionMode getMode() { return mode; }
+    public void setMode(SessionMode mode) { this.mode = mode; }
 
     public Boolean getRuntimeSettingsChanged() { return runtimeSettingsChanged; }
     public void setRuntimeSettingsChanged(Boolean runtimeSettingsChanged) { this.runtimeSettingsChanged = runtimeSettingsChanged; }

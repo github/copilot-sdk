@@ -63,6 +63,7 @@ public class ResumeSessionConfig {
     private String reasoningEffort;
     private String reasoningSummary;
     private String contextTier;
+    private AskUserVariant askUserVariant;
     private ModelCapabilitiesOverride modelCapabilities;
     private PermissionHandler onPermissionRequest;
     private McpAuthHandler onMcpAuthRequest;
@@ -84,11 +85,14 @@ public class ResumeSessionConfig {
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
+    private Boolean allowAllMcpServerInstructions;
     private String mcpOAuthTokenStorage;
+    private String authClientIdMetadataUrl;
     private List<CustomAgentConfig> customAgents;
     private DefaultAgentConfig defaultAgent;
     private String agent;
     private List<String> skillDirectories;
+    private List<String> includedBuiltinSkills;
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
@@ -105,9 +109,12 @@ public class ResumeSessionConfig {
     private boolean enableMcpApps;
     private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
+    @JsonIgnore
+    private GitHubTokenProvider gitHubTokenProvider;
     private String remoteSession;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private Map<String, Boolean> featureFlags;
     private ManagedSettings managedSettings;
 
     /**
@@ -791,6 +798,31 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the experience used by the built-in {@code ask_user} tool.
+     *
+     * @return the ask-user variant, or {@code null} to use the legacy experience
+     */
+    public AskUserVariant getAskUserVariant() {
+        return askUserVariant;
+    }
+
+    /**
+     * Sets the model-facing shape of the built-in {@code ask_user} tool when the
+     * session is resumed by a new client.
+     * <p>
+     * When unset, the option is omitted and the legacy shape is used. Set an
+     * elicitation handler when selecting {@link AskUserVariant#ELICITATION}.
+     *
+     * @param askUserVariant
+     *            the ask-user variant
+     * @return this config instance for method chaining
+     */
+    public ResumeSessionConfig setAskUserVariant(AskUserVariant askUserVariant) {
+        this.askUserVariant = askUserVariant;
+        return this;
+    }
+
+    /**
      * Gets the permission request handler.
      *
      * @return the permission handler
@@ -1367,6 +1399,30 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets whether instructions from every configured MCP server are included in
+     * the system prompt.
+     *
+     * @return the policy value, or {@code null} when the runtime default applies
+     */
+    public Boolean getAllowAllMcpServerInstructions() {
+        return allowAllMcpServerInstructions;
+    }
+
+    /**
+     * Controls whether instructions from every configured MCP server are included
+     * in the system prompt. Enabling this broadens the default trust boundary; only
+     * use it with trusted servers.
+     *
+     * @param allowAllMcpServerInstructions
+     *            the explicit policy value, or {@code null} for the runtime default
+     * @return this config instance for method chaining
+     */
+    public ResumeSessionConfig setAllowAllMcpServerInstructions(Boolean allowAllMcpServerInstructions) {
+        this.allowAllMcpServerInstructions = allowAllMcpServerInstructions;
+        return this;
+    }
+
+    /**
      * Gets the MCP OAuth token storage mode.
      *
      * @return the storage mode, or {@code null} if not set
@@ -1395,6 +1451,29 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setMcpOAuthTokenStorage(String mcpOAuthTokenStorage) {
         this.mcpOAuthTokenStorage = mcpOAuthTokenStorage;
+        return this;
+    }
+
+    /**
+     * Gets the OAuth Client ID Metadata Document URL identifying the host.
+     *
+     * @return the metadata URL, or {@code null} if not set
+     */
+    public String getAuthClientIdMetadataUrl() {
+        return authClientIdMetadataUrl;
+    }
+
+    /**
+     * Sets the OAuth Client ID Metadata Document URL identifying the host for MCP
+     * authorization. Re-supply the same host identity used when the session was
+     * created.
+     *
+     * @param authClientIdMetadataUrl
+     *            the metadata URL
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setAuthClientIdMetadataUrl(String authClientIdMetadataUrl) {
+        this.authClientIdMetadataUrl = authClientIdMetadataUrl;
         return this;
     }
 
@@ -1486,6 +1565,28 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setSkillDirectories(List<String> skillDirectories) {
         this.skillDirectories = skillDirectories;
+        return this;
+    }
+
+    /**
+     * Gets the runtime-bundled skill allowlist.
+     *
+     * @return the built-in skill names, or {@code null} when unspecified
+     */
+    public List<String> getIncludedBuiltinSkills() {
+        return includedBuiltinSkills == null ? null : Collections.unmodifiableList(includedBuiltinSkills);
+    }
+
+    /**
+     * Sets the runtime-bundled skill allowlist. In empty mode, omitting this option
+     * excludes all built-in skills; specifying names opts those built-ins back in.
+     *
+     * @param includedBuiltinSkills
+     *            the built-in skill names to allow
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setIncludedBuiltinSkills(List<String> includedBuiltinSkills) {
+        this.includedBuiltinSkills = includedBuiltinSkills;
         return this;
     }
 
@@ -1865,6 +1966,33 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the rotating GitHub token provider for the resumed session.
+     *
+     * @return the provider, or {@code null} when a static token is used
+     */
+    public GitHubTokenProvider getGitHubTokenProvider() {
+        return gitHubTokenProvider;
+    }
+
+    /**
+     * Sets the rotating GitHub token provider for the resumed session.
+     * <p>
+     * The provider receives only the effective host, optional assigned session ID,
+     * and acquisition reason. It must return a positive remaining lifetime in
+     * seconds when its callback completes. Production GitHub tokens typically last
+     * eight hours. This option is mutually exclusive with
+     * {@link #setGitHubToken(String)}.
+     *
+     * @param gitHubTokenProvider
+     *            provider used for initial acquisition and refresh
+     * @return this config instance for method chaining
+     */
+    public ResumeSessionConfig setGitHubTokenProvider(GitHubTokenProvider gitHubTokenProvider) {
+        this.gitHubTokenProvider = gitHubTokenProvider;
+        return this;
+    }
+
+    /**
      * Gets the per-session remote behavior control.
      * <p>
      * See {@link SessionConfig#getRemoteSession()} for details on possible values.
@@ -1914,6 +2042,23 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setExpAssignments(CopilotExpAssignmentResponse expAssignments) {
         this.expAssignments = expAssignments;
+        return this;
+    }
+
+    /** Gets host-resolved feature-flag values. @return the feature flags */
+    public Map<String, Boolean> getFeatureFlags() {
+        return featureFlags;
+    }
+
+    /**
+     * Sets feature-flag values resolved by the host to apply on resume.
+     *
+     * @param featureFlags
+     *            the feature flags
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setFeatureFlags(Map<String, Boolean> featureFlags) {
+        this.featureFlags = featureFlags;
         return this;
     }
 
@@ -2000,6 +2145,7 @@ public class ResumeSessionConfig {
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
         copy.contextTier = this.contextTier;
+        copy.askUserVariant = this.askUserVariant;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
@@ -2022,10 +2168,16 @@ public class ResumeSessionConfig {
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.allowAllMcpServerInstructions = this.allowAllMcpServerInstructions;
+        copy.mcpOAuthTokenStorage = this.mcpOAuthTokenStorage;
+        copy.authClientIdMetadataUrl = this.authClientIdMetadataUrl;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
         copy.defaultAgent = this.defaultAgent;
         copy.agent = this.agent;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
+        copy.includedBuiltinSkills = this.includedBuiltinSkills != null
+                ? new ArrayList<>(this.includedBuiltinSkills)
+                : null;
         copy.instructionDirectories = this.instructionDirectories != null
                 ? new ArrayList<>(this.instructionDirectories)
                 : null;
@@ -2045,7 +2197,9 @@ public class ResumeSessionConfig {
         copy.enableMcpApps = this.enableMcpApps;
         copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
+        copy.gitHubTokenProvider = this.gitHubTokenProvider;
         copy.remoteSession = this.remoteSession;
+        copy.featureFlags = this.featureFlags != null ? new java.util.HashMap<>(this.featureFlags) : null;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
         copy.managedSettings = this.managedSettings;
