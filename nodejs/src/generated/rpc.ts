@@ -3137,6 +3137,20 @@ export type RemoteSessionMetadataTaskType =
   /** CLI remote task. */
   | "cli";
 /**
+ * Provider-native structured output format. JSON Schema is forwarded without rewriting or validating the schema or the generated output.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ResponseFormat".
+ */
+/** @experimental */
+export type ResponseFormat = {
+  jsonSchema: JsonSchemaResponseFormat;
+  /**
+   * Output format discriminator. Currently only json_schema is supported.
+   */
+  type: "json_schema";
+};
+/**
  * Origin of the sandbox choice supplied by an internal client.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7881,6 +7895,19 @@ export interface ExtensionLaunchProfile {
   };
 }
 /**
+ * Authoritative capability acknowledgement for the registered extension launch provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionLaunchProviderRegistrationResult".
+ */
+/** @experimental */
+export interface ExtensionLaunchProviderRegistrationResult {
+  /**
+   * Supported extension launch-provider contract version. Clients requiring this contract must check for version 1 before creating or resuming sessions.
+   */
+  contractVersion: 1;
+}
+/**
  * A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7901,16 +7928,24 @@ export interface ExtensionLaunchProviderResolveRequest {
    */
   modulePath: string;
   source: ExtensionSource;
+  /**
+   * Owning runtime session identifier, when known.
+   */
+  sessionId?: string;
+  defaultLaunch?: ExtensionLaunchProfile;
 }
 /**
- * The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
+ * The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ExtensionLaunchProviderResolveResult".
  */
 /** @experimental */
 export interface ExtensionLaunchProviderResolveResult {
-  launch?: ExtensionLaunchProfile;
+  /**
+   * Approved launch profile, or absent/null to deny this candidate without fallback.
+   */
+  launch?: ExtensionLaunchProfile | null;
 }
 /**
  * Extensions discovered for the session, with their current status.
@@ -10194,6 +10229,31 @@ export interface InterruptMainTurnResult {
    * Whether an in-flight main agent turn was interrupted. False when the main loop was not processing.
    */
   interrupted: boolean;
+}
+/**
+ * A JSON Schema output contract. OpenAI receives the name, description, schema and strict setting; Anthropic receives the schema in output_config.format and always uses its native strict enforcement.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "JsonSchemaResponseFormat".
+ */
+/** @experimental */
+export interface JsonSchemaResponseFormat {
+  /**
+   * Name of the output schema, subject to the provider's naming restrictions.
+   */
+  name: string;
+  /**
+   * JSON Schema passed unchanged to the inference provider. Schemas larger than 32 MiB when JSON-encoded are rejected before admission, using the runtime's existing request-size ceiling. This is not a guarantee that the entire model request fits. Supported keywords and schema restrictions are determined by the provider.
+   */
+  schema: JsonValue;
+  /**
+   * Optional description passed to OpenAI providers.
+   */
+  description?: string;
+  /**
+   * Optional strict enforcement setting for OpenAI providers. Omitted uses the provider default. Anthropic always enforces its supported schema subset.
+   */
+  strict?: boolean;
 }
 /**
  * HTTP headers as a map from lowercased header name to a list of values. Multi-valued headers (e.g. Set-Cookie) preserve all values.
@@ -17119,62 +17179,6 @@ export interface RegisterEventInterestResult {
   handle: string;
 }
 /**
- * Params to attach an extension loader's tools to a session.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "RegisterExtensionToolsParams".
- */
-/** @experimental */
-/** @internal */
-export interface RegisterExtensionToolsParams {
-  /**
-   * Session to register extension tools on.
-   */
-  sessionId: string;
-  /**
-   * In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK surface.
-   *
-   * @internal
-   *
-   * @internal
-   */
-  loader: OpaqueInProcessValue;
-  options?: SessionsRegisterExtensionToolsOnSessionOptions;
-}
-/**
- * Optional registration options.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionsRegisterExtensionToolsOnSessionOptions".
- */
-/** @experimental */
-export interface SessionsRegisterExtensionToolsOnSessionOptions {
-  /**
-   * In-process `() => boolean` gating callback used only by the CLI.
-   *
-   * @internal
-   */
-  enabled?: OpaqueInProcessValue;
-}
-/**
- * Handle for releasing the extension tool registration.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "RegisterExtensionToolsResult".
- */
-/** @experimental */
-/** @internal */
-export interface RegisterExtensionToolsResult {
-  /**
-   * In-process unsubscribe function used only by the CLI.
-   *
-   * @internal
-   *
-   * @internal
-   */
-  unsubscribe: OpaqueInProcessValue;
-}
-/**
  * Opaque handle previously returned by `registerInterest` to release.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -18068,7 +18072,7 @@ export interface SendMessageItem {
 /** @experimental */
 export interface SendMessagesRequest {
   /**
-   * The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.
+   * The user messages to append to the conversation, in order, before running one agent loop. When the batch starts a run, its final message is the primary initiating message; earlier messages provide context, not separate runs or replies. May be empty, in which case a single turn runs over the existing history with no new user message or originatingMessageId.
    */
   messages: SendMessageItem[];
   mode?: SendMode;
@@ -18083,6 +18087,7 @@ export interface SendMessagesRequest {
   requestHeaders?: {
     [k: string]: string | undefined;
   };
+  responseFormat?: ResponseFormat;
   /**
    * W3C Trace Context traceparent header for distributed tracing of this agent turn
    */
@@ -18105,7 +18110,7 @@ export interface SendMessagesRequest {
 /** @experimental */
 export interface SendMessagesResult {
   /**
-   * Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
+   * Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId.
    */
   messageIds: string[];
 }
@@ -18155,6 +18160,7 @@ export interface SendRequest {
   requestHeaders?: {
     [k: string]: string | undefined;
   };
+  responseFormat?: ResponseFormat;
   /**
    * W3C Trace Context traceparent header for distributed tracing of this agent turn
    */
@@ -24556,11 +24562,13 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("extensions.disable", params),
         },
         /**
-         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
+         * Registers the calling SDK client as the authoritative per-entrypoint extension launch provider and returns the supported contract version. Call before creating any sessions. Contract version 1 supplies sessionId and defaultLaunch when available; absent or null launch, provider errors, timeouts, and shutdown cancellation never fall back. Without a registered provider, legacy launching is unchanged.
+         *
+         * @returns Authoritative capability acknowledgement for the registered extension launch provider.
          *
          * @experimental
          */
-        registerExtensionLaunchProvider: async (): Promise<void> =>
+        registerExtensionLaunchProvider: async (): Promise<ExtensionLaunchProviderRegistrationResult> =>
             connection.sendRequest("registerExtensionLaunchProvider", {}),
         /** @experimental */
         catalog: {
@@ -25178,16 +25186,7 @@ export function createInternalServerRpc(connection: MessageConnection) {
             getBoardEntryCount: async (params: SessionsGetBoardEntryCountRequest): Promise<SessionsGetBoardEntryCountResult> =>
                 connection.sendRequest("sessions.getBoardEntryCount", params),
             /**
-             * Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.
-             *
-             * @param params Params to attach an extension loader's tools to a session.
-             *
-             * @returns Handle for releasing the extension tool registration.
-             */
-            registerExtensionToolsOnSession: async (params: RegisterExtensionToolsParams): Promise<RegisterExtensionToolsResult> =>
-                connection.sendRequest("sessions.registerExtensionToolsOnSession", params),
-            /**
-             * Attaches (or detaches) an in-process ExtensionController delegate for the given session, used by shared-API surfaces that need to query or modify the session's extension state. Pass `controller: undefined` to detach. Marked internal because the controller is an in-process object that cannot cross the JSON-RPC boundary. Disappears alongside `registerExtensionToolsOnSession`: once the runtime owns extension management, the public surface exposes list/enable/disable/reload as dedicated RPCs served by the runtime.
+             * Attaches (or detaches) an in-process ExtensionController delegate for the given session in a local host adapter. Pass `controller: undefined` to detach. Internal because the controller cannot cross the JSON-RPC boundary; the runtime manages its own session extension service.
              *
              * @param params Params to attach or detach an in-process ExtensionController delegate.
              */
@@ -25200,6 +25199,13 @@ export function createInternalServerRpc(connection: MessageConnection) {
 /** Create typed session-scoped RPC methods. */
 export function createSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
+        /**
+         * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
+         *
+         * @experimental
+         */
+        retain: async (): Promise<void> =>
+            connection.sendRequest("session.retain", { sessionId }),
         /**
          * Suspends the session while preserving persisted state for later resume.
          *
@@ -27856,11 +27862,11 @@ export function registerClientSessionApiHandlers(
 /** @experimental */
 export interface ExtensionLaunchProviderHandler {
     /**
-     * Asks the registered SDK client to resolve an opaque process launch profile for one discovered extension entrypoint immediately before launch or reload. The provider must respond within 15 seconds.
+     * Asks the registered SDK client to approve a launch profile immediately before every extension launch or reload. Return defaultLaunch unchanged to approve the runtime's built-in launcher, or return another profile. An absent or null launch denies execution with no fallback. The provider must respond within 15 seconds. Approval does not sandbox code or freeze mutable files; the host is responsible for approved package contents.
      *
      * @param params A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
      *
-     * @returns The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
+     * @returns The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.
      */
     resolve(params: ExtensionLaunchProviderResolveRequest): Promise<ExtensionLaunchProviderResolveResult>;
 }

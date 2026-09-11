@@ -20,6 +20,7 @@ export type SessionEvent =
   | ScheduleCancelledEvent
   | ScheduleRearmedEvent
   | AutopilotObjectiveChangedEvent
+  | RetainedEvent
   | InfoEvent
   | WarningEvent
   | ModelChangeEvent
@@ -77,6 +78,7 @@ export type SessionEvent =
   | ToolExecutionCompleteEvent
   | ToolSearchActivatedEvent
   | SkillInvokedEvent
+  | SkillContextDeliveredEvent
   | SubagentStartedEvent
   | SubagentConfiguredEvent
   | SubagentCompletedEvent
@@ -1876,6 +1878,42 @@ export interface AutopilotObjectiveChangedData {
   operation: AutopilotObjectiveChangedOperation;
   status?: AutopilotObjectiveChangedStatus;
 }
+/**
+ * Session event "session.retained". Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
+ */
+/** @experimental */
+export interface RetainedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: RetainedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.retained".
+   */
+  type: "session.retained";
+}
+/**
+ * Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
+ */
+/** @experimental */
+export interface RetainedData {}
 /**
  * Session event "session.info". Informational message for timeline display with categorization
  */
@@ -5077,6 +5115,10 @@ export interface AssistantMessageData {
    */
   model?: string;
   /**
+   * Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
+   */
+  originatingMessageId?: string;
+  /**
    * Actual output token count from the API response (completion_tokens), used for accurate token accounting
    */
   outputTokens?: number;
@@ -6540,7 +6582,7 @@ export interface ToolExecutionCompleteResult {
    */
   contents?: ToolExecutionCompleteContent[];
   /**
-   * Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
+   * Detailed tool result for UI/timeline display, preserving complete content such as diffs for most tools. Successful skill invocations intentionally use the concise model-facing content here; the authoritative skill body is carried by the corresponding skill invocation event. Falls back to content when absent.
    */
   detailedContent?: string;
   /**
@@ -7103,6 +7145,54 @@ export interface SkillInvokedData {
   trigger?: SkillInvokedTrigger;
 }
 /**
+ * Session event "skill.context_delivered". Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.
+ */
+/** @experimental */
+export interface SkillContextDeliveredEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: SkillContextDeliveredData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "skill.context_delivered".
+   */
+  type: "skill.context_delivered";
+}
+/**
+ * Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.
+ */
+export interface SkillContextDeliveredData {
+  /**
+   * Exact model-facing skill wrapper, including its invocation-time file context
+   */
+  content: string;
+  /**
+   * Interaction that delivered this context, when known
+   */
+  interactionId?: string;
+  /**
+   * Unmodified injection provenance, in the form skill-<invocation-name>
+   */
+  source: string;
+}
+/**
  * Session event "subagent.started". Sub-agent startup details including parent tool call and agent information
  */
 export interface SubagentStartedEvent {
@@ -7537,7 +7627,7 @@ export interface HookStartData {
    */
   hookType: string;
   /**
-   * Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
+   * Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) drops the tool result's inline `contents`/`uiResource`/`skillInvocation` and replaces duplicated text result fields with a `[copilot:elided ...]` marker; the live subscription stream still delivers the full value. Canonical tool output remains in the adjacent tool.execution_complete event, while an invoked skill's authoritative body remains in its skill invocation event.
    */
   input?: JsonValue;
   /**
@@ -7589,7 +7679,7 @@ export interface HookEndData {
    */
   hookType: string;
   /**
-   * Output data produced by the hook
+   * Output data produced by the hook. Durable and resumed postToolUse receipts may omit messages owned by a successful skill invocation and replace an unchanged skill sessionLog copy with an elision marker; hook-modified or re-sourced values are preserved, and the authoritative body remains in the skill invocation event.
    */
   output?: JsonValue;
   /**
