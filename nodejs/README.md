@@ -122,6 +122,7 @@ new CopilotClient(options?: CopilotClientOptions)
 - `telemetry?: TelemetryConfig` - OpenTelemetry configuration for the runtime process. Providing this object enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `onGetTraceContext?: TraceContextProvider` - Advanced: callback for linking your application's own OpenTelemetry spans into the same distributed trace as the runtime's spans. Not needed for normal telemetry collection. See [Telemetry](#telemetry) below.
 - `sessionFs?: SessionFsConfig` - Custom session filesystem provider.
+- `extensionLaunchProvider?: ExtensionLaunchProvider` - Experimental, connection-global resolver for extension process launches. Registration must acknowledge contract version 1 before startup, creation, or resume completes. See [Extension launch providers](#extension-launch-providers-experimental).
 - `sessionIdleTimeoutSeconds?: number` - Server-wide idle timeout for sessions in seconds. Ignored when connecting via `RuntimeConnection.forUri`.
 - `enableRemoteSessions?: boolean` - Enable Mission Control remote session support. Ignored when connecting via `RuntimeConnection.forUri`.
 
@@ -177,6 +178,12 @@ Initial acquisition runs during session creation or resume. Cancellation, provid
 ##### `resumeSession(sessionId: string, config?: ResumeSessionConfig): Promise<CopilotSession>`
 
 Resume an existing session. Returns the session with `workspacePath` populated if infinite sessions were enabled.
+
+##### `retainSession(sessionId: string): Promise<void>` _(experimental)_
+
+Record and flush durable persistence intent by runtime session ID through the already-connected client. Unlike `session.rpc.retain()`, this does not need a returned `CopilotSession`: it can be awaited reentrantly in an extension launch provider while creation or resume is still pending. It sends the canonical `session.retain` RPC using generated bindings, without creating a turn or waiting for the pending session operation.
+
+The client must already be started. An empty ID, disconnected client, or runtime retention failure rejects; this method never starts or reconnects implicitly. When persistence must precede package startup, propagate retention failure or deny the launch rather than returning an approved profile.
 
 ##### `ping(message?: string): Promise<{ message: string; timestamp: string }>`
 
@@ -357,6 +364,12 @@ Get all events/messages from this session.
 
 Disconnect the session and free resources. Session data on disk is preserved for later resumption.
 
+##### `rpc.retain(): Promise<void>` _(experimental)_
+
+Record explicit persistence intent for a local session and flush it before returning, even if no user or assistant turn has occurred. Await this after application approval and before an operation that may save data, such as a canvas open. The runtime records the canonical `session.retained` event; no synthetic prompt or model request is needed.
+
+Retention is idempotent across stop and cold resume and is not undone by a later failed or cancelled operation. It does not grant permissions or prevent explicit deletion. Remote sessions and runtimes without this operation are unsupported; ordinary unused sessions remain ephemeral unless retained.
+
 ##### `capabilities: SessionCapabilities`
 
 Host capabilities reported when the session was created or resumed. Use this to check feature support before calling capability-gated APIs.
@@ -483,6 +496,38 @@ When `streaming: true`:
 Note: `assistant.message` and `assistant.reasoning` (final events) are always sent regardless of streaming setting.
 
 ## Advanced Usage
+
+### Extension launch providers (experimental)
+
+An `extensionLaunchProvider` receives `{ id, name, modulePath, source, sessionId?, defaultLaunch? }` before an extension launches or reloads. It returns `{ launch: profile }` to approve a process profile, or `{}` / `{ launch: null }` to deny execution. Denial, thrown errors, rejected promises, the runtime's 15-second deadline, and shutdown never fall back to the built-in launcher.
+
+When available, `defaultLaunch` is the runtime's unexecuted built-in Node bootstrap profile. Preserve it when approving that bootstrap. Embeddings without a built-in launcher, including standalone wrappers, may omit it. Use a runtime Node CLI entry through `RuntimeConnection.forStdio({ path })` when relying on this profile.
+
+The following example delegates revision and session approval to an application-owned function; that function must verify the installed code, not merely recognize a path. It also makes the session durable before any package startup effects:
+
+```typescript
+const client = new CopilotClient({
+    connection: RuntimeConnection.forStdio({ path: runtimeNodeCliPath }),
+    extensionLaunchProvider: async (request) => {
+        if (
+            !request.sessionId ||
+            !request.defaultLaunch ||
+            !(await approveInstalledRevision(request))
+        ) {
+            return { launch: null };
+        }
+        await client.retainSession(request.sessionId);
+        return { launch: request.defaultLaunch };
+    },
+});
+await client.start();
+```
+
+Package code can run before `createSession()` resolves. Do not await that pending operation or its eventual `CopilotSession` inside the resolver; use the connected client's retain-by-ID binding instead. The runtime routes this operation reentrantly and flushes retention before acknowledging it. After resume, wait for the required extension/canvas registration before opening or invoking it; the resume response is not a readiness barrier.
+
+The SDK installs the callback before registration and requires the live response `{ contractVersion: 1 }` on every replacement connection. An older null acknowledgement or registration error rejects startup; the SDK never retries with the provider removed. Do not infer support from a CLI version string. Clients that omit this option send no registration request and preserve legacy launch behavior.
+
+A resolver is not a package trust store, code-integrity check, snapshot mechanism, or sandbox. The application owns revision approval, session/workspace binding, and ensuring the approved code is the code executed. Runtime-managed restrictions still apply.
 
 ### Manual Server Control
 
