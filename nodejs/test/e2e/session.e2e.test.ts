@@ -112,9 +112,11 @@ describe("Sessions", () => {
         const sessionId = `e2e-resume-${Date.now()}`;
         const marker = "MARKER-7f3ac21e";
         const firstClient = new CopilotClient({
-            workingDirectory: workDir,
-            env,
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: workDir,
+                env,
+            }),
             // Explicit token (matches createClient()/other passing resume tests): without it,
             // useLoggedInUser defaults to true and the runtime falls back to ambient env-var
             // auto-detection for the model call, which flakes on some hosts (e.g. Alpine ARM64).
@@ -131,7 +133,7 @@ describe("Sessions", () => {
         const session = await firstClient.createSession({
             sessionId,
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
         });
         await session.sendAndWait({
             prompt: `Please remember this exact secret marker for later - ${marker}. Reply with only the single word "Acknowledged".`,
@@ -140,9 +142,11 @@ describe("Sessions", () => {
         await firstClient.stop();
 
         const secondClient = new CopilotClient({
-            workingDirectory: workDir,
-            env,
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: workDir,
+                env,
+            }),
             gitHubToken: isCI ? DEFAULT_GITHUB_TOKEN : undefined,
         });
         onTestFinished(async () => {
@@ -154,7 +158,7 @@ describe("Sessions", () => {
         });
         const resumedSession = await secondClient.resumeSession(sessionId, {
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
         });
         const response = await resumedSession.sendAndWait({
             prompt: "What was the exact secret marker I asked you to remember earlier? Reply with only that marker value and nothing else.",

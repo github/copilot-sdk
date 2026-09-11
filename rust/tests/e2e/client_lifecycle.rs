@@ -1,6 +1,6 @@
+use github_copilot_sdk::SessionLifecycleEventType;
 #[cfg(windows)]
 use github_copilot_sdk::{CliProgram, Transport};
-use github_copilot_sdk::SessionLifecycleEventType;
 use serde_json::json;
 
 use super::support::{wait_for_lifecycle_event, with_e2e_context};
