@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 import { x as extractTar } from "tar";
 import { RUNTIME_PLATFORMS, validateFile } from "../src/runtimeArtifacts.js";
 
@@ -28,7 +29,6 @@ interface RuntimePackageManifest {
 
 export interface AcquireRuntimePackagesOptions {
     outputDirectory: string;
-    registry: string;
     runtimeSha: string;
     runtimeVersion: string;
 }
@@ -38,6 +38,8 @@ export type CommandRunner = (
     args: string[],
     options?: { cwd?: string }
 ) => Promise<CommandResult>;
+
+const GITHUB_PACKAGES_REGISTRY = "https://npm.pkg.github.com";
 
 export function getSourceRuntimePackageName(platform: string): string {
     return `@github/copilot-${platform}`;
@@ -136,11 +138,6 @@ export async function acquireRuntimePackages(
     runner: CommandRunner = runCommand
 ): Promise<void> {
     assert.match(options.runtimeSha, /^[0-9a-f]{40}$/, "Runtime SHA must be lowercase full SHA");
-    assert.equal(
-        options.registry,
-        "https://npm.pkg.github.com",
-        "Runtime packages must come from GitHub Packages"
-    );
     assert(
         options.outputDirectory.trim().length > 0,
         "Runtime package output directory is required"
@@ -165,7 +162,7 @@ export async function acquireRuntimePackages(
             "dist.integrity",
             "--json",
             "--registry",
-            options.registry,
+            GITHUB_PACKAGES_REGISTRY,
         ]);
         const registryIntegrity = parseJsonOutput<string>(
             viewResult,
@@ -183,7 +180,7 @@ export async function acquireRuntimePackages(
             "--pack-destination",
             tarballDirectory,
             "--registry",
-            options.registry,
+            GITHUB_PACKAGES_REGISTRY,
         ]);
         const packed = parseJsonOutput<{ filename: string; integrity?: string }[]>(
             packResult,
@@ -235,7 +232,7 @@ export async function acquireRuntimePackages(
             {
                 runtimeVersion: options.runtimeVersion,
                 runtimeSha: options.runtimeSha,
-                registry: options.registry,
+                registry: GITHUB_PACKAGES_REGISTRY,
                 packages: acquired,
             },
             null,
@@ -245,37 +242,28 @@ export async function acquireRuntimePackages(
 }
 
 export function parseArguments(args: string[]): AcquireRuntimePackagesOptions {
-    const optionNames = new Set(["--version", "--sha", "--registry", "--output"]);
-    const values = new Map<string, string>();
-    if (args.length !== optionNames.size * 2) {
-        throw new Error(
-            "Usage: runtime-package-acquisition.ts --version <version> --sha <sha> --registry <url> --output <directory>"
+    const { tokens, values } = parseArgs({
+        args,
+        allowPositionals: false,
+        options: {
+            output: { type: "string" },
+            sha: { type: "string" },
+            version: { type: "string" },
+        },
+        strict: true,
+        tokens: true,
+    });
+    for (const name of ["version", "sha", "output"] as const) {
+        const occurrences = tokens.filter(
+            (token) => token.kind === "option" && token.name === name
         );
+        assert.equal(occurrences.length, 1, `Option --${name} must be provided exactly once`);
+        assert(values[name]?.trim(), `Option --${name} requires a non-empty value`);
     }
-    for (let index = 0; index < args.length; index += 2) {
-        const key = args[index];
-        const value = args[index + 1];
-        if (!key || !optionNames.has(key)) {
-            throw new Error(`Unknown runtime package acquisition option: ${key ?? ""}`);
-        }
-        if (values.has(key)) {
-            throw new Error(`Duplicate runtime package acquisition option: ${key}`);
-        }
-        if (!value || value.trim().length === 0 || value.startsWith("--")) {
-            throw new Error(`Runtime package acquisition option ${key} requires a non-empty value`);
-        }
-        values.set(key, value);
-    }
-    const requiredValue = (key: string): string => {
-        const value = values.get(key);
-        assert(value !== undefined, `Missing runtime package acquisition option: ${key}`);
-        return value;
-    };
     return {
-        runtimeVersion: requiredValue("--version"),
-        runtimeSha: requiredValue("--sha"),
-        registry: requiredValue("--registry"),
-        outputDirectory: requiredValue("--output"),
+        runtimeVersion: values.version!,
+        runtimeSha: values.sha!,
+        outputDirectory: values.output!,
     };
 }
 

@@ -140,7 +140,6 @@ jobs:
           npm run acquire:runtime-packages -- \
             --version "$RUNTIME_VERSION" \
             --sha "$RUNTIME_SHA" \
-            --registry https://npm.pkg.github.com \
             --output "$RUNNER_TEMP/runtime-packages"
       - name: Archive validated runtime packages
         run: tar -czf "$RUNNER_TEMP/runtime-packages.tar.gz" -C "$RUNNER_TEMP" runtime-packages
