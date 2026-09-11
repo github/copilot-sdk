@@ -62,6 +62,25 @@ describe("approveAll", () => {
 });
 
 describe("CopilotClient", () => {
+    it("starts and stops the runtime-hosted AHP endpoint", async () => {
+        const client = new CopilotClient({ autoStart: false });
+        const sendRequest = vi
+            .fn()
+            .mockResolvedValueOnce({ url: "ws://127.0.0.1:12345" })
+            .mockResolvedValueOnce({});
+        (client as any).connection = { sendRequest };
+
+        await expect(client.startAhpHost()).resolves.toEqual({ url: "ws://127.0.0.1:12345" });
+        await expect(client.stopAhpHost()).resolves.toBeUndefined();
+        expect(sendRequest.mock.calls.map(([method]) => method)).toEqual(["ahp.start", "ahp.stop"]);
+    });
+
+    it("requires a connected client to manage the AHP endpoint", async () => {
+        const client = new CopilotClient({ autoStart: false });
+        await expect(client.startAhpHost()).rejects.toThrow("Client is not connected");
+        await expect(client.stopAhpHost()).rejects.toThrow("Client is not connected");
+    });
+
     it("start() is single-flight: concurrent callers share one startup", async () => {
         const client = new CopilotClient({ autoStart: false });
         onTestFinished(() => client.forceStop());

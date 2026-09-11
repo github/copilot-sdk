@@ -2094,6 +2094,33 @@ export class CopilotClient {
     }
 
     /**
+     * Start the runtime-hosted Agent Host Protocol endpoint for this runtime's sessions.
+     * Connect an AHP client to the returned WebSocket URL.
+     *
+     * @experimental
+     * @throws Error if the client is not connected or the runtime does not support AHP.
+     */
+    async startAhpHost(): Promise<{ url: string }> {
+        if (!this.connection) {
+            throw new Error("Client is not connected. Call start() first.");
+        }
+        return this.connection.sendRequest("ahp.start", {});
+    }
+
+    /**
+     * Stop the runtime-hosted AHP endpoint without stopping the SDK's sessions.
+     *
+     * @experimental
+     * @throws Error if the client is not connected or the runtime does not support AHP.
+     */
+    async stopAhpHost(): Promise<void> {
+        if (!this.connection) {
+            throw new Error("Client is not connected. Call start() first.");
+        }
+        await this.connection.sendRequest("ahp.stop", {});
+    }
+
+    /**
      * Get CLI status including version and protocol information
      */
     async getStatus(): Promise<GetStatusResponse> {
