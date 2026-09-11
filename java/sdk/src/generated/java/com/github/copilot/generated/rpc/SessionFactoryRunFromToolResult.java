@@ -39,6 +39,8 @@ public record SessionFactoryRunFromToolResult(
     /** Reason for a halted or cancelled run. */
     @JsonProperty("reason") String reason,
     /** Partial journal and progress snapshot for a halted, cancelled, or errored run. */
-    @JsonProperty("snapshot") Object snapshot
+    @JsonProperty("snapshot") Object snapshot,
+    /** Structured pause initiator metadata for a paused attempt. */
+    @JsonProperty("pauseInfo") Object pauseInfo
 ) {
 }

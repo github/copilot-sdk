@@ -39,13 +39,15 @@ public final class SkillInvokedEvent extends SessionEvent {
         @JsonProperty("name") String name,
         /** Model identifier active when the skill was invoked, when known */
         @JsonProperty("model") String model,
-        /** File path to the SKILL.md definition */
+        /** File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity */
         @JsonProperty("path") String path,
         /** Full content of the skill file, injected into the conversation for the model */
         @JsonProperty("content") String content,
         /** Tool names that should be auto-approved when this skill is active */
         @JsonProperty("allowedTools") List<String> allowedTools,
-        /** Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill) */
+        /** Whether model invocation is disabled for this skill */
+        @JsonProperty("disableModelInvocation") Boolean disableModelInvocation,
+        /** Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), remote (org/enterprise skill), and sdk (SDK-provided skill) */
         @JsonProperty("source") String source,
         /** Name of the plugin this skill originated from, when applicable */
         @JsonProperty("pluginName") String pluginName,

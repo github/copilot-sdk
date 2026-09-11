@@ -39,7 +39,9 @@ public final class SessionWarningEvent extends SessionEvent {
         /** Human-readable warning message for display in the timeline */
         @JsonProperty("message") String message,
         /** Optional URL associated with this warning that the user can open in a browser */
-        @JsonProperty("url") String url
+        @JsonProperty("url") String url,
+        /** What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value. */
+        @JsonProperty("remediation") RemediationAction remediation
     ) {
     }
 }

@@ -121,7 +121,7 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
             }
         });
 
-        // Do NOT DisposeAsync the session before deleting: dispose sends session.destroy
+        // Do NOT DisposeAsync the session before deleting: dispose sends session.detach
         // which closes in-memory state but does not remove the disk file; calling
         // delete afterwards still succeeds, but skipping dispose keeps the test minimal.
         await Client.DeleteSessionAsync(sessionId);

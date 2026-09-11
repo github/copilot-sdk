@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -28,6 +29,8 @@ public record ConnectParams(
     @JsonProperty("enableGitHubTelemetryForwarding") Boolean enableGitHubTelemetryForwarding,
     /** Identity of the integrating host. Optional; omit it to keep the default attribution. */
     @JsonProperty("clientInfo") ConnectClientInfo clientInfo,
+    /** Task kinds this connection can decode when observing session tasks. Omit to retain agent and shell compatibility. */
+    @JsonProperty("supportedTaskKinds") List<TaskKind> supportedTaskKinds,
     /** Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN */
     @JsonProperty("token") String token
 ) {

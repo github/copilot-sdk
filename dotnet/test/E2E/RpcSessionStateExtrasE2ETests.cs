@@ -32,7 +32,7 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
         await using var client = CreateAuthenticatedClient(token);
         await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
@@ -41,7 +41,7 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
         Assert.NotNull(result.List);
         Assert.NotEmpty(result.List);
         // The configured model must be present in the returned catalog.
-        Assert.Contains(result.List, model => model.GetRawText().Contains("claude-sonnet-4.5", StringComparison.Ordinal));
+        Assert.Contains(result.List, model => model.GetRawText().Contains("claude-sonnet-5", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
                     Provider = providerName,
                     Id = modelId,
                     Name = "SDK Runtime Model",
-                    ModelId = "claude-sonnet-4.5",
+                    ModelId = "claude-sonnet-5",
                     WireModel = "wire-sdk-runtime-model",
                     MaxContextWindowTokens = 4_096,
                     MaxPromptTokens = 3_072,
@@ -277,7 +277,7 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
             {
                 ["general-purpose"] = new()
                 {
-                    Model = "claude-sonnet-4.5",
+                    Model = "claude-sonnet-5",
                     EffortLevel = "high",
                     ContextTier = SubagentSettingsEntryContextTier.Default,
                 },

@@ -60,10 +60,8 @@ class RewindIT {
         Files.writeString(filePath, ORIGINAL_FILE_CONTENT);
 
         try (CopilotClient client = ctx.createClient();
-                CopilotSession session = client
-                        .createSession(
-                                new SessionConfig().setModel("claude-sonnet-4.5").setEnableFileChangeTracking(true)
-                                        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                CopilotSession session = client.createSession(new SessionConfig().setModel("claude-sonnet-5")
+                        .setEnableFileChangeTracking(true).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                         .get(30, TimeUnit.SECONDS)) {
             AssistantMessageEvent ready = session
                     .sendAndWait(new MessageOptions().setPrompt("Use the edit tool to replace the exact contents of "

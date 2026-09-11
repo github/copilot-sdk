@@ -42,7 +42,7 @@ const endpoints: Record<ReplayBackend, string> = {
 
 const models: Record<ReplayBackend, string> = {
   capi: "gpt-4.1",
-  "anthropic-messages": "claude-sonnet-4.5",
+  "anthropic-messages": "claude-sonnet-5",
   "openai-responses": "gpt-4.1",
   "openai-completions": "gpt-4.1",
 };

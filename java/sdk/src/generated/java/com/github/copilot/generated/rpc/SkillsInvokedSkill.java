@@ -24,12 +24,14 @@ import javax.annotation.processing.Generated;
 public record SkillsInvokedSkill(
     /** Unique identifier for the skill */
     @JsonProperty("name") String name,
-    /** Path to the SKILL.md file */
+    /** Path to the SKILL.md file, or an empty string for an SDK-provided skill without a filesystem identity */
     @JsonProperty("path") String path,
     /** Full content of the skill file */
     @JsonProperty("content") String content,
     /** Tools that should be auto-approved when this skill is active, captured at invocation time */
     @JsonProperty("allowedTools") List<String> allowedTools,
+    /** Whether model invocation was disabled when this skill was invoked */
+    @JsonProperty("disableModelInvocation") Boolean disableModelInvocation,
     /** Turn number when the skill was invoked */
     @JsonProperty("invokedAtTurn") Long invokedAtTurn
 ) {

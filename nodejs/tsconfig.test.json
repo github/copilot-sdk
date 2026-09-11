@@ -9,7 +9,8 @@
         "src/**/*",
         "test/session-list-messageable-sessions.test.ts",
         "test/session-event-types.test.ts",
-        "test/session-send-session-message.test.ts"
+        "test/session-send-session-message.test.ts",
+        "test/message-source.test.ts"
     ],
     "exclude": ["node_modules", "dist"]
 }

@@ -32,7 +32,7 @@ func TestRewindE2E(t *testing.T) {
 			t.Fatalf("Failed to create original file: %v", err)
 		}
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			Model:                    "claude-sonnet-4.5",
+			Model:                    "claude-sonnet-5",
 			EnableFileChangeTracking: copilot.Bool(true),
 			OnPermissionRequest:      copilot.PermissionHandler.ApproveAll,
 		})

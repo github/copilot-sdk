@@ -33,6 +33,7 @@ from .client import (
     AutoTier,
     CapiSessionOptions,
     ChildProcessRuntimeConnection,
+    ClientInfo,
     CloudSessionOptions,
     CloudSessionRepository,
     CopilotClient,
@@ -89,6 +90,7 @@ from .copilot_request_handler import (
     LlmInferenceHeaders,
 )
 from .generated.rpc import (
+    CurrentModel,
     CurrentToolMetadata,
     GitHubTelemetryClientInfo,
     GitHubTelemetryEvent,
@@ -98,6 +100,8 @@ from .generated.rpc import (
     GitHubTokenAcquireResultKind,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
+    ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus,
     PermissionDecisionContext,
     PermissionDecisionOutcome,
     PermissionDecisionSource,
@@ -105,11 +109,14 @@ from .generated.rpc import (
     PermissionResponseCapability,
 )
 from .generated.session_events import (
+    AutoTierSwitchFailureReason,
     PermissionRequest,
+    SessionAutoTierSwitchFailedData,
     SessionEvent,
     SessionEventType,
 )
 from .session import (
+    AgentMessageSource,
     AgentStopHandler,
     AgentStopHookInput,
     AgentStopHookOutput,
@@ -146,6 +153,7 @@ from .session import (
     MCPHTTPServerConfig,
     MCPServerConfig,
     MCPStdioServerConfig,
+    MessageSource,
     ModelCapabilitiesOverride,
     ModelLimitsOverride,
     ModelSupportsOverride,
@@ -224,6 +232,7 @@ except PackageNotFoundError:
     __version__ = "0.0.0.dev0"
 
 __all__ = [
+    "AgentMessageSource",
     "AgentStopHandler",
     "AgentStopHookInput",
     "AgentStopHookOutput",
@@ -233,6 +242,11 @@ __all__ = [
     "AutoModeSwitchResponse",
     "AskUserVariant",
     "AutoTier",
+    "SessionAutoTierSwitchFailedData",
+    "AutoTierSwitchFailureReason",
+    "CurrentModel",
+    "ModelSwitchAutoTierResult",
+    "ModelSwitchAutoTierStatus",
     "BUILTIN_TOOLS_ISOLATED",
     "CanvasAction",
     "CanvasDeclaration",
@@ -244,6 +258,7 @@ __all__ = [
     "CanvasProviderIdentity",
     "CapiSessionOptions",
     "ChildProcessRuntimeConnection",
+    "ClientInfo",
     "CloudSessionOptions",
     "CloudSessionRepository",
     "CommandContext",
@@ -306,6 +321,7 @@ __all__ = [
     "McpAuthWwwAuthenticateParams",
     "ManagedSettings",
     "ManagedSettingsPermissions",
+    "MessageSource",
     "ModelBilling",
     "ModelBillingTokenPrices",
     "ModelBillingTokenPricesLongContext",

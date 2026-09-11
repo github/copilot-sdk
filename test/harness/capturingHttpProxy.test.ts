@@ -10,9 +10,21 @@ describe("Capturing HTTP Proxy", () => {
   let proxy: CapturingHttpProxy;
   let testServer: http.Server;
   let testServerAddress: string;
+  let onHangingRequest: (() => void) | undefined;
+  let onStreamingResponse: (() => void) | undefined;
 
   beforeEach(async () => {
     testServer = http.createServer((req, res) => {
+      if (req.url === "/hang") {
+        onHangingRequest?.();
+        return;
+      }
+      if (req.url === "/stream") {
+        res.writeHead(200, { "content-type": "text/plain" });
+        res.write("started");
+        onStreamingResponse?.();
+        return;
+      }
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ message: "Hello", path: req.url }));
     });
@@ -70,5 +82,35 @@ describe("Capturing HTTP Proxy", () => {
         },
       } as CapturedExchange,
     ]);
+  });
+
+  test("stops while a proxied request is still active", async () => {
+    proxy = new CapturingHttpProxy(testServerAddress);
+    const proxyUrl = await proxy.start();
+    const requestStarted = new Promise<void>((resolve) => {
+      onHangingRequest = resolve;
+    });
+    const request = fetch(`${proxyUrl}/hang`).catch(() => undefined);
+    await requestStarted;
+
+    await proxy.stop();
+
+    await request;
+  });
+
+  test("stops while a proxied response is still streaming", async () => {
+    proxy = new CapturingHttpProxy(testServerAddress);
+    const proxyUrl = await proxy.start();
+    const responseStarted = new Promise<void>((resolve) => {
+      onStreamingResponse = resolve;
+    });
+    const responsePromise = fetch(`${proxyUrl}/stream`);
+    await responseStarted;
+    const response = await responsePromise;
+    const body = response.text().catch(() => undefined);
+
+    await proxy.stop();
+
+    await body;
   });
 });

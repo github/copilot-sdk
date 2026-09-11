@@ -125,7 +125,7 @@ public class SessionConfigE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setModel("claude-sonnet-4.5")
+                    .createSession(new SessionConfig().setModel("claude-sonnet-5")
                             .setProvider(new ProviderConfig().setType("openai").setBaseUrl(ctx.getProxyUrl())
                                     .setApiKey("test-provider-key").setWireModel("test-wire-model")
                                     .setMaxOutputTokens(1024))
@@ -149,7 +149,7 @@ public class SessionConfigE2ETest {
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(new SessionConfig()
                     .setProvider(new ProviderConfig().setType("openai").setBaseUrl(ctx.getProxyUrl())
-                            .setApiKey("test-provider-key").setModelId("claude-sonnet-4.5"))
+                            .setApiKey("test-provider-key").setModelId("claude-sonnet-5"))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(30, TimeUnit.SECONDS);
@@ -158,7 +158,7 @@ public class SessionConfigE2ETest {
             assertFalse(exchanges.isEmpty(), "Should have at least one exchange");
             @SuppressWarnings("unchecked")
             Map<String, Object> request = (Map<String, Object>) exchanges.get(0).get("request");
-            assertEquals("claude-sonnet-4.5", request.get("model"));
+            assertEquals("claude-sonnet-5", request.get("model"));
         }
     }
 
@@ -272,7 +272,7 @@ public class SessionConfigE2ETest {
         var handler = new CopilotRequestTestSupport.RecordingRequestHandler(SYNTHETIC_TEXT);
 
         try (CopilotClient client = newLlmClient(ctx, handler)) {
-            CopilotSession session = client.createSession(new SessionConfig().setModel("claude-sonnet-4.5")
+            CopilotSession session = client.createSession(new SessionConfig().setModel("claude-sonnet-5")
                     .setEnableCitations(true).setProvider(createAnthropicProvider())
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
@@ -296,7 +296,7 @@ public class SessionConfigE2ETest {
             CopilotSession session1 = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             CopilotSession session2 = client.resumeSession(session1.getSessionId(),
-                    new ResumeSessionConfig().setModel("claude-sonnet-4.5").setEnableCitations(true)
+                    new ResumeSessionConfig().setModel("claude-sonnet-5").setEnableCitations(true)
                             .setProvider(createAnthropicProvider())
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
@@ -388,7 +388,7 @@ public class SessionConfigE2ETest {
 
     private static ProviderConfig createAnthropicProvider() {
         return new ProviderConfig().setType("anthropic").setBaseUrl("https://anthropic-citations.invalid/v1")
-                .setApiKey("test-provider-key").setModelId("claude-sonnet-4.5").setWireModel("claude-sonnet-4.5");
+                .setApiKey("test-provider-key").setModelId("claude-sonnet-5").setWireModel("claude-sonnet-5");
     }
 
     private static String singleInferenceRequestBody(CopilotRequestTestSupport.RecordingRequestHandler handler) {

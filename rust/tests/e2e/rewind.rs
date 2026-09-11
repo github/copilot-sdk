@@ -28,7 +28,7 @@ async fn should_restore_tracked_file_and_conversation() {
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
-                            .with_model("claude-sonnet-4.5")
+                            .with_model("claude-sonnet-5")
                             .with_enable_file_change_tracking(true),
                     )
                     .await

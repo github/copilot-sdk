@@ -66,6 +66,12 @@ pub mod session_events;
 /// [`Client::rpc`] and [`session::Session::rpc`](crate::session::Session::rpc).
 pub mod rpc;
 
+#[derive(serde::Deserialize)]
+struct SessionDetachResponse {
+    success: bool,
+    error: Option<String>,
+}
+
 // Auto-generated protocol-type modules. Crate-private so the only public
 // access path is via the `session_events` and `rpc` facade modules above —
 // callers can never depend on the implementation-detail layout under
@@ -209,9 +215,9 @@ pub const HAS_BUNDLED_CLI: bool = cfg!(has_bundled_cli);
 /// Returns the path to the bundled Copilot CLI, extracting it from the
 /// embedded archive on first call.
 ///
-/// This exposes the CLI artifact directly for callers such as health checks,
-/// diagnostics, version probes, and in-process hosting. Managed child-process
-/// transports resolve the bundled `copilot-runtime` wrapper instead.
+/// This exposes the full CLI artifact directly for callers such as health
+/// checks, diagnostics, and version probes. Managed child-process and
+/// in-process transports resolve the bundled runtime artifacts instead.
 ///
 /// Subsequent calls return the cached result. Extraction is skipped when
 /// an already-published binary passes a cheap integrity re-check; a
@@ -401,6 +407,102 @@ pub struct ClientOptions {
     /// (the default) or are stripped to a minimal/safe baseline. See
     /// [`ClientMode`] for the contract and trade-offs.
     pub mode: ClientMode,
+    /// Declares the integrating application's identity, forwarded to the runtime on
+    /// the `server.connect` handshake. Declaring it lets the telemetry the
+    /// runtime emits on this connection be attributed to a consistent surface
+    /// (the application and its Copilot integration) instead of the runtime's own
+    /// build. All fields are optional; leave it `None` to keep the runtime's
+    /// default attribution.
+    pub client_info: Option<ClientInfo>,
+}
+
+/// Identity of the integrating application, declared on the `server.connect`
+/// handshake.
+///
+/// Declaring it lets the telemetry the runtime emits on the connection be
+/// attributed to a single, consistent surface instead of the runtime's own
+/// build. All fields are optional; an empty field is omitted from the
+/// handshake.
+///
+/// The struct is `#[non_exhaustive]`, so construct it with [`ClientInfo::new`]
+/// and the `with_*` builder methods rather than a struct literal. This lets the
+/// SDK add identity fields in future releases without a breaking change.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ClientInfo {
+    /// Name of the application using the SDK.
+    pub application_name: Option<String>,
+    /// Version of the application using the SDK.
+    pub application_version: Option<String>,
+    /// Optional name of a specific integration within the application, such as an
+    /// extension or plugin.
+    pub integration_name: Option<String>,
+    /// Optional version of the integration identified by [`Self::integration_name`].
+    pub integration_version: Option<String>,
+}
+
+impl ClientInfo {
+    /// Create an empty `ClientInfo`. Populate fields with the `with_*` builder
+    /// methods; every field is optional.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the name of the application using the SDK.
+    pub fn with_application_name(mut self, application_name: impl Into<String>) -> Self {
+        self.application_name = Some(application_name.into());
+        self
+    }
+
+    /// Set the version of the application using the SDK.
+    pub fn with_application_version(mut self, application_version: impl Into<String>) -> Self {
+        self.application_version = Some(application_version.into());
+        self
+    }
+
+    /// Set the name of a specific integration within the application, such as an
+    /// extension or plugin.
+    pub fn with_integration_name(mut self, integration_name: impl Into<String>) -> Self {
+        self.integration_name = Some(integration_name.into());
+        self
+    }
+
+    /// Set the version of the integration identified by
+    /// [`Self::with_integration_name`].
+    pub fn with_integration_version(mut self, integration_version: impl Into<String>) -> Self {
+        self.integration_version = Some(integration_version.into());
+        self
+    }
+
+    /// Returns `true` when no field carries a non-empty value, in which case the
+    /// SDK omits `clientInfo` from the handshake and the runtime keeps its
+    /// default attribution.
+    fn is_empty(&self) -> bool {
+        Self::non_empty(&self.application_name).is_none()
+            && Self::non_empty(&self.application_version).is_none()
+            && Self::non_empty(&self.integration_name).is_none()
+            && Self::non_empty(&self.integration_version).is_none()
+    }
+
+    /// Clone the field only when it holds a non-empty string, so empty fields are
+    /// dropped from the handshake.
+    fn non_empty(value: &Option<String>) -> Option<String> {
+        value.as_ref().filter(|s| !s.is_empty()).cloned()
+    }
+
+    /// Map onto the generated connect wire shape, dropping empty fields. Returns
+    /// `None` when no field carries a non-empty value.
+    fn to_wire(&self) -> Option<crate::generated::api_types::ConnectClientInfo> {
+        if self.is_empty() {
+            return None;
+        }
+        Some(crate::generated::api_types::ConnectClientInfo {
+            editor_name: Self::non_empty(&self.application_name),
+            editor_version: Self::non_empty(&self.application_version),
+            extension_name: Self::non_empty(&self.integration_name),
+            extension_version: Self::non_empty(&self.integration_version),
+        })
+    }
 }
 
 impl std::fmt::Debug for ClientOptions {
@@ -452,6 +554,7 @@ impl std::fmt::Debug for ClientOptions {
             .field("base_directory", &self.base_directory)
             .field("enable_remote_sessions", &self.enable_remote_sessions)
             .field("bundled_cli_extract_dir", &self.bundled_cli_extract_dir)
+            .field("client_info", &self.client_info)
             .finish()
     }
 }
@@ -701,6 +804,7 @@ impl Default for ClientOptions {
             enable_remote_sessions: false,
             bundled_cli_extract_dir: None,
             mode: ClientMode::default(),
+            client_info: None,
         }
     }
 }
@@ -931,6 +1035,14 @@ impl ClientOptions {
         self.mode = mode;
         self
     }
+
+    /// Declare the integrating application's identity, forwarded to the runtime on
+    /// the `server.connect` handshake so its telemetry is attributed to a
+    /// consistent surface. See [`Self::client_info`].
+    pub fn with_client_info(mut self, client_info: ClientInfo) -> Self {
+        self.client_info = Some(client_info);
+        self
+    }
 }
 
 /// Validate a [`SessionFsConfig`] before sending `sessionFs.setProvider`.
@@ -1100,6 +1212,10 @@ struct ClientInner {
     /// `None` for stdio and for external-server transport without an
     /// explicit token.
     effective_connection_token: Option<String>,
+    /// Application identity forwarded on the `connect` handshake, set from
+    /// [`ClientOptions::client_info`]. `None` keeps the runtime's default
+    /// telemetry attribution.
+    client_info: Option<ClientInfo>,
     /// SDK [`ClientMode`] captured at start time. Drives empty-mode safe
     /// defaults inside `create_session` / `resume_session`.
     pub(crate) mode: ClientMode,
@@ -1314,6 +1430,7 @@ impl Client {
                     options.on_github_telemetry,
                     effective_connection_token.clone(),
                     options.mode,
+                    options.client_info,
                 )?
             }
             Transport::Tcp {
@@ -1347,6 +1464,7 @@ impl Client {
                     options.on_github_telemetry,
                     effective_connection_token.clone(),
                     options.mode,
+                    options.client_info,
                 )?
             }
             Transport::Stdio => {
@@ -1370,6 +1488,7 @@ impl Client {
                     options.on_github_telemetry,
                     effective_connection_token.clone(),
                     options.mode,
+                    options.client_info,
                 )?
             }
             Transport::InProcess => {
@@ -1437,6 +1556,7 @@ impl Client {
                         options.on_github_telemetry,
                         effective_connection_token.clone(),
                         options.mode,
+                        options.client_info,
                     )?;
                     *client.inner.ffi_host.lock() = Some(shared);
                     client
@@ -1579,6 +1699,7 @@ impl Client {
             None,
             None,
             ClientMode::default(),
+            None,
         )
     }
 
@@ -1606,6 +1727,7 @@ impl Client {
             None,
             None,
             ClientMode::default(),
+            None,
         )
     }
 
@@ -1637,6 +1759,7 @@ impl Client {
             None,
             None,
             ClientMode::default(),
+            None,
         )
     }
 
@@ -1664,6 +1787,7 @@ impl Client {
             None,
             token,
             ClientMode::default(),
+            None,
         )
     }
 
@@ -1691,6 +1815,7 @@ impl Client {
             Some(on_github_telemetry),
             None,
             ClientMode::default(),
+            None,
         )
     }
 
@@ -1702,6 +1827,35 @@ impl Client {
     #[cfg(any(test, feature = "test-support"))]
     pub fn generate_connection_token_for_test() -> String {
         generate_connection_token()
+    }
+
+    /// Construct a [`Client`] from raw streams with a preset
+    /// [`ClientInfo`], for integration testing the `connect` handshake's
+    /// application-identity forwarding path.
+    #[doc(hidden)]
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn from_streams_with_client_info(
+        reader: impl AsyncRead + Unpin + Send + 'static,
+        writer: impl AsyncWrite + Unpin + Send + 'static,
+        cwd: PathBuf,
+        client_info: Option<ClientInfo>,
+    ) -> Result<Self> {
+        Self::from_transport(
+            reader,
+            writer,
+            None,
+            None,
+            cwd,
+            None,
+            None,
+            false,
+            false,
+            None,
+            None,
+            None,
+            ClientMode::default(),
+            client_info,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1721,6 +1875,7 @@ impl Client {
         on_github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
         effective_connection_token: Option<String>,
         mode: ClientMode,
+        client_info: Option<ClientInfo>,
     ) -> Result<Self> {
         let setup_start = Instant::now();
         let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
@@ -1766,6 +1921,7 @@ impl Client {
                 on_get_trace_context,
                 effective_connection_token,
                 mode,
+                client_info,
                 startup_timings: OnceLock::new(),
             }),
         };
@@ -2109,6 +2265,25 @@ impl Client {
         self.call_with_inline_callback(method, params, None).await
     }
 
+    pub(crate) async fn detach_session(&self, session_id: &str) -> Result<()> {
+        let value = self
+            .call(
+                "session.detach",
+                Some(serde_json::json!({ "sessionId": session_id })),
+            )
+            .await?;
+        let response: SessionDetachResponse = serde_json::from_value(value)?;
+        if response.success {
+            return Ok(());
+        }
+        Err(Error::with_message(
+            ErrorKind::Session(SessionErrorKind::DetachFailed),
+            response
+                .error
+                .unwrap_or_else(|| "unknown error".to_string()),
+        ))
+    }
+
     /// Same as [`call`](Self::call), but installs an `inline_callback`
     /// that runs synchronously on the JSON-RPC read task the instant the
     /// successful response is parsed, before it is delivered to this
@@ -2171,15 +2346,18 @@ impl Client {
 
     /// Register a session to receive filtered events and requests.
     ///
-    /// Returns per-session channels for notifications and requests, routed
-    /// by `sessionId`. Starts the internal router on first call.
+    /// Returns the per-session channels plus a
+    /// [`RegistrationToken`](crate::router::RegistrationToken) identifying
+    /// *this* registration. Registering an ID that is already registered
+    /// replaces the previous registration.
     ///
-    /// When done, call [`unregister_session`](Self::unregister_session) to
-    /// clean up (typically on session destroy).
+    /// When done, call
+    /// [`unregister_session_owned`](Self::unregister_session_owned) with
+    /// that token to clean up (typically on session destroy).
     pub(crate) fn register_session(
         &self,
         session_id: &SessionId,
-    ) -> crate::router::SessionChannels {
+    ) -> crate::router::SessionRegistration {
         self.inner.router.ensure_started(
             &self.inner.notification_tx,
             &self.inner.request_rx,
@@ -2191,9 +2369,30 @@ impl Client {
         self.inner.router.register(session_id)
     }
 
-    /// Unregister a session, dropping its per-session channels.
-    pub(crate) fn unregister_session(&self, session_id: &SessionId) {
-        self.inner.router.unregister(session_id);
+    /// Unregister a session only if `token` still identifies the live
+    /// registration.
+    ///
+    /// Session IDs can be reused: a caller may retry a cancelled startup
+    /// with the same pinned ID while the previous owner is still being torn
+    /// down. Compare-and-remove keeps a stale owner from unregistering the
+    /// live session that replaced it.
+    pub(crate) fn unregister_session_owned(
+        &self,
+        session_id: &SessionId,
+        token: crate::router::RegistrationToken,
+    ) {
+        self.inner.router.unregister_owned(session_id, token);
+    }
+
+    /// Snapshot the session IDs currently registered on the router.
+    ///
+    /// Crate-internal so in-crate unit tests can assert registration
+    /// lifecycle without depending on the `test-support` feature, which
+    /// only gates the equivalent *public* test helper. Compiled only for
+    /// those two configurations — a default-feature build has no caller.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn registered_session_ids(&self) -> Vec<SessionId> {
+        self.inner.router.session_ids()
     }
 
     pub(crate) fn register_github_token_provider(
@@ -2324,7 +2523,20 @@ impl Client {
                 .on_github_telemetry
                 .is_some()
                 .then_some(true),
-            ..Default::default()
+            supported_task_kinds: Some(vec![
+                crate::generated::api_types::TaskKind::Agent,
+                crate::generated::api_types::TaskKind::Client,
+                crate::generated::api_types::TaskKind::Shell,
+            ]),
+            // Declare the integrating application's identity so the runtime attributes
+            // the telemetry it emits on this connection to a consistent surface
+            // instead of its own build. `None` when the app didn't supply it, and
+            // empty fields are dropped.
+            client_info: self
+                .inner
+                .client_info
+                .as_ref()
+                .and_then(ClientInfo::to_wire),
         };
         let value = self
             .call(
@@ -2432,18 +2644,31 @@ impl Client {
 
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
+    /// Snapshot the session IDs currently registered on this client's
+    /// notification router. This is test-harness plumbing, not part of the
+    /// supported SDK API.
+    pub fn registered_session_ids_for_test(&self) -> Vec<SessionId> {
+        self.registered_session_ids()
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    /// Count the sessions currently registered on this client's notification
+    /// router. Deliberately never materialises the session IDs themselves so
+    /// they cannot leak into test diagnostics.
+    pub fn registered_session_count_for_test(&self) -> usize {
+        self.inner.router.session_count()
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
     /// Disconnect and delete every session owned by this test client's isolated
     /// runtime. This is test-harness plumbing, not part of the supported SDK API.
     pub async fn cleanup_sessions_for_test(&self) -> Result<()> {
         let mut first_error = None;
 
         for session_id in self.inner.router.session_ids() {
-            if let Err(error) = self
-                .call(
-                    "session.destroy",
-                    Some(serde_json::json!({ "sessionId": session_id })),
-                )
-                .await
+            if let Err(error) = self.detach_session(&session_id).await
                 && first_error.is_none()
             {
                 first_error = Some(error);
@@ -2569,10 +2794,10 @@ impl Client {
 
     /// Cooperatively shut down the client and the CLI child process.
     ///
-    /// Walks every still-registered session and sends `session.destroy`
+    /// Walks every still-registered session and sends `session.detach`
     /// for each one, asks SDK-owned runtimes to shut down, terminates the
     /// Windows-owned CLI Job Object when present, and reaps the root process.
-    /// Errors from per-session destroys, runtime shutdown, and final process
+    /// Errors from per-session detaches, runtime shutdown, and final process
     /// termination are collected into [`StopErrors`] rather than
     /// short-circuiting on the first failure — so callers see the full picture
     /// of teardown.
@@ -2601,21 +2826,15 @@ impl Client {
         self.inner.extension_launch_provider.clear();
 
         // Snapshot the registered session IDs without holding the router
-        // lock across the destroy RPCs.
+        // lock across the detach RPCs.
         for session_id in self.inner.router.session_ids() {
-            match self
-                .call(
-                    "session.destroy",
-                    Some(serde_json::json!({ "sessionId": session_id })),
-                )
-                .await
-            {
+            match self.detach_session(&session_id).await {
                 Ok(_) => {}
                 Err(e) => {
                     warn!(
                         session_id = %session_id,
                         error = %e,
-                        "session.destroy failed during Client::stop",
+                        "session.detach failed during Client::stop",
                     );
                     errors.push(e);
                 }
@@ -3482,6 +3701,7 @@ mod tests {
             None,
             None,
             ClientMode::default(),
+            None,
         )
         .unwrap();
 
@@ -3592,6 +3812,7 @@ mod tests {
                 on_get_trace_context: None,
                 effective_connection_token: None,
                 mode: ClientMode::default(),
+                client_info: None,
                 startup_timings: OnceLock::new(),
             }),
         }

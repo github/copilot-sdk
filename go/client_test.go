@@ -78,6 +78,15 @@ func TestClient_URLParsing(t *testing.T) {
 		}
 	})
 
+	t.Run("should parse bracketed IPv6 host:port URL format", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: "[::1]:9000"},
+		})
+		if client.actualPort != 9000 || client.actualHost != "::1" {
+			t.Errorf("Expected [::1]:9000, got %s:%d", client.actualHost, client.actualPort)
+		}
+	})
+
 	t.Run("should parse http://host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "http://localhost:7000"},
@@ -85,6 +94,24 @@ func TestClient_URLParsing(t *testing.T) {
 		if client.actualPort != 7000 || client.actualHost != "localhost" {
 			t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.actualPort)
 		}
+	})
+
+	t.Run("should parse http://[ipv6]:port URL format", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: "http://[::1]:7000"},
+		})
+		if client.actualPort != 7000 || client.actualHost != "::1" {
+			t.Errorf("Expected [::1]:7000, got %s:%d", client.actualHost, client.actualPort)
+		}
+	})
+
+	t.Run("should panic for bracketed non-IPv6 host", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for invalid bracketed host")
+			}
+		}()
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "[not-ipv6]:1234"}})
 	})
 
 	t.Run("should parse https://host:port URL format", func(t *testing.T) {
@@ -276,6 +303,106 @@ func TestClient_BuiltinPluginDirectories(t *testing.T) {
 	})
 }
 
+func TestClient_ClientInfo(t *testing.T) {
+	findConnect := func(requests []startupRPCRequest) map[string]any {
+		t.Helper()
+		for _, request := range requests {
+			if request.Method != "connect" {
+				continue
+			}
+			var params map[string]any
+			if err := json.Unmarshal(request.Params, &params); err != nil {
+				t.Fatalf("decode connect params: %v", err)
+			}
+			return params
+		}
+		t.Fatal("connect was not called")
+		return nil
+	}
+
+	t.Run("forwards a declared identity on the connect handshake", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: url},
+			ClientInfo: &ClientInfo{
+				ApplicationName:    "acme-developer-portal",
+				ApplicationVersion: "2.4.0",
+				IntegrationName:    "copilot-assistant",
+				IntegrationVersion: "1.5.0",
+			},
+		})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		params := findConnect(requests())
+		want := map[string]any{
+			"editorName":       "acme-developer-portal",
+			"editorVersion":    "2.4.0",
+			"extensionName":    "copilot-assistant",
+			"extensionVersion": "1.5.0",
+		}
+		if !reflect.DeepEqual(params["clientInfo"], want) {
+			t.Fatalf("clientInfo = %v, want %v", params["clientInfo"], want)
+		}
+	})
+
+	t.Run("omits clientInfo when unset", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{Connection: URIConnection{URL: url}})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		if _, ok := findConnect(requests())["clientInfo"]; ok {
+			t.Fatal("clientInfo should be omitted when unset")
+		}
+	})
+
+	t.Run("omits empty fields", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: url},
+			ClientInfo: &ClientInfo{ApplicationName: "example-app"},
+		})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		want := map[string]any{"editorName": "example-app"}
+		if got := findConnect(requests())["clientInfo"]; !reflect.DeepEqual(got, want) {
+			t.Fatalf("clientInfo = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("omits clientInfo when all fields empty", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: url},
+			ClientInfo: &ClientInfo{},
+		})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		if _, ok := findConnect(requests())["clientInfo"]; ok {
+			t.Fatal("clientInfo should be omitted when all fields are empty")
+		}
+	})
+}
+
 type startupRPCRequest struct {
 	Method string
 	Params json.RawMessage
@@ -412,6 +539,67 @@ func TestClient_ForceStopAndExternalStopDoNotRequestRuntimeShutdown(t *testing.T
 	}
 	assertRuntimeShutdownNotCalled(t, externalShutdownCalled)
 	externalServer.Stop()
+}
+
+func TestClient_ForceStopCancelsPendingExternalTools(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	session := &Session{
+		pendingExternalTools: map[string]*pendingExternalTool{
+			"request-1": {ctx: ctx, cancel: cancel},
+		},
+	}
+
+	client := &Client{sessions: map[string]*Session{"session-1": session}}
+
+	client.ForceStop()
+
+	if len(client.sessions) != 0 {
+		t.Fatal("ForceStop did not clear sessions")
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("ForceStop did not cancel the pending external tool")
+	}
+}
+
+func TestClient_ConnectionCloseCancelsPendingExternalTools(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	server.SetRequestHandler("session.detach", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return []byte(`{"success":true}`), nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	session := newSession("session-1", rpcClient, "", false)
+	session.pendingExternalTools = map[string]*pendingExternalTool{
+		"request-1": {ctx: ctx, cancel: cancel},
+	}
+	client := &Client{
+		client:           rpcClient,
+		RPC:              rpc.NewServerRPC(rpcClient),
+		sessions:         map[string]*Session{"session-1": session},
+		isExternalServer: true,
+	}
+
+	client.handleConnectionClose()
+
+	if len(client.sessions) != 1 {
+		t.Fatal("connection close removed sessions before Stop could clean them up")
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("connection close did not cancel the pending external tool")
+	}
+
+	if err := client.Stop(); err != nil {
+		t.Fatalf("Stop failed after connection close: %v", err)
+	}
+	session.toolHandlersM.RLock()
+	defer session.toolHandlersM.RUnlock()
+	if session.toolHandlers != nil {
+		t.Fatal("Stop did not clean up the retained session")
+	}
+	server.Stop()
 }
 
 func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client, chan struct{}) {
@@ -824,6 +1012,225 @@ func sessionIDFromParams(t *testing.T, params json.RawMessage) string {
 	return decoded.SessionID
 }
 
+func TestClient_CreateSessionFailureClosesRegisteredSession(t *testing.T) {
+	tests := []struct {
+		name       string
+		response   func(string) (json.RawMessage, *jsonrpc2.Error)
+		wantErrSub string
+	}{
+		{
+			name: "RPC failure",
+			response: func(string) (json.RawMessage, *jsonrpc2.Error) {
+				return nil, &jsonrpc2.Error{Code: -32000, Message: "session creation failed"}
+			},
+			wantErrSub: "failed to create session",
+		},
+		{
+			name: "invalid response",
+			response: func(string) (json.RawMessage, *jsonrpc2.Error) {
+				return json.RawMessage(`"invalid"`), nil
+			},
+			wantErrSub: "failed to unmarshal response",
+		},
+		{
+			name: "session ID mismatch",
+			response: func(string) (json.RawMessage, *jsonrpc2.Error) {
+				return json.RawMessage(`{"sessionId":"different-session"}`), nil
+			},
+			wantErrSub: "but the caller requested failed-session",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+
+			captured := make(chan *Session, 1)
+			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				sessionID := sessionIDFromParams(t, params)
+				client.sessionsMux.Lock()
+				session := client.sessions[sessionID]
+				client.sessionsMux.Unlock()
+				captured <- session
+				return tt.response(sessionID)
+			})
+
+			_, err := client.CreateSession(t.Context(), &SessionConfig{SessionID: "failed-session"})
+			if err == nil || !strings.Contains(err.Error(), tt.wantErrSub) {
+				t.Fatalf("CreateSession error = %v, want substring %q", err, tt.wantErrSub)
+			}
+
+			session := <-captured
+			if session == nil {
+				t.Fatal("session was not registered before session.create")
+			}
+			assertSessionEventChannelClosed(t, session)
+			assertSessionNotRegistered(t, client, "failed-session")
+		})
+	}
+}
+
+func TestClient_CreateSessionInitializationFailureClosesRegisteredSession(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+		options: ClientOptions{SessionFS: &SessionFSConfig{
+			InitialWorkingDirectory: "/",
+			SessionStatePath:        "/session-state",
+			Conventions:             rpc.SessionFSSetProviderConventionsPosix,
+			Capabilities:            &SessionFSCapabilities{Sqlite: true},
+		}},
+	}
+
+	var captured *Session
+	_, err := client.CreateSession(t.Context(), &SessionConfig{
+		SessionID: "failed-session-fs",
+		CreateSessionFSProvider: func(session *Session) SessionFSProvider {
+			captured = session
+			return noSQLiteSessionFSProvider{}
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not implement SessionFSSqliteProvider") {
+		t.Fatalf("CreateSession error = %v, want SQLite provider validation error", err)
+	}
+	if captured == nil {
+		t.Fatal("CreateSessionFSProvider did not receive the registered session")
+	}
+	assertSessionEventChannelClosed(t, captured)
+	assertSessionNotRegistered(t, client, "failed-session-fs")
+}
+
+func TestClient_ResumeSessionFailureClosesRegisteredSession(t *testing.T) {
+	tests := []struct {
+		name       string
+		response   func(string) (json.RawMessage, *jsonrpc2.Error)
+		wantErrSub string
+	}{
+		{
+			name: "RPC failure",
+			response: func(string) (json.RawMessage, *jsonrpc2.Error) {
+				return nil, &jsonrpc2.Error{Code: -32000, Message: "session resume failed"}
+			},
+			wantErrSub: "failed to resume session",
+		},
+		{
+			name: "invalid response",
+			response: func(string) (json.RawMessage, *jsonrpc2.Error) {
+				return json.RawMessage(`"invalid"`), nil
+			},
+			wantErrSub: "failed to unmarshal response",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+
+			captured := make(chan *Session, 1)
+			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				sessionID := sessionIDFromParams(t, params)
+				client.sessionsMux.Lock()
+				session := client.sessions[sessionID]
+				client.sessionsMux.Unlock()
+				captured <- session
+				return tt.response(sessionID)
+			})
+
+			_, err := client.ResumeSession(t.Context(), "resumed-session", &ResumeSessionConfig{})
+			if err == nil || !strings.Contains(err.Error(), tt.wantErrSub) {
+				t.Fatalf("ResumeSession error = %v, want substring %q", err, tt.wantErrSub)
+			}
+
+			session := <-captured
+			if session == nil {
+				t.Fatal("session was not registered before session.resume")
+			}
+			assertSessionEventChannelClosed(t, session)
+			assertSessionNotRegistered(t, client, "resumed-session")
+		})
+	}
+}
+
+func TestClient_ResumeSessionInitializationFailureClosesRegisteredSession(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+		options: ClientOptions{SessionFS: &SessionFSConfig{
+			InitialWorkingDirectory: "/",
+			SessionStatePath:        "/session-state",
+			Conventions:             rpc.SessionFSSetProviderConventionsPosix,
+			Capabilities:            &SessionFSCapabilities{Sqlite: true},
+		}},
+	}
+
+	var captured *Session
+	_, err := client.ResumeSession(t.Context(), "resumed-session-fs", &ResumeSessionConfig{
+		CreateSessionFSProvider: func(session *Session) SessionFSProvider {
+			captured = session
+			return noSQLiteSessionFSProvider{}
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not implement SessionFSSqliteProvider") {
+		t.Fatalf("ResumeSession error = %v, want SQLite provider validation error", err)
+	}
+	if captured == nil {
+		t.Fatal("CreateSessionFSProvider did not receive the registered session")
+	}
+	assertSessionEventChannelClosed(t, captured)
+	assertSessionNotRegistered(t, client, "resumed-session-fs")
+}
+
+func assertSessionEventChannelClosed(t *testing.T, session *Session) {
+	t.Helper()
+	select {
+	case <-session.eventDone:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for session event processing to stop")
+	}
+}
+
+func assertSessionNotRegistered(t *testing.T, client *Client, sessionID string) {
+	t.Helper()
+	client.sessionsMux.Lock()
+	defer client.sessionsMux.Unlock()
+	if _, ok := client.sessions[sessionID]; ok {
+		t.Fatalf("session %q is still registered", sessionID)
+	}
+}
+
+type noSQLiteSessionFSProvider struct{}
+
+func (noSQLiteSessionFSProvider) ReadFile(string) (string, error)         { return "", nil }
+func (noSQLiteSessionFSProvider) WriteFile(string, string, *int) error    { return nil }
+func (noSQLiteSessionFSProvider) AppendFile(string, string, *int) error   { return nil }
+func (noSQLiteSessionFSProvider) Exists(string) (bool, error)             { return false, nil }
+func (noSQLiteSessionFSProvider) Stat(string) (*SessionFSFileInfo, error) { return nil, nil }
+func (noSQLiteSessionFSProvider) MakeDirectory(string, bool, *int) error  { return nil }
+func (noSQLiteSessionFSProvider) ReadDirectory(string) ([]string, error)  { return nil, nil }
+func (noSQLiteSessionFSProvider) ReadDirectoryWithTypes(string) ([]rpc.SessionFSReaddirWithTypesEntry, error) {
+	return nil, nil
+}
+func (noSQLiteSessionFSProvider) Remove(string, bool, bool) error { return nil }
+func (noSQLiteSessionFSProvider) Rename(string, string) error     { return nil }
+
 func assertRuntimeShutdownNotCalled(t *testing.T, shutdownCalled <-chan struct{}) {
 	t.Helper()
 	select {
@@ -1226,15 +1633,36 @@ func TestClient_SessionIdleTimeoutSeconds(t *testing.T) {
 	})
 }
 
-func findCLIPathForTest() string {
-	base, err := filepath.Abs("../nodejs/node_modules/@github")
-	if err == nil {
-		matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
-		if len(matches) > 0 {
-			return matches[0]
+func findCLIPathForTest(t *testing.T) string {
+	t.Helper()
+
+	if cliPath := os.Getenv("COPILOT_CLI_PATH"); cliPath != "" {
+		if info, err := os.Stat(cliPath); err == nil && !info.IsDir() {
+			return cliPath
 		}
+		t.Fatalf("COPILOT_CLI_PATH does not point to a file: %s", cliPath)
 	}
-	return ""
+
+	nodeDir, err := filepath.Abs("../nodejs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(
+		"node",
+		"node_modules/tsx/dist/cli.mjs",
+		"scripts/prepare-runtime.ts",
+		"--print-path",
+	)
+	command.Dir = nodeDir
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("failed to prepare pinned Copilot CLI: %v\n%s", err, output)
+	}
+	cliPath := strings.TrimSpace(string(output))
+	if info, err := os.Stat(cliPath); err != nil || info.IsDir() {
+		t.Fatalf("prepared Copilot CLI path is not a file: %q", cliPath)
+	}
+	return cliPath
 }
 
 func TestCreateSessionRequest_ClientName(t *testing.T) {
@@ -1949,6 +2377,21 @@ func TestClient_ResumeSession_AllowsMissingPermissionHandler(t *testing.T) {
 	})
 }
 
+func TestModelInfoPreservesProviderMetadata(t *testing.T) {
+	var model ModelInfo
+	if err := json.Unmarshal([]byte(`{
+		"id":"provider/model",
+		"name":"Provider Model",
+		"capabilities":{"supports":{},"limits":{}},
+		"metadata":{"provider":"acme","contextWindow":200000}
+	}`), &model); err != nil {
+		t.Fatalf("unmarshal model info: %v", err)
+	}
+	if model.Metadata["provider"] != "acme" || model.Metadata["contextWindow"] != float64(200000) {
+		t.Fatalf("metadata = %#v", model.Metadata)
+	}
+}
+
 func TestListModelsWithCustomHandler(t *testing.T) {
 	customModels := []ModelInfo{
 		{
@@ -2081,10 +2524,7 @@ func TestListModelsHandlerCachesResults(t *testing.T) {
 }
 
 func TestClient_StartContextCancellationDoesNotKillProcess(t *testing.T) {
-	cliPath := findCLIPathForTest()
-	if cliPath == "" {
-		t.Skip("CLI not found")
-	}
+	cliPath := findCLIPathForTest(t)
 
 	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: cliPath}})
 	t.Cleanup(func() { client.ForceStop() })
@@ -2107,10 +2547,7 @@ func TestClient_StartContextCancellationDoesNotKillProcess(t *testing.T) {
 }
 
 func TestClient_StartStopRace(t *testing.T) {
-	cliPath := findCLIPathForTest()
-	if cliPath == "" {
-		t.Skip("CLI not found")
-	}
+	cliPath := findCLIPathForTest(t)
 	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: cliPath}})
 	defer client.ForceStop()
 	errChan := make(chan error)
@@ -2541,8 +2978,10 @@ func serveInMemoryRuntime(t *testing.T, stdinR *io.PipeReader, stdoutW *io.PipeW
 			result = map[string]any{"id": "interest-1"}
 		case "session.options.update":
 			result = map[string]any{"success": true}
-		case "session.skills.reload", "session.destroy":
+		case "session.skills.reload":
 			result = map[string]any{}
+		case "session.detach":
+			result = map[string]any{"success": true}
 		default:
 			t.Errorf("unexpected JSON-RPC method %s", request.Method)
 			return
@@ -3555,7 +3994,9 @@ func TestClient_ForwardsGitHubTelemetryForwardingOnConnect(t *testing.T) {
 	if err := client.verifyProtocolVersion(t.Context()); err != nil {
 		t.Fatalf("verifyProtocolVersion failed: %v", err)
 	}
-	assertForwardingFlagTrue(t, <-connectParams)
+	params := <-connectParams
+	assertForwardingFlagTrue(t, params)
+	assertSupportedTaskKinds(t, params)
 }
 
 func TestClient_OmitsGitHubTelemetryForwardingOnConnectWhenNoHandler(t *testing.T) {
@@ -3579,6 +4020,20 @@ func TestClient_OmitsGitHubTelemetryForwardingOnConnectWhenNoHandler(t *testing.
 		t.Fatalf("verifyProtocolVersion failed: %v", err)
 	}
 	assertForwardingFlagAbsent(t, <-connectParams)
+}
+
+func assertSupportedTaskKinds(t *testing.T, params json.RawMessage) {
+	t.Helper()
+	var decoded struct {
+		SupportedTaskKinds []rpc.TaskKind `json:"supportedTaskKinds"`
+	}
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("unmarshal connect params: %v", err)
+	}
+	expected := []rpc.TaskKind{rpc.TaskKindAgent, rpc.TaskKindClient, rpc.TaskKindShell}
+	if !reflect.DeepEqual(decoded.SupportedTaskKinds, expected) {
+		t.Fatalf("supportedTaskKinds = %v, want %v", decoded.SupportedTaskKinds, expected)
+	}
 }
 
 func TestGitHubTelemetryNotificationRoutesToCallback(t *testing.T) {

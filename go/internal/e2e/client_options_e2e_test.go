@@ -329,7 +329,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			SessionID:                          sessionID,
 			ClientName:                         "go-sdk-e2e-client",
-			Model:                              "claude-sonnet-4.5",
+			Model:                              "claude-sonnet-5",
 			ReasoningEffort:                    "low",
 			ReasoningSummary:                   copilot.ReasoningSummaryNone,
 			ContextTier:                        copilot.ContextTierLongContext,
@@ -388,7 +388,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		expectedValues := map[string]any{
 			"sessionId":                          sessionID,
 			"clientName":                         "go-sdk-e2e-client",
-			"model":                              "claude-sonnet-4.5",
+			"model":                              "claude-sonnet-5",
 			"reasoningEffort":                    "low",
 			"reasoningSummary":                   "none",
 			"contextTier":                        "long_context",
@@ -867,6 +867,10 @@ function handleMessage(message) {
   if (message.method === "session.create" || message.method === "session.resume") {
     const sessionId = (message.params && message.params.sessionId) || "fake-session";
     writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
+    return;
+  }
+  if (message.method === "session.detach") {
+    writeResponse(message.id, { success: true });
     return;
   }
   if (message.method === "session.resume") {

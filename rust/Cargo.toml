@@ -118,8 +118,10 @@ required-features = ["test-support"]
 test = false
 bench = false
 
+[[test]]
+name = "prepared_session_test"
+required-features = ["test-support"]
 [build-dependencies]
-base64 = "0.22"
 dirs = "5"
 flate2 = "1"
 serde_json = "1"

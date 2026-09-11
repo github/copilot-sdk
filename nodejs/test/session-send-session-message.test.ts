@@ -33,6 +33,7 @@ type ResultMatchesPublicContract = AssertEqual<
     {
         messageId: string;
         delivery: "idle" | "steering" | "queued";
+        targetDisplayName?: string;
     }
 >;
 const resultMatchesPublicContract: ResultMatchesPublicContract = true;

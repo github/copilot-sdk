@@ -74,6 +74,11 @@ export type SessionEvent =
     | Exclude<GeneratedSessionEvent, { type: "permission.requested" }>
     | PermissionRequestedEvent;
 export type { AutoTier, ReasoningSummary } from "./generated/session-events.js";
+export type {
+    CurrentModel,
+    ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus,
+} from "./generated/rpc.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
@@ -87,10 +92,10 @@ export type { LlmInferenceHeaders } from "./generated/rpc.js";
 export type {
     PermissionDecisionContext,
     PermissionDecisionOutcome,
-    PermissionDecisionSource,
     PermissionDecisionSurface,
     PermissionResponseCapability,
 } from "./generated/rpc.js";
+export type { PermissionDecisionSource } from "./generated/session-events.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {
     CopilotRequestHandler,
@@ -307,6 +312,37 @@ export type InternalRuntimeConnection = RuntimeConnection | ParentProcessRuntime
  */
 export type CopilotClientMode = "empty" | "copilot-cli";
 
+/**
+ * Identity of the integrating application, declared once on the `server.connect`
+ * handshake so the telemetry the runtime emits on this connection is attributed
+ * to a single, consistent surface rather than to the runtime's own build.
+ *
+ * All fields are optional; omit any of them (or the whole object) to keep the
+ * runtime's default attribution. Version fields are ignored by the runtime
+ * unless they look like a version string.
+ */
+export interface CopilotClientInfo {
+    /**
+     * Name of the application using the SDK, e.g. `"acme-developer-portal"`.
+     */
+    applicationName?: string;
+
+    /**
+     * Version of the application using the SDK, e.g. `"2.4.0"`.
+     */
+    applicationVersion?: string;
+
+    /**
+     * Optional name of a specific integration within the application, such as an extension or plugin.
+     */
+    integrationName?: string;
+
+    /**
+     * Optional version of the integration identified by `integrationName`.
+     */
+    integrationVersion?: string;
+}
+
 export interface CopilotClientOptions {
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
@@ -479,6 +515,16 @@ export interface CopilotClientOptions {
     enableRemoteSessions?: boolean;
 
     /**
+     * Identity of the integrating application, forwarded to the runtime on the
+     * `server.connect` handshake. Declaring it lets the telemetry the runtime
+     * emits on this connection be attributed to a single, consistent surface
+     * (e.g. the application and its Copilot integration) instead of the
+     * runtime's own build. All fields are optional; omit it to keep the default
+     * attribution.
+     */
+    clientInfo?: CopilotClientInfo;
+
+    /**
      * @internal Hook used by `joinSession()` to construct a client that talks
      * to its parent process over stdio. Not part of the public API.
      */
@@ -646,6 +692,8 @@ export interface ToolInvocation {
     traceparent?: string;
     /** W3C Trace Context tracestate from the CLI's execute_tool span. */
     tracestate?: string;
+    /** Aborted when the runtime completes this request or the session disconnects. */
+    signal?: AbortSignal;
 }
 
 export type ToolHandler<TArgs = unknown> = (
@@ -2135,9 +2183,13 @@ export interface CapiSessionOptions {
      * Requires a runtime with Auto tier support and V2 Auto routing.
      *
      * When omitted on create, the runtime uses its default routing behavior.
-     * The runtime persists this preference across cold resume; an explicit tier
-     * on cold resume overrides the persisted value. For an already-resident
-     * session, omission preserves the current tier and a different tier is rejected.
+     * The runtime persists this preference across cold resume; when omitted on
+     * cold resume, it restores the last committed preference. On resident
+     * resume, a different tier requests a safe switch that takes effect after
+     * resume succeeds, and never disturbs a turn that is already running.
+     *
+     * To change the preference on a live session, call
+     * {@link CopilotSession.setAutoTier} instead.
      */
     autoTier?: AutoTier;
 
@@ -2687,6 +2739,12 @@ export interface SessionConfigBase {
      * @default "in-memory"
      */
     mcpOAuthTokenStorage?: "persistent" | "in-memory";
+
+    /**
+     * OAuth Client ID Metadata Document URL identifying the host for MCP authorization.
+     * When unset, no host identity is supplied.
+     */
+    authClientIdMetadataUrl?: string;
 
     /**
      * MCP server configurations for the session.
@@ -3265,11 +3323,23 @@ export interface ProviderModelConfig {
      */
     capabilities?: ModelCapabilitiesOverride;
 }
+/**
+ * Message provenance, independent of delivery mode.
+ */
+export type MessageSource = "user" | "system" | `agent-${string}`;
+
 export interface MessageOptions {
     /**
      * The prompt/message to send
      */
     prompt: string;
+
+    /**
+     * Optional message provenance. Omitted by default to preserve the runtime's
+     * default for user messages. Use "system" for application-generated context
+     * or `agent-${id}` for messages originating from an identified agent.
+     */
+    source?: MessageSource;
 
     /**
      * File, directory, selection, or blob attachments
@@ -3462,6 +3532,7 @@ export interface ModelCapabilities {
     };
     limits: {
         max_prompt_tokens?: number;
+        max_output_tokens?: number;
         max_context_window_tokens: number;
         vision?: {
             supported_media_types: string[];

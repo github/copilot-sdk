@@ -1,5 +1,5 @@
 models:
-  - claude-sonnet-4.5
+  - claude-sonnet-5
 conversations:
   - messages:
       - role: system
@@ -8,8 +8,8 @@ conversations:
         content: Who are you?
       - role: assistant
         content: >-
-          I'm **GitHub Copilot CLI**, a terminal assistant built by GitHub. I'm powered by claude-sonnet-4.5 (model ID:
-          claude-sonnet-4.5).
+          I'm **GitHub Copilot CLI**, a terminal assistant built by GitHub. I'm powered by claude-sonnet-5 (model ID:
+          claude-sonnet-5).
 
 
           I'm here to help you with software engineering tasks, including:

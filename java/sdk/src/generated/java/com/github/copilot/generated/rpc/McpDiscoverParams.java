@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record McpDiscoverParams(
     /** Working directory used as context for discovery (e.g., plugin resolution) */
-    @JsonProperty("workingDirectory") String workingDirectory
+    @JsonProperty("workingDirectory") String workingDirectory,
+    /** Whether to include canonical effectiveSource metadata for each discovered server. Callers must opt in so protocol-3 clients retain the legacy closed response shape. */
+    @JsonProperty("includeEffectiveSource") Boolean includeEffectiveSource
 ) {
 }

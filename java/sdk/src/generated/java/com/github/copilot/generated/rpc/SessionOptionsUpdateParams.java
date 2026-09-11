@@ -140,7 +140,7 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("enableHostGitOperations") Boolean enableHostGitOperations,
     /** Whether to enable cross-session store writes and reads. */
     @JsonProperty("enableSessionStore") Boolean enableSessionStore,
-    /** Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset. */
+    /** Whether skill loading is enabled. Explicit false disables every source, including a bound SDK provider; changing the value invalidates the loaded skill snapshot. When omitted, creation falls back to enableConfigDiscovery unless an SDK skill provider is registered. */
     @JsonProperty("enableSkills") Boolean enableSkills,
     /** Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier. */
     @JsonProperty("contextTier") OptionsUpdateContextTier contextTier,

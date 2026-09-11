@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import ipaddress
 import logging
 import os
 import re
@@ -91,6 +92,7 @@ from .generated.session_events import (
 )
 from .session import (
     AutoModeSwitchHandler,
+    AutoTier,
     BearerTokenProvider,
     CommandDefinition,
     ContextTier,
@@ -263,10 +265,6 @@ def _exp_assignment_response_to_dict(
     return wire
 
 
-AutoTier = Literal["efficiency", "balance", "intelligence"]
-"""Routing preference used when the session model is ``auto``."""
-
-
 class CapiSessionOptions(TypedDict, total=False):
     """Provider-scoped Copilot API (CAPI) session options."""
 
@@ -275,9 +273,13 @@ class CapiSessionOptions(TypedDict, total=False):
 
     Requires a runtime with Auto tier support and V2 Auto routing. When omitted
     on create, the runtime uses its default routing behavior. The runtime persists
-    this preference across cold resume; an explicit tier on cold resume overrides
-    the persisted value. For an already-resident session, omission preserves the
-    current tier and a different tier is rejected.
+    this preference across cold resume; when omitted on cold resume, it restores
+    the last committed preference. On resident resume, a different tier requests a
+    safe switch that takes effect after resume succeeds and never disturbs a turn
+    that is already running.
+
+    To change the preference on a live session, call
+    :meth:`CopilotSession.set_auto_tier` instead.
     """
 
     enable_web_socket_responses: bool
@@ -505,6 +507,46 @@ class TelemetryConfig(TypedDict, total=False):
     """Instrumentation scope name. Sets COPILOT_OTEL_SOURCE_NAME."""
     capture_content: bool
     """Whether to capture message content. Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT."""  # noqa: E501
+
+
+class ClientInfo(TypedDict, total=False):
+    """Identity of the integrating application, declared on ``server.connect``.
+
+    Declaring it lets the telemetry the runtime emits on this connection be
+    attributed to a single, consistent surface (the application and its Copilot
+    integration) instead of the runtime's own build. All fields are optional;
+    omit any of them (or the whole object) to keep the default attribution.
+    """
+
+    application_name: str
+    """Name of the application using the SDK, e.g. ``"acme-developer-portal"``."""
+    application_version: str
+    """Version of the application using the SDK, e.g. ``"2.4.0"``."""
+    integration_name: str
+    """Optional name of an application integration, such as an extension or plugin."""
+    integration_version: str
+    """Optional version of the integration named by ``integration_name``."""
+
+
+def _client_info_to_wire(client_info: ClientInfo | None) -> dict[str, str] | None:
+    """Map a snake_case :class:`ClientInfo` onto the camelCase connect wire shape.
+
+    Empty fields are dropped. Returns ``None`` when no field carries a non-empty
+    value so the caller omits the ``clientInfo`` field entirely and keeps the
+    runtime's default attribution.
+    """
+    if not client_info:
+        return None
+    wire: dict[str, str] = {}
+    if client_info.get("application_name"):
+        wire["editorName"] = client_info["application_name"]
+    if client_info.get("application_version"):
+        wire["editorVersion"] = client_info["application_version"]
+    if client_info.get("integration_name"):
+        wire["extensionName"] = client_info["integration_name"]
+    if client_info.get("integration_version"):
+        wire["extensionVersion"] = client_info["integration_version"]
+    return wire or None
 
 
 @dataclass
@@ -776,6 +818,7 @@ class _CopilotClientOptions:
     request_handler: CopilotRequestHandler | None = None
     session_idle_timeout_seconds: int | None = None
     enable_remote_sessions: bool = False
+    client_info: ClientInfo | None = None
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
     on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]] | None = (
         None
@@ -1530,6 +1573,7 @@ class CopilotClient:
         request_handler: CopilotRequestHandler | None = None,
         session_idle_timeout_seconds: int | None = None,
         enable_remote_sessions: bool = False,
+        client_info: ClientInfo | None = None,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
         on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]]
         | None = None,
@@ -1579,6 +1623,11 @@ class CopilotClient:
                 Control integration). When ``True``, sessions in a GitHub
                 repository working directory are accessible from GitHub web
                 and mobile.
+            client_info: Identity of the integrating application, forwarded to the
+                runtime on the ``server.connect`` handshake. Declaring it lets
+                the telemetry the runtime emits on this connection be attributed
+                to a consistent surface instead of the runtime's own build. All
+                fields are optional; omit it to keep the default attribution.
             on_list_models: Custom handler for :meth:`list_models`. When
                 provided, the handler is called instead of querying the runtime
                 server.
@@ -1616,6 +1665,7 @@ class CopilotClient:
             request_handler=request_handler,
             session_idle_timeout_seconds=session_idle_timeout_seconds,
             enable_remote_sessions=enable_remote_sessions,
+            client_info=client_info,
             on_list_models=on_list_models,
             on_github_telemetry=on_github_telemetry,
             mode=mode,
@@ -1703,6 +1753,7 @@ class CopilotClient:
         self._cli_process: subprocess.Popen | None = None
         self._client: JsonRpcClient | None = None
         self._state: _ConnectionState = "disconnected"
+        self._start_lock = asyncio.Lock()
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
         self._github_token_providers: dict[str, _GitHubTokenProviderRegistration] = {}
@@ -1790,8 +1841,8 @@ class CopilotClient:
         """
         Parse CLI URL into host and port.
 
-        Supports formats: "host:port", "http://host:port", "https://host:port",
-        or just "port".
+        Supports formats: "host:port", "[ipv6]:port", "http://host:port",
+        "https://host:port", or just "port".
 
         Args:
             url: The CLI URL to parse.
@@ -1802,9 +1853,6 @@ class CopilotClient:
         Raises:
             ValueError: If the URL format is invalid or the port is out of range.
         """
-        import re
-
-        # Remove protocol if present
         clean_url = re.sub(r"^https?://", "", url)
 
         # Check if it's just a port number
@@ -1814,14 +1862,24 @@ class CopilotClient:
                 raise ValueError(f"Invalid port in cli_url: {url}")
             return ("localhost", port)
 
-        # Parse host:port format
-        parts = clean_url.split(":")
-        if len(parts) != 2:
-            raise ValueError(f"Invalid cli_url format: {url}")
+        ipv6_match = re.match(r"^\[([^\]]+)\]:(.*)$", clean_url)
+        if ipv6_match:
+            host = ipv6_match.group(1)
+            port_text = ipv6_match.group(2)
+            try:
+                ipaddress.IPv6Address(host)
+            except ValueError as e:
+                raise ValueError(f"Invalid cli_url format: {url}") from e
+        else:
+            # Parse host:port format
+            parts = clean_url.split(":")
+            if len(parts) != 2:
+                raise ValueError(f"Invalid cli_url format: {url}")
+            host = parts[0] if parts[0] else "localhost"
+            port_text = parts[1]
 
-        host = parts[0] if parts[0] else "localhost"
         try:
-            port = int(parts[1])
+            port = int(port_text)
         except ValueError as e:
             raise ValueError(f"Invalid port in cli_url: {url}") from e
 
@@ -1881,6 +1939,13 @@ class CopilotClient:
             >>> await client.start()
             >>> # Now ready to create sessions
         """
+        # Concurrent session creation can auto-start the same client. Keep the
+        # state check and all transport initialization under one lock so only
+        # one caller can spawn a runtime and install its connection at a time.
+        async with self._start_lock:
+            await self._start()
+
+    async def _start(self) -> None:
         if self._state == "connected":
             return
 
@@ -1964,13 +2029,14 @@ class CopilotClient:
             # Check if process exited and capture any remaining stderr
             process = self._cli_process if self._cli_process is not None else self._process
             if process and hasattr(process, "poll"):
+                if isinstance(e, BrokenPipeError) and process.poll() is None:
+                    try:
+                        await asyncio.to_thread(process.wait, timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        pass
                 return_code = process.poll()
                 if return_code is not None and self._client:
-                    stderr_output = self._client.get_stderr_output()
-                    if stderr_output:
-                        raise RuntimeError(
-                            f"CLI process exited with code {return_code}\nstderr: {stderr_output}"
-                        ) from e
+                    raise RuntimeError(self._client._get_process_exit_error()) from e
             raise
 
     async def stop(self) -> None:
@@ -2134,7 +2200,10 @@ class CopilotClient:
         """
         # Clear sessions immediately without trying to destroy them
         with self._sessions_lock:
+            sessions = list(self._sessions.values())
             self._sessions.clear()
+        for session in sessions:
+            session._mark_disconnected()
         with self._github_token_providers_lock:
             self._github_token_providers.clear()
 
@@ -2225,6 +2294,7 @@ class CopilotClient:
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
+        auth_client_id_metadata_url: str | None = None,
         embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
@@ -2359,6 +2429,9 @@ class CopilotClient:
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
                 Defaults to ``"in-memory"`` for safe multitenant behavior.
+            auth_client_id_metadata_url: OAuth Client ID Metadata Document URL
+                identifying the host for MCP authorization. When unset, no host
+                identity is supplied.
             embedding_cache_storage: Controls how embedding caches are stored.
                 `"persistent"` uses disk-based storage (shared across sessions).
                 `"in-memory"` stores embeddings in memory (discarded on session end).
@@ -2666,6 +2739,8 @@ class CopilotClient:
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:
             payload["mcpOAuthTokenStorage"] = mcp_oauth_token_storage
+        if auth_client_id_metadata_url is not None:
+            payload["authClientIdMetadataUrl"] = auth_client_id_metadata_url
         embedding_cache_storage = _embedding_cache_storage_default(mode, embedding_cache_storage)
         if embedding_cache_storage is not None:
             payload["embeddingCacheStorage"] = embedding_cache_storage
@@ -3004,6 +3079,7 @@ class CopilotClient:
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
+        auth_client_id_metadata_url: str | None = None,
         embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
@@ -3141,6 +3217,9 @@ class CopilotClient:
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
                 Defaults to ``"in-memory"`` for safe multitenant behavior.
+            auth_client_id_metadata_url: OAuth Client ID Metadata Document URL
+                identifying the host for MCP authorization. Re-supply the same
+                host identity used when the session was created.
             embedding_cache_storage: Controls how embedding caches are stored.
                 `"persistent"` uses disk-based storage (shared across sessions).
                 `"in-memory"` stores embeddings in memory (discarded on session end).
@@ -3443,6 +3522,8 @@ class CopilotClient:
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:
             payload["mcpOAuthTokenStorage"] = mcp_oauth_token_storage
+        if auth_client_id_metadata_url is not None:
+            payload["authClientIdMetadataUrl"] = auth_client_id_metadata_url
         embedding_cache_storage = _embedding_cache_storage_default(mode, embedding_cache_storage)
         if embedding_cache_storage is not None:
             payload["embeddingCacheStorage"] = embedding_cache_storage
@@ -4045,7 +4126,9 @@ class CopilotClient:
 
         server_version: int | None
         try:
-            connect_params: dict[str, Any] = {}
+            connect_params: dict[str, Any] = {
+                "supportedTaskKinds": ["agent", "client", "shell"],
+            }
             if self._effective_connection_token is not None:
                 connect_params["token"] = self._effective_connection_token
             # Opt in to GitHub telemetry forwarding at the connection level when a
@@ -4054,6 +4137,12 @@ class CopilotClient:
             # event is forwarded). Also sent on session.create/resume for older CLIs.
             if self._on_github_telemetry is not None:
                 connect_params["enableGitHubTelemetryForwarding"] = True
+            # Declare the integrating application's identity so the runtime attributes
+            # the telemetry it emits on this connection to a consistent surface
+            # instead of its own build. Omitted when the app didn't supply it.
+            client_info = _client_info_to_wire(self._options.client_info)
+            if client_info is not None:
+                connect_params["clientInfo"] = client_info
             connect_result = _ConnectResult.from_dict(
                 await self._client.request("connect", connect_params)
             )
@@ -4576,14 +4665,12 @@ class CopilotClient:
         if not self._runtime_port:
             raise RuntimeError("Server port not available")
 
-        # Create a TCP socket connection with timeout
+        # Create a TCP socket connection with timeout. create_connection resolves
+        # both IPv4 and IPv6 addresses instead of forcing AF_INET.
         import socket
 
         # Connection timeout constant
         TCP_CONNECTION_TIMEOUT = 10  # seconds
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(TCP_CONNECTION_TIMEOUT)
 
         try:
             tcp_connect_start = time.perf_counter()
@@ -4591,7 +4678,9 @@ class CopilotClient:
                 "CopilotClient._connect_via_tcp connecting to CLI server",
                 extra={"host": self._actual_host, "port": self._runtime_port},
             )
-            sock.connect((self._actual_host, self._runtime_port))
+            sock = socket.create_connection(
+                (self._actual_host, self._runtime_port), timeout=TCP_CONNECTION_TIMEOUT
+            )
             sock.settimeout(None)  # Remove timeout after connection
             log_timing(
                 logger,
@@ -4738,7 +4827,10 @@ class CopilotClient:
             try:
                 await session.disconnect()
             except BaseException:
-                pass
+                logger.debug(
+                    "Error disconnecting session after options update failure",
+                    exc_info=True,
+                )
             raise
 
     async def _set_session_fs_provider(self) -> None:
@@ -4791,8 +4883,22 @@ class CopilotClient:
 
     def _handle_connection_close(self) -> None:
         self._state = "disconnected"
+        with self._sessions_lock:
+            sessions = list(self._sessions.values())
         with self._github_token_providers_lock:
             self._github_token_providers.clear()
+        client = self._client
+        loop = client._loop if client is not None else None
+        if loop is not None and not loop.is_closed():
+
+            def cancel_pending_external_tools() -> None:
+                for session in sessions:
+                    session._cancel_pending_external_tools()
+
+            try:
+                loop.call_soon_threadsafe(cancel_pending_external_tools)
+            except RuntimeError:
+                logger.debug("Event loop closed while handling connection loss")
 
     def _assign_github_token_provider(self, registration_id: str | None, session_id: str) -> None:
         if registration_id is None:

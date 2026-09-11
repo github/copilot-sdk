@@ -23,9 +23,17 @@ const PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource";
 
 export async function startOAuthMcpServer({
   expectedToken = DEFAULT_EXPECTED_TOKEN,
+  deferInitialChallenge = false,
   host = "127.0.0.1",
   port = 0,
+  cimdSupported = false,
 } = {}) {
+  let releaseInitialChallenge = () => {};
+  const initialChallenge = deferInitialChallenge
+    ? new Promise((resolve) => {
+        releaseInitialChallenge = resolve;
+      })
+    : Promise.resolve();
   const requests = [];
   const tokens = {
     initial: expectedToken,
@@ -47,6 +55,7 @@ export async function startOAuthMcpServer({
       `http://${req.headers.host ?? `${host}:${port}`}`,
     );
     const baseUrl = url.origin;
+    const body = await readBody(req);
 
     if (req.method === "GET" && url.pathname === "/__requests") {
       respondJson(res, 200, requests);
@@ -54,9 +63,16 @@ export async function startOAuthMcpServer({
     }
 
     if (
-      req.method === "GET" &&
-      url.pathname === PROTECTED_RESOURCE_PATH
+      req.method === "POST" &&
+      url.pathname === "/__release-initial-challenge"
     ) {
+      releaseInitialChallenge();
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === PROTECTED_RESOURCE_PATH) {
       respondJson(res, 200, {
         resource: `${baseUrl}/mcp`,
         authorization_servers: [baseUrl],
@@ -76,6 +92,23 @@ export async function startOAuthMcpServer({
         token_endpoint: `${baseUrl}/token`,
         response_types_supported: ["code"],
         grant_types_supported: ["authorization_code"],
+        ...(cimdSupported
+          ? { client_id_metadata_document_supported: true }
+          : {}),
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/register") {
+      requests.push({
+        method: req.method,
+        path: url.pathname,
+        authorization: req.headers.authorization ?? null,
+        body,
+      });
+      respondJson(res, 201, {
+        client_id: "registered-client",
+        client_id_issued_at: Math.floor(Date.now() / 1000),
       });
       return;
     }
@@ -85,7 +118,6 @@ export async function startOAuthMcpServer({
       return;
     }
 
-    const body = await readBody(req);
     requests.push({
       method: req.method,
       path: url.pathname,
@@ -95,6 +127,7 @@ export async function startOAuthMcpServer({
 
     const token = parseBearerToken(req.headers.authorization);
     if (!token || !acceptedTokens.has(token)) {
+      await initialChallenge;
       challengeInitial(res, baseUrl);
       return;
     }
@@ -165,9 +198,10 @@ export async function startOAuthMcpServer({
     url: `http://${host}:${address.port}`,
     requests,
     close: () =>
-      new Promise((resolve, reject) =>
-        server.close((err) => (err ? reject(err) : resolve())),
-      ),
+      new Promise((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+        server.closeAllConnections();
+      }),
   };
 }
 
@@ -313,9 +347,14 @@ function respondJson(res, statusCode, body) {
   res.end(data);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
   const server = await startOAuthMcpServer({
     expectedToken: process.env.EXPECTED_TOKEN ?? DEFAULT_EXPECTED_TOKEN,
+    cimdSupported: process.env.CIMD_SUPPORTED === "true",
+    deferInitialChallenge: process.env.DEFER_INITIAL_CHALLENGE === "true",
   });
   console.log(`Listening: ${server.url}`);
   process.on("SIGTERM", async () => {

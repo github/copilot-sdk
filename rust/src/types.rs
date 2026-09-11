@@ -21,6 +21,8 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
 use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
+/// Acknowledgement and Auto preference snapshot returned by an Auto tier switch.
+pub use crate::generated::api_types::{ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus};
 /// Routing tier for the `auto` model with Auto mode V2.
 pub use crate::generated::session_events::AutoTier;
 use crate::generated::session_events::ReasoningSummary;
@@ -1422,10 +1424,13 @@ pub struct CapiSessionOptions {
     /// Routing tier, meaningful only with model `auto` (Auto mode V2).
     /// Requires a runtime version that supports `capi.autoTier`.
     ///
-    /// When omitted, the runtime chooses its default on create and preserves
-    /// the persisted or current tier on resume. An explicit tier overrides the
-    /// persisted tier on cold resume; the runtime rejects a conflicting tier
-    /// when resuming a session already resident in memory.
+    /// When omitted, the runtime chooses its default on create and restores
+    /// the last committed tier on cold resume. On resident resume, a different
+    /// tier requests a safe switch that takes effect after resume succeeds and
+    /// never disturbs a turn that is already running.
+    ///
+    /// To change the preference on a live session, use
+    /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_tier: Option<AutoTier>,
 
@@ -2006,6 +2011,13 @@ pub struct SessionConfig {
     /// applied automatically at session creation/resume time. `None` means no
     /// explicit value is set and the runtime default takes effect.
     pub mcp_oauth_token_storage: Option<String>,
+    /// URL identifying this host's OAuth client metadata document.
+    ///
+    /// Authorization servers that support client ID metadata documents can use
+    /// this URL as the MCP OAuth client ID. When unset, the SDK does not supply
+    /// a first-party host identity and the runtime uses its generic,
+    /// session-isolated OAuth client behavior.
+    pub auth_client_id_metadata_url: Option<String>,
     /// Enables runtime discovery of supported configuration. Explicitly supplied
     /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
@@ -2266,6 +2278,23 @@ pub struct SessionConfig {
     /// `session.options.update` after create/resume. Defaults to `false` in
     /// [`crate::ClientMode::Empty`] when unset.
     pub manage_schedule_enabled: Option<bool>,
+    /// Capacity of the per-session broadcast buffer backing
+    /// [`Session::subscribe`](crate::session::Session::subscribe) and
+    /// [`PreparedSession::subscribe`](crate::session::PreparedSession::subscribe).
+    ///
+    /// Runtime-only — never sent on the wire. Defaults to
+    /// [`DEFAULT_EVENT_BUFFER_CAPACITY`](crate::session::DEFAULT_EVENT_BUFFER_CAPACITY)
+    /// when unset. Must be non-zero;
+    /// `Some(0)` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_session`](crate::Client::prepare_session).
+    ///
+    /// The buffer is finite: subscribers that fall behind observe
+    /// [`Lagged`](crate::subscription::Lagged) rather than applying
+    /// backpressure to the event loop. Raise this when a consumer needs a
+    /// lossless view of a large startup burst without draining
+    /// concurrently.
+    pub event_buffer_capacity: Option<usize>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -2297,6 +2326,10 @@ impl std::fmt::Debug for SessionConfig {
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field(
+                "auth_client_id_metadata_url",
+                &self.auth_client_id_metadata_url,
+            )
             .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
@@ -2401,6 +2434,7 @@ impl std::fmt::Debug for SessionConfig {
                 "system_message_transform",
                 &self.system_message_transform.as_ref().map(|_| "<set>"),
             )
+            .field("event_buffer_capacity", &self.event_buffer_capacity)
             .finish()
     }
 }
@@ -2436,6 +2470,7 @@ impl Default for SessionConfig {
             included_builtin_skills: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
+            auth_client_id_metadata_url: None,
             enable_config_discovery: None,
             skip_embedding_retrieval: None,
             organization_custom_instructions: None,
@@ -2497,6 +2532,7 @@ impl Default for SessionConfig {
             enable_experimental_mode: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
+            event_buffer_capacity: None,
         }
     }
 }
@@ -2604,6 +2640,7 @@ impl SessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -2942,6 +2979,12 @@ impl SessionConfig {
     /// applied automatically at session creation/resume time.
     pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
         self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
+    /// Set the URL identifying this host's OAuth client metadata document.
+    pub fn with_auth_client_id_metadata_url(mut self, url: impl Into<String>) -> Self {
+        self.auth_client_id_metadata_url = Some(url.into());
         self
     }
 
@@ -3300,6 +3343,18 @@ impl SessionConfig {
         self
     }
 
+    /// Set [`Self::event_buffer_capacity`].
+    ///
+    /// A capacity of `0` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_session`](crate::Client::prepare_session) and
+    /// [`Client::create_session`](crate::Client::create_session); the value
+    /// is never clamped.
+    pub fn with_event_buffer_capacity(mut self, capacity: usize) -> Self {
+        self.event_buffer_capacity = Some(capacity);
+        self
+    }
+
     /// Inject ExP assignment ("flight") data for this session, in the same
     /// JSON shape the Copilot CLI fetches from the experimentation service
     /// (`CopilotExpAssignmentResponse`). The runtime feeds it into the same
@@ -3409,6 +3464,12 @@ pub struct ResumeSessionConfig {
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
+    /// Re-supply the host OAuth client metadata document URL on resume.
+    ///
+    /// Set this to the same host identity used when the session was created.
+    /// When unset, the SDK does not supply a first-party host identity.
+    /// See [`SessionConfig::auth_client_id_metadata_url`] for details.
+    pub auth_client_id_metadata_url: Option<String>,
     /// Enables runtime discovery of supported configuration. Explicitly supplied
     /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
@@ -3602,6 +3663,8 @@ pub struct ResumeSessionConfig {
     pub coauthor_enabled: Option<bool>,
     /// See [`SessionConfig::manage_schedule_enabled`].
     pub manage_schedule_enabled: Option<bool>,
+    /// See [`SessionConfig::event_buffer_capacity`].
+    pub event_buffer_capacity: Option<usize>,
 }
 
 impl std::fmt::Debug for ResumeSessionConfig {
@@ -3634,6 +3697,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field(
+                "auth_client_id_metadata_url",
+                &self.auth_client_id_metadata_url,
+            )
             .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
@@ -3735,6 +3802,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("suppress_resume_event", &self.suppress_resume_event)
             .field("continue_pending_work", &self.continue_pending_work)
+            .field("event_buffer_capacity", &self.event_buffer_capacity)
             .finish()
     }
 }
@@ -3815,6 +3883,7 @@ impl ResumeSessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -3924,6 +3993,7 @@ impl ResumeSessionConfig {
             included_builtin_skills: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
+            auth_client_id_metadata_url: None,
             enable_config_discovery: None,
             skip_embedding_retrieval: None,
             organization_custom_instructions: None,
@@ -3986,6 +4056,7 @@ impl ResumeSessionConfig {
             enable_experimental_mode: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
+            event_buffer_capacity: None,
         }
     }
 
@@ -4233,6 +4304,12 @@ impl ResumeSessionConfig {
     /// See [`SessionConfig::with_mcp_oauth_token_storage`] for details.
     pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
         self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
+    /// Set the host OAuth client metadata document URL on resume.
+    pub fn with_auth_client_id_metadata_url(mut self, url: impl Into<String>) -> Self {
+        self.auth_client_id_metadata_url = Some(url.into());
         self
     }
 
@@ -4597,6 +4674,18 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set [`Self::event_buffer_capacity`].
+    ///
+    /// A capacity of `0` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_resume_session`](crate::Client::prepare_resume_session)
+    /// and [`Client::resume_session`](crate::Client::resume_session); the
+    /// value is never clamped.
+    pub fn with_event_buffer_capacity(mut self, capacity: usize) -> Self {
+        self.event_buffer_capacity = Some(capacity);
+        self
+    }
+
     /// Inject ExP assignment ("flight") data on resume. See
     /// [`SessionConfig::with_exp_assignments`]. Re-supply the assignments on
     /// resume so the runtime re-applies them after a CLI process restart.
@@ -4791,6 +4880,30 @@ pub struct SetModelOptions {
     /// fields set on the override are applied; the rest fall back to the
     /// runtime-resolved values for the model.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Auto routing preference to stage atomically with selecting the `auto`
+    /// model.
+    ///
+    /// Leave as `None` to leave the current preference alone. The runtime
+    /// rejects this option when the model is anything other than `auto`; use
+    /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier) to
+    /// change the preference without changing the selected model.
+    pub auto_tier: Option<AutoTierPreference>,
+}
+
+/// Auto routing preference requested alongside a model switch.
+///
+/// **Experimental.** Part of an experimental Auto routing surface and may change
+/// or be removed in a future release.
+///
+/// This is a three-state choice. Leaving [`SetModelOptions::auto_tier`] as
+/// `None` leaves the current preference alone, which is different from
+/// [`AutoTierPreference::Reset`], which actively resets it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AutoTierPreference {
+    /// Route using a specific tier.
+    Tier(AutoTier),
+    /// Return to the provider's default Auto routing.
+    Reset,
 }
 
 impl SetModelOptions {
@@ -4818,6 +4931,19 @@ impl SetModelOptions {
         caps: crate::generated::api_types::ModelCapabilitiesOverride,
     ) -> Self {
         self.model_capabilities = Some(caps);
+        self
+    }
+
+    /// Set [`auto_tier`](Self::auto_tier) to a specific routing tier.
+    pub fn with_auto_tier(mut self, tier: AutoTier) -> Self {
+        self.auto_tier = Some(AutoTierPreference::Tier(tier));
+        self
+    }
+
+    /// Set [`auto_tier`](Self::auto_tier) to return to the provider's default
+    /// Auto routing.
+    pub fn with_reset_auto_tier(mut self) -> Self {
+        self.auto_tier = Some(AutoTierPreference::Reset);
         self
     }
 }
@@ -5226,6 +5352,51 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
     }
 }
 
+/// Provenance of a message sent through `session.send`.
+///
+/// Source is independent of delivery mode. Leaving [`MessageOptions::source`]
+/// unset omits the field and preserves the runtime's default for user messages.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum MessageSource {
+    /// A message from a human user.
+    User,
+    /// An automated message from the integrating application.
+    System,
+    /// A message from the agent with this opaque sender ID.
+    Agent(String),
+}
+
+impl std::fmt::Display for MessageSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::User => f.write_str("user"),
+            Self::System => f.write_str("system"),
+            Self::Agent(id) => write!(f, "agent-{id}"),
+        }
+    }
+}
+
+impl Serialize for MessageSource {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for MessageSource {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "user" => Ok(Self::User),
+            "system" => Ok(Self::System),
+            value => value
+                .strip_prefix("agent-")
+                .map(|id| Self::Agent(id.to_owned()))
+                .ok_or_else(|| serde::de::Error::custom("expected user, system, or agent-<id>")),
+        }
+    }
+}
+
 /// Message delivery mode for [`MessageOptions::mode`].
 ///
 /// Controls how a prompt is delivered relative to in-flight session work.
@@ -5291,6 +5462,9 @@ pub enum AgentMode {
 pub struct MessageOptions {
     /// The user prompt to send.
     pub prompt: String,
+    /// Optional message provenance. When `None`, the field is omitted,
+    /// preserving the runtime's default for user messages.
+    pub source: Option<MessageSource>,
     /// Optional message delivery mode for this turn.
     ///
     /// Controls whether the prompt is queued behind in-flight work
@@ -5330,6 +5504,7 @@ impl MessageOptions {
     pub fn new(prompt: impl Into<String>) -> Self {
         Self {
             prompt: prompt.into(),
+            source: None,
             mode: None,
             agent_mode: None,
             attachments: None,
@@ -5339,6 +5514,12 @@ impl MessageOptions {
             tracestate: None,
             display_prompt: None,
         }
+    }
+
+    /// Set the message provenance without changing its delivery mode.
+    pub fn with_source(mut self, source: MessageSource) -> Self {
+        self.source = Some(source);
+        self
     }
 
     /// Set the message delivery mode for this turn.
@@ -6246,9 +6427,10 @@ pub use crate::generated::api_types::{
     ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
     ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
     PermissionDecisionApproveOnce, PermissionDecisionContext, PermissionDecisionOutcome,
-    PermissionDecisionReject, PermissionDecisionSource, PermissionDecisionSurface,
-    PermissionDecisionUserNotAvailable, PermissionResponseCapability,
+    PermissionDecisionReject, PermissionDecisionSurface, PermissionDecisionUserNotAvailable,
+    PermissionResponseCapability,
 };
+pub use crate::generated::session_events::PermissionDecisionSource;
 
 /// Permission categories the CLI may request approval for.
 ///
@@ -7191,6 +7373,37 @@ mod tests {
         assert!(empty_json.get("pluginDirectories").is_none());
         assert!(empty_json.get("disabledMcpServers").is_none());
         assert!(empty_json.get("largeOutput").is_none());
+    }
+
+    #[test]
+    fn auth_client_id_metadata_url_reaches_create_and_resume_wire_payloads() {
+        let url = "https://example.com/oauth/client-metadata.json";
+
+        let (create_wire, _) = SessionConfig::default()
+            .with_auth_client_id_metadata_url(url)
+            .into_wire(None)
+            .expect("default create has no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(create_json["authClientIdMetadataUrl"], url);
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-1"))
+            .with_auth_client_id_metadata_url(url)
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(resume_json["authClientIdMetadataUrl"], url);
+
+        let (empty_create_wire, _) = SessionConfig::default()
+            .into_wire(None)
+            .expect("default create has no duplicate handlers");
+        let empty_create_json = serde_json::to_value(&empty_create_wire).unwrap();
+        assert!(empty_create_json.get("authClientIdMetadataUrl").is_none());
+
+        let (empty_resume_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let empty_resume_json = serde_json::to_value(&empty_resume_wire).unwrap();
+        assert!(empty_resume_json.get("authClientIdMetadataUrl").is_none());
     }
 
     #[test]

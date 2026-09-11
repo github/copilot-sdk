@@ -9,6 +9,7 @@ use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, debug, error, warn};
 
 use crate::{Error, ErrorKind, ProtocolErrorKind};
@@ -266,6 +267,7 @@ pub struct JsonRpcClient {
     pending_requests: Arc<RwLock<HashMap<u64, PendingRequest>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
+    connection_closed: CancellationToken,
     read_task: Mutex<Option<JoinHandle<()>>>,
     write_task: Mutex<Option<JoinHandle<()>>>,
 }
@@ -294,6 +296,7 @@ impl JsonRpcClient {
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
             notification_tx,
             request_tx,
+            connection_closed: CancellationToken::new(),
             read_task: Mutex::new(None),
             write_task: Mutex::new(Some(write_task)),
         };
@@ -301,6 +304,7 @@ impl JsonRpcClient {
         let pending_requests = client.pending_requests.clone();
         let notification_tx_clone = client.notification_tx.clone();
         let request_tx_clone = client.request_tx.clone();
+        let connection_closed = client.connection_closed.clone();
         let reader_span = tracing::error_span!("jsonrpc_read_loop");
 
         let read_task = tokio::spawn(
@@ -312,6 +316,7 @@ impl JsonRpcClient {
                     request_tx_clone,
                 )
                 .await;
+                connection_closed.cancel();
             }
             .instrument(reader_span),
         );
@@ -321,6 +326,7 @@ impl JsonRpcClient {
     }
 
     pub(crate) fn force_close(&self) {
+        self.connection_closed.cancel();
         if let Some(task) = self.read_task.lock().take() {
             task.abort();
         }
@@ -328,6 +334,10 @@ impl JsonRpcClient {
             task.abort();
         }
         self.pending_requests.write().clear();
+    }
+
+    pub(crate) fn connection_closed_token(&self) -> CancellationToken {
+        self.connection_closed.child_token()
     }
 
     /// Writer-actor task. Owns the `AsyncWrite`, drains the command queue,

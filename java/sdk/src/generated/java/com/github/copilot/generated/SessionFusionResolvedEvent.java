@@ -10,6 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -62,6 +63,8 @@ public final class SessionFusionResolvedEvent extends SessionEvent {
         @JsonProperty("scores") FusionScores scores,
         /** Validated orchestration pattern selected for the turn. */
         @JsonProperty("pattern") FusionPattern pattern,
+        /** Presentation-neutral phase plan for clients that render workflow progress. */
+        @JsonProperty("phasePlan") List<FusionPhasePlanStep> phasePlan,
         /** Concrete model selected for the primary solver phase. */
         @JsonProperty("primaryModel") String primaryModel,
         /** Concrete model selected for the review or judge phase, when required. */

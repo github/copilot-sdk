@@ -3,13 +3,13 @@ default:
     @just --list
 
 # Format all code across all languages
-format: format-go format-python format-nodejs format-dotnet format-rust
+format: format-go format-python format-nodejs format-dotnet format-java format-rust
 
 # Lint all code across all languages
-lint: lint-go lint-python lint-nodejs lint-dotnet lint-rust
+lint: lint-go lint-python lint-nodejs lint-dotnet lint-java lint-rust
 
 # Run tests for all languages
-test: test-go test-python test-nodejs test-dotnet test-rust test-corrections
+test: test-go test-python test-nodejs test-dotnet test-rust test-harness test-corrections
 
 # Format Go code
 format-go:
@@ -31,6 +31,11 @@ format-dotnet:
     @echo "=== Formatting .NET code ==="
     @cd dotnet && dotnet format src/GitHub.Copilot.SDK.csproj
 
+# Format Java code
+format-java:
+    @echo "=== Formatting Java code ==="
+    @cd java && mvn -pl sdk spotless:apply
+
 # Lint Go code
 lint-go:
     @echo "=== Linting Go code ==="
@@ -51,6 +56,11 @@ lint-dotnet:
     @echo "=== Linting .NET code ==="
     @cd dotnet && dotnet format src/GitHub.Copilot.SDK.csproj --verify-no-changes
 
+# Lint Java code
+lint-java:
+    @echo "=== Linting Java code ==="
+    @cd java && mvn -pl sdk spotless:check checkstyle:check
+
 # Test Go code
 test-go:
     @echo "=== Testing Go code ==="
@@ -65,6 +75,11 @@ test-python:
 test-nodejs:
     @echo "=== Testing Node.js code ==="
     @cd nodejs && npm test
+
+# Run test harness tests
+test-harness:
+    @echo "=== Testing test harness ==="
+    @cd test/harness && npm test
 
 # Test .NET code
 test-dotnet:
@@ -168,4 +183,3 @@ validate-docs-go:
 validate-docs-cs:
     @echo "=== Validating C# documentation ==="
     @cd scripts/docs-validation && npm run validate:cs
-

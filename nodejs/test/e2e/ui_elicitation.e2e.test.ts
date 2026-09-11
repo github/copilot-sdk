@@ -48,7 +48,9 @@ describe("UI Elicitation Callback", async () => {
         { timeout: 60_000 },
         async () => {
             const legacyClient = ctx.createClient({
-                connection: RuntimeConnection.forStdio({ path: getLegacyCliPathForTests() }),
+                connection: RuntimeConnection.forStdio({
+                    path: await getLegacyCliPathForTests(),
+                }),
             });
             try {
                 const session = await legacyClient.createSession({

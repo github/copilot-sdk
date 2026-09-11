@@ -7,7 +7,7 @@ import * as path from "path";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient, RuntimeConnection } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
 import { waitForCondition } from "./harness/sdkTestHelper.js";
 
 describe("Server-scoped RPC", async () => {
@@ -103,6 +103,11 @@ describe("Server-scoped RPC", async () => {
         expect(Date.parse(result.timestamp)).not.toBeNaN();
     });
 
+    it.skipIf(isInProcessTransport)("should clear the managed settings cache", async () => {
+        await client.start();
+        await expect(client.rpc.managedSettings.clearCache()).resolves.toBeNull();
+    });
+
     it("should reject llm inference response frames for missing request", async () => {
         await client.start();
 
@@ -144,7 +149,7 @@ describe("Server-scoped RPC", async () => {
 
         const result = await authClient.listModels();
         expect(Array.isArray(result)).toBe(true);
-        expect(result.some((m) => m.id === "claude-sonnet-4.5")).toBe(true);
+        expect(result.some((m) => m.id === "claude-sonnet-5")).toBe(true);
         for (const model of result) {
             expect(model.name).toBeTruthy();
         }

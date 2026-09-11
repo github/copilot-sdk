@@ -120,7 +120,7 @@ async fn should_list_models_when_authenticated() {
             let models = client.list_models().await.expect("list models");
 
             assert!(
-                models.iter().any(|model| model.id == "claude-sonnet-4.5"),
+                models.iter().any(|model| model.id == "claude-sonnet-5"),
                 "expected default replay model in {models:?}"
             );
 

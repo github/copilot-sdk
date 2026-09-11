@@ -1772,7 +1772,8 @@ function emitRpcClass(
     schema: JSONSchema7,
     visibility: "public" | "internal",
     extraClasses: string[],
-    inlineTypeParentName: string = className
+    inlineTypeParentName: string = className,
+    preserveRequiredNulls = false
 ): string {
     const effectiveSchema =
         resolveObjectSchema(schema, rpcDefinitions) ??
@@ -1828,6 +1829,9 @@ function emitRpcClass(
         if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         const propVisibility = pushCSharpInternalAttribute(lines, prop);
         lines.push(`    [JsonPropertyName("${propName}")]`);
+        if (preserveRequiredNulls && isReq && csharpType.endsWith("?")) {
+            lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]`);
+        }
 
         let defaultVal = "";
         let propAccessors = "{ get; set; }";
@@ -2009,7 +2013,7 @@ function emitServerInstanceMethod(
         if (method.stability === "experimental" && !nonExperimentalRpcTypes.has(requestClassName)) {
             experimentalRpcTypes.add(requestClassName);
         }
-        const reqClass = emitRpcClass(requestClassName, effectiveParams!, "internal", classes);
+        const reqClass = emitRpcClass(requestClassName, effectiveParams!, "internal", classes, requestClassName, true);
         if (reqClass) classes.push(reqClass);
     }
 
@@ -2183,7 +2187,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
                 properties: Object.fromEntries(paramEntries),
                 required: effectiveParams.required?.filter((name) => name !== "sessionId"),
             };
-            const publicReqClass = emitRpcClass(requestClassName, publicParams, methodVisibility, classes);
+            const publicReqClass = emitRpcClass(requestClassName, publicParams, methodVisibility, classes, requestClassName, true);
             if (publicReqClass) classes.push(publicReqClass);
             // The wire wrapper carries the same properties as the public request
             // type plus `sessionId`, so both must reuse the same inline types.
@@ -2192,11 +2196,12 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
                 effectiveParams,
                 "internal",
                 classes,
-                requestClassName
+                requestClassName,
+                true
             );
             if (wireReqClass) classes.push(wireReqClass);
         } else {
-            const reqClass = emitRpcClass(requestClassName, effectiveParams, "internal", classes);
+            const reqClass = emitRpcClass(requestClassName, effectiveParams, "internal", classes, requestClassName, true);
             if (reqClass) classes.push(reqClass);
         }
     }
