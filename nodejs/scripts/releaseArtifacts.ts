@@ -24,7 +24,6 @@ export interface EnsureCopilotPackageOptions {
     environment?: NodeJS.ProcessEnv;
     fetch?: typeof globalThis.fetch;
     fetchTimeoutMs?: number;
-    packageDirectory?: string;
     platform?: string;
 }
 
@@ -135,9 +134,6 @@ export async function ensureCopilotPackage(
 ): Promise<string> {
     const platform = options.platform ?? getRuntimePlatform();
     const environment = options.environment ?? process.env;
-    if (options.packageDirectory) {
-        return validateLocalPackage(options.packageDirectory, platform)!;
-    }
     const workflowPackageDirectory = environment.COPILOT_SDK_RUNTIME_PACKAGE_DIR;
     if (workflowPackageDirectory) {
         const packageRoot = validateLocalPackage(workflowPackageDirectory, platform, version);

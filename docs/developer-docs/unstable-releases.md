@@ -14,15 +14,11 @@ non-main branch. They do not publish .NET, Rust, Python, Java, or Go releases,
 and they do not create an SDK GitHub Release. The same workflow remains the
 normal stable and prerelease publisher for all SDK languages.
 
-The runtime workflow dispatches an SDK workflow at an explicit SDK ref. Each
-handoff includes the exact runtime version, full source SHA, and source workflow
-run ID.
-
-The runtime workflow dispatches `.github/workflows/runtime-sdk.yml`. This
-runtime-driven Node entry is separate from the direct unstable path.
-`runtime-sdk.yml`
-owns runtime acquisition, cross-platform tests, packaging, manifest retention,
-optional internal publication, and public unstable npm publication.
+The runtime workflow dispatches `.github/workflows/runtime-sdk.yml` at an
+explicit SDK ref with the exact runtime version, full source SHA, and source
+workflow run ID. This runtime-driven Node entry owns runtime acquisition,
+cross-platform tests, packaging, manifest retention, optional internal
+publication, and public unstable npm publication.
 
 The runtime dispatch includes these inputs:
 
@@ -124,6 +120,4 @@ Confirm npm trusted publisher configuration authorizes
 both `.github/workflows/publish.yml` and `.github/workflows/runtime-sdk.yml` for
 `@github/copilot-sdk` and all eight `@github/copilot-sdk-<platform>` package
 names. The first identity publishes stable, prerelease, and direct unstable
-versions; the second publishes runtime-driven unstable versions. Do not add an
-npm token, workflow indirection, or a separate protected SDK publication
-environment.
+versions; the second publishes runtime-driven unstable versions.

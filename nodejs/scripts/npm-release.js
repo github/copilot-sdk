@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const sdkPackageNames = [
+const sdkPackageNames = [
     "@github/copilot-sdk",
     "@github/copilot-sdk-darwin-arm64",
     "@github/copilot-sdk-darwin-x64",
@@ -101,16 +101,7 @@ export async function assertVersionAbsent(packageName, version, registry, runner
     }
 }
 
-export async function assertPackageSetVersionAbsent(version, registry, runner = runCommand) {
-    for (const packageName of sdkPackageNames) {
-        await assertVersionAbsent(packageName, version, registry, runner);
-    }
-}
-
-export async function publishTarball(tarball, tag, registry, mode, identity, runner = runCommand) {
-    if (!identity?.name || !identity?.version || !identity?.integrity) {
-        throw new Error("Publishing requires an expected package name, version, and integrity.");
-    }
+export async function publishTarball(tarball, tag, registry, mode, runner = runCommand, identity) {
     const args = ["publish", tarball, "--tag", tag, "--registry", registry];
     if (mode === "public") args.push("--access", "public");
     if (mode !== "public" && mode !== "azure") throw new Error(`Unknown publish mode: ${mode}`);
@@ -122,9 +113,11 @@ export async function publishTarball(tarball, tag, registry, mode, identity, run
 
     const output = `${result.stdout}\n${result.stderr}`;
     if (PUBLIC_CONFLICT.test(output) || (mode === "azure" && AZURE_CONFLICT.test(output))) {
-        console.log(
-            `${identity.name}@${identity.version} is already published; treating the immutable-version conflict as success.`
-        );
+        const subject =
+            identity?.name && identity?.version
+                ? `${identity.name}@${identity.version}`
+                : "Version";
+        console.log(`${subject} is already published; treating the conflict as success.`);
         return;
     }
 
@@ -211,7 +204,7 @@ export async function publishManifest(
         }
     }
     for (const packed of packages) {
-        await publishTarball(packed.tarball, tag, registry, mode, packed, runner);
+        await publishTarball(packed.tarball, tag, registry, mode, runner, packed);
     }
     for (const packed of packages) {
         const taggedVersion = await getRegistryTagVersion(packed.name, tag, registry, runner);
@@ -244,27 +237,13 @@ async function main() {
     if (command === "preflight" && args.length === 3) {
         await assertVersionAbsent(...args);
         console.log(`${args[0]}@${args[1]} is available on ${args[2]}.`);
-    } else if (command === "preflight-package-set" && args.length === 2) {
-        await assertPackageSetVersionAbsent(...args);
-        console.log(`All SDK packages at ${args[0]} are available on ${args[1]}.`);
-    } else if (command === "publish" && args.length === 7) {
-        const [tarball, name, version, tag, registry, mode, expectedIntegrity] = args;
-        const localIntegrity = `sha512-${createHash("sha512")
-            .update(readFileSync(tarball))
-            .digest("base64")}`;
-        if (expectedIntegrity !== localIntegrity) {
-            throw new Error(`Expected integrity does not match ${tarball}.`);
-        }
-        await publishTarball(tarball, tag, registry, mode, {
-            name,
-            version,
-            integrity: localIntegrity,
-        });
+    } else if (command === "publish" && args.length === 4) {
+        await publishTarball(...args);
     } else if (command === "publish-manifest" && args.length === 5) {
         await publishManifest(...args);
     } else {
         throw new Error(
-            "Usage: npm-release.js preflight <package> <version> <registry> | preflight-package-set <version> <registry> | publish <tarball> <name> <version> <tag> <registry> <public|azure> <sha512-integrity> | publish-manifest <manifest> <package-directory> <tag> <registry> <public|azure>"
+            "Usage: npm-release.js preflight <package> <version> <registry> | publish <tarball> <tag> <registry> <public|azure> | publish-manifest <manifest> <package-directory> <tag> <registry> <public|azure>"
         );
     }
 }

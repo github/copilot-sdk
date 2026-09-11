@@ -76,12 +76,6 @@ describe("direct publishing workflow contract", () => {
         expect(publish).not.toContain("runtime_run_id:");
         expect(publish).not.toContain("resume_run_id:");
         expect(publish).not.toContain("runtime-backed-node-release.yml");
-        expect(publish).toContain("publish.yml only accepts latest, prerelease, or unstable");
-        expect(publish).toMatch(/- name: Validate release channel\s+working-directory: \.\s+env:/);
-        expect(publish).toContain(
-            "prerelease namespace is reserved for dedicated SDK release channels"
-        );
-        expect(publish).toContain("canary|unstable");
     });
 
     it("uses the shared deterministic planner only for unstable", () => {
@@ -115,14 +109,13 @@ describe("direct publishing workflow contract", () => {
         expect(directPackageJob).toContain("create-package-set package-set-manifest.json");
         expect(directPackageJob).toContain("nodejs/package-set-manifest.json");
         for (const job of [directNodePublicationJob, directInternalPublicationJob]) {
-            expect(job).toContain("verify-package-set");
             expect(job).toContain("publish-manifest");
             expect(job).toContain('if [ "$DIST_TAG" = "unstable" ]; then');
             expect(job).toContain("npm-release.js publish \\");
         }
         expect(directNodePublicationJob).toContain("https://registry.npmjs.org public");
         expect(directInternalPublicationJob).toContain('"$FEED_URL" azure');
-        expect(directInternalPublicationJob).toContain("needs: [version, publish-nodejs]");
+        expect(directInternalPublicationJob).toContain("needs: publish-nodejs");
         expect(publish.indexOf("  publish-nodejs:")).toBeLessThan(
             publish.indexOf("  publish-nodejs-internal:")
         );
