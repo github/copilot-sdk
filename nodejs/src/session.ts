@@ -18,11 +18,8 @@ import type {
     McpOauthPendingRequestResponse,
     FactoryLogLine,
     FactoryRunResult as WireFactoryRunResult,
-    ListMessageableSessionsRequest,
-    ListMessageableSessionsResult,
-    SendSessionMessageRequest,
-    SendSessionMessageResult,
     ModelSwitchAutoTierResult,
+    SendMode,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
@@ -387,6 +384,51 @@ function isFactoryFatalError(error: unknown): boolean {
 
 /** Assistant message event - the final response from the assistant. */
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
+
+/** Optional exact-name query for active local messageable sessions. */
+export interface ListMessageableSessionsRequest {
+    /** Optional exact session name query. Matching semantics are owned by the local host. */
+    name?: string;
+}
+
+/** Sanitized active local session available for exact-ID messaging selection. */
+export interface MessageableSession {
+    /** Stable session ID to provide to {@link CopilotSession.sendSessionMessage}. */
+    sessionId: string;
+    /** Current session name when available. */
+    name?: string;
+    /** Current session summary when available. */
+    summary?: string;
+}
+
+/** Sanitized active local sessions available for exact-ID messaging selection. */
+export interface ListMessageableSessionsResult {
+    /** Messageable sessions in deterministic session-ID order. */
+    sessions: MessageableSession[];
+}
+
+/** Actual recipient delivery class for an admitted cross-session message. */
+export type SessionMessageDelivery = "idle" | "steering" | "queued";
+
+/** Parameters for one authenticated exact-target cross-session message. */
+export interface SendSessionMessageRequest {
+    /** Exact active local recipient session ID. */
+    targetSessionId: string;
+    /** Natural-language message content. */
+    content: string;
+    /** Requested delivery mode. The host applies its existing default when omitted. */
+    delivery?: SendMode;
+}
+
+/** Recipient admission result for an authenticated cross-session message. */
+export interface SendSessionMessageResult {
+    /** Unique identifier assigned to the admitted message. */
+    messageId: string;
+    /** Actual recipient delivery class at admission. */
+    delivery: SessionMessageDelivery;
+    /** Sanitized recipient display name for presentation only. */
+    targetDisplayName?: string;
+}
 
 /** Stable public outcomes for a failed cross-session message send. */
 export type SendSessionMessageErrorCode = "refused" | "not-delivered" | "ambiguous";
@@ -816,7 +858,10 @@ export class CopilotSession {
     async listMessageableSessions(
         params: ListMessageableSessionsRequest = {}
     ): Promise<ListMessageableSessionsResult> {
-        return this.rpc.listMessageableSessions(params);
+        return this.connection.sendRequest("session.listMessageableSessions", {
+            ...params,
+            sessionId: this.sessionId,
+        });
     }
 
     /**
@@ -830,7 +875,10 @@ export class CopilotSession {
      */
     async sendSessionMessage(params: SendSessionMessageRequest): Promise<SendSessionMessageResult> {
         try {
-            return await this.rpc.sendSessionMessage(params);
+            return await this.connection.sendRequest("session.sendSessionMessage", {
+                ...params,
+                sessionId: this.sessionId,
+            });
         } catch (error) {
             if (error instanceof ResponseError) {
                 const translated = parseSendSessionMessageErrorData(error.data);

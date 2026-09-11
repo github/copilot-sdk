@@ -14,11 +14,9 @@ use tracing::{Instrument, error, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    ListMessageableSessionsRequest, ListMessageableSessionsResult, LogRequest,
-    ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult, ModelSwitchToRequest,
+    LogRequest, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult, ModelSwitchToRequest,
     OpenCanvasInstance, PermissionDecisionRequest, RegisterEventInterestParams,
-    SendSessionMessageRequest, SendSessionMessageResult, ToolsGetCurrentMetadataResult,
-    rpc_methods,
+    ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
@@ -31,6 +29,10 @@ use crate::handler::{
 };
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
+use crate::rpc::{
+    ListMessageableSessionsRequest, ListMessageableSessionsResult, SendSessionMessageRequest,
+    SendSessionMessageResult,
+};
 use crate::session_fs::SessionFsProvider;
 use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
@@ -567,9 +569,13 @@ impl Session {
         &self,
         params: Option<ListMessageableSessionsRequest>,
     ) -> Result<ListMessageableSessionsResult, Error> {
-        self.rpc()
-            .list_messageable_sessions(params.unwrap_or_default())
-            .await
+        let mut wire_params = serde_json::to_value(params.unwrap_or_default())?;
+        wire_params["sessionId"] = Value::String(self.id.to_string());
+        let value = self
+            .client
+            .call("session.listMessageableSessions", Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(value)?)
     }
 
     /// Sends one authenticated non-user message to an exact active local session.
@@ -582,7 +588,14 @@ impl Session {
         &self,
         params: SendSessionMessageRequest,
     ) -> Result<SendSessionMessageResult, Error> {
-        match self.rpc().send_session_message(params).await {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = Value::String(self.id.to_string());
+        match self
+            .client
+            .call("session.sendSessionMessage", Some(wire_params))
+            .await
+            .and_then(|value| serde_json::from_value(value).map_err(Error::from))
+        {
             Ok(result) => Ok(result),
             Err(error) => {
                 let Some((code, message_id)) =

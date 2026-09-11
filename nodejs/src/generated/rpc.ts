@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -2644,6 +2644,22 @@ export type PermissionDecisionOutcome =
   /** The response came from an interactive user prompt. */
   | "prompted_user";
 /**
+ * Controlled reason or actor responsible for a permission response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionSource".
+ */
+/** @experimental */
+export type PermissionDecisionSource =
+  /** The response followed the assisted-approval judge recommendation. */
+  | "assisted_approval"
+  /** A human supplied the response through an interactive prompt. */
+  | "human_response"
+  /** The host applied a standing policy or override rather than a judge recommendation or human decision. */
+  | "host_policy"
+  /** The host denied the request because no interactive user response was available. */
+  | "unattended_fallback";
+/**
  * Client surface that submitted a permission response.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3033,20 +3049,6 @@ export type SandboxConfigSource =
   /** A repository policy selected the sandbox state. */
   | "repository_policy";
 /**
- * Actual recipient delivery class for an admitted cross-session message.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionMessageDelivery".
- */
-/** @experimental */
-export type SessionMessageDelivery =
-  /** The recipient was idle and the message started a turn. */
-  | "idle"
-  /** The message entered the active turn's safe steering boundary. */
-  | "steering"
-  /** The message was admitted to the recipient queue. */
-  | "queued";
-/**
  * Current authentication information, or null when no authentication is active.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3080,8 +3082,6 @@ export type SessionCapability =
   | "elicitation"
   /** Cross-session history tools and session-store SQL prompt/tool metadata. */
   | "session-store"
-  /** First-party local cross-session messaging tool for a root CLI session. */
-  | "cross-session-messaging"
   /** MCP Apps UI passthrough. */
   | "mcp-apps"
   /** Host-provided canvas rendering support. */
@@ -9955,53 +9955,6 @@ export interface InterruptMainTurnResult {
    * Whether an in-flight main agent turn was interrupted. False when the main loop was not processing.
    */
   interrupted: boolean;
-}
-/**
- * Optional exact-name query for active local messageable sessions.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ListMessageableSessionsRequest".
- */
-/** @experimental */
-export interface ListMessageableSessionsRequest {
-  /**
-   * Optional exact session name query. Matching semantics are owned by the local host.
-   */
-  name?: string;
-}
-/**
- * Sanitized active local sessions available for exact-ID messaging selection.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ListMessageableSessionsResult".
- */
-/** @experimental */
-export interface ListMessageableSessionsResult {
-  /**
-   * Messageable sessions in deterministic session-ID order.
-   */
-  sessions: MessageableSession[];
-}
-/**
- * Sanitized active local session available for exact-ID messaging selection.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "MessageableSession".
- */
-/** @experimental */
-export interface MessageableSession {
-  /**
-   * Stable session ID to provide to session.sendSessionMessage.
-   */
-  sessionId: string;
-  /**
-   * Current session name when available.
-   */
-  name?: string;
-  /**
-   * Current session summary when available.
-   */
-  summary?: string;
 }
 /**
  * HTTP headers as a map from lowercased header name to a list of values. Multi-valued headers (e.g. Set-Cookie) preserve all values.
@@ -17981,42 +17934,6 @@ export interface SendResult {
   messageId: string;
 }
 /**
- * Parameters for sending one authenticated non-user message from the current bound session to an exact active local session.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendSessionMessageRequest".
- */
-/** @experimental */
-export interface SendSessionMessageRequest {
-  /**
-   * Exact active local recipient session ID.
-   */
-  targetSessionId: string;
-  /**
-   * Natural-language message content.
-   */
-  content: string;
-  delivery?: SendMode;
-}
-/**
- * Recipient admission result for an authenticated cross-session message.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendSessionMessageResult".
- */
-/** @experimental */
-export interface SendSessionMessageResult {
-  /**
-   * Unique identifier assigned to the admitted message.
-   */
-  messageId: string;
-  delivery: SessionMessageDelivery;
-  /**
-   * Sanitized recipient display name for presentation only. It is never routing authority.
-   */
-  targetDisplayName?: string;
-}
-/**
  * Internal request for sending a system notification.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -25049,28 +24966,6 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
          */
         send: async (params: SendRequest): Promise<SendResult> =>
             connection.sendRequest("session.send", { ...params, sessionId }),
-        /**
-         * Sends one authenticated non-user message from the current bound session to an exact active local session. Success reports recipient admission, not delegated-work completion.
-         *
-         * @param params Parameters for sending one authenticated non-user message from the current bound session to an exact active local session.
-         *
-         * @returns Recipient admission result for an authenticated cross-session message.
-         *
-         * @experimental
-         */
-        sendSessionMessage: async (params: SendSessionMessageRequest): Promise<SendSessionMessageResult> =>
-            connection.sendRequest("session.sendSessionMessage", { ...params, sessionId }),
-        /**
-         * Lists active local sessions that the current bound session may select by exact ID for cross-session messaging. This discovery result grants no delivery authority.
-         *
-         * @param params Optional exact-name query for active local messageable sessions.
-         *
-         * @returns Sanitized active local sessions available for exact-ID messaging selection.
-         *
-         * @experimental
-         */
-        listMessageableSessions: async (params: ListMessageableSessionsRequest): Promise<ListMessageableSessionsResult> =>
-            connection.sendRequest("session.listMessageableSessions", { ...params, sessionId }),
         /**
          * Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.
          *

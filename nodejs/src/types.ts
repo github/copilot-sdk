@@ -92,10 +92,10 @@ export type { LlmInferenceHeaders } from "./generated/rpc.js";
 export type {
     PermissionDecisionContext,
     PermissionDecisionOutcome,
+    PermissionDecisionSource,
     PermissionDecisionSurface,
     PermissionResponseCapability,
 } from "./generated/rpc.js";
-export type { PermissionDecisionSource } from "./generated/session-events.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {
     CopilotRequestHandler,

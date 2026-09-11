@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
     CopilotSession,
@@ -40,14 +39,13 @@ type ResultMatchesPublicContract = AssertEqual<
 >;
 const resultMatchesPublicContract: ResultMatchesPublicContract = true;
 
-if (false) {
-    const session = null as unknown as CopilotSession;
-
+const assertRejectedListInputs = (session: CopilotSession): void => {
     // @ts-expect-error Source identity is derived from the bound session.
     void session.listMessageableSessions({ sourceSessionId: "forged" });
     // @ts-expect-error Discovery never accepts a delivery target.
     void session.listMessageableSessions({ targetSessionId: "target-session" });
-}
+};
+void assertRejectedListInputs;
 
 describe("CopilotSession.listMessageableSessions", () => {
     it("lists all candidates when no name is supplied", async () => {
@@ -93,20 +91,6 @@ describe("CopilotSession.listMessageableSessions", () => {
             sessionId: "source-session",
             name: "Research",
         });
-    });
-
-    it("keeps the generated wrapper source-bound", () => {
-        const generatedRpc = readFileSync(
-            new URL("../src/generated/rpc.ts", import.meta.url),
-            "utf8"
-        );
-
-        expect(generatedRpc).toContain(
-            "listMessageableSessions: async (params: ListMessageableSessionsRequest): Promise<ListMessageableSessionsResult> =>"
-        );
-        expect(generatedRpc).toContain(
-            'connection.sendRequest("session.listMessageableSessions", { ...params, sessionId })'
-        );
     });
 });
 

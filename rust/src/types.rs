@@ -6427,10 +6427,9 @@ pub use crate::generated::api_types::{
     ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
     ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
     PermissionDecisionApproveOnce, PermissionDecisionContext, PermissionDecisionOutcome,
-    PermissionDecisionReject, PermissionDecisionSurface, PermissionDecisionUserNotAvailable,
-    PermissionResponseCapability,
+    PermissionDecisionReject, PermissionDecisionSource, PermissionDecisionSurface,
+    PermissionDecisionUserNotAvailable, PermissionResponseCapability,
 };
-pub use crate::generated::session_events::PermissionDecisionSource;
 
 /// Permission categories the CLI may request approval for.
 ///

@@ -15,7 +15,13 @@ export {
     CopilotSession,
     SendSessionMessageError,
     type AssistantMessageEvent,
+    type ListMessageableSessionsRequest,
+    type ListMessageableSessionsResult,
+    type MessageableSession,
+    type SendSessionMessageRequest,
+    type SendSessionMessageResult,
     type SendSessionMessageErrorCode,
+    type SessionMessageDelivery,
 } from "./session.js";
 export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./factory.js";
 export {
@@ -57,15 +63,7 @@ export {
 // shadow the names arriving via `export type *`, so the hand-authored public API
 // surface for those six identifiers is preserved unchanged.
 export type * from "./generated/session-events.js";
-export type {
-    ListMessageableSessionsRequest,
-    ListMessageableSessionsResult,
-    MessageableSession,
-    SendMode,
-    SendSessionMessageRequest,
-    SendSessionMessageResult,
-    SessionMessageDelivery,
-} from "./generated/rpc.js";
+export type { SendMode } from "./generated/rpc.js";
 export type {
     AskUserVariant,
     CommandContext,

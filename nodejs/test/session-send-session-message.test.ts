@@ -53,8 +53,7 @@ type ErrorCodeMatchesPublicContract = AssertEqual<
 >;
 const errorCodeMatchesPublicContract: ErrorCodeMatchesPublicContract = true;
 
-if (false) {
-    const session = null as unknown as CopilotSession;
+const assertRejectedSendInputs = (session: CopilotSession): void => {
     const base = { targetSessionId: "target-session", content: "Please inspect this." };
 
     // @ts-expect-error Source identity is derived from the bound session.
@@ -69,7 +68,8 @@ if (false) {
     void session.sendSessionMessage({ ...base, continuation: ["source-session"] });
     // @ts-expect-error Message IDs are assigned by the host.
     void session.sendSessionMessage({ ...base, messageId: "caller-selected" });
-}
+};
+void assertRejectedSendInputs;
 
 describe("CopilotSession.sendSessionMessage", () => {
     it("omits delivery when the caller does not provide it and returns the admission result", async () => {
@@ -224,18 +224,14 @@ describe("CopilotSession.sendSessionMessage", () => {
         expect(error).not.toBeInstanceOf(SendSessionMessageError);
     });
 
-    it("keeps the generated session wrapper source-bound", () => {
+    it("keeps generated session wrappers source-bound", () => {
         const generatedRpc = readFileSync(
             new URL("../src/generated/rpc.ts", import.meta.url),
             "utf8"
         );
 
-        expect(generatedRpc).toContain(
-            "sendSessionMessage: async (params: SendSessionMessageRequest): Promise<SendSessionMessageResult> =>"
-        );
-        expect(generatedRpc).toContain(
-            'connection.sendRequest("session.sendSessionMessage", { ...params, sessionId })'
-        );
+        expect(generatedRpc).toContain("{ ...params, sessionId }");
+        expect(generatedRpc).not.toContain("{ sessionId, ...params }");
     });
 });
 

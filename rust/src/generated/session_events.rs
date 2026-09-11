@@ -267,42 +267,6 @@ pub enum SessionEventType {
     PermissionRequested,
     #[serde(rename = "permission.completed")]
     PermissionCompleted,
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(rename = "permission.carriedForward")]
-    PermissionCarriedForward,
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(rename = "permission.messageAuthorization")]
-    PermissionMessageAuthorization,
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(rename = "permission.messageAuthorizationRead")]
-    PermissionMessageAuthorizationRead,
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(rename = "permission.messageAuthorizationDegraded")]
-    PermissionMessageAuthorizationDegraded,
     #[serde(rename = "user_input.requested")]
     UserInputRequested,
     #[serde(rename = "user_input.completed")]
@@ -757,42 +721,6 @@ pub enum SessionEventData {
     PermissionRequested(PermissionRequestedData),
     #[serde(rename = "permission.completed")]
     PermissionCompleted(PermissionCompletedData),
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(rename = "permission.carriedForward")]
-    PermissionCarriedForward(PermissionCarriedForwardData),
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(rename = "permission.messageAuthorization")]
-    PermissionMessageAuthorization(PermissionMessageAuthorizationData),
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(rename = "permission.messageAuthorizationRead")]
-    PermissionMessageAuthorizationRead(PermissionMessageAuthorizationReadData),
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(rename = "permission.messageAuthorizationDegraded")]
-    PermissionMessageAuthorizationDegraded(PermissionMessageAuthorizationDegradedData),
     #[serde(rename = "user_input.requested")]
     UserInputRequested(UserInputRequestedData),
     #[serde(rename = "user_input.completed")]
@@ -2313,19 +2241,7 @@ pub struct SessionFusionCompletedData {
     pub turn_id: String,
 }
 
-/// Minimal replay label for authenticated cross-session input. It carries no sender, principal, reply target, message identifier, continuation target, requested mode, or presentation metadata.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UserMessageCrossSessionLabel {
-    /// Input integrity class.
-    pub integrity: UserMessageInputIntegrity,
-    /// Non-human origin class.
-    pub origin: UserMessageInputOrigin,
-    /// Replay-label schema version.
-    pub version: serde_json::Value,
-}
-
-/// Session event "user.message". Payload of `user.message` with displayed and public transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
+/// Session event "user.message". Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserMessageData {
@@ -2337,9 +2253,6 @@ pub struct UserMessageData {
     pub attachments: Option<Vec<serde_json::Value>>,
     /// The user's message text as displayed in the timeline
     pub content: String,
-    /// Optional strict replay label for authenticated cross-session input. Sender, reply, requested-mode, presentation, and continuation data are excluded from the event.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cross_session: Option<UserMessageCrossSessionLabel>,
     /// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delivery: Option<UserMessageDelivery>,
@@ -2364,7 +2277,7 @@ pub struct UserMessageData {
     /// Normalized document MIME types that were sent natively instead of through tagged_files XML
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supported_native_document_mime_types: Option<Vec<String>>,
-    /// Public transformed message content with timestamps and other ordinary augmentations. Authenticated cross-session input may include a sanitized display-name projection; private identity, reply, principal, message, and routing authority are excluded.
+    /// Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transformed_content: Option<String>,
     /// The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it
@@ -4593,26 +4506,6 @@ pub struct PermissionRequestShell {
     /// True when the requested escalation is a permissive retry rather than a full bypass: the command re-runs inside the sandbox with its file and process restrictions recording instead of blocking, while the network policy stays enforced. Always accompanied by requestSandboxBypass, so hosts that do not recognize this field still treat the request as the escalation it is. Hosts that do recognize it must not describe the command as running outside the sandbox, which would overstate the privilege being granted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_permissive: Option<bool>,
-    /// Runtime-resolved canonical object each possiblePaths entry names, keyed by the requested spelling, used for authorization identity checks. Internal and experimental; clients should continue to display possiblePaths.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub resolved_paths: Option<HashMap<String, String>>,
-    /// Runtime-resolved canonical working directory the command runs in, used for authorization identity checks. Internal and experimental; clients should not display it.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub resolved_working_directory: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -4647,16 +4540,6 @@ pub struct PermissionRequestWrite {
     /// Justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass_reason: Option<String>,
-    /// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub resolved_path: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -4681,16 +4564,6 @@ pub struct PermissionRequestRead {
     /// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass_reason: Option<String>,
-    /// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub resolved_path: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -5065,16 +4938,6 @@ pub struct PermissionPromptRequestWrite {
     /// Complete new file contents for newly created files
     #[serde(skip_serializing_if = "Option::is_none")]
     pub new_file_contents: Option<String>,
-    /// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub resolved_path: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -5103,16 +4966,6 @@ pub struct PermissionPromptRequestRead {
     pub managed_approval_required: Option<bool>,
     /// Path of the file or directory being read
     pub path: String,
-    /// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub resolved_path: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -5698,16 +5551,6 @@ pub struct PermissionDeniedByPermissionRequestHook {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionCompletedData {
-    /// Who decided this permission request. Absent on completions recorded before this field existed, which consumers must treat as "not a human decision" rather than assuming one. Authorization records are minted only for `human_response`; an assisted-approval verdict, a host policy, an unattended fallback, and a hook resolution all produce the same `result` a person does, so this is the only field that distinguishes them.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub decision_source: Option<PermissionDecisionSource>,
     /// Request ID of the resolved permission request; clients should dismiss any UI for this request
     pub request_id: RequestId,
     /// The result of the permission request
@@ -5715,196 +5558,6 @@ pub struct PermissionCompletedData {
     /// Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
-}
-
-/// Session event "permission.carriedForward". Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionCarriedForwardData {
-    /// Always `authorization_carry_forward`. Stated explicitly so a consumer reading this event cannot mistake it for a human, host-policy, or assisted-approval decision.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub decision_source: PermissionDecisionSource,
-    /// Identity of the prior authorization record that contained the proposal.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub record_id: String,
-    /// Authorization edge minted for this admission. Not a prompt id: no prompt was raised, so no client should expect a request with this id.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub request_id: RequestId,
-    /// Tool call this admission authorizes. Its execution receipts the prior grant, which is how a single-effect approval is spent rather than carried forward again.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub tool_call_id: String,
-}
-
-/// Session event "permission.messageAuthorization". Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionMessageAuthorizationData {
-    /// The kind of effect authorized, as an action-class identifier.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub action_class: String,
-    /// Whether the claim granted or denied authority.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub polarity: PermissionMessageAuthorizationPolarity,
-    /// Deterministic identity of the record, derived from the turn and span offsets so re-extracting the same span mints nothing new.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub record_id: String,
-    /// End byte offset of the authorizing span within the turn.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub span_end: i64,
-    /// Start byte offset of the authorizing span within the turn.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub span_start: i64,
-    /// Concrete named targets that appear verbatim inside the span.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub target_members: Option<Vec<String>>,
-    /// The task the permission is scoped to, when the human named one.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub task: Option<String>,
-    /// The human turn the quoted span was read from.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub turn_index: i64,
-    /// The trusted version discriminator, when one exists. Exact shell-command grants carry the byte-identical commands grounded in the human span; world-derived classes carry a file object, remote tip, or runner only when that state was captured safely. An opaque object mirroring the runtime's adjacently-tagged resolution.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub world: Option<serde_json::Value>,
-}
-
-/// Session event "permission.messageAuthorizationRead". Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionMessageAuthorizationReadData {
-    /// The human turn that was read by the proposer.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub turn_index: i64,
-}
-
-/// Session event "permission.messageAuthorizationDegraded". Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionMessageAuthorizationDegradedData {
-    /// The human turn that could not be represented safely.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub turn_index: i64,
 }
 
 /// Session event "user_input.requested". User input request notification with question and optional predefined choices
@@ -7610,28 +7263,6 @@ pub enum UserMessageAgentMode {
     Unknown,
 }
 
-/// Integrity classification retained for replay. Authenticated cross-session content is untrusted even when its sender identity was authenticated by the host.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum UserMessageInputIntegrity {
-    #[serde(rename = "untrusted")]
-    Untrusted,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Non-human input origin retained for replay. This enum is intentionally narrow; authenticated sender identity and routing authority remain private runtime state.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum UserMessageInputOrigin {
-    #[serde(rename = "authenticated-cross-session")]
-    AuthenticatedCrossSession,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// How this user message was delivered to the agentic loop, relative to whether the loop was already running. This is the timing axis only; the message's origin (human vs. system/command/schedule/skill/etc.) is carried separately by `source`. A system-injected message has a delivery too — e.g. a background-task notification waking an idle agent is `idle`, the same mechanism as a human starting a fresh turn.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UserMessageDelivery {
@@ -8643,30 +8274,6 @@ pub enum PermissionPromptRequest {
     ExtensionEnvAccess(PermissionPromptRequestExtensionEnvAccess),
 }
 
-/// Controlled reason or actor responsible for a permission response.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionSource {
-    /// The response followed the assisted-approval judge recommendation.
-    #[serde(rename = "assisted_approval")]
-    AssistedApproval,
-    /// A human supplied the response through an interactive prompt.
-    #[serde(rename = "human_response")]
-    HumanResponse,
-    /// The host applied a standing policy or override rather than a judge recommendation or human decision.
-    #[serde(rename = "host_policy")]
-    HostPolicy,
-    /// The host denied the request because no interactive user response was available.
-    #[serde(rename = "unattended_fallback")]
-    UnattendedFallback,
-    /// A live authorization record from an earlier human decision in this session contained the proposal, so it ran without another prompt. This is not a new human decision and never mints authority of its own.
-    #[serde(rename = "authorization_carry_forward")]
-    AuthorizationCarryForward,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// The permission request was approved
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionApprovedKind {
@@ -8850,28 +8457,6 @@ pub enum PermissionResult {
     DeniedInteractivelyByUser(PermissionDeniedInteractivelyByUser),
     DeniedByContentExclusionPolicy(PermissionDeniedByContentExclusionPolicy),
     DeniedByPermissionRequestHook(PermissionDeniedByPermissionRequestHook),
-}
-
-/// Which direction a message-backed authorization claim moves authority in.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionMessageAuthorizationPolarity {
-    /// The human's words authorized an effect.
-    #[serde(rename = "grant")]
-    Grant,
-    /// The human's words refused an effect.
-    #[serde(rename = "denial")]
-    Denial,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
 }
 
 /// Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
