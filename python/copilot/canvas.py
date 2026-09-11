@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from .generated.rpc import (
+from ._generated.rpc import (
     CanvasAction,
     CanvasHostContext,
     CanvasHostContextCapabilities,

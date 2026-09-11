@@ -1,5 +1,5 @@
-from copilot.generated.rpc import QueuePendingItems
-from copilot.generated.session_events import UserMessageData
+from copilot.rpc import QueuePendingItems
+from copilot.session_events import UserMessageData
 
 
 def test_queue_pending_message_id_uses_camel_case_and_is_optional():
