@@ -7,8 +7,45 @@ const workflow = (name: string) =>
     readFileSync(join(repositoryRoot, ".github", "workflows", name), "utf8");
 const publish = workflow("publish.yml");
 const runtimeSdk = workflow("runtime-sdk.yml");
+const publishVersionJob = publish.slice(
+    publish.indexOf("  version:"),
+    publish.indexOf("  package-nodejs:")
+);
+const directPackageJob = publish.slice(
+    publish.indexOf("  package-nodejs:"),
+    publish.indexOf("  publish-nodejs:")
+);
+const directNodePublicationJob = publish.slice(
+    publish.indexOf("  publish-nodejs:"),
+    publish.indexOf("  publish-nodejs-internal:")
+);
+const directInternalPublicationJob = publish.slice(
+    publish.indexOf("  publish-nodejs-internal:"),
+    publish.indexOf("  publish-dotnet:")
+);
+const dotnetPublicationJob = publish.slice(
+    publish.indexOf("  publish-dotnet:"),
+    publish.indexOf("  publish-rust:")
+);
+const rustPublicationJob = publish.slice(
+    publish.indexOf("  publish-rust:"),
+    publish.indexOf("  publish-python:")
+);
+const pythonPublicationJob = publish.slice(
+    publish.indexOf("  publish-python:"),
+    publish.indexOf("  publish-java:")
+);
+const javaPublicationJob = publish.slice(
+    publish.indexOf("  publish-java:"),
+    publish.indexOf("  github-release:")
+);
+const githubReleaseJob = publish.slice(publish.indexOf("  github-release:"));
 const runtimeReleaseIdentity = readFileSync(
     join(repositoryRoot, "nodejs", "scripts", "runtime-release-identity.ts"),
+    "utf8"
+);
+const unstableVersion = readFileSync(
+    join(repositoryRoot, "nodejs", "scripts", "unstable-version.ts"),
     "utf8"
 );
 const planJob = runtimeSdk.slice(
@@ -30,21 +67,99 @@ const internalPublicationJob = runtimeSdk.slice(
 );
 const publicPublicationJob = runtimeSdk.slice(runtimeSdk.indexOf("  publish-public:"));
 
-describe("normal publishing workflow contract", () => {
-    it("remains the stable and prerelease entry without runtime handoff inputs", () => {
+describe("direct publishing workflow contract", () => {
+    it("supports stable, prerelease, and direct unstable without runtime handoff inputs", () => {
         expect(publish).toContain("- latest");
         expect(publish).toContain("- prerelease");
-        expect(publish).not.toContain("- unstable");
+        expect(publish).toContain("- unstable");
         expect(publish).not.toContain("runtime_version:");
         expect(publish).not.toContain("runtime_run_id:");
         expect(publish).not.toContain("resume_run_id:");
         expect(publish).not.toContain("runtime-backed-node-release.yml");
-        expect(publish).toContain("publish.yml only accepts latest or prerelease");
+        expect(publish).toContain("publish.yml only accepts latest, prerelease, or unstable");
         expect(publish).toMatch(/- name: Validate release channel\s+working-directory: \.\s+env:/);
         expect(publish).toContain(
-            "prerelease namespace is reserved for runtime-driven SDK releases"
+            "prerelease namespace is reserved for dedicated SDK release channels"
         );
         expect(publish).toContain("canary|unstable");
+    });
+
+    it("uses the shared deterministic planner only for unstable", () => {
+        expect(publishVersionJob).toContain(
+            "fetch-depth: ${{ inputs.dist-tag == 'unstable' && '0' || '1' }}"
+        );
+        expect(publishVersionJob).toContain("if: inputs.dist-tag == 'unstable'");
+        expect(publishVersionJob).toContain("WORKFLOW_CREATED_AT=");
+        expect(publishVersionJob).toContain(
+            'gh api --paginate "/repos/$GITHUB_REPOSITORY/releases?per_page=100"'
+        );
+        expect(publishVersionJob).toContain("SDK_SHA: ${{ github.sha }}");
+        expect(publishVersionJob).toContain("WORKFLOW_RUN_ID: ${{ github.run_id }}");
+        expect(publishVersionJob).not.toContain("WORKFLOW_RUN_NUMBER:");
+        expect(publishVersionJob).toContain("SDK_VERSION_OVERRIDE: ${{ inputs.version }}");
+        expect(publishVersionJob).toContain("scripts/unstable-version.ts");
+        expect(publishVersionJob).toContain("if: inputs.dist-tag != 'unstable'");
+        expect(publishVersionJob).toMatch(
+            /- name: Verify version is available on public npm\s+if: inputs\.dist-tag != 'unstable'/
+        );
+        expect(publishVersionJob).toContain(
+            'VERSION="$(node scripts/get-version.js ${{ github.event.inputs.dist-tag }})"'
+        );
+        expect(publishVersionJob).not.toContain("get-version.js unstable");
+    });
+
+    it("keeps direct unstable Node-only with manifest-safe public-then-internal ordering", () => {
+        expect(directNodePublicationJob).toContain(
+            "if: github.ref == 'refs/heads/main' || inputs.dist-tag == 'unstable'"
+        );
+        expect(directPackageJob).toContain("create-package-set package-set-manifest.json");
+        expect(directPackageJob).toContain("nodejs/package-set-manifest.json");
+        for (const job of [directNodePublicationJob, directInternalPublicationJob]) {
+            expect(job).toContain("verify-package-set");
+            expect(job).toContain("publish-manifest");
+            expect(job).toContain('if [ "$DIST_TAG" = "unstable" ]; then');
+            expect(job).toContain("npm-release.js publish \\");
+        }
+        expect(directNodePublicationJob).toContain("https://registry.npmjs.org public");
+        expect(directInternalPublicationJob).toContain('"$FEED_URL" azure');
+        expect(directInternalPublicationJob).toContain("needs: [version, publish-nodejs]");
+        expect(publish.indexOf("  publish-nodejs:")).toBeLessThan(
+            publish.indexOf("  publish-nodejs-internal:")
+        );
+        for (const job of [
+            dotnetPublicationJob,
+            rustPublicationJob,
+            pythonPublicationJob,
+            javaPublicationJob,
+            githubReleaseJob,
+        ]) {
+            expect(job).toContain("inputs.dist-tag != 'unstable'");
+        }
+    });
+
+    it("shares the public unstable concurrency lock with the runtime-driven path", () => {
+        expect(publish).toContain(
+            "group: ${{ inputs.dist-tag == 'unstable' && 'sdk-runtime-public-unstable' || 'publish' }}"
+        );
+        expect(publicPublicationJob).toContain("group: sdk-runtime-public-unstable");
+        expect(directInternalPublicationJob).toContain(
+            "group: sdk-runtime-internal-${{ inputs.dist-tag }}"
+        );
+        expect(internalPublicationJob).toContain(
+            "group: sdk-runtime-internal-${{ inputs.channel }}"
+        );
+        expect(publish).toContain("cancel-in-progress: false");
+        expect(publicPublicationJob).toContain("cancel-in-progress: false");
+        expect(directInternalPublicationJob).toContain("queue: max");
+        expect(internalPublicationJob).toContain("queue: max");
+    });
+
+    it("uses repository-wide run IDs for unstable while leaving canary on run numbers", () => {
+        expect(publishVersionJob).toContain("WORKFLOW_RUN_ID: ${{ github.run_id }}");
+        expect(planJob).toContain("WORKFLOW_RUN_ID: ${{ github.run_id }}");
+        expect(planJob).toContain("WORKFLOW_RUN_NUMBER: ${{ github.run_number }}");
+        expect(unstableVersion).toContain('runId: requireEnvironment("WORKFLOW_RUN_ID")');
+        expect(unstableVersion).toContain('runNumber: requireEnvironment("WORKFLOW_RUN_NUMBER")');
     });
 
     it("retains all normal SDK publication paths", () => {

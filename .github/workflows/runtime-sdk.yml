@@ -89,6 +89,7 @@ jobs:
           SDK_CHANNEL: ${{ inputs.channel }}
           SDK_SHA: ${{ github.sha }}
           SDK_VERSION_OVERRIDE: ${{ inputs.version }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail

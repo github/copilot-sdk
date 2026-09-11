@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { c as createTar } from "tar";
 import { afterEach, describe, expect, it } from "vitest";
-import { createReleaseManifest, verifyReleaseManifest } from "../scripts/release-manifest.js";
+import {
+    createPackageSetManifest,
+    createReleaseManifest,
+    verifyPackageSetManifest,
+    verifyReleaseManifest,
+} from "../scripts/release-manifest.js";
 import { getRuntimePackageName, RUNTIME_PLATFORMS } from "../src/runtimeArtifacts.js";
 
 const roots: string[] = [];
@@ -25,10 +30,37 @@ async function packageTarball(root: string, name: string, version: string): Prom
 }
 
 describe("release manifest", () => {
+    it("freezes and verifies a direct nine-package release", async () => {
+        const root = mkdtempSync(join(tmpdir(), "copilot-sdk-package-set-manifest-"));
+        roots.push(root);
+        const version = "1.0.13-unstable.34640000001.gabcdef0";
+        for (const name of [
+            "@github/copilot-sdk",
+            ...RUNTIME_PLATFORMS.map(getRuntimePackageName),
+        ]) {
+            await packageTarball(root, name, version);
+        }
+
+        const manifest = await createPackageSetManifest(root, version);
+        expect(manifest).toMatchObject({
+            schemaVersion: 1,
+            sdk: { version },
+            packages: expect.arrayContaining([
+                expect.objectContaining({ name: "@github/copilot-sdk" }),
+            ]),
+        });
+        expect(manifest.packages).toHaveLength(9);
+        expect(() => verifyPackageSetManifest(manifest, root)).not.toThrow();
+
+        const damaged = join(root, manifest.packages[0].filename);
+        writeFileSync(damaged, Buffer.concat([readFileSync(damaged), Buffer.from("tampered")]));
+        expect(() => verifyPackageSetManifest(manifest, root)).toThrow("Size mismatch");
+    });
+
     it("freezes and verifies the exact nine-package release identity", async () => {
         const root = mkdtempSync(join(tmpdir(), "copilot-sdk-manifest-"));
         roots.push(root);
-        const version = "1.0.13-unstable.8123.gabcdef0";
+        const version = "1.0.13-unstable.34640000001.gabcdef0";
         for (const name of [
             "@github/copilot-sdk",
             ...RUNTIME_PLATFORMS.map(getRuntimePackageName),

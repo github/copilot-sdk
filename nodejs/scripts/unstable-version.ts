@@ -15,7 +15,7 @@ export interface UnstableVersionOptions {
     createdAt: string;
     firstParentTags: string[];
     releases: ReleaseRecord[];
-    runNumber: string;
+    runId: string;
     sdkSha: string;
     versionOverride?: string;
 }
@@ -46,9 +46,14 @@ export function targetCoreFromBaseline(baseline: string): string {
     return `${parsed.major}.${parsed.minor}.${parsed.patch + 1}`;
 }
 
-function validateReleaseIdentity(createdAt: string, runNumber: string, sdkSha: string): number {
-    if (!/^[0-9]+$/.test(runNumber)) {
-        throw new Error(`Invalid workflow run number: ${runNumber}`);
+function validateReleaseIdentity(
+    createdAt: string,
+    runIdentity: string,
+    runIdentityLabel: "ID" | "number",
+    sdkSha: string
+): number {
+    if (!/^[0-9]+$/.test(runIdentity)) {
+        throw new Error(`Invalid workflow run ${runIdentityLabel}: ${runIdentity}`);
     }
     if (!/^[0-9a-f]{40}$/i.test(sdkSha)) {
         throw new Error(`Invalid full SDK SHA: ${sdkSha}`);
@@ -61,7 +66,12 @@ function validateReleaseIdentity(createdAt: string, runNumber: string, sdkSha: s
 }
 
 export function calculateCanaryVersion(options: CanaryVersionOptions): string {
-    const createdAt = validateReleaseIdentity(options.createdAt, options.runNumber, options.sdkSha);
+    const createdAt = validateReleaseIdentity(
+        options.createdAt,
+        options.runNumber,
+        "number",
+        options.sdkSha
+    );
     const baseline = options.releases
         .filter((release) => {
             if (release.draft || release.prerelease || release.published_at === null) {
@@ -93,7 +103,12 @@ export function calculateCanaryVersion(options: CanaryVersionOptions): string {
 }
 
 export function calculateUnstableVersion(options: UnstableVersionOptions): string {
-    const createdAt = validateReleaseIdentity(options.createdAt, options.runNumber, options.sdkSha);
+    const createdAt = validateReleaseIdentity(
+        options.createdAt,
+        options.runId,
+        "ID",
+        options.sdkSha
+    );
 
     if (options.versionOverride) {
         const parsed = semver.parse(options.versionOverride);
@@ -106,7 +121,7 @@ export function calculateUnstableVersion(options: UnstableVersionOptions): strin
                 `Explicit unstable SDK version must be valid SemVer with an unstable prerelease: ${options.versionOverride}`
             );
         }
-        return `${parsed.major}.${parsed.minor}.${parsed.patch}-${parsed.prerelease.join(".")}.${options.runNumber}.g${options.sdkSha.slice(0, 7)}`;
+        return `${parsed.major}.${parsed.minor}.${parsed.patch}-${parsed.prerelease.join(".")}.${options.runId}.g${options.sdkSha.slice(0, 7)}`;
     }
 
     const eligibleTags = new Set(
@@ -128,7 +143,7 @@ export function calculateUnstableVersion(options: UnstableVersionOptions): strin
         );
     }
 
-    return `${targetCoreFromBaseline(baseline)}-unstable.${options.runNumber}.g${options.sdkSha.slice(0, 7)}`;
+    return `${targetCoreFromBaseline(baseline)}-unstable.${options.runId}.g${options.sdkSha.slice(0, 7)}`;
 }
 
 function getFirstParentTags(sdkSha: string): string[] {
@@ -171,15 +186,19 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     const releases = JSON.parse(readFileSync(releasesPath, "utf8")) as ReleaseRecord[];
     const sdkSha = requireEnvironment("SDK_SHA");
     const createdAt = requireEnvironment("WORKFLOW_CREATED_AT");
-    const runNumber = requireEnvironment("WORKFLOW_RUN_NUMBER");
     const version =
         requireEnvironment("SDK_CHANNEL") === "canary"
-            ? calculateCanaryVersion({ createdAt, releases, runNumber, sdkSha })
+            ? calculateCanaryVersion({
+                  createdAt,
+                  releases,
+                  runNumber: requireEnvironment("WORKFLOW_RUN_NUMBER"),
+                  sdkSha,
+              })
             : calculateUnstableVersion({
                   createdAt,
                   firstParentTags: getFirstParentTags(sdkSha),
                   releases,
-                  runNumber,
+                  runId: requireEnvironment("WORKFLOW_RUN_ID"),
                   sdkSha,
                   versionOverride: process.env.SDK_VERSION_OVERRIDE?.trim() || undefined,
               });

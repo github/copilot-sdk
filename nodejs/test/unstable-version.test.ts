@@ -7,6 +7,7 @@ import {
 
 const sha = "abcdef0123456789abcdef0123456789abcdef01";
 const otherSha = "123456789abcdef0123456789abcdef012345678";
+const runId = "34640000001";
 const release = (tag_name: string, published_at = "2026-09-01T00:00:00Z") => ({
     tag_name,
     published_at,
@@ -31,22 +32,43 @@ describe("unstable SDK version planning", () => {
                     release("v1.0.12", "2026-09-05T00:00:00Z"),
                     release("v1.0.11"),
                 ],
-                runNumber: "8123",
+                runId,
                 sdkSha: sha,
             })
-        ).toBe("1.0.13-unstable.8123.gabcdef0");
+        ).toBe("1.0.13-unstable.34640000001.gabcdef0");
     });
 
-    it("is stable across retries and unique across new workflow runs", () => {
+    it("freezes eligible release history at workflow creation time", () => {
+        const options = {
+            createdAt: "2026-09-04T00:00:00Z",
+            firstParentTags: ["v1.0.12", "v1.0.11"],
+            releases: [
+                release("v1.0.12", "2026-09-05T00:00:00Z"),
+                release("v1.0.11", "2026-09-01T00:00:00Z"),
+            ],
+            runId,
+            sdkSha: sha,
+        };
+        const planned = calculateUnstableVersion(options);
+        expect(planned).toBe("1.0.12-unstable.34640000001.gabcdef0");
+        expect(
+            calculateUnstableVersion({
+                ...options,
+                releases: [...options.releases, release("v1.0.13", "2026-09-06T00:00:00Z")],
+            })
+        ).toBe(planned);
+    });
+
+    it("is stable across retries and unique across repository-wide workflow run IDs", () => {
         const options = {
             createdAt: "2026-09-04T00:00:00Z",
             firstParentTags: ["v1.0.11"],
             releases: [release("v1.0.11")],
-            runNumber: "8123",
+            runId,
             sdkSha: sha,
         };
         expect(calculateUnstableVersion(options)).toBe(calculateUnstableVersion(options));
-        expect(calculateUnstableVersion({ ...options, runNumber: "8124" })).not.toBe(
+        expect(calculateUnstableVersion({ ...options, runId: "34640000002" })).not.toBe(
             calculateUnstableVersion(options)
         );
         expect(calculateUnstableVersion({ ...options, sdkSha: otherSha })).not.toBe(
@@ -59,7 +81,7 @@ describe("unstable SDK version planning", () => {
             createdAt: "2026-09-04T00:00:00Z",
             firstParentTags: [],
             releases: [],
-            runNumber: "8123",
+            runId,
             sdkSha: sha,
         };
         expect(
@@ -67,24 +89,38 @@ describe("unstable SDK version planning", () => {
                 ...options,
                 versionOverride: "2.0.0-unstable.manual.1",
             })
-        ).toBe("2.0.0-unstable.manual.1.8123.gabcdef0");
+        ).toBe("2.0.0-unstable.manual.1.34640000001.gabcdef0");
         expect(
             calculateUnstableVersion({
                 ...options,
-                runNumber: "8124",
+                runId: "34640000002",
                 versionOverride: "2.0.0-unstable.manual.1",
             })
-        ).toBe("2.0.0-unstable.manual.1.8124.gabcdef0");
+        ).toBe("2.0.0-unstable.manual.1.34640000002.gabcdef0");
         expect(
             calculateUnstableVersion({
                 ...options,
                 sdkSha: otherSha,
                 versionOverride: "2.0.0-unstable.manual.1",
             })
-        ).toBe("2.0.0-unstable.manual.1.8123.g1234567");
+        ).toBe("2.0.0-unstable.manual.1.34640000001.g1234567");
         expect(() =>
             calculateUnstableVersion({ ...options, versionOverride: "2.0.0-preview.1" })
         ).toThrow("unstable prerelease");
+    });
+
+    it("cannot collide across workflows with coincident per-workflow run numbers", () => {
+        const options = {
+            createdAt: "2026-09-04T00:00:00Z",
+            firstParentTags: ["v1.0.11"],
+            releases: [release("v1.0.11")],
+            sdkSha: sha,
+        };
+        const direct = calculateUnstableVersion({ ...options, runId });
+        const runtimeDriven = calculateUnstableVersion({ ...options, runId: "34640000002" });
+        expect(direct).toBe("1.0.12-unstable.34640000001.gabcdef0");
+        expect(runtimeDriven).toBe("1.0.12-unstable.34640000002.gabcdef0");
+        expect(direct).not.toBe(runtimeDriven);
     });
 });
 

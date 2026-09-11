@@ -133,7 +133,11 @@ export async function publishTarball(tarball, tag, registry, mode, identity, run
 
 function readReleaseManifest(manifestPath, packageDirectory) {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.packages)) {
+    if (
+        manifest.schemaVersion !== 1 ||
+        typeof manifest.sdk?.version !== "string" ||
+        !Array.isArray(manifest.packages)
+    ) {
         throw new Error("Unsupported release manifest.");
     }
     if (manifest.packages.length !== 9) {
