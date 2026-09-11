@@ -159,6 +159,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("mcpServers")
     private Map<String, McpServerConfig> mcpServers;
 
+    @JsonProperty("allowAllMcpServerInstructions")
+    private Boolean allowAllMcpServerInstructions;
+
     @JsonProperty("mcpOAuthTokenStorage")
     private String mcpOAuthTokenStorage;
 
@@ -818,6 +821,16 @@ public final class ResumeSessionRequest {
     /** Sets MCP servers. @param mcpServers the servers map */
     public void setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
+    }
+
+    /** Gets the MCP server instruction policy. @return the policy value */
+    public Boolean getAllowAllMcpServerInstructions() {
+        return allowAllMcpServerInstructions;
+    }
+
+    /** Sets the MCP server instruction policy. @param value the policy value */
+    public void setAllowAllMcpServerInstructions(Boolean value) {
+        this.allowAllMcpServerInstructions = value;
     }
 
     /** Gets MCP OAuth token storage mode. @return the storage mode */

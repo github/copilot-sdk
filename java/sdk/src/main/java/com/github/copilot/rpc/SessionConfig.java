@@ -74,6 +74,7 @@ public class SessionConfig {
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
+    private Boolean allowAllMcpServerInstructions;
     private String mcpOAuthTokenStorage;
     private String authClientIdMetadataUrl;
     private List<CustomAgentConfig> customAgents;
@@ -1047,6 +1048,30 @@ public class SessionConfig {
      */
     public SessionConfig setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
+        return this;
+    }
+
+    /**
+     * Gets whether instructions from every configured MCP server are included in
+     * the system prompt.
+     *
+     * @return the policy value, or {@code null} when the runtime default applies
+     */
+    public Boolean getAllowAllMcpServerInstructions() {
+        return allowAllMcpServerInstructions;
+    }
+
+    /**
+     * Controls whether instructions from every configured MCP server are included
+     * in the system prompt. Enabling this broadens the default trust boundary; only
+     * use it with trusted servers.
+     *
+     * @param allowAllMcpServerInstructions
+     *            the explicit policy value, or {@code null} for the runtime default
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setAllowAllMcpServerInstructions(Boolean allowAllMcpServerInstructions) {
+        this.allowAllMcpServerInstructions = allowAllMcpServerInstructions;
         return this;
     }
 
@@ -2272,6 +2297,7 @@ public class SessionConfig {
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.allowAllMcpServerInstructions = this.allowAllMcpServerInstructions;
         copy.mcpOAuthTokenStorage = this.mcpOAuthTokenStorage;
         copy.authClientIdMetadataUrl = this.authClientIdMetadataUrl;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;

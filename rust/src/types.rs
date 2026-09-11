@@ -2002,6 +2002,10 @@ pub struct SessionConfig {
     pub included_builtin_skills: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
+    /// Whether instructions from every configured MCP server are included in
+    /// the system prompt. Enabling this broadens the default trust boundary;
+    /// only use it with trusted servers. `None` leaves the runtime default.
+    pub allow_all_mcp_server_instructions: Option<bool>,
     /// Controls how MCP OAuth tokens are stored for this session.
     ///
     /// - `"persistent"` — tokens are stored in the OS keychain (shared across sessions).
@@ -2325,6 +2329,10 @@ impl std::fmt::Debug for SessionConfig {
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
+            .field(
+                "allow_all_mcp_server_instructions",
+                &self.allow_all_mcp_server_instructions,
+            )
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field(
                 "auth_client_id_metadata_url",
@@ -2469,6 +2477,7 @@ impl Default for SessionConfig {
             excluded_builtin_agents: None,
             included_builtin_skills: None,
             mcp_servers: None,
+            allow_all_mcp_server_instructions: None,
             mcp_oauth_token_storage: None,
             auth_client_id_metadata_url: None,
             enable_config_discovery: None,
@@ -2639,6 +2648,7 @@ impl SessionConfig {
             excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
+            allow_all_mcp_server_instructions: self.allow_all_mcp_server_instructions,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
             auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
@@ -2967,6 +2977,15 @@ impl SessionConfig {
     /// Set MCP server configurations passed through to the CLI.
     pub fn with_mcp_servers(mut self, servers: IndexMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
+        self
+    }
+
+    /// Include instructions from every configured MCP server.
+    ///
+    /// Enabling this broadens the default trust boundary; only use it with
+    /// trusted servers.
+    pub fn with_allow_all_mcp_server_instructions(mut self, allow: bool) -> Self {
+        self.allow_all_mcp_server_instructions = Some(allow);
         self
     }
 
@@ -3461,6 +3480,10 @@ pub struct ResumeSessionConfig {
     pub included_builtin_skills: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
+    /// Whether instructions from every configured MCP server are included in
+    /// the system prompt. Enabling this broadens the default trust boundary;
+    /// only use it with trusted servers. `None` leaves the runtime default.
+    pub allow_all_mcp_server_instructions: Option<bool>,
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
@@ -3696,6 +3719,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
+            .field(
+                "allow_all_mcp_server_instructions",
+                &self.allow_all_mcp_server_instructions,
+            )
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field(
                 "auth_client_id_metadata_url",
@@ -3882,6 +3909,7 @@ impl ResumeSessionConfig {
             excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
+            allow_all_mcp_server_instructions: self.allow_all_mcp_server_instructions,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
             auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
@@ -3992,6 +4020,7 @@ impl ResumeSessionConfig {
             excluded_builtin_agents: None,
             included_builtin_skills: None,
             mcp_servers: None,
+            allow_all_mcp_server_instructions: None,
             mcp_oauth_token_storage: None,
             auth_client_id_metadata_url: None,
             enable_config_discovery: None,
@@ -4297,6 +4326,15 @@ impl ResumeSessionConfig {
     /// Re-supply MCP server configurations on resume.
     pub fn with_mcp_servers(mut self, servers: IndexMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
+        self
+    }
+
+    /// Include instructions from every configured MCP server on resume.
+    ///
+    /// Enabling this broadens the default trust boundary; only use it with
+    /// trusted servers.
+    pub fn with_allow_all_mcp_server_instructions(mut self, allow: bool) -> Self {
+        self.allow_all_mcp_server_instructions = Some(allow);
         self
     }
 
@@ -7102,6 +7140,36 @@ mod tests {
             .expect("default resume has no duplicate handlers");
         let empty_resume_json = serde_json::to_value(&empty_resume_wire).unwrap();
         assert!(empty_resume_json.get("authClientIdMetadataUrl").is_none());
+    }
+
+    #[test]
+    fn mcp_server_instruction_policy_reaches_create_and_resume_wire_payloads() {
+        for value in [true, false] {
+            let (create_wire, _) = SessionConfig::default()
+                .with_allow_all_mcp_server_instructions(value)
+                .into_wire(None)
+                .expect("create config is valid");
+            let create_json = serde_json::to_value(&create_wire).unwrap();
+            assert_eq!(create_json["allowAllMcpServerInstructions"], value);
+
+            let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("policy"))
+                .with_allow_all_mcp_server_instructions(value)
+                .into_wire()
+                .expect("resume config is valid");
+            let resume_json = serde_json::to_value(&resume_wire).unwrap();
+            assert_eq!(resume_json["allowAllMcpServerInstructions"], value);
+        }
+
+        let (create_wire, _) = SessionConfig::default().into_wire(None).unwrap();
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("policy"))
+            .into_wire()
+            .unwrap();
+        assert!(
+            serde_json::to_value(create_wire).unwrap()["allowAllMcpServerInstructions"].is_null()
+        );
+        assert!(
+            serde_json::to_value(resume_wire).unwrap()["allowAllMcpServerInstructions"].is_null()
+        );
     }
 
     #[test]

@@ -1373,6 +1373,29 @@ class TestCreateSessionConfig:
             )
             assert "disabledMcpServers" not in captured["session.create"]
             assert "disabledMcpServers" not in captured["session.resume"]
+
+            for value in (True, False):
+                policy_session = await client.create_session(
+                    on_permission_request=PermissionHandler.approve_all,
+                    allow_all_mcp_server_instructions=value,
+                )
+                await client.resume_session(
+                    policy_session.session_id,
+                    on_permission_request=PermissionHandler.approve_all,
+                    allow_all_mcp_server_instructions=value,
+                )
+                assert captured["session.create"]["allowAllMcpServerInstructions"] is value
+                assert captured["session.resume"]["allowAllMcpServerInstructions"] is value
+
+            policy_omitted_session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            await client.resume_session(
+                policy_omitted_session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert "allowAllMcpServerInstructions" not in captured["session.create"]
+            assert "allowAllMcpServerInstructions" not in captured["session.resume"]
         finally:
             await client.force_stop()
 

@@ -3288,6 +3288,7 @@ public abstract class SessionConfigBase
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         IncludedBuiltinSkills = other.IncludedBuiltinSkills is not null ? [.. other.IncludedBuiltinSkills] : null;
         DisabledMcpServers = other.DisabledMcpServers is not null ? [.. other.DisabledMcpServers] : null;
+        AllowAllMcpServerInstructions = other.AllowAllMcpServerInstructions;
         EnableCitations = other.EnableCitations;
         EnableFileChangeTracking = other.EnableFileChangeTracking;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
@@ -3715,6 +3716,13 @@ public abstract class SessionConfigBase
     /// Keys are server names, values are server configurations (<see cref="McpStdioServerConfig"/> or <see cref="McpHttpServerConfig"/>).
     /// </summary>
     public IDictionary<string, McpServerConfig>? McpServers { get; set; }
+
+    /// <summary>
+    /// Whether instructions from every configured MCP server are included in the
+    /// system prompt. Enabling this broadens the default trust boundary; only use
+    /// it with trusted servers. When null, the runtime default applies.
+    /// </summary>
+    public bool? AllowAllMcpServerInstructions { get; set; }
 
     /// <summary>
     /// Controls how MCP OAuth tokens are stored for this session.

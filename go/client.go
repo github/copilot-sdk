@@ -902,6 +902,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.WorkingDirectory = config.WorkingDirectory
 	req.AdditionalDirectories = config.AdditionalDirectories
 	req.MCPServers = config.MCPServers
+	req.AllowAllMCPServerInstructions = config.AllowAllMCPServerInstructions
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
 	req.AuthClientIDMetadataURL = config.AuthClientIDMetadataURL
 	req.EnvValueMode = "direct"
@@ -1322,6 +1323,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	req.ContinuePendingWork = config.ContinuePendingWork
 	req.MCPServers = config.MCPServers
+	req.AllowAllMCPServerInstructions = config.AllowAllMCPServerInstructions
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
 	req.AuthClientIDMetadataURL = config.AuthClientIDMetadataURL
 	req.EnvValueMode = "direct"
