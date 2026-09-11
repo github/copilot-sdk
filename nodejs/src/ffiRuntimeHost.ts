@@ -407,15 +407,15 @@ export class FfiRuntimeHost {
         }
     }
 
-    /** Closes the FFI connection, shuts down the native host, and releases resources. */
-    dispose(): void {
+    /** Awaits the initial cleanup attempt; a non-quiescent close is retried in the background. */
+    async dispose(): Promise<void> {
         if (this.disposed) {
             return;
         }
         this.disposed = true;
         this.receiveStream.end();
         if (!this.starting) {
-            void this.tryFinalizeCleanup();
+            await this.tryFinalizeCleanup();
         }
     }
 }
