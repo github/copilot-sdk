@@ -48,6 +48,7 @@ logger = logging.getLogger("copilot.ffi")
 
 _SYMBOL_PREFIX = "copilot_runtime_"
 _CLEANUP_RETRY_INTERVAL_SECONDS = 0.1
+_HOST_SHUTDOWN_TIMEOUT_SECONDS = 10.0
 
 # The C ABI outbound callback: void(void *user_data, uint8 *bytes, size_t len).
 _OutboundCallback = ctypes.CFUNCTYPE(
@@ -448,7 +449,7 @@ class FfiRuntimeHost:
             )
             if not self._connection_id:
                 self._outbound_callback = None
-                self._lib.host_shutdown(self._server_id)
+                self._shutdown_host(self._server_id)
                 self._server_id = 0
                 raise RuntimeError("copilot_runtime_connection_open failed.")
         finally:
@@ -526,15 +527,9 @@ class FfiRuntimeHost:
                     self._quarantined_hosts.discard(self)
 
                 if self._server_id:
-                    try:
-                        if not self._lib.host_shutdown(self._server_id):
-                            logger.debug(
-                                "In-process FFI host shutdown did not recognize server %s",
-                                self._server_id,
-                            )
-                    except Exception:  # noqa: BLE001
-                        logger.debug("Error shutting down in-process FFI host", exc_info=True)
+                    server_id = self._server_id
                     self._server_id = 0
+                    self._shutdown_host(server_id)
 
     def _schedule_cleanup_retry(self) -> None:
         if self._cleanup_timer is not None:
@@ -548,3 +543,28 @@ class FfiRuntimeHost:
         with self._dispose_lock:
             self._cleanup_timer = None
         self._try_finalize_cleanup()
+
+    def _shutdown_host(self, server_id: int) -> None:
+        """Call native host_shutdown on a daemon thread with a bounded wait."""
+        done = threading.Event()
+
+        def run() -> None:
+            try:
+                if not self._lib.host_shutdown(server_id):
+                    logger.debug(
+                        "In-process FFI host shutdown did not recognize server %s",
+                        server_id,
+                    )
+            except Exception:  # noqa: BLE001
+                logger.debug("Error shutting down in-process FFI host", exc_info=True)
+            finally:
+                done.set()
+
+        threading.Thread(target=run, name="copilot-ffi-host-shutdown", daemon=True).start()
+
+        if not done.wait(timeout=_HOST_SHUTDOWN_TIMEOUT_SECONDS):
+            logger.warning(
+                "In-process FFI host_shutdown did not complete within %.0fs; "
+                "abandoning wait (shutdown continues on a background thread).",
+                _HOST_SHUTDOWN_TIMEOUT_SECONDS,
+            )

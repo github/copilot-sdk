@@ -3,6 +3,8 @@ use github_copilot_sdk::CliProgram;
 use github_copilot_sdk::SessionLifecycleEventType;
 use serde_json::json;
 
+#[cfg(windows)]
+use super::support::skip_inprocess;
 use super::support::{wait_for_lifecycle_event, with_e2e_context};
 
 #[tokio::test]
@@ -144,6 +146,10 @@ async fn dispose_disconnects_client_and_disposes_rpc_surface_drop() {
 #[cfg(windows)]
 #[tokio::test]
 async fn abrupt_host_termination_still_kills_cli_via_job_object() {
+    if skip_inprocess("job-object containment is specific to the stdio CLI child process") {
+        return;
+    }
+
     with_e2e_context(
         "client_lifecycle",
         "abrupt_host_termination_still_kills_cli_via_job_object",
@@ -226,14 +232,17 @@ async fn abrupt_host_termination_still_kills_cli_via_job_object() {
 #[cfg(windows)]
 async fn wait_for_pid_file_windows(path: &std::path::Path) -> u32 {
     super::support::wait_for_condition("host-crash fixture CLI pid file", || async {
-        path.exists()
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|contents| contents.trim().parse::<u32>().ok())
+            .is_some()
     })
     .await;
-    std::fs::read_to_string(path)
-        .expect("read host-crash fixture CLI pid")
+    let contents = std::fs::read_to_string(path).expect("read host-crash fixture CLI pid");
+    contents
         .trim()
         .parse()
-        .expect("parse host-crash fixture CLI pid")
+        .unwrap_or_else(|err| panic!("parse host-crash fixture CLI pid from {contents:?}: {err}"))
 }
 
 #[cfg(windows)]

@@ -74,6 +74,30 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
         await client.ForceStopAsync();
     }
 
+    // Regression coverage for github/copilot-sdk#2525: ForceStopAsync must be a bounded,
+    // immediate hard stop even for the in-process (FFI) host, where there is no child
+    // process to reap if the native runtime's own shutdown path hangs or is slow (e.g.
+    // while closing its SQLite session store). FfiRuntimeHost.Dispose() bounds its wait
+    // on the native copilot_runtime_host_shutdown call so this cannot hang indefinitely;
+    // this test fails fast (via its own generous timeout) instead of hanging the CI job
+    // if that regresses, and its logged elapsed time doubles as shutdown-performance data.
+    [Fact]
+    public async Task Should_Force_Stop_Over_InProcess_Ffi_Within_Bounded_Time()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForInProcess(),
+        });
+
+        await Ctx.CreateSessionAsync(client, new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
+
+        var forceStopTask = client.ForceStopAsync();
+        var completed = await Task.WhenAny(forceStopTask, Task.Delay(TimeSpan.FromSeconds(30)));
+
+        Assert.Same(forceStopTask, completed);
+        await forceStopTask;
+    }
+
     [Theory]
     [InlineData(true)]   // stdio transport
     [InlineData(false)]  // TCP transport

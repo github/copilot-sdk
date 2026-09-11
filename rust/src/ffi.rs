@@ -41,6 +41,8 @@ type ConnectionOpenFn = unsafe extern "C" fn(
 type ConnectionWriteFn = unsafe extern "C" fn(u32, *const u8, usize) -> bool;
 type ConnectionCloseFn = unsafe extern "C" fn(u32) -> bool;
 
+const HOST_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// State handed to the native side as `user_data` so the outbound callback can
 /// route inbound frames back to the reader.
 struct CallbackState {
@@ -113,12 +115,8 @@ impl FfiShared {
                             std::thread::sleep(std::time::Duration::from_millis(100));
                         }
                         release_callback_state(state);
-                        if server != 0 && !unsafe { host_shutdown(server) } {
-                            warn!(
-                                library = %library_path.display(),
-                                server_id = server,
-                                "FFI runtime host shutdown did not recognize server"
-                            );
+                        if server != 0 {
+                            shutdown_host(host_shutdown, server, &library_path);
                         }
                         debug!(library = %library_path.display(), "FFI runtime connection closed");
                     })
@@ -138,12 +136,8 @@ impl FfiShared {
             .callback_state
             .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
         release_callback_state(state);
-        if server != 0 && !unsafe { (self.host_shutdown)(server) } {
-            warn!(
-                library = %self.library_path.display(),
-                server_id = server,
-                "FFI runtime host shutdown did not recognize server"
-            );
+        if server != 0 {
+            shutdown_host(self.host_shutdown, server, &self.library_path);
         }
         debug!(library = %self.library_path.display(), "FFI runtime connection closed");
     }
@@ -168,6 +162,31 @@ fn release_callback_state(state: usize) {
     }
     let state = state as *mut CallbackState;
     drop(unsafe { Box::from_raw(state) });
+}
+
+fn shutdown_host(host_shutdown: HostShutdownFn, server: u32, library_path: &Path) {
+    let library_path = library_path.to_path_buf();
+    let shutdown_library_path = library_path.clone();
+    let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
+    std::thread::spawn(move || {
+        if !unsafe { host_shutdown(server) } {
+            warn!(
+                library = %shutdown_library_path.display(),
+                server_id = server,
+                "FFI runtime host shutdown did not recognize server"
+            );
+        }
+        let _ = done_tx.send(());
+    });
+
+    if done_rx.recv_timeout(HOST_SHUTDOWN_TIMEOUT).is_err() {
+        warn!(
+            library = %library_path.display(),
+            timeout_ms = HOST_SHUTDOWN_TIMEOUT.as_millis(),
+            "FFI host_shutdown did not complete within timeout; abandoning wait \
+             (shutdown continues on a background thread)",
+        );
+    }
 }
 
 impl Drop for FfiShared {
