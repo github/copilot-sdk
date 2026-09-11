@@ -12,8 +12,7 @@ namespace GitHub.Copilot.Test.E2E;
 
 #pragma warning disable GHCP001 // GitHub telemetry forwarding is experimental.
 
-// TODO(BYOK): Anthropic Messages produced no GitHub telemetry notification. Determine whether
-// provider-backed sessions should forward the same telemetry before keeping this CAPI-only.
+// Internal GitHub telemetry is intentionally disabled for BYOK sessions.
 [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
 public class GitHubTelemetryForwardingE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "github_telemetry", output)
