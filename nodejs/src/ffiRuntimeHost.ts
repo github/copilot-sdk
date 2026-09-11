@@ -398,16 +398,7 @@ export class FfiRuntimeHost {
     }
 
     private shutdownHost(serverId: number): void {
-        let completed = false;
-        const timeout = setTimeout(() => {
-            if (!completed) {
-                console.error(
-                    `In-process FFI host_shutdown did not complete within ${HOST_SHUTDOWN_TIMEOUT_MS}ms; abandoning wait.`
-                );
-            }
-        }, HOST_SHUTDOWN_TIMEOUT_MS).unref();
-
-        this.lib.hostShutdown.async(serverId, (error: Error | null, result: boolean) => {
+        const complete = (error: Error | null, result: boolean) => {
             completed = true;
             clearTimeout(timeout);
             if (error) {
@@ -417,6 +408,25 @@ export class FfiRuntimeHost {
             } else if (!result) {
                 console.error(`In-process FFI host shutdown did not recognize server ${serverId}.`);
             }
-        });
+        };
+        let completed = false;
+        const timeout = setTimeout(() => {
+            if (!completed) {
+                console.error(
+                    `In-process FFI host_shutdown did not complete within ${HOST_SHUTDOWN_TIMEOUT_MS}ms; abandoning wait.`
+                );
+            }
+        }, HOST_SHUTDOWN_TIMEOUT_MS).unref();
+
+        if (typeof this.lib.hostShutdown.async === "function") {
+            this.lib.hostShutdown.async(serverId, complete);
+            return;
+        }
+
+        try {
+            complete(null, Boolean(this.lib.hostShutdown(serverId)));
+        } catch (error) {
+            complete(error as Error, false);
+        }
     }
 }
