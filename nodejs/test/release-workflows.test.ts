@@ -203,6 +203,16 @@ describe("test-only runtime-driven Node SDK entry contract", () => {
         );
     });
 
+    it("rejects a missing repository-wide unstable run ID", () => {
+        const missingRunId = sdkCanary.replace(
+            "          WORKFLOW_RUN_ID: ${{ github.run_id }}\n",
+            ""
+        );
+        expect(() => assertSafeTestWorkflow(missingRunId)).toThrow(
+            "repository-wide workflow run ID"
+        );
+    });
+
     it("rejects unsafe runtime directory artifact transport", () => {
         const directUpload = sdkCanary.replace(
             "path: ${{ runner.temp }}/runtime-packages.tar.gz",

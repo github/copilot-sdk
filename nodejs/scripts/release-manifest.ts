@@ -201,10 +201,23 @@ export function verifyReleaseManifest(manifest: ReleaseManifest, packageDirector
     assert.equal(manifest.runtime.source, "github-packages", "Invalid runtime package source");
     assert.equal(manifest.workflow.name, testWorkflowName, "Unexpected test workflow name");
     assert.equal(manifest.workflow.path, testWorkflowPath, "Unexpected test workflow path");
-    assert.match(
-        manifest.sdk.version,
-        new RegExp(`-${manifest.channel}\\..+\\.test\\.${manifest.workflow.runId}$`),
-        "Test SDK version must preserve the channel and end in its deterministic workflow run namespace"
+    const sdkVersion = semver.parse(manifest.sdk.version);
+    assert(sdkVersion, "Invalid SDK version");
+    const prerelease = sdkVersion.prerelease.map(String);
+    assert.deepEqual(
+        prerelease.slice(-2),
+        ["test", manifest.workflow.runId],
+        "Test SDK version must end in its deterministic workflow run namespace"
+    );
+    assert.equal(
+        prerelease.at(-3),
+        `g${manifest.sdk.sha.slice(0, 7)}`,
+        "Test SDK version must contain the SDK source SHA"
+    );
+    assert.equal(
+        prerelease.at(-4),
+        manifest.channel === "unstable" ? manifest.workflow.runId : manifest.workflow.runNumber,
+        `Test ${manifest.channel} SDK version must use the expected workflow run identity`
     );
 }
 
