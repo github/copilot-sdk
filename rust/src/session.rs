@@ -432,9 +432,14 @@ impl Session {
     /// bootstrap events.
     ///
     /// Bootstrap retention is unbounded until the first subscriber catches
-    /// up, so resume consumers should subscribe and drain promptly. Stopping
+    /// up: callers that never subscribe or cannot catch up can retain an
+    /// arbitrarily large backlog. Resume consumers should subscribe and drain
+    /// promptly. Ownership is assigned by the first `subscribe()` call, not
+    /// by the first poll. Stopping
     /// the event loop releases an unclaimed backlog; dropping a claimed
     /// subscription releases its unread backlog.
+    /// This retention covers events routed to this session, not events lost
+    /// to overflow in the client-global notification router.
     /// After the bootstrap handoff, each subscriber maintains its own finite
     /// queue. If a consumer cannot keep
     /// up, the oldest live events are dropped and `recv` returns

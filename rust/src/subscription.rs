@@ -498,6 +498,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn concurrent_subscribers_claim_bootstrap_exactly_once() {
+        use futures_util::FutureExt;
+
+        let (tx, _) = broadcast::channel(8);
+        let bootstrap = ResumeBootstrap::new(&tx);
+        bootstrap.publish(&tx, make_event("bootstrap"));
+        let barrier = std::sync::Barrier::new(2);
+        let mut subscriptions = std::thread::scope(|scope| {
+            let subscribe = || {
+                barrier.wait();
+                bootstrap.subscribe(&tx)
+            };
+            let first = scope.spawn(subscribe);
+            let second = scope.spawn(subscribe);
+            [first.join().unwrap(), second.join().unwrap()]
+        });
+
+        let mut owners = 0;
+        for sub in &mut subscriptions {
+            if let Some(event) = sub.recv().now_or_never() {
+                assert_eq!(event.unwrap().id, "bootstrap");
+                owners += 1;
+            }
+        }
+        assert_eq!(owners, 1);
+
+        bootstrap.publish(&tx, make_event("during-catchup"));
+        for sub in &mut subscriptions {
+            assert_eq!(sub.recv().await.unwrap().id, "during-catchup");
+            assert!(sub.recv().now_or_never().is_none());
+        }
+        bootstrap.publish(&tx, make_event("live"));
+        for sub in &mut subscriptions {
+            assert_eq!(sub.recv().await.unwrap().id, "live");
+            assert!(sub.recv().now_or_never().is_none());
+        }
+    }
+
+    #[tokio::test]
     async fn bootstrap_stream_drains_before_closing_without_retaining_the_sender() {
         let (tx, _) = broadcast::channel(1);
         let bootstrap = ResumeBootstrap::new(&tx);

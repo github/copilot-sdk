@@ -12,12 +12,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use github_copilot_sdk::handler::{McpAuthHandler, McpAuthRequest, McpAuthResult};
+use github_copilot_sdk::handler::{
+    McpAuthHandler, McpAuthRequest, McpAuthResult, PermissionHandler, PermissionResult,
+};
 use github_copilot_sdk::session::PreparedSession;
 use github_copilot_sdk::subscription::{EventSubscription, RecvErrorKind};
 use github_copilot_sdk::types::{
-    CloudSessionOptions, CloudSessionRepository, RequestId, ResumeSessionConfig, SessionConfig,
-    SessionId,
+    CloudSessionOptions, CloudSessionRepository, PermissionRequestData, RequestId,
+    ResumeSessionConfig, SessionConfig, SessionId,
 };
 use github_copilot_sdk::{Client, ErrorKind, SessionErrorKind};
 use serde_json::{Value, json};
@@ -141,6 +143,46 @@ impl FakeServer {
         let request = self.read_request().await;
         assert_eq!(request["method"], "session.skills.reload");
         self.respond(&request, json!({})).await;
+    }
+
+    /// The permission handler runs after publication on the same session loop,
+    /// proving the preceding burst is queued without claiming a subscription.
+    async fn await_bootstrap_publication(
+        &mut self,
+        session_id: &str,
+        published: &tokio::sync::Notify,
+    ) {
+        self.send_startup_burst(session_id).await;
+        let notification = json!({
+            "jsonrpc": "2.0",
+            "method": "session.event",
+            "params": {
+                "sessionId": session_id,
+                "event": {
+                    "id": "publication-fence",
+                    "timestamp": "2025-01-01T00:00:00Z",
+                    "type": "permission.requested",
+                    "data": { "requestId": "publication-fence", "kind": "read" },
+                },
+            },
+        });
+        write_framed(&mut self.write, &serde_json::to_vec(&notification).unwrap()).await;
+        timeout(TIMEOUT, published.notified()).await.unwrap();
+    }
+}
+
+struct PublicationFence(Arc<tokio::sync::Notify>);
+
+#[async_trait]
+impl PermissionHandler for PublicationFence {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _request: PermissionRequestData,
+    ) -> PermissionResult {
+        self.0.notify_one();
+        PermissionResult::no_result()
     }
 }
 
@@ -594,25 +636,54 @@ async fn cancelled_prepared_resume_cleans_up_and_allows_retry() {
 }
 
 #[tokio::test]
-async fn cancelled_resume_wrapper_cleans_implicit_bootstrap_and_allows_retry() {
+async fn populated_resume_bootstrap_cleans_up_after_setup_failure_or_cancellation() {
+    for cancel in [false, true] {
+        check_populated_resume_cleanup(cancel).await;
+    }
+}
+
+async fn check_populated_resume_cleanup(cancel: bool) {
     let (client, mut server) = make_client();
-    let session_id = SessionId::new("resume-wrapper-cancel");
+    let session_id = SessionId::new("resume-wrapper-cleanup");
+    let published = Arc::new(tokio::sync::Notify::new());
 
     let start = tokio::spawn({
         let client = client.clone();
         let session_id = session_id.clone();
+        let published = published.clone();
         async move {
             client
-                .resume_session(ResumeSessionConfig::new(session_id))
+                .resume_session(
+                    ResumeSessionConfig::new(session_id)
+                        .with_permission_handler(Arc::new(PublicationFence(published)))
+                        .with_mcp_auth_handler(Arc::new(CancelMcpAuthHandler)),
+                )
                 .await
         }
     });
 
     let resume_req = server.read_request().await;
     assert_eq!(resume_req["method"], "session.resume");
-    start.abort();
-    let _ = start.await;
+    server
+        .respond(&resume_req, json!({ "sessionId": session_id.as_str() }))
+        .await;
+    let interest_req = server.read_request().await;
+    assert_eq!(interest_req["method"], "session.eventLog.registerInterest");
+    server
+        .await_bootstrap_publication(session_id.as_str(), &published)
+        .await;
+    if cancel {
+        start.abort();
+        assert!(start.await.err().unwrap().is_cancelled());
+    } else {
+        server
+            .respond_error(&interest_req, -32004, "interest registration failed")
+            .await;
+        let error = expect_error(timeout(TIMEOUT, start).await.unwrap().unwrap());
+        assert!(matches!(error.kind(), ErrorKind::Rpc { code: -32004 }));
+    }
     await_no_registrations(&client).await;
+    server.expect_quiet().await;
 
     let retry = tokio::spawn({
         let client = client.clone();
@@ -650,6 +721,45 @@ async fn cancelled_resume_wrapper_cleans_implicit_bootstrap_and_allows_retry() {
         "evt-after-retry"
     );
     drop(session);
+}
+
+#[tokio::test]
+async fn stopping_session_releases_populated_unclaimed_bootstrap() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("resume-wrapper-stop");
+    let published = Arc::new(tokio::sync::Notify::new());
+    let start = tokio::spawn({
+        let client = client.clone();
+        let session_id = session_id.clone();
+        let published = published.clone();
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(session_id)
+                        .with_permission_handler(Arc::new(PublicationFence(published))),
+                )
+                .await
+        }
+    });
+    let resume_req = server.read_request().await;
+    server
+        .respond(&resume_req, json!({ "sessionId": session_id.as_str() }))
+        .await;
+    server
+        .await_bootstrap_publication(session_id.as_str(), &published)
+        .await;
+    server.answer_skills_reload().await;
+    let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
+
+    timeout(TIMEOUT, session.stop_event_loop()).await.unwrap();
+    let mut events = session.subscribe();
+    assert!(
+        timeout(QUIET, events.recv()).await.is_err(),
+        "stopping must discard the unclaimed bootstrap, not replay it"
+    );
+    drop(session);
+    expect_closed(&mut events).await;
+    await_no_registrations(&client).await;
 }
 
 // ---------------------------------------------------------------------------
