@@ -28,7 +28,24 @@ release's `SHA256SUMS.txt`.
 npm install @github/copilot-sdk
 ```
 
-## Run the Sample
+## Standalone extension launch providers
+
+`CopilotClientOptions.onExtensionLaunch` resolves a process launch specification for
+each extension entrypoint discovered by the runtime. The SDK registers the callback
+before `start()` returns; registration failures reject startup. Clients that omit
+the callback retain their existing behavior. `CopilotClient.supportsExtensionLaunchProvider`
+allows integrators to detect support before opting sessions into extensions.
+
+Return `{ launch: { executable, args, env } }`, or `{}` for an unsupported entrypoint.
+The runtime does not append the module path to `args`. Use the runtime-provided
+extension bootstrap and supply the discovered path as `EXTENSION_PATH`. The runtime
+continues to own discovery, spawning, termination, and the reserved `COPILOT_SDK_PATH`,
+`SESSION_ID`, and `COPILOT_EXTENSION_PARENT_PID` environment variables. Normal sessions
+must opt in with `requestExtensions: true` and a compatible `extensionSdkPath`.
+The callback receives untrusted extension identity/path metadata; never interpolate it
+into a shell command. Return an executable and argument array instead.
+
+## Run the sample
 
 Try the interactive chat sample (from the repo root):
 
