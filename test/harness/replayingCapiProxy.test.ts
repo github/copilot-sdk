@@ -1664,7 +1664,16 @@ Always include PINEAPPLE_COCONUT_42.
           expect(parsed.data[0]).toMatchObject({
             capabilities: {
               supports: { vision: true },
-              limits: { vision: { max_prompt_images: 2 } },
+              limits: {
+                vision: {
+                  max_prompt_images: 2,
+                  max_prompt_image_size: expect.any(Number),
+                  supported_media_types: expect.arrayContaining([
+                    "image/png",
+                    "image/jpeg",
+                  ]),
+                },
+              },
             },
           });
         } finally {
@@ -1704,7 +1713,16 @@ Always include PINEAPPLE_COCONUT_42.
           expect(model).toMatchObject({
             capabilities: {
               supports: { vision: true },
-              limits: { vision: { max_prompt_images: 2 } },
+              limits: {
+                vision: {
+                  max_prompt_images: 2,
+                  max_prompt_image_size: expect.any(Number),
+                  supported_media_types: expect.arrayContaining([
+                    "image/png",
+                    "image/jpeg",
+                  ]),
+                },
+              },
             },
           });
         }

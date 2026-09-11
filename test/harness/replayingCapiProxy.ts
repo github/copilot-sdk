@@ -14,6 +14,7 @@ import type {
 import { ChatCompletionStream } from "openai/resources/chat/completions";
 import path from "path";
 import yaml from "yaml";
+import type { ModelCapabilitiesLimitsVision } from "../../nodejs/src/generated/rpc";
 import {
   CapturedExchange,
   CapturingHttpProxy,
@@ -2021,7 +2022,11 @@ function createGetModelsResponse(modelIds: string[]) {
         limits: {
           max_context_window_tokens: 128000,
           // Replay fixtures contain two image-bearing messages.
-          vision: { max_prompt_images: 2 },
+          vision: {
+            max_prompt_images: 2,
+            max_prompt_image_size: 20 * 1024 * 1024,
+            supported_media_types: ["image/png", "image/jpeg"],
+          } satisfies ModelCapabilitiesLimitsVision,
         },
       },
     })),
