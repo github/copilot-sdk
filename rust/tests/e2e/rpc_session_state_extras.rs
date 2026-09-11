@@ -490,6 +490,7 @@ async fn should_update_and_clear_live_subagent_settings() {
                             agents: Some(HashMap::from([(
                                 "general-purpose".to_string(),
                                 SubagentSettingsEntry {
+                                    auto_invoke: None,
                                     context_tier: Some(
                                         SubagentSettingsEntryContextTier::LongContext,
                                     ),

@@ -13,6 +13,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.TestUtil;
 
 /**
@@ -41,9 +42,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void mcpDiscoverParams_record() {
-        var params = new McpDiscoverParams("/workspace");
+        var params = new McpDiscoverParams("/workspace", null);
         assertEquals("/workspace", params.workingDirectory());
-        assertNull(new McpDiscoverParams(null).workingDirectory());
+        assertNull(new McpDiscoverParams(null, null).workingDirectory());
     }
 
     @Test
@@ -330,11 +331,24 @@ class GeneratedRpcRecordsCoverageTest {
                 null, null, null, null, null, null, null, null);
         assertEquals("sess-32", params.sessionId());
         assertEquals("claude-sonnet-5", params.modelId());
+        assertNull(params.autoTier());
         assertEquals("high", params.reasoningEffort());
         assertNull(params.reasoningSummary());
         assertNull(params.verbosity());
         assertNull(params.modelCapabilities());
         assertNull(params.deferIfModelChangeQueued());
+    }
+
+    @Test
+    void sessionModelSwitchParams_distinguishRequiredNullFromOmittedOptionalValue() {
+        var mapper = new ObjectMapper();
+        var switchAutoTier = mapper.valueToTree(new SessionModelSwitchAutoTierParams("sess-32", null, null));
+        assertTrue(switchAutoTier.has("autoTier"));
+        assertTrue(switchAutoTier.get("autoTier").isNull());
+
+        var switchTo = mapper.valueToTree(new SessionModelSwitchToParams("sess-32", "auto", null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null));
+        assertFalse(switchTo.has("autoTier"));
     }
 
     @Test
@@ -470,7 +484,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentListResult_with_items() {
         var item = new AgentInfo("name1", "Name One", "Desc 1", "/path/to/agent1", null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
         var result = new SessionAgentListResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("name1", result.agents().get(0).name());
@@ -482,7 +496,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentGetCurrentResult_nested() {
         var agent = new AgentInfo("agent-1", "Agent One", "Does things", null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
         var result = new SessionAgentGetCurrentResult(agent);
         assertEquals("agent-1", result.agent().name());
         assertEquals("Agent One", result.agent().displayName());
@@ -499,7 +513,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentReloadResult_with_items() {
         var item = new AgentInfo("a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null, null, null,
-                null);
+                null, null);
         var result = new SessionAgentReloadResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("a", result.agents().get(0).name());
@@ -508,7 +522,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentSelectResult_nested() {
         var agent = new AgentInfo("selected", "Selected", "The selected agent", "/path/to/selected", null, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
         var result = new SessionAgentSelectResult(agent);
         assertEquals("selected", result.agent().name());
     }
@@ -806,7 +820,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void mcpDiscoverResult_nested() {
         var server = new DiscoveredMcpServer("discovered-server", DiscoveredMcpServerType.STDIO, McpServerSource.USER,
-                null, null, true);
+                null, null, null, true);
         var result = new McpDiscoverResult(List.of(server));
         assertEquals(1, result.servers().size());
         assertEquals("discovered-server", result.servers().get(0).name());

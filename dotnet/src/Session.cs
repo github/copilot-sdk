@@ -327,6 +327,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             Attachments = options.Attachments,
             Mode = options.Mode,
             AgentMode = options.AgentMode,
+            Source = options.Source,
             Traceparent = traceparent,
             Tracestate = tracestate,
             RequestHeaders = options.RequestHeaders,
@@ -2270,6 +2271,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public string? Mode { get; init; }
         [JsonPropertyName("agentMode")]
         public AgentMode? AgentMode { get; init; }
+        public MessageSource? Source { get; init; }
         public string? Traceparent { get; init; }
         public string? Tracestate { get; init; }
         public IDictionary<string, string>? RequestHeaders { get; init; }

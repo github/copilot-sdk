@@ -11,6 +11,43 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: "Node.js SDK Build and Validation"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./nodejs
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          cache: "npm"
+          cache-dependency-path: "./nodejs/package-lock.json"
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Run prettier check
+        run: npm run format:check
+      - name: Run ESLint
+        run: npm run lint
+      - name: Typecheck SDK
+        run: npm run typecheck
+      - name: Build SDK
+        run: npm run build
+      - name: Build and verify release packages
+        run: |
+          npm run pack:release
+          npm run verify:release-packages
+      - name: Install test harness dependencies
+        working-directory: ./test/harness
+        run: npm ci --ignore-scripts
+      - name: Run test harness tests
+        working-directory: ./test/harness
+        run: npm test
+
   test:
     name: "Node.js SDK Tests (${{ matrix.os }}, ${{ matrix.transport }})"
     if: github.event.repository.fork == false
@@ -27,8 +64,8 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           cache: "npm"
           cache-dependency-path: "./nodejs/package-lock.json"
@@ -36,33 +73,12 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      - name: Run prettier check
-        if: runner.os == 'Linux'
-        run: npm run format:check
-
-      - name: Run ESLint
-        run: npm run lint
-
-      - name: Typecheck SDK
-        run: npm run typecheck
-
       - name: Build SDK
         run: npm run build
-
-      - name: Build and verify release packages
-        if: runner.os == 'Linux' && matrix.transport == 'default'
-        run: |
-          npm run pack:release
-          npm run verify:release-packages
 
       - name: Install test harness dependencies
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
-
-      - name: Run test harness tests
-        if: runner.os == 'Linux' && matrix.transport == 'default'
-        working-directory: ./test/harness
-        run: npm test
 
       - name: Prepare Copilot CLI runtime
         run: |
@@ -82,3 +98,40 @@ jobs:
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
         run: npm test
+
+  # JavaScript actions use a glibc-linked Node runtime, so Alpine runs through Docker.
+  test-musl-arm64:
+    name: "Node.js SDK Tests (Alpine ARM64, ${{ matrix.transport }})"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: ["default", "inprocess"]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Run Alpine ARM64 tests (${{ matrix.transport }})
+        uses: ./.github/actions/run-alpine-tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        with:
+          image: node:22-alpine
+          workdir: /workspace/nodejs
+          transport: ${{ matrix.transport }}
+          command: |
+            npm ci --ignore-scripts
+            npm run build
+            (cd /workspace/test/harness && npm ci --ignore-scripts)
+
+            runtime_path="$(npm run --silent prepare:runtime -- --print-path)"
+            case "$runtime_path" in
+              */prebuilds/linuxmusl-arm64/copilot-runtime) ;;
+              *)
+                echo "Expected the linuxmusl-arm64 runtime bundle, got: $runtime_path" >&2
+                exit 1
+                ;;
+            esac
+            test -x "$runtime_path"
+            test -f "$(dirname "$runtime_path")/runtime.node"
+            export COPILOT_CLI_PATH="$runtime_path"
+            npm test

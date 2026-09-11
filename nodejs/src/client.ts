@@ -448,6 +448,8 @@ export class CopilotClient {
     private runtimePort: number | null = null;
     private actualHost: string = "localhost";
     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
+    /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
+    private startPromise: Promise<void> | null = null;
     private sessions: Map<string, CopilotSession> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
@@ -935,6 +937,20 @@ export class CopilotClient {
             return;
         }
 
+        // Concurrent callers share one in-progress start instead of each spawning a CLI.
+        if (this.startPromise) {
+            return this.startPromise;
+        }
+
+        this.startPromise = this.doStart();
+        try {
+            await this.startPromise;
+        } finally {
+            this.startPromise = null;
+        }
+    }
+
+    private async doStart(): Promise<void> {
         this.forceStopping = false;
         this.connectionClosed = false;
         this.processTransportError = null;
@@ -1689,6 +1705,7 @@ export class CopilotClient {
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
+                authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
                 customAgentsLocalOnly: config.customAgentsLocalOnly,
@@ -1970,6 +1987,7 @@ export class CopilotClient {
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
+                authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
                 customAgentsLocalOnly: config.customAgentsLocalOnly,

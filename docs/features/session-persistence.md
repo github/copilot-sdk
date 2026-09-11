@@ -243,6 +243,7 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 | `excludedTools` | Disable specific tools |
 | `provider` | Re-provide BYOK credentials (required for BYOK sessions) |
 | `capi.autoTier` | Override the persisted Auto routing preference |
+| `capi.enableWebSocketResponses` | Choose the Responses API transport for the resumed session |
 | `reasoningEffort` | Adjust reasoning effort level |
 | `streaming` | Enable/disable streaming responses |
 | `workingDirectory` | Change the working directory |
@@ -310,6 +311,20 @@ To select the `auto` model and its routing preference in a single call, stage th
 | Java | `new SetModelOptions().setModel("auto").setAutoTier(AutoTier.BALANCE)` | `new SetModelOptions().setModel("auto").setResetAutoTier(true)` |
 
 Node.js, Python, and Rust express all three states in a single value: Node.js and Python because `null`/`None` is distinguishable from an omitted argument, and Rust because `AutoTierPreference::Reset` is a distinct variant of the same option. Go, .NET, and Java have no way to distinguish "reset" from "unset" in one value, so they carry a separate reset flag. Omitting both always means "leave the current preference alone."
+
+### Responses transport on resume
+
+The optional `capi.enableWebSocketResponses` setting chooses the transport for the CAPI Responses API. It defaults to `true`, so the WebSocket transport is used whenever the selected model advertises the `ws:/responses` endpoint. Setting it to `false` falls back to the HTTP transport. In Python, use `capi={"enable_web_socket_responses": False}`.
+
+Supply it on the resume call when you need it. It is worth setting when WebSocket connections fail behind a proxy, and when a resumed session reports `400 input item ID does not belong to this connection`, which is specific to the WebSocket transport.
+
+```typescript
+const session = await client.resumeSession("user-123-task-456", {
+  capi: { enableWebSocketResponses: false },
+});
+```
+
+Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable, which has the opposite polarity.
 
 ### Example: changing model on resume
 

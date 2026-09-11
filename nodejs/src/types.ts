@@ -2741,6 +2741,12 @@ export interface SessionConfigBase {
     mcpOAuthTokenStorage?: "persistent" | "in-memory";
 
     /**
+     * OAuth Client ID Metadata Document URL identifying the host for MCP authorization.
+     * When unset, no host identity is supplied.
+     */
+    authClientIdMetadataUrl?: string;
+
+    /**
      * MCP server configurations for the session.
      * Keys are server names, values are server configurations.
      */
@@ -3317,11 +3323,23 @@ export interface ProviderModelConfig {
      */
     capabilities?: ModelCapabilitiesOverride;
 }
+/**
+ * Message provenance, independent of delivery mode.
+ */
+export type MessageSource = "user" | "system" | `agent-${string}`;
+
 export interface MessageOptions {
     /**
      * The prompt/message to send
      */
     prompt: string;
+
+    /**
+     * Optional message provenance. Omitted by default to preserve the runtime's
+     * default for user messages. Use "system" for application-generated context
+     * or `agent-${id}` for messages originating from an identified agent.
+     */
+    source?: MessageSource;
 
     /**
      * File, directory, selection, or blob attachments
@@ -3514,6 +3532,7 @@ export interface ModelCapabilities {
     };
     limits: {
         max_prompt_tokens?: number;
+        max_output_tokens?: number;
         max_context_window_tokens: number;
         vision?: {
             supported_media_types: string[];

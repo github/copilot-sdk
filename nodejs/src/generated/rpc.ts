@@ -1162,6 +1162,8 @@ export type FactoryRunStatus =
   | "completed"
   /** The run was interrupted while resource budget remained. */
   | "halted"
+  /** The current attempt stopped intentionally and the run may be resumed. */
+  | "paused"
   /** The run was cancelled before completion. */
   | "cancelled"
   /** The factory body failed or reached a cumulative resource ceiling. */
@@ -1180,6 +1182,10 @@ export type FactoryRunFailure =
        * Approved effective ceiling that was reached.
        */
       value: number;
+      /**
+       * Suggested larger ceiling when the runtime can derive one safely.
+       */
+      suggestedValue?: number;
       /**
        * Factory run identifier.
        */
@@ -1257,6 +1263,30 @@ export type FactoryRunFailureKind =
   /** The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no headroom remained for another subagent. */
   | "maxAiCredits";
 /**
+ * Durable metadata describing who initiated a factory pause.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseInfo".
+ */
+/** @experimental */
+export type FactoryPauseInfo =
+  | {
+      /**
+       * Factory pause initiator discriminator.
+       */
+      type: "user";
+    }
+  | {
+      /**
+       * Stable author-defined checkpoint key that initiated the pause.
+       */
+      key: string;
+      /**
+       * Factory pause initiator discriminator.
+       */
+      type: "checkpoint";
+    };
+/**
  * Kind of factory progress line.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1268,6 +1298,18 @@ export type FactoryLogLineKind =
   | "log"
   /** A named factory phase marker. */
   | "phase";
+/**
+ * Action the runtime selected for a durable factory pause checkpoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseCheckpointAction".
+ */
+/** @experimental */
+export type FactoryPauseCheckpointAction =
+  /** The checkpoint was committed by a prior paused attempt, so execution may continue. */
+  | "continue"
+  /** This attempt claimed the checkpoint and must cooperatively stop. */
+  | "pause";
 /**
  * Derived lifecycle state of a factory phase.
  *
@@ -3420,6 +3462,73 @@ export type SessionsOpenProgressStatus =
   /** The step has completed successfully. */
   | "complete";
 /**
+ * Client metadata outcome for one requested local session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionsClientMetadataEntry".
+ */
+/** @experimental */
+export type SessionsClientMetadataEntry =
+  | {
+      /**
+       * Requested session ID.
+       */
+      sessionId: string;
+      metadata: ClientMetadata;
+      /**
+       * Client metadata outcome discriminator.
+       */
+      status: "ok";
+    }
+  | {
+      /**
+       * Requested session ID.
+       */
+      sessionId: string;
+      /**
+       * Client metadata outcome discriminator.
+       */
+      status: "notFound";
+    }
+  | {
+      /**
+       * Requested session ID.
+       */
+      sessionId: string;
+      /**
+       * Client metadata outcome discriminator.
+       */
+      status: "corrupt";
+    }
+  | {
+      /**
+       * Requested session ID.
+       */
+      sessionId: string;
+      /**
+       * Client metadata outcome discriminator.
+       */
+      status: "unsupportedVersion";
+    }
+  | {
+      /**
+       * Requested session ID.
+       */
+      sessionId: string;
+      /**
+       * Filesystem or provider error code. Clients should not assume every provider uses operating-system error codes.
+       */
+      code: string;
+      /**
+       * Human-readable diagnostic message. Not stable for programmatic matching.
+       */
+      message: string;
+      /**
+       * Client metadata outcome discriminator.
+       */
+      status: "unavailable";
+    };
+/**
  * Authentication credentials accepted by session.gitHubAuth.setCredentials. Session-owned token-provider identities cannot be installed through this method.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3480,6 +3589,14 @@ export type SessionSettingsPredicateName =
   | "trivialChangeEnabledForTool"
   /** Whether trivial-change skip behavior is enabled for a specific tool. */
   | "trivialChangeSkipEnabledForTool";
+/**
+ * Ordered client metadata outcomes for the requested local sessions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionsGetClientMetadataResult".
+ */
+/** @experimental */
+export type SessionsGetClientMetadataResult = SessionsClientMetadataEntry[];
 /**
  * Which session sources to include. Defaults to `local` for backward compatibility.
  *
@@ -4845,6 +4962,10 @@ export interface AgentInfo {
    * Whether the agent can be selected directly by the user. Agents marked `false` are subagent-only.
    */
   userInvocable?: boolean;
+  /**
+   * Whether model-driven invocation is disabled for this agent.
+   */
+  disableModelInvocation?: boolean;
   /**
    * Allowed tool names for this agent. Empty array means none; omitted means inherit defaults.
    */
@@ -6326,6 +6447,16 @@ export interface CatalogUnavailableTransportError {
   message: string;
 }
 /**
+ * Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ClientMetadata".
+ */
+/** @experimental */
+export interface ClientMetadata {
+  [k: string]: string | undefined;
+}
+/**
  * Runtime-to-owner cancellation request for a client-owned task.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7248,10 +7379,72 @@ export interface DiscoveredMcpServer {
    * Plugin version that provided this server, when source is plugin.
    */
   sourcePluginVersion?: string;
+  effectiveSource?: McpSourceRef;
   /**
    * Whether the server is enabled (not in the disabled list)
    */
   enabled: boolean;
+}
+/**
+ * Canonical identity and location of the effective MCP server declaration. The declaration is uniquely addressed by this source id together with the discovered server name.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpSourceRef".
+ */
+/** @experimental */
+export interface McpSourceRef {
+  /**
+   * Open source-kind identifier. Known values include user, workspace, invocation, plugin, builtin, and device-registry.
+   */
+  kind: string;
+  /**
+   * Opaque stable identity for the configuration source. Clients must not parse this value.
+   */
+  id: string;
+  /**
+   * Open semantic editability identifier. Known values are editable and read-only.
+   */
+  editability: string;
+  file?: McpSourceFile;
+  plugin?: McpSourcePlugin;
+}
+/**
+ * Concrete configuration file containing an MCP server declaration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpSourceFile".
+ */
+/** @experimental */
+export interface McpSourceFile {
+  /**
+   * Canonical file URI for the configuration document
+   */
+  uri: string;
+  /**
+   * RFC 6901 JSON Pointer to the server declaration, when known
+   */
+  jsonPointer?: string;
+}
+/**
+ * Plugin identity associated with an MCP server declaration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpSourcePlugin".
+ */
+/** @experimental */
+export interface McpSourcePlugin {
+  /**
+   * Canonical plugin identity
+   */
+  id: string;
+  /**
+   * Human-readable plugin name, when available
+   */
+  name?: string;
+  /**
+   * Plugin version, when available
+   */
+  version?: string;
 }
 /**
  * Slash-prefixed command string to enqueue for FIFO processing.
@@ -7818,6 +8011,10 @@ export interface FactoryAbortRequest {
    * Factory run identifier.
    */
   runId: string;
+  /**
+   * Opaque token identifying the execution attempt to abort.
+   */
+  executionToken: string;
 }
 /**
  * Acknowledgement that a factory request was accepted.
@@ -7848,12 +8045,12 @@ export interface FactoryAgentOptions {
    */
   model?: string;
   /**
-   * Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+   * Optional reasoning effort override for the subagent.
    */
   reasoningEffort?: string;
   contextTier?: ContextTier;
   /**
-   * Optional custom agent name for the subagent. This field is accepted but not yet honored.
+   * Optional built-in or custom agent name whose definition configures the subagent.
    */
   agent?: string;
 }
@@ -8284,6 +8481,10 @@ export interface FactoryRunSummary {
    * Terminal run outcome, or null while nonterminal.
    */
   terminal: FactoryRunTerminal | null;
+  /**
+   * Whether the durable run state currently passes runtime resume eligibility checks.
+   */
+  canResume: boolean;
 }
 /**
  * Durable factory resource consumption.
@@ -8327,6 +8528,10 @@ export interface FactoryRunTerminal {
    * Prompt-safe preview of the completed result.
    */
   resultPreview?: string;
+  /**
+   * Pause initiator metadata, or null when the run did not pause.
+   */
+  pauseInfo: FactoryPauseInfo | null;
 }
 /**
  * One ordered factory progress line.
@@ -8366,6 +8571,45 @@ export interface FactoryLogRequest {
    * Ordered progress lines to append.
    */
   lines: FactoryLogLine[];
+}
+/**
+ * Parameters for an owned durable pause checkpoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseCheckpointRequest".
+ */
+/** @experimental */
+export interface FactoryPauseCheckpointRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  /**
+   * Opaque token identifying the execution attempt that reached the checkpoint.
+   */
+  executionToken: string;
+  /**
+   * Stable author-defined checkpoint key.
+   */
+  key: string;
+}
+
+/** @experimental */
+export interface FactoryPauseCheckpointResult {
+  action: FactoryPauseCheckpointAction;
+}
+/**
+ * Parameters for pausing a running factory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseRequest".
+ */
+/** @experimental */
+export interface FactoryPauseRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
 }
 /**
  * Durable lifecycle and timing for one factory phase.
@@ -8521,19 +8765,19 @@ export interface FactoryRunLimits {
   /**
    * Maximum number of factory subagents that may run concurrently.
    */
-  maxConcurrentSubagents?: number;
+  maxConcurrentSubagents?: number | null;
   /**
    * Maximum total number of factory subagents that may be admitted.
    */
-  maxTotalSubagents?: number;
+  maxTotalSubagents?: number | null;
   /**
    * Maximum accumulated active-execution time in seconds. Active execution includes the entire extension body, subprocess waits, queued-agent waits, and sleeps; time between resumed attempts is not counted.
    */
-  timeoutSeconds?: number;
+  timeoutSeconds?: number | null;
   /**
    * Maximum AI credits consumed by factory subagents and their descendants. The post-paid ceiling is soft: parallel turns can settle beyond it before the run stops.
    */
-  maxAiCredits?: number;
+  maxAiCredits?: number | null;
 }
 /**
  * Resolved persisted factory identity and resumed run envelope.
@@ -8583,6 +8827,7 @@ export interface FactoryRunResult {
    * Partial journal and progress snapshot for a halted, cancelled, or errored run.
    */
   snapshot?: JsonValue;
+  pauseInfo?: FactoryPauseInfo;
 }
 /**
  * Full factory run observability detail.
@@ -8659,6 +8904,10 @@ export interface FactoryRunDetail {
    * Terminal run outcome, or null while nonterminal.
    */
   terminal: FactoryRunTerminal | null;
+  /**
+   * Whether the durable run state currently passes runtime resume eligibility checks.
+   */
+  canResume: boolean;
   /**
    * Lifecycle and timing observations for each factory phase.
    */
@@ -10864,6 +11113,10 @@ export interface McpDiscoverRequest {
    * Working directory used as context for discovery (e.g., plugin resolution)
    */
   workingDirectory?: string;
+  /**
+   * Whether to include canonical effectiveSource metadata for each discovered server. Callers must opt in so protocol-3 clients retain the legacy closed response shape.
+   */
+  includeEffectiveSource?: boolean;
 }
 /**
  * MCP servers discovered from user, workspace, plugin, and built-in sources.
@@ -12546,6 +12799,31 @@ export interface MetadataSnapshotRemoteMetadataRepository {
   branch: string;
 }
 /**
+ * Atomic patch for client-owned session metadata. Operations apply in clear, remove, then set order. The resulting bag must satisfy the ClientMetadata entry and serialized-size limits. Local storage coordinates concurrent runtime processes; custom SessionFs providers must serialize writers that access the same session from multiple processes.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MetadataUpdateClientMetadataRequest".
+ */
+/** @experimental */
+export interface MetadataUpdateClientMetadataRequest {
+  /**
+   * Remove every existing client metadata entry before applying remove and set. Defaults to false.
+   */
+  clear?: boolean;
+  /**
+   * Case-sensitive keys to remove. Missing keys are ignored. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces.
+   *
+   * @maxItems 128
+   */
+  remove?: string[];
+  /**
+   * String entries to add or replace. Set wins when a key also appears in remove. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Each value may contain at most 16 KiB of UTF-8 data.
+   */
+  set?: {
+    [k: string]: string | undefined;
+  };
+}
+/**
  * Copilot model metadata, including identifier, display name, capabilities, policy, billing, reasoning efforts, and picker categories.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -13008,6 +13286,44 @@ export interface ModelPickerSettingsContext {
    * Environment variables consulted while resolving model-picker settings.
    */
   environment: {};
+}
+/**
+ * Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are intersected with repository `.github/allowed_models.txt` policy; provider-qualified IDs remain exempt from repository-only policy but are restricted by this host list. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected. Validation and pre-selection fallback failures preserve the previous restriction. Failures after a fallback selection commits retain the new restriction and selected model; callers should inspect current session state after such an error.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelSetAllowedModelsRequest".
+ */
+/** @experimental */
+export interface ModelSetAllowedModelsRequest {
+  /**
+   * Exact model IDs to permit, or null to clear the host restriction.
+   */
+  allowedModels?: string[] | null;
+}
+/**
+ * The applied host allowlist and effective session model policy after intersection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelSetAllowedModelsResult".
+ */
+/** @experimental */
+export interface ModelSetAllowedModelsResult {
+  /**
+   * Normalized host allowlist. Omitted when the host restriction was cleared, or when a relay client does not return the host policy.
+   */
+  allowedModels?: string[];
+  /**
+   * Effective exact IDs or repository policy patterns after applying the host restriction. Omitted by relay clients that do not return the host policy.
+   */
+  effectiveAllowedModels?: string[];
+  /**
+   * Effective deterministic fallback model, when the policy defines one.
+   */
+  fallbackModel?: string;
+  /**
+   * Selected session model after reconciling a now-disallowed concrete selection.
+   */
+  modelId?: string;
 }
 /**
  * Reasoning effort level to apply to the currently selected model.
@@ -15174,7 +15490,7 @@ export interface PluginsBuiltinSetRequest {
   paths: string[];
 }
 /**
- * Plugin names (or specs) to disable.
+ * Plugin names (or specs) to disable, plus the optional working directory the repository-controlled guard is evaluated against.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PluginsDisableRequest".
@@ -15185,9 +15501,13 @@ export interface PluginsDisableRequest {
    * Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.
    */
   names: string[];
+  /**
+   * Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.
+   */
+  workingDirectory?: string;
 }
 /**
- * Plugin names (or specs) to enable.
+ * Plugin names (or specs) to enable, plus the optional working directory the repository-controlled guard is evaluated against.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PluginsEnableRequest".
@@ -15198,6 +15518,10 @@ export interface PluginsEnableRequest {
    * Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.
    */
   names: string[];
+  /**
+   * Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.
+   */
+  workingDirectory?: string;
 }
 /**
  * Plugin source and optional working directory for relative-path resolution.
@@ -17131,6 +17455,37 @@ export interface SandboxConfigAuth {
   gh?: boolean;
 }
 /**
+ * Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxDisableForSessionRequest".
+ */
+/** @experimental */
+export interface SandboxDisableForSessionRequest {
+  /**
+   * Identifier of the exact pending sandbox-bypass permission request that authorized the session opt-out.
+   */
+  requestId: string;
+  decisionContext?: PermissionDecisionContext;
+}
+/**
+ * Result of attempting to disable sandboxing for the current session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxDisableForSessionResult".
+ */
+/** @experimental */
+export interface SandboxDisableForSessionResult {
+  /**
+   * Whether this call resolved the pending request and applied the session opt-out.
+   */
+  success: boolean;
+  /**
+   * The authoritative sandbox enabled state after the operation.
+   */
+  enabled: boolean;
+}
+/**
  * Managed sandbox enforcement state for a session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17809,7 +18164,7 @@ export interface SessionEnrichMetadataResult {
   sessions: LocalSessionMetadataValue[];
 }
 /**
- * File path, content to append, and optional mode for the client-provided session filesystem.
+ * File path, content to append, and optional mode for the client-provided session filesystem. Implementations create parent directories as needed.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsAppendFileRequest".
@@ -19817,6 +20172,27 @@ export interface SessionsGetBoardEntryCountResult {
   count?: number;
 }
 /**
+ * Bounded batch request for client-owned metadata from persisted local sessions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionsGetClientMetadataRequest".
+ */
+/** @experimental */
+export interface SessionsGetClientMetadataRequest {
+  /**
+   * Session IDs to inspect. Results preserve this order.
+   *
+   * @maxItems 1000
+   */
+  sessionIds: string[];
+  /**
+   * Case-sensitive keys to project from each valid bag. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Omit to return every entry.
+   *
+   * @maxItems 128
+   */
+  keys?: string[];
+}
+/**
  * Session ID whose event-log file path to compute.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -21118,7 +21494,7 @@ export interface SlashCommandSetPlanModelResult {
   runtimeSettingsChanged?: boolean;
 }
 /**
- * Subagent model, reasoning effort, and context tier settings
+ * Subagent model, reasoning effort, context tier, and auto-invocation settings
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SubagentSettingsEntry".
@@ -21135,6 +21511,10 @@ export interface SubagentSettingsEntry {
    */
   effortLevel?: string;
   contextTier?: SubagentSettingsEntryContextTier;
+  /**
+   * Whether this agent's runtime-defined proactive invocation prompting is enabled, if supported. Currently consumed by the built-in rubber-duck agent.
+   */
+  autoInvoke?: boolean;
 }
 /**
  * Tracked background agent task metadata, including IDs, status, timing, agent type, prompt, model, result, and latest response.
@@ -23579,6 +23959,11 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
 }
 
 /** @experimental */
+export interface SessionFactoryPauseAtCheckpointResult {
+  action: FactoryPauseCheckpointAction;
+}
+
+/** @experimental */
 export interface SessionModelListRequest {
   /**
    * If true, bypasses the per-session model list cache and re-fetches from CAPI.
@@ -23981,14 +24366,14 @@ export function createServerRpc(connection: MessageConnection) {
             /**
              * Enables installed plugins for new sessions.
              *
-             * @param params Plugin names (or specs) to enable.
+             * @param params Plugin names (or specs) to enable, plus the optional working directory the repository-controlled guard is evaluated against.
              */
             enable: async (params: PluginsEnableRequest): Promise<void> =>
                 connection.sendRequest("plugins.enable", params),
             /**
              * Disables installed plugins for new sessions.
              *
-             * @param params Plugin names (or specs) to disable.
+             * @param params Plugin names (or specs) to disable, plus the optional working directory the repository-controlled guard is evaluated against.
              */
             disable: async (params: PluginsDisableRequest): Promise<void> =>
                 connection.sendRequest("plugins.disable", params),
@@ -24267,6 +24652,15 @@ export function createServerRpc(connection: MessageConnection) {
              */
             list: async (params: SessionsListRequest): Promise<SessionList> =>
                 connection.sendRequest("sessions.list", params),
+            /**
+             * Reads client-owned metadata for multiple persisted local sessions without opening them. Results preserve request order and report missing, corrupt, unsupported, or temporarily unavailable sessions independently.
+             *
+             * @param params Bounded batch request for client-owned metadata from persisted local sessions.
+             *
+             * @returns Ordered client metadata outcomes for the requested local sessions.
+             */
+            getClientMetadata: async (params: SessionsGetClientMetadataRequest): Promise<SessionsGetClientMetadataResult> =>
+                connection.sendRequest("sessions.getClientMetadata", params),
             /**
              * Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.
              *
@@ -24592,6 +24986,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             getEnforcementStatus: async (): Promise<SandboxEnforcementStatus> =>
                 connection.sendRequest("session.sandbox.getEnforcementStatus", { sessionId }),
+            /**
+             * Disables sandboxing for the remainder of the current session and approves the referenced pending sandbox-bypass permission request. The request is rejected unless the exact request is still pending and the effective sandbox policy permits bypass.
+             *
+             * @param params Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
+             *
+             * @returns Result of attempting to disable sandboxing for the current session.
+             */
+            disableForSession: async (params: SandboxDisableForSessionRequest): Promise<SandboxDisableForSessionResult> =>
+                connection.sendRequest("session.sandbox.disableForSession", { sessionId, ...params }),
         },
         /**
          * Aborts the current agent turn.
@@ -24775,6 +25178,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             cancel: async (params: FactoryCancelRequest): Promise<FactoryRunResult> =>
                 connection.sendRequest("session.factory.cancel", { sessionId, ...params }),
             /**
+             * Pauses a running factory and returns its settled run envelope.
+             *
+             * @param params Parameters for pausing a running factory.
+             *
+             * @returns Complete current or terminal factory run envelope.
+             */
+            pause: async (params: FactoryPauseRequest): Promise<FactoryRunResult> =>
+                connection.sendRequest("session.factory.pause", { sessionId, ...params }),
+            /**
              * Records a batch of ordered factory progress lines.
              *
              * @param params Parameters for recording factory progress.
@@ -24841,6 +25253,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             switchAutoTier: async (params: ModelSwitchAutoTierRequest): Promise<ModelSwitchAutoTierResult> =>
                 connection.sendRequest("session.model.switchAutoTier", { sessionId, ...params }),
+            /**
+             * Replaces or clears the host-supplied model allowlist for a running session.
+             *
+             * @param params Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are intersected with repository `.github/allowed_models.txt` policy; provider-qualified IDs remain exempt from repository-only policy but are restricted by this host list. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected. Validation and pre-selection fallback failures preserve the previous restriction. Failures after a fallback selection commits retain the new restriction and selected model; callers should inspect current session state after such an error.
+             *
+             * @returns The applied host allowlist and effective session model policy after intersection.
+             */
+            setAllowedModels: async (params: ModelSetAllowedModelsRequest): Promise<ModelSetAllowedModelsResult> =>
+                connection.sendRequest("session.model.setAllowedModels", { sessionId, ...params }),
             /**
              * Updates the session's reasoning effort without changing the selected model.
              *
@@ -25733,7 +26154,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             set: async (params: ToolsSetRequest): Promise<ToolsSetResult> =>
                 connection.sendRequest("session.tools.set", { sessionId, ...params }),
             /**
-             * Updates the current session's live subagent settings after user settings change. The persisted user settings remain the source of truth for future sessions.
+             * Sets the current session's live subagent settings override, which takes precedence over persisted user settings until cleared. Persisted user settings remain the source of truth for future sessions.
              *
              * @param params Subagent settings to apply to the current session
              *
@@ -26125,6 +26546,22 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             snapshot: async (): Promise<SessionMetadataSnapshot> =>
                 connection.sendRequest("session.metadata.snapshot", { sessionId }),
+            /**
+             * Returns the client-owned string metadata persisted with this local session. The metadata is not included in model context, events, telemetry, snapshots, or remote exports.
+             *
+             * @returns Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.
+             */
+            getClientMetadata: async (): Promise<ClientMetadata> =>
+                connection.sendRequest("session.metadata.getClientMetadata", { sessionId }),
+            /**
+             * Atomically patches the client-owned string metadata persisted with this local session and returns the committed bag.
+             *
+             * @param params Atomic patch for client-owned session metadata. Operations apply in clear, remove, then set order. The resulting bag must satisfy the ClientMetadata entry and serialized-size limits. Local storage coordinates concurrent runtime processes; custom SessionFs providers must serialize writers that access the same session from multiple processes.
+             *
+             * @returns Client-owned, case-sensitive string metadata persisted with a local session. Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may contain at most 64 KiB. The runtime stores but never interprets these values.
+             */
+            updateClientMetadata: async (params: MetadataUpdateClientMetadataRequest): Promise<ClientMetadata> =>
+                connection.sendRequest("session.metadata.updateClientMetadata", { sessionId, ...params }),
             /**
              * Reports whether the local session is currently processing user/agent messages.
              *
@@ -26647,6 +27084,13 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
              */
             resumeFromTool: async (params: FactoryToolResumeRequest): Promise<FactoryResumeResult> =>
                 connection.sendRequest("session.factory.resumeFromTool", { sessionId, ...params }),
+            /**
+             * Atomically pauses an owned factory attempt at a durable checkpoint.
+             *
+             * @param params Parameters for an owned durable pause checkpoint.
+             */
+            pauseAtCheckpoint: async (params: FactoryPauseCheckpointRequest): Promise<SessionFactoryPauseAtCheckpointResult> =>
+                connection.sendRequest("session.factory.pauseAtCheckpoint", { sessionId, ...params }),
         },
         /** @experimental */
         model: {
@@ -26919,9 +27363,9 @@ export interface SessionFsHandler {
      */
     writeFile(params: SessionFsWriteFileRequest): Promise<SessionFsError | undefined>;
     /**
-     * Appends content to a file in the client-provided session filesystem.
+     * Appends content to a file in the client-provided session filesystem, creating parent directories as needed.
      *
-     * @param params File path, content to append, and optional mode for the client-provided session filesystem.
+     * @param params File path, content to append, and optional mode for the client-provided session filesystem. Implementations create parent directories as needed.
      *
      * @returns Describes a filesystem error.
      */

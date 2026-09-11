@@ -34,14 +34,14 @@ runtime.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.13-preview.5</version>
+    <version>1.0.13</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.13-preview.5'
+implementation 'com.github:copilot-sdk-java:1.0.13'
 ```
 
 ### Snapshot builds
@@ -62,14 +62,14 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.14-preview.5-SNAPSHOT</version>
+    <version>1.0.14-SNAPSHOT</version>
 </dependency>
 ```
 
 #### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.14-preview.5-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.14-SNAPSHOT'
 ```
 
 ## In-process mode (experimental)
@@ -203,6 +203,33 @@ Initial acquisition runs during session creation or resume. Cancellation,
 provider errors, and invalid token responses reject that operation instead of
 falling back to ambient authentication. Idle sessions refresh only before their
 next credential-consuming operation; there is no background refresh timer.
+
+## Message source
+
+Use `MessageSource.SYSTEM` for application-generated system context and
+`MessageSource.agent(id)` for messages from an identified agent:
+
+```java
+import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.MessageSource;
+
+session.send(new MessageOptions()
+    .setPrompt("The background build completed successfully.")
+    .setSource(MessageSource.SYSTEM)).get();
+
+session.sendAndWait(new MessageOptions()
+    .setPrompt("The review found no blocking issues.")
+    .setSource(MessageSource.agent("reviewer"))).get();
+```
+
+Leave `source` unset to omit it from the request and retain the runtime's default
+user-input behavior, or set `MessageSource.USER` explicitly. Source is independent
+of delivery mode (`enqueue` or `immediate`) and does not configure the session's
+system prompt.
+
+Agent sources serialize as `agent-<id>`. Pass the agent ID without adding a
+prefix. The SDK preserves its case and whitespace and rejects null IDs.
+`sendAndWait` accepts the same source values as `send`.
 
 ## Permission Handling
 
@@ -550,9 +577,6 @@ Requires JDK 25 or later and a supported [Node.js version](../nodejs/README.md#p
 git clone https://github.com/github/copilot-sdk.git
 cd copilot-sdk/java
 
-# Enable git hooks for code formatting
-git config core.hooksPath .githooks
-
 # Build and test with JDK 25
 mvn test-compile jar:jar
 mvn verify -Dskip.test.harness=true
@@ -561,6 +585,22 @@ mvn verify -Dskip.test.harness=true
 # Run the JDK 25 built jar with JDK 17 JVM for tests. Do not re-compile the jar.
 mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 ```
+
+#### Formatting and linting
+
+From the repository root, run `just format-java` to apply formatting and `just lint-java` to check formatting and Javadoc. These recipes are also included in `just format` and `just lint`.
+
+Without `just`, run the equivalent Maven commands from `java/`:
+
+```bash
+# Apply formatting
+mvn -pl sdk spotless:apply
+
+# Check formatting and Javadoc
+mvn -pl sdk spotless:check checkstyle:check
+```
+
+CI enforces both checks. Spotless runs explicitly in CI; `mvn verify` alone does not check formatting.
 
 #### Development Setup for native embedding
 
@@ -623,4 +663,4 @@ Each classifier JAR includes `runtime.node`, `platform.properties`, and `copilot
 
 ## License
 
-MIT — see [LICENSE](sdk/LICENSE) for details.
+MIT — see [LICENSE](../LICENSE) for details.

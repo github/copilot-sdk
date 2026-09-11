@@ -10,3 +10,13 @@
 
 pub use crate::generated::api_types::*;
 pub use crate::generated::rpc::*;
+
+impl SendRequest {
+    /// Set the message provenance without changing other request options.
+    ///
+    /// When this is not called, the source field is omitted by default.
+    pub fn with_source(mut self, source: crate::MessageSource) -> Self {
+        self.source = Some(source.to_string());
+        self
+    }
+}

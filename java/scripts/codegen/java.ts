@@ -1401,13 +1401,26 @@ function rpcMethodToClassName(rpcMethod: string): string {
     return rpcMethod.split(/[._-]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
 }
 
+function schemaAllowsNull(schema: JSONSchema7): boolean {
+    if (schema.type === "null" || (Array.isArray(schema.type) && schema.type.includes("null"))) {
+        return true;
+    }
+    if (schema.const === null || schema.enum?.includes(null)) {
+        return true;
+    }
+    return [...(schema.anyOf || []), ...(schema.oneOf || [])].some(
+        (variant) => typeof variant === "object" && schemaAllowsNull(variant)
+    );
+}
+
 /** Generate a Java record for a JSON Schema object type. Returns the class content. */
 function generateRpcClass(
     className: string,
     schema: JSONSchema7,
     _nestedTypes: Map<string, { code: string }>,
     _packageName: string,
-    visibility: "public" | "internal" = "public"
+    visibility: "public" | "internal" = "public",
+    preserveRequiredNulls = false
 ): { code: string; imports: Set<string> } {
     const imports = new Set<string>();
     const localNestedTypes = new Map<string, JavaClassDef>();
@@ -1415,13 +1428,20 @@ function generateRpcClass(
     const visModifier = visibility === "public" ? "public " : "";
 
     const properties = Object.entries(schema.properties || {});
+    const required = new Set(schema.required || []);
     const fields = properties.flatMap(([propName, propSchema]) => {
         if (typeof propSchema !== "object") return [];
         const prop = propSchema as JSONSchema7;
         // Record components are always boxed (nullable by design).
         const result = schemaTypeToJava(prop, false, className, propName, localNestedTypes);
         for (const imp of result.imports) imports.add(imp);
-        return [{ propName, javaName: toCamelCase(propName), javaType: result.javaType, description: prop.description }];
+        return [{
+            propName,
+            javaName: toCamelCase(propName),
+            javaType: result.javaType,
+            description: prop.description,
+            includeNull: preserveRequiredNulls && required.has(propName) && schemaAllowsNull(prop),
+        }];
     });
 
     lines.push(`@JsonInclude(JsonInclude.Include.NON_NULL)`);
@@ -1435,6 +1455,9 @@ function generateRpcClass(
             const comma = i < fields.length - 1 ? "," : "";
             if (f.description) {
                 lines.push(`    /** ${f.description} */`);
+            }
+            if (f.includeNull) {
+                lines.push(`    @JsonInclude(JsonInclude.Include.ALWAYS)`);
             }
             lines.push(`    @JsonProperty("${f.propName}") ${f.javaType} ${f.javaName}${comma}`);
         }
@@ -1604,7 +1627,7 @@ async function generateRpcDataClass(
     deprecated?: boolean
 ): Promise<string> {
     const nestedTypes = new Map<string, { code: string }>();
-    const { code, imports } = generateRpcClass(className, schema, nestedTypes, packageName);
+    const { code, imports } = generateRpcClass(className, schema, nestedTypes, packageName, "public", kind === "params");
 
     const lines: string[] = [];
     lines.push(COPYRIGHT);

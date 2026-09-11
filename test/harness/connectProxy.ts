@@ -49,6 +49,8 @@ export class ConnectProxy {
   private passthroughDomains: Set<string>;
   private onBlockedConnection?: (host: string, port: string) => void;
   private openSockets = new Set<net.Socket>();
+  private stopping = false;
+  private stopPromise?: Promise<void>;
 
   constructor(
     private handler: RequestHandler,
@@ -86,6 +88,8 @@ export class ConnectProxy {
   }
 
   async start(): Promise<void> {
+    this.stopping = false;
+    this.stopPromise = undefined;
     this.ca = generateCA();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-proxy-ca-"));
     fs.writeFileSync(path.join(tmpDir, "test-ca.pem"), this.ca.certPem);
@@ -137,35 +141,53 @@ export class ConnectProxy {
   }
 
   async stop(): Promise<void> {
-    for (const socket of this.openSockets) {
-      socket.destroy();
+    if (this.stopPromise) {
+      return this.stopPromise;
     }
-    this.openSockets.clear();
 
-    const closeServer = (server?: http.Server) =>
-      new Promise<void>((resolve) => {
-        if (!server) {
-          resolve();
-          return;
-        }
-        server.close(() => resolve());
-      });
+    this.stopping = true;
+    const proxyServer = this.proxyServer;
+    const internalServer = this.internalServer;
+    const caFilePath = this._caFilePath;
+    this.proxyServer = undefined;
+    this.internalServer = undefined;
+    this._caFilePath = undefined;
+    this._proxyUrl = undefined;
 
-    await Promise.all([
-      closeServer(this.proxyServer),
-      closeServer(this.internalServer),
-    ]);
-
-    if (this._caFilePath) {
-      try {
-        fs.rmSync(path.dirname(this._caFilePath), {
-          recursive: true,
-          force: true,
+    this.stopPromise = (async () => {
+      const closeServer = (server?: http.Server) =>
+        new Promise<void>((resolve) => {
+          if (!server) {
+            resolve();
+            return;
+          }
+          server.close(() => resolve());
+          server.closeAllConnections();
         });
-      } catch {
-        // Best-effort cleanup.
+
+      for (const socket of this.openSockets) {
+        socket.destroy();
       }
-    }
+      this.openSockets.clear();
+
+      await Promise.all([
+        closeServer(proxyServer),
+        closeServer(internalServer),
+      ]);
+
+      if (caFilePath) {
+        try {
+          fs.rmSync(path.dirname(caFilePath), {
+            recursive: true,
+            force: true,
+          });
+        } catch {
+          // Best-effort cleanup.
+        }
+      }
+    })();
+
+    return this.stopPromise;
   }
 
   private handleConnect(
@@ -173,6 +195,11 @@ export class ConnectProxy {
     clientSocket: net.Socket,
     head: Buffer,
   ) {
+    if (this.stopping) {
+      clientSocket.end("HTTP/1.1 503 Proxy Stopping\r\n\r\n");
+      return;
+    }
+
     const { host, port } = parseConnectTarget(req.url ?? "");
     debugLog(`CONNECT ${host}:${port}`);
     if (!host) {
@@ -244,6 +271,12 @@ export class ConnectProxy {
     req: http.IncomingMessage,
     res: http.ServerResponse,
   ) {
+    if (this.stopping) {
+      res.writeHead(503, { "content-type": "text/plain" });
+      res.end("E2E proxy: stopping");
+      return;
+    }
+
     let targetHost: string;
     try {
       const url = new URL(req.url ?? "");

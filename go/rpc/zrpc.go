@@ -176,6 +176,8 @@ type AgentGetCurrentResult struct {
 type AgentInfo struct {
 	// Description of the agent's purpose
 	Description string `json:"description"`
+	// Whether model-driven invocation is disabled for this agent.
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
 	// Human-readable display name
 	DisplayName string `json:"displayName"`
 	// Stable identifier for selection. For most agents this is the same as `name`; for
@@ -1414,7 +1416,8 @@ type CapiSessionOptions struct {
 	// resume, the runtime restores the last committed preference. On resident resume, a
 	// different value requests a safe switch after resume succeeds and cannot change an
 	// in-flight turn. Successful switches are persisted for later cold resume. When no
-	// preference is supplied or restored, CAPI default routing is used.
+	// preference is supplied or restored, CAPI default routing is used. `fast` is an
+	// integrator-only latency preset, not a first-party GitHub Copilot product preference.
 	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
 	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
@@ -1895,6 +1898,14 @@ func (CatalogUnsupportedKindError) catalogSearchResult() {}
 func (CatalogUnsupportedKindError) Kind() CatalogSearchResultKind {
 	return CatalogSearchResultKindUnsupportedKind
 }
+
+// Client-owned, case-sensitive string metadata persisted with a local session. Clients
+// should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8 bytes; keys
+// under `copilot/` and `github/` are reserved. Values may contain at most 16 KiB of UTF-8
+// data. A bag may contain at most 128 entries and its serialized sidecar may contain at
+// most 64 KiB. The runtime stores but never interprets these values.
+// Experimental: ClientMetadata is part of an experimental API and may change or be removed.
+type ClientMetadata map[string]string
 
 // Runtime-to-owner cancellation request for a client-owned task.
 // Experimental: ClientTaskCancelRequest is part of an experimental API and may change or be
@@ -2706,6 +2717,8 @@ type DiscoveredHook struct {
 // Experimental: DiscoveredMCPServer is part of an experimental API and may change or be
 // removed.
 type DiscoveredMCPServer struct {
+	// Canonical identity and location of the effective server declaration.
+	EffectiveSource *MCPSourceRef `json:"effectiveSource,omitempty"`
 	// Whether the server is enabled (not in the disabled list)
 	Enabled bool `json:"enabled"`
 	// Server name (config key)
@@ -3219,6 +3232,8 @@ type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
 // Experimental: FactoryAbortRequest is part of an experimental API and may change or be
 // removed.
 type FactoryAbortRequest struct {
+	// Opaque token identifying the execution attempt to abort.
+	ExecutionToken string `json:"executionToken"`
 	// Factory run identifier.
 	RunID string `json:"runId"`
 	// Target session identifier
@@ -3235,15 +3250,15 @@ type FactoryAckResult struct {
 // Experimental: FactoryAgentOptions is part of an experimental API and may change or be
 // removed.
 type FactoryAgentOptions struct {
-	// Optional custom agent name for the subagent. This field is accepted but not yet honored.
+	// Optional built-in or custom agent name whose definition configures the subagent.
 	Agent *string `json:"agent,omitempty"`
-	// Optional context tier for the subagent. This field is accepted but not yet honored.
+	// Optional context tier override for the subagent.
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Optional label distinguishing otherwise identical memoized agent calls.
 	Label *string `json:"label,omitempty"`
 	// Optional model identifier for the subagent.
 	Model *string `json:"model,omitempty"`
-	// Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+	// Optional reasoning effort override for the subagent.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Optional JSON Schema for structured agent output.
 	Schema any `json:"schema,omitempty"`
@@ -3472,6 +3487,69 @@ type FactoryLogRequest struct {
 	RunID string `json:"runId"`
 }
 
+// Parameters for an owned durable pause checkpoint.
+// Experimental: FactoryPauseCheckpointRequest is part of an experimental API and may change
+// or be removed.
+type FactoryPauseCheckpointRequest struct {
+	// Opaque token identifying the execution attempt that reached the checkpoint.
+	ExecutionToken string `json:"executionToken"`
+	// Stable author-defined checkpoint key.
+	Key string `json:"key"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
+// Experimental: FactoryPauseCheckpointResult is part of an experimental API and may change
+// or be removed.
+type FactoryPauseCheckpointResult struct {
+	// Whether this execution attempt must pause or may continue.
+	Action FactoryPauseCheckpointAction `json:"action"`
+}
+
+// Durable metadata describing who initiated a factory pause.
+// Experimental: FactoryPauseInfo is part of an experimental API and may change or be
+// removed.
+type FactoryPauseInfo interface {
+	factoryPauseInfo()
+	Type() FactoryPauseInfoType
+}
+
+type RawFactoryPauseInfoData struct {
+	Discriminator FactoryPauseInfoType
+	Raw           json.RawMessage
+}
+
+func (RawFactoryPauseInfoData) factoryPauseInfo() {}
+func (r RawFactoryPauseInfoData) Type() FactoryPauseInfoType {
+	return r.Discriminator
+}
+
+type FactoryPauseInfoCheckpoint struct {
+	// Stable author-defined checkpoint key that initiated the pause.
+	Key string `json:"key"`
+}
+
+func (FactoryPauseInfoCheckpoint) factoryPauseInfo() {}
+func (FactoryPauseInfoCheckpoint) Type() FactoryPauseInfoType {
+	return FactoryPauseInfoTypeCheckpoint
+}
+
+type FactoryPauseInfoUser struct {
+}
+
+func (FactoryPauseInfoUser) factoryPauseInfo() {}
+func (FactoryPauseInfoUser) Type() FactoryPauseInfoType {
+	return FactoryPauseInfoTypeUser
+}
+
+// Parameters for pausing a running factory.
+// Experimental: FactoryPauseRequest is part of an experimental API and may change or be
+// removed.
+type FactoryPauseRequest struct {
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
 // Durable lifecycle and timing for one factory phase.
 // Experimental: FactoryPhaseObservation is part of an experimental API and may change or be
 // removed.
@@ -3589,6 +3667,8 @@ type FactoryRunDetail struct {
 	Agents []FactoryAgentSummary `json:"agents"`
 	// Approved effective resource ceilings, or null until approved.
 	Approved *FactoryDeclaredLimits `json:"approved"`
+	// Whether the durable run state currently passes runtime resume eligibility checks.
+	CanResume bool `json:"canResume"`
 	// Epoch milliseconds when the run completed, or null while nonterminal.
 	CompletedAt *int64 `json:"completedAt"`
 	// Durable resource consumption.
@@ -3679,6 +3759,8 @@ type FactoryRunFailureFactoryLimitReached struct {
 	Kind FactoryRunFailureKind `json:"kind"`
 	// Factory run identifier.
 	RunID string `json:"runId"`
+	// Suggested larger ceiling when the runtime can derive one safely.
+	SuggestedValue *float64 `json:"suggestedValue,omitempty"`
 	// Approved effective ceiling that was reached.
 	Value float64 `json:"value"`
 }
@@ -3752,6 +3834,8 @@ type FactoryRunResult struct {
 	Error *string `json:"error,omitempty"`
 	// Machine-readable failure details for a halted or errored run.
 	Failure FactoryRunFailure `json:"failure,omitempty"`
+	// Structured pause initiator metadata for a paused attempt.
+	PauseInfo FactoryPauseInfo `json:"pauseInfo,omitempty"`
 	// Reason for a halted or cancelled run.
 	Reason *string `json:"reason,omitempty"`
 	// Completed factory result.
@@ -3772,6 +3856,8 @@ type FactoryRunSummary struct {
 	ActiveSegmentStartedAt *int64 `json:"activeSegmentStartedAt"`
 	// Approved effective resource ceilings, or null until approved.
 	Approved *FactoryDeclaredLimits `json:"approved"`
+	// Whether the durable run state currently passes runtime resume eligibility checks.
+	CanResume bool `json:"canResume"`
 	// Epoch milliseconds when the run completed, or null while nonterminal.
 	CompletedAt *int64 `json:"completedAt"`
 	// Durable resource consumption.
@@ -3816,6 +3902,8 @@ type FactoryRunTerminal struct {
 	Error *string `json:"error,omitempty"`
 	// Machine-readable terminal failure.
 	Failure FactoryRunFailure `json:"failure,omitempty"`
+	// Pause initiator metadata, or null when the run did not pause.
+	PauseInfo FactoryPauseInfo `json:"pauseInfo"`
 	// Human-readable terminal reason.
 	Reason *string `json:"reason,omitempty"`
 	// Prompt-safe preview of the completed result.
@@ -5268,6 +5356,9 @@ type MCPDisableRequest struct {
 // Experimental: MCPDiscoverRequest is part of an experimental API and may change or be
 // removed.
 type MCPDiscoverRequest struct {
+	// Whether to include canonical effectiveSource metadata for each discovered server. Callers
+	// must opt in so protocol-3 clients retain the legacy closed response shape.
+	IncludeEffectiveSource *bool `json:"includeEffectiveSource,omitempty"`
 	// Working directory used as context for discovery (e.g., plugin resolution)
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
@@ -6778,6 +6869,43 @@ type MCPSetEnvValueModeResult struct {
 	Mode MCPSetEnvValueModeDetails `json:"mode"`
 }
 
+// Concrete configuration file containing an MCP server declaration.
+// Experimental: MCPSourceFile is part of an experimental API and may change or be removed.
+type MCPSourceFile struct {
+	// RFC 6901 JSON Pointer to the server declaration, when known
+	JSONPointer *string `json:"jsonPointer,omitempty"`
+	// Canonical file URI for the configuration document
+	URI string `json:"uri"`
+}
+
+// Plugin identity associated with an MCP server declaration.
+// Experimental: MCPSourcePlugin is part of an experimental API and may change or be removed.
+type MCPSourcePlugin struct {
+	// Canonical plugin identity
+	ID string `json:"id"`
+	// Human-readable plugin name, when available
+	Name *string `json:"name,omitempty"`
+	// Plugin version, when available
+	Version *string `json:"version,omitempty"`
+}
+
+// Canonical identity and location of the effective MCP server declaration. The declaration
+// is uniquely addressed by this source id together with the discovered server name.
+// Experimental: MCPSourceRef is part of an experimental API and may change or be removed.
+type MCPSourceRef struct {
+	// Open semantic editability identifier. Known values are editable and read-only.
+	Editability string `json:"editability"`
+	// Configuration file location, when the declaration is file-backed.
+	File *MCPSourceFile `json:"file,omitempty"`
+	// Opaque stable identity for the configuration source. Clients must not parse this value.
+	ID string `json:"id"`
+	// Open source-kind identifier. Known values include user, workspace, invocation, plugin,
+	// builtin, and device-registry.
+	Kind string `json:"kind"`
+	// Plugin identity, when the declaration is plugin-provided.
+	Plugin *MCPSourcePlugin `json:"plugin,omitempty"`
+}
+
 // Server name and optional configuration for an individual MCP server start. Omit `config`
 // for a config-free start-by-name of an already-configured server.
 // Experimental: MCPStartServerRequest is part of an experimental API and may change or be
@@ -7019,6 +7147,25 @@ type MetadataSnapshotRemoteMetadataRepository struct {
 	Name string `json:"name"`
 	// The GitHub owner (user or organization) of the target repository.
 	Owner string `json:"owner"`
+}
+
+// Atomic patch for client-owned session metadata. Operations apply in clear, remove, then
+// set order. The resulting bag must satisfy the ClientMetadata entry and serialized-size
+// limits. Local storage coordinates concurrent runtime processes; custom SessionFs
+// providers must serialize writers that access the same session from multiple processes.
+// Experimental: MetadataUpdateClientMetadataRequest is part of an experimental API and may
+// change or be removed.
+type MetadataUpdateClientMetadataRequest struct {
+	// Remove every existing client metadata entry before applying remove and set. Defaults to
+	// false.
+	Clear *bool `json:"clear,omitempty"`
+	// Case-sensitive keys to remove. Missing keys are ignored. Each key must be non-empty, at
+	// most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces.
+	Remove []string `json:"remove,omitzero"`
+	// String entries to add or replace. Set wins when a key also appears in remove. Each key
+	// must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and
+	// `github/` namespaces. Each value may contain at most 16 KiB of UTF-8 data.
+	Set map[string]string `json:"set,omitzero"`
 }
 
 // Copilot model metadata, including identifier, display name, capabilities, policy,
@@ -7337,6 +7484,36 @@ type ModelPolicy struct {
 	State ModelPolicyState `json:"state"`
 	// Usage terms or conditions for this model
 	Terms *string `json:"terms,omitempty"`
+}
+
+// Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are
+// intersected with repository `.github/allowed_models.txt` policy; provider-qualified IDs
+// remain exempt from repository-only policy but are restricted by this host list. Omit or
+// pass null to clear the host restriction; an explicit empty or disjoint list is rejected.
+// Validation and pre-selection fallback failures preserve the previous restriction.
+// Failures after a fallback selection commits retain the new restriction and selected
+// model; callers should inspect current session state after such an error.
+// Experimental: ModelSetAllowedModelsRequest is part of an experimental API and may change
+// or be removed.
+type ModelSetAllowedModelsRequest struct {
+	// Exact model IDs to permit, or null to clear the host restriction.
+	AllowedModels []string `json:"allowedModels,omitzero"`
+}
+
+// The applied host allowlist and effective session model policy after intersection.
+// Experimental: ModelSetAllowedModelsResult is part of an experimental API and may change
+// or be removed.
+type ModelSetAllowedModelsResult struct {
+	// Normalized host allowlist. Omitted when the host restriction was cleared, or when a relay
+	// client does not return the host policy.
+	AllowedModels []string `json:"allowedModels,omitzero"`
+	// Effective exact IDs or repository policy patterns after applying the host restriction.
+	// Omitted by relay clients that do not return the host policy.
+	EffectiveAllowedModels []string `json:"effectiveAllowedModels,omitzero"`
+	// Effective deterministic fallback model, when the policy defines one.
+	FallbackModel *string `json:"fallbackModel,omitempty"`
+	// Selected session model after reconciling a now-disallowed concrete selection.
+	ModelID *string `json:"modelId,omitempty"`
 }
 
 // Reasoning effort level to apply to the currently selected model.
@@ -9100,7 +9277,8 @@ type PluginsBuiltinSetRequest struct {
 type PluginsBuiltinSetResult struct {
 }
 
-// Plugin names (or specs) to disable.
+// Plugin names (or specs) to disable, plus the optional working directory the
+// repository-controlled guard is evaluated against.
 // Experimental: PluginsDisableRequest is part of an experimental API and may change or be
 // removed.
 type PluginsDisableRequest struct {
@@ -9109,6 +9287,12 @@ type PluginsDisableRequest struct {
 	// Plugin-owned MCP servers are stopped in active sessions immediately; other plugin
 	// contributions remain available until each session reloads plugins.
 	Names []string `json:"names"`
+	// Working directory whose repository `enabledPlugins` overlay decides whether this mutation
+	// is repository-controlled. Hosts that serve sessions across several repositories (the SDK
+	// server) should pass the session's directory; otherwise the guard is evaluated against the
+	// server process's own working directory, which may belong to a different repository.
+	// Defaults to the server's current working directory.
+	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
 // Experimental: PluginsDisableResult is part of an experimental API and may change or be
@@ -9116,13 +9300,20 @@ type PluginsDisableRequest struct {
 type PluginsDisableResult struct {
 }
 
-// Plugin names (or specs) to enable.
+// Plugin names (or specs) to enable, plus the optional working directory the
+// repository-controlled guard is evaluated against.
 // Experimental: PluginsEnableRequest is part of an experimental API and may change or be
 // removed.
 type PluginsEnableRequest struct {
 	// Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored.
 	// Non-marketplace direct installs are always enabled and cannot be toggled via this API.
 	Names []string `json:"names"`
+	// Working directory whose repository `enabledPlugins` overlay decides whether this mutation
+	// is repository-controlled. Hosts that serve sessions across several repositories (the SDK
+	// server) should pass the session's directory; otherwise the guard is evaluated against the
+	// server process's own working directory, which may belong to a different repository.
+	// Defaults to the server's current working directory.
+	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
 // Experimental: PluginsEnableResult is part of an experimental API and may change or be
@@ -10625,6 +10816,28 @@ type SandboxConfigUserPolicySeatbelt struct {
 	KeychainAccess *bool `json:"keychainAccess,omitempty"`
 }
 
+// Request to disable sandboxing for the current session while resolving an active
+// sandbox-bypass permission prompt.
+// Experimental: SandboxDisableForSessionRequest is part of an experimental API and may
+// change or be removed.
+type SandboxDisableForSessionRequest struct {
+	// Optional attribution for the permission decision.
+	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
+	// Identifier of the exact pending sandbox-bypass permission request that authorized the
+	// session opt-out.
+	RequestID string `json:"requestId"`
+}
+
+// Result of attempting to disable sandboxing for the current session.
+// Experimental: SandboxDisableForSessionResult is part of an experimental API and may
+// change or be removed.
+type SandboxDisableForSessionResult struct {
+	// The authoritative sandbox enabled state after the operation.
+	Enabled bool `json:"enabled"`
+	// Whether this call resolved the pending request and applied the session opt-out.
+	Success bool `json:"success"`
+}
+
 // Managed sandbox enforcement state for a session.
 // Experimental: SandboxEnforcementStatus is part of an experimental API and may change or
 // be removed.
@@ -11321,8 +11534,15 @@ type SessionExtensionsReloadResult struct {
 type SessionExtensionsSendAttachmentsToMessageResult struct {
 }
 
+// Experimental: SessionFactoryPauseAtCheckpointResult is part of an experimental API and
+// may change or be removed.
+type SessionFactoryPauseAtCheckpointResult struct {
+	// Whether this execution attempt must pause or may continue.
+	Action FactoryPauseCheckpointAction `json:"action"`
+}
+
 // File path, content to append, and optional mode for the client-provided session
-// filesystem.
+// filesystem. Implementations create parent directories as needed.
 // Experimental: SessionFSAppendFileRequest is part of an experimental API and may change or
 // be removed.
 type SessionFSAppendFileRequest struct {
@@ -12699,6 +12919,81 @@ type SessionsCheckInUseResult struct {
 type SessionScheduleHydrateResult struct {
 }
 
+// Client metadata outcome for one requested local session.
+// Experimental: SessionsClientMetadataEntry is part of an experimental API and may change
+// or be removed.
+type SessionsClientMetadataEntry interface {
+	sessionsClientMetadataEntry()
+	Status() SessionsClientMetadataEntryStatus
+}
+
+type RawSessionsClientMetadataEntryData struct {
+	Discriminator SessionsClientMetadataEntryStatus
+	Raw           json.RawMessage
+}
+
+func (RawSessionsClientMetadataEntryData) sessionsClientMetadataEntry() {}
+func (r RawSessionsClientMetadataEntryData) Status() SessionsClientMetadataEntryStatus {
+	return r.Discriminator
+}
+
+type SessionsClientMetadataEntryCorrupt struct {
+	// Requested session ID.
+	SessionID string `json:"sessionId"`
+}
+
+func (SessionsClientMetadataEntryCorrupt) sessionsClientMetadataEntry() {}
+func (SessionsClientMetadataEntryCorrupt) Status() SessionsClientMetadataEntryStatus {
+	return SessionsClientMetadataEntryStatusCorrupt
+}
+
+type SessionsClientMetadataEntryNotFound struct {
+	// Requested session ID.
+	SessionID string `json:"sessionId"`
+}
+
+func (SessionsClientMetadataEntryNotFound) sessionsClientMetadataEntry() {}
+func (SessionsClientMetadataEntryNotFound) Status() SessionsClientMetadataEntryStatus {
+	return SessionsClientMetadataEntryStatusNotFound
+}
+
+type SessionsClientMetadataEntryOk struct {
+	// Validated client metadata, possibly empty or projected to requested keys.
+	Metadata map[string]string `json:"metadata"`
+	// Requested session ID.
+	SessionID string `json:"sessionId"`
+}
+
+func (SessionsClientMetadataEntryOk) sessionsClientMetadataEntry() {}
+func (SessionsClientMetadataEntryOk) Status() SessionsClientMetadataEntryStatus {
+	return SessionsClientMetadataEntryStatusOk
+}
+
+type SessionsClientMetadataEntryUnavailable struct {
+	// Filesystem or provider error code. Clients should not assume every provider uses
+	// operating-system error codes.
+	Code string `json:"code"`
+	// Human-readable diagnostic message. Not stable for programmatic matching.
+	Message string `json:"message"`
+	// Requested session ID.
+	SessionID string `json:"sessionId"`
+}
+
+func (SessionsClientMetadataEntryUnavailable) sessionsClientMetadataEntry() {}
+func (SessionsClientMetadataEntryUnavailable) Status() SessionsClientMetadataEntryStatus {
+	return SessionsClientMetadataEntryStatusUnavailable
+}
+
+type SessionsClientMetadataEntryUnsupportedVersion struct {
+	// Requested session ID.
+	SessionID string `json:"sessionId"`
+}
+
+func (SessionsClientMetadataEntryUnsupportedVersion) sessionsClientMetadataEntry() {}
+func (SessionsClientMetadataEntryUnsupportedVersion) Status() SessionsClientMetadataEntryStatus {
+	return SessionsClientMetadataEntryStatusUnsupportedVersion
+}
+
 // Session ID to close.
 // Experimental: SessionsCloseRequest is part of an experimental API and may change or be
 // removed.
@@ -12998,6 +13293,23 @@ type SessionsGetBoardEntryCountResult struct {
 	// Board entry count, when available.
 	Count *int64 `json:"count,omitempty"`
 }
+
+// Bounded batch request for client-owned metadata from persisted local sessions.
+// Experimental: SessionsGetClientMetadataRequest is part of an experimental API and may
+// change or be removed.
+type SessionsGetClientMetadataRequest struct {
+	// Case-sensitive keys to project from each valid bag. Each key must be non-empty, at most
+	// 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Omit to
+	// return every entry.
+	Keys []string `json:"keys,omitzero"`
+	// Session IDs to inspect. Results preserve this order.
+	SessionIDs []string `json:"sessionIds"`
+}
+
+// Ordered client metadata outcomes for the requested local sessions.
+// Experimental: SessionsGetClientMetadataResult is part of an experimental API and may
+// change or be removed.
+type SessionsGetClientMetadataResult []SessionsClientMetadataEntry
 
 // Session ID whose event-log file path to compute.
 // Experimental: SessionsGetEventFilePathRequest is part of an experimental API and may
@@ -14240,10 +14552,13 @@ type SubagentSettings struct {
 	MaxDepth *int32 `json:"maxDepth,omitempty"`
 }
 
-// Subagent model, reasoning effort, and context tier settings
+// Subagent model, reasoning effort, context tier, and auto-invocation settings
 // Experimental: SubagentSettingsEntry is part of an experimental API and may change or be
 // removed.
 type SubagentSettingsEntry struct {
+	// Whether this agent's runtime-defined proactive invocation prompting is enabled, if
+	// supported. Currently consumed by the built-in rubber-duck agent.
+	AutoInvoke *bool `json:"autoInvoke,omitempty"`
 	// Context tier override for matching subagents
 	ContextTier *SubagentSettingsEntryContextTier `json:"contextTier,omitempty"`
 	// Reasoning effort override for matching subagents
@@ -16505,7 +16820,8 @@ const (
 	AutopilotObjectiveStatusPaused AutopilotObjectiveStatus = "paused"
 )
 
-// Routing preference used when the session model is `auto`.
+// Routing preference used when the session model is `auto`. `fast` is an integrator-only
+// latency preset and is not a first-party GitHub Copilot product preference.
 // Experimental: AutoTier is part of an experimental API and may change or be removed.
 type AutoTier string
 
@@ -16514,6 +16830,8 @@ const (
 	AutoTierBalance AutoTier = "balance"
 	// Optimize for efficiency.
 	AutoTierEfficiency AutoTier = "efficiency"
+	// Integrator-only preset that optimizes for latency.
+	AutoTierFast AutoTier = "fast"
 	// Optimize for intelligence.
 	AutoTierIntelligence AutoTier = "intelligence"
 )
@@ -17208,6 +17526,26 @@ const (
 	FactoryLogLineKindPhase FactoryLogLineKind = "phase"
 )
 
+// Action the runtime selected for a durable factory pause checkpoint.
+// Experimental: FactoryPauseCheckpointAction is part of an experimental API and may change
+// or be removed.
+type FactoryPauseCheckpointAction string
+
+const (
+	// The checkpoint was committed by a prior paused attempt, so execution may continue.
+	FactoryPauseCheckpointActionContinue FactoryPauseCheckpointAction = "continue"
+	// This attempt claimed the checkpoint and must cooperatively stop.
+	FactoryPauseCheckpointActionPause FactoryPauseCheckpointAction = "pause"
+)
+
+// Type discriminator for FactoryPauseInfo.
+type FactoryPauseInfoType string
+
+const (
+	FactoryPauseInfoTypeCheckpoint FactoryPauseInfoType = "checkpoint"
+	FactoryPauseInfoTypeUser       FactoryPauseInfoType = "user"
+)
+
 // Derived lifecycle state of a factory phase.
 // Experimental: FactoryPhaseStatus is part of an experimental API and may change or be
 // removed.
@@ -17265,6 +17603,8 @@ const (
 	FactoryRunStatusError FactoryRunStatus = "error"
 	// The run was interrupted while resource budget remained.
 	FactoryRunStatusHalted FactoryRunStatus = "halted"
+	// The current attempt stopped intentionally and the run may be resumed.
+	FactoryRunStatusPaused FactoryRunStatus = "paused"
 	// The run was minted and is awaiting approval.
 	FactoryRunStatusPending FactoryRunStatus = "pending"
 	// The run is executing.
@@ -19149,6 +19489,17 @@ const (
 	SessionOpenParamsKindResumeLast SessionOpenParamsKind = "resumeLast"
 )
 
+// Status discriminator for SessionsClientMetadataEntry.
+type SessionsClientMetadataEntryStatus string
+
+const (
+	SessionsClientMetadataEntryStatusCorrupt            SessionsClientMetadataEntryStatus = "corrupt"
+	SessionsClientMetadataEntryStatusNotFound           SessionsClientMetadataEntryStatus = "notFound"
+	SessionsClientMetadataEntryStatusOk                 SessionsClientMetadataEntryStatus = "ok"
+	SessionsClientMetadataEntryStatusUnavailable        SessionsClientMetadataEntryStatus = "unavailable"
+	SessionsClientMetadataEntryStatusUnsupportedVersion SessionsClientMetadataEntryStatus = "unsupportedVersion"
+)
+
 // Rust-owned settings predicates exposed across the SDK boundary. Raw feature-flag names
 // are intentionally not part of the contract.
 // Experimental: SessionSettingsPredicateName is part of an experimental API and may change
@@ -20549,7 +20900,8 @@ type ServerPluginsAPI serverAPI
 //
 // RPC method: plugins.disable.
 //
-// Parameters: Plugin names (or specs) to disable.
+// Parameters: Plugin names (or specs) to disable, plus the optional working directory the
+// repository-controlled guard is evaluated against.
 func (a *ServerPluginsAPI) Disable(ctx context.Context, params *PluginsDisableRequest) (*PluginsDisableResult, error) {
 	raw, err := a.client.Request(ctx, "plugins.disable", params)
 	if err != nil {
@@ -20566,7 +20918,8 @@ func (a *ServerPluginsAPI) Disable(ctx context.Context, params *PluginsDisableRe
 //
 // RPC method: plugins.enable.
 //
-// Parameters: Plugin names (or specs) to enable.
+// Parameters: Plugin names (or specs) to enable, plus the optional working directory the
+// repository-controlled guard is evaluated against.
 func (a *ServerPluginsAPI) Enable(ctx context.Context, params *PluginsEnableRequest) (*PluginsEnableResult, error) {
 	raw, err := a.client.Request(ctx, "plugins.enable", params)
 	if err != nil {
@@ -21024,6 +21377,27 @@ func (a *ServerSessionsAPI) Fork(ctx context.Context, params *SessionsForkReques
 		return nil, err
 	}
 	var result SessionsForkResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetClientMetadata reads client-owned metadata for multiple persisted local sessions
+// without opening them. Results preserve request order and report missing, corrupt,
+// unsupported, or temporarily unavailable sessions independently.
+//
+// RPC method: sessions.getClientMetadata.
+//
+// Parameters: Bounded batch request for client-owned metadata from persisted local sessions.
+//
+// Returns: Ordered client metadata outcomes for the requested local sessions.
+func (a *ServerSessionsAPI) GetClientMetadata(ctx context.Context, params *SessionsGetClientMetadataRequest) (*SessionsGetClientMetadataResult, error) {
+	raw, err := a.client.Request(ctx, "sessions.getClientMetadata", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionsGetClientMetadataResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -22888,6 +23262,29 @@ func (a *FactoryAPI) Log(ctx context.Context, params *FactoryLogRequest) (*Facto
 	return &result, nil
 }
 
+// Pauses a running factory and returns its settled run envelope.
+//
+// RPC method: session.factory.pause.
+//
+// Parameters: Parameters for pausing a running factory.
+//
+// Returns: Complete current or terminal factory run envelope.
+func (a *FactoryAPI) Pause(ctx context.Context, params *FactoryPauseRequest) (*FactoryRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.factory.pause", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryRunResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Resumes a factory run using its persisted name, arguments, journal, and accounting.
 //
 // RPC method: session.factory.resume.
@@ -24213,6 +24610,30 @@ func (a *MetadataAPI) ContextInfo(ctx context.Context, params *MetadataContextIn
 	return &result, nil
 }
 
+// GetClientMetadata returns the client-owned string metadata persisted with this local
+// session. The metadata is not included in model context, events, telemetry, snapshots, or
+// remote exports.
+//
+// RPC method: session.metadata.getClientMetadata.
+//
+// Returns: Client-owned, case-sensitive string metadata persisted with a local session.
+// Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8
+// bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16
+// KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may
+// contain at most 64 KiB. The runtime stores but never interprets these values.
+func (a *MetadataAPI) GetClientMetadata(ctx context.Context) (*ClientMetadata, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.metadata.getClientMetadata", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ClientMetadata
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetContextAttribution returns the experimental per-source attribution breakdown of the
 // session's current context window as a flat list of entries (skills, subagents, MCP
 // servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via
@@ -24401,6 +24822,46 @@ func (a *MetadataAPI) Snapshot(ctx context.Context) (*SessionMetadataSnapshot, e
 	return &result, nil
 }
 
+// UpdateClientMetadata atomically patches the client-owned string metadata persisted with
+// this local session and returns the committed bag.
+//
+// RPC method: session.metadata.updateClientMetadata.
+//
+// Parameters: Atomic patch for client-owned session metadata. Operations apply in clear,
+// remove, then set order. The resulting bag must satisfy the ClientMetadata entry and
+// serialized-size limits. Local storage coordinates concurrent runtime processes; custom
+// SessionFs providers must serialize writers that access the same session from multiple
+// processes.
+//
+// Returns: Client-owned, case-sensitive string metadata persisted with a local session.
+// Clients should namespace keys by owner. Keys must be non-empty and at most 256 UTF-8
+// bytes; keys under `copilot/` and `github/` are reserved. Values may contain at most 16
+// KiB of UTF-8 data. A bag may contain at most 128 entries and its serialized sidecar may
+// contain at most 64 KiB. The runtime stores but never interprets these values.
+func (a *MetadataAPI) UpdateClientMetadata(ctx context.Context, params *MetadataUpdateClientMetadataRequest) (*ClientMetadata, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Clear != nil {
+			req["clear"] = *params.Clear
+		}
+		if params.Remove != nil {
+			req["remove"] = params.Remove
+		}
+		if params.Set != nil {
+			req["set"] = params.Set
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.metadata.updateClientMetadata", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ClientMetadata
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ModeAPI contains experimental APIs that may change or be removed.
 type ModeAPI sessionAPI
 
@@ -24526,6 +24987,39 @@ func (a *ModelAPI) List(ctx context.Context, params ...*SessionModelListRequest)
 		return nil, err
 	}
 	var result SessionModelList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetAllowedModels replaces or clears the host-supplied model allowlist for a running
+// session.
+//
+// RPC method: session.model.setAllowedModels.
+//
+// Parameters: Host-supplied exact model selection IDs to allow for this running session.
+// CAPI IDs are intersected with repository `.github/allowed_models.txt` policy;
+// provider-qualified IDs remain exempt from repository-only policy but are restricted by
+// this host list. Omit or pass null to clear the host restriction; an explicit empty or
+// disjoint list is rejected. Validation and pre-selection fallback failures preserve the
+// previous restriction. Failures after a fallback selection commits retain the new
+// restriction and selected model; callers should inspect current session state after such
+// an error.
+//
+// Returns: The applied host allowlist and effective session model policy after intersection.
+func (a *ModelAPI) SetAllowedModels(ctx context.Context, params *ModelSetAllowedModelsRequest) (*ModelSetAllowedModelsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.AllowedModels != nil {
+			req["allowedModels"] = params.AllowedModels
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.model.setAllowedModels", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ModelSetAllowedModelsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -26032,6 +26526,36 @@ func (a *RemoteAPI) NotifySteerableChanged(ctx context.Context, params *RemoteNo
 // Experimental: SandboxAPI contains experimental APIs that may change or be removed.
 type SandboxAPI sessionAPI
 
+// DisableForSession disables sandboxing for the remainder of the current session and
+// approves the referenced pending sandbox-bypass permission request. The request is
+// rejected unless the exact request is still pending and the effective sandbox policy
+// permits bypass.
+//
+// RPC method: session.sandbox.disableForSession.
+//
+// Parameters: Request to disable sandboxing for the current session while resolving an
+// active sandbox-bypass permission prompt.
+//
+// Returns: Result of attempting to disable sandboxing for the current session.
+func (a *SandboxAPI) DisableForSession(ctx context.Context, params *SandboxDisableForSessionRequest) (*SandboxDisableForSessionResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.DecisionContext != nil {
+			req["decisionContext"] = *params.DecisionContext
+		}
+		req["requestId"] = params.RequestID
+	}
+	raw, err := a.client.Request(ctx, "session.sandbox.disableForSession", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxDisableForSessionResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetEnforcementStatus returns whether managed policy requires sandbox enforcement and
 // whether an enforcement failure has permanently blocked the session.
 //
@@ -26891,9 +27415,9 @@ func (a *ToolsAPI) TaskCompleteEventData(ctx context.Context, params *ToolsTaskC
 	return &result, nil
 }
 
-// UpdateSubagentSettings updates the current session's live subagent settings after user
-// settings change. The persisted user settings remain the source of truth for future
-// sessions.
+// UpdateSubagentSettings sets the current session's live subagent settings override, which
+// takes precedence over persisted user settings until cleared. Persisted user settings
+// remain the source of truth for future sessions.
 //
 // RPC method: session.tools.updateSubagentSettings.
 //
@@ -28097,6 +28621,31 @@ func (a *InternalCommandsAPI) FinalizeInvocationEffect(ctx context.Context, para
 // Experimental: InternalFactoryAPI contains experimental APIs that may change or be removed.
 type InternalFactoryAPI internalSessionAPI
 
+// PauseAtCheckpoint atomically pauses an owned factory attempt at a durable checkpoint.
+//
+// RPC method: session.factory.pauseAtCheckpoint.
+//
+// Parameters: Parameters for an owned durable pause checkpoint.
+// Internal: PauseAtCheckpoint is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalFactoryAPI) PauseAtCheckpoint(ctx context.Context, params *FactoryPauseCheckpointRequest) (*SessionFactoryPauseAtCheckpointResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["executionToken"] = params.ExecutionToken
+		req["key"] = params.Key
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.factory.pauseAtCheckpoint", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionFactoryPauseAtCheckpointResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // ResumeFromTool internal tool-originated factory resume.
 //
 // RPC method: session.factory.resumeFromTool.
@@ -29089,12 +29638,13 @@ type ProviderTokenHandler interface {
 
 // Experimental: SessionFSHandler contains experimental APIs that may change or be removed.
 type SessionFSHandler interface {
-	// AppendFile appends content to a file in the client-provided session filesystem.
+	// AppendFile appends content to a file in the client-provided session filesystem, creating
+	// parent directories as needed.
 	//
 	// RPC method: sessionFs.appendFile.
 	//
 	// Parameters: File path, content to append, and optional mode for the client-provided
-	// session filesystem.
+	// session filesystem. Implementations create parent directories as needed.
 	//
 	// Returns: Describes a filesystem error.
 	AppendFile(request *SessionFSAppendFileRequest) (*SessionFSError, error)

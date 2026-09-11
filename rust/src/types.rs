@@ -2011,6 +2011,13 @@ pub struct SessionConfig {
     /// applied automatically at session creation/resume time. `None` means no
     /// explicit value is set and the runtime default takes effect.
     pub mcp_oauth_token_storage: Option<String>,
+    /// URL identifying this host's OAuth client metadata document.
+    ///
+    /// Authorization servers that support client ID metadata documents can use
+    /// this URL as the MCP OAuth client ID. When unset, the SDK does not supply
+    /// a first-party host identity and the runtime uses its generic,
+    /// session-isolated OAuth client behavior.
+    pub auth_client_id_metadata_url: Option<String>,
     /// Enables runtime discovery of supported configuration. Explicitly supplied
     /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
@@ -2319,6 +2326,10 @@ impl std::fmt::Debug for SessionConfig {
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field(
+                "auth_client_id_metadata_url",
+                &self.auth_client_id_metadata_url,
+            )
             .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
@@ -2459,6 +2470,7 @@ impl Default for SessionConfig {
             included_builtin_skills: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
+            auth_client_id_metadata_url: None,
             enable_config_discovery: None,
             skip_embedding_retrieval: None,
             organization_custom_instructions: None,
@@ -2628,6 +2640,7 @@ impl SessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -2966,6 +2979,12 @@ impl SessionConfig {
     /// applied automatically at session creation/resume time.
     pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
         self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
+    /// Set the URL identifying this host's OAuth client metadata document.
+    pub fn with_auth_client_id_metadata_url(mut self, url: impl Into<String>) -> Self {
+        self.auth_client_id_metadata_url = Some(url.into());
         self
     }
 
@@ -3445,6 +3464,12 @@ pub struct ResumeSessionConfig {
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
+    /// Re-supply the host OAuth client metadata document URL on resume.
+    ///
+    /// Set this to the same host identity used when the session was created.
+    /// When unset, the SDK does not supply a first-party host identity.
+    /// See [`SessionConfig::auth_client_id_metadata_url`] for details.
+    pub auth_client_id_metadata_url: Option<String>,
     /// Enables runtime discovery of supported configuration. Explicitly supplied
     /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
@@ -3672,6 +3697,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field(
+                "auth_client_id_metadata_url",
+                &self.auth_client_id_metadata_url,
+            )
             .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
@@ -3854,6 +3883,7 @@ impl ResumeSessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -3963,6 +3993,7 @@ impl ResumeSessionConfig {
             included_builtin_skills: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
+            auth_client_id_metadata_url: None,
             enable_config_discovery: None,
             skip_embedding_retrieval: None,
             organization_custom_instructions: None,
@@ -4273,6 +4304,12 @@ impl ResumeSessionConfig {
     /// See [`SessionConfig::with_mcp_oauth_token_storage`] for details.
     pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
         self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
+    /// Set the host OAuth client metadata document URL on resume.
+    pub fn with_auth_client_id_metadata_url(mut self, url: impl Into<String>) -> Self {
+        self.auth_client_id_metadata_url = Some(url.into());
         self
     }
 
@@ -5315,6 +5352,51 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
     }
 }
 
+/// Provenance of a message sent through `session.send`.
+///
+/// Source is independent of delivery mode. Leaving [`MessageOptions::source`]
+/// unset omits the field and preserves the runtime's default for user messages.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum MessageSource {
+    /// A message from a human user.
+    User,
+    /// An automated message from the integrating application.
+    System,
+    /// A message from the agent with this opaque sender ID.
+    Agent(String),
+}
+
+impl std::fmt::Display for MessageSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::User => f.write_str("user"),
+            Self::System => f.write_str("system"),
+            Self::Agent(id) => write!(f, "agent-{id}"),
+        }
+    }
+}
+
+impl Serialize for MessageSource {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for MessageSource {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "user" => Ok(Self::User),
+            "system" => Ok(Self::System),
+            value => value
+                .strip_prefix("agent-")
+                .map(|id| Self::Agent(id.to_owned()))
+                .ok_or_else(|| serde::de::Error::custom("expected user, system, or agent-<id>")),
+        }
+    }
+}
+
 /// Message delivery mode for [`MessageOptions::mode`].
 ///
 /// Controls how a prompt is delivered relative to in-flight session work.
@@ -5380,6 +5462,9 @@ pub enum AgentMode {
 pub struct MessageOptions {
     /// The user prompt to send.
     pub prompt: String,
+    /// Optional message provenance. When `None`, the field is omitted,
+    /// preserving the runtime's default for user messages.
+    pub source: Option<MessageSource>,
     /// Optional message delivery mode for this turn.
     ///
     /// Controls whether the prompt is queued behind in-flight work
@@ -5419,6 +5504,7 @@ impl MessageOptions {
     pub fn new(prompt: impl Into<String>) -> Self {
         Self {
             prompt: prompt.into(),
+            source: None,
             mode: None,
             agent_mode: None,
             attachments: None,
@@ -5428,6 +5514,12 @@ impl MessageOptions {
             tracestate: None,
             display_prompt: None,
         }
+    }
+
+    /// Set the message provenance without changing its delivery mode.
+    pub fn with_source(mut self, source: MessageSource) -> Self {
+        self.source = Some(source);
+        self
     }
 
     /// Set the message delivery mode for this turn.
@@ -6979,6 +7071,37 @@ mod tests {
         assert!(empty_json.get("pluginDirectories").is_none());
         assert!(empty_json.get("disabledMcpServers").is_none());
         assert!(empty_json.get("largeOutput").is_none());
+    }
+
+    #[test]
+    fn auth_client_id_metadata_url_reaches_create_and_resume_wire_payloads() {
+        let url = "https://example.com/oauth/client-metadata.json";
+
+        let (create_wire, _) = SessionConfig::default()
+            .with_auth_client_id_metadata_url(url)
+            .into_wire(None)
+            .expect("default create has no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(create_json["authClientIdMetadataUrl"], url);
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-1"))
+            .with_auth_client_id_metadata_url(url)
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(resume_json["authClientIdMetadataUrl"], url);
+
+        let (empty_create_wire, _) = SessionConfig::default()
+            .into_wire(None)
+            .expect("default create has no duplicate handlers");
+        let empty_create_json = serde_json::to_value(&empty_create_wire).unwrap();
+        assert!(empty_create_json.get("authClientIdMetadataUrl").is_none());
+
+        let (empty_resume_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let empty_resume_json = serde_json::to_value(&empty_resume_wire).unwrap();
+        assert!(empty_resume_json.get("authClientIdMetadataUrl").is_none());
     }
 
     #[test]
