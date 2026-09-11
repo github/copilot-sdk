@@ -1,0 +1,14 @@
+{
+  "name": "copilot-sdk-ahp-child-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "host": "node sdk-host.mjs",
+    "client": "node ahp-client.mjs"
+  },
+  "dependencies": {
+    "@microsoft/agent-host-protocol": "0.7.0",
+    "vscode-jsonrpc": "^8.2.1",
+    "ws": "^8.21.0"
+  }
+}
