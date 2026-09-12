@@ -26,11 +26,18 @@ jobs:
       java: ${{ steps.select.outputs.java }}
       rust: ${{ steps.select.outputs.rust }}
     steps:
+      - name: Check out merge group
+        if: github.event_name == 'merge_group'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 2
+
       - name: Detect changed paths
         id: filter
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         uses: dorny/paths-filter@6852f92c20ea7fd3b0c25de3b5112db3a98da050 # v3
         with:
+          base: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_sha || '' }}
           predicate-quantifier: every
           filters: |
             orchestrator:
@@ -90,7 +97,7 @@ jobs:
           JAVA_CHANGED: ${{ steps.filter.outputs.java }}
           RUST_CHANGED: ${{ steps.filter.outputs.rust }}
         run: |
-          if [[ "$EVENT_NAME" != "pull_request" || "$ORCHESTRATOR_CHANGED" == "true" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$ORCHESTRATOR_CHANGED" == "true" ]]; then
             for workflow in nodejs python go dotnet java rust; do
               echo "$workflow=true" >> "$GITHUB_OUTPUT"
             done

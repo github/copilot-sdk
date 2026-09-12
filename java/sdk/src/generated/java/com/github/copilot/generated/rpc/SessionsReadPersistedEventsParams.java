@@ -26,11 +26,11 @@ import javax.annotation.processing.Generated;
 public record SessionsReadPersistedEventsParams(
     /** Session ID whose persisted event journal should be read. */
     @JsonProperty("sessionId") String sessionId,
-    /** Opaque cursor returned by a previous persisted-event read. Omit on the first call. */
+    /** Opaque, process-local, single-use cursor returned by the previous persisted-event read. Omit on the first call and issue continuations sequentially; reusing the same cursor returns an expired terminal page. */
     @JsonProperty("cursor") String cursor,
-    /** Maximum number of events to return in this batch (1–1000, default 200). */
+    /** Maximum number of events to return in this batch (1–1000, default 200). Pages may contain fewer events to keep the serialized event array within a soft 1 MiB budget including resolved binary assets; one oversized event is returned alone to guarantee progress. */
     @JsonProperty("max") Long max,
-    /** Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological. */
+    /** Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological. This selects the initial read only; a continuation always uses the direction bound into its cursor. */
     @JsonProperty("direction") EventsReadDirection direction
 ) {
 }

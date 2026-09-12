@@ -11,11 +11,13 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,7 @@ import com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams;
 import com.github.copilot.generated.rpc.McpServerStatus;
 import com.github.copilot.generated.rpc.SessionMcpListToolsParams;
 import com.github.copilot.generated.rpc.SessionMcpOauthHandlePendingRequestParams;
+import com.github.copilot.generated.rpc.SessionMcpOauthLoginParams;
 import com.github.copilot.rpc.McpAuthInvocation;
 import com.github.copilot.rpc.McpAuthRequest;
 import com.github.copilot.rpc.McpAuthResult;
@@ -50,6 +53,7 @@ public class McpOAuthE2ETest {
     private static final String REFRESH_TOKEN = EXPECTED_TOKEN + "-refresh";
     private static final String UPSCOPE_TOKEN = EXPECTED_TOKEN + "-upscope";
     private static final String REAUTH_TOKEN = EXPECTED_TOKEN + "-reauth";
+    private static final String CIMD_URL = "https://github.com/copilot/cli/client-metadata.json";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static E2ETestContext ctx;
@@ -63,6 +67,28 @@ public class McpOAuthE2ETest {
     static void teardown() throws Exception {
         if (ctx != null) {
             ctx.close();
+        }
+    }
+
+    @Test
+    void testUsesCimdUrlInsteadOfDynamicRegistration() throws Exception {
+        try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot(), false, true);
+                var client = ctx.createClient();
+                var session = client.createSession(new SessionConfig()
+                        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setAuthClientIdMetadataUrl(CIMD_URL)
+                        .setMcpServers(Map.of("oauth-cimd-mcp",
+                                new McpHttpServerConfig().setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
+                        .get()) {
+            waitForMcpServerStatus(session, "oauth-cimd-mcp", McpServerStatus.NEEDS_AUTH, new AtomicReference<>());
+            var result = session.getRpc().mcp.oauth.login(new SessionMcpOauthLoginParams(session.getSessionId(),
+                    "oauth-cimd-mcp", null, null, null, null, null, null, null)).get(30, TimeUnit.SECONDS);
+            assertNotNull(result.authorizationUrl());
+            var clientId = List.of(URI.create(result.authorizationUrl()).getQuery().split("&")).stream()
+                    .filter(part -> part.startsWith("client_id=")).findFirst()
+                    .map(part -> URLDecoder.decode(part.substring("client_id=".length()), StandardCharsets.UTF_8))
+                    .orElseThrow();
+            assertEquals(CIMD_URL, clientId);
+            assertTrue(oauthServer.requests().stream().noneMatch(request -> "/register".equals(request.path())));
         }
     }
 
@@ -303,7 +329,7 @@ public class McpOAuthE2ETest {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record OAuthMcpRequest(String authorization) {
+    private record OAuthMcpRequest(String authorization, String path) {
     }
 
     private record OAuthMcpServer(Process process, String url) implements AutoCloseable {
@@ -312,11 +338,19 @@ public class McpOAuthE2ETest {
         }
 
         static OAuthMcpServer start(Path repoRoot, boolean deferInitialChallenge) throws Exception {
+            return start(repoRoot, deferInitialChallenge, false);
+        }
+
+        static OAuthMcpServer start(Path repoRoot, boolean deferInitialChallenge, boolean cimdSupported)
+                throws Exception {
             var script = repoRoot.resolve("test").resolve("harness").resolve("test-mcp-oauth-server.mjs");
             var processBuilder = new ProcessBuilder(resolveExecutable("node"), script.toString());
             processBuilder.environment().put("EXPECTED_TOKEN", EXPECTED_TOKEN);
             if (deferInitialChallenge) {
                 processBuilder.environment().put("DEFER_INITIAL_CHALLENGE", "true");
+            }
+            if (cimdSupported) {
+                processBuilder.environment().put("CIMD_SUPPORTED", "true");
             }
             var process = processBuilder.start();
             var stderr = new StringBuilder();

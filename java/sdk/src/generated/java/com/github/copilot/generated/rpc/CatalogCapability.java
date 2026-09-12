@@ -25,7 +25,9 @@ public enum CatalogCapability {
     /** The {@code mcp-install-planning} variant. */
     MCP_INSTALL_PLANNING("mcp-install-planning"),
     /** The {@code multiple-transport-choice} variant. */
-    MULTIPLE_TRANSPORT_CHOICE("multiple-transport-choice");
+    MULTIPLE_TRANSPORT_CHOICE("multiple-transport-choice"),
+    /** The {@code trust-snapshot} variant. */
+    TRUST_SNAPSHOT("trust-snapshot");
 
     private final String value;
     CatalogCapability(String value) { this.value = value; }

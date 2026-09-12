@@ -107,9 +107,8 @@ fn disabled_extension_preserves_disabled_status() {
 
 #[test]
 fn fleet_start_request_and_result_fields_are_accessible() {
-    let request = FleetStartRequest {
-        prompt: Some("Use the custom tool".to_string()),
-    };
+    let mut request = FleetStartRequest::default();
+    request.prompt = Some("Use the custom tool".to_string());
     let result = FleetStartResult { started: true };
     assert_eq!(request.prompt.as_deref(), Some("Use the custom tool"));
     assert!(result.started);

@@ -26,6 +26,7 @@ export async function startOAuthMcpServer({
   deferInitialChallenge = false,
   host = "127.0.0.1",
   port = 0,
+  cimdSupported = false,
 } = {}) {
   let releaseInitialChallenge = () => {};
   const initialChallenge = deferInitialChallenge
@@ -54,13 +55,17 @@ export async function startOAuthMcpServer({
       `http://${req.headers.host ?? `${host}:${port}`}`,
     );
     const baseUrl = url.origin;
+    const body = await readBody(req);
 
     if (req.method === "GET" && url.pathname === "/__requests") {
       respondJson(res, 200, requests);
       return;
     }
 
-    if (req.method === "POST" && url.pathname === "/__release-initial-challenge") {
+    if (
+      req.method === "POST" &&
+      url.pathname === "/__release-initial-challenge"
+    ) {
       releaseInitialChallenge();
       res.writeHead(204);
       res.end();
@@ -87,6 +92,23 @@ export async function startOAuthMcpServer({
         token_endpoint: `${baseUrl}/token`,
         response_types_supported: ["code"],
         grant_types_supported: ["authorization_code"],
+        ...(cimdSupported
+          ? { client_id_metadata_document_supported: true }
+          : {}),
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/register") {
+      requests.push({
+        method: req.method,
+        path: url.pathname,
+        authorization: req.headers.authorization ?? null,
+        body,
+      });
+      respondJson(res, 201, {
+        client_id: "registered-client",
+        client_id_issued_at: Math.floor(Date.now() / 1000),
       });
       return;
     }
@@ -96,7 +118,6 @@ export async function startOAuthMcpServer({
       return;
     }
 
-    const body = await readBody(req);
     requests.push({
       method: req.method,
       path: url.pathname,
@@ -332,6 +353,7 @@ if (
 ) {
   const server = await startOAuthMcpServer({
     expectedToken: process.env.EXPECTED_TOKEN ?? DEFAULT_EXPECTED_TOKEN,
+    cimdSupported: process.env.CIMD_SUPPORTED === "true",
     deferInitialChallenge: process.env.DEFER_INITIAL_CHALLENGE === "true",
   });
   console.log(`Listening: ${server.url}`);

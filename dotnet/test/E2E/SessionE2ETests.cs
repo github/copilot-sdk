@@ -757,7 +757,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task DisposeAsync_From_Handler_Does_Not_Deadlock()
     {
-        var session = await CreateSessionAsync();
+        var client = Ctx.CreateClient();
+        var session = await Ctx.CreateSessionAsync(
+            client,
+            new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         var disposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         session.On<SessionEvent>(evt =>
@@ -774,7 +777,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // If this times out, we deadlocked.
         await disposed.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        await Client.ForceStopAsync();
+        await client.ForceStopAsync();
     }
 
     [Fact]
