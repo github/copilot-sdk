@@ -1717,6 +1717,47 @@ public sealed class ClientSessionLifetimeTests
         Assert.False(request.TryGetProperty("wait", out _));
     }
 
+    [Fact]
+    public async Task Appended_System_Message_Observes_Idle_Before_Send_Reply()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var timeout = TimeSpan.FromSeconds(5);
+        const string content = "I am GitHub Copilot. Have a nice day!";
+        var drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = session.On<SessionTitleChangedEvent>(_ => drained.TrySetResult());
+        server.BeforeResponseAsync = async (request, cancellationToken) =>
+        {
+            if (request.Method != "session.send")
+            {
+                return;
+            }
+
+            await server.SendSessionEventAsync(session.SessionId, "user.message", new()
+            {
+                ["content"] = request.Params.GetProperty("prompt").GetString()
+            });
+            await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+            {
+                ["messageId"] = "appended-system-message",
+                ["content"] = content
+            });
+            await server.SendSessionEventAsync(session.SessionId, "session.idle", new());
+            // Drain the idle notification before replying to session.send.
+            await server.SendSessionEventAsync(session.SessionId, "session.title_changed", new() { ["title"] = "fence" });
+            await drained.Task.WaitAsync(timeout, cancellationToken);
+        };
+
+        await E2E.SessionE2ETests.AssertAppendedSystemMessageResponseAsync(session, timeout);
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.send");
+        Assert.Equal("What is your full name?", request.Params.GetProperty("prompt").GetString());
+        var history = await session.GetEventsAsync();
+        Assert.DoesNotContain(history, evt => evt is SessionIdleEvent);
+        Assert.Equal(content, Assert.Single(history.OfType<AssistantMessageEvent>()).Data.Content);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
