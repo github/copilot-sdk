@@ -7260,9 +7260,9 @@ class PermissionRequestRead:
     managed_approval_required: bool | None = None
     request_sandbox_bypass: bool | None = None
     request_sandbox_bypass_reason: str | None = None
+    tool_call_id: str | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     resolved_path: str | None = None
-    tool_call_id: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRequestRead":
@@ -7272,16 +7272,16 @@ class PermissionRequestRead:
         managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         request_sandbox_bypass = from_union([from_none, from_bool], obj.get("requestSandboxBypass"))
         request_sandbox_bypass_reason = from_union([from_none, from_str], obj.get("requestSandboxBypassReason"))
-        resolved_path = from_union([from_none, from_str], obj.get("resolvedPath"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        resolved_path = from_union([from_none, from_str], obj.get("resolvedPath"))
         return PermissionRequestRead(
             intention=intention,
             path=path,
             managed_approval_required=managed_approval_required,
             request_sandbox_bypass=request_sandbox_bypass,
             request_sandbox_bypass_reason=request_sandbox_bypass_reason,
-            resolved_path=resolved_path,
             tool_call_id=tool_call_id,
+            resolved_path=resolved_path,
         )
 
     def to_dict(self) -> dict:
@@ -7295,10 +7295,10 @@ class PermissionRequestRead:
             result["requestSandboxBypass"] = from_union([from_none, from_bool], self.request_sandbox_bypass)
         if self.request_sandbox_bypass_reason is not None:
             result["requestSandboxBypassReason"] = from_union([from_none, from_str], self.request_sandbox_bypass_reason)
-        if self.resolved_path is not None:
-            result["resolvedPath"] = from_union([from_none, from_str], self.resolved_path)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.resolved_path is not None:
+            result["resolvedPath"] = from_union([from_none, from_str], self.resolved_path)
         return result
 
 

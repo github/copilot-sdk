@@ -821,11 +821,11 @@ func matchesCatalogTrustSnapshotCurrent(data []byte) bool {
 	if rawGroup0.Tier == nil {
 		return false
 	}
-	var rawGroup0String string
-	if err := json.Unmarshal(rawGroup0.Tier, &rawGroup0String); err != nil {
+	var rawGroup0Term1String string
+	if err := json.Unmarshal(rawGroup0.Tier, &rawGroup0Term1String); err != nil {
 		return false
 	}
-	switch rawGroup0String {
+	switch rawGroup0Term1String {
 	case "T1", "T2":
 	default:
 		return false
