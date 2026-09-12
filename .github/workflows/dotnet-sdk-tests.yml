@@ -18,11 +18,11 @@ jobs:
         shell: bash
         working-directory: ./dotnet
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           dotnet-version: "10.0.x"
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
 
@@ -192,11 +192,11 @@ jobs:
         shell: bash
         working-directory: ./dotnet
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           dotnet-version: "10.0.x"
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
           cache: "npm"
@@ -346,6 +346,59 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dotnet-test-diagnostics-${{ matrix.os }}-${{ matrix.transport }}-${{ matrix.backend }}-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: dotnet/TestResults/
+          if-no-files-found: warn
+          retention-days: 7
+
+  # JavaScript actions use a glibc-linked Node runtime, so Alpine runs through Docker.
+  alpine-arm64:
+    name: ".NET SDK Tests (Alpine ARM64, ${{ matrix.transport }}, CAPI)"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    env:
+      COPILOT_SDK_E2E_BACKEND: capi
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: ["default", "inprocess"]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run ${{ matrix.transport }} tests on ARM64 Alpine
+        uses: ./.github/actions/run-alpine-tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        with:
+          image: mcr.microsoft.com/dotnet/sdk:10.0-alpine
+          workdir: /workspace
+          transport: ${{ matrix.transport }}
+          command: |
+            dotnet --info | grep -Eq "RID:[[:space:]]+linux-musl-arm64"
+
+            apk add --no-cache nodejs npm
+            (cd nodejs && npm ci --ignore-scripts)
+            (cd test/harness && npm ci --ignore-scripts)
+
+            export DOTNET_ROLL_FORWARD=Major
+            dotnet restore dotnet/test/GitHub.Copilot.SDK.Test.csproj
+
+            dotnet test dotnet/test/GitHub.Copilot.SDK.Test.csproj \
+              --no-restore \
+              --framework net8.0 \
+              -v n \
+              --blame-hang \
+              --blame-hang-timeout 10m \
+              --blame-hang-dump-type none \
+              --logger "trx;LogFilePrefix=test-results" \
+              --results-directory /workspace/dotnet/TestResults \
+              -p:RunAnalyzers=false
+
+      - name: Upload .NET test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dotnet-test-diagnostics-alpine-arm64-${{ matrix.transport }}-capi-${{ github.run_attempt }}
           path: dotnet/TestResults/
           if-no-files-found: warn
           retention-days: 7

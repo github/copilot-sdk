@@ -257,8 +257,10 @@ type (
 	RawPersistedBinaryResult                                       = rpc.RawPersistedBinaryResult
 	RawSessionEventData                                            = rpc.RawSessionEventData
 	RawSystemNotification                                          = rpc.RawSystemNotification
+	RawSystemNotificationFactoryPauseInfo                          = rpc.RawSystemNotificationFactoryPauseInfo
 	RawToolExecutionCompleteContent                                = rpc.RawToolExecutionCompleteContent
 	ReasoningSummary                                               = rpc.ReasoningSummary
+	RecommendedAutoTier                                            = rpc.RecommendedAutoTier
 	RemediationAction                                              = rpc.RemediationAction
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
@@ -266,6 +268,7 @@ type (
 	ScheduleOrigin                                                 = rpc.ScheduleOrigin
 	SessionAutoModeResolvedData                                    = rpc.SessionAutoModeResolvedData
 	SessionAutopilotObjectiveChangedData                           = rpc.SessionAutopilotObjectiveChangedData
+	SessionAutoTierRecommendationData                              = rpc.SessionAutoTierRecommendationData
 	SessionAutoTierSwitchFailedData                                = rpc.SessionAutoTierSwitchFailedData
 	SessionBackgroundTasksChangedData                              = rpc.SessionBackgroundTasksChangedData
 	SessionBinaryAssetData                                         = rpc.SessionBinaryAssetData
@@ -347,8 +350,10 @@ type (
 	SubagentConfiguredData                                         = rpc.SubagentConfiguredData
 	SubagentDeselectedData                                         = rpc.SubagentDeselectedData
 	SubagentFailedData                                             = rpc.SubagentFailedData
+	SubagentModelSelectionSource                                   = rpc.SubagentModelSelectionSource
 	SubagentSelectedData                                           = rpc.SubagentSelectedData
 	SubagentStartedData                                            = rpc.SubagentStartedData
+	SubagentTaskModelSource                                        = rpc.SubagentTaskModelSource
 	SystemMessageData                                              = rpc.SystemMessageData
 	SystemMessageMetadata                                          = rpc.SystemMessageMetadata
 	SystemMessageRole                                              = rpc.SystemMessageRole
@@ -359,6 +364,10 @@ type (
 	SystemNotificationData                                         = rpc.SystemNotificationData
 	SystemNotificationFactoryCompleted                             = rpc.SystemNotificationFactoryCompleted
 	SystemNotificationFactoryCompletedStatus                       = rpc.SystemNotificationFactoryCompletedStatus
+	SystemNotificationFactoryPauseInfo                             = rpc.SystemNotificationFactoryPauseInfo
+	SystemNotificationFactoryPauseInfoCheckpoint                   = rpc.SystemNotificationFactoryPauseInfoCheckpoint
+	SystemNotificationFactoryPauseInfoType                         = rpc.SystemNotificationFactoryPauseInfoType
+	SystemNotificationFactoryPauseInfoUser                         = rpc.SystemNotificationFactoryPauseInfoUser
 	SystemNotificationInstructionDiscovered                        = rpc.SystemNotificationInstructionDiscovered
 	SystemNotificationNewInboxMessage                              = rpc.SystemNotificationNewInboxMessage
 	SystemNotificationShellCompleted                               = rpc.SystemNotificationShellCompleted
@@ -493,6 +502,7 @@ const (
 	AutopilotObjectiveChangedStatusCapReached                          = rpc.AutopilotObjectiveChangedStatusCapReached
 	AutopilotObjectiveChangedStatusCompleted                           = rpc.AutopilotObjectiveChangedStatusCompleted
 	AutopilotObjectiveChangedStatusPaused                              = rpc.AutopilotObjectiveChangedStatusPaused
+	AutoTierFast                                                       = rpc.AutoTierFast
 	AutoTierSwitchFailureReasonPolicyRejected                          = rpc.AutoTierSwitchFailureReasonPolicyRejected
 	AutoTierSwitchFailureReasonRequestFailed                           = rpc.AutoTierSwitchFailureReasonRequestFailed
 	AutoTierSwitchFailureReasonSetupFailed                             = rpc.AutoTierSwitchFailureReasonSetupFailed
@@ -546,6 +556,7 @@ const (
 	FactoryRunSettledStatusCompleted                                   = rpc.FactoryRunSettledStatusCompleted
 	FactoryRunSettledStatusError                                       = rpc.FactoryRunSettledStatusError
 	FactoryRunSettledStatusHalted                                      = rpc.FactoryRunSettledStatusHalted
+	FactoryRunSettledStatusPaused                                      = rpc.FactoryRunSettledStatusPaused
 	FusionConversationScopeReview                                      = rpc.FusionConversationScopeReview
 	FusionConversationScopeRoot                                        = rpc.FusionConversationScopeRoot
 	FusionFollowUpActionReroute                                        = rpc.FusionFollowUpActionReroute
@@ -699,6 +710,9 @@ const (
 	ReasoningSummaryConcise                                            = rpc.ReasoningSummaryConcise
 	ReasoningSummaryDetailed                                           = rpc.ReasoningSummaryDetailed
 	ReasoningSummaryNone                                               = rpc.ReasoningSummaryNone
+	RecommendedAutoTierBalance                                         = rpc.RecommendedAutoTierBalance
+	RecommendedAutoTierEfficiency                                      = rpc.RecommendedAutoTierEfficiency
+	RecommendedAutoTierIntelligence                                    = rpc.RecommendedAutoTierIntelligence
 	RemediationActionAllowSandboxOutbound                              = rpc.RemediationActionAllowSandboxOutbound
 	RemediationActionReviewSandboxPolicy                               = rpc.RemediationActionReviewSandboxPolicy
 	RemediationActionShowAccount                                       = rpc.RemediationActionShowAccount
@@ -765,6 +779,7 @@ const (
 	SessionEventTypeSandboxDecision                                    = rpc.SessionEventTypeSandboxDecision
 	SessionEventTypeSessionAutoModeResolved                            = rpc.SessionEventTypeSessionAutoModeResolved
 	SessionEventTypeSessionAutopilotObjectiveChanged                   = rpc.SessionEventTypeSessionAutopilotObjectiveChanged
+	SessionEventTypeSessionAutoTierRecommendation                      = rpc.SessionEventTypeSessionAutoTierRecommendation
 	SessionEventTypeSessionAutoTierSwitchFailed                        = rpc.SessionEventTypeSessionAutoTierSwitchFailed
 	SessionEventTypeSessionBackgroundTasksChanged                      = rpc.SessionEventTypeSessionBackgroundTasksChanged
 	SessionEventTypeSessionBinaryAsset                                 = rpc.SessionEventTypeSessionBinaryAsset
@@ -862,6 +877,17 @@ const (
 	SkillSourcePlugin                                                  = rpc.SkillSourcePlugin
 	SkillSourceProject                                                 = rpc.SkillSourceProject
 	SkillSourceSDK                                                     = rpc.SkillSourceSDK
+	SubagentModelSelectionSourceAgentDefinitionDefault                 = rpc.SubagentModelSelectionSourceAgentDefinitionDefault
+	SubagentModelSelectionSourceComplementaryDefault                   = rpc.SubagentModelSelectionSourceComplementaryDefault
+	SubagentModelSelectionSourceConfiguredPreference                   = rpc.SubagentModelSelectionSourceConfiguredPreference
+	SubagentModelSelectionSourceConfiguredRequired                     = rpc.SubagentModelSelectionSourceConfiguredRequired
+	SubagentModelSelectionSourceExplicitOverride                       = rpc.SubagentModelSelectionSourceExplicitOverride
+	SubagentModelSelectionSourceRuntimePolicy                          = rpc.SubagentModelSelectionSourceRuntimePolicy
+	SubagentModelSelectionSourceSessionInheritance                     = rpc.SubagentModelSelectionSourceSessionInheritance
+	SubagentTaskModelSourceCustomAgentDefinition                       = rpc.SubagentTaskModelSourceCustomAgentDefinition
+	SubagentTaskModelSourceSubagentConfiguration                       = rpc.SubagentTaskModelSourceSubagentConfiguration
+	SubagentTaskModelSourceTaskArgument                                = rpc.SubagentTaskModelSourceTaskArgument
+	SubagentTaskModelSourceUnset                                       = rpc.SubagentTaskModelSourceUnset
 	SystemMessageRoleDeveloper                                         = rpc.SystemMessageRoleDeveloper
 	SystemMessageRoleSystem                                            = rpc.SystemMessageRoleSystem
 	SystemNotificationAgentCompletedStatusCompleted                    = rpc.SystemNotificationAgentCompletedStatusCompleted
@@ -870,6 +896,9 @@ const (
 	SystemNotificationFactoryCompletedStatusCompleted                  = rpc.SystemNotificationFactoryCompletedStatusCompleted
 	SystemNotificationFactoryCompletedStatusError                      = rpc.SystemNotificationFactoryCompletedStatusError
 	SystemNotificationFactoryCompletedStatusHalted                     = rpc.SystemNotificationFactoryCompletedStatusHalted
+	SystemNotificationFactoryCompletedStatusPaused                     = rpc.SystemNotificationFactoryCompletedStatusPaused
+	SystemNotificationFactoryPauseInfoTypeCheckpoint                   = rpc.SystemNotificationFactoryPauseInfoTypeCheckpoint
+	SystemNotificationFactoryPauseInfoTypeUser                         = rpc.SystemNotificationFactoryPauseInfoTypeUser
 	SystemNotificationTypeAgentCompleted                               = rpc.SystemNotificationTypeAgentCompleted
 	SystemNotificationTypeAgentIdle                                    = rpc.SystemNotificationTypeAgentIdle
 	SystemNotificationTypeFactoryCompleted                             = rpc.SystemNotificationTypeFactoryCompleted

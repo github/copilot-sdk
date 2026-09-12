@@ -109,6 +109,32 @@ async def main():
 asyncio.run(main())
 ```
 
+### Message source
+
+Use `AgentMessageSource(agent_id)` for messages from an identified agent.
+Use `source="system"` for application-internal context, not as a substitute for
+agent provenance. Both `send` and `send_and_wait` accept the optional
+`MessageSource` type:
+
+```python
+from copilot import AgentMessageSource, MessageSource
+
+source: MessageSource = AgentMessageSource("reviewer")
+await session.send("Review complete", source=source)
+await session.send_and_wait("Review findings attached", source=source)
+await session.send("Workspace context updated", source="system")
+```
+
+`AgentMessageSource` is immutable and requires a string ID. The SDK sends the ID
+unchanged after the `agent-` prefix, so `"reviewer"` becomes `"agent-reviewer"`.
+It does not trim whitespace, change case, or remove an existing prefix.
+
+Leave source unset (or `None`) for ordinary human sends so the field stays omitted.
+Use `"user"` when you need to set it explicitly. Source is independent of delivery
+mode and does not replace the session's `system_message` configuration, set billing
+flags, or use the notification API. `send_and_wait` can return `None` when the
+session goes idle without an assistant message; errors still propagate.
+
 ### Manual Resource Management
 
 If you need more control over the lifecycle, you can call `start()`, `stop()`, and `disconnect()` manually:

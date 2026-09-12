@@ -424,7 +424,7 @@ async function validateJava(): Promise<ValidationResult[]> {
   // First, install the local SDK into the local Maven repo
   const pomPath = path.join(ROOT_DIR, "java", "pom.xml");
   try {
-    execSync(`mvn install -f "${pomPath}" -DskipTests -q`, {
+    execSync(`mvn install -f "${pomPath}" -Dmaven.test.skip=true -q`, {
       encoding: "utf-8",
       cwd: path.join(ROOT_DIR, "java"),
     });

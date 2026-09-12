@@ -22,6 +22,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CompactionCompleteCompactionTokensUsedCopilotUsage(
+    /** Default billing model for token details that do not identify their own model */
+    @JsonProperty("model") String model,
     /** Itemized token usage breakdown */
     @JsonProperty("tokenDetails") List<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail> tokenDetails,
     /** Total cost in nano-AI units for this request */
