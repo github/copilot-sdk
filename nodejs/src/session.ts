@@ -8,8 +8,8 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
-import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
+import type { MessageConnection } from "vscode-jsonrpc/node";
+import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node";
 import { createSessionRpc } from "./generated/rpc.js";
 import type {
     ClientSessionApiHandlers,

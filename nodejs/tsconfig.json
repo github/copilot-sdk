@@ -3,7 +3,7 @@
         "target": "ES2022",
         "module": "ES2022",
         "lib": ["ES2022"],
-        "moduleResolution": "node",
+        "moduleResolution": "bundler",
         "outDir": "./dist",
         "declaration": true,
         "declarationMap": false,

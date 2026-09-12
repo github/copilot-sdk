@@ -8,6 +8,7 @@
     "include": [
         "src/**/*",
         "test/ffiRuntimeHost.test.ts",
+        "test/jsonrpc-compat.test.ts",
         "test/session-event-types.test.ts",
         "test/message-source.test.ts"
     ],

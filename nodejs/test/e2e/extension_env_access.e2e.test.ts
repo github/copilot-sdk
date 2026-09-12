@@ -13,7 +13,7 @@ import {
     createMessageConnection,
     StreamMessageReader,
     StreamMessageWriter,
-} from "vscode-jsonrpc/node.js";
+} from "vscode-jsonrpc/node";
 import { approveAll, RuntimeConnection } from "../../src/index.js";
 import { getSdkProtocolVersion } from "../../src/sdkProtocolVersion.js";
 import { createSdkTestContext, getLegacyCliPathForTests } from "./harness/sdkTestContext.js";

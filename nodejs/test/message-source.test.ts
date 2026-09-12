@@ -9,7 +9,7 @@ import {
     ResponseError,
     StreamMessageReader,
     StreamMessageWriter,
-} from "vscode-jsonrpc/node.js";
+} from "vscode-jsonrpc/node";
 import type { MessageOptions, MessageSource, SessionEvent } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
 

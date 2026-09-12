@@ -3621,8 +3621,6 @@ export interface SessionLifecycleEventMetadata {
 interface SessionLifecycleEventBase {
     /** ID of the session this event relates to. */
     sessionId: string;
-    /** Session metadata (not included for `session.deleted`). */
-    metadata?: SessionLifecycleEventMetadata;
 }
 
 /** Emitted when a new session is created. */
@@ -3631,7 +3629,7 @@ export interface SessionCreatedEvent extends SessionLifecycleEventBase {
     metadata: SessionLifecycleEventMetadata;
 }
 
-/** Emitted when a session is deleted. The metadata field is omitted. */
+/** Emitted when a session is deleted. Session metadata is unavailable. */
 export interface SessionDeletedEvent extends SessionLifecycleEventBase {
     type: "session.deleted";
     metadata?: undefined;

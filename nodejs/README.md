@@ -1201,6 +1201,26 @@ npm ci
 npm test
 ```
 
+### Strict consumer compatibility
+
+TypeScript consumers need export-aware module resolution, such as `NodeNext`,
+`Node16`, or `bundler`. The JSON-RPC dependency uses package exports and requires
+TypeScript 5.4 or newer.
+
+To check an already built SDK tarball through its public package exports:
+
+```powershell
+npm run test:consumer-types -- --package C:\packages\copilot-sdk.tgz --node-types 22.20.2
+npm run test:consumer-types -- --package C:\packages\copilot-sdk.tgz --node-types 24.13.4
+```
+
+Use `--node C:\path\to\node.exe` to select a Node runtime without changing PATH.
+The verifier installs native TypeScript 7.0.2 in an isolated consumer, compiles
+with strict optional-property checks and `skipLibCheck: false`, checks emitted
+declarations in a second consumer, and exercises the packed ESM/CJS exports and
+an extension against a deterministic JSON-RPC 8 peer. It does not start a model
+session or publish a package. The compile-only fixtures are never executed.
+
 ## License
 
 MIT

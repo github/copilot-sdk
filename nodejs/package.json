@@ -40,6 +40,7 @@
         "verify:release-packages": "tsx scripts/verify-release-packages.ts",
         "prepare:runtime": "tsx scripts/prepare-runtime.ts",
         "test": "vitest run",
+        "test:consumer-types": "node scripts/verify-consumer-types.mjs",
         "test:watch": "vitest",
         "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" --ignore-path .prettierignore",
         "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" --ignore-path .prettierignore",
@@ -63,7 +64,7 @@
     "license": "MIT",
     "dependencies": {
         "koffi": "^3.2.1",
-        "vscode-jsonrpc": "^8.2.1",
+        "vscode-jsonrpc": "^9.0.2",
         "zod": "^4.3.6"
     },
     "devDependencies": {
@@ -85,6 +86,7 @@
         "tsx": "^4.20.6",
         "typescript": "^5.0.0",
         "vitest": "^4.0.18",
+        "vscode-jsonrpc-8": "npm:vscode-jsonrpc@8.2.1",
         "ws": "^8.21.0"
     },
     "engines": {
