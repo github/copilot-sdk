@@ -14,5 +14,6 @@ from .generated.rpc import (
     SessionFsReaddirWithTypesEntryType as SessionFSReaddirWithTypesEntryType,  # noqa: F401
 )
 from .generated.rpc import __all__ as _generated_all
+from .generated.session_events import PermissionDecisionSource
 
-__all__ = [*_generated_all, "UIElicitationSchemaType"]
+__all__ = [*_generated_all, "PermissionDecisionSource", "UIElicitationSchemaType"]

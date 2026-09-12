@@ -15,6 +15,8 @@ updates:
       # Dependabot's find-and-replace breaks lockfile metadata headers.
       - dependency-name: "actions/github-script"
       - dependency-name: "github/gh-aw-actions"
+    cooldown:
+      default-days: 7
   - package-ecosystem: 'devcontainers'
     directory: '/'
     multi-ecosystem-group: 'all'

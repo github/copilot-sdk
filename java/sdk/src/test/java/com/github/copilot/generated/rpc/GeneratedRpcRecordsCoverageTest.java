@@ -141,7 +141,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFleetStartParams_record() {
-        var params = new SessionFleetStartParams("sess-11", "fix all bugs");
+        var params = new SessionFleetStartParams("sess-11", "fix all bugs", null, null, null);
         assertEquals("sess-11", params.sessionId());
         assertEquals("fix all bugs", params.prompt());
     }
@@ -303,7 +303,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionModeSetParams_record() {
         var params = new SessionModeSetParams("sess-30", SessionMode.PLAN, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
         assertEquals("sess-30", params.sessionId());
         assertEquals(SessionMode.PLAN, params.mode());
     }

@@ -38,10 +38,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -73,6 +75,55 @@ var (
 	outboundTargets        sync.Map
 	nextOutboundToken      atomic.Uint64
 )
+
+var pendingCleanup = struct {
+	sync.Mutex
+	count int
+	idle  chan struct{}
+}{
+	idle: closedChannel(),
+}
+
+func closedChannel() chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}
+
+func beginPendingCleanup() {
+	pendingCleanup.Lock()
+	defer pendingCleanup.Unlock()
+	if pendingCleanup.count == 0 {
+		pendingCleanup.idle = make(chan struct{})
+	}
+	pendingCleanup.count++
+}
+
+func finishPendingCleanup() {
+	pendingCleanup.Lock()
+	defer pendingCleanup.Unlock()
+	pendingCleanup.count--
+	if pendingCleanup.count == 0 {
+		close(pendingCleanup.idle)
+	}
+}
+
+// WaitForCleanup waits for all deferred connection cleanup to finish.
+// In-process test harnesses use this before changing process-global state.
+func WaitForCleanup(timeout time.Duration) bool {
+	pendingCleanup.Lock()
+	idle := pendingCleanup.idle
+	pendingCleanup.Unlock()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-idle:
+		return true
+	case <-timer.C:
+		return false
+	}
+}
 
 func sharedOutboundCallback() uintptr {
 	outboundCallbackOnce.Do(func() {
@@ -145,12 +196,11 @@ type Host struct {
 	lifecycleMu sync.Mutex
 	// mu serializes disposal with native callbacks so the receive buffer cannot
 	// be fed after it is closed.
-	mu           sync.Mutex
-	serverID     uint32
-	connectionID uint32
-	disposed     bool
-	// activeCallbacks counts outbound native callbacks currently executing.
-	activeCallbacks int
+	mu               sync.Mutex
+	serverID         uint32
+	connectionID     uint32
+	disposed         bool
+	cleanupScheduled bool
 
 	recv *receiveBuffer
 
@@ -269,13 +319,9 @@ func (h *Host) onOutbound(bytesPtr uintptr, bytesLen uintptr) uintptr {
 		h.mu.Unlock()
 		return 0
 	}
-	h.activeCallbacks++
 	h.mu.Unlock()
 
 	defer func() {
-		h.mu.Lock()
-		h.activeCallbacks--
-		h.mu.Unlock()
 		// Never let a panic unwind into native code.
 		_ = recover()
 	}()
@@ -294,11 +340,18 @@ func (h *Host) onOutbound(bytesPtr uintptr, bytesLen uintptr) uintptr {
 }
 
 func (h *Host) writeFrame(frame []byte) (int, error) {
+	h.mu.Lock()
+	disposed := h.disposed
+	h.mu.Unlock()
+	if disposed {
+		return 0, fmt.Errorf("the in-process runtime connection is closed")
+	}
+
 	h.lifecycleMu.Lock()
 	defer h.lifecycleMu.Unlock()
 
 	h.mu.Lock()
-	disposed := h.disposed
+	disposed = h.disposed
 	h.mu.Unlock()
 	connID := h.connectionID
 	if disposed || connID == 0 {
@@ -315,9 +368,8 @@ func (h *Host) writeFrame(frame []byte) (int, error) {
 	return len(frame), nil
 }
 
-// Dispose closes the FFI connection, shuts down the native host, and releases
-// resources. It is idempotent and waits for any in-flight outbound callback to
-// finish before closing the receive buffer.
+// Dispose closes the receive side immediately and releases native resources
+// after connectionClose confirms that outbound callbacks are quiescent.
 func (h *Host) Dispose() {
 	h.lifecycleMu.Lock()
 	defer h.lifecycleMu.Unlock()
@@ -327,45 +379,66 @@ func (h *Host) Dispose() {
 		h.mu.Unlock()
 		return
 	}
-	// Publish disposed under the same lock onOutbound uses to check it, so no new
-	// callback can pass the check and increment activeCallbacks after the drain
-	// loop below observes zero.
 	h.disposed = true
-	connID := h.connectionID
-	serverID := h.serverID
-	callbackToken := h.callbackToken
-	h.connectionID = 0
-	h.serverID = 0
-	h.callbackToken = 0
 	h.mu.Unlock()
 
+	h.recv.Close()
+	if !h.tryFinalizeCleanupLocked() {
+		h.scheduleCleanupRetryLocked()
+	}
+}
+
+func (h *Host) tryFinalizeCleanupLocked() bool {
+	connID := h.connectionID
+
+	if connID != 0 {
+		if !h.lib.connectionClose(connID) {
+			return false
+		}
+		h.connectionID = 0
+	}
+
+	callbackToken := h.callbackToken
+	h.callbackToken = 0
 	if callbackToken != 0 {
 		outboundTargets.Delete(callbackToken)
 	}
 
-	// Stop accepting new callbacks and wait for in-flight ones to drain before
-	// closing the receive buffer they feed.
-	for {
-		h.mu.Lock()
-		if h.activeCallbacks == 0 {
-			h.mu.Unlock()
-			break
-		}
-		h.mu.Unlock()
-		runtime.Gosched()
-	}
-
-	if connID != 0 {
-		h.lib.connectionClose(connID)
-	}
+	serverID := h.serverID
 	if serverID != 0 {
-		h.lib.hostShutdown(serverID)
+		if !h.lib.hostShutdown(serverID) {
+			log.Printf("FfiRuntimeHost: host_shutdown did not recognize server %d", serverID)
+		}
+		h.serverID = 0
 		if h.cliEntrypoint != "" {
 			// A legacy host may restore its saved SIGCHLD action during shutdown.
 			rearmForeignSignalHandlers(h.lib.handle)
 		}
 	}
-	h.recv.Close()
+	return true
+}
+
+func (h *Host) scheduleCleanupRetryLocked() {
+	if h.cleanupScheduled {
+		return
+	}
+	h.cleanupScheduled = true
+	beginPendingCleanup()
+	go func() {
+		defer finishPendingCleanup()
+		timer := time.NewTimer(100 * time.Millisecond)
+		defer timer.Stop()
+		for range timer.C {
+			h.lifecycleMu.Lock()
+			if h.tryFinalizeCleanupLocked() {
+				h.cleanupScheduled = false
+				h.lifecycleMu.Unlock()
+				return
+			}
+			h.lifecycleMu.Unlock()
+			timer.Reset(100 * time.Millisecond)
+		}
+	}()
 }
 
 // hostWriter adapts Host into the io.WriteCloser jsonrpc2 writes request frames to.
