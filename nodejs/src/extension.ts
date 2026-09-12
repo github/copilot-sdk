@@ -2,14 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient } from "./client.js";
 import type { CopilotSession } from "./session.js";
-import {
-    defaultJoinSessionPermissionHandler,
-    type PermissionHandler,
-    type ResumeSessionConfig,
-} from "./types.js";
+import { type PermissionHandler, type ResumeSessionConfig } from "./types.js";
 import type { FactoryHandle } from "./factory.js";
+import type { AppSessionBadgesExtension } from "./appSessionBadges.js";
+import { joinExtensionSession } from "./extensionSession.js";
+
+export {
+    AppSessionBadgesExtension,
+    type AppSessionBadge,
+    type AppSessionBadgeState,
+    type AppSessionBadgeTarget,
+    type AppSessionBadgeTargetIdentity,
+    type AppSessionBadgeUpdate,
+    type AppSessionPresentation,
+    type AppSessionPresentationUpdate,
+    type AppSessionPullRequestAction,
+    type AppSessionBadgesSnapshot,
+    type AppSessionBadgesSnapshotHandler,
+} from "./appSessionBadges.js";
 
 export {
     Canvas,
@@ -109,37 +120,31 @@ export {
  * ```
  */
 export async function joinSession(config: JoinSessionConfig = {}): Promise<CopilotSession> {
-    const sessionId = process.env.SESSION_ID;
-    if (!sessionId) {
-        throw new Error(
-            "joinSession() is intended for extensions running as child processes of the Copilot CLI."
-        );
+    const { session } = await joinExtensionSession(config);
+    return session;
+}
+
+/**
+ * Joins the retained app session and explicitly registers a session-badge contribution.
+ *
+ * The app owns the hidden session lifecycle and supplies full replacement
+ * snapshots containing only sessions eligible for extension-provided badges.
+ */
+export async function joinAppSessionBadges(
+    config: JoinSessionConfig = {}
+): Promise<AppSessionBadgesExtension> {
+    const { client, session } = await joinExtensionSession(config);
+    try {
+        return await client.registerAppSessionBadges(session);
+    } catch (error) {
+        try {
+            await session.disconnect();
+        } catch (cleanupError) {
+            throw new AggregateError(
+                [error, cleanupError],
+                "Failed to register app session badges and disconnect the extension session"
+            );
+        }
+        throw error;
     }
-
-    const client = new CopilotClient({ _internalConnection: { kind: "parent-process" } });
-
-    // Strip `extensionSdkPath` at runtime even though `JoinSessionConfig` omits it
-    // at the type level — untyped (JS) callers can still slip it through, and
-    // honoring it here would be misleading since the extension subprocess has
-    // already been forked by the host with the SDK the host chose.
-    const {
-        extensionSdkPath: _stripped,
-        factories,
-        requestedEnvironmentVariables,
-        ...rest
-    } = config as JoinSessionConfig & {
-        extensionSdkPath?: string;
-    };
-    void _stripped;
-
-    return client.resumeSessionForExtension(
-        sessionId,
-        {
-            ...rest,
-            onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
-            suppressResumeEvent: config.suppressResumeEvent ?? true,
-        },
-        factories,
-        requestedEnvironmentVariables?.length ? { requestedEnvironmentVariables } : undefined
-    );
 }

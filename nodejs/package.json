@@ -29,6 +29,16 @@
                 "types": "./dist/extension.d.ts",
                 "default": "./dist/cjs/extension.js"
             }
+        },
+        "./private/app-extension": {
+            "import": {
+                "types": "./dist/appExtension.d.ts",
+                "default": "./dist/appExtension.js"
+            },
+            "require": {
+                "types": "./dist/appExtension.d.ts",
+                "default": "./dist/cjs/appExtension.js"
+            }
         }
     },
     "type": "module",

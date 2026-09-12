@@ -12,7 +12,7 @@ import { compile } from "json-schema-to-typescript";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
-    getApiSchemaPath,
+    getSdkApiSchemaPath,
     fixNullableRequiredRefsInApiSchema,
     getNullableInner,
     getRpcSchemaTypeName,
@@ -695,7 +695,7 @@ function paramsTypeName(method: RpcMethod): string {
 async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema7): Promise<void> {
     console.log("TypeScript: generating RPC types...");
 
-    const resolvedPath = schemaPath ?? (await getApiSchemaPath());
+    const resolvedPath = await getSdkApiSchemaPath(schemaPath);
     let schema = fixNullableRequiredRefsInApiSchema((await loadSchemaJson(resolvedPath)) as ApiSchema);
     if (sessionEventsSchema) {
         const sharedDefinitions = findSharedSchemaDefinitions(
@@ -717,7 +717,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
  * Generated from: api.schema.json
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 `);
 
     const externalSchemaRefs = collectExternalSchemaRefNames(schema);
@@ -1110,7 +1110,10 @@ export function emitClientSessionApiRegistration(clientSchema: Record<string, un
                 includeExperimental: method.stability === "experimental" && !groupExperimental,
             });
             if (hasParams) {
-                lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
+                const cancellation = method.supportsCancellation
+                    ? `, cancellation?: CancellationToken`
+                    : "";
+                lines.push(`    ${name}(params: ${pType}${cancellation}): Promise<${rType}>;`);
             } else {
                 lines.push(`    ${name}(): Promise<${rType}>;`);
             }
@@ -1148,10 +1151,16 @@ export function emitClientSessionApiRegistration(clientSchema: Record<string, un
             const hasParams = hasSchemaPayload(getMethodParamsSchema(method));
 
             if (hasParams) {
-                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}) => {`);
+                const cancellationParameter = method.supportsCancellation
+                    ? `, cancellation: CancellationToken`
+                    : "";
+                const cancellationArgument = method.supportsCancellation ? `, cancellation` : "";
+                lines.push(
+                    `    connection.onRequest("${method.rpcMethod}", async (params: ${pType}${cancellationParameter}) => {`
+                );
                 lines.push(`        const handler = getHandlers(params.sessionId).${groupName};`);
                 lines.push(`        if (!handler) throw new Error(\`No ${groupName} handler registered for session: \${params.sessionId}\`);`);
-                lines.push(`        return handler.${name}(params);`);
+                lines.push(`        return handler.${name}(params${cancellationArgument});`);
                 lines.push(`    });`);
             } else {
                 lines.push(`    connection.onRequest("${method.rpcMethod}", async () => {`);

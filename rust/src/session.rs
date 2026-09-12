@@ -12,6 +12,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, error, warn};
 
+use crate::app_extension::AppMediatedFetchHandler;
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
     LogRequest, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult, ModelSwitchToRequest,
@@ -542,6 +543,9 @@ impl Session {
         }
         if let Some(display_prompt) = opts.display_prompt {
             params["displayPrompt"] = serde_json::to_value(display_prompt)?;
+        }
+        if let Some(required_tool) = opts.required_tool {
+            params["requiredTool"] = serde_json::to_value(required_tool)?;
         }
         let trace_ctx = if opts.traceparent.is_some() || opts.tracestate.is_some() {
             TraceContext {
@@ -1278,6 +1282,7 @@ impl Client {
         let has_hooks = hooks.is_some();
         let command_handlers = build_command_handler_map(runtime.commands.as_deref());
         let canvas_handler = runtime.canvas_handler.take();
+        let app_mediated_fetch_handler = runtime.app_mediated_fetch_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
         let bearer_token_providers = std::mem::take(&mut runtime.bearer_token_providers);
         let github_token_registration = runtime
@@ -1424,6 +1429,7 @@ impl Client {
             transforms,
             command_handlers,
             canvas_handler,
+            app_mediated_fetch_handler,
             session_fs_provider,
             bearer_token_providers,
             channels,
@@ -1597,6 +1603,7 @@ impl Client {
         let has_hooks = hooks.is_some();
         let command_handlers = build_command_handler_map(runtime.commands.as_deref());
         let canvas_handler = runtime.canvas_handler.take();
+        let app_mediated_fetch_handler = runtime.app_mediated_fetch_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
         let bearer_token_providers = std::mem::take(&mut runtime.bearer_token_providers);
         let github_token_registration = runtime
@@ -1641,6 +1648,7 @@ impl Client {
             transforms,
             command_handlers,
             canvas_handler,
+            app_mediated_fetch_handler,
             session_fs_provider,
             bearer_token_providers,
             channels,
@@ -2049,6 +2057,7 @@ fn spawn_event_loop(
     transforms: Option<Arc<dyn SystemMessageTransform>>,
     command_handlers: Arc<CommandHandlerMap>,
     canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    app_mediated_fetch_handler: Option<Arc<dyn AppMediatedFetchHandler>>,
     session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
     channels: crate::router::SessionChannels,
@@ -2111,6 +2120,7 @@ fn spawn_event_loop(
                         let hooks = hooks.clone();
                         let transforms = transforms.clone();
                         let canvas_handler = canvas_handler.clone();
+                        let app_mediated_fetch_handler = app_mediated_fetch_handler.clone();
                         let session_fs_provider = session_fs_provider.clone();
                         let bearer_token_providers = bearer_token_providers.clone();
                         let request_id = request.id;
@@ -2123,6 +2133,7 @@ fn spawn_event_loop(
                                     hooks: hooks.as_deref(),
                                     transforms: transforms.as_deref(),
                                     canvas_handler: canvas_handler.as_ref(),
+                                    app_mediated_fetch_handler: app_mediated_fetch_handler.as_ref(),
                                     session_fs_provider: session_fs_provider.as_ref(),
                                     bearer_token_providers: &bearer_token_providers,
                                 };
@@ -2945,6 +2956,7 @@ struct RequestDispatchContext<'a> {
     hooks: Option<&'a dyn SessionHooks>,
     transforms: Option<&'a dyn SystemMessageTransform>,
     canvas_handler: Option<&'a Arc<dyn CanvasHandler>>,
+    app_mediated_fetch_handler: Option<&'a Arc<dyn AppMediatedFetchHandler>>,
     session_fs_provider: Option<&'a Arc<dyn SessionFsProvider>>,
     bearer_token_providers: &'a HashMap<String, Arc<dyn BearerTokenProvider>>,
 }
@@ -2961,6 +2973,7 @@ async fn handle_request(
     let hooks = ctx.hooks;
     let transforms = ctx.transforms;
     let canvas_handler = ctx.canvas_handler;
+    let app_mediated_fetch_handler = ctx.app_mediated_fetch_handler;
     let session_fs_provider = ctx.session_fs_provider;
     let bearer_token_providers = ctx.bearer_token_providers;
 
@@ -2971,6 +2984,12 @@ async fn handle_request(
 
     if request.method.starts_with("canvas.") {
         crate::canvas_dispatch::dispatch(client, canvas_handler, request).await;
+        return;
+    }
+
+    if request.method == crate::generated::api_types::rpc_methods::APPFORGE_FETCH {
+        crate::app_extension::dispatch_mediated_fetch(client, app_mediated_fetch_handler, request)
+            .await;
         return;
     }
 

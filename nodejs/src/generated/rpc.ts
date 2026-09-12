@@ -3,7 +3,7 @@
  * Generated from: api.schema.json
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 
 import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
@@ -4096,6 +4096,15 @@ export type WorkspacesWorkspaceDetailsHostType =
   /** Workspace repository is hosted on Azure DevOps. */
   | "ado";
 /**
+ * Capability contribution point declared by a trusted app-extension manifest.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionContributionPoint".
+ */
+/** @experimental */
+/** @internal */
+export type AppExtensionContributionPoint = "sessionBadges" | "canvases" | "forgeProvider";
+/**
  * List of all authenticated users
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4103,6 +4112,30 @@ export type WorkspacesWorkspaceDetailsHostType =
  */
 /** @experimental */
 export type AccountGetAllUsersResult = AccountAllUsers[];
+/**
+ * AppSessionActionResult or null when the extension declines the action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionsAppSessionBadgesActionInvokeResult".
+ */
+/** @experimental */
+export type ExtensionsAppSessionBadgesActionInvokeResult = JsonValue;
+/**
+ * Serializable action result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionsAppCanvasActionInvokeResult".
+ */
+/** @experimental */
+export type ExtensionsAppCanvasActionInvokeResult = JsonValue;
+/**
+ * Serializable forge-provider operation result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionsAppForgeInvokeResult".
+ */
+/** @experimental */
+export type ExtensionsAppForgeInvokeResult = JsonValue;
 /**
  * The number of running background agents (task-registry agents) that were cancelled.
  *
@@ -4135,6 +4168,30 @@ export type SessionGitHubAuthLogoutResult = boolean;
  */
 /** @experimental */
 export type SessionGitHubAuthLogoutUserResult = boolean;
+/**
+ * AppSessionActionResult or null when the extension declines the action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionBadgesActionInvokeResult".
+ */
+/** @experimental */
+export type AppSessionBadgesActionInvokeResult = JsonValue;
+/**
+ * Serializable action result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasActionInvokeResult".
+ */
+/** @experimental */
+export type AppCanvasActionInvokeResult = JsonValue;
+/**
+ * Serializable forge-provider operation result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppForgeInvokeResult".
+ */
+/** @experimental */
+export type AppForgeInvokeResult = JsonValue;
 
 /**
  * Parameters for aborting the current turn
@@ -23957,6 +24014,543 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
    */
   operation: string;
 }
+/**
+ * Private app-extension activation handshake. Identity is derived from trusted runtime connection metadata and is never accepted from request parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionRegisterRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppExtensionRegisterRequest {
+  protocolVersion: 1;
+}
+/**
+ * Opaque runtime-authenticated identity for one allowlisted app-extension activation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionPrincipal".
+ */
+/** @experimental */
+/** @internal */
+export interface AppExtensionPrincipal {
+  packageId: string;
+  activationId: string;
+}
+/**
+ * Capability grants bound to an authenticated app-extension principal. Keys are present only when granted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionCapabilities".
+ */
+/** @experimental */
+/** @internal */
+export interface AppExtensionCapabilities {
+  sessionBadges?: true;
+  canvases?: true;
+  forgeProvider?: true;
+  mediatedFetch?: true;
+}
+/**
+ * Runtime-authenticated identity of one statically declared app-extension contribution.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionDeclaredContribution".
+ */
+/** @experimental */
+/** @internal */
+export interface AppExtensionDeclaredContribution {
+  contributionPoint: AppExtensionContributionPoint;
+  contributionId: string;
+}
+/**
+ * Authenticated principal and capability grants for one private app-extension activation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionRegisterResult".
+ */
+/** @experimental */
+/** @internal */
+export interface AppExtensionRegisterResult {
+  protocolVersion: 1;
+  principal: AppExtensionPrincipal;
+  capabilities: AppExtensionCapabilities;
+  contributions: AppExtensionDeclaredContribution[];
+}
+/**
+ * Registers or unregisters one runtime-authenticated app-extension contribution on its owning connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionContributionRegistrationRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppExtensionContributionRegistrationRequest {
+  protocolVersion: 1;
+  contributionId: string;
+}
+/**
+ * Registers one runtime-authenticated forge-provider contribution and its supported operation names.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppForgeRegisterRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppForgeRegisterRequest {
+  protocolVersion: 1;
+  contributionId: string;
+  /**
+   * @minItems 1
+   * @maxItems 128
+   */
+  operations: [string, ...string[]];
+}
+/**
+ * Stable runtime-authenticated app-extension contribution identity used by a trusted app host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionContributionTarget".
+ */
+/** @internal */
+export interface AppExtensionContributionTarget {
+  packageId: string;
+  activationId: string;
+  contributionId: string;
+}
+/**
+ * Exact app-visible session target from the current eligible-session snapshot.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPresentationTarget".
+ */
+/** @experimental */
+export interface AppSessionPresentationTarget {
+  workspaceId: string;
+  sessionId: string;
+  repositoryPath: string;
+  worktreePath: string;
+  branch?: string;
+}
+/**
+ * Constrained pull-request identity presentation contributed for one eligible app session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionBadgePresentation".
+ */
+/** @experimental */
+export interface AppSessionBadgePresentation {
+  state: "draft" | "open" | "merged" | "closed";
+  label?: string;
+}
+/**
+ * Constrained Create Pull Request action state contributed for one eligible app session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPullRequestAction".
+ */
+/** @experimental */
+export interface AppSessionPullRequestAction {
+  kind: "createPullRequest";
+  state: "available" | "inProgress";
+  supportsDraft: boolean;
+}
+/**
+ * Atomic extension-provided badge and Create Pull Request action presentation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPresentation".
+ */
+/** @experimental */
+export interface AppSessionPresentation {
+  badge: AppSessionBadgePresentation | null;
+  action: AppSessionPullRequestAction | null;
+}
+/**
+ * One ordered atomic presentation replacement for an eligible app session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPresentationUpdate".
+ */
+/** @experimental */
+export interface AppSessionPresentationUpdate {
+  workspaceId: string;
+  sessionId: string;
+  presentation: AppSessionPresentation;
+}
+/**
+ * Publishes one atomic badge and action presentation for an eligible app session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionSetPresentationRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppSessionSetPresentationRequest {
+  protocolVersion: 1;
+  workspaceId: string;
+  sessionId: string;
+  presentation: AppSessionPresentation;
+}
+/**
+ * Publishes an ordered batch of atomic badge and action presentations.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionSetPresentationsRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppSessionSetPresentationsRequest {
+  protocolVersion: 1;
+  /**
+   * @minItems 1
+   * @maxItems 1024
+   */
+  updates: [AppSessionPresentationUpdate, ...AppSessionPresentationUpdate[]];
+}
+/**
+ * Create Pull Request action selected by the app host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPullRequestActionInvocation".
+ */
+/** @experimental */
+export interface AppSessionPullRequestActionInvocation {
+  kind: "createPullRequest";
+  draft: boolean;
+}
+/**
+ * Create Pull Request callback routed to the owning app extension.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionActionCallbackRequest".
+ */
+/** @experimental */
+export interface AppSessionActionCallbackRequest {
+  sessionId: string;
+  protocolVersion: 1;
+  contributionId: string;
+  target: AppSessionPresentationTarget;
+  action: AppSessionPullRequestActionInvocation;
+}
+/**
+ * Bounded extension-authored prompt and required session tool for a Create Pull Request action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionActionResult".
+ */
+export interface AppSessionActionResult {
+  prompt: string;
+  requiredTool: string;
+}
+/**
+ * Trusted app-host request to invoke a Create Pull Request action on its owning extension contribution.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionActionHostRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppSessionActionHostRequest {
+  appSessionId: string;
+  protocolVersion: 1;
+  packageId: string;
+  activationId: string;
+  contributionId: string;
+  target: AppSessionPresentationTarget;
+  action: AppSessionPullRequestActionInvocation;
+}
+/**
+ * Authenticated provider presentation update emitted on the retained hidden app session. A null presentation resets provider state.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppSessionPresentationChangedEventData".
+ */
+export interface AppSessionPresentationChangedEventData {
+  protocolVersion: 1;
+  extensionId: string;
+  packageId: string;
+  activationId: string;
+  contributionId: string;
+  workspaceId: string;
+  sessionId: string;
+  presentation: AppSessionPresentation | null;
+}
+/**
+ * Bounded generic action descriptor rendered by the trusted app host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasActionDescriptor".
+ */
+/** @experimental */
+export interface AppCanvasActionDescriptor {
+  name: string;
+  label: string;
+  /**
+   * Serializable action input returned when the action is selected.
+   */
+  input?: JsonValue;
+  variant?: "default" | "primary" | "danger";
+  disabled?: boolean;
+}
+/**
+ * Trusted project context supplied by the app host to an app-scoped canvas.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasProjectContext".
+ */
+/** @experimental */
+export interface AppCanvasProjectContext {
+  forgeProviderId: string;
+  /**
+   * Opaque versioned repository locator interpreted only by the owning forge provider.
+   */
+  repositoryLocator: JsonValue;
+  forgeAccountId?: string;
+}
+/**
+ * Optional trusted app context for one canvas instance. The hidden control-session identity is never exposed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasContext".
+ */
+/** @experimental */
+export interface AppCanvasContext {
+  projectId?: string;
+  workspaceId?: string;
+  project?: AppCanvasProjectContext;
+}
+/**
+ * App-canvas open callback routed to the owning extension connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasOpenCallbackRequest".
+ */
+/** @experimental */
+export interface AppCanvasOpenCallbackRequest {
+  sessionId: string;
+  protocolVersion: 1;
+  contributionId: string;
+  instanceId: string;
+  /**
+   * Serializable canvas input.
+   */
+  input?: JsonValue;
+  context?: AppCanvasContext;
+}
+/**
+ * App-canvas action callback routed to the owning extension connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasActionCallbackRequest".
+ */
+/** @experimental */
+export interface AppCanvasActionCallbackRequest {
+  sessionId: string;
+  protocolVersion: 1;
+  contributionId: string;
+  instanceId: string;
+  actionName: string;
+  /**
+   * Serializable action input.
+   */
+  input?: JsonValue;
+  context?: AppCanvasContext;
+}
+/**
+ * App-canvas close callback routed to the owning extension connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasCloseCallbackRequest".
+ */
+/** @experimental */
+export interface AppCanvasCloseCallbackRequest {
+  sessionId: string;
+  protocolVersion: 1;
+  contributionId: string;
+  instanceId: string;
+  context?: AppCanvasContext;
+}
+/**
+ * Bounded app-canvas state and display metadata. Arbitrary navigation URLs are not supported.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasOpenResult".
+ */
+/** @experimental */
+export interface AppCanvasOpenResult {
+  /**
+   * Serializable initial canvas state.
+   */
+  state?: JsonValue;
+  title?: string;
+  status?: string;
+  /**
+   * @maxItems 32
+   */
+  actions?: AppCanvasActionDescriptor[];
+}
+/**
+ * Trusted app-host request to open an app-extension canvas.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasHostOpenRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppCanvasHostOpenRequest {
+  appSessionId: string;
+  protocolVersion: 1;
+  packageId: string;
+  activationId: string;
+  contributionId: string;
+  instanceId: string;
+  /**
+   * Serializable canvas input.
+   */
+  input?: JsonValue;
+  context?: AppCanvasContext;
+}
+/**
+ * Trusted app-host request to invoke an app-extension canvas action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasHostActionRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppCanvasHostActionRequest {
+  appSessionId: string;
+  protocolVersion: 1;
+  packageId: string;
+  activationId: string;
+  contributionId: string;
+  instanceId: string;
+  actionName: string;
+  /**
+   * Serializable action input.
+   */
+  input?: JsonValue;
+  context?: AppCanvasContext;
+}
+/**
+ * Trusted app-host request to close an app-extension canvas.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppCanvasHostCloseRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppCanvasHostCloseRequest {
+  appSessionId: string;
+  protocolVersion: 1;
+  packageId: string;
+  activationId: string;
+  contributionId: string;
+  instanceId: string;
+  context?: AppCanvasContext;
+}
+/**
+ * Forge-provider operation callback routed to the owning extension connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppForgeInvokeCallbackRequest".
+ */
+/** @experimental */
+export interface AppForgeInvokeCallbackRequest {
+  sessionId: string;
+  protocolVersion: 1;
+  contributionId: string;
+  operation: string;
+  accountId?: string;
+  /**
+   * Serializable operation input.
+   */
+  input?: JsonValue;
+}
+/**
+ * Trusted app-host request to invoke an app-extension forge provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppForgeHostInvokeRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppForgeHostInvokeRequest {
+  appSessionId: string;
+  protocolVersion: 1;
+  packageId: string;
+  activationId: string;
+  contributionId: string;
+  operation: string;
+  accountId?: string;
+  /**
+   * Serializable operation input.
+   */
+  input?: JsonValue;
+}
+/**
+ * Constrained credential-free HTTP request interpreted by the trusted app host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppMediatedFetchHttpRequest".
+ */
+/** @experimental */
+export interface AppMediatedFetchHttpRequest {
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  path: string;
+  headers?: {
+    [k: string]: string | undefined;
+  };
+  body?: string;
+}
+/**
+ * Requests a capability-gated forge operation through the trusted app host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppMediatedFetchRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppMediatedFetchRequest {
+  protocolVersion: 1;
+  contributionId: string;
+  accountId: string;
+  operation: string;
+  request: AppMediatedFetchHttpRequest;
+}
+/**
+ * Validated mediated-fetch effect routed to the trusted app session host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppMediatedFetchHostRequest".
+ */
+/** @experimental */
+export interface AppMediatedFetchHostRequest {
+  sessionId: string;
+  protocolVersion: 1;
+  packageId: string;
+  activationId: string;
+  contributionId: string;
+  accountId: string;
+  operation: string;
+  request: AppMediatedFetchHttpRequest;
+}
+/**
+ * Bounded sanitized HTTP response returned by the trusted app host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppMediatedFetchResponse".
+ */
+/** @experimental */
+export interface AppMediatedFetchResponse {
+  status: number;
+  headers: {
+    [k: string]: string | undefined;
+  };
+  body?: string;
+  truncated: boolean;
+}
 
 /** @experimental */
 export interface SessionFactoryPauseAtCheckpointResult {
@@ -24871,6 +25465,130 @@ export function createInternalServerRpc(connection: MessageConnection) {
          */
         connect: async (params: ConnectRequest): Promise<ConnectResult> =>
             connection.sendRequest("connect", params),
+        /** @experimental */
+        extensions: {
+            /** @experimental */
+            appExtension: {
+                /**
+                 * Authenticates an allowlisted app-extension connection and returns its opaque principal and capability grants.
+                 *
+                 * @param params Private app-extension activation handshake. Identity is derived from trusted runtime connection metadata and is never accepted from request parameters.
+                 *
+                 * @returns Authenticated principal and capability grants for one private app-extension activation.
+                 */
+                register: async (params: AppExtensionRegisterRequest): Promise<AppExtensionRegisterResult> =>
+                    connection.sendRequest("extensions.appExtension.register", params),
+            },
+            /** @experimental */
+            appSessionBadges: {
+                /**
+                 * Publishes one atomic badge and Create Pull Request action presentation.
+                 *
+                 * @param params Publishes one atomic badge and action presentation for an eligible app session.
+                 */
+                setPresentation: async (params: AppSessionSetPresentationRequest): Promise<void> =>
+                    connection.sendRequest("extensions.appSessionBadges.setPresentation", params),
+                /**
+                 * Publishes an ordered atomic batch of badge and Create Pull Request action presentations.
+                 *
+                 * @param params Publishes an ordered batch of atomic badge and action presentations.
+                 */
+                setPresentations: async (params: AppSessionSetPresentationsRequest): Promise<void> =>
+                    connection.sendRequest("extensions.appSessionBadges.setPresentations", params),
+                /** @experimental */
+                action: {
+                    /**
+                     * Routes a trusted app-host Create Pull Request action to its owning extension contribution.
+                     *
+                     * @param params Trusted app-host request to invoke a Create Pull Request action on its owning extension contribution.
+                     *
+                     * @returns AppSessionActionResult or null when the extension declines the action.
+                     */
+                    invoke: async (params: AppSessionActionHostRequest): Promise<ExtensionsAppSessionBadgesActionInvokeResult> =>
+                        connection.sendRequest("extensions.appSessionBadges.action.invoke", params),
+                },
+            },
+            /** @experimental */
+            appCanvas: {
+                /**
+                 * Registers one trusted app-canvas contribution on its owning extension connection.
+                 *
+                 * @param params Registers or unregisters one runtime-authenticated app-extension contribution on its owning connection.
+                 */
+                register: async (params: AppExtensionContributionRegistrationRequest): Promise<void> =>
+                    connection.sendRequest("extensions.appCanvas.register", params),
+                /**
+                 * Unregisters one trusted app-canvas contribution from its owning extension connection.
+                 *
+                 * @param params Registers or unregisters one runtime-authenticated app-extension contribution on its owning connection.
+                 */
+                unregister: async (params: AppExtensionContributionRegistrationRequest): Promise<void> =>
+                    connection.sendRequest("extensions.appCanvas.unregister", params),
+                /**
+                 * Routes a trusted app-host canvas open request to its owning extension contribution.
+                 *
+                 * @param params Trusted app-host request to open an app-extension canvas.
+                 *
+                 * @returns Bounded app-canvas state and display metadata. Arbitrary navigation URLs are not supported.
+                 */
+                open: async (params: AppCanvasHostOpenRequest): Promise<AppCanvasOpenResult> =>
+                    connection.sendRequest("extensions.appCanvas.open", params),
+                /** @experimental */
+                action: {
+                    /**
+                     * Routes a trusted app-host canvas action to its owning extension contribution.
+                     *
+                     * @param params Trusted app-host request to invoke an app-extension canvas action.
+                     *
+                     * @returns Serializable action result.
+                     */
+                    invoke: async (params: AppCanvasHostActionRequest): Promise<ExtensionsAppCanvasActionInvokeResult> =>
+                        connection.sendRequest("extensions.appCanvas.action.invoke", params),
+                },
+                /**
+                 * Routes a trusted app-host canvas close request to its owning extension contribution.
+                 *
+                 * @param params Trusted app-host request to close an app-extension canvas.
+                 */
+                close: async (params: AppCanvasHostCloseRequest): Promise<void> =>
+                    connection.sendRequest("extensions.appCanvas.close", params),
+            },
+            /** @experimental */
+            appForge: {
+                /**
+                 * Registers one trusted forge-provider contribution and its supported operations.
+                 *
+                 * @param params Registers one runtime-authenticated forge-provider contribution and its supported operation names.
+                 */
+                register: async (params: AppForgeRegisterRequest): Promise<void> =>
+                    connection.sendRequest("extensions.appForge.register", params),
+                /**
+                 * Unregisters one trusted forge-provider contribution from its owning extension connection.
+                 *
+                 * @param params Registers or unregisters one runtime-authenticated app-extension contribution on its owning connection.
+                 */
+                unregister: async (params: AppExtensionContributionRegistrationRequest): Promise<void> =>
+                    connection.sendRequest("extensions.appForge.unregister", params),
+                /**
+                 * Routes a trusted app-host operation to its owning forge-provider contribution.
+                 *
+                 * @param params Trusted app-host request to invoke an app-extension forge provider.
+                 *
+                 * @returns Serializable forge-provider operation result.
+                 */
+                invoke: async (params: AppForgeHostInvokeRequest): Promise<ExtensionsAppForgeInvokeResult> =>
+                    connection.sendRequest("extensions.appForge.invoke", params),
+                /**
+                 * Requests a bounded capability-gated HTTP operation through the trusted app host.
+                 *
+                 * @param params Requests a capability-gated forge operation through the trusted app host.
+                 *
+                 * @returns Bounded sanitized HTTP response returned by the trusted app host.
+                 */
+                fetch: async (params: AppMediatedFetchRequest): Promise<AppMediatedFetchResponse> =>
+                    connection.sendRequest("extensions.appForge.fetch", params),
+            },
+        },
         /** @experimental */
         sessions: {
             /**
@@ -27479,6 +28197,72 @@ export interface CanvasHandler {
     invoke(params: CanvasProviderInvokeActionRequest): Promise<CanvasActionInvokeResult>;
 }
 
+/** Handler for `appSessionBadges` client session API methods. */
+/** @experimental */
+export interface AppSessionBadgesHandler {
+    /**
+     * Invokes a Create Pull Request action on the owning app-extension contribution.
+     *
+     * @param params Create Pull Request callback routed to the owning app extension.
+     *
+     * @returns AppSessionActionResult or null when the extension declines the action.
+     */
+    invoke(params: AppSessionActionCallbackRequest, cancellation?: CancellationToken): Promise<AppSessionBadgesActionInvokeResult>;
+}
+
+/** Handler for `appCanvas` client session API methods. */
+/** @experimental */
+export interface AppCanvasHandler {
+    /**
+     * Opens an app-scoped canvas contribution on its owning extension connection.
+     *
+     * @param params App-canvas open callback routed to the owning extension connection.
+     *
+     * @returns Bounded app-canvas state and display metadata. Arbitrary navigation URLs are not supported.
+     */
+    open(params: AppCanvasOpenCallbackRequest, cancellation?: CancellationToken): Promise<AppCanvasOpenResult>;
+    /**
+     * Closes an app-scoped canvas contribution on its owning extension connection.
+     *
+     * @param params App-canvas close callback routed to the owning extension connection.
+     */
+    close(params: AppCanvasCloseCallbackRequest, cancellation?: CancellationToken): Promise<void>;
+    /**
+     * Invokes an action on an app-scoped canvas contribution.
+     *
+     * @param params App-canvas action callback routed to the owning extension connection.
+     *
+     * @returns Serializable action result.
+     */
+    invoke(params: AppCanvasActionCallbackRequest, cancellation?: CancellationToken): Promise<AppCanvasActionInvokeResult>;
+}
+
+/** Handler for `appForgeProvider` client session API methods. */
+/** @experimental */
+export interface AppForgeProviderHandler {
+    /**
+     * Invokes one registered forge-provider operation on its owning extension connection.
+     *
+     * @param params Forge-provider operation callback routed to the owning extension connection.
+     *
+     * @returns Serializable forge-provider operation result.
+     */
+    invoke(params: AppForgeInvokeCallbackRequest, cancellation?: CancellationToken): Promise<AppForgeInvokeResult>;
+}
+
+/** Handler for `appForgeHost` client session API methods. */
+/** @experimental */
+export interface AppForgeHostHandler {
+    /**
+     * Delegates one validated mediated-fetch effect to the trusted app session host.
+     *
+     * @param params Validated mediated-fetch effect routed to the trusted app session host.
+     *
+     * @returns Bounded sanitized HTTP response returned by the trusted app host.
+     */
+    fetch(params: AppMediatedFetchHostRequest): Promise<AppMediatedFetchResponse>;
+}
+
 /** All client session API handler groups. */
 export interface ClientSessionApiHandlers {
     providerToken?: ProviderTokenHandler;
@@ -27486,6 +28270,10 @@ export interface ClientSessionApiHandlers {
     tasks?: TasksHandler;
     sessionFs?: SessionFsHandler;
     canvas?: CanvasHandler;
+    appSessionBadges?: AppSessionBadgesHandler;
+    appCanvas?: AppCanvasHandler;
+    appForgeProvider?: AppForgeProviderHandler;
+    appForgeHost?: AppForgeHostHandler;
 }
 
 /**
@@ -27597,6 +28385,36 @@ export function registerClientSessionApiHandlers(
         const handler = getHandlers(params.sessionId).canvas;
         if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
         return handler.invoke(params);
+    });
+    connection.onRequest("appSessionBadges.action.invoke", async (params: AppSessionActionCallbackRequest, cancellation: CancellationToken) => {
+        const handler = getHandlers(params.sessionId).appSessionBadges;
+        if (!handler) throw new Error(`No appSessionBadges handler registered for session: ${params.sessionId}`);
+        return handler.invoke(params, cancellation);
+    });
+    connection.onRequest("appCanvas.open", async (params: AppCanvasOpenCallbackRequest, cancellation: CancellationToken) => {
+        const handler = getHandlers(params.sessionId).appCanvas;
+        if (!handler) throw new Error(`No appCanvas handler registered for session: ${params.sessionId}`);
+        return handler.open(params, cancellation);
+    });
+    connection.onRequest("appCanvas.close", async (params: AppCanvasCloseCallbackRequest, cancellation: CancellationToken) => {
+        const handler = getHandlers(params.sessionId).appCanvas;
+        if (!handler) throw new Error(`No appCanvas handler registered for session: ${params.sessionId}`);
+        return handler.close(params, cancellation);
+    });
+    connection.onRequest("appCanvas.action.invoke", async (params: AppCanvasActionCallbackRequest, cancellation: CancellationToken) => {
+        const handler = getHandlers(params.sessionId).appCanvas;
+        if (!handler) throw new Error(`No appCanvas handler registered for session: ${params.sessionId}`);
+        return handler.invoke(params, cancellation);
+    });
+    connection.onRequest("appForge.invoke", async (params: AppForgeInvokeCallbackRequest, cancellation: CancellationToken) => {
+        const handler = getHandlers(params.sessionId).appForgeProvider;
+        if (!handler) throw new Error(`No appForgeProvider handler registered for session: ${params.sessionId}`);
+        return handler.invoke(params, cancellation);
+    });
+    connection.onRequest("appForge.fetch", async (params: AppMediatedFetchHostRequest) => {
+        const handler = getHandlers(params.sessionId).appForgeHost;
+        if (!handler) throw new Error(`No appForgeHost handler registered for session: ${params.sessionId}`);
+        return handler.fetch(params);
     });
 }
 

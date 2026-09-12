@@ -721,6 +721,7 @@ export class CopilotSession {
             prompt: options.prompt,
             source: options.source,
             displayPrompt: options.displayPrompt,
+            requiredTool: options.requiredTool,
             attachments: options.attachments,
             mode: options.mode,
             agentMode: options.agentMode,
