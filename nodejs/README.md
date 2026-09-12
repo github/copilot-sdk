@@ -122,6 +122,7 @@ new CopilotClient(options?: CopilotClientOptions)
 - `telemetry?: TelemetryConfig` - OpenTelemetry configuration for the runtime process. Providing this object enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `onGetTraceContext?: TraceContextProvider` - Advanced: callback for linking your application's own OpenTelemetry spans into the same distributed trace as the runtime's spans. Not needed for normal telemetry collection. See [Telemetry](#telemetry) below.
 - `sessionFs?: SessionFsConfig` - Custom session filesystem provider.
+- `extensionLaunchProvider?: ExtensionLaunchProviderHandler` - Experimental, connection-owned extension launch admission. Requires explicit runtime contract version 1; see [Extension launch admission](#extension-launch-admission-experimental).
 - `sessionIdleTimeoutSeconds?: number` - Server-wide idle timeout for sessions in seconds. Ignored when connecting via `RuntimeConnection.forUri`.
 - `enableRemoteSessions?: boolean` - Enable Mission Control remote session support. Ignored when connecting via `RuntimeConnection.forUri`.
 
@@ -130,6 +131,89 @@ new CopilotClient(options?: CopilotClientOptions)
 ##### `start(): Promise<void>`
 
 Start the CLI server and establish connection.
+
+##### Extension launch admission (experimental)
+
+Configure `extensionLaunchProvider` before starting the client. The SDK attaches
+the handler before the RPC handshake, registers it once per connection, and requires
+`{ contractVersion: 1 }` before allowing session creation or resume. An older
+runtime's null acknowledgement, an unsupported version, or a registration error
+rejects startup. Omitting the option preserves legacy launching.
+
+```typescript
+const client = new CopilotClient({
+    extensionLaunchProvider: {
+        async resolve(request, cancellation) {
+            // approveRevision is the embedding application's source-admission routine.
+            if (!(await approveRevision(request, cancellation))) {
+                return { launch: null };
+            }
+            if (!request.sessionId || !request.defaultLaunch) {
+                throw new Error("This launch requires session and runtime bootstrap context");
+            }
+            await client.rpc.session.retain({ sessionId: request.sessionId });
+            return { launch: request.defaultLaunch };
+        },
+    },
+});
+await client.start();
+```
+
+The request preserves the source-qualified ID, name, original module path,
+source (`project`, `user`, `plugin`, or `session`), and optional `sessionId` and
+`defaultLaunch`. The latter is the runtime's unexecuted executable, arguments,
+and bootstrap environment overrides, not its inherited environment. Do not
+invent missing session IDs or reconstruct private bootstrap paths.
+
+The handler must respond within the runtime's 15-second deadline. An absent/null
+launch, callback error, timeout, or cancellation denies execution without a
+fallback. The optional transport cancellation token also signals disconnect and
+stop. Reconnection requires a fresh registration; approvals are not cached or
+replayed. A shared runtime may keep a disconnected provider authoritative to
+prevent a fallback to legacy launching. If it rejects replacement registration,
+the SDK surfaces that error; it does not take over the old registration. Restarting
+an SDK-owned runtime permits fresh negotiation. Shared-runtime reattachment
+requires support from the runtime contract.
+
+This contract does not sandbox Node, freeze files or dependencies, or
+implement source-revision approval or immediate revocation.
+
+`await client.rpc.session.retain({ sessionId })` works reentrantly while
+`createSession` is pending. After creation, `await session.rpc.retain()` performs
+the same operation. Both return the runtime's `null` acknowledgement only after
+durable retention and writer flush, and propagate errors. Retention is idempotent,
+requires a local session, and creates no prompt, turn, title, permission grant, or
+provider process. It preserves session storage across shutdown and cold resume,
+not volatile extension memory, and does not prevent explicit deletion.
+
+Approve the source revision, await retention, then return the approved launch
+recipe: top-level extension code can have effects before `joinSession` or canvas
+open. Create/resume completion is not registry readiness; wait for the expected
+entry in `session.rpc.canvas.list()` or a registry-change event before opening it.
+
+For read-only shell-command classification from the first new extension operation,
+pass `enableScriptSafety: true` in the initial `createSession` and `resumeSession`
+configurations, rather than only updating options after they return. Commands
+classified as read-only may run without a permission prompt, subject to runtime
+and managed policy. This is not blanket tool approval, a policy override, or
+retroactive protection for already-running extensions.
+
+The setting is in-memory, not persisted by retention. An omitted cold-resume
+setting uses the runtime default (classification disabled); omission on a resident
+resume preserves the current value. Hosts requiring classification should supply
+`true` on every create and cold resume. Explicit `false` and omission are forwarded
+without an SDK default.
+
+These bindings require a runtime implementing the launch v1 and retention
+contracts and initial script-safety configuration. The checked-in CLI pin alone
+does not establish their availability; an older runtime rejects these opt-in
+operations. Publishing and qualifying a matching SDK/runtime pair is a separate
+release step.
+
+These experimental high-level bindings are currently Node-only. Generated wire
+types or an earlier launch-provider API in another SDK do not establish equivalent
+launch-v1, retention, cancellation, or initial script-safety behavior.
+High-level parity in the other SDKs is a separate follow-up.
 
 ##### `stop(): Promise<Error[]>`
 
@@ -1200,6 +1284,24 @@ cd nodejs
 npm ci
 npm test
 ```
+
+Run `npm run generate` to regenerate bindings from the checksum-verified pinned
+CLI schemas. The default Node generator also applies the reviewed experimental
+[canvas schema revision](../scripts/codegen/experimental/canvas.schema.json).
+That checked-in input records the canonical producer schema hashes, the exact
+released predecessor fingerprints, and the launch-v1/retention fragments; it
+does not invent a CLI release or change the downloaded schemas.
+
+The revision accepts only its recorded predecessor or an already matching
+canonical field. Unexpected changes fail generation rather than silently
+overriding a newer contract. When the runtime contract is released, review and
+remove the corresponding revision entries as part of the normal pin update.
+Other language generators remain on the release schema, and explicit schema
+arguments to the Node generator remain complete caller-supplied inputs.
+
+This makes ordinary codegen reproducible, not the experimental runtime available.
+The launch-version acknowledgement and compatible-runtime requirements above
+still apply.
 
 ## License
 
