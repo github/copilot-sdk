@@ -129,7 +129,7 @@ conversations:
       - role: user
         content: |-
           Image file at path ${workdir}/test.png
-          You've reached the maximum number of images you can view (1) so I can't provide the image for you to see.
+          [image]
       - role: assistant
         content: "I tried to view the image, but I'm not able to see the image content in the response. Let me check if the file
           exists and try again:"
