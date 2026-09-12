@@ -26,7 +26,7 @@ jobs:
         shell: bash
         working-directory: ./rust
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-copilot
         id: setup-copilot
@@ -55,7 +55,7 @@ jobs:
       # now downloads in both modes (embed for `bundle`, extract-to-cache
       # for this `test` job's `--no-default-features` build).
       - name: Cache bundled CLI archives
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
@@ -96,10 +96,10 @@ jobs:
         shell: bash
         working-directory: ./rust
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: "1.94.0"
           components: clippy
@@ -108,7 +108,7 @@ jobs:
       # imports_granularity, reorder_impl_items) — pinned in
       # `.rustfmt.nightly.toml`.
       - name: Install nightly rustfmt
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           toolchain: nightly-2026-04-14
           components: rustfmt
@@ -128,7 +128,7 @@ jobs:
           echo "Pinned CLI version: $version"
 
       - name: Cache bundled CLI archives
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-ubuntu-latest-${{ steps.cli-version.outputs.version }}
@@ -155,10 +155,10 @@ jobs:
         shell: bash
         working-directory: ./rust
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: "1.94.0"
 
@@ -177,7 +177,7 @@ jobs:
           echo "Pinned CLI version: $version"
 
       - name: Cache bundled CLI archives
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-ubuntu-latest-${{ steps.cli-version.outputs.version }}
@@ -215,13 +215,13 @@ jobs:
         shell: bash
         working-directory: ./rust
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-copilot
         id: setup-copilot
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: "1.94.0"
 
@@ -240,7 +240,7 @@ jobs:
           echo "Pinned CLI version: $version"
 
       - name: Cache bundled CLI archives
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
@@ -290,7 +290,7 @@ jobs:
         shell: bash
         working-directory: ./rust
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
@@ -320,7 +320,7 @@ jobs:
       # archives drop out when the pinned version bumps, keeping the
       # cache bounded.
       - name: Cache bundled CLI archives
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
@@ -345,7 +345,7 @@ jobs:
       matrix:
         transport: [default, inprocess]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Test ${{ matrix.transport }} transport in Alpine
         uses: ./.github/actions/run-alpine-tests
