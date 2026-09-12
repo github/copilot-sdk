@@ -8,7 +8,8 @@
     "generate:csharp": "tsx csharp.ts",
     "generate:python": "tsx python.ts",
     "generate:go": "tsx go.ts",
-    "generate:rust": "tsx rust.ts"
+    "generate:rust": "tsx rust.ts",
+    "test": "tsx --test *.test.ts"
   },
   "dependencies": {
     "json-schema": "^0.4.0",

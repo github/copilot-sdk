@@ -64,6 +64,10 @@ jobs:
         working-directory: ./scripts/codegen
         run: npm ci
 
+      - name: Test codegen
+        working-directory: ./scripts/codegen
+        run: npm test
+
       - name: Run codegen
         working-directory: ./scripts/codegen
         run: npm run generate
