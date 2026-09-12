@@ -1718,6 +1718,77 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task Replaced_System_Message_Observes_Idle_Before_Send_Reply()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var timeout = TimeSpan.FromSeconds(5);
+        const string finalContent = "My full name is Testy McTestface.";
+        var drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = session.On<SessionTitleChangedEvent>(_ => drained.TrySetResult());
+        var idleBeforeReply = false;
+        server.BeforeResponseAsync = async (request, cancellationToken) =>
+        {
+            if (request.Method != "session.send")
+            {
+                return;
+            }
+
+            await server.SendSessionEventAsync(session.SessionId, "user.message", new()
+            {
+                ["content"] = request.Params.GetProperty("prompt").GetString()
+            });
+            await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+            {
+                ["messageId"] = "intermediate-message",
+                ["content"] = "I will check before answering."
+            });
+            await server.SendSessionEventAsync(session.SessionId, "tool.execution_start", new()
+            {
+                ["toolCallId"] = "check-name",
+                ["toolName"] = "shell"
+            });
+            await server.SendSessionEventAsync(session.SessionId, "tool.execution_complete", new()
+            {
+                ["toolCallId"] = "check-name",
+                ["success"] = true
+            });
+            await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+            {
+                ["messageId"] = "final-message",
+                ["content"] = finalContent
+            });
+            await server.SendSessionEventAsync(session.SessionId, "session.idle", new());
+            // Drain a later event before replying, so idle cannot remain queued for a late subscriber.
+            await server.SendSessionEventAsync(session.SessionId, "session.title_changed", new() { ["title"] = "fence" });
+            await drained.Task.WaitAsync(timeout, cancellationToken);
+            idleBeforeReply = true;
+        };
+
+        try
+        {
+            await E2E.SessionE2ETests.AssertReplacedSystemMessageResponseAsync(session, timeout);
+        }
+        catch (TimeoutException error)
+        {
+            var history = await session.GetEventsAsync();
+            throw new TimeoutException(
+                $"{error.Message}; idle drained before send reply: {idleBeforeReply}; " +
+                $"durable assistant messages: {history.OfType<AssistantMessageEvent>().Count()}; " +
+                $"durable idle events: {history.OfType<SessionIdleEvent>().Count()}", error);
+        }
+
+        Assert.True(idleBeforeReply);
+        var request = Assert.Single(server.Requests, request => request.Method == "session.send");
+        Assert.Equal("What is your full name?", request.Params.GetProperty("prompt").GetString());
+        var events = await session.GetEventsAsync();
+        Assert.DoesNotContain(events, evt => evt is SessionIdleEvent);
+        Assert.Equal(2, events.OfType<AssistantMessageEvent>().Count());
+        Assert.Equal(finalContent, events.OfType<AssistantMessageEvent>().Last().Data.Content);
+    }
+
+    [Fact]
     public async Task Replaced_Preamble_Response_Observes_Idle_Before_Send_Reply()
     {
         await using var server = await FakeCopilotServer.StartAsync();
