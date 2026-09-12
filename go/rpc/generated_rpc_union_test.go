@@ -8,6 +8,35 @@ import (
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 )
 
+func TestCatalogTrustSnapshotMatchesStatusAndTier(t *testing.T) {
+	for _, tier := range []CatalogTrustTier{CatalogTrustTierT1, CatalogTrustTierT2} {
+		t.Run(string(tier), func(t *testing.T) {
+			decoded, err := unmarshalCatalogTrustSnapshot([]byte(`{"schemaVersion":"v1","status":"current","tier":"` + string(tier) + `","eligibility":"unknown"}`))
+			if err != nil {
+				t.Fatalf("unmarshal current trust snapshot: %v", err)
+			}
+			current, ok := decoded.(*CatalogTrustSnapshotCurrent)
+			if !ok || current.Tier != tier {
+				t.Fatalf("unmarshal current trust snapshot = %#v, want tier %s", decoded, tier)
+			}
+		})
+	}
+
+	for _, wire := range []string{
+		`{"schemaVersion":"v1","status":"current","tier":"future"}`,
+		`{"schemaVersion":"v1","status":"current"}`,
+		`{"schemaVersion":"v1","status":"future","tier":"T1"}`,
+	} {
+		decoded, err := unmarshalCatalogTrustSnapshot([]byte(wire))
+		if err != nil {
+			t.Fatalf("unmarshal unknown trust snapshot: %v", err)
+		}
+		if _, ok := decoded.(*RawCatalogTrustSnapshotData); !ok {
+			t.Fatalf("unmarshal unknown trust snapshot = %T, want *RawCatalogTrustSnapshotData", decoded)
+		}
+	}
+}
+
 func TestExternalToolResultJSONUnion(t *testing.T) {
 	var stringResult ExternalToolResult = ExternalToolStringResult("tool result")
 	raw, err := json.Marshal(stringResult)

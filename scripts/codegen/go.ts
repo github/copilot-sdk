@@ -1663,7 +1663,7 @@ function pushGoJSONPositiveTermLines(
     lines.push(`${indent}if ${fieldExpr} == nil {`);
     lines.push(`${indent}\treturn false`);
     lines.push(`${indent}}`);
-    pushGoJSONStringMatchLines(lines, fieldExpr, term.values, indent, varPrefix);
+    pushGoJSONStringMatchLines(lines, fieldExpr, term.values, indent, `${varPrefix}${fieldNames.get(propName)!}`);
 }
 
 function pushGoJSONNegativePropertyLines(

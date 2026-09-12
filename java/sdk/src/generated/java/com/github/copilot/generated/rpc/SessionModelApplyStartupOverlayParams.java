@@ -38,6 +38,8 @@ public record SessionModelApplyStartupOverlayParams(
     @JsonProperty("repoReasoningEffort") String repoReasoningEffort,
     /** Context tier selected by repository settings, when configured. */
     @JsonProperty("repoContextTier") String repoContextTier,
+    /** Auto routing preference selected by repository settings, when configured. Applied only when the overlay selects the Auto model; beside a concrete model it stays dormant. */
+    @JsonProperty("repoAutoTier") String repoAutoTier,
     /** Model explicitly selected by the CLI, when provided. */
     @JsonProperty("cliModel") String cliModel,
     /** Whether the overlay is being applied while resuming a deferred session. */

@@ -64,6 +64,10 @@ public final class CatalogMcpServerCandidate extends CatalogCandidate {
     @JsonProperty("provenance")
     private CatalogMcpServerCandidateProvenance provenance;
 
+    /** Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field. */
+    @JsonProperty("trust")
+    private CatalogTrustSnapshot trust;
+
     public String getHandle() { return handle; }
     public void setHandle(String handle) { this.handle = handle; }
 
@@ -90,4 +94,7 @@ public final class CatalogMcpServerCandidate extends CatalogCandidate {
 
     public CatalogMcpServerCandidateProvenance getProvenance() { return provenance; }
     public void setProvenance(CatalogMcpServerCandidateProvenance provenance) { this.provenance = provenance; }
+
+    public CatalogTrustSnapshot getTrust() { return trust; }
+    public void setTrust(CatalogTrustSnapshot trust) { this.trust = trust; }
 }
