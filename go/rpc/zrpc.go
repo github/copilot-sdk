@@ -1504,6 +1504,10 @@ type CatalogAiSkillCandidate struct {
 	// Where the card came from: exactly one of a URL or embedded data, encoded as a tagged
 	// union so neither both nor neither can be represented.
 	Source CatalogCandidateSource `json:"source"`
+	// Versioned trust metadata observed from the catalog authority. Optional for protocol-3
+	// compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits
+	// an explicit snapshot even when the authority omitted or malformed its trust field.
+	Trust CatalogTrustSnapshot `json:"trust,omitempty"`
 }
 
 func (CatalogAiSkillCandidate) catalogCandidate() {}
@@ -1538,6 +1542,10 @@ type CatalogMCPServerCandidate struct {
 	// Where the card came from: exactly one of a URL or embedded data, encoded as a tagged
 	// union so neither both nor neither can be represented.
 	Source CatalogCandidateSource `json:"source"`
+	// Versioned trust metadata observed from the catalog authority. Optional for protocol-3
+	// compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits
+	// an explicit snapshot even when the authority omitted or malformed its trust field.
+	Trust CatalogTrustSnapshot `json:"trust,omitempty"`
 }
 
 func (CatalogMCPServerCandidate) catalogCandidate() {}
@@ -1769,9 +1777,12 @@ type CatalogNegotiationRefusedError struct {
 	Reason CatalogNegotiationRefusedReason `json:"reason"`
 	// Protocol version of the runtime that refused the request.
 	RuntimeProtocolVersion int64 `json:"runtimeProtocolVersion"`
-	// Every wire feature this runtime understands, so the caller can retry within that
-	// contract. This list does not imply that every deployment has enabled every operation.
-	SupportedCapabilities []CatalogCapability `json:"supportedCapabilities"`
+	// Capabilities this runtime can safely advertise to this caller. The complete
+	// five-capability protocol-3 legacy set is always present; every capability added after
+	// that baseline appears only when the caller required it, so an older closed-enum decoder
+	// can still consume a refusal. This list does not imply that every deployment has enabled
+	// every operation.
+	SupportedCapabilities []string `json:"supportedCapabilities"`
 	// The subset of the caller's bounded extensible capability identifiers this runtime cannot
 	// honour.
 	UnsupportedCapabilities []string `json:"unsupportedCapabilities"`
@@ -1897,6 +1908,177 @@ type CatalogUnsupportedKindError struct {
 func (CatalogUnsupportedKindError) catalogSearchResult() {}
 func (CatalogUnsupportedKindError) Kind() CatalogSearchResultKind {
 	return CatalogSearchResultKindUnsupportedKind
+}
+
+// Where and when the runtime observed the trust metadata. Observation time is not the
+// authority's evaluation time and must not be used to infer staleness.
+// Experimental: CatalogTrustProvenance is part of an experimental API and may change or be
+// removed.
+type CatalogTrustProvenance struct {
+	// ISO 8601 timestamp with a timezone offset at which the runtime observed the search result
+	// carrying this trust field.
+	ObservedAt time.Time `json:"observedAt"`
+	// Bounded authority that supplied the trust field.
+	Source CatalogTrustSource `json:"source"`
+}
+
+// A versioned, bounded trust observation carried unchanged with a catalog candidate and its
+// private handle context. Current observations require a recognised T1/T2 tier; every
+// non-current state structurally forbids a tier. Eligibility remains `unknown` while Agent
+// Finder supplies no exposure decision, and states absent from its current wire are never
+// inferred from age, relevance, popularity, or a tier transition.
+// Experimental: CatalogTrustSnapshot is part of an experimental API and may change or be
+// removed.
+type CatalogTrustSnapshot interface {
+	catalogTrustSnapshot()
+	SchemaVersion() CatalogTrustSnapshotSchemaVersion
+}
+
+type RawCatalogTrustSnapshotData struct {
+	Discriminator CatalogTrustSnapshotSchemaVersion
+	Raw           json.RawMessage
+}
+
+func (RawCatalogTrustSnapshotData) catalogTrustSnapshot() {}
+func (r RawCatalogTrustSnapshotData) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return r.Discriminator
+}
+
+// Discriminator: the authority omitted trust metadata.
+// Experimental: CatalogTrustSnapshotAbsent is part of an experimental API and may change or
+// be removed.
+type CatalogTrustSnapshotAbsent struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the authority omitted trust metadata.
+	Status CatalogTrustSnapshotAbsentStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotAbsent) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotAbsent) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// A recognised current Agent Finder T1 or T2 trust tier.
+// Experimental: CatalogTrustSnapshotCurrent is part of an experimental API and may change
+// or be removed.
+type CatalogTrustSnapshotCurrent struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: a recognised current trust tier was observed.
+	Status CatalogTrustSnapshotCurrentStatus `json:"status"`
+	// Service-computed T1 or T2 trust tier.
+	Tier CatalogTrustTier `json:"tier"`
+}
+
+func (CatalogTrustSnapshotCurrent) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotCurrent) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// Discriminator: the authority explicitly reported a downgraded assessment.
+// Experimental: CatalogTrustSnapshotDowngraded is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotDowngraded struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the authority explicitly reported a downgraded assessment.
+	Status CatalogTrustSnapshotDowngradedStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotDowngraded) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotDowngraded) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+// Experimental: CatalogTrustSnapshotMalformed is part of an experimental API and may change
+// or be removed.
+type CatalogTrustSnapshotMalformed struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+	Status CatalogTrustSnapshotMalformedStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotMalformed) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotMalformed) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// Discriminator: the authority explicitly revoked the assessment.
+// Experimental: CatalogTrustSnapshotRevoked is part of an experimental API and may change
+// or be removed.
+type CatalogTrustSnapshotRevoked struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the authority explicitly revoked the assessment.
+	Status CatalogTrustSnapshotRevokedStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotRevoked) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotRevoked) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// Discriminator: the authority explicitly marked the assessment stale.
+// Experimental: CatalogTrustSnapshotStale is part of an experimental API and may change or
+// be removed.
+type CatalogTrustSnapshotStale struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the authority explicitly marked the assessment stale.
+	Status CatalogTrustSnapshotStaleStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotStale) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotStale) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// Discriminator: the authority supplied a bounded trust value this runtime does not
+// understand.
+// Experimental: CatalogTrustSnapshotUnsupported is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotUnsupported struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the authority supplied a bounded trust value this runtime does not
+	// understand.
+	Status CatalogTrustSnapshotUnsupportedStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotUnsupported) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotUnsupported) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
 }
 
 // Client-owned, case-sensitive string metadata persisted with a local session. Clients
@@ -2264,7 +2446,7 @@ type CopilotUserResponse struct {
 	Login *string `json:"login,omitempty"`
 	// Per-category monthly quota allotments, keyed by quota category.
 	MonthlyQuotas map[string]float64 `json:"monthly_quotas,omitzero"`
-	// Organizations the user belongs to, each with an optional login and display name.
+	// Organizations the user belongs to, each with an optional ID, login, and display name.
 	OrganizationList []CopilotUserResponseOrganizationListItem `json:"organization_list,omitzero"`
 	// Logins of the organizations the user belongs to.
 	OrganizationLoginList []string `json:"organization_login_list,omitzero"`
@@ -2303,6 +2485,8 @@ type CopilotUserResponseEndpoints struct {
 }
 
 type CopilotUserResponseOrganizationListItem struct {
+	// Numeric database ID of the organization.
+	ID *float64 `json:"id,omitempty"`
 	// GitHub login of the organization.
 	Login *string `json:"login,omitempty"`
 	// Display name of the organization.
@@ -2841,16 +3025,14 @@ type EventsReadResult struct {
 	// backward read this cursor pages toward OLDER events; keep passing `direction: backward`
 	// with it (the cursor is also self-describing, so backward paging continues correctly).
 	Cursor string `json:"cursor"`
-	// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor
-	// referred to an event that no longer exists in history (e.g. truncated or compacted away)
-	// and the read fell back to a boundary of the remaining history. For a forward read the
-	// fallback starts from the beginning of the remaining history; for a backward read it falls
-	// back to the tail (the newest window). Because the fallback page is a fresh boundary
-	// snapshot rather than a continuation of the requested cursor, it may overlap events the
-	// consumer has already rendered — a backward fallback to the tail in particular can repeat
-	// the newest window. On 'expired', consumers should reset or rebase their local pagination
-	// state (or deduplicate by event id) before continuing from the returned cursor rather than
-	// blindly appending/prepending the fallback page.
+	// Cursor status: 'ok' means the cursor was applied successfully. For session.eventLog.read,
+	// 'expired' means the cursor referred to an event that no longer exists in active history
+	// and the read fell back to a boundary of the remaining history: the beginning for a
+	// forward read or the newest window for a backward read. That fallback may overlap already
+	// rendered events, so active-session consumers should reset, rebase, or deduplicate before
+	// continuing. sessions.readPersistedEvents has stricter snapshot semantics: 'expired'
+	// returns an empty terminal page and never switches to a replacement journal generation.
+	// Other persisted-read I/O failures are RPC errors with diagnostics, not cursor expiry.
 	CursorStatus EventsCursorStatus `json:"cursorStatus"`
 	// Session events for this batch, merged into a single stream in creation order: durable
 	// (persisted) events and ephemeral events interleave exactly as they were emitted. Set
@@ -2859,9 +3041,10 @@ type EventsReadResult struct {
 	// reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window
 	// contains persisted events only, still in chronological (oldest-to-newest) append order.
 	Events []SessionEvent `json:"events"`
-	// True when more events are available in the read's direction. For a forward read, true
-	// means the batch returned `max` events and more are available immediately. For a backward
-	// read, true means older persisted events remain before the returned window.
+	// True when more events are available in the read's direction. For a backward read, true
+	// means older persisted events remain before the returned window. A persisted-event page
+	// may contain fewer than `max` events because of its byte budget while still reporting
+	// hasMore true; continue according to this flag rather than the event count.
 	HasMore bool `json:"hasMore"`
 }
 
@@ -3965,12 +4148,24 @@ type FilterMappingEnumMap map[string]ContentFilterMode
 
 func (FilterMappingEnumMap) filterMapping() {}
 
-// Optional user prompt to combine with the fleet orchestration instructions.
+// Parameters for starting fleet orchestration: an optional user prompt combined with the
+// fleet instructions, plus the send options forwarded to the resulting turn.
 // Experimental: FleetStartRequest is part of an experimental API and may change or be
 // removed.
 type FleetStartRequest struct {
+	// Optional attachments (files, directories, selections, blobs, GitHub references) to
+	// include with the fleet request
+	Attachments []Attachment `json:"attachments,omitzero"`
+	// If false, this request will not trigger a Premium Request Unit charge. User requests
+	// default to billable.
+	// Internal: Billable is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Billable *bool `json:"billable,omitempty"`
 	// Optional user prompt to combine with fleet instructions
 	Prompt *string `json:"prompt,omitempty"`
+	// If true, await completion of the agentic loop for this fleet request before returning.
+	// Defaults to false.
+	Wait *bool `json:"wait,omitempty"`
 }
 
 // Indicates whether fleet mode was successfully activated.
@@ -7226,6 +7421,9 @@ type ModelApplyStartupOverlayRequest struct {
 	// managed sources: it applies only when neither device nor server policy names a model, and
 	// an explicit user selection still wins.
 	PolicyHelperModel *string `json:"policyHelperModel,omitempty"`
+	// Auto routing preference selected by repository settings, when configured. Applied only
+	// when the overlay selects the Auto model; beside a concrete model it stays dormant.
+	RepoAutoTier *string `json:"repoAutoTier,omitempty"`
 	// Context tier selected by repository settings, when configured.
 	RepoContextTier *string `json:"repoContextTier,omitempty"`
 	// Model selected by repository settings, when configured.
@@ -7681,6 +7879,9 @@ type ModelWarningText struct {
 type ModeSetRequest struct {
 	// Explicit response to a model-switch compaction preflight.
 	CompactionDecision *string `json:"compactionDecision,omitempty"`
+	// Mode the session must currently be in for the change to apply. When set and the session
+	// is in a different mode the request is a no-op and reports status 'unchanged'.
+	ExpectedMode *SessionMode `json:"expectedMode,omitempty"`
 	// Session whose plan-mode base state should be inherited.
 	InheritPlanBaseFromSessionID *string `json:"inheritPlanBaseFromSessionId,omitempty"`
 	// The session mode the agent is operating in
@@ -7717,6 +7918,10 @@ type ModeSetResult struct {
 	DeprecationWarnings []string `json:"deprecationWarnings,omitzero"`
 	// User-facing outcome message for the model switch triggered by the mode change.
 	Message *string `json:"message,omitempty"`
+	// Whether the requested mode was applied to the session. False only when an 'expectedMode'
+	// precondition did not hold, in which case any model change reported alongside it was still
+	// applied.
+	ModeApplied *bool `json:"modeApplied,omitempty"`
 	// Whether applying the mode changed the active model.
 	ModelChanged bool `json:"modelChanged"`
 	// Lifecycle status of the requested mode change.
@@ -12539,6 +12744,9 @@ type SessionOpenOptions struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Initial reasoning summary mode for supported model clients.
 	ReasoningSummary *SessionOpenOptionsReasoningSummary `json:"reasoningSummary,omitempty"`
+	// Whether to invalidate cached custom-instruction discovery before constructing the
+	// session. Use when instruction files may have changed earlier in the same runtime process.
+	RefreshCustomInstructions *bool `json:"refreshCustomInstructions,omitempty"`
 	// Telemetry-only remote-defaulted flag.
 	RemoteDefaultedOn *bool `json:"remoteDefaultedOn,omitempty"`
 	// Telemetry-only remote exporting flag.
@@ -13483,12 +13691,17 @@ type SessionsPruneOldRequest struct {
 // Experimental: SessionsReadPersistedEventsRequest is part of an experimental API and may
 // change or be removed.
 type SessionsReadPersistedEventsRequest struct {
-	// Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+	// Opaque, process-local, single-use cursor returned by the previous persisted-event read.
+	// Omit on the first call and issue continuations sequentially; reusing the same cursor
+	// returns an expired terminal page.
 	Cursor *string `json:"cursor,omitempty"`
 	// Direction to page through persisted history. Forward starts at the beginning; backward
-	// starts with the newest events. Events in each page remain chronological.
+	// starts with the newest events. Events in each page remain chronological. This selects the
+	// initial read only; a continuation always uses the direction bound into its cursor.
 	Direction *EventsReadDirection `json:"direction,omitempty"`
-	// Maximum number of events to return in this batch (1–1000, default 200).
+	// Maximum number of events to return in this batch (1–1000, default 200). Pages may contain
+	// fewer events to keep the serialized event array within a soft 1 MiB budget including
+	// resolved binary assets; one oversized event is returned alone to guarantee progress.
 	Max *int64 `json:"max,omitempty"`
 	// Session ID whose persisted event journal should be read.
 	SessionID string `json:"sessionId"`
@@ -16942,6 +17155,9 @@ const (
 	// Understands plans that enumerate every eligible transport rather than a single preferred
 	// one.
 	CatalogCapabilityMultipleTransportChoice CatalogCapability = "multiple-transport-choice"
+	// Understands versioned candidate trust snapshots. Protocol-3 callers must require this
+	// capability before the runtime adds the optional snapshot field.
+	CatalogCapabilityTrustSnapshot CatalogCapability = "trust-snapshot"
 )
 
 // Which wire-contract rule an upstream response broke
@@ -17126,6 +17342,125 @@ const (
 	CatalogSearchResultKindUnavailable            CatalogSearchResultKind = "unavailable"
 	CatalogSearchResultKindUnsafeRetrieval        CatalogSearchResultKind = "unsafe-retrieval"
 	CatalogSearchResultKindUnsupportedKind        CatalogSearchResultKind = "unsupported-kind"
+)
+
+// Authority-computed exposure eligibility, kept separate from tier. The current tier-only
+// Agent Finder response maps to `unknown`, never to a locally inferred eligibility.
+// Experimental: CatalogTrustEligibility is part of an experimental API and may change or be
+// removed.
+type CatalogTrustEligibility string
+
+const (
+	// Eligible for default catalogue exposure.
+	CatalogTrustEligibilityDefault CatalogTrustEligibility = "default"
+	// Eligible only when expanded or community results are requested.
+	CatalogTrustEligibilityExpanded CatalogTrustEligibility = "expanded"
+	// Not eligible for normal catalogue exposure.
+	CatalogTrustEligibilityHidden CatalogTrustEligibility = "hidden"
+	// The authority did not supply an eligibility decision.
+	CatalogTrustEligibilityUnknown CatalogTrustEligibility = "unknown"
+)
+
+// The authority omitted trust metadata.
+// Experimental: CatalogTrustSnapshotAbsentStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotAbsentStatus string
+
+const (
+	// The authority omitted trust metadata.
+	CatalogTrustSnapshotAbsentStatusAbsent CatalogTrustSnapshotAbsentStatus = "absent"
+)
+
+// A recognised T1 or T2 service tier was observed.
+// Experimental: CatalogTrustSnapshotCurrentStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotCurrentStatus string
+
+const (
+	// A recognised T1 or T2 service tier was observed.
+	CatalogTrustSnapshotCurrentStatusCurrent CatalogTrustSnapshotCurrentStatus = "current"
+)
+
+// The authority explicitly reported a downgraded assessment.
+// Experimental: CatalogTrustSnapshotDowngradedStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotDowngradedStatus string
+
+const (
+	// The authority explicitly reported a downgraded assessment.
+	CatalogTrustSnapshotDowngradedStatusDowngraded CatalogTrustSnapshotDowngradedStatus = "downgraded"
+)
+
+// The trust field was empty, unbounded, or had the wrong JSON type.
+// Experimental: CatalogTrustSnapshotMalformedStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotMalformedStatus string
+
+const (
+	// The trust field was empty, unbounded, or had the wrong JSON type.
+	CatalogTrustSnapshotMalformedStatusMalformed CatalogTrustSnapshotMalformedStatus = "malformed"
+)
+
+// The authority explicitly revoked its assessment.
+// Experimental: CatalogTrustSnapshotRevokedStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotRevokedStatus string
+
+const (
+	// The authority explicitly revoked its assessment.
+	CatalogTrustSnapshotRevokedStatusRevoked CatalogTrustSnapshotRevokedStatus = "revoked"
+)
+
+// SchemaVersion discriminator for CatalogTrustSnapshot.
+// Experimental: CatalogTrustSnapshotSchemaVersion is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotSchemaVersion string
+
+const (
+	CatalogTrustSnapshotSchemaVersionV1 CatalogTrustSnapshotSchemaVersion = "v1"
+)
+
+// The authority explicitly marked its assessment stale.
+// Experimental: CatalogTrustSnapshotStaleStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotStaleStatus string
+
+const (
+	// The authority explicitly marked its assessment stale.
+	CatalogTrustSnapshotStaleStatusStale CatalogTrustSnapshotStaleStatus = "stale"
+)
+
+// The authority supplied a bounded trust value this runtime does not understand.
+// Experimental: CatalogTrustSnapshotUnsupportedStatus is part of an experimental API and
+// may change or be removed.
+type CatalogTrustSnapshotUnsupportedStatus string
+
+const (
+	// The authority supplied a bounded trust value this runtime does not understand.
+	CatalogTrustSnapshotUnsupportedStatusUnsupported CatalogTrustSnapshotUnsupportedStatus = "unsupported"
+)
+
+// Bounded authority that supplied a catalogue trust observation
+// Experimental: CatalogTrustSource is part of an experimental API and may change or be
+// removed.
+type CatalogTrustSource string
+
+const (
+	// GitHub Agent Finder supplied the trust field on its search result.
+	CatalogTrustSourceAgentFinder CatalogTrustSource = "agent-finder"
+)
+
+// Service-computed trust tier currently emitted by Agent Finder. It is independent of
+// search score, popularity, and client-side ranking.
+// Experimental: CatalogTrustTier is part of an experimental API and may change or be
+// removed.
+type CatalogTrustTier string
+
+const (
+	// Tier one as assigned by the catalogue authority.
+	CatalogTrustTierT1 CatalogTrustTier = "T1"
+	// Tier two as assigned by the catalogue authority.
+	CatalogTrustTierT2 CatalogTrustTier = "T2"
 )
 
 // Why a catalog operation is not available on this runtime
@@ -17381,21 +17716,20 @@ const (
 	EventsAgentScopePrimary EventsAgentScope = "primary"
 )
 
-// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor
-// referred to an event that no longer exists in history (e.g. truncated or compacted away)
-// and the read fell back to a boundary of the remaining history (the beginning for a
-// forward read, the tail for a backward read). The fallback page is a fresh boundary
-// snapshot, not a continuation of the requested cursor, so it may overlap already-rendered
-// events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate
-// by event id) before continuing from the returned cursor.
+// Cursor status: 'ok' means the read succeeded against the requested history; 'expired'
+// means the requested continuation is unavailable. Recovery is endpoint-specific:
+// session.eventLog.read returns a boundary window of remaining active history that may
+// overlap prior pages, while sessions.readPersistedEvents returns an empty terminal page
+// and never switches journal generations. An expired persisted read is not successful
+// completion; a complete persisted snapshot requires cursorStatus 'ok' and hasMore false.
 // Experimental: EventsCursorStatus is part of an experimental API and may change or be
 // removed.
 type EventsCursorStatus string
 
 const (
-	// The cursor referred to history that is no longer available.
+	// The requested continuation is unavailable; see the endpoint's recovery semantics.
 	EventsCursorStatusExpired EventsCursorStatus = "expired"
-	// The cursor was applied successfully.
+	// The read succeeded against the requested history.
 	EventsCursorStatusOk EventsCursorStatus = "ok"
 )
 
@@ -18764,6 +19098,10 @@ type PermissionDecisionSource string
 const (
 	// The response followed the assisted-approval judge recommendation.
 	PermissionDecisionSourceAssistedApproval PermissionDecisionSource = "assisted_approval"
+	// A live authorization record from an earlier human decision in this session contained the
+	// proposal, so it ran without another prompt. This is not a new human decision and never
+	// mints authority of its own.
+	PermissionDecisionSourceAuthorizationCarryForward PermissionDecisionSource = "authorization_carry_forward"
 	// The host applied a standing policy or override rather than a judge recommendation or
 	// human decision.
 	PermissionDecisionSourceHostPolicy PermissionDecisionSource = "host_policy"
@@ -21546,10 +21884,30 @@ func (a *ServerSessionsAPI) PruneOld(ctx context.Context, params *SessionsPruneO
 }
 
 // ReadPersistedEvents reads a page of durable events directly from a local session's
-// persisted journal without creating, resuming, or activating the session. The initial
-// backward read uses a bounded tail scan for fast first paint; cursor continuations
-// preserve the session event-log paging semantics. Persisted events may omit payloads that
-// are reconstructed only for an active session.
+// persisted journal without creating, resuming, or activating the session. The first read
+// pins the currently opened journal generation and its byte-length boundary; opaque cursor
+// continuations remain on that generation across runtime-owned compaction, truncation, and
+// rewrite operations, which replace the live path atomically, and events appended after the
+// boundary are excluded. For cold hydration, await the first successful page before
+// activation and establish lossless live-event buffering before resume; merge subsequent
+// live events by ID, preserving persisted order and letting live payloads win.
+// Continuations are process-local, single-use capabilities bound to the originating session
+// and storage context and must be paged sequentially; concurrent or repeated use of the
+// same cursor expires that duplicate read rather than reading the generation twice. A
+// complete snapshot has cursorStatus 'ok' and hasMore false. Snapshots expire after five
+// idle minutes, with at most eight retained per process and idle-only eviction under
+// pressure; completion and cancelled-worker exit release their handles. No transcript copy
+// is created, but retained handles may keep replaced files' disk blocks alive until
+// release. Pages have a soft 1 MiB serialized event-array budget including resolved binary
+// assets; one oversized event is returned alone to guarantee progress. Working memory also
+// includes a record/lookahead and asset resolution; resolving the first binary reference
+// may scan the full pinned generation to build a bounded offset index. If the snapshot
+// expires, is evicted, is cancelled before a continuation is established, or becomes
+// unreadable after an observable unsupported in-place shortening, the continuation returns
+// cursorStatus 'expired' with an empty terminal page and never falls back to a different
+// generation. A missing or initially unreadable journal is an RPC error. Persisted history
+// excludes ephemeral events and may omit payloads that are reconstructed only for an active
+// session; use the active session event stream for post-resume live events.
 //
 // RPC method: sessions.readPersistedEvents.
 //
@@ -23410,14 +23768,24 @@ type FleetAPI sessionAPI
 //
 // RPC method: session.fleet.start.
 //
-// Parameters: Optional user prompt to combine with the fleet orchestration instructions.
+// Parameters: Parameters for starting fleet orchestration: an optional user prompt combined
+// with the fleet instructions, plus the send options forwarded to the resulting turn.
 //
 // Returns: Indicates whether fleet mode was successfully activated.
 func (a *FleetAPI) Start(ctx context.Context, params *FleetStartRequest) (*FleetStartResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.Attachments != nil {
+			req["attachments"] = params.Attachments
+		}
+		if params.Billable != nil {
+			req["billable"] = *params.Billable
+		}
 		if params.Prompt != nil {
 			req["prompt"] = *params.Prompt
+		}
+		if params.Wait != nil {
+			req["wait"] = *params.Wait
 		}
 	}
 	raw, err := a.client.Request(ctx, "session.fleet.start", req)
@@ -24896,6 +25264,9 @@ func (a *ModeAPI) Set(ctx context.Context, params *ModeSetRequest) (*ModeSetResu
 	if params != nil {
 		if params.CompactionDecision != nil {
 			req["compactionDecision"] = *params.CompactionDecision
+		}
+		if params.ExpectedMode != nil {
+			req["expectedMode"] = *params.ExpectedMode
 		}
 		if params.InheritPlanBaseFromSessionID != nil {
 			req["inheritPlanBaseFromSessionId"] = *params.InheritPlanBaseFromSessionID
@@ -29038,6 +29409,9 @@ func (a *InternalModelAPI) ApplyStartupOverlay(ctx context.Context, params *Mode
 		}
 		if params.PolicyHelperModel != nil {
 			req["policyHelperModel"] = *params.PolicyHelperModel
+		}
+		if params.RepoAutoTier != nil {
+			req["repoAutoTier"] = *params.RepoAutoTier
 		}
 		if params.RepoContextTier != nil {
 			req["repoContextTier"] = *params.RepoContextTier

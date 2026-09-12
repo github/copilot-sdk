@@ -12,9 +12,10 @@ use serde::{Deserialize, Serialize};
 pub use super::session_events::{
     AbortReason, AgentModelPolicy, AutoTier, ContextTier, McpOauthHttpResponse,
     McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus,
-    ModelChangeSource, OmittedBinaryOmittedReason, PermissionMode, PermissionPromptRequest,
-    PermissionRule, ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode,
-    ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
+    ModelChangeSource, OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode,
+    PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction,
+    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompletionOutcome,
+    UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -1143,7 +1144,7 @@ pub struct CopilotUserResponse {
     /// Per-category monthly quota allotments, keyed by quota category.
     #[serde(rename = "monthly_quotas", skip_serializing_if = "Option::is_none")]
     pub monthly_quotas: Option<HashMap<String, f64>>,
-    /// Organizations the user belongs to, each with an optional login and display name.
+    /// Organizations the user belongs to, each with an optional ID, login, and display name.
     #[serde(rename = "organization_list", skip_serializing_if = "Option::is_none")]
     pub organization_list: Option<serde_json::Value>,
     /// Logins of the organizations the user belongs to.
@@ -3241,6 +3242,9 @@ pub struct CatalogAiSkillCandidate {
     pub publisher: Option<String>,
     /// Where the card came from: exactly one of a URL or embedded data, encoded as a tagged union so neither both nor neither can be represented.
     pub source: CatalogCandidateSource,
+    /// Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust: Option<serde_json::Value>,
 }
 
 /// An optional catalog authentication exchange did not establish the caller's identity. Anonymous search remains supported; this refusal is reserved for an operation that cannot continue after the attempted exchange. It is distinct from `policy-rejected` and from a network failure, and the reason identifies the recovery action.
@@ -3314,6 +3318,9 @@ pub struct CatalogMcpServerCandidate {
     pub publisher: Option<String>,
     /// Where the card came from: exactly one of a URL or embedded data, encoded as a tagged union so neither both nor neither can be represented.
     pub source: CatalogCandidateSource,
+    /// Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust: Option<serde_json::Value>,
 }
 
 /// The protocol version and capability set a caller requires, supplied on every catalog request so negotiation cannot be skipped by omission.
@@ -3452,8 +3459,8 @@ pub struct CatalogNegotiationRefusedError {
     pub reason: CatalogNegotiationRefusedReason,
     /// Protocol version of the runtime that refused the request.
     pub runtime_protocol_version: i64,
-    /// Every wire feature this runtime understands, so the caller can retry within that contract. This list does not imply that every deployment has enabled every operation.
-    pub supported_capabilities: Vec<CatalogCapability>,
+    /// Capabilities this runtime can safely advertise to this caller. The complete five-capability protocol-3 legacy set is always present; every capability added after that baseline appears only when the caller required it, so an older closed-enum decoder can still consume a refusal. This list does not imply that every deployment has enabled every operation.
+    pub supported_capabilities: Vec<String>,
     /// The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.
     pub unsupported_capabilities: Vec<String>,
 }
@@ -3624,6 +3631,172 @@ pub struct CatalogUnavailableError {
     pub message: String,
     /// Why the operation is unavailable.
     pub reason: CatalogUnavailableReason,
+}
+
+/// Where and when the runtime observed the trust metadata. Observation time is not the authority's evaluation time and must not be used to infer staleness.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustProvenance {
+    /// ISO 8601 timestamp with a timezone offset at which the runtime observed the search result carrying this trust field.
+    pub observed_at: String,
+    /// Bounded authority that supplied the trust field.
+    pub source: CatalogTrustSource,
+}
+
+/// Discriminator: the authority omitted trust metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotAbsent {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority omitted trust metadata.
+    pub status: CatalogTrustSnapshotAbsentStatus,
+}
+
+/// A recognised current Agent Finder T1 or T2 trust tier.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotCurrent {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: a recognised current trust tier was observed.
+    pub status: CatalogTrustSnapshotCurrentStatus,
+    /// Service-computed T1 or T2 trust tier.
+    pub tier: CatalogTrustTier,
+}
+
+/// Discriminator: the authority explicitly reported a downgraded assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotDowngraded {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority explicitly reported a downgraded assessment.
+    pub status: CatalogTrustSnapshotDowngradedStatus,
+}
+
+/// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotMalformed {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+    pub status: CatalogTrustSnapshotMalformedStatus,
+}
+
+/// Discriminator: the authority explicitly revoked the assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotRevoked {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority explicitly revoked the assessment.
+    pub status: CatalogTrustSnapshotRevokedStatus,
+}
+
+/// Discriminator: the authority explicitly marked the assessment stale.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotStale {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority explicitly marked the assessment stale.
+    pub status: CatalogTrustSnapshotStaleStatus,
+}
+
+/// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotUnsupported {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
+    pub status: CatalogTrustSnapshotUnsupportedStatus,
 }
 
 /// No transport this runtime can use is available for the requested server.
@@ -4780,11 +4953,11 @@ pub struct EventLogTailResult {
 pub struct EventsReadResult {
     /// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).
     pub cursor: String,
-    /// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.
+    /// Cursor status: 'ok' means the cursor was applied successfully. For session.eventLog.read, 'expired' means the cursor referred to an event that no longer exists in active history and the read fell back to a boundary of the remaining history: the beginning for a forward read or the newest window for a backward read. That fallback may overlap already rendered events, so active-session consumers should reset, rebase, or deduplicate before continuing. sessions.readPersistedEvents has stricter snapshot semantics: 'expired' returns an empty terminal page and never switches to a replacement journal generation. Other persisted-read I/O failures are RPC errors with diagnostics, not cursor expiry.
     pub cursor_status: EventsCursorStatus,
     /// Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.
     pub events: Vec<SessionEvent>,
-    /// True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
+    /// True when more events are available in the read's direction. For a backward read, true means older persisted events remain before the returned window. A persisted-event page may contain fewer than `max` events because of its byte budget while still reporting hasMore true; continue according to this flag rather than the event count.
     pub has_more: bool,
 }
 
@@ -6150,7 +6323,7 @@ pub(crate) struct FactoryToolRunRequest {
     pub tool_call_id: Option<String>,
 }
 
-/// Optional user prompt to combine with the fleet orchestration instructions.
+/// Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
 ///
 /// <div class="warning">
 ///
@@ -6161,9 +6334,19 @@ pub(crate) struct FactoryToolRunRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FleetStartRequest {
+    /// Optional attachments (files, directories, selections, blobs, GitHub references) to include with the fleet request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<serde_json::Value>>,
+    /// If false, this request will not trigger a Premium Request Unit charge. User requests default to billable.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) billable: Option<bool>,
     /// Optional user prompt to combine with fleet instructions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>,
+    /// If true, await completion of the agentic loop for this fleet request before returning. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<bool>,
 }
 
 /// Indicates whether fleet mode was successfully activated.
@@ -10614,6 +10797,9 @@ pub struct ModelApplyStartupOverlayRequest {
     /// Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_model: Option<String>,
+    /// Auto routing preference selected by repository settings, when configured. Applied only when the overlay selects the Auto model; beside a concrete model it stays dormant.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_auto_tier: Option<String>,
     /// Context tier selected by repository settings, when configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo_context_tier: Option<String>,
@@ -11060,6 +11246,9 @@ pub struct ModeSetRequest {
     /// Explicit response to a model-switch compaction preflight.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compaction_decision: Option<String>,
+    /// Mode the session must currently be in for the change to apply. When set and the session is in a different mode the request is a no-op and reports status 'unchanged'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_mode: Option<SessionMode>,
     /// Session whose plan-mode base state should be inherited.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inherit_plan_base_from_session_id: Option<String>,
@@ -11117,6 +11306,9 @@ pub struct ModeSetResult {
     /// User-facing outcome message for the model switch triggered by the mode change.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// Whether the requested mode was applied to the session. False only when an 'expectedMode' precondition did not hold, in which case any model change reported alongside it was still applied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode_applied: Option<bool>,
     /// Whether applying the mode changed the active model.
     pub model_changed: bool,
     /// Lifecycle status of the requested mode change.
@@ -17454,6 +17646,9 @@ pub struct SessionOpenOptions {
     /// Initial reasoning summary mode for supported model clients.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<SessionOpenOptionsReasoningSummary>,
+    /// Whether to invalidate cached custom-instruction discovery before constructing the session. Use when instruction files may have changed earlier in the same runtime process.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_custom_instructions: Option<bool>,
     /// Telemetry-only remote-defaulted flag.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_defaulted_on: Option<bool>,
@@ -18561,13 +18756,13 @@ pub struct SessionsPruneOldRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionsReadPersistedEventsRequest {
-    /// Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+    /// Opaque, process-local, single-use cursor returned by the previous persisted-event read. Omit on the first call and issue continuations sequentially; reusing the same cursor returns an expired terminal page.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
-    /// Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological.
+    /// Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological. This selects the initial read only; a continuation always uses the direction bound into its cursor.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub direction: Option<EventsReadDirection>,
-    /// Maximum number of events to return in this batch (1–1000, default 200).
+    /// Maximum number of events to return in this batch (1–1000, default 200). Pages may contain fewer events to keep the serialized event array within a soft 1 MiB budget including resolved binary assets; one oversized event is returned alone to guarantee progress.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max: Option<i64>,
     /// Session ID whose persisted event journal should be read.
@@ -22778,11 +22973,11 @@ pub struct SessionsListResult {
 pub struct SessionsReadPersistedEventsResult {
     /// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).
     pub cursor: String,
-    /// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.
+    /// Cursor status: 'ok' means the cursor was applied successfully. For session.eventLog.read, 'expired' means the cursor referred to an event that no longer exists in active history and the read fell back to a boundary of the remaining history: the beginning for a forward read or the newest window for a backward read. That fallback may overlap already rendered events, so active-session consumers should reset, rebase, or deduplicate before continuing. sessions.readPersistedEvents has stricter snapshot semantics: 'expired' returns an empty terminal page and never switches to a replacement journal generation. Other persisted-read I/O failures are RPC errors with diagnostics, not cursor expiry.
     pub cursor_status: EventsCursorStatus,
     /// Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.
     pub events: Vec<SessionEvent>,
-    /// True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
+    /// True when more events are available in the read's direction. For a backward read, true means older persisted events remain before the returned window. A persisted-event page may contain fewer than `max` events because of its byte budget while still reporting hasMore true; continue according to this flag rather than the event count.
     pub has_more: bool,
 }
 
@@ -24062,6 +24257,9 @@ pub struct SessionModeSetResult {
     /// User-facing outcome message for the model switch triggered by the mode change.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// Whether the requested mode was applied to the session. False only when an 'expectedMode' precondition did not hold, in which case any model change reported alongside it was still applied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode_applied: Option<bool>,
     /// Whether applying the mode changed the active model.
     pub model_changed: bool,
     /// Lifecycle status of the requested mode change.
@@ -27851,11 +28049,11 @@ pub struct SessionQueueProcessParams {
 pub struct SessionEventLogReadResult {
     /// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).
     pub cursor: String,
-    /// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.
+    /// Cursor status: 'ok' means the cursor was applied successfully. For session.eventLog.read, 'expired' means the cursor referred to an event that no longer exists in active history and the read fell back to a boundary of the remaining history: the beginning for a forward read or the newest window for a backward read. That fallback may overlap already rendered events, so active-session consumers should reset, rebase, or deduplicate before continuing. sessions.readPersistedEvents has stricter snapshot semantics: 'expired' returns an empty terminal page and never switches to a replacement journal generation. Other persisted-read I/O failures are RPC errors with diagnostics, not cursor expiry.
     pub cursor_status: EventsCursorStatus,
     /// Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.
     pub events: Vec<SessionEvent>,
-    /// True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
+    /// True when more events are available in the read's direction. For a backward read, true means older persisted events remain before the returned window. A persisted-event page may contain fewer than `max` events because of its byte budget while still reporting hasMore true; continue according to this flag rather than the event count.
     pub has_more: bool,
 }
 
@@ -29437,6 +29635,9 @@ pub enum CatalogCapability {
     /// Understands plans that enumerate every eligible transport rather than a single preferred one.
     #[serde(rename = "multiple-transport-choice")]
     MultipleTransportChoice,
+    /// Understands versioned candidate trust snapshots. Protocol-3 callers must require this capability before the runtime adds the optional snapshot field.
+    #[serde(rename = "trust-snapshot")]
+    TrustSnapshot,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -29918,6 +30119,225 @@ pub enum CatalogSearchResult {
     MalformedCard(CatalogMalformedCardError),
     ContractViolation(CatalogContractViolationError),
     Unavailable(CatalogUnavailableError),
+}
+
+/// Authority-computed exposure eligibility, kept separate from tier. The current tier-only Agent Finder response maps to `unknown`, never to a locally inferred eligibility.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustEligibility {
+    /// Eligible for default catalogue exposure.
+    #[serde(rename = "default")]
+    Default,
+    /// Eligible only when expanded or community results are requested.
+    #[serde(rename = "expanded")]
+    Expanded,
+    /// Not eligible for normal catalogue exposure.
+    #[serde(rename = "hidden")]
+    Hidden,
+    /// The authority did not supply an eligibility decision.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Bounded authority that supplied a catalogue trust observation
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSource {
+    /// GitHub Agent Finder supplied the trust field on its search result.
+    #[serde(rename = "agent-finder")]
+    AgentFinder,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Schema version of the catalogue trust snapshot envelope
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotSchemaVersion {
+    /// Initial envelope carrying one bounded service tier or one explicit unavailable state.
+    #[serde(rename = "v1")]
+    V1,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority omitted trust metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotAbsentStatus {
+    /// The authority omitted trust metadata.
+    #[serde(rename = "absent")]
+    Absent,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// A recognised T1 or T2 service tier was observed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotCurrentStatus {
+    /// A recognised T1 or T2 service tier was observed.
+    #[serde(rename = "current")]
+    Current,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Service-computed trust tier currently emitted by Agent Finder. It is independent of search score, popularity, and client-side ranking.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustTier {
+    /// Tier one as assigned by the catalogue authority.
+    T1,
+    /// Tier two as assigned by the catalogue authority.
+    T2,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority explicitly reported a downgraded assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotDowngradedStatus {
+    /// The authority explicitly reported a downgraded assessment.
+    #[serde(rename = "downgraded")]
+    Downgraded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The trust field was empty, unbounded, or had the wrong JSON type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotMalformedStatus {
+    /// The trust field was empty, unbounded, or had the wrong JSON type.
+    #[serde(rename = "malformed")]
+    Malformed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority explicitly revoked its assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotRevokedStatus {
+    /// The authority explicitly revoked its assessment.
+    #[serde(rename = "revoked")]
+    Revoked,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority explicitly marked its assessment stale.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotStaleStatus {
+    /// The authority explicitly marked its assessment stale.
+    #[serde(rename = "stale")]
+    Stale,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority supplied a bounded trust value this runtime does not understand.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotUnsupportedStatus {
+    /// The authority supplied a bounded trust value this runtime does not understand.
+    #[serde(rename = "unsupported")]
+    Unsupported,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// Discriminator: no usable transport is available
@@ -30469,7 +30889,7 @@ pub enum EventsReadDirection {
     Unknown,
 }
 
-/// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history (the beginning for a forward read, the tail for a backward read). The fallback page is a fresh boundary snapshot, not a continuation of the requested cursor, so it may overlap already-rendered events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate by event id) before continuing from the returned cursor.
+/// Cursor status: 'ok' means the read succeeded against the requested history; 'expired' means the requested continuation is unavailable. Recovery is endpoint-specific: session.eventLog.read returns a boundary window of remaining active history that may overlap prior pages, while sessions.readPersistedEvents returns an empty terminal page and never switches journal generations. An expired persisted read is not successful completion; a complete persisted snapshot requires cursorStatus 'ok' and hasMore false.
 ///
 /// <div class="warning">
 ///
@@ -30479,10 +30899,10 @@ pub enum EventsReadDirection {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventsCursorStatus {
-    /// The cursor was applied successfully.
+    /// The read succeeded against the requested history.
     #[serde(rename = "ok")]
     Ok,
-    /// The cursor referred to history that is no longer available.
+    /// The requested continuation is unavailable; see the endpoint's recovery semantics.
     #[serde(rename = "expired")]
     Expired,
     /// Unknown variant for forward compatibility.
@@ -32972,34 +33392,6 @@ pub enum PermissionResponseCapability {
     /// The client had no response path available.
     #[serde(rename = "none")]
     None,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Controlled reason or actor responsible for a permission response.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionSource {
-    /// The response followed the assisted-approval judge recommendation.
-    #[serde(rename = "assisted_approval")]
-    AssistedApproval,
-    /// A human supplied the response through an interactive prompt.
-    #[serde(rename = "human_response")]
-    HumanResponse,
-    /// The host applied a standing policy or override rather than a judge recommendation or human decision.
-    #[serde(rename = "host_policy")]
-    HostPolicy,
-    /// The host denied the request because no interactive user response was available.
-    #[serde(rename = "unattended_fallback")]
-    UnattendedFallback,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
