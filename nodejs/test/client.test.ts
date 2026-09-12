@@ -62,6 +62,24 @@ describe("approveAll", () => {
 });
 
 describe("CopilotClient", () => {
+    it("creates and disposes an app-owned AHP endpoint", async () => {
+        const client = new CopilotClient({ autoStart: false });
+        const sendRequest = vi.fn().mockResolvedValue({});
+        (client as any).connection = { sendRequest };
+
+        const endpoint = await client.createAhpEndpoint();
+        await endpoint.dispose();
+        expect(sendRequest.mock.calls.map(([method]) => method)).toEqual([
+            "ahp.createEndpoint",
+            "ahp.disposeEndpoint",
+        ]);
+    });
+
+    it("requires a connected client to manage the AHP endpoint", async () => {
+        const client = new CopilotClient({ autoStart: false });
+        await expect(client.createAhpEndpoint()).rejects.toThrow("Client is not connected");
+    });
+
     it("start() is single-flight: concurrent callers share one startup", async () => {
         const client = new CopilotClient({ autoStart: false });
         onTestFinished(() => client.forceStop());

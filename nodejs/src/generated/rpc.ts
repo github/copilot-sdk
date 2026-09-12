@@ -1016,16 +1016,16 @@ export type EventsReadDirection =
   /** Tail-first: return the newest events and page toward older events. */
   | "backward";
 /**
- * Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history (the beginning for a forward read, the tail for a backward read). The fallback page is a fresh boundary snapshot, not a continuation of the requested cursor, so it may overlap already-rendered events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate by event id) before continuing from the returned cursor.
+ * Cursor status: 'ok' means the read succeeded against the requested history; 'expired' means the requested continuation is unavailable. Recovery is endpoint-specific: session.eventLog.read returns a boundary window of remaining active history that may overlap prior pages, while sessions.readPersistedEvents returns an empty terminal page and never switches journal generations. An expired persisted read is not successful completion; a complete persisted snapshot requires cursorStatus 'ok' and hasMore false.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "EventsCursorStatus".
  */
 /** @experimental */
 export type EventsCursorStatus =
-  /** The cursor was applied successfully. */
+  /** The read succeeded against the requested history. */
   | "ok"
-  /** The cursor referred to history that is no longer available. */
+  /** The requested continuation is unavailable; see the endpoint's recovery semantics. */
   | "expired";
 /**
  * Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)
@@ -2658,7 +2658,9 @@ export type PermissionDecisionSource =
   /** The host applied a standing policy or override rather than a judge recommendation or human decision. */
   | "host_policy"
   /** The host denied the request because no interactive user response was available. */
-  | "unattended_fallback";
+  | "unattended_fallback"
+  /** A live authorization record from an earlier human decision in this session contained the proposal, so it ran without another prompt. This is not a new human decision and never mints authority of its own. */
+  | "authorization_carry_forward";
 /**
  * Client surface that submitted a permission response.
  *
@@ -4256,7 +4258,7 @@ export interface CopilotUserResponse {
    */
   organization_login_list?: string[];
   /**
-   * Organizations the user belongs to, each with an optional login and display name.
+   * Organizations the user belongs to, each with an optional ID, login, and display name.
    */
   organization_list?:
     | (
@@ -4264,6 +4266,10 @@ export interface CopilotUserResponse {
             [k: string]: unknown | undefined;
           }
         | ({
+            /**
+             * Numeric database ID of the organization.
+             */
+            id?: number;
             /**
              * GitHub login of the organization.
              */
@@ -5299,6 +5305,34 @@ export interface AgentsGetDiscoveryPathsRequest {
    * When true, omit the host's user-level agent directory, leaving only project directories. For multitenant deployments (mirrors `discover`'s `excludeHostAgents`).
    */
   excludeHostAgents?: boolean;
+}
+
+/** @experimental */
+export interface AhpConnectionClosedNotification {
+  endpointId: string;
+  connectionId: string;
+  error?: string;
+}
+
+/** @experimental */
+export interface AhpConnectionRequest {
+  endpointId: string;
+  connectionId: string;
+}
+
+/** @experimental */
+export interface AhpEmptyResult {}
+
+/** @experimental */
+export interface AhpEndpointRequest {
+  endpointId: string;
+}
+
+/** @experimental */
+export interface AhpMessageRequest {
+  endpointId: string;
+  connectionId: string;
+  message: string;
 }
 /**
  * Credential-free authentication identity safe to expose to hosts and user interfaces.
@@ -7553,7 +7587,7 @@ export interface EventsReadResult {
    */
   cursor: string;
   /**
-   * True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
+   * True when more events are available in the read's direction. For a backward read, true means older persisted events remain before the returned window. A persisted-event page may contain fewer than `max` events because of its byte budget while still reporting hasMore true; continue according to this flag rather than the event count.
    */
   hasMore: boolean;
   cursorStatus: EventsCursorStatus;
@@ -9016,7 +9050,7 @@ export interface FactoryToolRunRequest {
   toolCallId?: string;
 }
 /**
- * Optional user prompt to combine with the fleet orchestration instructions.
+ * Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "FleetStartRequest".
@@ -9027,6 +9061,20 @@ export interface FleetStartRequest {
    * Optional user prompt to combine with fleet instructions
    */
   prompt?: string;
+  /**
+   * Optional attachments (files, directories, selections, blobs, GitHub references) to include with the fleet request
+   */
+  attachments?: Attachment[];
+  /**
+   * If false, this request will not trigger a Premium Request Unit charge. User requests default to billable.
+   *
+   * @internal
+   */
+  billable?: boolean;
+  /**
+   * If true, await completion of the agentic loop for this fleet request before returning. Defaults to false.
+   */
+  wait?: boolean;
 }
 /**
  * Indicates whether fleet mode was successfully activated.
@@ -13515,6 +13563,7 @@ export interface ModelSwitchToResult {
 /** @experimental */
 export interface ModeSetRequest {
   mode: SessionMode;
+  expectedMode?: SessionMode;
   /**
    * Session whose plan-mode base state should be inherited.
    */
@@ -13569,6 +13618,10 @@ export interface ModeSetResult {
    * Whether applying the mode changed the active model.
    */
   modelChanged: boolean;
+  /**
+   * Whether the requested mode was applied to the session. False only when an 'expectedMode' precondition did not hold, in which case any model change reported alongside it was still applied.
+   */
+  modeApplied?: boolean;
   confirmation?: ModelSwitchConfirmation;
   /**
    * User-facing warning produced while applying the mode change.
@@ -19229,6 +19282,10 @@ export interface SessionOpenOptions {
    */
   skipCustomInstructions?: boolean;
   /**
+   * Whether to invalidate cached custom-instruction discovery before constructing the session. Use when instruction files may have changed earlier in the same runtime process.
+   */
+  refreshCustomInstructions?: boolean;
+  /**
    * Instruction source IDs disabled for this session.
    */
   disabledInstructionSources?: string[];
@@ -20405,11 +20462,11 @@ export interface SessionsReadPersistedEventsRequest {
    */
   sessionId: string;
   /**
-   * Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+   * Opaque, process-local, single-use cursor returned by the previous persisted-event read. Omit on the first call and issue continuations sequentially; reusing the same cursor returns an expired terminal page.
    */
   cursor?: string;
   /**
-   * Maximum number of events to return in this batch (1–1000, default 200).
+   * Maximum number of events to return in this batch (1–1000, default 200). Pages may contain fewer events to keep the serialized event array within a soft 1 MiB budget including resolved binary assets; one oversized event is returned alone to guarantee progress.
    */
   max?: number;
   direction?: EventsReadDirection;
@@ -23959,6 +24016,50 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
 }
 
 /** @experimental */
+export interface AhpCreateEndpointResult {}
+
+/** @experimental */
+export interface AhpCreateEndpointRequest {
+  endpointId: string;
+}
+
+/** @experimental */
+export interface AhpDisposeEndpointResult {}
+
+/** @experimental */
+export interface AhpDisposeEndpointRequest {
+  endpointId: string;
+}
+
+/** @experimental */
+export interface AhpOpenConnectionResult {}
+
+/** @experimental */
+export interface AhpOpenConnectionRequest {
+  endpointId: string;
+  connectionId: string;
+}
+
+/** @experimental */
+export interface AhpReceiveResult {}
+
+/** @experimental */
+export interface AhpReceiveRequest {
+  endpointId: string;
+  connectionId: string;
+  message: string;
+}
+
+/** @experimental */
+export interface AhpCloseConnectionResult {}
+
+/** @experimental */
+export interface AhpCloseConnectionRequest {
+  endpointId: string;
+  connectionId: string;
+}
+
+/** @experimental */
 export interface SessionFactoryPauseAtCheckpointResult {
   action: FactoryPauseCheckpointAction;
 }
@@ -24095,9 +24196,54 @@ export interface SessionFsSqliteExistsRequest {
   sessionId: string;
 }
 
+/** @experimental */
+export interface AhpTransportSendResult {}
+
+/** @experimental */
+export interface AhpTransportSendRequest {
+  endpointId: string;
+  connectionId: string;
+  message: string;
+}
+
+/** @experimental */
+export interface AhpTransportClosedRequest {
+  endpointId: string;
+  connectionId: string;
+  error?: string;
+}
+
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
+        /** @experimental */
+        ahp: {
+            /**
+             * Creates an AHP endpoint owned by this SDK connection without opening a network listener.
+             */
+            createEndpoint: async (params: AhpCreateEndpointRequest): Promise<AhpCreateEndpointResult> =>
+                connection.sendRequest("ahp.createEndpoint", params),
+            /**
+             * Disposes an SDK-owned AHP endpoint and its connections without stopping SDK sessions.
+             */
+            disposeEndpoint: async (params: AhpDisposeEndpointRequest): Promise<AhpDisposeEndpointResult> =>
+                connection.sendRequest("ahp.disposeEndpoint", params),
+            /**
+             * Opens a logical AHP connection whose transport is supplied by the SDK.
+             */
+            openConnection: async (params: AhpOpenConnectionRequest): Promise<AhpOpenConnectionResult> =>
+                connection.sendRequest("ahp.openConnection", params),
+            /**
+             * Admits one complete JSON-encoded AHP message to a bounded connection queue.
+             */
+            receive: async (params: AhpReceiveRequest): Promise<AhpReceiveResult> =>
+                connection.sendRequest("ahp.receive", params),
+            /**
+             * Closes a logical AHP connection and cancels its pending transport callbacks.
+             */
+            closeConnection: async (params: AhpCloseConnectionRequest): Promise<AhpCloseConnectionResult> =>
+                connection.sendRequest("ahp.closeConnection", params),
+        },
         /**
          * Checks server responsiveness and returns protocol information.
          *
@@ -24662,7 +24808,7 @@ export function createServerRpc(connection: MessageConnection) {
             getClientMetadata: async (params: SessionsGetClientMetadataRequest): Promise<SessionsGetClientMetadataResult> =>
                 connection.sendRequest("sessions.getClientMetadata", params),
             /**
-             * Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.
+             * Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The first read pins the currently opened journal generation and its byte-length boundary; opaque cursor continuations remain on that generation across runtime-owned compaction, truncation, and rewrite operations, which replace the live path atomically, and events appended after the boundary are excluded. For cold hydration, await the first successful page before activation and establish lossless live-event buffering before resume; merge subsequent live events by ID, preserving persisted order and letting live payloads win. Continuations are process-local, single-use capabilities bound to the originating session and storage context and must be paged sequentially; concurrent or repeated use of the same cursor expires that duplicate read rather than reading the generation twice. A complete snapshot has cursorStatus 'ok' and hasMore false. Snapshots expire after five idle minutes, with at most eight retained per process and idle-only eviction under pressure; completion and cancelled-worker exit release their handles. No transcript copy is created, but retained handles may keep replaced files' disk blocks alive until release. Pages have a soft 1 MiB serialized event-array budget including resolved binary assets; one oversized event is returned alone to guarantee progress. Working memory also includes a record/lookahead and asset resolution; resolving the first binary reference may scan the full pinned generation to build a bounded offset index. If the snapshot expires, is evicted, is cancelled before a continuation is established, or becomes unreadable after an observable unsupported in-place shortening, the continuation returns cursorStatus 'expired' with an empty terminal page and never falls back to a different generation. A missing or initially unreadable journal is an RPC error. Persisted history excludes ephemeral events and may omit payloads that are reconstructed only for an active session; use the active session event stream for post-resume live events.
              *
              * @param params Pagination options for reading an inactive or active local session's persisted event journal.
              *
@@ -25539,7 +25685,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Starts fleet mode by submitting the fleet orchestration prompt to the session.
              *
-             * @param params Optional user prompt to combine with the fleet orchestration instructions.
+             * @param params Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
              *
              * @returns Indicates whether fleet mode was successfully activated.
              */
@@ -27600,6 +27746,19 @@ export function registerClientSessionApiHandlers(
     });
 }
 
+/** Handler for `ahpTransport` client global API methods. */
+/** @experimental */
+export interface AhpTransportHandler {
+    /**
+     * Writes one complete JSON-encoded AHP message to an SDK-owned transport, acknowledging write completion.
+     */
+    send(params: AhpTransportSendRequest): Promise<AhpTransportSendResult>;
+    /**
+     * Notifies the SDK that a logical AHP connection has closed. No acknowledgement is needed for runtime cleanup.
+     */
+    closed(params: AhpTransportClosedRequest): Promise<void>;
+}
+
 /** Handler for `extensionLaunchProvider` client global API methods. */
 /** @experimental */
 export interface ExtensionLaunchProviderHandler {
@@ -27660,6 +27819,7 @@ export interface GitHubTokenHandler {
 
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
+    ahpTransport?: AhpTransportHandler;
     extensionLaunchProvider?: ExtensionLaunchProviderHandler;
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
@@ -27677,6 +27837,16 @@ export function registerClientGlobalApiHandlers(
     connection: MessageConnection,
     handlers: ClientGlobalApiHandlers,
 ): void {
+    connection.onRequest("ahpTransport.send", async (params: AhpTransportSendRequest) => {
+        const handler = handlers.ahpTransport;
+        if (!handler) throw new Error("No ahpTransport client-global handler registered");
+        return handler.send(params);
+    });
+    connection.onNotification("ahpTransport.closed", async (params: AhpTransportClosedRequest) => {
+        const handler = handlers.ahpTransport;
+        if (!handler) return;
+        await handler.closed(params);
+    });
     connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest) => {
         const handler = handlers.extensionLaunchProvider;
         if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");
