@@ -1717,6 +1717,87 @@ public sealed class ClientSessionLifetimeTests
         Assert.False(request.TryGetProperty("wait", out _));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Abort_Recovery_Observes_Early_Events(bool recoveryCompletesBeforeReply)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var timeout = TimeSpan.FromSeconds(5);
+        var sendCount = 0;
+        server.BeforeResponseAsync = async (request, cancellationToken) =>
+        {
+            if (request.Method == "session.send")
+            {
+                sendCount++;
+                await server.SendSessionEventAsync(session.SessionId, "user.message", new()
+                {
+                    ["content"] = request.Params.GetProperty("prompt").GetString()
+                });
+                if (sendCount == 1)
+                {
+                    await SendAndDrainAsync("tool.execution_start", new()
+                    {
+                        ["toolCallId"] = "slow-tool",
+                        ["toolName"] = "shell"
+                    }, cancellationToken);
+                }
+                else
+                {
+                    Assert.Equal(2, sendCount);
+                    await SendAndDrainAsync("assistant.message", new()
+                    {
+                        ["messageId"] = "recovery-message",
+                        ["content"] = "4"
+                    }, cancellationToken);
+                    if (recoveryCompletesBeforeReply)
+                    {
+                        await SendAndDrainAsync("session.idle", new(), cancellationToken);
+                    }
+                }
+            }
+            else if (request.Method == "session.abort")
+            {
+                Assert.Equal(1, sendCount);
+                await server.SendSessionEventAsync(session.SessionId, "abort", new()
+                {
+                    ["reason"] = "user"
+                });
+                await SendAndDrainAsync("session.idle", new() { ["aborted"] = true }, cancellationToken);
+            }
+        };
+        server.AfterResponseAsync = async (request, cancellationToken) =>
+        {
+            if (request.Method == "session.send" && sendCount == 2 && !recoveryCompletesBeforeReply)
+            {
+                await SendAndDrainAsync("session.idle", new(), cancellationToken);
+            }
+        };
+
+        // Exercise the E2E test's actual ordering and assertions, without launching a CLI.
+        await E2E.SessionE2ETests.AssertAbortAndRecoveryAsync(session, timeout);
+
+        Assert.Equal(
+            ["session.send", "session.abort", "session.send"],
+            server.Requests.Select(request => request.Method)
+                .Where(method => method is "session.send" or "session.abort"));
+        var history = await session.GetEventsAsync();
+        Assert.DoesNotContain(history, evt => evt is SessionIdleEvent);
+        Assert.Equal("4", Assert.Single(history.OfType<AssistantMessageEvent>()).Data.Content);
+
+        async Task SendAndDrainAsync(string type, Dictionary<string, object?> data, CancellationToken cancellationToken)
+        {
+            var drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var subscription = session.On<SessionTitleChangedEvent>(_ => drained.TrySetResult());
+            await server.SendSessionEventAsync(session.SessionId, type, data);
+            // A later event is a fence: every subscriber has finished handling the target event.
+            await server.SendSessionEventAsync(session.SessionId, "session.title_changed", new() { ["title"] = "fence" });
+            await drained.Task.WaitAsync(timeout, cancellationToken);
+        }
+    }
+
     [Fact]
     public async Task SendAndWaitAsync_Skips_Autopilot_Continuation_Idle()
     {
@@ -2192,6 +2273,7 @@ public sealed class ClientSessionLifetimeTests
         private readonly TaskCompletionSource _allowDestroy = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly Task _serverTask;
         private readonly List<RpcRequestRecord> _requests = [];
+        private readonly ConcurrentQueue<object?> _sessionEvents = new();
         private readonly object _requestsLock = new();
         private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonElement>> _pendingRequests = new();
         private NetworkStream? _stream;
@@ -2227,6 +2309,10 @@ public sealed class ClientSessionLifetimeTests
         public Task DestroyStarted => _destroyStarted.Task;
 
         public int RuntimeShutdownCount { get; private set; }
+
+        public Func<RpcRequestRecord, CancellationToken, Task>? BeforeResponseAsync { get; set; }
+
+        public Func<RpcRequestRecord, CancellationToken, Task>? AfterResponseAsync { get; set; }
 
         public IReadOnlyList<RpcRequestRecord> Requests
         {
@@ -2300,6 +2386,19 @@ public sealed class ClientSessionLifetimeTests
         public Task SendSessionEventAsync(string sessionId, string type, Dictionary<string, object?> data)
         {
             var stream = _stream ?? throw new InvalidOperationException("Client is not connected.");
+            var evt = new Dictionary<string, object?>
+            {
+                ["id"] = Guid.NewGuid().ToString(),
+                ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
+                ["parentId"] = null,
+                ["type"] = type,
+                ["data"] = data
+            };
+            // Idle is ephemeral in the runtime and cannot be backfilled from history.
+            if (type != "session.idle")
+            {
+                _sessionEvents.Enqueue(evt);
+            }
             return WriteMessageAsync(stream, new Dictionary<string, object?>
             {
                 ["jsonrpc"] = "2.0",
@@ -2307,14 +2406,7 @@ public sealed class ClientSessionLifetimeTests
                 ["params"] = new Dictionary<string, object?>
                 {
                     ["sessionId"] = sessionId,
-                    ["event"] = new Dictionary<string, object?>
-                    {
-                        ["id"] = Guid.NewGuid().ToString(),
-                        ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
-                        ["parentId"] = null,
-                        ["type"] = type,
-                        ["data"] = data
-                    }
+                    ["event"] = evt
                 }
             }, _cts.Token);
         }
@@ -2437,6 +2529,11 @@ public sealed class ClientSessionLifetimeTests
                 }, cancellationToken);
                 return;
             }
+            var requestRecord = new RpcRequestRecord(method!, paramsElement);
+            if (BeforeResponseAsync is { } beforeResponse)
+            {
+                await beforeResponse(requestRecord, cancellationToken);
+            }
             object? result = method switch
             {
                 "connect" => new Dictionary<string, object?>
@@ -2454,6 +2551,11 @@ public sealed class ClientSessionLifetimeTests
                 "session.send" => new Dictionary<string, object?>
                 {
                     ["messageId"] = "message-1"
+                },
+                "session.abort" => new Dictionary<string, object?>(),
+                "session.getMessages" => new Dictionary<string, object?>
+                {
+                    ["events"] = _sessionEvents.ToArray()
                 },
                 "session.options.update" => new Dictionary<string, object?>
                 {
@@ -2495,6 +2597,10 @@ public sealed class ClientSessionLifetimeTests
                 ["id"] = id,
                 ["result"] = result
             }, cancellationToken);
+            if (AfterResponseAsync is { } afterResponse)
+            {
+                await afterResponse(requestRecord, cancellationToken);
+            }
         }
 
         private Dictionary<string, object?> CreateSessionResult(JsonElement request)

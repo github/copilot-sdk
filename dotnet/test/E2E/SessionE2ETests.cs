@@ -349,11 +349,15 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Abort_A_Session()
     {
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
+        await AssertAbortAndRecoveryAsync(session, TimeSpan.FromSeconds(120));
+    }
 
+    internal static async Task AssertAbortAndRecoveryAsync(CopilotSession session, TimeSpan timeout)
+    {
         // Set up wait for tool execution to start BEFORE sending
-        var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session);
-        var sessionIdleTask = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
+        var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session, timeout);
+        var sessionIdleTask = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session, timeout);
 
         // Send a message that will take some time to process
         await session.SendAsync(new MessageOptions
@@ -375,8 +379,8 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Verify an abort event exists in messages
         Assert.Contains(messages, m => m is AbortEvent);
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-        var recoveryMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        // Subscribe before sending: session.idle is ephemeral and cannot be backfilled.
+        var recoveryMessage = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" }, timeout);
         Assert.NotNull(recoveryMessage);
         Assert.Contains("4", recoveryMessage.Data.Content ?? string.Empty);
     }
