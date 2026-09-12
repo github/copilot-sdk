@@ -3539,11 +3539,11 @@ func matchesMCPServerConfigMemory(data []byte) bool {
 	if rawGroup0.Type == nil {
 		return false
 	}
-	var rawGroup0String string
-	if err := json.Unmarshal(rawGroup0.Type, &rawGroup0String); err != nil {
+	var rawGroup0Term1String string
+	if err := json.Unmarshal(rawGroup0.Type, &rawGroup0Term1String); err != nil {
 		return false
 	}
-	switch rawGroup0String {
+	switch rawGroup0Term1String {
 	case "memory":
 	default:
 		return false
@@ -7023,11 +7023,11 @@ func matchesUIElicitationSchemaPropertyUIElicitationArrayEnumField(data []byte) 
 	if rawGroup0Items.Type == nil {
 		return false
 	}
-	var rawGroup0String string
-	if err := json.Unmarshal(rawGroup0Items.Type, &rawGroup0String); err != nil {
+	var rawGroup0Term1String string
+	if err := json.Unmarshal(rawGroup0Items.Type, &rawGroup0Term1String); err != nil {
 		return false
 	}
-	switch rawGroup0String {
+	switch rawGroup0Term1String {
 	case "string":
 	default:
 		return false
