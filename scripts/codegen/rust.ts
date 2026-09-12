@@ -1457,7 +1457,7 @@ function isNullableParamsSchema(
 	return !!resolved && !!getNullableInner(resolved);
 }
 
-export function generateApiTypesCode(
+function generateApiTypesCode(
 	apiSchema: ApiSchema,
 	nonDefaultableTypes: Iterable<string> = [],
 ): string {
