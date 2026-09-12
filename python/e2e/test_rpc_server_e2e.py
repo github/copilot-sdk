@@ -311,17 +311,19 @@ class TestRpcServer:
                 on_permission_request=PermissionHandler.approve_all,
             )
 
-            await session.send(
-                "Record a turn for sessions.list discriminator coverage", mode="enqueue"
+            # Persistence requires a user message. Finish its replayed turn before
+            # inspecting state or detaching, rather than racing an active inference.
+            message = await session.send_and_wait(
+                "Record a turn for sessions.list discriminator coverage"
             )
+            assert message is not None
+            assert message.data.content == "Recorded."
 
             listed = None
 
             async def session_is_listed() -> bool:
                 nonlocal listed
-                # Re-save on every attempt: on slower runners the enqueued turn is not
-                # necessarily recorded yet when the first save runs, so a single save
-                # followed by a fixed sleep races the CLI's own persistence.
+                # Re-save until the runtime's persisted metadata becomes visible.
                 save = await client.rpc.sessions.save(SessionsSaveRequest(session_id=session_id))
                 assert save is not None
                 listed = await client.rpc.sessions.list(

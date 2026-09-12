@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Record a turn for sessions.list discriminator coverage
+      - role: assistant
+        content: Recorded.
