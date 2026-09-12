@@ -54,19 +54,25 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             SystemMessage = new SystemMessageConfig { Mode = SystemMessageMode.Append, Content = systemMessageSuffix }
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is your full name?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(assistantMessage);
-
-        var content = assistantMessage!.Data.Content ?? string.Empty;
-        Assert.Contains("GitHub", content);
-        Assert.Contains("Have a nice day!", content);
+        await AssertAppendedSystemMessageResponseAsync(session, TimeSpan.FromSeconds(120));
 
         var traffic = await Ctx.GetExchangesAsync();
         Assert.NotEmpty(traffic);
         var systemMessage = GetSystemMessage(traffic[0]);
         Assert.Contains("GitHub", systemMessage);
         Assert.Contains(systemMessageSuffix, systemMessage);
+    }
+
+    internal static async Task AssertAppendedSystemMessageResponseAsync(CopilotSession session, TimeSpan timeout)
+    {
+        // Subscribe before sending: session.idle is ephemeral and cannot be recovered from history.
+        var assistantMessage = await session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "What is your full name?" }, timeout);
+        Assert.NotNull(assistantMessage);
+
+        var content = assistantMessage.Data.Content ?? string.Empty;
+        Assert.Contains("GitHub", content);
+        Assert.Contains("Have a nice day!", content);
     }
 
     [Fact]
