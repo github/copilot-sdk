@@ -1,6 +1,6 @@
 /**
  * AUTO-GENERATED FILE - DO NOT EDIT
- * Generated from: api.schema.json
+ * Generated from: api.schema.json + experimental/canvas.schema.json
  */
 
 import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
@@ -24230,19 +24230,6 @@ export interface ExtensionLaunchProviderRegistrationResult {
    */
   contractVersion: 1;
 }
-/**
- * Identifies the target session.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionRetainRequest".
- */
-/** @experimental */
-export interface SessionRetainRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-}
 
 /** @experimental */
 export interface SessionFactoryPauseAtCheckpointResult {
@@ -24353,6 +24340,19 @@ export interface SessionLimitPredictionPredictRequest {
    */
   modelId?: string;
   clientType?: SessionLimitPredictionClientType;
+}
+/**
+ * Identifies the target session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionRetainRequest".
+ */
+/** @experimental */
+export interface SessionRetainRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
 }
 /**
  * Identifies the target session.
@@ -25246,13 +25246,6 @@ export function createInternalServerRpc(connection: MessageConnection) {
 /** Create typed session-scoped RPC methods. */
 export function createSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
-        /**
-         * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
-         *
-         * @experimental
-         */
-        retain: async (): Promise<null> =>
-            connection.sendRequest("session.retain", { sessionId }),
         /**
          * Suspends the session while preserving persisted state for later resume.
          *
@@ -27267,6 +27260,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             stop: async (params: ScheduleStopRequest): Promise<ScheduleStopResult> =>
                 connection.sendRequest("session.schedule.stop", { sessionId, ...params }),
         },
+        /**
+         * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
+         *
+         * @experimental
+         */
+        retain: async (): Promise<null> =>
+            connection.sendRequest("session.retain", { sessionId }),
     };
 }
 

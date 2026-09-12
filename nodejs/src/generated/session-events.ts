@@ -1,6 +1,6 @@
 /**
  * AUTO-GENERATED FILE - DO NOT EDIT
- * Generated from: session-events.schema.json
+ * Generated from: session-events.schema.json + experimental/canvas.schema.json
  */
 
 /** A value that can be represented losslessly on the SDK JSON wire. */

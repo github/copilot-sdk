@@ -210,6 +210,11 @@ does not establish their availability; an older runtime rejects these opt-in
 operations. Publishing and qualifying a matching SDK/runtime pair is a separate
 release step.
 
+These experimental high-level bindings are currently Node-only. Generated wire
+types or an earlier launch-provider API in another SDK do not establish equivalent
+launch-v1, retention, cancellation, or initial script-safety behavior.
+High-level parity in the other SDKs is a separate follow-up.
+
 ##### `stop(): Promise<Error[]>`
 
 Stop the server and close all sessions. Returns a list of any errors encountered during cleanup.
@@ -1279,6 +1284,24 @@ cd nodejs
 npm ci
 npm test
 ```
+
+Run `npm run generate` to regenerate bindings from the checksum-verified pinned
+CLI schemas. The default Node generator also applies the reviewed experimental
+[canvas schema revision](../scripts/codegen/experimental/canvas.schema.json).
+That checked-in input records the canonical producer schema hashes, the exact
+released predecessor fingerprints, and the launch-v1/retention fragments; it
+does not invent a CLI release or change the downloaded schemas.
+
+The revision accepts only its recorded predecessor or an already matching
+canonical field. Unexpected changes fail generation rather than silently
+overriding a newer contract. When the runtime contract is released, review and
+remove the corresponding revision entries as part of the normal pin update.
+Other language generators remain on the release schema, and explicit schema
+arguments to the Node generator remain complete caller-supplied inputs.
+
+This makes ordinary codegen reproducible, not the experimental runtime available.
+The launch-version acknowledgement and compatible-runtime requirements above
+still apply.
 
 ## License
 
