@@ -76,6 +76,55 @@ var (
 	nextOutboundToken      atomic.Uint64
 )
 
+var pendingCleanup = struct {
+	sync.Mutex
+	count int
+	idle  chan struct{}
+}{
+	idle: closedChannel(),
+}
+
+func closedChannel() chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}
+
+func beginPendingCleanup() {
+	pendingCleanup.Lock()
+	defer pendingCleanup.Unlock()
+	if pendingCleanup.count == 0 {
+		pendingCleanup.idle = make(chan struct{})
+	}
+	pendingCleanup.count++
+}
+
+func finishPendingCleanup() {
+	pendingCleanup.Lock()
+	defer pendingCleanup.Unlock()
+	pendingCleanup.count--
+	if pendingCleanup.count == 0 {
+		close(pendingCleanup.idle)
+	}
+}
+
+// WaitForCleanup waits for all deferred connection cleanup to finish.
+// In-process test harnesses use this before changing process-global state.
+func WaitForCleanup(timeout time.Duration) bool {
+	pendingCleanup.Lock()
+	idle := pendingCleanup.idle
+	pendingCleanup.Unlock()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-idle:
+		return true
+	case <-timer.C:
+		return false
+	}
+}
+
 func sharedOutboundCallback() uintptr {
 	outboundCallbackOnce.Do(func() {
 		outboundCallbackHandle = purego.NewCallback(routeOutbound)
@@ -374,7 +423,9 @@ func (h *Host) scheduleCleanupRetryLocked() {
 		return
 	}
 	h.cleanupScheduled = true
+	beginPendingCleanup()
 	go func() {
+		defer finishPendingCleanup()
 		timer := time.NewTimer(100 * time.Millisecond)
 		defer timer.Stop()
 		for range timer.C {
