@@ -661,6 +661,32 @@ mvn clean package -pl copilot-native -DskipTests -Dcopilot.native.libc=glibc -Dc
 
 Each classifier JAR includes `runtime.node`, `platform.properties`, and `copilot-runtime` (or `copilot-runtime.exe`) under its `native/<classifier>` directory. It does not contain the legacy `copilot` SEA. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior.
 
+### Versioning and releases
+
+The Java SDK uses [Maven CI-friendly versions](https://maven.apache.org/maven-ci-friendly.html). Every module declares `<version>${revision}</version>`, and the single source of truth is the `<revision>` property in `java/pom.xml`. The committed value stays a `-SNAPSHOT` (for example `1.0.14-SNAPSHOT`) and is only used for local development and the daily snapshot publish.
+
+Releasing is intentionally a **read-only** operation that never mutates the repository:
+
+- The release version is computed by the shared release pipeline (`.github/workflows/publish.yml`) — the same version used by every other language SDK — and injected at build time with `-Drevision=X.Y.Z`. The POM is **not** edited or committed.
+- `.github/workflows/java-publish-maven.yml` builds every native classifier and the primary artifact from a single immutable source commit and publishes to Maven Central. It creates no commits, no branch-protection bypass, and requires no elevated repository token.
+- The `java/vX.Y.Z` traceability tag and the cross-language `vX.Y.Z` GitHub Release are created by `publish.yml` **after** publication succeeds, pointing at the original release commit.
+
+For an independent Java publication retry, dispatch `java-publish-maven.yml` from `main` with the original `releaseVersion` and full `sourceSha`. The source must be a commit already in `main`'s history. Unmerged commits, branch names, and tag names are rejected before builds run.
+
+Because there is no `maven-release-plugin` and no `release:prepare` ceremony, the POM deliberately does not track the "next" release version. To validate a build with an explicit version locally, without publishing:
+
+```bash
+# Build and verify with an explicit version, without touching the POM
+mvn clean verify -Drevision=1.2.3
+
+# Inspect the generated flattened POMs for the literal version (no ${revision})
+cat sdk/.flattened-pom.xml copilot-native/.flattened-pom.xml
+```
+
+These commands do not upload artifacts. Do not use `deploy` for local validation: the Central publishing plugin is configured with `autoPublish=true`.
+
+`flatten-maven-plugin` (ossrh mode) resolves `${revision}` into the installed and published POMs, so downstream consumers never see the unresolved property. Documentation version references are updated through a normal reviewed pull request (see `scripts/update-documentation-versions.sh`), not as a side effect of publishing.
+
 ## License
 
 MIT — see [LICENSE](../LICENSE) for details.

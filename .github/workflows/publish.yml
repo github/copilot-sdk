@@ -383,11 +383,11 @@ jobs:
     if: github.event.inputs.dist-tag != 'unstable' && github.ref == 'refs/heads/main'
     needs: version
     permissions:
-      contents: write
-      id-token: write
+      contents: read
     uses: ./.github/workflows/java-publish-maven.yml
     with:
       releaseVersion: ${{ needs.version.outputs.version }}
+      sourceSha: ${{ github.sha }}
       prerelease: ${{ github.event.inputs.dist-tag == 'prerelease' }}
     secrets: inherit
 
@@ -485,3 +485,58 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag Java SDK
+        # Reuse a tag only when it identifies the source that was published.
+        if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch --tags origin
+          TAG_NAME="java/v${VERSION}"
+          if git show-ref --verify --quiet "refs/tags/$TAG_NAME"; then
+            TAG_COMMIT=$(git rev-parse --verify "refs/tags/${TAG_NAME}^{commit}")
+            if [ "$TAG_COMMIT" != "$SOURCE_SHA" ]; then
+              echo "::error::Tag $TAG_NAME points to $TAG_COMMIT, expected $SOURCE_SHA. Refusing to overwrite it."
+              exit 1
+            fi
+            echo "Tag $TAG_NAME already points to the release source, skipping tag push"
+          else
+            STATUS=$?
+            if [ "$STATUS" -ne 1 ]; then
+              echo "::error::Could not inspect tag $TAG_NAME."
+              exit "$STATUS"
+            fi
+            git tag "$TAG_NAME" "$SOURCE_SHA"
+            git push origin "refs/tags/$TAG_NAME"
+            echo "Created and pushed tag $TAG_NAME"
+          fi
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          SOURCE_SHA: ${{ github.sha }}
+
+  deploy-java-site:
+    name: Deploy Java documentation site
+    needs: [version, github-release]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Trigger Java documentation site deploy
+        # A failed dispatch can be retried without recreating the GitHub release.
+        run: |
+          set -euo pipefail
+          TAG="java/v${VERSION}"
+          PUBLISH_AS_LATEST=true
+          if [ "$DIST_TAG" = "prerelease" ]; then
+            PUBLISH_AS_LATEST=false
+          fi
+          echo "Triggering site deployment for version ${VERSION} (tag: ${TAG})"
+          gh workflow run deploy-site.yml \
+            --repo github/copilot-sdk-java \
+            -f version="${VERSION}" \
+            -f publish_as_latest="${PUBLISH_AS_LATEST}" \
+            -f monorepo_tag="${TAG}"
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          DIST_TAG: ${{ github.event.inputs.dist-tag }}
+          GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}

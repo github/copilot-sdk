@@ -341,122 +341,101 @@ test("accepts a matching SHA-256 manifest", (t) => {
   );
 });
 
-test("validates one complete signed local publication", (t) => {
-  const fixture = createFixture(t);
-  const artifactId = "copilot-sdk-java-runtime";
-  const version = "1.2.3";
-  const publicationDirectory = path.join(
-    fixture.root,
-    "repository",
-    "com",
-    "github",
-    artifactId,
-    version,
-  );
-  fs.mkdirSync(publicationDirectory, { recursive: true });
-  const primaryJar = `${artifactId}-${version}.jar`;
-  const linuxJar = `${artifactId}-${version}-linux-x64.jar`;
-  const linuxArm64Jar = `${artifactId}-${version}-linux-arm64.jar`;
-  const windowsJar = `${artifactId}-${version}-win32-x64.jar`;
-  const windowsArm64Jar = `${artifactId}-${version}-win32-arm64.jar`;
-  const darwinJar = `${artifactId}-${version}-darwin-arm64.jar`;
-  writeStoredZip(path.join(publicationDirectory, primaryJar), [
-    ["META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n"],
-  ]);
-  writeStoredZip(
-    path.join(publicationDirectory, `${artifactId}-${version}-sources.jar`),
-    [],
-  );
-  writeStoredZip(
-    path.join(publicationDirectory, `${artifactId}-${version}-javadoc.jar`),
-    [],
-  );
-  createNativeClassifierTestFixture({
-    classifier: "linux-x64",
-    outputPath: path.join(publicationDirectory, linuxJar),
-    repoRoot: fixture.repoRoot,
-  });
-  createNativeClassifierTestFixture({
-    classifier: "linux-arm64",
-    outputPath: path.join(publicationDirectory, linuxArm64Jar),
-    repoRoot: fixture.repoRoot,
-  });
-  createNativeClassifierTestFixture({
-    classifier,
-    outputPath: path.join(publicationDirectory, windowsJar),
-    repoRoot: fixture.repoRoot,
-  });
-  createNativeClassifierTestFixture({
-    classifier: "win32-arm64",
-    outputPath: path.join(publicationDirectory, windowsArm64Jar),
-    repoRoot: fixture.repoRoot,
-  });
-  createNativeClassifierTestFixture({
-    classifier: "darwin-arm64",
-    outputPath: path.join(publicationDirectory, darwinJar),
-    repoRoot: fixture.repoRoot,
-  });
-  fs.writeFileSync(
-    path.join(publicationDirectory, `${artifactId}-${version}.pom`),
-    "<project />",
-  );
-  for (const artifact of [
-    primaryJar,
-    `${artifactId}-${version}.pom`,
-    `${artifactId}-${version}-sources.jar`,
-    `${artifactId}-${version}-javadoc.jar`,
-    linuxJar,
-    linuxArm64Jar,
-    windowsJar,
-    windowsArm64Jar,
-    darwinJar,
-  ]) {
-    fs.writeFileSync(
-      path.join(publicationDirectory, `${artifact}.asc`),
-      "signature",
-    );
+for (const artifactId of ["copilot-sdk-java-runtime", "copilot-sdk-java"]) {
+  for (const version of ["0.0.0-ci", "1.2.3-SNAPSHOT"]) {
+    test(`validates signed ${artifactId} publication at ${version}`, (t) => {
+      const fixture = createPublicationFixture(t, { artifactId, version });
+
+      assert.equal(
+        validateLocalPublication({ ...fixture, requireSignatures: true }),
+        fixture.publicationDirectory,
+      );
+    });
   }
 
-  assert.equal(
-    validateLocalPublication({
-      artifactId,
-      repositoryPath: path.join(fixture.root, "repository"),
-      repoRoot: fixture.repoRoot,
-      requireSignatures: true,
-      version,
-    }),
-    publicationDirectory,
+  for (const { name, from, to, error } of [
+    {
+      name: "unresolved revision",
+      from: "<version>1.2.3</version>",
+      to: "<version>${revision}</version>",
+      error: /unresolved.*revision/,
+    },
+    {
+      name: "the committed snapshot instead of the release version",
+      from: "<version>1.2.3</version>",
+      to: "<version>1.2.3-SNAPSHOT</version>",
+      error: /Unexpected Maven coordinates/,
+    },
+    {
+      name: "an incorrect group",
+      from: "<groupId>com.github</groupId>",
+      to: "<groupId>org.example</groupId>",
+      error: /Unexpected Maven coordinates/,
+    },
+    {
+      name: "an incorrect artifact",
+      from: `<artifactId>${artifactId}</artifactId>`,
+      to: "<artifactId>different-artifact</artifactId>",
+      error: /Unexpected Maven coordinates/,
+    },
+    {
+      name: "a dependency version in place of the project version",
+      from: "<version>1.2.3</version>",
+      to: "<dependencies><dependency><version>1.2.3</version></dependency></dependencies>",
+      error: /missing flattened project coordinates/,
+    },
+    {
+      name: "a commented-out project version",
+      from: "<version>1.2.3</version>",
+      to: "<!-- <version>1.2.3</version> -->",
+      error: /missing flattened project coordinates/,
+    },
+    {
+      name: "an unpublished parent reference",
+      from: "<modelVersion>4.0.0</modelVersion>",
+      to: `<modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.github</groupId>
+    <artifactId>copilot-sdk-java-parent</artifactId>
+    <version>1.2.3</version>
+  </parent>`,
+      error: /must not depend on a parent/,
+    },
+    {
+      name: "unresolved revision in a dependency",
+      from: "</project>",
+      to: "<dependencies><dependency><version>${revision}</version></dependency></dependencies></project>",
+      error: /unresolved.*revision/,
+    },
+  ]) {
+    test(`${artifactId} publication rejects ${name}`, (t) => {
+      const fixture = createPublicationFixture(t, { artifactId });
+      const pom = fs.readFileSync(fixture.pomPath, "utf8");
+      assert.ok(pom.includes(from));
+      fs.writeFileSync(fixture.pomPath, pom.replace(from, to));
+
+      assert.throws(() => validateLocalPublication(fixture), error);
+    });
+  }
+}
+
+test("local release publication requires a POM signature", (t) => {
+  const fixture = createPublicationFixture(t);
+  fs.rmSync(`${fixture.pomPath}.asc`);
+
+  assert.throws(
+    () => validateLocalPublication({ ...fixture, requireSignatures: true }),
+    /missing signature.*\.pom\.asc/,
   );
 });
 
 test("local publication validation rejects cross-classifier contamination", (t) => {
-  const fixture = createFixture(t);
-  const artifactId = "copilot-sdk-java-runtime";
-  const version = "1.2.3";
-  const publicationDirectory = path.join(
-    fixture.root,
-    "repository",
-    "com",
-    "github",
-    artifactId,
-    version,
-  );
-  fs.mkdirSync(publicationDirectory, { recursive: true });
-
+  const fixture = createPublicationFixture(t);
   writeStoredZip(
-    path.join(publicationDirectory, `${artifactId}-${version}.jar`),
-    [["META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n"]],
-  );
-  writeStoredZip(
-    path.join(publicationDirectory, `${artifactId}-${version}-sources.jar`),
-    [],
-  );
-  writeStoredZip(
-    path.join(publicationDirectory, `${artifactId}-${version}-javadoc.jar`),
-    [],
-  );
-  writeStoredZip(
-    path.join(publicationDirectory, `${artifactId}-${version}-linux-x64.jar`),
+    path.join(
+      fixture.publicationDirectory,
+      `${fixture.artifactId}-${fixture.version}-linux-x64.jar`,
+    ),
     [
       ["native/linux-x64/runtime.node", "runtime"],
       ["native/linux-x64/copilot-runtime", "runtime wrapper"],
@@ -467,55 +446,78 @@ test("local publication validation rejects cross-classifier contamination", (t) 
       ["native/win32-x64/runtime.node", "wrong platform"],
     ],
   );
-  createNativeClassifierTestFixture({
-    classifier: "linux-arm64",
-    outputPath: path.join(
-      publicationDirectory,
-      `${artifactId}-${version}-linux-arm64.jar`,
-    ),
-    repoRoot: fixture.repoRoot,
-  });
-  createNativeClassifierTestFixture({
-    classifier: "win32-x64",
-    outputPath: path.join(
-      publicationDirectory,
-      `${artifactId}-${version}-win32-x64.jar`,
-    ),
-    repoRoot: fixture.repoRoot,
-  });
-  createNativeClassifierTestFixture({
-    classifier: "win32-arm64",
-    outputPath: path.join(
-      publicationDirectory,
-      `${artifactId}-${version}-win32-arm64.jar`,
-    ),
-    repoRoot: fixture.repoRoot,
-  });
-  createNativeClassifierTestFixture({
-    classifier: "darwin-arm64",
-    outputPath: path.join(
-      publicationDirectory,
-      `${artifactId}-${version}-darwin-arm64.jar`,
-    ),
-    repoRoot: fixture.repoRoot,
-  });
-  fs.writeFileSync(
-    path.join(publicationDirectory, `${artifactId}-${version}.pom`),
-    "<project />",
-  );
 
-  assert.throws(
-    () =>
-      validateLocalPublication({
-        artifactId,
-        repositoryPath: path.join(fixture.root, "repository"),
-        repoRoot: fixture.repoRoot,
-        requireSignatures: false,
-        version,
-      }),
-    /must not contain/,
-  );
+  assert.throws(() => validateLocalPublication(fixture), /must not contain/);
 });
+
+function createPublicationFixture(
+  t,
+  { artifactId = "copilot-sdk-java-runtime", version = "1.2.3" } = {},
+) {
+  const fixture = createFixture(t);
+  const repositoryPath = path.join(fixture.root, "repository");
+  const publicationDirectory = path.join(
+    repositoryPath,
+    "com",
+    "github",
+    artifactId,
+    version,
+  );
+  fs.mkdirSync(publicationDirectory, { recursive: true });
+  const pomPath = path.join(
+    publicationDirectory,
+    `${artifactId}-${version}.pom`,
+  );
+  fs.writeFileSync(
+    pomPath,
+    `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.github</groupId>
+  <artifactId>${artifactId}</artifactId>
+  <version>${version}</version>
+</project>`,
+  );
+  for (const suffix of ["", "-sources", "-javadoc"]) {
+    writeStoredZip(
+      path.join(publicationDirectory, `${artifactId}-${version}${suffix}.jar`),
+      [["META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n"]],
+    );
+  }
+  if (artifactId === "copilot-sdk-java-runtime") {
+    for (const nativeClassifier of [
+      "linux-x64",
+      "linux-arm64",
+      "win32-x64",
+      "win32-arm64",
+      "darwin-arm64",
+    ]) {
+      createNativeClassifierTestFixture({
+        classifier: nativeClassifier,
+        outputPath: path.join(
+          publicationDirectory,
+          `${artifactId}-${version}-${nativeClassifier}.jar`,
+        ),
+        repoRoot: fixture.repoRoot,
+      });
+    }
+  }
+  for (const artifact of fs.readdirSync(publicationDirectory)) {
+    fs.writeFileSync(
+      path.join(publicationDirectory, `${artifact}.asc`),
+      "signature",
+    );
+  }
+
+  return {
+    ...fixture,
+    artifactId,
+    version,
+    repositoryPath,
+    publicationDirectory,
+    pomPath,
+  };
+}
 
 function createFixture(t) {
   const fixtureParent = path.join(

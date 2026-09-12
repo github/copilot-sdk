@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.github</groupId>
         <artifactId>copilot-sdk-java-parent</artifactId>
-        <version>1.0.14-SNAPSHOT</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -880,30 +880,6 @@
                                 </configuration>
                             </execution>
                         </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <!--
-            Keep the end-to-end local deployment check entirely local while
-            exercising the same deploy lifecycle used by releases.
-        -->
-        <profile>
-            <id>local-publication-validation</id>
-            <activation>
-                <property>
-                    <name>copilot.native.test.local.publication</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.sonatype.central</groupId>
-                        <artifactId>central-publishing-maven-plugin</artifactId>
-                        <configuration>
-                            <skipPublishing>true</skipPublishing>
-                        </configuration>
                     </plugin>
                 </plugins>
             </build>
