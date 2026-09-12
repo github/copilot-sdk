@@ -1944,6 +1944,9 @@ pub struct SessionConfig {
     pub session_id: Option<SessionId>,
     /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     pub model: Option<String>,
+    /// Exact model identifiers permitted for this session. When unset, the SDK
+    /// does not restrict model selection.
+    pub allowed_models: Option<Vec<String>>,
     /// Application name sent as `User-Agent` context.
     pub client_name: Option<String>,
     /// Reasoning effort level (e.g. `"low"`, `"medium"`, `"high"`).
@@ -2302,6 +2305,7 @@ impl std::fmt::Debug for SessionConfig {
         f.debug_struct("SessionConfig")
             .field("session_id", &self.session_id)
             .field("model", &self.model)
+            .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
@@ -2449,6 +2453,7 @@ impl Default for SessionConfig {
         Self {
             session_id: None,
             model: None,
+            allowed_models: None,
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
@@ -2620,6 +2625,7 @@ impl SessionConfig {
         let wire = crate::wire::SessionCreateWire {
             session_id,
             model: self.model,
+            allowed_models: self.allowed_models,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
@@ -2841,6 +2847,16 @@ impl SessionConfig {
     /// Set the model identifier (e.g. `"claude-sonnet-4"`).
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Set the exact model identifiers permitted for this session.
+    pub fn with_allowed_models<I, S>(mut self, allowed_models: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.allowed_models = Some(allowed_models.into_iter().map(Into::into).collect());
         self
     }
 
@@ -3402,6 +3418,9 @@ pub struct ResumeSessionConfig {
     /// Model to use for this session (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     /// Can change the model when resuming.
     pub model: Option<String>,
+    /// Exact model identifiers permitted for the resumed session. When unset,
+    /// the SDK does not restrict model selection.
+    pub allowed_models: Option<Vec<String>>,
     /// Application name sent as User-Agent context.
     pub client_name: Option<String>,
     /// Desired reasoning effort to apply after resuming the session.
@@ -3672,6 +3691,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
         f.debug_struct("ResumeSessionConfig")
             .field("session_id", &self.session_id)
             .field("model", &self.model)
+            .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
@@ -3862,6 +3882,7 @@ impl ResumeSessionConfig {
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
             model: self.model,
+            allowed_models: self.allowed_models,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
@@ -3971,6 +3992,7 @@ impl ResumeSessionConfig {
         Self {
             session_id,
             model: None,
+            allowed_models: None,
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
@@ -4163,6 +4185,16 @@ impl ResumeSessionConfig {
     /// Set the model identifier to switch to on resume (e.g. `"claude-sonnet-4"`).
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Set the exact model identifiers permitted for the resumed session.
+    pub fn with_allowed_models<I, S>(mut self, allowed_models: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.allowed_models = Some(allowed_models.into_iter().map(Into::into).collect());
         self
     }
 
@@ -6526,6 +6558,89 @@ mod tests {
         assert!(!wire.request_mcp_apps);
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("askUserVariant").is_none());
+    }
+
+    #[test]
+    fn session_config_allowed_models_builder_debug_and_wire() {
+        let default = SessionConfig::default();
+        assert_eq!(default.allowed_models, None);
+        assert!(format!("{default:?}").contains("allowed_models: None"));
+
+        let config = SessionConfig::default().with_allowed_models(["gpt-5", "claude-sonnet-5"]);
+        assert_eq!(
+            config.allowed_models.as_deref(),
+            Some(&["gpt-5".to_string(), "claude-sonnet-5".to_string()][..])
+        );
+        assert!(
+            format!("{config:?}")
+                .contains("allowed_models: Some([\"gpt-5\", \"claude-sonnet-5\"])")
+        );
+
+        let (wire, _) = config
+            .into_wire(Some(SessionId::from("allowed-models-create")))
+            .expect("allowed models do not add SDK validation");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["allowedModels"], json!(["gpt-5", "claude-sonnet-5"]));
+
+        let (default_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("unrestricted-create")))
+            .expect("default config has no duplicate handlers");
+        let default_json = serde_json::to_value(&default_wire).unwrap();
+        assert!(default_json.get("allowedModels").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_allowed_models_builder_debug_and_wire() {
+        let default = ResumeSessionConfig::new(SessionId::from("unrestricted-resume"));
+        assert_eq!(default.allowed_models, None);
+        assert!(format!("{default:?}").contains("allowed_models: None"));
+
+        let config = ResumeSessionConfig::new(SessionId::from("allowed-models-resume"))
+            .with_allowed_models(vec!["gpt-5".to_string(), "claude-sonnet-5".to_string()]);
+        assert_eq!(
+            config.allowed_models.as_deref(),
+            Some(&["gpt-5".to_string(), "claude-sonnet-5".to_string()][..])
+        );
+        assert!(
+            format!("{config:?}")
+                .contains("allowed_models: Some([\"gpt-5\", \"claude-sonnet-5\"])")
+        );
+
+        let (wire, _) = config
+            .into_wire()
+            .expect("allowed models do not add SDK validation");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["allowedModels"], json!(["gpt-5", "claude-sonnet-5"]));
+
+        let (default_wire, _) = ResumeSessionConfig::new(SessionId::from("unrestricted-resume"))
+            .into_wire()
+            .expect("default resume config has no duplicate handlers");
+        let default_json = serde_json::to_value(&default_wire).unwrap();
+        assert!(default_json.get("allowedModels").is_none());
+    }
+
+    #[test]
+    fn allowed_models_and_auth_client_id_metadata_url_serialize_together() {
+        let url = "https://example.com/oauth/client-metadata.json";
+        let (create_wire, _) = SessionConfig::default()
+            .with_allowed_models(["gpt-5"])
+            .with_auth_client_id_metadata_url(url)
+            .into_wire(None)
+            .expect("create config has no duplicate handlers");
+        let (resume_wire, _) =
+            ResumeSessionConfig::new(SessionId::from("allowed-models-oauth-resume"))
+                .with_allowed_models(["gpt-5"])
+                .with_auth_client_id_metadata_url(url)
+                .into_wire()
+                .expect("resume config has no duplicate handlers");
+
+        for json in [
+            serde_json::to_value(&create_wire).unwrap(),
+            serde_json::to_value(&resume_wire).unwrap(),
+        ] {
+            assert_eq!(json["allowedModels"], json!(["gpt-5"]));
+            assert_eq!(json["authClientIdMetadataUrl"], url);
+        }
     }
 
     #[test]
