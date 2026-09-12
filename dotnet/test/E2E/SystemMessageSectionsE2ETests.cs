@@ -61,8 +61,13 @@ public class SystemMessageSectionsE2ETests(E2ETestFixture fixture, ITestOutputHe
             }
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "Who are you?" });
-        var response = await TestHelper.GetFinalAssistantMessageAsync(session);
+        await AssertReplacedPreambleResponseAsync(session, TimeSpan.FromSeconds(120));
+    }
+
+    internal static async Task AssertReplacedPreambleResponseAsync(CopilotSession session, TimeSpan timeout)
+    {
+        // Subscribe before sending: the ephemeral idle event cannot be recovered from history.
+        var response = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Who are you?" }, timeout);
 
         Assert.NotNull(response);
         var content = response.Data.Content.ToLowerInvariant();
