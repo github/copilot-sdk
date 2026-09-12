@@ -2147,6 +2147,65 @@ func TestResumeSessionRequest_InstructionDirectories(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_CustomAgentDirectories(t *testing.T) {
+	t.Run("includes customAgentDirectories in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{CustomAgentDirectories: []string{`C:\extra-agents`, `C:\more-agents`}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got := m["customAgentDirectories"].([]any)
+		if len(got) != 2 || got[0] != `C:\extra-agents` || got[1] != `C:\more-agents` {
+			t.Errorf("Expected customAgentDirectories to be serialized, got %v", got)
+		}
+	})
+
+	t.Run("omits customAgentDirectories from JSON when empty", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["customAgentDirectories"]; ok {
+			t.Error("Expected customAgentDirectories to be omitted when empty")
+		}
+	})
+}
+
+func TestResumeSessionRequest_CustomAgentDirectories(t *testing.T) {
+	t.Run("includes customAgentDirectories in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:              "s1",
+			CustomAgentDirectories: []string{`C:\resume-agents`},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got := m["customAgentDirectories"].([]any)
+		if len(got) != 1 || got[0] != `C:\resume-agents` {
+			t.Errorf("Expected customAgentDirectories to be serialized, got %v", got)
+		}
+	})
+
+	t.Run("omits customAgentDirectories from JSON when empty", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["customAgentDirectories"]; ok {
+			t.Error("Expected customAgentDirectories to be omitted when empty")
+		}
+	})
+}
+
 func TestCreateSessionRequest_MCPOAuthTokenStorage(t *testing.T) {
 	t.Run("includes mcpOAuthTokenStorage in JSON when set", func(t *testing.T) {
 		req := createSessionRequest{MCPOAuthTokenStorage: "in-memory"}

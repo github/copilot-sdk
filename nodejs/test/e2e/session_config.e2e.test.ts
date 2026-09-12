@@ -693,6 +693,63 @@ describe("Session Configuration", async () => {
         await session1.disconnect();
     });
 
+    it("should apply customAgentDirectories on session create", async () => {
+        const projectDir = join(workDir, "agent-create-project");
+        const agentDir = join(workDir, "extra-create-agents");
+        await mkdir(projectDir, { recursive: true });
+        await mkdir(agentDir, { recursive: true });
+        await writeFile(
+            join(agentDir, "reviewer.agent.md"),
+            "---\nname: reviewer\ndescription: Reviews code carefully.\n---\nYou review code carefully."
+        );
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            workingDirectory: projectDir,
+            customAgentDirectories: [agentDir],
+        });
+
+        await session.sendAndWait({ prompt: "What is 1+1?" });
+
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges.length).toBeGreaterThan(0);
+        const agentTypes = getTaskAgentTypes(exchanges[exchanges.length - 1]);
+        expect(agentTypes).toContain("reviewer");
+
+        await session.disconnect();
+    });
+
+    it("should apply customAgentDirectories on session resume", async () => {
+        const projectDir = join(workDir, "agent-resume-project");
+        const agentDir = join(workDir, "extra-resume-agents");
+        await mkdir(projectDir, { recursive: true });
+        await mkdir(agentDir, { recursive: true });
+        await writeFile(
+            join(agentDir, "reviewer.agent.md"),
+            "---\nname: reviewer\ndescription: Reviews code carefully.\n---\nYou review code carefully."
+        );
+
+        const session1 = await client.createSession({
+            onPermissionRequest: approveAll,
+            workingDirectory: projectDir,
+        });
+        const session2 = await client.resumeSession(session1.sessionId, {
+            onPermissionRequest: approveAll,
+            workingDirectory: projectDir,
+            customAgentDirectories: [agentDir],
+        });
+
+        await session2.sendAndWait({ prompt: "What is 1+1?" });
+
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges.length).toBeGreaterThan(0);
+        const agentTypes = getTaskAgentTypes(exchanges[exchanges.length - 1]);
+        expect(agentTypes).toContain("reviewer");
+
+        await session2.disconnect();
+        await session1.disconnect();
+    });
+
     it("should forward clientName in user-agent", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,

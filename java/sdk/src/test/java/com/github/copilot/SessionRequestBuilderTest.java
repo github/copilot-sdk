@@ -840,6 +840,30 @@ public class SessionRequestBuilderTest {
     }
 
     // =========================================================================
+    // customAgentDirectories propagation
+    // =========================================================================
+
+    @Test
+    void testBuildCreateRequestPropagatesCustomAgentDirectories() {
+        var dirs = List.of("/path/to/agents", "/another/agents");
+        var config = new SessionConfig().setCustomAgentDirectories(dirs);
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertEquals(dirs, request.getCustomAgentDirectories());
+    }
+
+    @Test
+    void testBuildResumeRequestPropagatesCustomAgentDirectories() {
+        var dirs = List.of("/resume/agents", "/other/agents");
+        var config = new ResumeSessionConfig().setCustomAgentDirectories(dirs);
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-agents", config);
+
+        assertEquals(dirs, request.getCustomAgentDirectories());
+    }
+
+    // =========================================================================
     // enableSessionTelemetry serialization
     // =========================================================================
 

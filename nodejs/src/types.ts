@@ -2798,6 +2798,11 @@ export interface SessionConfigBase {
     instructionDirectories?: string[];
 
     /**
+     * Additional directories to search for custom agent files.
+     */
+    customAgentDirectories?: string[];
+
+    /**
      * List of skill names to disable.
      */
     disabledSkills?: string[];

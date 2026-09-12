@@ -957,6 +957,101 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		}
 	})
 
+	t.Run("should apply customAgentDirectories on create", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		projectDir := filepath.Join(ctx.WorkDir, "agent-create-project")
+		agentDir := filepath.Join(ctx.WorkDir, "extra-create-agents")
+		if err := os.MkdirAll(projectDir, 0755); err != nil {
+			t.Fatalf("MkdirAll failed: %v", err)
+		}
+		if err := os.MkdirAll(agentDir, 0755); err != nil {
+			t.Fatalf("MkdirAll failed: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(agentDir, "reviewer.agent.md"), []byte("---\nname: reviewer\ndescription: Reviews code carefully.\n---\nYou review code carefully."), 0644); err != nil {
+			t.Fatalf("WriteFile failed: %v", err)
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			WorkingDirectory:       projectDir,
+			CustomAgentDirectories: []string{agentDir},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		t.Cleanup(func() { _ = session.Disconnect() })
+
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		exchanges, err := ctx.GetExchanges()
+		if err != nil {
+			t.Fatalf("GetExchanges failed: %v", err)
+		}
+		if len(exchanges) == 0 {
+			t.Fatalf("Expected at least 1 exchange, got %d", len(exchanges))
+		}
+		agentTypes := getTaskAgentTypes(t, exchanges[len(exchanges)-1])
+		if !containsAgentType(agentTypes, "reviewer") {
+			t.Errorf("Expected task agent_type enum to contain %q, got %v", "reviewer", agentTypes)
+		}
+	})
+
+	t.Run("should apply customAgentDirectories on resume", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		projectDir := filepath.Join(ctx.WorkDir, "agent-resume-project")
+		agentDir := filepath.Join(ctx.WorkDir, "extra-resume-agents")
+		if err := os.MkdirAll(projectDir, 0755); err != nil {
+			t.Fatalf("MkdirAll failed: %v", err)
+		}
+		if err := os.MkdirAll(agentDir, 0755); err != nil {
+			t.Fatalf("MkdirAll failed: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(agentDir, "reviewer.agent.md"), []byte("---\nname: reviewer\ndescription: Reviews code carefully.\n---\nYou review code carefully."), 0644); err != nil {
+			t.Fatalf("WriteFile failed: %v", err)
+		}
+
+		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			WorkingDirectory:    projectDir,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		t.Cleanup(func() { _ = session1.Disconnect() })
+
+		session2, err := client.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			WorkingDirectory:       projectDir,
+			CustomAgentDirectories: []string{agentDir},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSession failed: %v", err)
+		}
+		t.Cleanup(func() { _ = session2.Disconnect() })
+
+		_, err = session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		exchanges, err := ctx.GetExchanges()
+		if err != nil {
+			t.Fatalf("GetExchanges failed: %v", err)
+		}
+		if len(exchanges) == 0 {
+			t.Fatalf("Expected at least 1 exchange, got %d", len(exchanges))
+		}
+		agentTypes := getTaskAgentTypes(t, exchanges[len(exchanges)-1])
+		if !containsAgentType(agentTypes, "reviewer") {
+			t.Errorf("Expected task agent_type enum to contain %q, got %v", "reviewer", agentTypes)
+		}
+	})
+
 	t.Run("should apply availableTools on session resume", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

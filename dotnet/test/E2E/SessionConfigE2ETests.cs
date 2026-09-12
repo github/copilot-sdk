@@ -447,6 +447,64 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task Should_Apply_CustomAgentDirectories_On_Create()
+    {
+        var projectDir = Path.Join(Ctx.WorkDir, "agent-create-project");
+        var agentDir = Path.Join(Ctx.WorkDir, "extra-create-agents");
+        Directory.CreateDirectory(projectDir);
+        Directory.CreateDirectory(agentDir);
+        await File.WriteAllTextAsync(
+            Path.Join(agentDir, "reviewer.agent.md"),
+            "---\nname: reviewer\ndescription: Reviews code carefully.\n---\nYou review code carefully.");
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            WorkingDirectory = projectDir,
+            CustomAgentDirectories = [agentDir],
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+
+        var exchanges = await Ctx.GetExchangesAsync();
+        Assert.NotEmpty(exchanges);
+        Assert.Contains("reviewer", GetTaskAgentTypes(exchanges[^1]));
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Apply_CustomAgentDirectories_On_Resume()
+    {
+        var projectDir = Path.Join(Ctx.WorkDir, "agent-resume-project");
+        var agentDir = Path.Join(Ctx.WorkDir, "extra-resume-agents");
+        Directory.CreateDirectory(projectDir);
+        Directory.CreateDirectory(agentDir);
+        await File.WriteAllTextAsync(
+            Path.Join(agentDir, "reviewer.agent.md"),
+            "---\nname: reviewer\ndescription: Reviews code carefully.\n---\nYou review code carefully.");
+
+        await using var session1 = await CreateSessionAsync(new SessionConfig
+        {
+            WorkingDirectory = projectDir,
+        });
+        var sessionId = session1.SessionId;
+        await SuspendAndUntrackSessionForResumeAsync(session1);
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            WorkingDirectory = projectDir,
+            CustomAgentDirectories = [agentDir],
+        });
+
+        await session2.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+
+        var exchanges = await Ctx.GetExchangesAsync();
+        Assert.NotEmpty(exchanges);
+        Assert.Contains("reviewer", GetTaskAgentTypes(exchanges[^1]));
+
+        await session2.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Apply_AvailableTools_On_Session_Resume()
     {
         await using var session1 = await CreateSessionAsync();
