@@ -105,8 +105,7 @@ describe("Session Fs", async () => {
         const tcpConnectionToken = "session-fs-test-token";
         const client = new CopilotClient({
             // Use TCP so we can connect from a second client
-            connection: RuntimeConnection.forTcp({ connectionToken: tcpConnectionToken }),
-            env,
+            connection: RuntimeConnection.forTcp({ connectionToken: tcpConnectionToken, env }),
         });
         onTestFinished(() => client.stop());
         await client.createSession({ onPermissionRequest: approveAll, createSessionFsProvider });
@@ -116,7 +115,6 @@ describe("Session Fs", async () => {
         // Second client tries to connect with a session fs — should fail
         // because sessions already exist on the runtime.
         const client2 = new CopilotClient({
-            env,
             logLevel: "error",
             connection: RuntimeConnection.forUri(`localhost:${port}`, {
                 connectionToken: tcpConnectionToken,

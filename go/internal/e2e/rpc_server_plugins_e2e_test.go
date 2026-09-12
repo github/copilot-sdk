@@ -318,12 +318,14 @@ func newStartedIsolatedPortedClient(t *testing.T, ctx *testharness.TestContext) 
 		t.Fatalf("Failed to create isolated plugin home: %v", err)
 	}
 	return newStartedPortedClient(t, ctx, func(opts *copilot.ClientOptions) {
-		opts.Env = append(opts.Env,
+		conn := opts.Connection.(copilot.StdioConnection)
+		conn.Env = append(conn.Env,
 			"COPILOT_HOME="+home,
 			"GH_CONFIG_DIR="+home,
 			"XDG_CONFIG_HOME="+home,
 			"XDG_STATE_HOME="+home,
 		)
+		opts.Connection = conn
 	})
 }
 

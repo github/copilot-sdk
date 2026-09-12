@@ -28,7 +28,9 @@ func TestSessionEventLoopLeakE2E(t *testing.T) {
 		// with a genuine RPC error (401 Unauthorized), exercising the same
 		// failure path a real user would hit — not a mocked transport.
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Env = append(opts.Env, "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)
+			conn := opts.Connection.(copilot.StdioConnection)
+			conn.Env = append(conn.Env, "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)
+			opts.Connection = conn
 		})
 		t.Cleanup(func() { client.ForceStop() })
 

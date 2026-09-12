@@ -57,10 +57,11 @@ class MultiClientContext:
         # Client 1 uses TCP mode so a second client can connect to the same server
         self._client1 = CopilotClient(
             connection=RuntimeConnection.for_tcp(
-                path=self.cli_path, connection_token="py-tcp-shared-test-token"
+                path=self.cli_path,
+                connection_token="py-tcp-shared-test-token",
+                working_directory=self.work_dir,
+                env=self.get_env(),
             ),
-            working_directory=self.work_dir,
-            env=self.get_env(),
             github_token=github_token,
         )
 
