@@ -4130,6 +4130,7 @@ describe("CopilotClient", () => {
                 onNotification: vi.fn(),
                 onRequest: vi.fn(),
                 onClose: vi.fn(),
+                onDispose: vi.fn(),
                 onError: vi.fn(),
             };
 

@@ -52,6 +52,8 @@ import {
 } from "./utils.js";
 
 const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
+// Retention must also be callable before a create/resume response exposes a session.
+const CONNECTION_SESSION_METHODS = new Set(["session.retain"]);
 const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
     "session-events.schema.json": "./session-events.js",
 };
@@ -678,7 +680,9 @@ function tsNullableResultTypeName(method: RpcMethod): string | undefined {
 }
 
 function tsResultType(method: RpcMethod): string {
-    if (isVoidSchema(getMethodResultSchema(method))) return "void";
+    if (isVoidSchema(getMethodResultSchema(method))) {
+        return CONNECTION_SESSION_METHODS.has(method.rpcMethod) ? "null" : "void";
+    }
     return tsNullableResultTypeName(method) ?? resultTypeName(method);
 }
 
@@ -717,7 +721,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
  * Generated from: api.schema.json
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 `);
 
     const externalSchemaRefs = collectExternalSchemaRefNames(schema);
@@ -794,7 +798,11 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
             if (paramsExternalRef) {
                 continue;
             }
-            if (method.rpcMethod.startsWith("session.") && resolvedParams?.properties) {
+            if (
+                method.rpcMethod.startsWith("session.") &&
+                !CONNECTION_SESSION_METHODS.has(method.rpcMethod) &&
+                resolvedParams?.properties
+            ) {
                 const filtered: JSONSchema7 = {
                     ...resolvedParams,
                     properties: Object.fromEntries(
@@ -889,6 +897,14 @@ function hasInternalMethods(node: Record<string, unknown>): boolean {
         lines.push(`export function createServerRpc(connection: MessageConnection) {`);
         lines.push(`    return {`);
         lines.push(...emitGroup(schema.server, "        ", false, false, false, "public"));
+        const connectionSessionMethods = Object.fromEntries(
+            Object.entries(schema.session ?? {}).filter(
+                ([, method]) => isRpcMethod(method) && CONNECTION_SESSION_METHODS.has(method.rpcMethod)
+            )
+        );
+        if (Object.keys(connectionSessionMethods).length > 0) {
+            lines.push(...emitGroup({ session: connectionSessionMethods }, "        ", false, false, false, "public"));
+        }
         lines.push(`    };`);
         lines.push(`}`);
         lines.push("");
@@ -1211,7 +1227,8 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
                 includeExperimental: method.stability === "experimental" && !groupExperimental,
             });
             if (hasParams) {
-                lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
+                const cancellationParam = method.notification ? "" : ", token?: CancellationToken";
+                lines.push(`    ${name}(params: ${pType}${cancellationParam}): Promise<${rType}>;`);
             } else {
                 lines.push(`    ${name}(): Promise<${rType}>;`);
             }
@@ -1270,10 +1287,10 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
                     lines.push(`    });`);
                 }
             } else if (hasParams) {
-                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}) => {`);
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}, token: CancellationToken) => {`);
                 lines.push(`        const handler = handlers.${groupName};`);
                 lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);
-                lines.push(`        return handler.${name}(params);`);
+                lines.push(`        return handler.${name}(params, token);`);
                 lines.push(`    });`);
             } else {
                 lines.push(`    connection.onRequest("${method.rpcMethod}", async () => {`);

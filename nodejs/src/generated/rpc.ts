@@ -3,7 +3,7 @@
  * Generated from: api.schema.json
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 
 import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
@@ -7676,16 +7676,24 @@ export interface ExtensionLaunchProviderResolveRequest {
    */
   modulePath: string;
   source: ExtensionSource;
+  /**
+   * Owning runtime session identifier, when known.
+   */
+  sessionId?: string;
+  defaultLaunch?: ExtensionLaunchProfile;
 }
 /**
- * The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
+ * The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ExtensionLaunchProviderResolveResult".
  */
 /** @experimental */
 export interface ExtensionLaunchProviderResolveResult {
-  launch?: ExtensionLaunchProfile;
+  /**
+   * Approved launch profile, or absent/null to deny this candidate without fallback.
+   */
+  launch?: ExtensionLaunchProfile | null;
 }
 /**
  * Extensions discovered for the session, with their current status.
@@ -23957,6 +23965,32 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
    */
   operation: string;
 }
+/**
+ * Authoritative capability acknowledgement for the registered extension launch provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionLaunchProviderRegistrationResult".
+ */
+/** @experimental */
+export interface ExtensionLaunchProviderRegistrationResult {
+  /**
+   * Supported extension launch-provider contract version. Clients requiring this contract must check for version 1 before creating or resuming sessions.
+   */
+  contractVersion: 1;
+}
+/**
+ * Identifies the target session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionRetainRequest".
+ */
+/** @experimental */
+export interface SessionRetainRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
 
 /** @experimental */
 export interface SessionFactoryPauseAtCheckpointResult {
@@ -24304,11 +24338,13 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("extensions.disable", params),
         },
         /**
-         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
+         * Registers the calling SDK client as the authoritative per-entrypoint extension launch provider and returns the supported contract version. Call before creating any sessions. Contract version 1 supplies sessionId and defaultLaunch when available; absent or null launch, provider errors, timeouts, and shutdown cancellation never fall back. Without a registered provider, legacy launching is unchanged.
+         *
+         * @returns Authoritative capability acknowledgement for the registered extension launch provider.
          *
          * @experimental
          */
-        registerExtensionLaunchProvider: async (): Promise<void> =>
+        registerExtensionLaunchProvider: async (): Promise<ExtensionLaunchProviderRegistrationResult> =>
             connection.sendRequest("registerExtensionLaunchProvider", {}),
         /** @experimental */
         catalog: {
@@ -24850,6 +24886,16 @@ export function createServerRpc(connection: MessageConnection) {
             spawn: async (params: AgentRegistrySpawnRequest): Promise<AgentRegistrySpawnResult> =>
                 connection.sendRequest("agentRegistry.spawn", params),
         },
+        /** @experimental */
+        session: {
+            /**
+             * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
+             *
+             * @param params Identifies the target session.
+             */
+            retain: async (params: SessionRetainRequest): Promise<null> =>
+                connection.sendRequest("session.retain", params),
+        },
     };
 }
 
@@ -24948,6 +24994,13 @@ export function createInternalServerRpc(connection: MessageConnection) {
 /** Create typed session-scoped RPC methods. */
 export function createSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
+        /**
+         * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
+         *
+         * @experimental
+         */
+        retain: async (): Promise<null> =>
+            connection.sendRequest("session.retain", { sessionId }),
         /**
          * Suspends the session while preserving persisted state for later resume.
          *
@@ -27604,13 +27657,13 @@ export function registerClientSessionApiHandlers(
 /** @experimental */
 export interface ExtensionLaunchProviderHandler {
     /**
-     * Asks the registered SDK client to resolve an opaque process launch profile for one discovered extension entrypoint immediately before launch or reload. The provider must respond within 15 seconds.
+     * Asks the registered SDK client to approve a launch profile immediately before every extension launch or reload. Return defaultLaunch unchanged to approve the runtime's built-in launcher, or return another profile. An absent or null launch denies execution with no fallback. The provider must respond within 15 seconds. Approval does not sandbox code or freeze mutable files; the host is responsible for approved package contents.
      *
      * @param params A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
      *
-     * @returns The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
+     * @returns The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.
      */
-    resolve(params: ExtensionLaunchProviderResolveRequest): Promise<ExtensionLaunchProviderResolveResult>;
+    resolve(params: ExtensionLaunchProviderResolveRequest, token?: CancellationToken): Promise<ExtensionLaunchProviderResolveResult>;
 }
 
 /** Handler for `llmInference` client global API methods. */
@@ -27623,7 +27676,7 @@ export interface LlmInferenceHandler {
      *
      * @returns Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
      */
-    httpRequestStart(params: LlmInferenceHttpRequestStartRequest): Promise<LlmInferenceHttpRequestStartResult>;
+    httpRequestStart(params: LlmInferenceHttpRequestStartRequest, token?: CancellationToken): Promise<LlmInferenceHttpRequestStartResult>;
     /**
      * Delivers a body byte range (or a cancellation signal) for a request previously announced via httpRequestStart, correlated by requestId. The runtime fires at least one chunk per request — when there is no body, a single chunk with empty data and end=true. Mid-stream the runtime may send a chunk with cancel=true to abort the request; the SDK then stops issuing httpResponseChunk frames and may emit a terminal httpResponseChunk with error set.
      *
@@ -27631,7 +27684,7 @@ export interface LlmInferenceHandler {
      *
      * @returns Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
      */
-    httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest): Promise<LlmInferenceHttpRequestChunkResult>;
+    httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest, token?: CancellationToken): Promise<LlmInferenceHttpRequestChunkResult>;
 }
 
 /** Handler for `gitHubTelemetry` client global API methods. */
@@ -27655,7 +27708,7 @@ export interface GitHubTokenHandler {
      *
      * @returns SDK host response to a GitHub credential request.
      */
-    getToken(params: GitHubTokenAcquireRequest): Promise<GitHubTokenAcquireResult>;
+    getToken(params: GitHubTokenAcquireRequest, token?: CancellationToken): Promise<GitHubTokenAcquireResult>;
 }
 
 /** All client global API handler groups. */
@@ -27677,29 +27730,29 @@ export function registerClientGlobalApiHandlers(
     connection: MessageConnection,
     handlers: ClientGlobalApiHandlers,
 ): void {
-    connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest) => {
+    connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest, token: CancellationToken) => {
         const handler = handlers.extensionLaunchProvider;
         if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");
-        return handler.resolve(params);
+        return handler.resolve(params, token);
     });
-    connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
+    connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest, token: CancellationToken) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");
-        return handler.httpRequestStart(params);
+        return handler.httpRequestStart(params, token);
     });
-    connection.onRequest("llmInference.httpRequestChunk", async (params: LlmInferenceHttpRequestChunkRequest) => {
+    connection.onRequest("llmInference.httpRequestChunk", async (params: LlmInferenceHttpRequestChunkRequest, token: CancellationToken) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");
-        return handler.httpRequestChunk(params);
+        return handler.httpRequestChunk(params, token);
     });
     connection.onNotification("gitHubTelemetry.event", async (params: GitHubTelemetryNotification) => {
         const handler = handlers.gitHubTelemetry;
         if (!handler) return;
         await handler.event(params);
     });
-    connection.onRequest("gitHubToken.getToken", async (params: GitHubTokenAcquireRequest) => {
+    connection.onRequest("gitHubToken.getToken", async (params: GitHubTokenAcquireRequest, token: CancellationToken) => {
         const handler = handlers.gitHubToken;
         if (!handler) throw new Error("No gitHubToken client-global handler registered");
-        return handler.getToken(params);
+        return handler.getToken(params, token);
     });
 }

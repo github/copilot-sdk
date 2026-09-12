@@ -20,6 +20,7 @@ export type SessionEvent =
   | ScheduleCancelledEvent
   | ScheduleRearmedEvent
   | AutopilotObjectiveChangedEvent
+  | RetainedEvent
   | InfoEvent
   | WarningEvent
   | ModelChangeEvent
@@ -1849,6 +1850,42 @@ export interface AutopilotObjectiveChangedData {
   operation: AutopilotObjectiveChangedOperation;
   status?: AutopilotObjectiveChangedStatus;
 }
+/**
+ * Session event "session.retained". Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
+ */
+/** @experimental */
+export interface RetainedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: RetainedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.retained".
+   */
+  type: "session.retained";
+}
+/**
+ * Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
+ */
+/** @experimental */
+export interface RetainedData {}
 /**
  * Session event "session.info". Informational message for timeline display with categorization
  */
