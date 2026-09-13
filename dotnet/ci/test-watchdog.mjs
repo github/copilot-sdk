@@ -9,6 +9,7 @@ import { basename, join, resolve } from "node:path";
 import { constants } from "node:os";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { collectWindowsStacks, startWindowsJob } from "./windows-watchdog.mjs";
 
 const exec = promisify(execFile);
 
@@ -19,7 +20,14 @@ export function progressMarker(line) {
     return { phase: "runtime-provisioning" };
   if (/\bCoreCompile:/.test(line)) return { phase: "compilation" };
   if (/\b_CopyCopilotCliToOutput:/.test(line)) return { phase: "runtime-copy" };
-  if (/^Test run for /.test(line)) return { phase: "testhost-startup" };
+  if (/^Test run for /.test(line)) {
+    const framework = /\.NETCoreApp,Version=v8\.0|net8\.0/.test(line)
+      ? "net8.0"
+      : /\.NETFramework,Version=v4\.7\.2|net472/.test(line)
+        ? "net472"
+        : undefined;
+    return { phase: "testhost-startup", ...(framework && { framework }) };
+  }
   if (/^Starting test execution,/.test(line))
     return { phase: "test-discovery" };
   if (/^\[xUnit\.net [\d:.]+\]\s+Starting:/.test(line)) {
@@ -56,7 +64,9 @@ export function ownedProcesses(output, group) {
         cpu: Number(match[5]),
         rssKiB: Number(match[6]),
         elapsed: match[7],
-        role: /^(dotnet|testhost|copilot|copilot-runtime|node|tar)$/.test(name)
+        role: /^(dotnet|testhost|copilot|copilot-runtime|node|tar|go|e2e\.test)$/.test(
+          name,
+        )
           ? name
           : "other",
       },
@@ -129,19 +139,22 @@ export async function runWithWatchdog({
   timeoutMs,
   intervalMs = 60_000,
   graceMs = 5_000,
-  inspect = collectProcesses,
-  sample = collectSamples,
+  inspect,
+  sample = process.platform === "win32" ? collectWindowsStacks : collectSamples,
   forwardOutput = true,
+  marker = progressMarker,
+  label = ".NET",
 }) {
   mkdirSync(directory, { recursive: true });
   const started = performance.now();
   let phase = "build-startup";
+  let framework;
   let finalized = false;
   const record = (data) =>
     !finalized &&
     appendFileSync(
       join(directory, "watchdog.jsonl"),
-      `${JSON.stringify({ at: new Date().toISOString(), elapsedMs: Math.round(performance.now() - started), phase, ...data })}\n`,
+      `${JSON.stringify({ at: new Date().toISOString(), elapsedMs: Math.round(performance.now() - started), phase, framework, ...data })}\n`,
     );
   record({ event: "start", timeoutMs });
   if (timeoutMs <= 0) {
@@ -149,14 +162,57 @@ export async function runWithWatchdog({
     return 124;
   }
 
-  // On macOS the child leads a process group. Kill only that owned group, even
-  // if dotnet exits while a descendant still holds its output pipe open.
-  const child = spawn(command, args, {
-    detached: process.platform !== "win32",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  // POSIX uses an owned process group. Windows uses a supervisor in a nested
+  // kill-on-close Job Object; killing it also kills orphaned pipe holders.
+  const windows =
+    process.platform === "win32"
+      ? startWindowsJob(command, args, directory)
+      : undefined;
+  const child =
+    windows?.child ??
+    spawn(command, args, {
+      detached: process.platform !== "win32",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
   let result;
   let stopping = false;
+  let commandExited = false;
+  let commandOutputClosed = false;
+  let backgroundCleaned = false;
+  let supervisorErrorRecorded = false;
+  const windowsStatus = () => {
+    const status = windows.status();
+    commandOutputClosed ||= status.outputClosed === true;
+    if (status.exitCode !== undefined && !commandExited) {
+      commandExited = true;
+      result ??= status.exitCode;
+      record({
+        event: "command-exit",
+        exitCode: status.exitCode,
+        pid: status.rootPid,
+      });
+      phase = "output-drain";
+    }
+    if (status.error && !supervisorErrorRecorded) {
+      supervisorErrorRecorded = true;
+      record({
+        event: "windows-supervisor-error",
+        error: status.error,
+        code: status.errorCode,
+      });
+    }
+    if (status.outputClosed && status.processCount > 0 && !backgroundCleaned) {
+      backgroundCleaned = true;
+      record({
+        event: "owned-background-cleanup",
+        processCount: status.processCount,
+      });
+    }
+    return status;
+  };
+  inspect ??= windows
+    ? async () => windowsStatus().processes
+    : collectProcesses;
   let finish;
   const completed = new Promise((resolve) => {
     finish = resolve;
@@ -175,19 +231,32 @@ export async function runWithWatchdog({
       const processes = await inspect(child.pid);
       record({ event: "processes", processes });
       return processes;
-    } catch {
-      record({ event: "process-snapshot-unavailable" });
+    } catch (error) {
+      record({
+        event: "process-snapshot-unavailable",
+        code: error.code ?? error.name,
+      });
       return [];
     }
   };
   const stop = async (reason, code) => {
     if (stopping) return;
     stopping = true;
+    if (windows) {
+      try {
+        windowsStatus();
+      } catch (error) {
+        record({
+          event: "windows-status-unavailable",
+          code: error.code ?? error.name,
+        });
+      }
+    }
     result = result || code;
     record({ event: reason });
     if (forwardOutput)
       console.error(
-        `[.NET watchdog] ${reason} during ${phase}; preserving diagnostics.`,
+        `[${label} watchdog] ${reason} during ${phase}; preserving diagnostics.`,
       );
     clearInterval(heartbeat);
     clearTimeout(deadline);
@@ -197,8 +266,11 @@ export async function runWithWatchdog({
     if (reason === "deadline-exceeded") {
       try {
         await sample(processes, directory, record);
-      } catch {
-        record({ event: "samples-unavailable" });
+      } catch (error) {
+        record({
+          event: "samples-unavailable",
+          code: error.code ?? error.name,
+        });
       }
     }
     signal("SIGTERM");
@@ -235,10 +307,11 @@ export async function runWithWatchdog({
       pending += chunk;
       let newline;
       while ((newline = pending.indexOf("\n")) !== -1) {
-        const marker = progressMarker(pending.slice(0, newline));
-        if (marker) {
-          if (marker.phase) phase = marker.phase;
-          record({ event: "progress", ...marker });
+        const progress = marker(pending.slice(0, newline));
+        if (progress) {
+          if (progress.phase) phase = progress.phase;
+          if (progress.framework) framework = progress.framework;
+          record({ event: "progress", ...progress });
         }
         pending = pending.slice(newline + 1);
       }
@@ -252,8 +325,27 @@ export async function runWithWatchdog({
     record({ event: "spawn-error" });
   });
   child.on("exit", (code, exitSignal) => {
-    result ??= code ?? (exitSignal ? 128 + constants.signals[exitSignal] : 1);
-    record({ event: "command-exit", exitCode: code, signal: exitSignal });
+    if (windows) {
+      try {
+        windowsStatus();
+      } catch (error) {
+        record({
+          event: "windows-status-unavailable",
+          code: error.code ?? error.name,
+        });
+      }
+    }
+    result =
+      result || code || (exitSignal ? 128 + constants.signals[exitSignal] : 0);
+    if (windows && (!commandExited || !commandOutputClosed) && !result) {
+      result = 127;
+      record({ event: "windows-command-status-missing" });
+    }
+    record({
+      event: windows ? "supervisor-exit" : "command-exit",
+      exitCode: code,
+      signal: exitSignal,
+    });
     phase = "output-drain";
   });
   child.on("close", () => {
@@ -263,11 +355,27 @@ export async function runWithWatchdog({
   const heartbeat = setInterval(() => {
     void snapshot();
   }, intervalMs);
-  const deadline = setTimeout(() => {
-    void stop("deadline-exceeded", 124);
-  }, timeoutMs);
+  const statusPoll =
+    windows &&
+    setInterval(() => {
+      try {
+        windowsStatus();
+      } catch (error) {
+        record({
+          event: "windows-status-unavailable",
+          code: error.code ?? error.name,
+        });
+      }
+    }, 250);
+  const deadline = setTimeout(
+    () => {
+      void stop("deadline-exceeded", 124);
+    },
+    Math.max(0, timeoutMs - (performance.now() - started)),
+  );
   await completed;
   clearInterval(heartbeat);
+  clearInterval(statusPoll);
   clearTimeout(deadline);
   process.off("SIGINT", onInterrupt);
   process.off("SIGTERM", onTerminate);
@@ -298,10 +406,10 @@ if (
   if (
     !Number.isFinite(deadline) ||
     deadline <= 0 ||
-    process.platform !== "darwin"
+    !["darwin", "win32"].includes(process.platform)
   ) {
     throw new Error(
-      "The .NET CI watchdog requires macOS and DOTNET_TEST_DEADLINE",
+      "The .NET CI watchdog requires macOS or Windows and DOTNET_TEST_DEADLINE",
     );
   }
   process.exitCode = await runWithWatchdog({

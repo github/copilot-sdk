@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "dotnet-stack": {
+      "version": "10.0.745401",
+      "commands": ["dotnet-stack"],
+      "rollForward": true
+    }
+  }
+}

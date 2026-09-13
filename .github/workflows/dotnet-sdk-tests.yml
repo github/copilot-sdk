@@ -196,7 +196,7 @@ jobs:
       # Reserve time for bounded sampling, process cleanup and artifact upload
       # before the job deadline, including time spent in setup below.
       - name: Reserve .NET diagnostic budget
-        if: runner.os == 'macOS' && matrix.shard == '1'
+        if: (runner.os == 'macOS' || runner.os == 'Windows') && matrix.shard == '1'
         run: echo "DOTNET_TEST_DEADLINE=$(( ($(date +%s) + 16 * 60) * 1000 ))" >> "$GITHUB_ENV"
 
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
@@ -225,17 +225,28 @@ jobs:
         if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
 
+      - name: Restore Windows managed-stack diagnostics
+        if: runner.os == 'Windows' && matrix.shard == '1'
+        run: |
+          dotnet tool restore --tool-manifest ci/dotnet-tools.json
+          dotnet build ci/WindowsWatchdog.csproj -c Release -p:UseSharedCompilation=false
+
       - name: Select inprocess transport
         if: matrix.transport == 'inprocess'
         run: echo "COPILOT_SDK_DEFAULT_CONNECTION=inprocess" >> "$GITHUB_ENV"
 
       - name: Validate .NET watchdog
-        if: runner.os == 'macOS' && matrix.shard == '1'
+        if: (runner.os == 'macOS' || runner.os == 'Windows') && matrix.shard == '1'
         timeout-minutes: 1
         run: node --test --test-timeout=30000 ci/test-watchdog.test.mjs
 
+      - name: Validate Windows .NET diagnostics
+        if: runner.os == 'Windows' && matrix.shard == '1'
+        timeout-minutes: 2
+        run: node --test --test-timeout=60000 ci/test-watchdog-windows.test.mjs
+
       - name: Run .NET SDK tests
-        timeout-minutes: ${{ runner.os == 'macOS' && matrix.shard == '1' && 16 || 20 }}
+        timeout-minutes: ${{ (runner.os == 'macOS' || runner.os == 'Windows') && matrix.shard == '1' && 16 || 20 }}
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           DOTNET_TEST_SHARD: ${{ matrix.shard }}
@@ -351,16 +362,17 @@ jobs:
           if [[ -n "$filter" ]]; then
             args+=(--filter "$filter")
           fi
-          if [[ "$RUNNER_OS" == "macOS" && "$DOTNET_TEST_SHARD" == "1" ]]; then
+          if [[ ("$RUNNER_OS" == "macOS" || "$RUNNER_OS" == "Windows") && "$DOTNET_TEST_SHARD" == "1" ]]; then
             # Preserve the exact command. The watchdog observes known progress
-            # markers and samples only its process group; it never saves raw logs.
+            # markers and samples only its process group / Windows Job Object;
+            # it never saves raw logs or process memory.
             node ci/test-watchdog.mjs test test/GitHub.Copilot.SDK.Test.csproj "${args[@]}"
           else
             dotnet test test/GitHub.Copilot.SDK.Test.csproj "${args[@]}"
           fi
 
       - name: Upload .NET test diagnostics
-        if: failure() || cancelled() || (runner.os == 'macOS' && matrix.shard == '1')
+        if: failure() || cancelled() || ((runner.os == 'macOS' || runner.os == 'Windows') && matrix.shard == '1')
         timeout-minutes: 2
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

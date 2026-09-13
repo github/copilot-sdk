@@ -1075,6 +1075,19 @@ cd go
 ./test.sh
 ```
 
+The macOS in-process CI job wraps this same command with the shared test
+watchdog. It captures process metadata and native call stacks before the
+20-minute job deadline, then fails and terminates its owned process group if the
+command or its output pipes remain stuck. The Go test selection, race detector,
+and per-package timeout are unchanged.
+
+The E2E test process also records startup/completion and all goroutine stacks
+one minute before the watchdog deadline, independently of `go test`'s buffered
+package output. CI uploads these files from `go/TestResults/`. They contain call
+frames, not heap dumps, RPC payloads, or arbitrary test logs. Diagnostics are
+opt-in through `GO_TEST_DIAGNOSTIC_DIRECTORY` and the epoch-millisecond
+`GO_TEST_DIAGNOSTIC_CAPTURE_AT`; ordinary local tests are unaffected.
+
 ## License
 
 MIT

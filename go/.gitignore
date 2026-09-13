@@ -22,3 +22,6 @@ go.work
 
 # env file
 .env
+
+# CI diagnostic artifacts
+TestResults/

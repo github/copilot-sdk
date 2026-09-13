@@ -52,7 +52,7 @@ test("recognizes build, provisioning, test and shutdown without recording raw ou
     ["       _DownloadCopilotCli:", "runtime-provisioning"],
     ["       CoreCompile:", "compilation"],
     ["       _CopyCopilotCliToOutput:", "runtime-copy"],
-    ["Test run for /private/path.dll (net8.0)", "testhost-startup"],
+    ["Test run for /private/path.dll", "testhost-startup"],
     ["Starting test execution, please wait...", "test-discovery"],
     [
       "[xUnit.net 00:00:00.10]   Starting: GitHub.Copilot.SDK.Test",
@@ -66,6 +66,16 @@ test("recognizes build, provisioning, test and shutdown without recording raw ou
     ["Test Run Aborted.", "test-command-shutdown"],
   ])
     assert.deepEqual(progressMarker(line), { phase });
+  for (const [suffix, framework] of [
+    ["(.NETCoreApp,Version=v8.0)", "net8.0"],
+    ["(net8.0)", "net8.0"],
+    ["(.NETFramework,Version=v4.7.2)", "net472"],
+  ]) {
+    assert.deepEqual(progressMarker(`Test run for private.dll ${suffix}`), {
+      phase: "testhost-startup",
+      framework,
+    });
+  }
   assert.deepEqual(
     progressMarker(
       '  Passed GitHub.Copilot.Test.E2E.Example.Test(token: "secret") [1 s]',
@@ -111,6 +121,82 @@ test("process snapshots contain only owned numeric metadata and known executable
       },
     ],
   );
+  assert.deepEqual(
+    ownedProcesses(
+      `
+ 126 123 123 S 0.0 1024 00:01 /private/go
+ 127 126 123 S 0.0 1024 00:01 /private/e2e.test
+ 128 126 123 S 0.0 1024 00:01 /private/e2eXtest
+ 129 1 129 S 0.0 1024 00:01 /private/go
+`,
+      123,
+    ).map(({ pid, role }) => ({ pid, role })),
+    [
+      { pid: 126, role: "go" },
+      { pid: 127, role: "e2e.test" },
+      { pid: 128, role: "other" },
+    ],
+  );
+});
+
+test("custom markers and labels replace .NET progress without persisting raw output", async (t) => {
+  const messages = [];
+  t.mock.method(console, "error", (message) => messages.push(message));
+  const { directory, result } = run(
+    t,
+    `
+      console.log("=== RUN   TestFixture");
+      console.log("CoreCompile:");
+      setInterval(() => {}, 1000);
+    `,
+    {
+      timeoutMs: process.platform === "win32" ? 5_000 : 1_000,
+      marker: (line) =>
+        line === "=== RUN   TestFixture" ? { phase: "go-tests" } : null,
+      label: "Go",
+      forwardOutput: true,
+    },
+  );
+  assert.equal(await result, 124);
+  assert.deepEqual(
+    events(directory)
+      .filter(({ event }) => event === "progress")
+      .map(({ phase }) => phase),
+    ["go-tests"],
+  );
+  assert.deepEqual(messages, [
+    "[Go watchdog] deadline-exceeded during go-tests; preserving diagnostics.",
+  ]);
+  assert.ok(
+    !readFileSync(join(directory, "watchdog.jsonl"), "utf8").includes(
+      "TestFixture",
+    ),
+  );
+});
+
+test("custom markers parse short-lived failures with output forwarding disabled", async (t) => {
+  for (const exit of ["process.exitCode = 37", "process.exit(37)"]) {
+    const { directory, result } = run(
+      t,
+      `console.log("go-package-finished"); ${exit};`,
+      {
+        marker: (line) =>
+          line === "go-package-finished"
+            ? { phase: "go-package-complete" }
+            : null,
+        label: "Go",
+        forwardOutput: false,
+      },
+    );
+    assert.equal(await result, 37);
+    assert.ok(
+      events(directory).some(
+        ({ event, phase }) =>
+          event === "progress" && phase === "go-package-complete",
+      ),
+      JSON.stringify(events(directory)),
+    );
+  }
 });
 
 test("samples omit headers and image paths and redact credentials", (t) => {
@@ -129,12 +215,19 @@ test("samples omit headers and image paths and redact credentials", (t) => {
 });
 
 test("forwards arguments, preserves success and failure, and records split output markers", async (t) => {
+  const previous = process.env.DOTNET_WATCHDOG_TEST_ENV;
+  process.env.DOTNET_WATCHDOG_TEST_ENV = "inherited-value";
+  t.after(() => {
+    if (previous === undefined) delete process.env.DOTNET_WATCHDOG_TEST_ENV;
+    else process.env.DOTNET_WATCHDOG_TEST_ENV = previous;
+  });
   for (const code of [0, 23]) {
     const { directory, result } = run(
       t,
       `
       const assert = require("node:assert/strict");
       assert.deepEqual(process.argv.slice(1), ["--filter", "(A|B)&C", "--blame-hang"]);
+      assert.equal(process.env.DOTNET_WATCHDOG_TEST_ENV, "inherited-value");
       process.stdout.write("       _DownloadCopilot");
       setTimeout(() => {
         console.log("Cli:");
@@ -172,7 +265,7 @@ test("a hung command is sampled before termination and fails within the inner bu
     setInterval(() => {}, 1000);
   `,
     {
-      timeoutMs: 1_000,
+      timeoutMs: process.platform === "win32" ? 5_000 : 1_000,
       sample: async () => {
         sampled = true;
         throw new Error("unavailable");
