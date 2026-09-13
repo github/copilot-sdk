@@ -227,7 +227,7 @@ describe("completion subscriptions", () => {
 
 describe("withFinalAssistantMessage", () => {
     it("does not accept a prior turn's message when the new turn has no assistant output", async () => {
-        const { session, resolveSend } = controlledSession(
+        const { session, sendStarted, resolveSend } = controlledSession(
             [assistantMessage("old turn")],
             (session) => session._dispatchEvent(sessionEvent("session.idle"))
         );
@@ -236,13 +236,15 @@ describe("withFinalAssistantMessage", () => {
             "Received session.idle without a preceding assistant.message"
         );
 
+        await sendStarted;
         resolveSend();
         await outcome;
     });
 
     it("does not complete on an assistant message or an autopilot continuation", async () => {
-        const { session, resolveSend } = controlledSession();
+        const { session, sendStarted, resolveSend } = controlledSession();
         const pending = withFinalAssistantMessage(session, () => session.send({ prompt: "hi" }));
+        await sendStarted;
         resolveSend();
 
         session._dispatchEvent(assistantMessage("continuing"));
@@ -257,7 +259,7 @@ describe("withFinalAssistantMessage", () => {
     it.each(["idle", "session.error", "send rejection", "trigger throw"] as const)(
         "removes the completion subscription after %s",
         async (outcome) => {
-            const { session, resolveSend, rejectSend } = controlledSession();
+            const { session, sendStarted, resolveSend, rejectSend } = controlledSession();
             const originalOn = session.on.bind(session);
             const unsubscribe = vi.fn<() => void>();
             vi.spyOn(session, "on").mockImplementation((handler) => {
@@ -282,6 +284,10 @@ describe("withFinalAssistantMessage", () => {
                 outcome === "idle"
                     ? expect(pending).resolves.toBe(finalMessage)
                     : expect(pending).rejects.toThrow(errorMessage);
+
+            if (outcome !== "trigger throw") {
+                await sendStarted;
+            }
 
             if (outcome === "idle") {
                 session._dispatchEvent(finalMessage);
