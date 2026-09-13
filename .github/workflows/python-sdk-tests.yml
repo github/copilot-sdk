@@ -5,6 +5,11 @@ env:
 
 on:
   workflow_dispatch:
+    inputs:
+      reproduce_timeout:
+        description: "Reproduce macOS/inprocess timeouts: up to five full suites, stop on first failure"
+        type: boolean
+        default: false
   workflow_call:
 
 permissions:
@@ -13,7 +18,7 @@ permissions:
 jobs:
   validate:
     name: "Python SDK Format and Typecheck"
-    if: github.event.repository.fork == false
+    if: github.event.repository.fork == false && !inputs.reproduce_timeout
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -46,10 +51,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: ${{ fromJSON(inputs.reproduce_timeout && '["macos-latest"]' || '["ubuntu-latest", "macos-latest", "windows-latest"]') }}
         # Test the oldest supported Python version to make sure compatibility is maintained.
         python-version: ["3.11"]
-        transport: ["default", "inprocess"]
+        transport: ${{ fromJSON(inputs.reproduce_timeout && '["inprocess"]' || '["default", "inprocess"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     defaults:
@@ -93,11 +98,30 @@ jobs:
           echo "COPILOT_SDK_DEFAULT_CONNECTION=inprocess" >> "$GITHUB_ENV"
 
       - name: Run Python SDK tests
+        if: ${{ !inputs.reproduce_timeout }}
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
         # Keep each module's shared E2E client and proxy on one process while
         # running independent modules concurrently in isolated workers.
         run: uv run pytest -v -s -n 2 --dist=loadfile
+
+      - name: Reproduce macOS inprocess timeout
+        if: inputs.reproduce_timeout
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: |
+          for attempt in 1 2 3 4 5; do
+            echo "::group::Full-suite reproduction invocation $attempt/5"
+            if uv run pytest -v -s -n 2 --dist=loadfile; then
+              echo "::endgroup::"
+            else
+              status=$?
+              echo "::endgroup::"
+              echo "::error::Invocation $attempt failed (exit $status); stopping reproduction."
+              exit "$status"
+            fi
+          done
+          echo "::notice::No failure reproduced in five full-suite invocations."
 
       - name: Upload Python timeout diagnostics
         if: failure()
@@ -111,7 +135,7 @@ jobs:
   # JavaScript actions use a glibc-linked Node runtime, so Alpine runs through Docker.
   test-musl-arm64:
     name: "Python SDK Tests (Alpine ARM64, ${{ matrix.transport }})"
-    if: github.event.repository.fork == false
+    if: github.event.repository.fork == false && !inputs.reproduce_timeout
     strategy:
       fail-fast: false
       matrix:

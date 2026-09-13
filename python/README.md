@@ -1241,3 +1241,9 @@ saved under `python/.pytest-diagnostics/`. macOS in-process timeouts also captur
 one-second native thread sample there. CI uploads these files as
 `python-timeout-<os>-<transport>` artifacts. RPC payloads and arbitrary frame locals
 are not included. The existing test timeout and failure behavior are unchanged.
+
+To investigate an intermittent timeout, manually dispatch the **Python SDK Tests**
+workflow with `reproduce_timeout=true`. This selects only macOS/inprocess and runs
+up to five full suites with the usual xdist ordering, stopping with a failed job
+on the first nonzero exit and uploading its diagnostics. The job retains its
+20-minute budget. Ordinary manual dispatches and reusable PR checks are unchanged.
