@@ -52,10 +52,12 @@ func TestTelemetryE2E(t *testing.T) {
 		}
 		sessionID := session.SessionID
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		if _, err := session.Send(t.Context(), copilot.MessageOptions{Prompt: prompt}); err != nil {
 			t.Fatalf("Send failed: %v", err)
 		}
-		final, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		final, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to wait for final assistant message: %v", err)
 		}

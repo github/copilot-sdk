@@ -34,6 +34,8 @@ func TestMCPServersE2E(t *testing.T) {
 		waitForMCPServerStatus(t, session, "test-server", rpc.MCPServerStatusConnected)
 
 		// Simple interaction to verify session works
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "What is 2+2?",
 		})
@@ -41,7 +43,7 @@ func TestMCPServersE2E(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		message, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
@@ -205,6 +207,8 @@ func TestCustomAgentsE2E(t *testing.T) {
 		}
 
 		// Simple interaction to verify session works
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "What is 5+5?",
 		})
@@ -212,7 +216,7 @@ func TestCustomAgentsE2E(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		message, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get final message: %v", err)
 		}

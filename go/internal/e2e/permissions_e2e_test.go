@@ -157,6 +157,8 @@ func TestPermissionsE2E(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "Edit protected.txt and replace 'protected' with 'hacked'.",
 		})
@@ -164,7 +166,7 @@ func TestPermissionsE2E(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
+		_, err = finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
@@ -285,12 +287,14 @@ func TestPermissionsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		message, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
@@ -487,6 +491,8 @@ func TestPermissionsE2E(t *testing.T) {
 			}
 		})
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		go func() {
 			_, _ = session.Send(t.Context(), copilot.MessageOptions{
 				Prompt: "Run 'echo slow_handler_test'",
@@ -515,9 +521,9 @@ func TestPermissionsE2E(t *testing.T) {
 
 		close(releaseHandler)
 
-		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		message, err := finalMessage.Wait(t.Context())
 		if err != nil {
-			t.Fatalf("GetFinalAssistantMessage failed: %v", err)
+			t.Fatalf("Waiting for final assistant message failed: %v", err)
 		}
 
 		lifecycleMu.Lock()
