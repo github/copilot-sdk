@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 
+from _session_test_helpers import get_next_event_of_type, wait_for_event
 from copilot import AgentMessageSource, MessageSource
 from copilot.session import Attachment, CopilotSession
 from copilot.session_events import (
@@ -55,6 +56,186 @@ def _event(data, event_type: SessionEventType) -> SessionEvent:
         timestamp=datetime.now(UTC),
         type=event_type,
     )
+
+
+@pytest.mark.parametrize("use_send_and_wait", [False, True])
+@pytest.mark.asyncio
+async def test_completion_captures_live_idle_before_send_reply_without_idle_in_history(
+    use_send_and_wait,
+):
+    client = Mock()
+    session = CopilotSession("session-1", client)
+    intermediate = _event(
+        AssistantMessageData(content="working", message_id="assistant-1"),
+        SessionEventType.ASSISTANT_MESSAGE,
+    )
+    assistant = _event(
+        AssistantMessageData(content="done", message_id="assistant-2"),
+        SessionEventType.ASSISTANT_MESSAGE,
+    )
+    idle = _event(SessionIdleData(), SessionEventType.SESSION_IDLE)
+    idle.ephemeral = True
+    history = [intermediate, assistant]
+    received = []
+    unsubscribe = session.on(received.append)
+
+    async def respond(method, params):
+        assert params["sessionId"] == session.session_id
+        if method == "session.getMessages":
+            return {"events": [event.to_dict() for event in history]}
+        assert method == "session.send"
+        # No suspension: even a create_task(async_waiter()) cannot subscribe in time.
+        session._dispatch_event(intermediate)
+        session._dispatch_event(assistant)
+        session._dispatch_event(idle)
+        return {"messageId": "message-1"}
+
+    client.request = AsyncMock(side_effect=respond)
+    try:
+        if use_send_and_wait:
+            message = await session.send_and_wait("hello", timeout=1)
+            assert message is not None
+            assert message is assistant
+        else:
+            idle_task = get_next_event_of_type(session, "session.idle", timeout=1)
+            try:
+                assert await session.send("hello") == "message-1"
+                assert received == [intermediate, assistant, idle]
+                assert await idle_task is idle
+                messages = [
+                    event for event in received if event.type == SessionEventType.ASSISTANT_MESSAGE
+                ]
+                assert messages[-1] is assistant
+            finally:
+                idle_task.cancel()
+                await asyncio.gather(idle_task, return_exceptions=True)
+
+        client.request.assert_awaited_once()
+        persisted = await session.get_events()
+        assert [event.type for event in persisted] == [
+            SessionEventType.ASSISTANT_MESSAGE,
+            SessionEventType.ASSISTANT_MESSAGE,
+        ]
+        assert persisted[-1].data.content == "done"
+    finally:
+        unsubscribe()
+
+
+@pytest.mark.asyncio
+async def test_event_waiters_capture_abort_and_recovery_before_rpc_replies():
+    client = Mock()
+    session = CopilotSession("session-1", client)
+    idle = _event(SessionIdleData(), SessionEventType.SESSION_IDLE)
+    assistant = _event(
+        AssistantMessageData(content="recovered", message_id="assistant-1"),
+        SessionEventType.ASSISTANT_MESSAGE,
+    )
+
+    async def respond(method, params):
+        if method == "session.abort":
+            session._dispatch_event(idle)
+            return {}
+        assert method == "session.send"
+        session._dispatch_event(assistant)
+        session._dispatch_event(idle)
+        return {"messageId": "message-1"}
+
+    client.request = AsyncMock(side_effect=respond)
+    aborted = get_next_event_of_type(session, "session.idle", timeout=1)
+    try:
+        await session.abort()
+        assert await aborted is idle
+    finally:
+        aborted.cancel()
+        await asyncio.gather(aborted, return_exceptions=True)
+
+    recovery = wait_for_event(
+        session,
+        lambda event: (
+            isinstance(event.data, AssistantMessageData) and event.data.content == "recovered"
+        ),
+        timeout=1,
+    )
+    recovered_idle = get_next_event_of_type(session, "session.idle", timeout=1)
+    try:
+        await session.send("recover")
+        assert await recovery is assistant
+        assert await recovered_idle is idle
+    finally:
+        recovery.cancel()
+        recovered_idle.cancel()
+        await asyncio.gather(recovery, recovered_idle, return_exceptions=True)
+
+
+@pytest.mark.parametrize(
+    "outcome", ["success", "error", "timeout", "cancel-before-start", "cancel-after-start"]
+)
+@pytest.mark.asyncio
+async def test_event_waiter_unsubscribes_for_every_outcome(outcome):
+    session = Mock(spec=CopilotSession)
+    unsubscribe = session.on.return_value
+    waiter = get_next_event_of_type(
+        session, "session.idle", timeout=0 if outcome == "timeout" else 1
+    )
+    session.on.assert_called_once()
+    on_event = session.on.call_args.args[0]
+
+    if outcome == "success":
+        idle = _event(SessionIdleData(), SessionEventType.SESSION_IDLE)
+        on_event(idle)
+        on_event(idle)
+        assert await waiter is idle
+    elif outcome == "error":
+        on_event(
+            _event(
+                SessionErrorData(error_type="notification", message="turn failed"),
+                SessionEventType.SESSION_ERROR,
+            )
+        )
+        with pytest.raises(RuntimeError, match="turn failed"):
+            await waiter
+    elif outcome == "timeout":
+        with pytest.raises(TimeoutError):
+            await waiter
+    else:
+        if outcome == "cancel-after-start":
+            loop = asyncio.get_running_loop()
+            started = loop.create_future()
+            loop.call_soon(started.set_result, None)
+            await started
+        waiter.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await waiter
+
+    unsubscribe.assert_called_once()
+
+
+@pytest.mark.parametrize("fail_on_session_error", [None, False, True])
+@pytest.mark.asyncio
+async def test_event_waiter_preserves_caller_error_policy(fail_on_session_error):
+    session = Mock(spec=CopilotSession)
+    options = (
+        {} if fail_on_session_error is None else {"fail_on_session_error": fail_on_session_error}
+    )
+    waiter = wait_for_event(
+        session, lambda event: isinstance(event.data, SessionIdleData), timeout=1, **options
+    )
+    on_event = session.on.call_args.args[0]
+    on_event(
+        _event(
+            SessionErrorData(error_type="rate_limit", message="rate limited"),
+            SessionEventType.SESSION_ERROR,
+        )
+    )
+    idle = _event(SessionIdleData(), SessionEventType.SESSION_IDLE)
+    on_event(idle)
+
+    if fail_on_session_error:
+        with pytest.raises(RuntimeError, match="rate limited"):
+            await waiter
+    else:
+        assert await waiter is idle
+    session.on.return_value.assert_called_once()
 
 
 @pytest.mark.asyncio
