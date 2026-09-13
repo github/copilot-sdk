@@ -45,7 +45,7 @@ interface FfiLibrary {
         environment: Buffer,
         environmentLength: number
     ): Promise<number>;
-    hostShutdown(serverId: number): boolean;
+    hostShutdown(serverId: number): Promise<boolean>;
     connectionOpen(
         serverId: number,
         callback: JsExternal,
@@ -56,8 +56,8 @@ interface FfiLibrary {
         authLength: number,
         additional: Buffer,
         additionalLength: number
-    ): number;
-    connectionWrite(connectionId: number, frame: Buffer, frameLength: number): boolean;
+    ): Promise<number>;
+    connectionWrite(connectionId: number, frame: Buffer, frameLength: number): Promise<boolean>;
     connectionClose(connectionId: number): Promise<boolean>;
     outboundCallbackType: FuncConstructorOptions;
 }
@@ -110,6 +110,7 @@ function loadLibrary(libraryPath: string): FfiLibrary {
                 retType: DataType.Boolean,
                 paramsType: [DataType.U32],
                 paramsValue: [serverId],
+                runInNewThread: true,
             }),
         connectionOpen: (
             serverId,
@@ -148,6 +149,7 @@ function loadLibrary(libraryPath: string): FfiLibrary {
                     additional,
                     additionalLength,
                 ],
+                runInNewThread: true,
             }),
         connectionWrite: (connectionId, frame, frameLength) =>
             load({
@@ -156,6 +158,7 @@ function loadLibrary(libraryPath: string): FfiLibrary {
                 retType: DataType.Boolean,
                 paramsType: [DataType.U32, DataType.U8Array, DataType.U64],
                 paramsValue: [connectionId, frame, frameLength],
+                runInNewThread: true,
             }),
         connectionClose: (connectionId) =>
             load({
@@ -227,15 +230,12 @@ export class FfiRuntimeHost {
         this.lib = loadLibrary(libraryPath);
         this.receiveStream = new PassThrough();
         this.sendStream = new Writable({
-            // connection_write enqueues the frame into the runtime's inbound channel and
-            // returns immediately, so a synchronous FFI call is sufficient here.
             write: (chunk: Buffer, _encoding, callback) => {
-                try {
-                    this.writeFrame(chunk);
-                    callback();
-                } catch (error) {
-                    callback(error as Error);
-                }
+                void this.writeFrame(chunk).then(
+                    () => callback(),
+                    (error: unknown) =>
+                        callback(error instanceof Error ? error : new Error(String(error)))
+                );
             },
         });
     }
@@ -311,7 +311,7 @@ export class FfiRuntimeHost {
                 this.inboundAddressSlot = createExternalBuffer(this.inboundAddressOwner[0], 8);
 
                 const empty = Buffer.alloc(0);
-                this.connectionId = this.lib.connectionOpen(
+                this.connectionId = await this.lib.connectionOpen(
                     this.serverId,
                     this.outboundCallbackPointer,
                     this.outboundCallbackPointer,
@@ -327,7 +327,7 @@ export class FfiRuntimeHost {
                 }
             } catch (error) {
                 this.releaseCallbackResources();
-                this.shutdownHost();
+                await this.shutdownHost();
                 throw error;
             }
         } finally {
@@ -338,11 +338,11 @@ export class FfiRuntimeHost {
         }
     }
 
-    private writeFrame(frame: Buffer): void {
+    private async writeFrame(frame: Buffer): Promise<void> {
         if (this.disposed || !this.connectionId) {
             throw new Error("The in-process runtime connection is closed.");
         }
-        const ok = this.lib.connectionWrite(this.connectionId, frame, frame.length);
+        const ok = await this.lib.connectionWrite(this.connectionId, frame, frame.length);
         if (!ok) {
             throw new Error("Failed to write a frame to the in-process runtime connection.");
         }
@@ -426,13 +426,13 @@ export class FfiRuntimeHost {
         return released;
     }
 
-    private shutdownHost(): void {
+    private async shutdownHost(): Promise<void> {
         if (!this.serverId) {
             return;
         }
         const serverId = this.serverId;
         try {
-            if (!this.lib.hostShutdown(serverId)) {
+            if (!(await this.lib.hostShutdown(serverId))) {
                 console.error(`In-process FFI host shutdown did not recognize server ${serverId}.`);
             }
         } catch (error) {
@@ -483,7 +483,7 @@ export class FfiRuntimeHost {
             }
             const callbackResourcesReleased = this.releaseCallbackResources();
 
-            this.shutdownHost();
+            await this.shutdownHost();
             if (callbackResourcesReleased) {
                 FfiRuntimeHost.quarantinedHosts.delete(this);
             }

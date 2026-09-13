@@ -32,6 +32,23 @@ const ffi = vi.hoisted(() => {
     const freePointer = vi.fn();
     const createExternalBuffer = vi.fn(() => addressSlot);
     const restorePointer = vi.fn(() => [Buffer.from([1])]);
+    const load = vi.fn(
+        ({
+            funcName,
+            paramsValue,
+        }: {
+            funcName: string;
+            paramsValue: unknown[];
+            runInNewThread?: boolean;
+        }) => {
+            if (funcName.endsWith("host_start")) return hostStart(...paramsValue);
+            if (funcName.endsWith("host_shutdown")) return hostShutdown(...paramsValue);
+            if (funcName.endsWith("connection_open")) return connectionOpen(...paramsValue);
+            if (funcName.endsWith("connection_write")) return connectionWrite(...paramsValue);
+            if (funcName.endsWith("connection_close")) return connectionClose(...paramsValue);
+            throw new Error(`Unexpected FFI symbol: ${funcName}`);
+        }
+    );
 
     return {
         addressOwner,
@@ -49,6 +66,7 @@ const ffi = vi.hoisted(() => {
         getRegisteredCallback: () => registeredCallback,
         hostShutdown,
         hostStart,
+        load,
         restorePointer,
     };
 });
@@ -73,14 +91,7 @@ vi.mock("ffi-rs", () => ({
     createPointer: ffi.createPointer,
     freePointer: ffi.freePointer,
     funcConstructor: vi.fn((options) => options),
-    load: vi.fn(({ funcName, paramsValue }: { funcName: string; paramsValue: unknown[] }) => {
-        if (funcName.endsWith("host_start")) return ffi.hostStart(...paramsValue);
-        if (funcName.endsWith("host_shutdown")) return ffi.hostShutdown(...paramsValue);
-        if (funcName.endsWith("connection_open")) return ffi.connectionOpen(...paramsValue);
-        if (funcName.endsWith("connection_write")) return ffi.connectionWrite(...paramsValue);
-        if (funcName.endsWith("connection_close")) return ffi.connectionClose(...paramsValue);
-        throw new Error(`Unexpected FFI symbol: ${funcName}`);
-    }),
+    load: ffi.load,
     open: vi.fn(),
     restorePointer: ffi.restorePointer,
     unwrapPointer: vi.fn((owner) =>
@@ -100,6 +111,7 @@ describe("FfiRuntimeHost callback cleanup", () => {
         ffi.createExternalBuffer.mockReturnValue(ffi.addressSlot);
         ffi.hostShutdown.mockClear();
         ffi.hostStart.mockClear();
+        ffi.load.mockClear();
         ffi.addressSlot.fill(0);
         ffi.createPointer.mockClear();
         ffi.freePointer.mockClear();
@@ -215,6 +227,22 @@ describe("FfiRuntimeHost callback cleanup", () => {
         });
 
         await host.dispose();
+    });
+
+    it("runs all non-void ffi-rs calls in a worker thread", async () => {
+        const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, []);
+        await host.start();
+        await new Promise<void>((resolve, reject) => {
+            host.sendStream.write(Buffer.from("frame"), (error) =>
+                error ? reject(error) : resolve()
+            );
+        });
+        await host.dispose();
+
+        expect(ffi.load).toHaveBeenCalledTimes(5);
+        for (const [params] of ffi.load.mock.calls) {
+            expect(params.runInNewThread).toBe(true);
+        }
     });
 
     it.each(["callback storage", "connection open"])(
