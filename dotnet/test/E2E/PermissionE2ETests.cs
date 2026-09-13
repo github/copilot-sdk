@@ -159,13 +159,17 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     public async Task Should_Work_With_Approve_All_Permission_Handler()
     {
         var session = await CreateSessionAsync(new SessionConfig());
+        await AssertApproveAllPermissionHandlerAsync(session, TimeSpan.FromSeconds(120));
+    }
 
-        await session.SendAsync(new MessageOptions
+    internal static async Task AssertApproveAllPermissionHandlerAsync(CopilotSession session, TimeSpan timeout)
+    {
+        // Subscribe before sending: session.idle is ephemeral and cannot be backfilled.
+        var message = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "What is 2+2?"
-        });
+        }, timeout);
 
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.Contains("4", message?.Data.Content ?? string.Empty);
     }
 
