@@ -2829,8 +2829,8 @@ export class CopilotClient {
         } else {
             runtimeLibrary = join(dirname(await getBundledRuntimePath()), "runtime.node");
         }
-        // Load the FFI host lazily so the native `koffi` addon (and its
-        // platform-specific `koffi.node`) is only loaded on the in-process path;
+        // Load the FFI host lazily so the native `ffi-rs` addon is only loaded
+        // on the in-process path;
         // out-of-process (stdio/tcp) consumers never touch the native dependency.
         // The transpiled output is per-file (not bundled), so this resolves the
         // sibling module at runtime in both the ESM and CJS builds.

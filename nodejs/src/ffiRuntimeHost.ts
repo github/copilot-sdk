@@ -16,28 +16,50 @@
  */
 
 import { existsSync } from "node:fs";
-import koffi from "koffi";
+import {
+    DataType,
+    PointerType,
+    arrayConstructor,
+    createExternalBuffer,
+    createPointer,
+    freePointer,
+    funcConstructor,
+    load,
+    open,
+    restorePointer,
+    unwrapPointer,
+    type FuncConstructorOptions,
+    type JsExternal,
+} from "ffi-rs";
 import { resolve } from "node:path";
 import { PassThrough, Writable } from "node:stream";
 
 const SYMBOL_PREFIX = "copilot_runtime_";
-
-// A long, referenced no-op timer keeps the Node event loop alive while the in-process
-// connection is open (see start()); the exact interval is irrelevant.
-const KEEP_ALIVE_INTERVAL_MS = 1 << 30;
+const LIBRARY_KEY_PREFIX = "@github/copilot-sdk/runtime:";
 const CLEANUP_RETRY_INTERVAL_MS = 100;
 
-type KoffiFunction = ReturnType<ReturnType<typeof koffi.load>["func"]>;
-type KoffiType = ReturnType<typeof koffi.pointer>;
-type KoffiRegisteredCallback = ReturnType<typeof koffi.register>;
-
 interface FfiLibrary {
-    hostStart: KoffiFunction;
-    hostShutdown: KoffiFunction;
-    connectionOpen: KoffiFunction;
-    connectionWrite: KoffiFunction;
-    connectionClose: KoffiFunction;
-    outboundCallbackType: KoffiType;
+    hostStart(
+        argv: Buffer,
+        argvLength: number,
+        environment: Buffer,
+        environmentLength: number
+    ): Promise<number>;
+    hostShutdown(serverId: number): boolean;
+    connectionOpen(
+        serverId: number,
+        callback: JsExternal,
+        userData: JsExternal,
+        config: Buffer,
+        configLength: number,
+        auth: Buffer,
+        authLength: number,
+        additional: Buffer,
+        additionalLength: number
+    ): number;
+    connectionWrite(connectionId: number, frame: Buffer, frameLength: number): boolean;
+    connectionClose(connectionId: number): Promise<boolean>;
+    outboundCallbackType: FuncConstructorOptions;
 }
 
 let loadedLibraryPath: string | undefined;
@@ -58,38 +80,92 @@ function loadLibrary(libraryPath: string): FfiLibrary {
         return loadedLibrary;
     }
 
-    const lib = koffi.load(libraryPath);
-    const outboundCallbackType = koffi.pointer(
-        koffi.proto(
-            `void ${SYMBOL_PREFIX}outbound(void *userData, uint8 *bytesPtr, size_t bytesLen)`
-        )
-    );
+    const libraryKey = `${LIBRARY_KEY_PREFIX}${libraryPath}`;
+    open({ library: libraryKey, path: libraryPath });
+    const outboundCallbackType = funcConstructor({
+        // ffi-rs cannot create External values on a native callback thread. Pointer
+        // values are ABI-equivalent to i64 on every platform supported by this host,
+        // and BigInt preserves all pointer bits when crossing into JavaScript.
+        paramsType: [DataType.BigInt, DataType.BigInt, DataType.U64],
+        // ffi-rs 1.3.7 corrupts the first pointer-sized bytes of callback-owned memory
+        // for void callbacks. The native caller ignores the return register, so use a
+        // u64 return and always return zero.
+        retType: DataType.U64,
+    });
 
     loadedLibrary = {
-        hostStart: lib.func(`${SYMBOL_PREFIX}host_start`, "uint32", [
-            "uint8*",
-            "size_t",
-            "uint8*",
-            "size_t",
-        ]),
-        hostShutdown: lib.func(`${SYMBOL_PREFIX}host_shutdown`, "bool", ["uint32"]),
-        connectionOpen: lib.func(`${SYMBOL_PREFIX}connection_open`, "uint32", [
-            "uint32",
-            outboundCallbackType,
-            "void*",
-            "uint8*",
-            "size_t",
-            "uint8*",
-            "size_t",
-            "uint8*",
-            "size_t",
-        ]),
-        connectionWrite: lib.func(`${SYMBOL_PREFIX}connection_write`, "bool", [
-            "uint32",
-            "uint8*",
-            "size_t",
-        ]),
-        connectionClose: lib.func(`${SYMBOL_PREFIX}connection_close`, "bool", ["uint32"]),
+        hostStart: (argv, argvLength, environment, environmentLength) =>
+            load({
+                library: libraryKey,
+                funcName: `${SYMBOL_PREFIX}host_start`,
+                retType: DataType.U32,
+                paramsType: [DataType.U8Array, DataType.U64, DataType.U8Array, DataType.U64],
+                paramsValue: [argv, argvLength, environment, environmentLength],
+                runInNewThread: true,
+            }),
+        hostShutdown: (serverId) =>
+            load({
+                library: libraryKey,
+                funcName: `${SYMBOL_PREFIX}host_shutdown`,
+                retType: DataType.Boolean,
+                paramsType: [DataType.U32],
+                paramsValue: [serverId],
+            }),
+        connectionOpen: (
+            serverId,
+            callback,
+            userData,
+            config,
+            configLength,
+            auth,
+            authLength,
+            additional,
+            additionalLength
+        ) =>
+            load({
+                library: libraryKey,
+                funcName: `${SYMBOL_PREFIX}connection_open`,
+                retType: DataType.U32,
+                paramsType: [
+                    DataType.U32,
+                    DataType.External,
+                    DataType.External,
+                    DataType.U8Array,
+                    DataType.U64,
+                    DataType.U8Array,
+                    DataType.U64,
+                    DataType.U8Array,
+                    DataType.U64,
+                ],
+                paramsValue: [
+                    serverId,
+                    callback,
+                    userData,
+                    config,
+                    configLength,
+                    auth,
+                    authLength,
+                    additional,
+                    additionalLength,
+                ],
+            }),
+        connectionWrite: (connectionId, frame, frameLength) =>
+            load({
+                library: libraryKey,
+                funcName: `${SYMBOL_PREFIX}connection_write`,
+                retType: DataType.Boolean,
+                paramsType: [DataType.U32, DataType.U8Array, DataType.U64],
+                paramsValue: [connectionId, frame, frameLength],
+            }),
+        connectionClose: (connectionId) =>
+            load({
+                library: libraryKey,
+                funcName: `${SYMBOL_PREFIX}connection_close`,
+                retType: DataType.Boolean,
+                paramsType: [DataType.U32],
+                paramsValue: [connectionId],
+                runInNewThread: true,
+            }),
         outboundCallbackType,
     };
     loadedLibraryPath = libraryPath;
@@ -106,9 +182,9 @@ function buildArgvJson(cliEntrypoint: string | undefined, args: readonly string[
     return Buffer.from(JSON.stringify(argv), "utf8");
 }
 
-function buildEnvJson(environment?: Record<string, string | undefined>): Buffer | null {
+function buildEnvJson(environment?: Record<string, string | undefined>): Buffer {
     if (!environment) {
-        return null;
+        return Buffer.alloc(0);
     }
     const obj: Record<string, string> = {};
     for (const [key, value] of Object.entries(environment)) {
@@ -117,7 +193,7 @@ function buildEnvJson(environment?: Record<string, string | undefined>): Buffer 
         }
     }
     if (Object.keys(obj).length === 0) {
-        return null;
+        return Buffer.alloc(0);
     }
     return Buffer.from(JSON.stringify(obj), "utf8");
 }
@@ -130,8 +206,10 @@ export class FfiRuntimeHost {
     private connectionId = 0;
     private disposed = false;
     private starting = false;
-    private outboundCallback: KoffiRegisteredCallback | undefined;
-    private keepAliveTimer: ReturnType<typeof setInterval> | undefined;
+    private outboundCallback: JsExternal[] | undefined;
+    private outboundCallbackPointer: JsExternal | undefined;
+    private inboundAddressOwner: JsExternal[] | undefined;
+    private inboundAddressSlot: Buffer | undefined;
     private cleanupRetryTimer: ReturnType<typeof setTimeout> | undefined;
     private cleanupInProgress = false;
 
@@ -200,21 +278,12 @@ export class FfiRuntimeHost {
 
             // host_start constructs the native engine synchronously; run it as an async FFI
             // call so the Node event loop isn't blocked.
-            this.serverId = await new Promise<number>((resolvePromise, rejectPromise) => {
-                this.lib.hostStart.async(
-                    argvJson,
-                    argvJson.length,
-                    envJson,
-                    envJson ? envJson.length : 0,
-                    (error: Error | null, result: number) => {
-                        if (error) {
-                            rejectPromise(error);
-                        } else {
-                            resolvePromise(result);
-                        }
-                    }
-                );
-            });
+            this.serverId = await this.lib.hostStart(
+                argvJson,
+                argvJson.length,
+                envJson,
+                envJson.length
+            );
             if (!this.serverId) {
                 throw new Error(
                     `copilot_runtime_host_start failed (library '${this.libraryPath}').`
@@ -224,35 +293,43 @@ export class FfiRuntimeHost {
                 throw new Error("The in-process runtime host was disposed during startup.");
             }
 
-            this.outboundCallback = koffi.register(
-                (_userData: unknown, bytesPtr: unknown, bytesLen: number | bigint) =>
-                    this.feedInbound(bytesPtr, bytesLen),
-                this.lib.outboundCallbackType
-            );
+            try {
+                this.outboundCallback = createPointer({
+                    paramsType: [this.lib.outboundCallbackType],
+                    paramsValue: [
+                        (_userData: bigint, bytesAddress: bigint, bytesLen: number) => {
+                            this.feedInbound(bytesAddress, bytesLen);
+                            return 0;
+                        },
+                    ],
+                });
+                this.outboundCallbackPointer = unwrapPointer(this.outboundCallback)[0];
+                this.inboundAddressOwner = createPointer({
+                    paramsType: [DataType.BigInt],
+                    paramsValue: [0n],
+                });
+                this.inboundAddressSlot = createExternalBuffer(this.inboundAddressOwner[0], 8);
 
-            this.connectionId = this.lib.connectionOpen(
-                this.serverId,
-                this.outboundCallback,
-                null,
-                null,
-                0,
-                null,
-                0,
-                null,
-                0
-            );
-            if (!this.connectionId) {
-                this.unregisterCallback();
-                this.lib.hostShutdown(this.serverId);
-                this.serverId = 0;
-                throw new Error("copilot_runtime_connection_open failed.");
+                const empty = Buffer.alloc(0);
+                this.connectionId = this.lib.connectionOpen(
+                    this.serverId,
+                    this.outboundCallbackPointer,
+                    this.outboundCallbackPointer,
+                    empty,
+                    0,
+                    empty,
+                    0,
+                    empty,
+                    0
+                );
+                if (!this.connectionId) {
+                    throw new Error("copilot_runtime_connection_open failed.");
+                }
+            } catch (error) {
+                this.releaseCallbackResources();
+                this.shutdownHost();
+                throw error;
             }
-
-            // The in-process transport has no socket/pipe handle to keep the Node event loop
-            // alive while the SDK is idle awaiting a server→client frame. koffi delivers the
-            // outbound callback on the loop but does not reference it, so hold one referenced
-            // timer for the lifetime of the connection.
-            this.keepAliveTimer = setInterval(() => {}, KEEP_ALIVE_INTERVAL_MS);
         } finally {
             this.starting = false;
             if (this.disposed) {
@@ -272,12 +349,11 @@ export class FfiRuntimeHost {
     }
 
     /**
-     * Native outbound (server→client) callback. koffi delivers it on the JS event loop
-     * via a threadsafe function, so the frame is decoded and written straight to
-     * {@link receiveStream}. The native pointer is only valid for this call, so the
-     * bytes are copied out before returning.
+     * Native outbound (server→client) callback. ffi-rs dispatches it through a blocking
+     * thread-safe function, so the native pointer remains valid until this callback
+     * returns. Copy the bytes before returning.
      */
-    private feedInbound(bytesPtr: unknown, bytesLen: number | bigint): void {
+    private feedInbound(bytesAddress: bigint, bytesLen: number): void {
         // An exception thrown across the native→JS (Node-API) boundary cannot propagate
         // and would surface only as a DEP0168 "uncaught Node-API callback exception"
         // warning, so catch and log it here instead of letting it escape.
@@ -289,14 +365,17 @@ export class FfiRuntimeHost {
             if (this.disposed || this.receiveStream.writableEnded) {
                 return;
             }
-            const length = Number(bytesLen);
-            if (!bytesPtr || length <= 0) {
+            if (bytesAddress === 0n || bytesLen <= 0) {
                 return;
             }
-            const bytes = koffi.decode(
-                bytesPtr,
-                koffi.array("uint8", length, "Typed")
-            ) as Uint8Array;
+            if (!this.inboundAddressOwner || !this.inboundAddressSlot) {
+                throw new Error("In-process FFI callback address storage is unavailable.");
+            }
+            this.inboundAddressSlot.writeBigInt64LE(bytesAddress);
+            const [bytes] = restorePointer({
+                retType: [arrayConstructor({ type: DataType.U8Array, length: bytesLen })],
+                paramsValue: this.inboundAddressOwner,
+            });
             this.receiveStream.write(Buffer.from(bytes));
         } catch (error) {
             console.error(
@@ -305,21 +384,63 @@ export class FfiRuntimeHost {
         }
     }
 
-    private unregisterCallback(): boolean {
-        if (this.outboundCallback === undefined) {
-            return true;
+    private releaseCallbackResources(): boolean {
+        let released = true;
+        if (this.outboundCallback !== undefined) {
+            const callback = this.outboundCallback;
+            try {
+                freePointer({
+                    paramsType: [this.lib.outboundCallbackType],
+                    paramsValue: callback,
+                    pointerType: PointerType.RsPointer,
+                });
+                this.outboundCallback = undefined;
+                this.outboundCallbackPointer = undefined;
+            } catch (error) {
+                console.error(
+                    `Failed to free in-process FFI callback: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+                );
+                released = false;
+            }
         }
-        const callback = this.outboundCallback;
+        if (this.inboundAddressOwner !== undefined) {
+            const addressOwner = this.inboundAddressOwner;
+            try {
+                freePointer({
+                    paramsType: [DataType.BigInt],
+                    paramsValue: addressOwner,
+                    pointerType: PointerType.RsPointer,
+                });
+                this.inboundAddressOwner = undefined;
+                this.inboundAddressSlot = undefined;
+            } catch (error) {
+                console.error(
+                    `Failed to free in-process FFI callback address storage: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+                );
+                released = false;
+            }
+        }
+        if (!released) {
+            FfiRuntimeHost.quarantinedHosts.add(this);
+        }
+        return released;
+    }
+
+    private shutdownHost(): void {
+        if (!this.serverId) {
+            return;
+        }
+        const serverId = this.serverId;
         try {
-            koffi.unregister(callback);
-            this.outboundCallback = undefined;
-            return true;
+            if (!this.lib.hostShutdown(serverId)) {
+                console.error(`In-process FFI host shutdown did not recognize server ${serverId}.`);
+            }
         } catch (error) {
             console.error(
-                `Failed to unregister in-process FFI callback: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+                `Failed to shut down in-process FFI host: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
             );
-            FfiRuntimeHost.quarantinedHosts.add(this);
-            return false;
+        } finally {
+            this.serverId = 0;
         }
     }
 
@@ -346,27 +467,12 @@ export class FfiRuntimeHost {
                 try {
                     // Close waits for outbound callbacks, which need the JS event loop
                     // to run and return before native code can report quiescence.
-                    closed = await new Promise<boolean>((resolvePromise, rejectPromise) => {
-                        this.lib.connectionClose.async(
-                            this.connectionId,
-                            (error: Error | null, result: boolean) => {
-                                if (error) {
-                                    rejectPromise(error);
-                                } else {
-                                    resolvePromise(result);
-                                }
-                            }
-                        );
-                    });
+                    closed = await this.lib.connectionClose(this.connectionId);
                 } catch (error) {
                     console.error(
                         `Failed to close in-process FFI connection: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
                     );
-                    FfiRuntimeHost.quarantinedHosts.add(this);
-                    if (this.keepAliveTimer !== undefined) {
-                        clearInterval(this.keepAliveTimer);
-                        this.keepAliveTimer = undefined;
-                    }
+                    this.scheduleCleanupRetry();
                     return;
                 }
                 if (!closed) {
@@ -375,31 +481,10 @@ export class FfiRuntimeHost {
                 }
                 this.connectionId = 0;
             }
-            const callbackUnregistered = this.unregisterCallback();
+            const callbackResourcesReleased = this.releaseCallbackResources();
 
-            // The referenced timer is part of the callback lifetime. Clearing it
-            // before connection_close reports quiescence can let the process exit
-            // while native code still owns the Koffi registration.
-            if (this.keepAliveTimer !== undefined) {
-                clearInterval(this.keepAliveTimer);
-                this.keepAliveTimer = undefined;
-            }
-
-            if (this.serverId) {
-                try {
-                    if (!this.lib.hostShutdown(this.serverId)) {
-                        console.error(
-                            `In-process FFI host shutdown did not recognize server ${this.serverId}.`
-                        );
-                    }
-                } catch (error) {
-                    console.error(
-                        `Failed to shut down in-process FFI host: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
-                    );
-                }
-                this.serverId = 0;
-            }
-            if (callbackUnregistered) {
+            this.shutdownHost();
+            if (callbackResourcesReleased) {
                 FfiRuntimeHost.quarantinedHosts.delete(this);
             }
         } finally {
