@@ -10,7 +10,7 @@ import pytest_asyncio
 import copilot._cli_download as cli_download
 
 from .testharness import E2ETestContext, is_inprocess_transport
-from .timeout_diagnostics import add_timeout_diagnostics
+from .timeout_diagnostics import add_timeout_diagnostics, cancel_timed_out_test
 from .timeout_diagnostics import pytest_timeout_set_timer as pytest_timeout_set_timer
 
 # Host-side auth resolution ranks HMAC above the GitHub token, so an ambient
@@ -38,6 +38,7 @@ def pytest_runtest_makereport(item, call):
     rep = outcome.get_result()
     add_timeout_diagnostics(item, call, rep)
     if rep.when == "call" and rep.failed:
+        cancel_timed_out_test(call)
         # Store on the item's stash so the fixture can access it
         item.session.stash.setdefault("any_test_failed", False)
         item.session.stash["any_test_failed"] = True

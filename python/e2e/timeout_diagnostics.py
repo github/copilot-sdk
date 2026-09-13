@@ -209,3 +209,24 @@ def add_timeout_diagnostics(item, call, report):
         except OSError as exc:
             text += f"Diagnostic artifact update failed: {type(exc).__name__}\n"
     report.sections.append(("Async timeout diagnostics", text))
+
+
+def cancel_timed_out_test(call):
+    """Cancel only the test task abandoned by a timeout outside its coroutine."""
+    if call.when != "call" or call.excinfo is None:
+        return False
+    error = call.excinfo.value
+    if "Timeout (" not in str(error) or "from pytest-timeout" not in str(error):
+        return False
+    traceback_entry = error.__traceback__
+    while traceback_entry is not None:
+        frame = traceback_entry.tb_frame
+        if frame.f_code is asyncio.BaseEventLoop.run_until_complete.__code__:
+            task = frame.f_locals.get("future")
+            if isinstance(task, asyncio.Task) and not task.done():
+                # The signal interrupts the runner, not its task. Let cancellation
+                # release that task's locks when the fixture's loop next resumes.
+                return task.cancel()
+            return False
+        traceback_entry = traceback_entry.tb_next
+    return False
