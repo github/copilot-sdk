@@ -10,6 +10,8 @@ import pytest_asyncio
 import copilot._cli_download as cli_download
 
 from .testharness import E2ETestContext, is_inprocess_transport
+from .timeout_diagnostics import add_timeout_diagnostics
+from .timeout_diagnostics import pytest_timeout_set_timer as pytest_timeout_set_timer
 
 # Host-side auth resolution ranks HMAC above the GitHub token, so an ambient
 # COPILOT_HMAC_KEY (CI sets one as a job-level credential) would be picked over
@@ -34,6 +36,7 @@ def pytest_runtest_makereport(item, call):
     """Track test failures to avoid writing corrupted snapshots."""
     outcome = yield
     rep = outcome.get_result()
+    add_timeout_diagnostics(item, call, rep)
     if rep.when == "call" and rep.failed:
         # Store on the item's stash so the fixture can access it
         item.session.stash.setdefault("any_test_failed", False)

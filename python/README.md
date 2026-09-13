@@ -1233,3 +1233,11 @@ cd python
 uv sync
 uv run pytest
 ```
+
+Signal-based E2E failures from `pytest-timeout` include an **Async timeout diagnostics** report
+section with suspended coroutine await chains, pending JSON-RPC request IDs and
+methods, session/transport state, and Python thread stacks. The same report is
+saved under `python/.pytest-diagnostics/`. macOS in-process timeouts also capture a
+one-second native thread sample there. CI uploads these files as
+`python-timeout-<os>-<transport>` artifacts. RPC payloads and arbitrary frame locals
+are not included. The existing test timeout and failure behavior are unchanged.
