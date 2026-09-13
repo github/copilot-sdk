@@ -7,9 +7,16 @@ on:
   workflow_dispatch:
     inputs:
       reproduce_timeout:
-        description: "Reproduce macOS/inprocess timeouts: up to five full suites, stop on first failure"
+        description: "Reproduce macOS/inprocess timeouts, stopping on the first failure"
         type: boolean
         default: false
+      reproduction_scope:
+        description: "Diagnostic scope (used only when reproduce_timeout is enabled)"
+        type: choice
+        default: full
+        options:
+          - full
+          - session-config
   workflow_call:
 
 permissions:
@@ -109,22 +116,44 @@ jobs:
         if: inputs.reproduce_timeout
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          REPRODUCTION_SCOPE: ${{ inputs.reproduction_scope || 'full' }}
         run: |
-          for attempt in 1 2 3 4 5; do
-            echo "::group::Full-suite reproduction invocation $attempt/5"
-            if uv run pytest -v -s -n 2 --dist=loadfile; then
+          case "$REPRODUCTION_SCOPE" in
+            full)
+              attempts=2
+              targets=()
+              ;;
+            session-config)
+              attempts=10
+              targets=(e2e/test_session_config_e2e.py)
+              ;;
+            *)
+              echo "::error::Unsupported reproduction scope."
+              exit 64
+              ;;
+          esac
+          mkdir -p .pytest-diagnostics
+          summary=.pytest-diagnostics/reproduction-summary.txt
+          printf 'scope=%s\nplanned_invocations=%s\n' "$REPRODUCTION_SCOPE" "$attempts" > "$summary"
+          for ((attempt=1; attempt<=attempts; attempt++)); do
+            printf 'started_invocation=%s\n' "$attempt" >> "$summary"
+            echo "::group::Reproduction ($REPRODUCTION_SCOPE) invocation $attempt/$attempts"
+            if uv run pytest -v -s -n 2 --dist=loadfile "${targets[@]}"; then
+              printf 'completed_invocation=%s\n' "$attempt" >> "$summary"
               echo "::endgroup::"
             else
               status=$?
+              printf 'failed_invocation=%s\nexit_code=%s\n' "$attempt" "$status" >> "$summary"
               echo "::endgroup::"
               echo "::error::Invocation $attempt failed (exit $status); stopping reproduction."
               exit "$status"
             fi
           done
-          echo "::notice::No failure reproduced in five full-suite invocations."
+          echo 'reproduction_complete=true' >> "$summary"
+          echo "::notice::No failure reproduced in $attempts completed $REPRODUCTION_SCOPE invocations."
 
       - name: Upload Python timeout diagnostics
-        if: failure()
+        if: ${{ always() && (inputs.reproduce_timeout || failure()) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: python-timeout-${{ matrix.os }}-${{ matrix.transport }}

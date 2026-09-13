@@ -1247,6 +1247,14 @@ runtime work or repair a missing RPC response.
 
 To investigate an intermittent timeout, manually dispatch the **Python SDK Tests**
 workflow with `reproduce_timeout=true`. This selects only macOS/inprocess and runs
-up to five full suites with the usual xdist ordering, stopping with a failed job
-on the first nonzero exit and uploading its diagnostics. The job retains its
-20-minute budget. Ordinary manual dispatches and reusable PR checks are unchanged.
+up to two full suites with the usual xdist ordering. Set
+`reproduction_scope=session-config` to instead run the original session-config
+module up to ten times with the same xdist options. Both modes stop with a failed
+job on the first nonzero exit and retain the 20-minute budget. The conservative
+counts leave time for a failing test and its cleanup.
+
+Diagnostic artifacts include `reproduction-summary.txt`, recording started and
+completed invocations; `reproduction_complete=true` appears only after every
+planned invocation passes. Artifacts are uploaded after diagnostic cancellation
+when the runner can still execute cleanup. An interrupted run is not successful
+reproduction. Ordinary manual dispatches and reusable PR checks are unchanged.
