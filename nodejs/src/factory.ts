@@ -223,7 +223,7 @@ export interface FactoryContext<TArgs extends JsonValue = JsonValue> {
     args: TArgs;
     /**
      * The session instance returned by `joinSession`. It refuses calls that
-     * start or resume a factory run.
+     * start, resume, or pause a factory run.
      */
     session: CopilotSession;
     /** Cooperative cancellation signal for the current factory run. */
@@ -339,13 +339,14 @@ export interface SessionFactoryApi {
      * Run a registered factory and resolve with its run envelope.
      *
      * The envelope is returned for every outcome, including `error`, `halted`,
-     * and `cancelled` — inspect `status` and read `result` only when the run
-     * completed. SDK-initiated runs do not request permission, so they have no
-     * declined outcome. The model's `run_factory` tool requests permission
-     * before a durable row exists; declining it creates no run row. Failures
-     * that occur before a run exists (such as an unknown factory or attempting
-     * to start a run while the session is at its active top-level run limit)
-     * still reject.
+     * `paused`, and `cancelled` — inspect `status` and read `result` only when
+     * the run completed. `paused` settles the current attempt, but the same
+     * durable run can later resume under its existing run ID. SDK-initiated
+     * runs do not request permission, so they have no declined outcome. The
+     * model's `run_factory` tool requests permission before a durable row
+     * exists; declining it creates no run row. Failures that occur before a run
+     * exists (such as an unknown factory or attempting to start a run while the
+     * session is at its active top-level run limit) still reject.
      */
     run(name: string, options?: RunOptions): Promise<FactoryRunResult>;
     run<TArgs extends JsonValue>(
@@ -363,12 +364,13 @@ export interface SessionFactoryApi {
     /** Read the latest durable envelope for a factory run. */
     getRun(runId: string): Promise<FactoryRunResult>;
     /**
-     * Wait for a run to settle and resolve with its terminal envelope.
+     * Wait for the current attempt to settle and resolve with its envelope.
      *
-     * Resolves as soon as the run reaches `completed`, `error`, `halted`, or
-     * `cancelled`, and resolves immediately when it has already settled. A
-     * terminal envelope is final, so the resolved value never changes
-     * afterwards.
+     * Resolves as soon as the run reaches `completed`, `error`, `halted`,
+     * `paused`, or `cancelled`, and resolves immediately when the current
+     * attempt has already settled. A `paused` envelope is an attempt-level
+     * snapshot: resuming the same durable run can later change the envelope
+     * returned by {@link SessionFactoryApi.getRun}.
      *
      * This watches the run's `factory.run_updated` invalidation events and
      * periodically re-reads the durable envelope so a missed event cannot
@@ -400,7 +402,7 @@ export interface SessionFactoryApi {
         runId: string,
         options?: Omit<FactoryGetRunProgressRequest, "runId">
     ): Promise<FactoryProgressPage>;
-    /** Pause a running factory and return its settled envelope. */
+    /** Pause a running factory attempt and return its `paused` envelope. */
     pause(runId: string): Promise<FactoryRunResult>;
     /** Cancel a factory run and return its terminal envelope. */
     cancel(runId: string): Promise<FactoryRunResult>;

@@ -118,7 +118,7 @@ const factoryExecutionStore = new AsyncLocalStorage<FactoryExecutionContext>();
 function throwIfFactoryExecutionIsActive(): void {
     if (factoryExecutionStore.getStore()?.active) {
         throw new Error(
-            "factory.run and factory.resume, and factory.pause are not allowed while a factory body is running on this call path."
+            "factory.run, factory.resume, and factory.pause are not allowed while a factory body is running on this call path."
         );
     }
 }

@@ -479,8 +479,13 @@ describe("factories", () => {
             "Options are exactly `label`, `schema`, `model`, `agent`, `reasoningEffort`, and `contextTier`"
         );
         expect(normalizedGuide).toContain(
-            "session returned by `joinSession`. It refuses calls that start or resume a factory run"
+            "session returned by `joinSession`. It refuses calls that start, resume, or pause a factory run"
         );
+        expect(normalizedGuide).toContain(
+            "A `paused` envelope means that the current attempt settled, not that the durable run is permanently finished"
+        );
+        expect(normalizedGuide).toContain('await ctx.pause("review-ready")');
+        expect(normalizedGuide).toContain("session.factory.pause(runId)");
 
         expect(normalizedPublicApi).toContain("SDK-initiated runs do not request permission");
         expect(normalizedPublicApi).toContain("declining it creates no run row");
@@ -490,7 +495,10 @@ describe("factories", () => {
         expect(normalizedPublicApi).toContain("SDK-initiated resumes do not request permission");
         expect(normalizedPublicApi).toContain("with a documented resume code rejects with");
         expect(normalizedPublicApi).toContain(
-            "session instance returned by `joinSession`. It refuses calls that start or resume a factory run"
+            "session instance returned by `joinSession`. It refuses calls that start, resume, or pause a factory run"
+        );
+        expect(normalizedPublicApi).toContain(
+            "`paused` settles the current attempt, but the same durable run can later resume"
         );
     });
 
@@ -1602,7 +1610,9 @@ describe("factories", () => {
                 executionToken: "execution-token",
                 args: {},
             })
-        ).rejects.toThrow("factory.pause");
+        ).rejects.toThrow(
+            "factory.run, factory.resume, and factory.pause are not allowed while a factory body is running on this call path."
+        );
         expect(sendRequest).not.toHaveBeenCalled();
     });
 
