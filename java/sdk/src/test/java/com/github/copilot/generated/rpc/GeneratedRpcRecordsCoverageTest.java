@@ -653,7 +653,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionMcpListResult_nested() {
         var metadata = new McpServerMetadata("Use this server for repository operations.");
-        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null,
+        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null, null,
                 metadata);
         var result = new SessionMcpListResult(List.of(server), null);
         assertEquals(1, result.servers().size());
