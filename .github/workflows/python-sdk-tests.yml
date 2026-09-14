@@ -22,14 +22,15 @@ jobs:
         working-directory: ./python
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.11"
-      - name: Set up uv
+      - name: Set up uv and Python
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
+          python-version: "3.11"
+          activate-environment: true
+          working-directory: python
           enable-cache: true
-          save-cache: false
+          cache-python: true
+          cache-suffix: validate
       - name: Install Python dev dependencies
         run: uv sync --all-extras --dev
       - name: Run ruff format check
@@ -59,21 +60,21 @@ jobs:
         working-directory: ./python
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: ${{ matrix.python-version }}
-          allow-prereleases: true
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
           cache: "npm"
           cache-dependency-path: "./nodejs/package-lock.json"
 
-      - name: Set up uv
+      - name: Set up uv and Python
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+          working-directory: python
           enable-cache: true
-          save-cache: ${{ matrix.transport == 'default' }}
+          cache-python: true
+          cache-suffix: ${{ matrix.transport }}
 
       - name: Install Python dev dependencies
         run: uv sync --all-extras --dev
