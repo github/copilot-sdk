@@ -50,6 +50,10 @@ public final class SubagentCompletedEvent extends SessionEvent {
         @JsonProperty("explicitModelOverride") String explicitModelOverride,
         /** Whether the explicit task-call model matched the user's configured preference */
         @JsonProperty("explicitModelMatchesPreference") Boolean explicitModelMatchesPreference,
+        /** Why an explicit task-call model did not become the effective model */
+        @JsonProperty("modelOverrideReason") String modelOverrideReason,
+        /** Authority or runtime mechanism responsible for sub-agent model selection */
+        @JsonProperty("modelSelectionSource") SubagentModelSelectionSource modelSelectionSource,
         /** Whether the first model actually dispatched matched the user's configured preference */
         @JsonProperty("configuredModelMatchesActual") Boolean configuredModelMatchesActual,
         /** Total number of tool calls made by the sub-agent */

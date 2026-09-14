@@ -324,6 +324,9 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         // Disconnect client 2
         await Client2.ForceStopAsync();
 
+        // Give the server time to process the connection close and remove tools.
+        await Task.Delay(500);
+
         // Recreate client2 for cleanup
         var port = Client1.RuntimePort!.Value;
         _client2 = Ctx.CreateClient(options: new CopilotClientOptions

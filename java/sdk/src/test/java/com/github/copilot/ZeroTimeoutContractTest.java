@@ -31,9 +31,9 @@ public class ZeroTimeoutContractTest {
         var mockRpc = mock(JsonRpcClient.class);
         when(mockRpc.invoke(any(), any(), any())).thenAnswer(invocation -> {
             Object method = invocation.getArgument(0);
-            if ("session.destroy".equals(method)) {
-                // Make session.close() non-blocking by completing destroy immediately
-                return CompletableFuture.completedFuture(null);
+            if ("session.detach".equals(method)) {
+                // Make session.close() non-blocking by completing detach immediately
+                return CompletableFuture.completedFuture(new CopilotSession.SessionDetachResponse(true, null));
             }
             // For other calls (e.g., message send), return an incomplete future so the
             // sendAndWait result does not complete due to a mock response.

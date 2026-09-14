@@ -17,7 +17,7 @@ import {
 import { approveAll, RuntimeConnection } from "../../src/index.js";
 import { getSdkProtocolVersion } from "../../src/sdkProtocolVersion.js";
 import { createSdkTestContext, getLegacyCliPathForTests } from "./harness/sdkTestContext.js";
-import { retry } from "./harness/sdkTestHelper.js";
+import { retry, stopChildProcess } from "./harness/sdkTestHelper.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(__dirname, "fixtures", "env-access-extension.mjs");
@@ -39,7 +39,7 @@ interface ExtensionRun {
  * stdio, so a stub host observes exactly what the CLI observes. That is the only
  * way to cover this feature end to end today: the released CLI predates the host
  * half (github/copilot-agent-runtime#15144), so it ignores the request and grants
- * nothing. Once the `@github/copilot` dependency carries the host half, the
+ * nothing. Once the pinned CLI release carries the host half, the
  * real-CLI case below can assert the grant instead.
  */
 async function runExtensionAgainstStubHost(options: {
@@ -120,16 +120,12 @@ async function runExtensionAgainstStubHost(options: {
         };
     } finally {
         connection.dispose();
-        child.kill();
-        // Windows keeps the directory locked until the child is gone.
-        await new Promise<void>((resolveExit) => {
-            if (child.exitCode !== null || child.signalCode !== null) {
-                resolveExit();
-                return;
-            }
-            child.once("exit", () => resolveExit());
-        });
-        await rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+        try {
+            await stopChildProcess(child);
+        } finally {
+            // Windows keeps the directory locked until the child is gone.
+            await rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+        }
     }
 }
 
@@ -188,7 +184,7 @@ const cliObservations = mkdtempSync(join(tmpdir(), "copilot-env-access-cli-"));
 const cliResultFile = join(cliObservations, "result");
 const cliContext = await createSdkTestContext({
     copilotClientOptions: {
-        connection: RuntimeConnection.forStdio({ path: getLegacyCliPathForTests() }),
+        connection: RuntimeConnection.forStdio({ path: await getLegacyCliPathForTests() }),
         env: {
             COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS",
             EXTENSION_ENV_REQUEST: "E2E_SDK_TOKEN",
@@ -201,7 +197,7 @@ const cliContext = await createSdkTestContext({
 
 // The released CLI ignores `requestedEnvironmentVariables`, so this covers the
 // half a real CLI can prove today: asking for variables does not break the join.
-// It becomes the grant test once `@github/copilot` carries the host half.
+// It becomes the grant test once the pinned CLI release carries the host half.
 it("joins a real CLI that does not support environment requests", async () => {
     const { workDir, copilotClient } = cliContext;
     const extensionDir = join(workDir, ".github", "extensions", "env-access");

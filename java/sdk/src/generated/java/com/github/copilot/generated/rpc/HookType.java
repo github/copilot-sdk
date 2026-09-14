@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Hook event name dispatched through the SDK callback transport.
+ * Hook event name. Discovery emits the file-configurable subset; SDK callbacks additionally support callback-only events.
  *
  * @since 1.0.0
  */

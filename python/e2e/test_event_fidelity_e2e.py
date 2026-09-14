@@ -46,7 +46,7 @@ class TestEventFidelity:
             assert user_idx < assistant_idx
 
             idle_idx = len(types) - 1 - types[::-1].index("session.idle")
-            assert idle_idx == len(types) - 1
+            assert assistant_idx < idle_idx
         finally:
             unsubscribe()
             await session.disconnect()

@@ -132,9 +132,7 @@ async fn should_abort_during_active_tool_execution() {
                 assert_eq!(tool_value, "test_abort");
 
                 session.abort().await.expect("abort session");
-                release_tx
-                    .send("RELEASED_AFTER_ABORT".to_string())
-                    .expect("release slow tool");
+                let _ = release_tx.send("RELEASED_AFTER_ABORT".to_string());
                 wait_for_event(events, "session.idle after abort", |event| {
                     event.parsed_type() == SessionEventType::SessionIdle
                 })

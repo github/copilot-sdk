@@ -26,53 +26,59 @@ jobs:
       java: ${{ steps.select.outputs.java }}
       rust: ${{ steps.select.outputs.rust }}
     steps:
+      - name: Check out merge group
+        if: github.event_name == 'merge_group'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 2
+
       - name: Detect changed paths
         id: filter
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         uses: dorny/paths-filter@6852f92c20ea7fd3b0c25de3b5112db3a98da050 # v3
         with:
+          base: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_sha || '' }}
           predicate-quantifier: every
           filters: |
             orchestrator:
               - '.github/workflows/required-checks.yml'
             nodejs:
-              - '{nodejs/**,test/**,.github/workflows/nodejs-sdk-tests.yml}'
-              - '!nodejs/scripts/**'
+              - '{nodejs/**,test/**,.github/workflows/nodejs-sdk-tests.yml,.github/actions/run-alpine-tests/**}'
               - '!**/*.md'
               - '!**/LICENSE*'
               - '!**/.gitignore'
               - '!**/.editorconfig'
               - '!**/*.{png,jpg,jpeg,gif,svg}'
             python:
-              - '{python/**,test/**,nodejs/package.json,.github/workflows/python-sdk-tests.yml}'
+              - '{python/**,test/**,nodejs/package.json,nodejs/scripts/**,.github/workflows/python-sdk-tests.yml,.github/actions/run-alpine-tests/**}'
               - '!**/*.md'
               - '!**/LICENSE*'
               - '!**/.gitignore'
               - '!**/.editorconfig'
               - '!**/*.{png,jpg,jpeg,gif,svg}'
             go:
-              - '{go/**,test/**,nodejs/package.json,.github/workflows/go-sdk-tests.yml,.github/actions/setup-copilot/**}'
+              - '{go/**,test/**,nodejs/package.json,nodejs/scripts/**,.github/workflows/go-sdk-tests.yml,.github/actions/setup-copilot/**,.github/actions/run-alpine-tests/**}'
               - '!**/*.md'
               - '!**/LICENSE*'
               - '!**/.gitignore'
               - '!**/.editorconfig'
               - '!**/*.{png,jpg,jpeg,gif,svg}'
             dotnet:
-              - '{dotnet/**,test/**,nodejs/package.json,.github/workflows/dotnet-sdk-tests.yml}'
+              - '{dotnet/**,test/**,nodejs/package.json,nodejs/scripts/**,.github/workflows/dotnet-sdk-tests.yml,.github/actions/run-alpine-tests/**}'
               - '!**/*.md'
               - '!**/LICENSE*'
               - '!**/.gitignore'
               - '!**/.editorconfig'
               - '!**/*.{png,jpg,jpeg,gif,svg}'
             java:
-              - '{java/**,test/**,.github/workflows/java-sdk-tests.yml,.github/actions/setup-copilot/**,.github/actions/java-test-report/**}'
+              - '{java/**,test/**,nodejs/package.json,nodejs/scripts/**,.github/workflows/java-sdk-tests.yml,.github/actions/setup-copilot/**,.github/actions/java-test-report/**}'
               - '!**/*.md'
               - '!**/LICENSE*'
               - '!**/.gitignore'
               - '!**/.editorconfig'
               - '!**/*.{png,jpg,jpeg,gif,svg}'
             rust:
-              - '{rust/**,test/**,nodejs/package.json,.github/workflows/rust-sdk-tests.yml,.github/actions/setup-copilot/**}'
+              - '{rust/**,test/**,nodejs/package.json,nodejs/scripts/**,.github/workflows/rust-sdk-tests.yml,.github/actions/setup-copilot/**,.github/actions/run-alpine-tests/**}'
               - '!**/*.md'
               - '!**/LICENSE*'
               - '!**/.gitignore'
@@ -91,7 +97,7 @@ jobs:
           JAVA_CHANGED: ${{ steps.filter.outputs.java }}
           RUST_CHANGED: ${{ steps.filter.outputs.rust }}
         run: |
-          if [[ "$EVENT_NAME" != "pull_request" || "$ORCHESTRATOR_CHANGED" == "true" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$ORCHESTRATOR_CHANGED" == "true" ]]; then
             for workflow in nodejs python go dotnet java rust; do
               echo "$workflow=true" >> "$GITHUB_OUTPUT"
             done

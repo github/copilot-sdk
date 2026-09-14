@@ -596,53 +596,15 @@ public class E2ETestContext implements AutoCloseable {
             return envPath;
         }
 
-        // Try test harness platform-specific binary (preferred as it has correct
-        // version)
-        String os = System.getProperty("os.name").toLowerCase();
-        String arch = System.getProperty("os.arch").toLowerCase();
-        String platform = os.contains("mac") ? "darwin" : os.contains("win") ? "win32" : "linux";
-        String cpuArch = arch.contains("aarch64") || arch.contains("arm64") ? "arm64" : "x64";
-        Path platformBinary = repoRoot
-                .resolve("test/harness/node_modules/@github/copilot-" + platform + "-" + cpuArch + "/copilot");
-        if (os.contains("win")) {
-            platformBinary = repoRoot
-                    .resolve("test/harness/node_modules/@github/copilot-" + platform + "-" + cpuArch + "/copilot.exe");
-        }
-        if (Files.exists(platformBinary)) {
-            return platformBinary.toString();
-        }
-
-        // Try test harness npm-loader.js
-        Path harnessCliPath = repoRoot.resolve("test/harness/node_modules/@github/copilot/npm-loader.js");
-        if (Files.exists(harnessCliPath)) {
-            return harnessCliPath.toString();
-        }
-
-        // Try nodejs installation. As of CLI 1.0.64-1 the @github/copilot package
-        // is a thin loader; the runnable index.js ships in the installed
-        // platform-specific package (e.g. @github/copilot-linux-x64). Exactly one
-        // is installed. Running index.js under Node.js is the documented preferred
-        // entry point and matches the Go, Python, Rust, and .NET test harnesses.
-        Path githubModules = repoRoot.resolve("nodejs/node_modules/@github");
-        if (Files.isDirectory(githubModules)) {
-            try (var modules = Files.newDirectoryStream(githubModules, "copilot-*")) {
-                for (Path module : modules) {
-                    Path indexJs = module.resolve("index.js");
-                    if (Files.exists(indexJs)) {
-                        return indexJs.toString();
-                    }
-                }
+        try {
+            return TestUtil.preparePinnedCli(repoRoot);
+        } catch (Exception e) {
+            String copilotInPath = findCopilotInPath();
+            if (copilotInPath != null) {
+                return copilotInPath;
             }
+            throw new IOException("The pinned CLI could not be prepared and no CLI was found on PATH.", e);
         }
-
-        // Fallback: try to find 'copilot' in PATH
-        String copilotInPath = findCopilotInPath();
-        if (copilotInPath != null) {
-            return copilotInPath;
-        }
-
-        throw new IOException("CLI not found. Either install 'copilot' globally, set COPILOT_CLI_PATH, "
-                + "or run 'npm install' in the nodejs directory or test/harness directory.");
     }
 
     private static String findCopilotInPath() {

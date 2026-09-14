@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override.
+ * A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and authored model configuration.
  *
  * @since 1.0.0
  */
@@ -36,7 +36,13 @@ public record CustomAgentsUpdatedAgent(
     @JsonProperty("tools") List<String> tools,
     /** Whether the agent can be selected by the user */
     @JsonProperty("userInvocable") Boolean userInvocable,
+    /** Whether model-driven invocation is disabled for this agent. */
+    @JsonProperty("disableModelInvocation") Boolean disableModelInvocation,
     /** Model override for this agent, if set */
-    @JsonProperty("model") String model
+    @JsonProperty("model") String model,
+    /** Authored model ids in priority order, if configured */
+    @JsonProperty("models") List<String> models,
+    /** Whether authored models are preferences or required constraints */
+    @JsonProperty("modelPolicy") AgentModelPolicy modelPolicy
 ) {
 }

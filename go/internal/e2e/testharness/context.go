@@ -1,7 +1,9 @@
 package testharness
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -29,15 +31,18 @@ func CLIPath() string {
 			return
 		}
 
-		// Look for CLI in sibling nodejs directory's node_modules. As of CLI
-		// 1.0.64-1 the @github/copilot package is a thin loader; the runnable
-		// index.js ships in the installed platform package
-		// (e.g. @github/copilot-linux-x64).
-		base := RepoPath("nodejs", "node_modules", "@github")
-		matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
-		if len(matches) > 0 {
-			cliPath = matches[0]
-			return
+		npm := "npm"
+		if runtime.GOOS == "windows" {
+			npm = "npm.cmd"
+		}
+		command := exec.Command(npm, "run", "--silent", "prepare:runtime", "--", "--print-path")
+		command.Dir = RepoPath("nodejs")
+		output, err := command.Output()
+		if err == nil {
+			candidate := strings.TrimSpace(string(output))
+			if info, statErr := os.Stat(candidate); statErr == nil && !info.IsDir() {
+				cliPath = candidate
+			}
 		}
 	})
 	return cliPath
@@ -159,6 +164,17 @@ func NewTestContext(t *testing.T) *TestContext {
 		os.RemoveAll(workDir)
 		t.Fatalf("Failed to start proxy: %v", err)
 	}
+	// Initialize the proxy before any client can start runtime requests. Tests that
+	// use a snapshot replace this empty configuration before model traffic begins.
+	dummySnapshotPath := filepath.Join(workDir, "__no_snapshot__.yaml")
+	if err := proxy.Configure(dummySnapshotPath, workDir); err != nil {
+		if stopErr := proxy.StopWithOptions(true); stopErr != nil {
+			t.Logf("Failed to stop proxy after initialization error: %v", stopErr)
+		}
+		os.RemoveAll(homeDir)
+		os.RemoveAll(workDir)
+		t.Fatalf("Failed to initialize proxy: %v", err)
+	}
 	if err := proxy.SetCopilotUserByToken(defaultGitHubToken, map[string]interface{}{
 		"login":        "e2e-test-user",
 		"copilot_plan": "individual_pro",
@@ -168,7 +184,9 @@ func NewTestContext(t *testing.T) *TestContext {
 		},
 		"analytics_tracking_id": "e2e-test-tracking-id",
 	}); err != nil {
-		proxy.StopWithOptions(true)
+		if stopErr := proxy.StopWithOptions(true); stopErr != nil {
+			t.Logf("Failed to stop proxy after configuration error: %v", stopErr)
+		}
 		os.RemoveAll(homeDir)
 		os.RemoveAll(workDir)
 		t.Fatalf("Failed to configure default Copilot user: %v", err)
@@ -184,7 +202,9 @@ func NewTestContext(t *testing.T) *TestContext {
 	}
 
 	t.Cleanup(func() {
-		ctx.Close(t.Failed())
+		if err := ctx.Close(t.Failed()); err != nil {
+			t.Errorf("Failed to close E2E test context: %v", err)
+		}
 	})
 
 	return ctx
@@ -248,10 +268,18 @@ func (c *TestContext) ConfigureWithoutSnapshot(t *testing.T) {
 }
 
 // Close cleans up the test context resources.
-func (c *TestContext) Close(testFailed bool) {
+func (c *TestContext) Close(testFailed bool) error {
+	if c.inProcess {
+		if err := waitForInProcessCleanup(); err != nil {
+			return err
+		}
+	}
 	c.restoreInProcessEnvironment()
+	var proxyErr error
 	if c.proxy != nil {
-		c.proxy.StopWithOptions(testFailed)
+		if err := c.proxy.StopWithOptions(testFailed); err != nil {
+			proxyErr = fmt.Errorf("failed to stop E2E proxy: %w", err)
+		}
 	}
 	if c.HomeDir != "" {
 		os.RemoveAll(c.HomeDir)
@@ -259,6 +287,7 @@ func (c *TestContext) Close(testFailed bool) {
 	if c.WorkDir != "" {
 		os.RemoveAll(c.WorkDir)
 	}
+	return proxyErr
 }
 
 // applyInProcessEnvironment mirrors the isolated test environment onto the real

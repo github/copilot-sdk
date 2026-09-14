@@ -299,3 +299,70 @@ func TestManagedSettingsResolvedProvenanceRoundTrips(t *testing.T) {
 		t.Fatalf("expected absent clientManaged to be omitted, got %v", serialized)
 	}
 }
+
+// The failure event is ephemeral: the runtime emits it when an Auto preference
+// switch cannot mint a usable model, and never persists or replays it.
+func TestSessionAutoTierSwitchFailedEvent(t *testing.T) {
+	reasons := []AutoTierSwitchFailureReason{
+		AutoTierSwitchFailureReasonPolicyRejected,
+		AutoTierSwitchFailureReasonRequestFailed,
+		AutoTierSwitchFailureReasonSetupFailed,
+		AutoTierSwitchFailureReasonUnsupported,
+	}
+	for _, reason := range reasons {
+		t.Run(string(reason), func(t *testing.T) {
+			wire, err := json.Marshal(map[string]any{
+				"id":        "00000000-0000-0000-0000-000000000001",
+				"timestamp": "2026-08-28T00:00:00Z", "parentId": nil,
+				"type": "session.auto_tier_switch_failed",
+				"data": map[string]any{
+					"effectiveAutoTier": AutoTierBalance,
+					"requestedAutoTier": AutoTierIntelligence,
+					"reason":            reason,
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var event SessionEvent
+			if err := json.Unmarshal(wire, &event); err != nil {
+				t.Fatal(err)
+			}
+			data, ok := event.Data.(*SessionAutoTierSwitchFailedData)
+			if !ok {
+				t.Fatalf("expected *SessionAutoTierSwitchFailedData, got %T", event.Data)
+			}
+			if data.Reason != reason {
+				t.Fatalf("expected reason %q, got %q", reason, data.Reason)
+			}
+			if data.EffectiveAutoTier == nil || *data.EffectiveAutoTier != AutoTierBalance {
+				t.Fatalf("expected effective tier %q, got %v", AutoTierBalance, data.EffectiveAutoTier)
+			}
+			if data.RequestedAutoTier == nil || *data.RequestedAutoTier != AutoTierIntelligence {
+				t.Fatalf("expected requested tier %q, got %v", AutoTierIntelligence, data.RequestedAutoTier)
+			}
+		})
+	}
+}
+
+// A null requested tier means the attempt to return to provider-default Auto
+// routing is what failed.
+func TestSessionAutoTierSwitchFailedEventNullRequestedTier(t *testing.T) {
+	wire := []byte(`{"id":"00000000-0000-0000-0000-000000000001","timestamp":"2026-08-28T00:00:00Z",` +
+		`"parentId":null,"type":"session.auto_tier_switch_failed","data":{"effectiveAutoTier":"efficiency",` +
+		`"requestedAutoTier":null,"reason":"unsupported"}}`)
+	var event SessionEvent
+	if err := json.Unmarshal(wire, &event); err != nil {
+		t.Fatal(err)
+	}
+	data, ok := event.Data.(*SessionAutoTierSwitchFailedData)
+	if !ok {
+		t.Fatalf("expected *SessionAutoTierSwitchFailedData, got %T", event.Data)
+	}
+	if data.RequestedAutoTier != nil {
+		t.Fatalf("expected nil requested tier, got %v", *data.RequestedAutoTier)
+	}
+	if data.EffectiveAutoTier == nil || *data.EffectiveAutoTier != AutoTierEfficiency {
+		t.Fatalf("expected effective tier %q, got %v", AutoTierEfficiency, data.EffectiveAutoTier)
+	}
+}

@@ -113,7 +113,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
     {
         await session.Rpc.SuspendAsync();
 
-        // In-process clients host separate runtimes, while session.destroy removes the
+        // In-process clients host separate runtimes, while session.detach releases the
         // session from the current runtime. Untrack locally to exercise resume without
         // either replacing an active wrapper or destroying the session first.
         var removeFromClient = typeof(CopilotSession).GetMethod(

@@ -17,10 +17,10 @@ Hooks allow you to intercept and customize the behavior of Copilot sessions at k
 | [`onPostToolUseFailure`](./post-tool-use.md#failure-variant) | After a tool execution whose result was a failure | Inject retry guidance, log failures |
 | [`onUserPromptSubmitted`](./user-prompt-submitted.md) | When user sends a message | Prompt modification, filtering |
 | [`onUserPromptTransformed`](./user-prompt-transformed.md) | After runtime prompt transformation | Inspect or replace model-facing content |
-| [`onSessionStart`](./session-lifecycle.md#session-start) | Session begins | Add context, configure session |
-| [`onSessionEnd`](./session-lifecycle.md#session-end) | Session ends | Cleanup, analytics |
+| [`onSessionStart`](./session-lifecycle.md#session-start-hook) | Session begins | Add context, configure session |
+| [`onSessionEnd`](./session-lifecycle.md#session-end-hook) | Session ends | Cleanup, analytics |
 | [`onErrorOccurred`](./error-handling.md) | Error happens | Custom error handling |
-| [`onAgentStop`](./session-lifecycle.md#agent-stop) | Top-level agent naturally stops | Validate completion or request another turn |
+| [`onAgentStop`](./session-lifecycle.md#agent-stop-hook) | Top-level agent naturally stops | Validate completion or request another turn |
 
 ## Quick start
 
@@ -266,7 +266,7 @@ const session = await client.createSession({
 * **[User Prompt Submitted Hook](./user-prompt-submitted.md)** - Modify user prompts
 * **[User Prompt Transformed Hook](./user-prompt-transformed.md)** - Replace model-facing prompts
 * **[Session Lifecycle Hooks](./session-lifecycle.md)** - Session start and end
-* **[Agent Stop Hook](./session-lifecycle.md#agent-stop)** - Validate completion before the agent stops
+* **[Agent Stop Hook](./session-lifecycle.md#agent-stop-hook)** - Validate completion before the agent stops
 * **[Error Handling Hook](./error-handling.md)** - Custom error handling
 
 ## See also

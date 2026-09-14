@@ -1528,6 +1528,9 @@ type SessionConfig struct {
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
+	// AuthClientIDMetadataURL identifies the host for MCP OAuth authorization.
+	// When empty, no host identity is supplied.
+	AuthClientIDMetadataURL string
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
 	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
@@ -1778,7 +1781,9 @@ type ToolInvocation struct {
 	// TraceContext carries the W3C Trace Context propagated from the CLI's
 	// execute_tool span.  Pass this to OpenTelemetry-aware code so that
 	// child spans created inside the handler are parented to the CLI span.
-	// When no trace context is available this will be context.Background().
+	// It is cancelled when the external tool request completes or the session
+	// disconnects, so background work must derive its own lifetime if it should
+	// outlive the invocation.
 	TraceContext context.Context
 }
 
@@ -2091,6 +2096,9 @@ type ResumeSessionConfig struct {
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
+	// AuthClientIDMetadataURL identifies the host for MCP OAuth authorization.
+	// When empty, no host identity is supplied.
+	AuthClientIDMetadataURL string
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
 	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
@@ -2355,10 +2363,12 @@ type CapiSessionOptions struct {
 
 	// AutoTier selects the routing tier for model "auto" with V2 Auto.
 	// Requires a runtime that supports Auto tiers; it has no effect outside V2 Auto.
-	// When unset, the runtime uses its default on create and preserves the
-	// persisted or current tier on resume. An explicit tier overrides the
-	// persisted tier on a cold resume; a conflicting tier on a resident
-	// session resume is rejected by the runtime.
+	// When unset, the runtime uses its default on create and restores the last
+	// committed tier on cold resume. On resident resume, a different tier
+	// requests a safe switch that takes effect after resume succeeds and never
+	// disturbs a turn that is already running.
+	//
+	// To change the preference on a live session, use [Session.SetAutoTier].
 	AutoTier AutoTier `json:"autoTier,omitempty"`
 }
 
@@ -2467,10 +2477,29 @@ type ToolBinaryResult struct {
 	Description string `json:"description,omitempty"`
 }
 
+// MessageSource identifies whether a message originates from a user, the system, or an agent.
+type MessageSource string
+
+const (
+	// MessageSourceUser identifies a user-originated message.
+	MessageSourceUser MessageSource = "user"
+	// MessageSourceSystem identifies a system-originated message.
+	MessageSourceSystem MessageSource = "system"
+)
+
+// MessageSourceAgent identifies the agent that produced a message.
+// The agent ID is opaque and is sent unchanged after the "agent-" prefix.
+func MessageSourceAgent(id string) MessageSource {
+	return MessageSource("agent-" + id)
+}
+
 // MessageOptions configures a message to send
 type MessageOptions struct {
 	// Prompt is the message to send
 	Prompt string
+	// Source identifies the message origin independently of Mode and AgentMode.
+	// The empty value omits source from the request, preserving runtime defaults.
+	Source MessageSource
 	// Attachments are file or directory attachments
 	Attachments []Attachment
 	// Mode is the message delivery mode (default: "enqueue")
@@ -2554,6 +2583,7 @@ type ModelInfo struct {
 	Capabilities              ModelCapabilities `json:"capabilities"`
 	Policy                    *ModelPolicy      `json:"policy,omitempty"`
 	Billing                   *ModelBilling     `json:"billing,omitempty"`
+	Metadata                  map[string]any    `json:"metadata,omitempty"`
 	SupportedReasoningEfforts []string          `json:"supportedReasoningEfforts,omitempty"`
 	DefaultReasoningEffort    string            `json:"defaultReasoningEffort,omitempty"`
 }
@@ -2662,6 +2692,7 @@ type createSessionRequest struct {
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	ManagedMCPServers                  map[string]ManagedMCPServerConfig      `json:"managedMcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
+	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
 	CustomAgents                       []CustomAgentConfig                    `json:"customAgents,omitempty"`
 	DefaultAgent                       *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
@@ -2774,6 +2805,7 @@ type resumeSessionRequest struct {
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	ManagedMCPServers                  map[string]ManagedMCPServerConfig      `json:"managedMcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
+	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
 	CustomAgents                       []CustomAgentConfig                    `json:"customAgents,omitempty"`
 	DefaultAgent                       *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
@@ -2932,9 +2964,14 @@ type sessionGetMessagesResponse struct {
 	Events []SessionEvent `json:"events"`
 }
 
-// sessionDestroyRequest is the request for session.destroy
-type sessionDestroyRequest struct {
+// sessionDetachRequest is the request for session.detach.
+type sessionDetachRequest struct {
 	SessionID string `json:"sessionId"`
+}
+
+type sessionDetachResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
 }
 
 // sessionAbortRequest is the request for session.abort
@@ -2945,6 +2982,7 @@ type sessionAbortRequest struct {
 type sessionSendRequest struct {
 	SessionID      string            `json:"sessionId"`
 	Prompt         string            `json:"prompt"`
+	Source         MessageSource     `json:"source,omitempty"`
 	DisplayPrompt  string            `json:"displayPrompt,omitempty"`
 	Attachments    []Attachment      `json:"attachments,omitempty"`
 	Mode           string            `json:"mode,omitempty"`

@@ -37,6 +37,8 @@ public final class UserMessageEvent extends SessionEvent {
     public record UserMessageEventData(
         /** The user's message text as displayed in the timeline */
         @JsonProperty("content") String content,
+        /** Stable identity of the logical user message, matching the ID returned by send and retained by pending queue snapshots */
+        @JsonProperty("messageId") String messageId,
         /** Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching */
         @JsonProperty("transformedContent") String transformedContent,
         /** Files, selections, or GitHub references attached to the message */

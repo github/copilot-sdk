@@ -87,6 +87,12 @@ const STRING_NEWTYPE_OVERRIDES: Record<string, string> = {
 	requestId: "RequestId",
 };
 
+const STRING_ENUM_VARIANT_OVERRIDES: Record<string, Record<string, string>> = {
+	CatalogTrustEligibility: {
+		unknown: "UnknownValue",
+	},
+};
+
 // ── Naming helpers ──────────────────────────────────────────────────────────
 
 function toPascalCase(s: string): string {
@@ -117,8 +123,9 @@ function uniqueRustPascalIdentifier(
 	used: Set<string>,
 	fallback: string,
 	reserved: Set<string> = new Set(),
+	override?: string,
 ): string {
-	const identifier = toRustPascalIdentifier(value, fallback);
+	const identifier = override ?? toRustPascalIdentifier(value, fallback);
 	if (used.has(identifier) || reserved.has(identifier)) {
 		throw new Error(
 			`Generated Rust enum variant identifier "${identifier}" is not unique for value "${value}". Add an explicit naming rule instead of stabilizing an arbitrary public variant name.`,
@@ -380,9 +387,7 @@ function tryEmitRustUnion(
 
 	const lines: string[] = [];
 	if (schema.description) {
-		for (const line of schema.description.split(/\r?\n/)) {
-			lines.push(`/// ${line}`);
-		}
+		pushRustDoc(lines, schema.description);
 	}
 	pushRustExperimentalDocs(lines, isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(enumName));
 	lines.push("#[derive(Debug, Clone, Serialize, Deserialize)]");
@@ -470,7 +475,8 @@ function pushRustExperimentalDocs(
 
 function pushRustDoc(lines: string[], text: string | undefined, indent = ""): void {
 	if (!text) return;
-	for (const paragraph of text.trim().split(/\r?\n/)) {
+	const sanitized = text.replace(/\[::\]/g, "`[::]`");
+	for (const paragraph of sanitized.trim().split(/\r?\n/)) {
 		if (paragraph.trim().length === 0) {
 			lines.push(`${indent}///`);
 		} else {
@@ -973,9 +979,7 @@ function emitRustStruct(
 
 	for (const { propName, prop, isReq, rustField, rustType } of fields) {
 		if (prop.description) {
-			for (const line of prop.description.split(/\r?\n/)) {
-				lines.push(`    /// ${line}`);
-			}
+			pushRustDoc(lines, prop.description, "    ");
 		}
 		pushRustExperimentalDocs(lines, isSchemaExperimental(prop), "    ");
 		const propIsInternal = isSchemaInternal(prop);
@@ -1050,6 +1054,7 @@ function emitRustStringEnum(
 			usedVariantNames,
 			"Value",
 			reservedVariantNames,
+			STRING_ENUM_VARIANT_OVERRIDES[enumName]?.[value],
 		);
 		pushRustDoc(lines, enumValueDescriptions?.[value], "    ");
 		if (variantName !== value) {
@@ -1454,7 +1459,7 @@ function isNullableParamsSchema(
 	return !!resolved && !!getNullableInner(resolved);
 }
 
-function generateApiTypesCode(
+export function generateApiTypesCode(
 	apiSchema: ApiSchema,
 	nonDefaultableTypes: Iterable<string> = [],
 ): string {
@@ -1685,7 +1690,11 @@ function generateApiTypesCode(
 	for (const [module, typeNames] of [...externalImports].sort(([left], [right]) =>
 		left.localeCompare(right),
 	)) {
-		out.push(`use ${module}::{${[...typeNames].sort().join(", ")}};`);
+		// Preserve API module paths when a definition moves into a shared schema.
+		const importKeyword = Object.values(EXTERNAL_SCHEMA_RUST_MODULE).includes(module)
+			? "pub use"
+			: "use";
+		out.push(`${importKeyword} ${module}::{${[...typeNames].sort().join(", ")}};`);
 	}
 	out.push("");
 

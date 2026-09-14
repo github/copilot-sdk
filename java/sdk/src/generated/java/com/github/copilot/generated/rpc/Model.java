@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -28,6 +29,8 @@ public record Model(
     @JsonProperty("name") String name,
     /** Model capabilities and limits */
     @JsonProperty("capabilities") ModelCapabilities capabilities,
+    /** Provider-supplied model metadata. Keys and JSON-compatible values are preserved unchanged. This is factual metadata published by the model provider; it carries no picker or UX semantics. */
+    @JsonProperty("metadata") Map<String, Object> metadata,
     /** Policy state (if applicable) */
     @JsonProperty("policy") ModelPolicy policy,
     /** Billing information */

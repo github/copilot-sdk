@@ -215,10 +215,20 @@ function preservePythonSessionEventConstructorOrder(schema: JSONSchema7): void {
     for (const definitions of [schema.definitions, schema.$defs]) {
         if (!definitions) continue;
         const customTool = definitions.PermissionRequestCustomTool;
-        if (!customTool || typeof customTool !== "object") continue;
-        const skipPermission = (customTool as JSONSchema7).properties?.skipPermission;
-        if (!skipPermission || typeof skipPermission !== "object") continue;
-        (skipPermission as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+        if (customTool && typeof customTool === "object") {
+            const skipPermission = (customTool as JSONSchema7).properties?.skipPermission;
+            if (skipPermission && typeof skipPermission === "object") {
+                (skipPermission as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+            }
+        }
+
+        const read = definitions.PermissionRequestRead;
+        if (read && typeof read === "object") {
+            const resolvedPath = (read as JSONSchema7).properties?.resolvedPath;
+            if (resolvedPath && typeof resolvedPath === "object") {
+                (resolvedPath as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+            }
+        }
     }
 }
 
@@ -3773,12 +3783,13 @@ function clientSessionHandlerMethodName(rpcMethod: string): string {
     return toSnakeCase(parts[parts.length - 1]);
 }
 
-function emitClientSessionApiRegistration(
+export function emitClientSessionApiRegistration(
     lines: string[],
     node: Record<string, unknown>,
     resolveType: (name: string) => string
 ): void {
-    const groups = Object.entries(node).filter(([, value]) => typeof value === "object" && value !== null && !isRpcMethod(value));
+    const publicNode = filterNodeByVisibility(node, "public") ?? {};
+    const groups = Object.entries(publicNode).filter(([, value]) => typeof value === "object" && value !== null && !isRpcMethod(value));
 
     for (const [groupName, groupNode] of groups) {
         const handlerName = `${toPascalCase(groupName)}Handler`;

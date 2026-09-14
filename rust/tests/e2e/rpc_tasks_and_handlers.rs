@@ -66,7 +66,7 @@ async fn should_list_task_state_and_return_false_for_missing_task_operations() {
                         .await
                         .expect("progress missing")
                         .progress
-                        .is_none()
+                        .is_null()
                 );
                 assert!(
                     session

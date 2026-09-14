@@ -19,6 +19,7 @@ import type {
     McpOauthPendingRequestResponse,
     FactoryLogLine,
     FactoryRunResult as WireFactoryRunResult,
+    ModelSwitchAutoTierResult,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
@@ -50,6 +51,7 @@ import type {
     ContextTier,
     ReasoningEffort,
     ReasoningSummary,
+    AutoTier,
     ModelCapabilitiesOverride,
     SectionTransformFn,
     SessionCapabilities,
@@ -435,6 +437,7 @@ export class CopilotSession {
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
+    private pendingExternalTools: Map<string, AbortController> = new Map();
     private canvases: Map<string, Canvas> = new Map();
     private bearerTokenProviders: Map<string, BearerTokenProvider> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
@@ -455,6 +458,7 @@ export class CopilotSession {
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
     private disconnected = false;
+    private disconnecting = false;
     private onDisconnected?: () => void;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
@@ -733,6 +737,7 @@ export class CopilotSession {
             ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
             prompt: options.prompt,
+            source: options.source,
             displayPrompt: options.displayPrompt,
             attachments: options.attachments,
             mode: options.mode,
@@ -836,6 +841,10 @@ export class CopilotSession {
             return;
         }
         this.disconnected = true;
+        for (const controller of this.pendingExternalTools.values()) {
+            controller.abort();
+        }
+        this.pendingExternalTools.clear();
         this._runOnDisconnected();
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
@@ -1012,6 +1021,15 @@ export class CopilotSession {
                     tracestate
                 );
             }
+        } else if (event.type === "external_tool.completed") {
+            const { requestId } = event.data as { requestId?: string };
+            if (requestId) {
+                const controller = this.pendingExternalTools.get(requestId);
+                if (controller) {
+                    this.pendingExternalTools.delete(requestId);
+                    controller.abort();
+                }
+            }
         } else if (event.type === "permission.requested") {
             const { requestId, permissionRequest, resolvedByHook } = event.data as {
                 requestId: string;
@@ -1131,6 +1149,12 @@ export class CopilotSession {
         traceparent?: string,
         tracestate?: string
     ): Promise<void> {
+        const controller = new AbortController();
+        if (this.disconnected || this.pendingExternalTools.has(requestId)) {
+            return;
+        }
+        this.pendingExternalTools.set(requestId, controller);
+
         try {
             // The built-in tool-search tool receives a snapshot of the session's
             // currently initialized tools so an override can filter the live
@@ -1139,12 +1163,26 @@ export class CopilotSession {
             // leaves the snapshot undefined rather than failing the tool.
             let availableTools: CurrentToolMetadata[] | undefined;
             if (toolName === TOOL_SEARCH_TOOL_NAME) {
+                if (controller.signal.aborted) {
+                    return;
+                }
+                const aborted = new Promise<undefined>((resolve) => {
+                    controller.signal.addEventListener("abort", () => resolve(undefined), {
+                        once: true,
+                    });
+                });
                 try {
-                    const metadata = await this.rpc.tools.getCurrentMetadata();
-                    availableTools = metadata.tools ?? undefined;
+                    const metadata = await Promise.race([
+                        this.rpc.tools.getCurrentMetadata(),
+                        aborted,
+                    ]);
+                    availableTools = metadata?.tools ?? undefined;
                 } catch {
                     availableTools = undefined;
                 }
+            }
+            if (controller.signal.aborted) {
+                return;
             }
             const rawResult = await handler(args, {
                 sessionId: this.sessionId,
@@ -1154,6 +1192,7 @@ export class CopilotSession {
                 availableTools,
                 traceparent,
                 tracestate,
+                signal: controller.signal,
             });
             let result: ToolResult;
             if (rawResult == null) {
@@ -1165,12 +1204,12 @@ export class CopilotSession {
             } else {
                 result = JSON.stringify(rawResult);
             }
-            if (this.disconnected) {
+            if (!this._claimExternalTool(requestId, controller)) {
                 return;
             }
             await this.rpc.tools.handlePendingToolCall({ requestId, result });
         } catch (error) {
-            if (this.disconnected) {
+            if (!this._claimExternalTool(requestId, controller)) {
                 return;
             }
             const message = error instanceof Error ? error.message : String(error);
@@ -1182,7 +1221,20 @@ export class CopilotSession {
                 }
                 // Connection lost or RPC error — nothing we can do
             }
+        } finally {
+            if (this.pendingExternalTools.get(requestId) === controller) {
+                this.pendingExternalTools.delete(requestId);
+            }
+            controller.abort();
         }
+    }
+
+    private _claimExternalTool(requestId: string, controller: AbortController): boolean {
+        if (this.disconnected || this.pendingExternalTools.get(requestId) !== controller) {
+            return false;
+        }
+        this.pendingExternalTools.delete(requestId);
+        return true;
     }
 
     /**
@@ -2084,13 +2136,27 @@ export class CopilotSession {
      * ```
      */
     async disconnect(): Promise<void> {
-        if (this.disconnected) {
+        if (this.disconnected || this.disconnecting) {
             return;
         }
-        await this.connection.sendRequest("session.destroy", {
-            sessionId: this.sessionId,
-        });
-        this._markDisconnected();
+        this.disconnecting = true;
+        try {
+            let response: { success: boolean; error?: string } = { success: false };
+            for (let attempt = 0; attempt < 2 && !response.success; attempt++) {
+                response = (await this.connection.sendRequest("session.detach", {
+                    sessionId: this.sessionId,
+                })) as { success: boolean; error?: string };
+            }
+            if (!response.success) {
+                throw new Error(
+                    `Failed to disconnect session ${this.sessionId}: ${response.error || "Unknown error"}`
+                );
+            }
+            this._markDisconnected();
+        } catch (error) {
+            this.disconnecting = false;
+            throw error;
+        }
     }
 
     /** Enables `await using session = ...` syntax for automatic cleanup. */
@@ -2135,6 +2201,9 @@ export class CopilotSession {
      * ```typescript
      * await session.setModel("gpt-5.4");
      * await session.setModel("claude-sonnet-4.6", { reasoningEffort: "high" });
+     *
+     * // Select the Auto model and its routing preference in one call.
+     * await session.setModel("auto", { autoTier: "intelligence" });
      * ```
      */
     async setModel(
@@ -2144,9 +2213,56 @@ export class CopilotSession {
             reasoningSummary?: ReasoningSummary;
             contextTier?: ContextTier;
             modelCapabilities?: ModelCapabilitiesOverride;
+            /**
+             * Routing preference to apply when `model` is `auto`.
+             *
+             * Pass `null` to return to the provider's default Auto routing. The
+             * runtime rejects this option when `model` is anything other than
+             * `auto`; use {@link setAutoTier} to change the preference without
+             * changing the selected model.
+             *
+             * @experimental Part of an experimental Auto routing surface and may
+             * change or be removed in a future release.
+             */
+            autoTier?: AutoTier | null;
         }
     ): Promise<void> {
         await this.rpc.model.switchTo({ modelId: model, ...options });
+    }
+
+    /**
+     * Change the Auto routing preference without changing the selected model.
+     *
+     * The runtime does not apply the preference immediately. It records the
+     * request and commits it only when a later user turn using the `auto` model
+     * successfully obtains a usable model from the provider. A `pending` status
+     * therefore confirms that the request was accepted, not that it took effect.
+     *
+     * Watch for the outcome through the `session.model_change` event on success,
+     * or the ephemeral `session.auto_tier_switch_failed` event on failure. You
+     * can also read the current committed and in-flight state at any time with
+     * `session.rpc.model.getCurrent()`.
+     *
+     * Only the most recent request survives: issuing a new request replaces any
+     * earlier one that has not yet been claimed by a turn.
+     *
+     * @param autoTier - Routing preference to activate, or `null` to return to
+     *   the provider's default Auto routing
+     * @returns The runtime's immediate acknowledgement and Auto preference snapshot
+     *
+     * @experimental Part of an experimental Auto routing surface and may change
+     * or be removed in a future release.
+     *
+     * @example
+     * ```typescript
+     * const result = await session.setAutoTier("intelligence");
+     * if (result.status === "pending") {
+     *     // Takes effect on a later turn that uses the `auto` model.
+     * }
+     * ```
+     */
+    async setAutoTier(autoTier: AutoTier | null): Promise<ModelSwitchAutoTierResult> {
+        return await this.rpc.model.switchAutoTier({ autoTier });
     }
 
     /**

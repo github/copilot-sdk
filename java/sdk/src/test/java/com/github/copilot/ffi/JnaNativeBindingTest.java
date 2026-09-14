@@ -7,10 +7,13 @@ package com.github.copilot.ffi;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import com.sun.jna.CallbackReference;
+import com.sun.jna.Function;
 import com.sun.jna.Pointer;
 
 import java.lang.ref.WeakReference;
@@ -22,6 +25,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Unit tests for {@link JnaNativeBinding}.
@@ -52,6 +57,7 @@ class JnaNativeBindingTest {
         int connectionOpenReturn = 1;
         byte connectionWriteReturn = 1;
         byte connectionCloseReturn = 1;
+        RuntimeException connectionCloseFailure;
 
         byte[] lastArgvJson;
         int lastArgvJsonLen;
@@ -90,6 +96,9 @@ class JnaNativeBindingTest {
         @Override
         public byte copilot_runtime_connection_close(int connectionId) {
             lastConnectionId = connectionId;
+            if (connectionCloseFailure != null) {
+                throw connectionCloseFailure;
+            }
             return connectionCloseReturn;
         }
     }
@@ -229,33 +238,60 @@ class JnaNativeBindingTest {
         assertEquals(0, binding.activeCallbacks.get(), "Active callback counter must start at zero");
     }
 
-    @Test
-    void callbackWrapperRemainsReachableAfterConnectionClose() throws InterruptedException {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void callbackWrapperIsReleasedOnlyAfterSuccessfulConnectionClose(boolean shutdownBeforeClose)
+            throws InterruptedException {
         StubRuntimeLibrary stub = new StubRuntimeLibrary();
         stub.connectionOpenReturn = 99;
         JnaNativeBinding binding = new JnaNativeBinding(stub);
         AtomicInteger invocations = new AtomicInteger();
 
         WeakReference<OutboundCallback> callbackReference = openAndCloseConnection(binding, stub,
-                (userData, data, len) -> invocations.incrementAndGet());
+                (userData, data, len) -> invocations.incrementAndGet(), shutdownBeforeClose);
 
         awaitGarbageCollection(callbackReference);
 
-        OutboundCallback callback = callbackReference.get();
-        assertNotNull(callback, "Callback wrapper must remain strongly reachable after connection close");
-        callback.invoke(Pointer.NULL, Pointer.NULL, new SizeT(0));
-        assertEquals(1, invocations.get(), "A callback queued before close must remain safely invocable");
+        assertNull(callbackReference.get(), "Successful connection close must release the callback wrapper");
+        assertEquals(2, invocations.get(), "Failed closes must retain the delegate; successful close must detach it");
     }
 
     private static WeakReference<OutboundCallback> openAndCloseConnection(JnaNativeBinding binding,
-            StubRuntimeLibrary stub, OutboundCallback callback) {
+            StubRuntimeLibrary stub, OutboundCallback callback, boolean shutdownBeforeClose)
+            throws InterruptedException {
         int connectionId = binding.connectionOpen(1, callback, Pointer.NULL, null, 0, null, 0, null, 0);
         assertEquals(99, connectionId);
         assertNotNull(stub.lastCallback);
 
         WeakReference<OutboundCallback> callbackReference = new WeakReference<>(stub.lastCallback);
+        // Allocate a real JNA trampoline, whose weak references must not keep the
+        // wrapper alive once the native connection reports quiescence.
+        Function nativeCallback = Function.getFunction(CallbackReference.getFunctionPointer(stub.lastCallback));
         stub.lastCallback = null;
+
+        stub.connectionCloseReturn = 0;
+        assertFalse(binding.connectionClose(connectionId));
+        awaitGarbageCollection(callbackReference);
+        assertNotNull(callbackReference.get(), "Non-quiescent close must retain the callback wrapper");
+        nativeCallback.invokeVoid(new Object[]{Pointer.NULL, Pointer.NULL, new SizeT(0)});
+
+        stub.connectionCloseFailure = new IllegalStateException("close failed");
+        assertThrows(IllegalStateException.class, () -> binding.connectionClose(connectionId));
+        awaitGarbageCollection(callbackReference);
+        assertNotNull(callbackReference.get(), "Throwing close must retain the callback wrapper");
+        nativeCallback.invokeVoid(new Object[]{Pointer.NULL, Pointer.NULL, new SizeT(0)});
+        stub.connectionCloseFailure = null;
+
+        if (shutdownBeforeClose) {
+            assertTrue(binding.hostShutdown(1));
+            awaitGarbageCollection(callbackReference);
+            assertNotNull(callbackReference.get(), "Host shutdown alone must retain the callback wrapper");
+        }
+        OutboundCallback wrapper = callbackReference.get();
+        assertNotNull(wrapper);
+        stub.connectionCloseReturn = 1;
         assertTrue(binding.connectionClose(connectionId));
+        wrapper.invoke(Pointer.NULL, Pointer.NULL, new SizeT(0));
         return callbackReference;
     }
 

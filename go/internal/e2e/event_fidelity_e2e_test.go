@@ -333,8 +333,8 @@ func TestEventFidelityE2E(t *testing.T) {
 		}
 
 		idleIdx := lastEventFidelityTypeIndex(types, copilot.SessionEventTypeSessionIdle)
-		if idleIdx != len(types)-1 {
-			t.Fatalf("Expected session.idle to be last event; idleIdx=%d len=%d types=%v", idleIdx, len(types), types)
+		if idleIdx < 0 || assistantIdx >= idleIdx {
+			t.Fatalf("Expected last assistant.message before session.idle; assistantIdx=%d idleIdx=%d types=%v", assistantIdx, idleIdx, types)
 		}
 	})
 

@@ -26,7 +26,7 @@ public class RpcAdditionalEdgeCasesE2ETests(E2ETestFixture fixture, ITestOutputH
         var session = await CreateSessionAsync();
         var markerPath = Path.Join(Ctx.WorkDir, $"shell-zero-timeout-{Guid.NewGuid():N}.txt");
         var command = OperatingSystem.IsWindows()
-            ? $"powershell -NoLogo -NoProfile -Command \"Start-Sleep -Milliseconds 500; Set-Content -LiteralPath '{markerPath}' -Value 'alive'; Start-Sleep -Seconds 60\""
+            ? $"ping 127.0.0.1 -n 2 >nul & echo alive>\"{markerPath}\" & ping 127.0.0.1 -n 61 >nul"
             : $"sh -c \"sleep 0.5; printf alive > '{markerPath}'; sleep 60\"";
 
         var execResult = await session.Rpc.Shell.ExecAsync(command, cwd: Path.GetTempPath(), timeout: TimeSpan.Zero);

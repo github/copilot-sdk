@@ -62,6 +62,64 @@ describe("approveAll", () => {
 });
 
 describe("CopilotClient", () => {
+    it("start() is single-flight: concurrent callers share one startup", async () => {
+        const client = new CopilotClient({ autoStart: false });
+        onTestFinished(() => client.forceStop());
+
+        // Stub the underlying startup (doStart) that the single-flight guard
+        // dedupes. Transport-independent: this is the same regardless of the
+        // stdio vs in-process connection path. The delay makes all three
+        // start() calls overlap; on success it marks the client connected like
+        // the real doStart does.
+        const doStart = vi.fn().mockImplementation(
+            () =>
+                new Promise<void>((resolve) =>
+                    setTimeout(() => {
+                        (client as any).state = "connected";
+                        resolve();
+                    }, 50)
+                )
+        );
+        (client as any).doStart = doStart;
+
+        // Before the fix, each concurrent caller ran startup (and spawned its own
+        // CLI, orphaning all but the last). With single-flight they share one.
+        await Promise.all([client.start(), client.start(), client.start()]);
+
+        expect(doStart).toHaveBeenCalledTimes(1);
+        expect((client as any).state).toBe("connected");
+
+        // Once connected, a further start() is a no-op (no extra startup).
+        await client.start();
+        expect(doStart).toHaveBeenCalledTimes(1);
+    });
+
+    it("start() retries after a failed attempt (single-flight guard is cleared)", async () => {
+        const client = new CopilotClient({ autoStart: false });
+        onTestFinished(() => client.forceStop());
+
+        // Stub the underlying startup: fail once, then succeed. Transport-
+        // independent (does not depend on the stdio vs in-process path).
+        const doStart = vi
+            .fn()
+            .mockImplementationOnce(async () => {
+                (client as any).state = "error";
+                throw new Error("boom");
+            })
+            .mockImplementationOnce(async () => {
+                (client as any).state = "connected";
+            });
+        (client as any).doStart = doStart;
+
+        await expect(client.start()).rejects.toThrow(/boom/);
+        expect((client as any).state).toBe("error");
+
+        // The guard must have cleared so a later start() can retry.
+        await client.start();
+        expect(doStart).toHaveBeenCalledTimes(2);
+        expect((client as any).state).toBe("connected");
+    });
+
     it.each([
         {
             source: "connection path",
@@ -2760,6 +2818,117 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("sends the auto tier with session.model.switchTo when selecting the auto model", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.model.switchTo") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await session.setModel("auto", { autoTier: "intelligence" });
+
+        expect(spy).toHaveBeenCalledWith("session.model.switchTo", {
+            sessionId: session.sessionId,
+            modelId: "auto",
+            autoTier: "intelligence",
+        });
+
+        spy.mockRestore();
+    });
+
+    it("sends a null auto tier with session.model.switchTo to restore default routing", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.model.switchTo") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await session.setModel("auto", { autoTier: null });
+
+        expect(spy).toHaveBeenCalledWith("session.model.switchTo", {
+            sessionId: session.sessionId,
+            modelId: "auto",
+            autoTier: null,
+        });
+
+        spy.mockRestore();
+    });
+
+    it("sends session.model.switchAutoTier RPC and returns the runtime snapshot", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.model.switchAutoTier") {
+                    return {
+                        status: "pending",
+                        effectiveAutoTier: "balance",
+                        pendingAutoTier: "intelligence",
+                        activatingAutoTier: null,
+                        supersededAutoTier: null,
+                    };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const result = await session.setAutoTier("intelligence");
+
+        expect(spy).toHaveBeenCalledWith("session.model.switchAutoTier", {
+            sessionId: session.sessionId,
+            autoTier: "intelligence",
+        });
+        expect(result.status).toBe("pending");
+        expect(result.effectiveAutoTier).toBe("balance");
+        expect(result.pendingAutoTier).toBe("intelligence");
+        expect(result.activatingAutoTier).toBeNull();
+
+        spy.mockRestore();
+    });
+
+    it("sends a null auto tier with session.model.switchAutoTier to restore default routing", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.model.switchAutoTier") return { status: "unchanged" };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const result = await session.setAutoTier(null);
+
+        expect(spy).toHaveBeenCalledWith("session.model.switchAutoTier", {
+            sessionId: session.sessionId,
+            autoTier: null,
+        });
+        expect(result.status).toBe("unchanged");
+
+        spy.mockRestore();
+    });
+
     describe("URL parsing", () => {
         it("should parse port-only URL format", () => {
             const client = new CopilotClient({
@@ -2783,6 +2952,17 @@ describe("CopilotClient", () => {
             expect((client as any).isExternalServer).toBe(true);
         });
 
+        it("should parse bracketed IPv6 host:port URL format", () => {
+            const client = new CopilotClient({
+                connection: RuntimeConnection.forUri("[::1]:9000"),
+                logLevel: "error",
+            });
+
+            expect((client as any).runtimePort).toBe(9000);
+            expect((client as any).actualHost).toBe("::1");
+            expect((client as any).isExternalServer).toBe(true);
+        });
+
         it("should parse http://host:port URL format", () => {
             const client = new CopilotClient({
                 connection: RuntimeConnection.forUri("http://localhost:7000"),
@@ -2792,6 +2972,26 @@ describe("CopilotClient", () => {
             expect((client as any).runtimePort).toBe(7000);
             expect((client as any).actualHost).toBe("localhost");
             expect((client as any).isExternalServer).toBe(true);
+        });
+
+        it("should parse http://[ipv6]:port URL format", () => {
+            const client = new CopilotClient({
+                connection: RuntimeConnection.forUri("http://[::1]:7000"),
+                logLevel: "error",
+            });
+
+            expect((client as any).runtimePort).toBe(7000);
+            expect((client as any).actualHost).toBe("::1");
+            expect((client as any).isExternalServer).toBe(true);
+        });
+
+        it("should reject a bracketed non-IPv6 host", () => {
+            expect(() => {
+                new CopilotClient({
+                    connection: RuntimeConnection.forUri("[not-ipv6]:1234"),
+                    logLevel: "error",
+                });
+            }).toThrow(/Invalid cliUrl format/);
         });
 
         it("should parse https://host:port URL format", () => {
@@ -3357,6 +3557,42 @@ describe("CopilotClient", () => {
                 const client = new CopilotClient();
                 await client.start();
                 onTestFinished(() => stopClient(client));
+                let invocationSignal: AbortSignal | undefined;
+                let toolStarted!: () => void;
+                const started = new Promise<void>((resolve) => {
+                    toolStarted = resolve;
+                });
+                const session = await client.createSession({
+                    onPermissionRequest: approveAll,
+                    tools: [
+                        {
+                            name: "blocked_tool",
+                            description: "blocks until cancelled",
+                            handler: async (_args, invocation) => {
+                                invocationSignal = invocation.signal;
+                                toolStarted();
+                                await new Promise<void>((_, reject) =>
+                                    invocation.signal?.addEventListener(
+                                        "abort",
+                                        () => reject(invocation.signal?.reason),
+                                        { once: true }
+                                    )
+                                );
+                            },
+                        },
+                    ],
+                });
+                (session as any)._handleBroadcastEvent({
+                    type: "external_tool.requested",
+                    data: {
+                        requestId: "request-connection-close",
+                        sessionId: session.sessionId,
+                        toolCallId: "tool-call-connection-close",
+                        toolName: "blocked_tool",
+                        arguments: {},
+                    },
+                });
+                await started;
 
                 expect((client as any).state).toBe("connected");
 
@@ -3368,6 +3604,7 @@ describe("CopilotClient", () => {
                 // Wait for the connection.onClose handler to fire
                 await vi.waitFor(() => {
                     expect((client as any).state).toBe("disconnected");
+                    expect(invocationSignal?.aborted).toBe(true);
                 });
             }
         );
@@ -4204,6 +4441,32 @@ describe("CopilotClient", () => {
     });
 
     describe("shutdown", () => {
+        it.each(["stop", "forceStop"] as const)(
+            "%s waits for the initial in-process cleanup attempt",
+            async (method) => {
+                const client = new CopilotClient({
+                    connection: RuntimeConnection.forInProcess(),
+                });
+                let finishCleanup!: () => void;
+                const cleanup = new Promise<void>((resolve) => {
+                    finishCleanup = resolve;
+                });
+                const dispose = vi.fn(() => cleanup);
+                (client as any).ffiHost = { dispose };
+
+                let stopped = false;
+                const shutdown = client[method]().then(() => {
+                    stopped = true;
+                });
+                await vi.waitFor(() => expect(dispose).toHaveBeenCalledTimes(1));
+                expect(stopped).toBe(false);
+
+                finishCleanup();
+                await shutdown;
+                expect(stopped).toBe(true);
+            }
+        );
+
         it("requests runtime shutdown when stopping an SDK-owned process", async () => {
             const client = new CopilotClient();
             const calls: string[] = [];
@@ -4448,6 +4711,7 @@ describe("connect handshake clientInfo", () => {
         const params = await captureConnectParams();
 
         expect(params).not.toHaveProperty("clientInfo");
+        expect(params.supportedTaskKinds).toEqual(["agent", "client", "shell"]);
     });
 
     it("drops empty fields and omits an all-empty identity", async () => {

@@ -22,6 +22,6 @@ conversations:
       - role: user
         content: |-
           Image file at path ${workdir}/pixel.png
-          [image]
+          You've reached the maximum number of images you can view (1) so I can't provide the image for you to see.
       - role: assistant
         content: Red

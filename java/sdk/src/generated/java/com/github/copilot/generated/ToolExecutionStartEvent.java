@@ -50,6 +50,8 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("mcpServerName") String mcpServerName,
         /** Original tool name on the MCP server, when the tool is an MCP tool */
         @JsonProperty("mcpToolName") String mcpToolName,
+        /** Transport the MCP server hosting this tool is connected over, when the tool is an MCP tool and the server is configured */
+        @JsonProperty("mcpTransport") McpServerTransport mcpTransport,
         /** Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event */
         @JsonProperty("turnId") String turnId,
         /** When true, the tool output should be displayed expanded (verbatim) in the CLI timeline */

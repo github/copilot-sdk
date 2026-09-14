@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Subagent model, reasoning effort, and context tier settings
+ * Subagent model, reasoning effort, context tier, and auto-invocation settings
  *
  * @since 1.0.0
  */
@@ -23,9 +23,13 @@ import javax.annotation.processing.Generated;
 public record SubagentSettingsEntry(
     /** Model override for matching subagents */
     @JsonProperty("model") String model,
+    /** Whether the configured model strategy is preferred or required */
+    @JsonProperty("modelPolicy") AgentModelPolicy modelPolicy,
     /** Reasoning effort override for matching subagents */
     @JsonProperty("effortLevel") String effortLevel,
     /** Context tier override for matching subagents */
-    @JsonProperty("contextTier") SubagentSettingsEntryContextTier contextTier
+    @JsonProperty("contextTier") SubagentSettingsEntryContextTier contextTier,
+    /** Whether this agent's runtime-defined proactive invocation prompting is enabled, if supported. Currently consumed by the built-in rubber-duck agent. */
+    @JsonProperty("autoInvoke") Boolean autoInvoke
 ) {
 }

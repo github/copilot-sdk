@@ -490,11 +490,13 @@ async fn should_update_and_clear_live_subagent_settings() {
                             agents: Some(HashMap::from([(
                                 "general-purpose".to_string(),
                                 SubagentSettingsEntry {
+                                    auto_invoke: None,
                                     context_tier: Some(
                                         SubagentSettingsEntryContextTier::LongContext,
                                     ),
                                     effort_level: Some("low".to_string()),
                                     model: Some("gpt-5-mini".to_string()),
+                                    model_policy: None,
                                 },
                             )])),
                             disabled_subagents: Some(vec!["legacy-agent".to_string()]),

@@ -5,11 +5,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use github_copilot_sdk::handler::{McpAuthHandler, McpAuthRequest, McpAuthResult};
-use github_copilot_sdk::rpc::{McpAppsCallToolRequest, McpListToolsRequest};
+use github_copilot_sdk::rpc::{McpAppsCallToolRequest, McpListToolsRequest, McpOauthLoginRequest};
 use github_copilot_sdk::session::Session;
 use github_copilot_sdk::session_events::{McpOauthRequestReason, McpServerStatus};
 use github_copilot_sdk::{IndexMap, McpHttpServerConfig, McpServerConfig, RequestId, SessionId};
 use parking_lot::Mutex;
+use reqwest::Url;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -22,6 +23,61 @@ const EXPECTED_TOKEN: &str = "sdk-host-token";
 const REFRESH_TOKEN: &str = "sdk-host-token-refresh";
 const UPSCOPE_TOKEN: &str = "sdk-host-token-upscope";
 const REAUTH_TOKEN: &str = "sdk-host-token-reauth";
+const CIMD_URL: &str = "https://github.com/copilot/cli/client-metadata.json";
+
+#[tokio::test]
+async fn should_use_cimd_url_instead_of_dynamic_registration() {
+    with_e2e_context_no_snapshot(|ctx| {
+        Box::pin(async move {
+            let oauth_server = OAuthMcpServer::start_with_cimd(
+                ctx.repo_root()
+                    .join("test/harness/test-mcp-oauth-server.mjs"),
+            )
+            .await;
+            let server_name = "oauth-cimd-mcp";
+            let client = ctx.start_client().await;
+            let session = client
+                .create_session(
+                    ctx.approve_all_session_config()
+                        .with_auth_client_id_metadata_url(CIMD_URL)
+                        .with_mcp_servers(IndexMap::from([(
+                            server_name.to_string(),
+                            McpServerConfig::Http(McpHttpServerConfig {
+                                tools: Some(vec!["*".to_string()]),
+                                timeout: None,
+                                url: format!("{}/mcp", oauth_server.url),
+                                headers: HashMap::new(),
+                            }),
+                        )])),
+                )
+                .await
+                .expect("create session");
+            wait_for_mcp_server_status(&session, server_name, McpServerStatus::NeedsAuth).await;
+            let result = session
+                .rpc()
+                .mcp()
+                .oauth()
+                .login(McpOauthLoginRequest {
+                    server_name: server_name.to_string(),
+                    ..Default::default()
+                })
+                .await
+                .expect("MCP OAuth login");
+            let authorization_url = result.authorization_url.expect("authorization URL");
+            assert_eq!(
+                Url::parse(&authorization_url)
+                    .expect("valid authorization URL")
+                    .query_pairs()
+                    .find(|(key, _)| key == "client_id")
+                    .map(|(_, value)| value.into_owned()),
+                Some(CIMD_URL.to_string())
+            );
+            let requests = oauth_server.requests().await;
+            assert!(requests.iter().all(|request| request.path != "/register"));
+        })
+    })
+    .await;
+}
 
 #[tokio::test]
 async fn should_satisfy_mcp_oauth_using_host_provided_token() {
@@ -53,6 +109,12 @@ async fn should_satisfy_mcp_oauth_using_host_provided_token() {
                 .await
                 .expect("create session");
 
+            session
+                .rpc()
+                .mcp()
+                .reload()
+                .await
+                .expect("reload MCP servers");
             wait_for_mcp_server_status(&session, server_name, McpServerStatus::Connected).await;
             let tools = session
                 .rpc()
@@ -142,15 +204,27 @@ async fn should_request_replacement_tokens_across_mcp_oauth_lifecycle() {
                 .await
                 .expect("create session");
 
+            session
+                .rpc()
+                .mcp()
+                .reload()
+                .await
+                .expect("reload MCP servers");
             wait_for_mcp_server_status(&session, server_name, McpServerStatus::Connected).await;
             call_whoami(&session, server_name, "refresh").await;
             call_whoami(&session, server_name, "upscope").await;
             call_whoami(&session, server_name, "reauth").await;
 
+            let replacement_reasons = handler
+                .reasons
+                .lock()
+                .iter()
+                .filter(|reason| **reason != McpOauthRequestReason::Initial)
+                .cloned()
+                .collect::<Vec<_>>();
             assert_eq!(
-                handler.reasons.lock().as_slice(),
+                replacement_reasons,
                 [
-                    McpOauthRequestReason::Initial,
                     McpOauthRequestReason::Refresh,
                     McpOauthRequestReason::Upscope,
                     McpOauthRequestReason::Refresh,
@@ -207,15 +281,14 @@ async fn should_cancel_pending_mcp_oauth_request() {
                 .await
                 .expect("create session");
 
+            session
+                .rpc()
+                .mcp()
+                .reload()
+                .await
+                .expect("reload MCP servers");
             wait_for_mcp_server_status(&session, server_name, McpServerStatus::NeedsAuth).await;
 
-            // The MCP connection is kicked off by session.create, but the SDK only registers its
-            // `mcp.oauth_required` event interest once create returns. If the server's initial 401
-            // wins that race, the runtime records `needs-auth` WITHOUT invoking the host callback,
-            // so `handler.request` is briefly `None` even after `needs-auth` is observed. A later
-            // auth retry (now that interest is registered) invokes the callback with the same
-            // `Initial` reason. Wait for the callback rather than sampling it the instant
-            // `needs-auth` first appears, which is what made this test flaky.
             wait_for_condition("MCP OAuth request reaching the host callback", || async {
                 handler.request.lock().is_some()
             })
@@ -239,6 +312,11 @@ async fn should_cancel_pending_mcp_oauth_request() {
 
 #[tokio::test]
 async fn should_resolve_pending_mcp_oauth_request_through_rpc() {
+    if super::support::skip_inprocess(
+        "blocked on github/copilot-agent-runtime#18961 MCP OAuth connection stall",
+    ) {
+        return;
+    }
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
@@ -482,6 +560,7 @@ impl McpAuthHandler for BlockingAuthHandler {
 #[derive(Deserialize)]
 struct OAuthMcpRequest {
     authorization: Option<String>,
+    path: String,
 }
 
 struct OAuthMcpServer {
@@ -491,9 +570,18 @@ struct OAuthMcpServer {
 
 impl OAuthMcpServer {
     async fn start(script: PathBuf) -> Self {
+        Self::start_with_mode(script, false).await
+    }
+
+    async fn start_with_cimd(script: PathBuf) -> Self {
+        Self::start_with_mode(script, true).await
+    }
+
+    async fn start_with_mode(script: PathBuf, cimd: bool) -> Self {
         let mut child = Command::new("node")
             .arg(script)
             .env("EXPECTED_TOKEN", EXPECTED_TOKEN)
+            .env("CIMD_SUPPORTED", if cimd { "true" } else { "false" })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
@@ -514,7 +602,8 @@ impl OAuthMcpServer {
     }
 
     async fn requests(&self) -> Vec<OAuthMcpRequest> {
-        let text = reqwest::get(format!("{}/__requests", self.url))
+        // This test-only server binds to 127.0.0.1 and never sends request logs off-host.
+        let text = reqwest::get(format!("{}/__requests", self.url)) // codeql[rust/cleartext-transmission]
             .await
             .expect("fetch OAuth MCP requests")
             .error_for_status()

@@ -22,13 +22,13 @@ flowchart LR
 
 | Hook                                                                | When it fires                       | What you can do                            |
 | ------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------ |
-| [`onSessionStart`](../hooks/session-lifecycle.md#session-start)     | Session begins (new or resumed)     | Inject context, load preferences           |
+| [`onSessionStart`](../hooks/session-lifecycle.md#session-start-hook)     | Session begins (new or resumed)     | Inject context, load preferences           |
 | [`onUserPromptSubmitted`](../hooks/user-prompt-submitted.md)        | User sends a message                | Rewrite prompts, add context, filter input |
 | [`onUserPromptTransformed`](../hooks/user-prompt-transformed.md)    | Runtime builds the model prompt     | Inspect or replace model-facing content    |
 | [`onPreToolUse`](../hooks/pre-tool-use.md)                          | Before a tool executes              | Allow / deny / modify the call             |
 | [`onPostToolUse`](../hooks/post-tool-use.md)                        | After a tool returns (success only) | Transform results, redact secrets, audit   |
 | [`onPostToolUseFailure`](../hooks/post-tool-use.md#failure-variant) | After a tool returns a failure      | Inject retry guidance, log failures        |
-| [`onSessionEnd`](../hooks/session-lifecycle.md#session-end)         | Session ends                        | Clean up, record metrics                   |
+| [`onSessionEnd`](../hooks/session-lifecycle.md#session-end-hook)         | Session ends                        | Clean up, record metrics                   |
 | [`onErrorOccurred`](../hooks/error-handling.md)                     | An error is raised                  | Custom logging, retry logic, alerts        |
 
 All hooks are **optional**—register only the ones you need. Returning `null` (or the language equivalent) from any hook tells the SDK to continue with default behavior.

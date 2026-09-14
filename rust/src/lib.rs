@@ -66,6 +66,12 @@ pub mod session_events;
 /// [`Client::rpc`] and [`session::Session::rpc`](crate::session::Session::rpc).
 pub mod rpc;
 
+#[derive(serde::Deserialize)]
+struct SessionDetachResponse {
+    success: bool,
+    error: Option<String>,
+}
+
 // Auto-generated protocol-type modules. Crate-private so the only public
 // access path is via the `session_events` and `rpc` facade modules above —
 // callers can never depend on the implementation-detail layout under
@@ -209,9 +215,9 @@ pub const HAS_BUNDLED_CLI: bool = cfg!(has_bundled_cli);
 /// Returns the path to the bundled Copilot CLI, extracting it from the
 /// embedded archive on first call.
 ///
-/// This exposes the CLI artifact directly for callers such as health checks,
-/// diagnostics, version probes, and in-process hosting. Managed child-process
-/// transports resolve the bundled `copilot-runtime` wrapper instead.
+/// This exposes the full CLI artifact directly for callers such as health
+/// checks, diagnostics, and version probes. Managed child-process and
+/// in-process transports resolve the bundled runtime artifacts instead.
 ///
 /// Subsequent calls return the cached result. Extraction is skipped when
 /// an already-published binary passes a cheap integrity re-check; a
@@ -2259,6 +2265,25 @@ impl Client {
         self.call_with_inline_callback(method, params, None).await
     }
 
+    pub(crate) async fn detach_session(&self, session_id: &str) -> Result<()> {
+        let value = self
+            .call(
+                "session.detach",
+                Some(serde_json::json!({ "sessionId": session_id })),
+            )
+            .await?;
+        let response: SessionDetachResponse = serde_json::from_value(value)?;
+        if response.success {
+            return Ok(());
+        }
+        Err(Error::with_message(
+            ErrorKind::Session(SessionErrorKind::DetachFailed),
+            response
+                .error
+                .unwrap_or_else(|| "unknown error".to_string()),
+        ))
+    }
+
     /// Same as [`call`](Self::call), but installs an `inline_callback`
     /// that runs synchronously on the JSON-RPC read task the instant the
     /// successful response is parsed, before it is delivered to this
@@ -2324,15 +2349,18 @@ impl Client {
 
     /// Register a session to receive filtered events and requests.
     ///
-    /// Returns per-session channels for notifications and requests, routed
-    /// by `sessionId`. Starts the internal router on first call.
+    /// Returns the per-session channels plus a
+    /// [`RegistrationToken`](crate::router::RegistrationToken) identifying
+    /// *this* registration. Registering an ID that is already registered
+    /// replaces the previous registration.
     ///
-    /// When done, call [`unregister_session`](Self::unregister_session) to
-    /// clean up (typically on session destroy).
+    /// When done, call
+    /// [`unregister_session_owned`](Self::unregister_session_owned) with
+    /// that token to clean up (typically on session destroy).
     pub(crate) fn register_session(
         &self,
         session_id: &SessionId,
-    ) -> crate::router::SessionChannels {
+    ) -> crate::router::SessionRegistration {
         self.inner.router.ensure_started(
             &self.inner.notification_tx,
             &self.inner.request_rx,
@@ -2344,9 +2372,30 @@ impl Client {
         self.inner.router.register(session_id)
     }
 
-    /// Unregister a session, dropping its per-session channels.
-    pub(crate) fn unregister_session(&self, session_id: &SessionId) {
-        self.inner.router.unregister(session_id);
+    /// Unregister a session only if `token` still identifies the live
+    /// registration.
+    ///
+    /// Session IDs can be reused: a caller may retry a cancelled startup
+    /// with the same pinned ID while the previous owner is still being torn
+    /// down. Compare-and-remove keeps a stale owner from unregistering the
+    /// live session that replaced it.
+    pub(crate) fn unregister_session_owned(
+        &self,
+        session_id: &SessionId,
+        token: crate::router::RegistrationToken,
+    ) {
+        self.inner.router.unregister_owned(session_id, token);
+    }
+
+    /// Snapshot the session IDs currently registered on the router.
+    ///
+    /// Crate-internal so in-crate unit tests can assert registration
+    /// lifecycle without depending on the `test-support` feature, which
+    /// only gates the equivalent *public* test helper. Compiled only for
+    /// those two configurations — a default-feature build has no caller.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn registered_session_ids(&self) -> Vec<SessionId> {
+        self.inner.router.session_ids()
     }
 
     pub(crate) fn register_github_token_provider(
@@ -2477,6 +2526,11 @@ impl Client {
                 .on_github_telemetry
                 .is_some()
                 .then_some(true),
+            supported_task_kinds: Some(vec![
+                crate::generated::api_types::TaskKind::Agent,
+                crate::generated::api_types::TaskKind::Client,
+                crate::generated::api_types::TaskKind::Shell,
+            ]),
             // Declare the integrating application's identity so the runtime attributes
             // the telemetry it emits on this connection to a consistent surface
             // instead of its own build. `None` when the app didn't supply it, and
@@ -2593,18 +2647,31 @@ impl Client {
 
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
+    /// Snapshot the session IDs currently registered on this client's
+    /// notification router. This is test-harness plumbing, not part of the
+    /// supported SDK API.
+    pub fn registered_session_ids_for_test(&self) -> Vec<SessionId> {
+        self.registered_session_ids()
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    /// Count the sessions currently registered on this client's notification
+    /// router. Deliberately never materialises the session IDs themselves so
+    /// they cannot leak into test diagnostics.
+    pub fn registered_session_count_for_test(&self) -> usize {
+        self.inner.router.session_count()
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
     /// Disconnect and delete every session owned by this test client's isolated
     /// runtime. This is test-harness plumbing, not part of the supported SDK API.
     pub async fn cleanup_sessions_for_test(&self) -> Result<()> {
         let mut first_error = None;
 
         for session_id in self.inner.router.session_ids() {
-            if let Err(error) = self
-                .call(
-                    "session.destroy",
-                    Some(serde_json::json!({ "sessionId": session_id })),
-                )
-                .await
+            if let Err(error) = self.detach_session(&session_id).await
                 && first_error.is_none()
             {
                 first_error = Some(error);
@@ -2730,10 +2797,10 @@ impl Client {
 
     /// Cooperatively shut down the client and the CLI child process.
     ///
-    /// Walks every still-registered session and sends `session.destroy`
+    /// Walks every still-registered session and sends `session.detach`
     /// for each one, asks SDK-owned runtimes to shut down, terminates the
     /// Windows-owned CLI Job Object when present, and reaps the root process.
-    /// Errors from per-session destroys, runtime shutdown, and final process
+    /// Errors from per-session detaches, runtime shutdown, and final process
     /// termination are collected into [`StopErrors`] rather than
     /// short-circuiting on the first failure — so callers see the full picture
     /// of teardown.
@@ -2762,21 +2829,15 @@ impl Client {
         self.inner.extension_launch_provider.clear();
 
         // Snapshot the registered session IDs without holding the router
-        // lock across the destroy RPCs.
+        // lock across the detach RPCs.
         for session_id in self.inner.router.session_ids() {
-            match self
-                .call(
-                    "session.destroy",
-                    Some(serde_json::json!({ "sessionId": session_id })),
-                )
-                .await
-            {
+            match self.detach_session(&session_id).await {
                 Ok(_) => {}
                 Err(e) => {
                     warn!(
                         session_id = %session_id,
                         error = %e,
-                        "session.destroy failed during Client::stop",
+                        "session.detach failed during Client::stop",
                     );
                     errors.push(e);
                 }

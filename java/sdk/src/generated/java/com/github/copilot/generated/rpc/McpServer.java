@@ -33,6 +33,8 @@ public record McpServer(
     @JsonProperty("sourcePluginVersion") String sourcePluginVersion,
     /** Error message if the server failed to connect */
     @JsonProperty("error") String error,
+    /** Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured. */
+    @JsonProperty("serverMetadata") McpServerMetadata serverMetadata,
     /** Human-readable display name supplied by a managed server catalog. */
     @JsonProperty("displayName") String displayName
 ) {

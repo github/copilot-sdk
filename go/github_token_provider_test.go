@@ -48,8 +48,8 @@ func TestGitHubTokenProviderCreateRequestAndCallback(t *testing.T) {
 		sessionID := sessionIDFromParams(t, params)
 		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
 	})
-	server.SetRequestHandler("session.destroy", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		return []byte(`{}`), nil
+	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return []byte(`{"success":true}`), nil
 	})
 
 	var gotArgs GitHubTokenProviderArgs
@@ -201,8 +201,8 @@ func TestGitHubTokenStringRedactsAccessToken(t *testing.T) {
 func TestGitHubTokenProviderCleanupOnDisconnectError(t *testing.T) {
 	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
 	t.Cleanup(server.Stop)
-	server.SetRequestHandler("session.destroy", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		return nil, &jsonrpc2.Error{Code: -32000, Message: "destroy failed"}
+	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return nil, &jsonrpc2.Error{Code: -32000, Message: "detach failed"}
 	})
 	client := &Client{}
 	registrationID := client.registerGitHubTokenProvider(func(GitHubTokenProviderArgs) (*GitHubTokenProviderResult, error) {
@@ -213,7 +213,7 @@ func TestGitHubTokenProviderCleanupOnDisconnectError(t *testing.T) {
 		client.unregisterGitHubTokenProvider(registrationID)
 	})
 
-	if err := session.Disconnect(); err == nil || !strings.Contains(err.Error(), "destroy failed") {
+	if err := session.Disconnect(); err == nil || !strings.Contains(err.Error(), "detach failed") {
 		t.Fatalf("Disconnect error = %v", err)
 	}
 	if len(client.gitHubTokenProviders) != 0 {

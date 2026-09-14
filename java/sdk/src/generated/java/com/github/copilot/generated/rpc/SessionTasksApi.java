@@ -58,6 +58,38 @@ public final class SessionTasksApi {
     }
 
     /**
+     * Registers or reclaims a client-owned task.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionTasksRegisterResult> register(SessionTasksRegisterParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.tasks.register", _p, SessionTasksRegisterResult.class);
+    }
+
+    /**
+     * Updates a client-owned task.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionTasksUpdateResult> update(SessionTasksUpdateParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.tasks.update", _p, SessionTasksUpdateResult.class);
+    }
+
+    /**
      * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.

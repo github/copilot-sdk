@@ -296,6 +296,50 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
+    public async Task Should_Recover_Marker_After_Cold_Resume_With_Explicit_Session_Id()
+    {
+        await using var isolatedCtx = await E2ETestContext.CreateAsync();
+        await isolatedCtx.ConfigureForTestAsync("session", nameof(Should_Recover_Marker_After_Cold_Resume_With_Explicit_Session_Id));
+
+        var sessionId = $"e2e-cold-resume-{Guid.NewGuid()}";
+
+        var client1 = isolatedCtx.CreateClient();
+        var session1 = await isolatedCtx.CreateSessionAsync(client1, new SessionConfig
+        {
+            SessionId = sessionId,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+        Assert.Equal(sessionId, session1.SessionId);
+
+        var answer = await session1.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Please remember this exact secret marker for later - MARKER-7f3ac21e. Reply with only the single word \"Acknowledged\".",
+        });
+        Assert.NotNull(answer);
+        Assert.Contains("Acknowledged", answer!.Data.Content ?? string.Empty);
+
+        await session1.DisposeAsync();
+        await client1.ForceStopAsync();
+
+        var client2 = isolatedCtx.CreateClient();
+        var session2 = await isolatedCtx.ResumeSessionAsync(client2, sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+        Assert.Equal(sessionId, session2.SessionId);
+
+        var answer2 = await session2.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "What was the exact secret marker I asked you to remember earlier? Reply with only that marker value and nothing else.",
+        });
+        Assert.NotNull(answer2);
+        Assert.Contains("MARKER-7f3ac21e", answer2!.Data.Content ?? string.Empty);
+
+        await session2.DisposeAsync();
+        await client2.ForceStopAsync();
+    }
+
+    [Fact]
     public async Task Should_Throw_Error_When_Resuming_Non_Existent_Session()
     {
         await Assert.ThrowsAsync<IOException>(() =>
@@ -305,11 +349,15 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Abort_A_Session()
     {
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
+        await AssertAbortAndRecoveryAsync(session, TimeSpan.FromSeconds(120));
+    }
 
+    internal static async Task AssertAbortAndRecoveryAsync(CopilotSession session, TimeSpan timeout)
+    {
         // Set up wait for tool execution to start BEFORE sending
-        var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session);
-        var sessionIdleTask = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
+        var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session, timeout);
+        var sessionIdleTask = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session, timeout);
 
         // Send a message that will take some time to process
         await session.SendAsync(new MessageOptions
@@ -331,8 +379,8 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Verify an abort event exists in messages
         Assert.Contains(messages, m => m is AbortEvent);
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-        var recoveryMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        // Subscribe before sending: session.idle is ephemeral and cannot be backfilled.
+        var recoveryMessage = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" }, timeout);
         Assert.NotNull(recoveryMessage);
         Assert.Contains("4", recoveryMessage.Data.Content ?? string.Empty);
     }
@@ -713,7 +761,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task DisposeAsync_From_Handler_Does_Not_Deadlock()
     {
-        var session = await CreateSessionAsync();
+        var client = Ctx.CreateClient();
+        var session = await Ctx.CreateSessionAsync(
+            client,
+            new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         var disposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         session.On<SessionEvent>(evt =>
@@ -730,7 +781,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // If this times out, we deadlocked.
         await disposed.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        await Client.ForceStopAsync();
+        await client.ForceStopAsync();
     }
 
     [Fact]

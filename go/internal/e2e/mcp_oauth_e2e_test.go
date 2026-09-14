@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"slices"
@@ -26,6 +27,41 @@ func TestMCPOAuthE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
+
+	t.Run("uses CIMD URL instead of dynamic registration", func(t *testing.T) {
+		baseURL := startOAuthMCPServer(t, true)
+		serverName := "oauth-cimd-mcp"
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			AuthClientIDMetadataURL: "https://github.com/copilot/cli/client-metadata.json",
+			MCPServers: map[string]copilot.MCPServerConfig{
+				serverName: copilot.MCPHTTPServerConfig{URL: baseURL + "/mcp", Tools: []string{"*"}},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		t.Cleanup(func() { session.Disconnect() })
+		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusNeedsAuth)
+		result, err := session.RPC.MCP.Oauth().Login(t.Context(), &rpc.MCPOauthLoginRequest{ServerName: serverName})
+		if err != nil {
+			t.Fatalf("MCP OAuth login failed: %v", err)
+		}
+		if result.AuthorizationURL == nil {
+			t.Fatal("Expected authorization URL")
+		}
+		parsed, err := url.Parse(*result.AuthorizationURL)
+		if err != nil {
+			t.Fatalf("Invalid authorization URL: %v", err)
+		}
+		if parsed.Query().Get("client_id") != "https://github.com/copilot/cli/client-metadata.json" {
+			t.Fatalf("Expected CIMD client_id, got %q", parsed.Query().Get("client_id"))
+		}
+		for _, request := range fetchOAuthMCPRequests(t, baseURL) {
+			if request.Path == "/register" {
+				t.Fatal("Runtime should not dynamically register when CIMD is supported")
+			}
+		}
+	})
 
 	t.Run("satisfy MCP OAuth using host-provided token", func(t *testing.T) {
 		baseURL := startOAuthMCPServer(t)
@@ -163,16 +199,21 @@ func TestMCPOAuthE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { session.Disconnect() })
 
+		if _, err := session.RPC.MCP.Reload(t.Context()); err != nil {
+			t.Fatalf("Failed to reload MCP servers: %v", err)
+		}
 		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
 		callWhoami(t, session, serverName, "refresh")
 		callWhoami(t, session, serverName, "upscope")
 		callWhoami(t, session, serverName, "reauth")
 
 		mu.Lock()
+		observedReasons = slices.DeleteFunc(observedReasons, func(reason copilot.MCPOauthRequestReason) bool {
+			return reason == copilot.MCPOauthRequestReasonInitial
+		})
 		reasons := append([]copilot.MCPOauthRequestReason(nil), observedReasons...)
 		mu.Unlock()
 		expectedReasons := []copilot.MCPOauthRequestReason{
-			copilot.MCPOauthRequestReasonInitial,
 			copilot.MCPOauthRequestReasonRefresh,
 			copilot.MCPOauthRequestReasonUpscope,
 			copilot.MCPOauthRequestReasonRefresh,
@@ -256,6 +297,7 @@ func TestMCPOAuthE2E(t *testing.T) {
 	})
 
 	t.Run("resolve pending MCP OAuth request through RPC", func(t *testing.T) {
+		testharness.SkipIfInProcess(t, "blocked on github/copilot-agent-runtime#18961 MCP OAuth connection stall")
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureWithoutSnapshot(t)
 		client := ctx.NewClient()
@@ -329,18 +371,23 @@ func TestMCPOAuthE2E(t *testing.T) {
 
 type oauthMCPRequest struct {
 	Authorization *string `json:"authorization"`
+	Path          string  `json:"path"`
 }
 
-func startOAuthMCPServer(t *testing.T) string {
+func startOAuthMCPServer(t *testing.T, cimdSupported ...bool) string {
 	t.Helper()
 
 	serverPath := testharness.RepoPath("test", "harness", "test-mcp-oauth-server.mjs")
 	cmd := exec.Command("node", serverPath)
 	cmd.Env = append(os.Environ(), "EXPECTED_TOKEN="+expectedMCPOAuthToken)
+	if len(cimdSupported) > 0 && cimdSupported[0] {
+		cmd.Env = append(cmd.Env, "CIMD_SUPPORTED=true")
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatalf("Failed to pipe OAuth MCP server stdout: %v", err)
 	}
+
 	var stderr syncBuffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {

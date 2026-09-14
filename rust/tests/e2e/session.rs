@@ -628,6 +628,76 @@ async fn should_resume_a_session_using_a_new_client() {
 }
 
 #[tokio::test]
+async fn should_recover_marker_after_cold_resume_with_explicit_session_id() {
+    super::support::with_dedicated_e2e_context(
+        "session",
+        "should_recover_marker_after_cold_resume_with_explicit_session_id",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+
+                let session_id = SessionId::from(format!(
+                    "e2e-cold-resume-{}",
+                    uuid::Uuid::new_v4().simple()
+                ));
+
+                let client1 = ctx.start_client().await;
+                let session1 = client1
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_session_id(session_id.clone()),
+                    )
+                    .await
+                    .expect("create session");
+                assert_eq!(session1.id(), &session_id);
+
+                let first = session1
+                    .send_and_wait(
+                        "Please remember this exact secret marker for later - MARKER-7f3ac21e. Reply with only the single word \"Acknowledged\".",
+                    )
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&first).contains("Acknowledged"));
+
+                session1
+                    .disconnect()
+                    .await
+                    .expect("disconnect first session");
+                client1.stop().await.expect("stop first client");
+
+                let new_client = ctx.start_client().await;
+                let resumed = new_client
+                    .resume_session(
+                        ResumeSessionConfig::new(session_id.clone())
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_github_token(super::support::DEFAULT_TEST_TOKEN),
+                    )
+                    .await
+                    .expect("resume session");
+                assert_eq!(resumed.id(), &session_id);
+
+                let second = resumed
+                    .send_and_wait(
+                        "What was the exact secret marker I asked you to remember earlier? Reply with only that marker value and nothing else.",
+                    )
+                    .await
+                    .expect("send after resume")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&second).contains("MARKER-7f3ac21e"));
+
+                resumed
+                    .disconnect()
+                    .await
+                    .expect("disconnect resumed session");
+                new_client.stop().await.expect("stop new client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn resumes_a_persisted_session_from_a_new_client_when_an_mcp_oauth_handler_is_configured() {
     super::support::with_dedicated_e2e_context(
         "session",

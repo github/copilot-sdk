@@ -150,6 +150,7 @@ final class SessionRequestBuilder {
         request.setMcpServers(config.getMcpServers());
         request.setManagedMcpServers(config.getManagedMcpServers());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
+        request.setAuthClientIdMetadataUrl(config.getAuthClientIdMetadataUrl());
         request.setCustomAgents(config.getCustomAgents());
         request.setCustomAgentsLocalOnly(
                 resolveCustomAgentsLocalOnly(config.getCustomAgentsLocalOnly().orElse(null), mode));
@@ -306,6 +307,7 @@ final class SessionRequestBuilder {
         request.setMcpServers(config.getMcpServers());
         request.setManagedMcpServers(config.getManagedMcpServers());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
+        request.setAuthClientIdMetadataUrl(config.getAuthClientIdMetadataUrl());
         request.setCustomAgents(config.getCustomAgents());
         request.setCustomAgentsLocalOnly(
                 resolveCustomAgentsLocalOnly(config.getCustomAgentsLocalOnly().orElse(null), mode));

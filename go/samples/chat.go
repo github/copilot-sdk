@@ -5,10 +5,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/samples/internal/sampleutil"
 )
 
 const blue = "\033[34m"
@@ -16,7 +16,10 @@ const reset = "\033[0m"
 
 func main() {
 	ctx := context.Background()
-	cliPath := filepath.Join("..", "..", "nodejs", "node_modules", "@github", "copilot", "index.js")
+	cliPath, err := sampleutil.CLIPath()
+	if err != nil {
+		panic(err)
+	}
 	client := copilot.NewClient(&copilot.ClientOptions{Connection: copilot.StdioConnection{Path: cliPath}})
 	if err := client.Start(ctx); err != nil {
 		panic(err)

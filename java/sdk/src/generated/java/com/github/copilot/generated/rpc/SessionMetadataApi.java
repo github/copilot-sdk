@@ -48,6 +48,33 @@ public final class SessionMetadataApi {
      * @since 1.0.0
      */
     @CopilotExperimental
+    public CompletableFuture<ClientMetadata> getClientMetadata() {
+        return caller.invoke("session.metadata.getClientMetadata", java.util.Map.of("sessionId", this.sessionId), ClientMetadata.class);
+    }
+
+    /**
+     * Atomic patch for client-owned session metadata. Operations apply in clear, remove, then set order. The resulting bag must satisfy the ClientMetadata entry and serialized-size limits. Local storage coordinates concurrent runtime processes; custom SessionFs providers must serialize writers that access the same session from multiple processes.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<ClientMetadata> updateClientMetadata(SessionMetadataUpdateClientMetadataParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.metadata.updateClientMetadata", _p, ClientMetadata.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
     public CompletableFuture<SessionMetadataIsProcessingResult> isProcessing() {
         return caller.invoke("session.metadata.isProcessing", java.util.Map.of("sessionId", this.sessionId), SessionMetadataIsProcessingResult.class);
     }

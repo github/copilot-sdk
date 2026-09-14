@@ -15,17 +15,14 @@ fi
 
 # Determine COPILOT_CLI_PATH
 if [ -z "$COPILOT_CLI_PATH" ]; then
-    # Try to find it relative to the SDK. As of CLI 1.0.64-1 the @github/copilot
-    # package is a thin loader; the runnable index.js ships in the installed
-    # platform package (e.g. @github/copilot-linux-x64). Exactly one is installed.
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-    POTENTIAL_PATH="$(ls "$SCRIPT_DIR"/../nodejs/node_modules/@github/copilot-*/index.js 2>/dev/null | head -n1)"
-    if [ -n "$POTENTIAL_PATH" ] && [ -f "$POTENTIAL_PATH" ]; then
+    if POTENTIAL_PATH="$(cd "$SCRIPT_DIR/../nodejs" && npm run --silent prepare:runtime -- --print-path)" &&
+        [ -n "$POTENTIAL_PATH" ] && [ -f "$POTENTIAL_PATH" ]; then
         export COPILOT_CLI_PATH="$POTENTIAL_PATH"
         echo "📍 Auto-detected CLI path: $COPILOT_CLI_PATH"
     else
         echo "❌ COPILOT_CLI_PATH environment variable not set"
-        echo "   Run: export COPILOT_CLI_PATH=/path/to/dist-cli/index.js"
+        echo "   Run: export COPILOT_CLI_PATH=/path/to/copilot"
         exit 1
     fi
 fi

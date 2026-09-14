@@ -1,0 +1,32 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Search for OUTSIDE_MATCH_LINE in the vault directory. After the search succeeds, reply with exactly SANDBOX_BYPASS_APPROVED.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: grep
+              arguments: '{"pattern":"OUTSIDE_MATCH_LINE","path":"${workdir}/vault","output_mode":"content","-n":true}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Search for OUTSIDE_MATCH_LINE in the vault directory. After the search succeeds, reply with exactly SANDBOX_BYPASS_APPROVED.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: grep
+              arguments: '{"pattern":"OUTSIDE_MATCH_LINE","path":"${workdir}/vault","output_mode":"content","-n":true}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: '${workdir}/vault/notes.txt:1:OUTSIDE_MATCH_LINE bypass-approved'
+      - role: assistant
+        content: SANDBOX_BYPASS_APPROVED

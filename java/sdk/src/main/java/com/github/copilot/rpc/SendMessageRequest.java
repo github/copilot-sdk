@@ -37,6 +37,9 @@ public final class SendMessageRequest {
     @JsonProperty("mode")
     private String mode;
 
+    @JsonProperty("source")
+    private MessageSource source;
+
     @JsonProperty("agentMode")
     private AgentMode agentMode;
 
@@ -84,6 +87,18 @@ public final class SendMessageRequest {
     /** Sets the mode. @param mode the message mode */
     public void setMode(String mode) {
         this.mode = mode;
+    }
+
+    /** Gets the message source. @return the source, or {@code null} if unset */
+    public MessageSource getSource() {
+        return source;
+    }
+
+    /**
+     * Sets the message source. @param source the source, or {@code null} to omit it
+     */
+    public void setSource(MessageSource source) {
+        this.source = source;
     }
 
     /** Gets the per-message agent UI mode. @return the agent mode */

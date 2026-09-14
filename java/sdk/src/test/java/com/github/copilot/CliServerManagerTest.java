@@ -94,6 +94,13 @@ class CliServerManagerTest {
     }
 
     @Test
+    void parseCliUrlWithBracketedIpv6() {
+        URI uri = CliServerManager.parseCliUrl("[::1]:4321");
+        assertNotNull(uri.getHost());
+        assertEquals(4321, uri.getPort());
+    }
+
+    @Test
     void parseCliUrlWithHostOnly() {
         URI uri = CliServerManager.parseCliUrl("copilot.example.com");
         assertEquals("https://copilot.example.com", uri.toString());

@@ -5,6 +5,11 @@
         "emitDeclarationOnly": false,
         "types": ["node"]
     },
-    "include": ["src/**/*", "test/session-event-types.test.ts"],
+    "include": [
+        "src/**/*",
+        "test/ffiRuntimeHost.test.ts",
+        "test/session-event-types.test.ts",
+        "test/message-source.test.ts"
+    ],
     "exclude": ["node_modules", "dist"]
 }

@@ -12,7 +12,7 @@ namespace GitHub.Copilot.Test.E2E;
 /// Verifies the shape and ordering of <see cref="SessionEvent"/>s emitted from the
 /// runtime: every event has an id and timestamp, user/assistant messages carry
 /// content, tool execution events carry a <c>toolCallId</c>, and
-/// <c>session.idle</c> is the last event of a turn. Mirrors
+/// <c>session.idle</c> follows the final assistant message of a turn. Mirrors
 /// <c>nodejs/test/e2e/event_fidelity.e2e.test.ts</c>.
 /// </summary>
 public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
@@ -43,9 +43,12 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var assistantIdx = types.LastIndexOf("assistant.message");
         Assert.True(userIdx < assistantIdx, $"Expected user.message ({userIdx}) before last assistant.message ({assistantIdx})");
 
-        // session.idle should be the last event we observed
+        // session.idle should complete the conversational turn. Post-turn
+        // metadata events may arrive after it on slower target frameworks.
         var idleIdx = types.LastIndexOf("session.idle");
-        Assert.Equal(types.Count - 1, idleIdx);
+        Assert.True(
+            assistantIdx < idleIdx,
+            $"Expected last assistant.message ({assistantIdx}) before session.idle ({idleIdx}): {string.Join(", ", types)}");
 
         await session.DisposeAsync();
     }

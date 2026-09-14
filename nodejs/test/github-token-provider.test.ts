@@ -177,7 +177,7 @@ describe("session GitHub token providers", () => {
 
         const client = createMockClient(async (method, params) => {
             if (method === "session.create") return { sessionId: params.sessionId };
-            if (method === "session.destroy") return {};
+            if (method === "session.detach") return { success: true };
             if (method === "session.delete") return { success: true };
             throw new Error(`Unexpected method: ${method}`);
         });

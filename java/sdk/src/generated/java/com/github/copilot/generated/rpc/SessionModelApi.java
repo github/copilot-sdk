@@ -58,6 +58,22 @@ public final class SessionModelApi {
     }
 
     /**
+     * An Auto preference request for the session. This updates Auto configuration only; it does not change the selected model to `auto`.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionModelSwitchAutoTierResult> switchAutoTier(SessionModelSwitchAutoTierParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.model.switchAutoTier", _p, SessionModelSwitchAutoTierResult.class);
+    }
+
+    /**
      * Managed, repository, and CLI model overrides to overlay onto the session at startup.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -71,6 +87,22 @@ public final class SessionModelApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.model.applyStartupOverlay", _p, SessionModelApplyStartupOverlayResult.class);
+    }
+
+    /**
+     * Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are intersected with repository `.github/allowed_models.txt` policy; provider-qualified IDs remain exempt from repository-only policy but are restricted by this host list. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected. Validation and pre-selection fallback failures preserve the previous restriction. Failures after a fallback selection commits retain the new restriction and selected model; callers should inspect current session state after such an error.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionModelSetAllowedModelsResult> setAllowedModels(SessionModelSetAllowedModelsParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.model.setAllowedModels", _p, SessionModelSetAllowedModelsResult.class);
     }
 
     /**

@@ -25,11 +25,11 @@ jobs:
     steps:
       # Checkout the repository to install dependencies
       - name: Checkout code
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       # Setup Node.js (for TypeScript/JavaScript SDK and tooling)
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
           cache: "npm"
@@ -40,31 +40,31 @@ jobs:
 
       # Setup Python (for Python SDK)
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
 
       # Setup uv (Python package manager used in this repo)
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
 
       # Setup Go (for Go SDK)
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.24"
 
       # Setup .NET (for .NET SDK)
       - name: Set up .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           dotnet-version: "10.0.x"
 
       # Setup Java (for Java SDK)
       - name: Set up JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: "microsoft"
           java-version: "17"
@@ -72,17 +72,13 @@ jobs:
 
       # Install just command runner
       - name: Install just
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
 
       # Install gh-aw extension for advanced GitHub CLI features
       - name: Install gh-aw extension
         uses: github/gh-aw-actions/setup-cli@05205436a78512d71a2d842e46586ed05f4fa058 # v0.82.10
         with:
           version: v0.82.10
-
-      # Enable repository pre-commit hooks (Spotless checks for Java source changes)
-      - name: Enable pre-commit hooks
-        run: git config core.hooksPath .githooks
 
       # Install JavaScript dependencies
       - name: Install Node.js dependencies

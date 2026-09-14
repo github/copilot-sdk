@@ -33,7 +33,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         var skillName = $"session-rpc-skill-{Guid.NewGuid():N}";
         var skillsDir = CreateSkillDirectory(skillName, "Session skill controlled by RPC.");
-        var session = await CreateSessionAsync(new SessionConfig
+        await using var session = await CreateSessionAsync(new SessionConfig
         {
             SkillDirectories = [skillsDir],
             DisabledSkills = [skillName],
@@ -56,7 +56,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         var skillName = $"ensure-rpc-skill-{Guid.NewGuid():N}";
         var skillsDir = CreateSkillDirectory(skillName, "Skill loaded explicitly by RPC.");
-        var session = await CreateSessionAsync(new SessionConfig
+        await using var session = await CreateSessionAsync(new SessionConfig
         {
             SkillDirectories = [skillsDir],
         });
@@ -79,7 +79,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Directory.CreateDirectory(skillsDir);
         var skillName = $"reload-rpc-skill-{Guid.NewGuid():N}";
 
-        var session = await CreateSessionAsync(new SessionConfig { SkillDirectories = [skillsDir] });
+        await using var session = await CreateSessionAsync(new SessionConfig { SkillDirectories = [skillsDir] });
         var before = await session.Rpc.Skills.ListAsync();
         Assert.DoesNotContain(before.Skills, skill => string.Equals(skill.Name, skillName, StringComparison.Ordinal));
 
@@ -95,7 +95,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     public async Task Should_List_Mcp_Servers_With_Configured_Server()
     {
         const string serverName = "rpc-list-mcp-server";
-        var session = await CreateSessionAsync(new SessionConfig
+        await using var session = await CreateSessionAsync(new SessionConfig
         {
             McpServers = CreateTestMcpServers(serverName),
         });
@@ -111,7 +111,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     public async Task Should_Set_Mcp_Env_Value_Mode_And_Remove_GitHub_Server()
     {
         const string serverName = "github";
-        var session = await CreateSessionAsync(new SessionConfig
+        await using var session = await CreateSessionAsync(new SessionConfig
         {
             McpServers = CreateTestMcpServers(serverName),
         });
@@ -137,7 +137,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     public async Task Should_Report_Mcp_Sampling_Failure_And_Cancel_Missing_Sampling()
     {
         const string serverName = "rpc-sampling-server";
-        var session = await CreateSessionAsync(new SessionConfig
+        await using var session = await CreateSessionAsync(new SessionConfig
         {
             McpServers = CreateTestMcpServers(serverName),
         });
@@ -172,7 +172,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     [Fact]
     public async Task Should_List_Plugins()
     {
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
 
         var result = await session.Rpc.Plugins.ListAsync();
 
@@ -314,7 +314,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     [Fact]
     public async Task Should_Report_Error_When_Mcp_Host_Is_Not_Initialized()
     {
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
 
         await AssertFailureAsync(
             () => session.Rpc.Mcp.EnableAsync("missing-server"),
@@ -333,7 +333,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     [Fact]
     public async Task Should_Report_Error_When_Mcp_Oauth_Server_Is_Not_Configured()
     {
-        var session = await CreateSessionAsync(new SessionConfig
+        await using var session = await CreateSessionAsync(new SessionConfig
         {
             McpServers = CreateTestMcpServers("configured-stdio-server"),
         });
@@ -348,7 +348,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     public async Task Should_Report_Error_When_Mcp_Oauth_Server_Is_Not_Remote()
     {
         const string serverName = "configured-stdio-server";
-        var session = await CreateSessionAsync(new SessionConfig
+        await using var session = await CreateSessionAsync(new SessionConfig
         {
             McpServers = CreateTestMcpServers(serverName),
         });
