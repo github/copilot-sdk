@@ -29,7 +29,7 @@ on:
           - publish
           - dry-run
       runtime:
-        description: 'Automation-only runtime JSON: {"version":"...","sha":"...","run_id":"..."}'
+        description: "Runtime metadata (automation only)"
         type: string
         required: false
       test-policy:
