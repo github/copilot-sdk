@@ -48,6 +48,7 @@ export interface ReleaseManifest extends PackageSetManifest {
         createdAt: string;
         runId: string;
         runNumber: string;
+        testPolicy: "advisory" | "required" | "skipped";
     };
 }
 
@@ -60,6 +61,7 @@ export interface ReleaseManifestMetadata {
     sdkRef: string;
     sdkSha: string;
     sdkVersion: string;
+    testPolicy: ReleaseManifest["workflow"]["testPolicy"];
     workflowRunId: string;
     workflowRunNumber: string;
 }
@@ -122,6 +124,7 @@ export async function createReleaseManifest(
             runId: metadata.workflowRunId,
             runNumber: metadata.workflowRunNumber,
             createdAt: metadata.createdAt,
+            testPolicy: metadata.testPolicy,
         },
     };
 }
@@ -184,6 +187,12 @@ export function verifyReleaseManifest(manifest: ReleaseManifest, packageDirector
     assert.match(manifest.workflow.runNumber, /^[0-9]+$/, "Invalid SDK workflow run number");
     assert.match(manifest.runtime.runId, /^[0-9]+$/, "Invalid runtime workflow run ID");
     assert(
+        manifest.workflow.testPolicy === "required" ||
+            manifest.workflow.testPolicy === "advisory" ||
+            manifest.workflow.testPolicy === "skipped",
+        "Invalid runtime E2E test policy"
+    );
+    assert(
         Number.isFinite(Date.parse(manifest.workflow.createdAt)),
         "Invalid workflow creation time"
     );
@@ -222,6 +231,9 @@ async function main(): Promise<void> {
             sdkRef: requiredEnvironment("SDK_REF"),
             sdkSha: requiredEnvironment("SDK_SHA"),
             sdkVersion: requiredEnvironment("SDK_VERSION"),
+            testPolicy: requiredEnvironment(
+                "TEST_POLICY"
+            ) as ReleaseManifest["workflow"]["testPolicy"],
             workflowRunId: requiredEnvironment("WORKFLOW_RUN_ID"),
             workflowRunNumber: requiredEnvironment("WORKFLOW_RUN_NUMBER"),
         });

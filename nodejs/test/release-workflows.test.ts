@@ -35,12 +35,13 @@ const unstableVersion = readFileSync(
 );
 
 describe("unified publishing workflow contract", () => {
-    it("exposes only the approved four inputs", () => {
+    it("exposes the unified release inputs and independent runtime test policy", () => {
         expect([...inputSection.matchAll(/^      ([\w-]+):$/gm)].map((match) => match[1])).toEqual([
             "dist-tag",
             "version",
             "mode",
             "runtime",
+            "test-policy",
         ]);
         for (const distTag of ["latest", "prerelease", "unstable", "canary"]) {
             expect(inputSection).toContain(`- ${distTag}`);
@@ -48,6 +49,9 @@ describe("unified publishing workflow contract", () => {
         expect(inputSection).toContain('default: "prerelease"');
         expect(inputSection).toContain("default: publish");
         expect(inputSection).toContain("- dry-run");
+        expect(inputSection).toContain("default: required");
+        expect(inputSection).toContain("- advisory");
+        expect(inputSection).toContain("- skipped");
         expect(existsSync(join(repositoryRoot, ".github", "workflows", "runtime-sdk.yml"))).toBe(
             false
         );
@@ -56,6 +60,7 @@ describe("unified publishing workflow contract", () => {
     it("parses runtime JSON once and routes only validated outputs", () => {
         expect(validateDispatchJob).toContain("npx tsx scripts/runtime-release-identity.ts");
         expect(validateDispatchJob).toContain("RUNTIME_JSON: ${{ inputs.runtime }}");
+        expect(validateDispatchJob).toContain("TEST_POLICY: ${{ inputs.test-policy }}");
         expect(validateDispatchJob).toContain(
             "runtime_version: ${{ steps.validate.outputs.runtime_version }}"
         );
@@ -64,6 +69,9 @@ describe("unified publishing workflow contract", () => {
         );
         expect(validateDispatchJob).toContain(
             "runtime_run_id: ${{ steps.validate.outputs.runtime_run_id }}"
+        );
+        expect(validateDispatchJob).toContain(
+            "test_policy: ${{ steps.validate.outputs.test_policy }}"
         );
         expect(publish).not.toContain("fromJSON(");
         expect(publish).not.toContain("inputs.runtime_version");
@@ -151,6 +159,37 @@ describe("runtime-backed publishing path", () => {
         expect(runtimeTestJob).toContain("npm test");
     });
 
+    it("keeps required failures blocking and tolerates only advisory test-command failures", () => {
+        expect(runtimeTestJob).toContain(
+            "if: needs.validate-dispatch.outputs.test_policy != 'skipped'"
+        );
+        expect(runtimeTestJob).toMatch(
+            /- name: Run Node SDK tests\s+id: e2e\s+continue-on-error: \$\{\{ needs\.validate-dispatch\.outputs\.test_policy == 'advisory' \}\}/
+        );
+        expect(runtimeTestJob).toContain("steps.e2e.outcome == 'failure'");
+        expect(runtimeTestJob).toContain("::warning::Runtime-backed Node SDK E2E tests failed");
+        expect(runtimeTestJob.match(/continue-on-error:/g)).toHaveLength(1);
+        for (const infrastructureStep of [
+            "actions/checkout@",
+            "actions/setup-node@",
+            "npm ci --ignore-scripts",
+            "npm run build",
+        ]) {
+            expect(runtimeTestJob).toContain(infrastructureStep);
+        }
+    });
+
+    it("allows policy-driven skipped tests without masking other package prerequisites", () => {
+        expect(runtimePackageJob).toContain("always()");
+        expect(runtimePackageJob).toContain("needs.validate-dispatch.result == 'success'");
+        expect(runtimePackageJob).toContain("needs.runtime-plan.result == 'success'");
+        expect(runtimePackageJob).toContain("needs.runtime-acquire.result == 'success'");
+        expect(runtimePackageJob).toContain("needs.runtime-test.result == 'success'");
+        expect(runtimePackageJob).toContain(
+            "needs.validate-dispatch.outputs.test_policy == 'skipped' && needs.runtime-test.result == 'skipped'"
+        );
+    });
+
     it("preserves executable modes across runtime package artifact boundaries", () => {
         expect(runtimeAcquireJob).toContain(
             'tar -czf "$RUNNER_TEMP/runtime-packages.tar.gz" -C "$RUNNER_TEMP" runtime-packages'
@@ -169,6 +208,9 @@ describe("runtime-backed publishing path", () => {
         expect(runtimePackageJob).toContain("release-manifest.json");
         expect(runtimePackageJob).toContain(
             "RUNTIME_RUN_ID: ${{ needs.validate-dispatch.outputs.runtime_run_id }}"
+        );
+        expect(runtimePackageJob).toContain(
+            "TEST_POLICY: ${{ needs.validate-dispatch.outputs.test_policy }}"
         );
         expect(runtimeInternalJob).toContain("publish-manifest");
         expect(runtimeInternalJob).toContain('"$FEED_URL" azure');

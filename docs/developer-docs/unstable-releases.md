@@ -17,6 +17,8 @@ The workflow has one input surface for maintainer and automation dispatches:
   `publish`.
 * `runtime`: Optional automation-only JSON object with exactly the string fields
   `version`, `sha`, and `run_id`.
+* `test-policy`: Required runtime E2E policy: `required`, `advisory`, or
+  `skipped`. The default is `required`.
 
 The runtime workflow dispatches `publish.yml` at an explicit SDK ref. For
 example:
@@ -37,11 +39,14 @@ prerelease dry-runs are rejected because the existing Java release path does
 not have a non-mutating build-only mode.
 
 For a direct unstable release, select `dist-tag: unstable`, leave `runtime`
-empty, and optionally provide `version`. The workflow packages the selected SDK
-branch with its selected or bundled runtime. Direct unstable releases can run
-from a non-main branch. They do not publish .NET, Rust, Python, Java, or Go
-releases, and they do not create an SDK GitHub Release. The same workflow
-remains the normal stable and prerelease publisher for all SDK languages.
+empty, leave `test-policy` at `required`, and optionally provide `version`. The
+workflow rejects non-default test policies for all direct releases so the input
+cannot imply that direct release testing changed. The workflow packages the
+selected SDK branch with its selected or bundled runtime. Direct unstable
+releases can run from a non-main branch. They do not publish .NET, Rust, Python,
+Java, or Go releases, and they do not create an SDK GitHub Release. The same
+workflow remains the normal stable and prerelease publisher for all SDK
+languages.
 
 ## Release gates
 
@@ -51,8 +56,19 @@ Runtime-initiated releases acquire all eight
 metadata, the exact package set, platform metadata, repository metadata, and
 required runtime files.
 
-The runtime jobs run runtime-backed Node SDK tests on Ubuntu, macOS, and
-Windows. They then build and verify eight self-contained
+The `required` and `advisory` policies run runtime-backed Node SDK tests on
+Ubuntu, macOS, and Windows:
+
+* `required`: Any E2E test failure blocks packaging and publication.
+* `advisory`: An E2E test-command failure emits a warning and an operating
+  system-specific workflow summary, then allows packaging and publication to
+  continue. Checkout, setup, acquisition, build, and environment failures
+  remain blocking.
+* `skipped`: The E2E matrix does not run. Packaging and publication still
+  require successful validation, release planning, runtime acquisition,
+  package construction, and manifest verification.
+
+The workflow then builds and verifies eight self-contained
 `@github/copilot-sdk-<platform>` packages and the `@github/copilot-sdk` umbrella
 package. The checked-in `COPILOT_CLI_USE_NPM_PACKAGE` value remains `false`;
 runtime npm packages are build inputs rather than published dependencies.
@@ -73,8 +89,9 @@ Canary versions use
 stable SDK release published before workflow creation.
 
 The runtime packaging job writes all nine tarballs and
-`release-manifest.json` to one retained artifact. Publication jobs use that
-artifact without rebuilding or recalculating its identity.
+`release-manifest.json` to one retained artifact. The manifest records the
+selected test policy. Publication jobs use that artifact without rebuilding or
+recalculating its identity.
 
 ## Publication order
 
