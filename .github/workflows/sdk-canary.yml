@@ -1,5 +1,5 @@
 name: "TEST ONLY - Runtime-driven Node SDK"
-run-name: "TEST ONLY - Runtime-driven SDK #${{ github.run_number }} (${{ inputs.dist-tag }}, ${{ inputs.mode }})"
+run-name: "TEST ONLY - Runtime-driven SDK #${{ github.run_number }} (${{ inputs.dist-tag }}, ${{ inputs.mode }}, ${{ inputs.test-policy }})"
 
 on:
   workflow_dispatch:
@@ -19,6 +19,15 @@ on:
           - dry-run
           - publish
         default: dry-run
+      test-policy:
+        description: "Runtime E2E policy: required, advisory, or skipped"
+        required: true
+        type: choice
+        options:
+          - required
+          - advisory
+          - skipped
+        default: required
       runtime:
         description: 'Required runtime JSON: {"version":"...","sha":"...","run_id":"..."}'
         required: true
@@ -44,6 +53,7 @@ jobs:
       runtime_run_id: ${{ steps.validate.outputs.runtime_run_id }}
       runtime_sha: ${{ steps.validate.outputs.runtime_sha }}
       runtime_version: ${{ steps.validate.outputs.runtime_version }}
+      test_policy: ${{ steps.validate.outputs.test_policy }}
     defaults:
       run:
         shell: bash
@@ -78,6 +88,7 @@ jobs:
           DIST_TAG: ${{ inputs.dist-tag }}
           MODE: ${{ inputs.mode }}
           RUNTIME_JSON: ${{ inputs.runtime }}
+          TEST_POLICY: ${{ inputs.test-policy }}
           VERSION_OVERRIDE: ""
         run: |
           npx tsx scripts/runtime-release-identity.ts
@@ -130,6 +141,7 @@ jobs:
           SDK_VERSION="${SDK_VERSION_BASE}.test.${GITHUB_RUN_ID}"
           npm exec -- semver "$SDK_VERSION" >/dev/null
           ARTIFACT_NAME="nodejs-runtime-test-${CHANNEL}-${SDK_VERSION}"
+          echo "Runtime E2E test policy: ${{ needs.validate-dispatch.outputs.test_policy }}" >> "$GITHUB_STEP_SUMMARY"
           {
             echo "artifact_name=$ARTIFACT_NAME"
             echo "sdk_version=$SDK_VERSION"
@@ -183,6 +195,7 @@ jobs:
   test:
     name: Test (${{ matrix.os }})
     needs: [validate-dispatch, plan, acquire-runtime]
+    if: needs.validate-dispatch.outputs.test_policy != 'skipped'
     permissions:
       contents: read
     strategy:
@@ -233,13 +246,36 @@ jobs:
         if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
       - name: Run Node SDK tests
+        id: e2e
+        continue-on-error: ${{ needs.validate-dispatch.outputs.test_policy == 'advisory' }}
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
         run: npm test
+      - name: Report advisory E2E failure
+        if: needs.validate-dispatch.outputs.test_policy == 'advisory' && steps.e2e.outcome == 'failure'
+        env:
+          RUNNER_OS: ${{ runner.os }}
+        run: |
+          echo "::warning::Runtime-backed Node SDK E2E tests failed on ${RUNNER_OS}; continuing because test-policy is advisory."
+          {
+            echo "### Advisory runtime E2E failure"
+            echo
+            echo "Runtime-backed Node SDK E2E tests failed on **${RUNNER_OS}**. Publication remains eligible because \`test-policy\` is \`advisory\`."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   package:
     name: Build and verify
     needs: [validate-dispatch, plan, acquire-runtime, test]
+    if: |
+      always() &&
+      !cancelled() &&
+      needs.validate-dispatch.result == 'success' &&
+      needs.plan.result == 'success' &&
+      needs.acquire-runtime.result == 'success' &&
+      (
+        needs.test.result == 'success' ||
+        (needs.validate-dispatch.outputs.test_policy == 'skipped' && needs.test.result == 'skipped')
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -289,6 +325,7 @@ jobs:
           SDK_REF: ${{ github.ref }}
           SDK_SHA: ${{ github.sha }}
           SDK_VERSION: ${{ needs.plan.outputs.sdk_version }}
+          TEST_POLICY: ${{ needs.validate-dispatch.outputs.test_policy }}
           WORKFLOW_CREATED_AT: ${{ needs.plan.outputs.workflow_created_at }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_NUMBER: ${{ github.run_number }}
@@ -342,6 +379,8 @@ jobs:
             { echo "::error::Retained test release belongs to a different workflow run."; exit 1; }
           [ "$(jq -r .channel dist/release-manifest.json)" = "${{ inputs.dist-tag }}" ] ||
             { echo "::error::Retained test release channel does not match the requested channel."; exit 1; }
+          [ "$(jq -r .workflow.testPolicy dist/release-manifest.json)" = "${{ needs.validate-dispatch.outputs.test_policy }}" ] ||
+            { echo "::error::Retained test release policy does not match the requested test policy."; exit 1; }
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:

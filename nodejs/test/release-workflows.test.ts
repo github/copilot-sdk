@@ -65,7 +65,7 @@ const packageJob = job(sdkCanary, "package", "publish-internal");
 const internalPublicationJob = job(sdkCanary, "publish-internal");
 
 describe("unified publishing workflow contract", () => {
-    it("exposes only the approved four inputs", () => {
+    it("exposes the unified release inputs and independent runtime test policy", () => {
         expect(directKeys(publishInputs, "inputs:", 6)).toEqual([
             "dist-tag",
             "version",
@@ -79,6 +79,9 @@ describe("unified publishing workflow contract", () => {
         expect(publishInputs).toContain('default: "prerelease"');
         expect(publishInputs).toContain("default: publish");
         expect(publishInputs).toContain("- dry-run");
+        expect(publishInputs).toContain("default: required");
+        expect(publishInputs).toContain("- advisory");
+        expect(publishInputs).toContain("- skipped");
         expect(existsSync(join(repositoryRoot, ".github", "workflows", "runtime-sdk.yml"))).toBe(
             false
         );
@@ -87,6 +90,7 @@ describe("unified publishing workflow contract", () => {
     it("parses runtime JSON once and routes only validated outputs", () => {
         expect(productionValidateJob).toContain("npx tsx scripts/runtime-release-identity.ts");
         expect(productionValidateJob).toContain("RUNTIME_JSON: ${{ inputs.runtime }}");
+        expect(productionValidateJob).toContain("TEST_POLICY: ${{ inputs.test-policy }}");
         expect(productionValidateJob).toContain(
             "runtime_version: ${{ steps.validate.outputs.runtime_version }}"
         );
@@ -95,6 +99,9 @@ describe("unified publishing workflow contract", () => {
         );
         expect(productionValidateJob).toContain(
             "runtime_run_id: ${{ steps.validate.outputs.runtime_run_id }}"
+        );
+        expect(productionValidateJob).toContain(
+            "test_policy: ${{ steps.validate.outputs.test_policy }}"
         );
         expect(publish).not.toContain("fromJSON(");
         expect(publish).not.toContain("inputs.runtime_version");
@@ -195,6 +202,29 @@ describe("runtime-backed publishing path", () => {
         }
     });
 
+    it("keeps required failures blocking and tolerates only advisory test-command failures", () => {
+        expect(runtimeTestJob).toContain(
+            "if: needs.validate-dispatch.outputs.test_policy != 'skipped'"
+        );
+        expect(runtimeTestJob).toMatch(
+            /- name: Run Node SDK tests\s+id: e2e\s+continue-on-error: \$\{\{ needs\.validate-dispatch\.outputs\.test_policy == 'advisory' \}\}/
+        );
+        expect(runtimeTestJob).toContain("steps.e2e.outcome == 'failure'");
+        expect(runtimeTestJob).toContain("::warning::Runtime-backed Node SDK E2E tests failed");
+        expect(runtimeTestJob.match(/continue-on-error:/g)).toHaveLength(1);
+    });
+
+    it("allows policy-driven skipped tests without masking package prerequisites", () => {
+        expect(runtimePackageJob).toContain("always()");
+        expect(runtimePackageJob).toContain("needs.validate-dispatch.result == 'success'");
+        expect(runtimePackageJob).toContain("needs.runtime-plan.result == 'success'");
+        expect(runtimePackageJob).toContain("needs.runtime-acquire.result == 'success'");
+        expect(runtimePackageJob).toContain("needs.runtime-test.result == 'success'");
+        expect(runtimePackageJob).toContain(
+            "needs.validate-dispatch.outputs.test_policy == 'skipped' && needs.runtime-test.result == 'skipped'"
+        );
+    });
+
     it("builds one retained package set and preserves runtime publication order", () => {
         expect(runtimePackageJob).toContain("npm run verify:release-packages");
         expect(runtimePackageJob).toContain("release-manifest.json");
@@ -223,16 +253,25 @@ describe("runtime-backed publishing path", () => {
 });
 
 describe("test-only runtime-driven Node SDK entry contract", () => {
-    it("uses exactly the runtime-backed three-input contract", () => {
+    it("uses exactly the runtime-backed four-input contract", () => {
         expect(sdkCanary).toContain('name: "TEST ONLY - Runtime-driven Node SDK"');
         expect(sdkCanary).toContain("workflow_dispatch:");
         expect(sdkCanary).not.toMatch(/^\s{2}(?:push|pull_request|schedule|workflow_call):/m);
-        expect(directKeys(testInputs, "inputs:", 6)).toEqual(["dist-tag", "mode", "runtime"]);
+        expect(directKeys(testInputs, "inputs:", 6)).toEqual([
+            "dist-tag",
+            "mode",
+            "test-policy",
+            "runtime",
+        ]);
         expect(testInputs).toContain("- canary");
         expect(testInputs).toContain("- unstable");
         expect(testInputs).toContain("- dry-run");
         expect(testInputs).toContain("- publish");
         expect(testInputs).toContain("default: dry-run");
+        expect(testInputs).toContain("- required");
+        expect(testInputs).toContain("- advisory");
+        expect(testInputs).toContain("- skipped");
+        expect(testInputs).toContain("default: required");
         expect(testInputs).toMatch(/runtime:\r?\n\s+description:[\s\S]*?\r?\n\s+required: true/);
         for (const obsolete of [
             "channel:",
@@ -277,6 +316,7 @@ describe("test-only runtime-driven Node SDK entry contract", () => {
         expect(testValidateJob).toContain("DIST_TAG: ${{ inputs.dist-tag }}");
         expect(testValidateJob).toContain("MODE: ${{ inputs.mode }}");
         expect(testValidateJob).toContain("RUNTIME_JSON: ${{ inputs.runtime }}");
+        expect(testValidateJob).toContain("TEST_POLICY: ${{ inputs.test-policy }}");
         expect(testValidateJob).toContain('VERSION_OVERRIDE: ""');
         expect(testValidateJob).toContain('= "runtime"');
         expect(planJob).toContain("needs: validate-dispatch");
@@ -285,6 +325,29 @@ describe("test-only runtime-driven Node SDK entry contract", () => {
             "Runtime input must contain exactly version, sha, and run_id"
         );
         expect(runtimeReleaseIdentity).toContain("validateRuntimeVersionChannel");
+    });
+
+    it("keeps required, advisory, and skipped test policy semantics isolated", () => {
+        expect(testJob).toContain("if: needs.validate-dispatch.outputs.test_policy != 'skipped'");
+        expect(testJob).toMatch(
+            /- name: Run Node SDK tests\s+id: e2e\s+continue-on-error: \$\{\{ needs\.validate-dispatch\.outputs\.test_policy == 'advisory' \}\}/
+        );
+        expect(testJob.match(/continue-on-error:/g)).toHaveLength(1);
+        expect(testJob).toContain("steps.e2e.outcome == 'failure'");
+        expect(testJob).toContain("::warning::Runtime-backed Node SDK E2E tests failed");
+        expect(packageJob).toContain("always()");
+        expect(packageJob).toContain("needs.validate-dispatch.result == 'success'");
+        expect(packageJob).toContain("needs.plan.result == 'success'");
+        expect(packageJob).toContain("needs.acquire-runtime.result == 'success'");
+        expect(packageJob).toContain("needs.test.result == 'success'");
+        expect(packageJob).toContain(
+            "needs.validate-dispatch.outputs.test_policy == 'skipped' && needs.test.result == 'skipped'"
+        );
+        expect(packageJob).toContain(
+            "TEST_POLICY: ${{ needs.validate-dispatch.outputs.test_policy }}"
+        );
+        expect(internalPublicationJob).toContain(".workflow.testPolicy");
+        expect(internalPublicationJob).toContain("needs.validate-dispatch.outputs.test_policy");
     });
 
     it("rejects unsafe inputs, modes, and public or release mutations", () => {
@@ -305,6 +368,106 @@ describe("test-only runtime-driven Node SDK entry contract", () => {
         ]) {
             expect(() => assertSafeTestWorkflow(`${sdkCanary}\n${unsafeMutation}`)).toThrow();
         }
+    });
+
+    it("rejects altered test policy choices or advisory bypasses", () => {
+        const unknownPolicy = sdkCanary.replace("          - skipped", "          - optional");
+        expect(() => assertSafeTestWorkflow(unknownPolicy)).toThrow(
+            "policies must be exactly required, advisory, and skipped"
+        );
+
+        const broadAdvisoryTolerance = sdkCanary.replace(
+            "      - run: npm run build",
+            "      - continue-on-error: ${{ inputs.test-policy == 'advisory' }}\n        run: npm run build"
+        );
+        expect(() => assertSafeTestWorkflow(broadAdvisoryTolerance)).toThrow(
+            "Only the Node SDK test command may tolerate advisory failures"
+        );
+
+        const quotedAdvisoryTolerance = sdkCanary.replace(
+            "      - run: npm run build",
+            '      - "continue-on-error": true\n        run: npm run build'
+        );
+        expect(() => assertSafeTestWorkflow(quotedAdvisoryTolerance)).toThrow(
+            "Only the Node SDK test command may tolerate advisory failures"
+        );
+    });
+
+    it("rejects inline extra inputs and package-condition bypasses", () => {
+        const bypass = sdkCanary
+            .replace("      runtime:", "      bypass: {type: boolean}\n      runtime:")
+            .replace("      always() &&", "      inputs.bypass || (always() &&")
+            .replace(
+                "        (needs.validate-dispatch.outputs.test_policy == 'skipped' && needs.test.result == 'skipped')\n      )",
+                "        (needs.validate-dispatch.outputs.test_policy == 'skipped' && needs.test.result == 'skipped')\n      ))"
+            );
+        expect(() => assertSafeTestWorkflow(bypass)).toThrow(
+            "exactly the four approved dispatch inputs"
+        );
+    });
+
+    it("rejects write permissions, unapproved actions, and obfuscated mutations", () => {
+        const writePermission = sdkCanary.replace(
+            "  plan:\n    name: Plan\n    needs: validate-dispatch\n    runs-on: ubuntu-latest\n    permissions:\n      actions: read\n      contents: read",
+            "  plan:\n    name: Plan\n    needs: validate-dispatch\n    runs-on: ubuntu-latest\n    permissions:\n      actions: read\n      contents: write"
+        );
+        expect(() => assertSafeTestWorkflow(writePermission)).toThrow("least-privilege set");
+
+        const releaseAction = sdkCanary.replace(
+            "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+            "softprops/action-gh-release@0123456789abcdef0123456789abcdef01234567"
+        );
+        expect(() => assertSafeTestWorkflow(releaseAction)).toThrow("unapproved action");
+
+        const checkoutOverride = sdkCanary.replace(
+            "      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2\n      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0",
+            "      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2\n        with:\n          ref: attacker-controlled-ref\n      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0"
+        );
+        expect(() => assertSafeTestWorkflow(checkoutOverride)).toThrow(
+            "must not override the reviewed repository, ref, or path"
+        );
+
+        const shellOverride = sdkCanary.replace(
+            "      - name: Publish exact tarballs under isolated test tags\n        env:",
+            '      - name: Publish exact tarballs under isolated test tags\n        shell: node -e "process.exit(0)" {0}\n        env:'
+        );
+        expect(() => assertSafeTestWorkflow(shellOverride)).toThrow(
+            "must not override the approved job shell"
+        );
+
+        for (const command of [
+            'gh release "create" v1.2.3',
+            'git "tag" v1.2.3',
+            "npm dist-tag add @github/copilot-sdk@1.2.3 unsafe --registry\n  https://registry.npmjs.org",
+            'npm dist-tag add "@github/copilot-sdk@${{ needs.plan.outputs.sdk_version }}" canary --registry "$FEED_URL"',
+        ]) {
+            const mutation = sdkCanary.replace(
+                "      - run: npm ci --ignore-scripts\n        working-directory: ./nodejs",
+                `      - run: npm ci --ignore-scripts\n        working-directory: ./nodejs\n      - run: >\n          ${command.replace(/\n/g, "\n          ")}`
+            );
+            expect(() => assertSafeTestWorkflow(mutation)).toThrow("Unsafe test workflow");
+        }
+    });
+
+    it.each(["push: {}", "'workflow_call': {}"])(
+        "rejects an automatic trigger declaration: %s",
+        (trigger) => {
+            const automaticTrigger = sdkCanary.replace(
+                "  workflow_dispatch:",
+                `  ${trigger}\n  workflow_dispatch:`
+            );
+            expect(() => assertSafeTestWorkflow(automaticTrigger)).toThrow(
+                "manual workflow_dispatch only"
+            );
+        }
+    );
+
+    it("rejects flow-style trigger lists", () => {
+        const triggerList = sdkCanary.replace(
+            /^on:\r?\n[\s\S]*?\r?\npermissions:/m,
+            "on: [workflow_dispatch, schedule]\n\npermissions:"
+        );
+        expect(() => assertSafeTestWorkflow(triggerList)).toThrow();
     });
 
     it("rejects variable-indirected public feeds and publication modes", () => {
@@ -381,6 +544,9 @@ describe("test-only runtime-driven Node SDK entry contract", () => {
         expect(packageJob).toContain("release:manifest -- verify");
         expect(packageJob).toContain(
             "RUNTIME_RUN_ID: ${{ needs.validate-dispatch.outputs.runtime_run_id }}"
+        );
+        expect(packageJob).toContain(
+            "TEST_POLICY: ${{ needs.validate-dispatch.outputs.test_policy }}"
         );
         expect(internalPublicationJob).toContain("publish-manifest");
         expect(internalPublicationJob).toContain("Clean install and package version check");

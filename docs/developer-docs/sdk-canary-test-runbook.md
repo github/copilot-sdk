@@ -3,7 +3,7 @@
 > [!WARNING]
 > `mackinnonbuck-test-sdk-runtime-internal` is a non-mergeable publication test harness. Never merge it into `main` or use it for a production release.
 
-This branch exposes `.github/workflows/sdk-canary.yml` as a manual, runtime-backed test entry point. It accepts only `dist-tag`, `mode`, and `runtime`. `dry-run` acquires, tests, packages, and verifies without mutating Azure. `publish` adds publication and clean-install verification using isolated Azure test tags. Neither mode can publish to public npm or create releases or source tags.
+This branch exposes `.github/workflows/sdk-canary.yml` as a manual, runtime-backed test entry point. It accepts only `dist-tag`, `mode`, `test-policy`, and `runtime`. `dry-run` acquires, optionally tests, packages, and verifies without mutating Azure. `publish` adds publication and clean-install verification using isolated Azure test tags. Neither mode can publish to public npm or create releases or source tags.
 
 ## Inspect the remote safety boundary
 
@@ -41,6 +41,7 @@ Confirm the run belongs to `github/copilot-agent-runtime`, completed successfull
 ```bash
 DIST_TAG=unstable
 MODE=dry-run
+TEST_POLICY=required
 RUNTIME_VERSION='<exact-runtime-semver>'
 RUNTIME_SHA='<lowercase-full-runtime-sha>'
 RUNTIME_RUN_ID='<runtime-actions-run-id>'
@@ -61,6 +62,16 @@ test "$(gh api "/repos/github/copilot-agent-runtime/actions/runs/$RUNTIME_RUN_ID
 
 Both `canary` and `unstable` accept `dry-run` and `publish`. `publish` writes only to `runtime-sdk-canary-test` or `runtime-sdk-unstable-test` on the Azure `copilot-canary` feed.
 
+Select the runtime E2E behavior independently:
+
+| Test policy | Behavior                                                                                                                                                                                                        |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `required`  | Runs all three operating-system test jobs. Any test failure blocks packaging and publication.                                                                                                                   |
+| `advisory`  | Runs all three operating-system test jobs. Only `npm test` failures become warnings; setup, acquisition, build, archive, and manifest failures still block. Packaging and isolated publication remain eligible. |
+| `skipped`   | Omits the test jobs. Acquisition, packaging, manifest validation, and optional isolated publication still run.                                                                                                  |
+
+The retained release manifest and workflow summary record the selected test policy.
+
 ## Dispatch exactly
 
 ```bash
@@ -69,10 +80,11 @@ gh workflow run sdk-canary.yml \
   --ref mackinnonbuck-test-sdk-runtime-internal \
   --raw-field dist-tag="$DIST_TAG" \
   --raw-field mode="$MODE" \
+  --raw-field test-policy="$TEST_POLICY" \
   --raw-field runtime="$RUNTIME"
 ```
 
-Use `dry-run` first. A new dispatch may reuse the same runtime JSON and creates a new SDK workflow-run-derived identity. A rerun of the same SDK Actions run retains its deterministic `.test.<github.run_id>` identity.
+Use `dry-run` with `required` first. A new dispatch may reuse the same runtime JSON and creates a new SDK workflow-run-derived identity. A rerun of the same SDK Actions run retains its deterministic `.test.<github.run_id>` identity.
 
 ## Retain evidence
 

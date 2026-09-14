@@ -134,6 +134,7 @@ export async function createReleaseManifest(
             runId: metadata.workflowRunId,
             runNumber: metadata.workflowRunNumber,
             createdAt: metadata.createdAt,
+            testPolicy: metadata.testPolicy,
             ...(metadata.workflowPath === testWorkflowPath
                 ? { name: testWorkflowName, path: testWorkflowPath }
                 : {}),
