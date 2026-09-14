@@ -4314,7 +4314,7 @@ pub struct SkillContextDeliveredData {
     /// Interaction that delivered this context, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
-    /// Unmodified injection provenance, in the form skill-<invocation-name>
+    /// Unmodified injection provenance, in the form skill-`<invocation-name>`
     pub source: String,
 }
 
@@ -4330,7 +4330,7 @@ pub struct SkillContextDeliveredRefData {
     /// Exact text preceding the referenced content in the delivered wrapper
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
-    /// Unmodified injection provenance, in the form skill-<invocation-name>
+    /// Unmodified injection provenance, in the form skill-`<invocation-name>`
     pub source: String,
     /// Exact text following the referenced content in the delivered wrapper
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4627,7 +4627,7 @@ pub struct SystemMessageData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemNotificationData {
-    /// The notification text, typically wrapped in <system_notification> XML tags
+    /// The notification text, typically wrapped in `<system_notification>` XML tags
     pub content: String,
     /// Structured metadata identifying what triggered this notification
     pub kind: serde_json::Value,

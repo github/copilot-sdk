@@ -2032,7 +2032,7 @@ pub struct AttachmentDirectory {
     pub display_name: String,
     /// Absolute directory path
     pub path: String,
-    /// Frozen rendered line this attachment contributed to the <tagged_files> prompt block (e.g. "* /path (12 items)"). Captured at send time so resumed history reproduces the exact text the model saw, independent of later filesystem changes.
+    /// Frozen rendered line this attachment contributed to the `<tagged_files>` prompt block (e.g. "* /path (12 items)"). Captured at send time so resumed history reproduces the exact text the model saw, independent of later filesystem changes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tagged_files_entry: Option<String>,
     /// Attachment type discriminator
@@ -2116,7 +2116,7 @@ pub struct AttachmentFile {
     pub omitted_reason: Option<OmittedBinaryOmittedReason>,
     /// Absolute file path
     pub path: String,
-    /// Frozen rendered line this attachment contributed to the <tagged_files> prompt block (e.g. "* /path (123 lines)"). Captured at send time so resumed history reproduces the exact text the model saw, independent of later filesystem changes. Present only for attachments routed to <tagged_files> (mutually exclusive with assetId, which marks bytes sent natively).
+    /// Frozen rendered line this attachment contributed to the `<tagged_files>` prompt block (e.g. "* /path (123 lines)"). Captured at send time so resumed history reproduces the exact text the model saw, independent of later filesystem changes. Present only for attachments routed to `<tagged_files>` (mutually exclusive with assetId, which marks bytes sent natively).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tagged_files_entry: Option<String>,
     /// Attachment type discriminator
@@ -5009,7 +5009,7 @@ pub struct Extension {
     /// Process ID if the extension is running
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pid: Option<i64>,
-    /// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)
+    /// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/`<id>`/extensions/)
     pub source: ExtensionSource,
     /// Current status: running, disabled, failed, or starting
     pub status: ExtensionStatus,
