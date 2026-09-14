@@ -485,9 +485,24 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  tag-java:
+    name: Tag Java SDK
+    needs: [version, publish-java, github-release]
+    if: |
+      success() &&
+      (github.event.inputs.dist-tag == 'latest' ||
+       github.event.inputs.dist-tag == 'prerelease')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.publish-java.outputs.sourceSha }}
+          fetch-depth: 0
+
       - name: Tag Java SDK
         # Reuse a tag only when it identifies the source that was published.
-        if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -513,11 +528,11 @@ jobs:
           fi
         env:
           VERSION: ${{ needs.version.outputs.version }}
-          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_SHA: ${{ needs.publish-java.outputs.sourceSha }}
 
   deploy-java-site:
     name: Deploy Java documentation site
-    needs: [version, github-release]
+    needs: [version, tag-java]
     runs-on: ubuntu-latest
     permissions: {}
     steps:
