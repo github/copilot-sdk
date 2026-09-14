@@ -38,6 +38,8 @@ public record ProviderModelConfig(
     /** Maximum output tokens for the model. */
     @JsonProperty("maxOutputTokens") Long maxOutputTokens,
     /** Optional capability overrides (vision, tool_calls, reasoning, etc.). */
-    @JsonProperty("capabilities") ModelCapabilitiesOverride capabilities
+    @JsonProperty("capabilities") ModelCapabilitiesOverride capabilities,
+    /** System-message configuration used when the runtime builds the standard prompt for this provider-qualified model, including general-purpose subagents. It uses the same object hierarchy as session-level systemMessage configuration, except transform actions are rejected because the current callback protocol is not model-scoped. When present, it overrides the session-wide configuration on those prompt paths. Selected custom-agent and specialized-subagent prompts remain authoritative. */
+    @JsonProperty("systemMessage") Object systemMessage
 ) {
 }

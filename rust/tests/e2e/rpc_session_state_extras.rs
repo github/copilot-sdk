@@ -309,6 +309,7 @@ async fn should_add_byok_provider_and_model_at_runtime() {
                             model_id: None,
                             name: Some("Rust Added Model".to_string()),
                             provider: "rust-e2e-provider".to_string(),
+                            system_message: None,
                             wire_model: None,
                         }]),
                     })

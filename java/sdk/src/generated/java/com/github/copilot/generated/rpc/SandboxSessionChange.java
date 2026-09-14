@@ -10,28 +10,26 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * How a collected debug entry should be redacted before being staged.
+ * A session-scoped sandbox transition applied while handling a slash command
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum DebugCollectLogsRedaction {
-    /** The {@code plain-text} variant. */
-    PLAIN_TEXT("plain-text"),
-    /** The {@code events-jsonl} variant. */
-    EVENTS_JSONL("events-jsonl"),
-    /** The {@code none} variant. */
-    NONE("none");
+public enum SandboxSessionChange {
+    /** The {@code disabled} variant. */
+    DISABLED("disabled"),
+    /** The {@code restored} variant. */
+    RESTORED("restored");
 
     private final String value;
-    DebugCollectLogsRedaction(String value) { this.value = value; }
+    SandboxSessionChange(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static DebugCollectLogsRedaction fromValue(String value) {
-        for (DebugCollectLogsRedaction v : values()) {
+    public static SandboxSessionChange fromValue(String value) {
+        for (SandboxSessionChange v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown DebugCollectLogsRedaction value: " + value);
+        throw new IllegalArgumentException("Unknown SandboxSessionChange value: " + value);
     }
 }

@@ -32,6 +32,8 @@ public record InstalledPluginInfo(
     /** Whether the plugin is currently enabled for new sessions */
     @JsonProperty("enabled") Boolean enabled,
     /** Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — a plugin belonging to a directory/local marketplace, which is loaded from its real directory on every pass instead of a copy under the installed-plugins cache. Its presence is what marks a listed plugin as live: such a plugin is always present on disk, so `enabled` is its only meaningful state and it is never "not installed". */
-    @JsonProperty("installedFrom") String installedFrom
+    @JsonProperty("installedFrom") String installedFrom,
+    /** Runtime-reported plugin provenance. Currently set to "builtin" only for plugins registered through the trusted host built-in boundary; absent for installed, marketplace, direct, and live plugins. */
+    @JsonProperty("source") String source
 ) {
 }

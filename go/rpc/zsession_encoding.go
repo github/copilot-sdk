@@ -767,8 +767,26 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSkillContextDelivered:
+		var d SkillContextDeliveredData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSkillContextDeliveredRef:
+		var d SkillContextDeliveredRefData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSkillInvoked:
 		var d SkillInvokedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSkillInvokedRef:
+		var d SkillInvokedRefData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}

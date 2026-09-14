@@ -25,7 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionSendMessagesResult(
-    /** Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided. */
+    /** Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId. */
     @JsonProperty("messageIds") List<String> messageIds
 ) {
 }

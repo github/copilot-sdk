@@ -231,21 +231,30 @@ const (
 	SessionEventTypeSessionUsageInfo              SessionEventType = "session.usage_info"
 	SessionEventTypeSessionWarning                SessionEventType = "session.warning"
 	SessionEventTypeSessionWorkspaceFileChanged   SessionEventType = "session.workspace_file_changed"
-	SessionEventTypeSkillInvoked                  SessionEventType = "skill.invoked"
-	SessionEventTypeSubagentCompleted             SessionEventType = "subagent.completed"
-	SessionEventTypeSubagentConfigured            SessionEventType = "subagent.configured"
-	SessionEventTypeSubagentDeselected            SessionEventType = "subagent.deselected"
-	SessionEventTypeSubagentFailed                SessionEventType = "subagent.failed"
-	SessionEventTypeSubagentSelected              SessionEventType = "subagent.selected"
-	SessionEventTypeSubagentStarted               SessionEventType = "subagent.started"
-	SessionEventTypeSystemMessage                 SessionEventType = "system.message"
-	SessionEventTypeSystemNotification            SessionEventType = "system.notification"
-	SessionEventTypeToolExecutionComplete         SessionEventType = "tool.execution_complete"
-	SessionEventTypeToolExecutionPartialResult    SessionEventType = "tool.execution_partial_result"
-	SessionEventTypeToolExecutionProgress         SessionEventType = "tool.execution_progress"
-	SessionEventTypeToolExecutionStart            SessionEventType = "tool.execution_start"
-	SessionEventTypeToolSearchActivated           SessionEventType = "tool_search.activated"
-	SessionEventTypeToolUserRequested             SessionEventType = "tool.user_requested"
+	// Experimental: SessionEventTypeSkillContextDelivered identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSkillContextDelivered SessionEventType = "skill.context_delivered"
+	// Experimental: SessionEventTypeSkillContextDeliveredRef identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSkillContextDeliveredRef SessionEventType = "skill.context_delivered_ref"
+	SessionEventTypeSkillInvoked             SessionEventType = "skill.invoked"
+	// Experimental: SessionEventTypeSkillInvokedRef identifies an experimental event that may
+	// change or be removed.
+	SessionEventTypeSkillInvokedRef            SessionEventType = "skill.invoked_ref"
+	SessionEventTypeSubagentCompleted          SessionEventType = "subagent.completed"
+	SessionEventTypeSubagentConfigured         SessionEventType = "subagent.configured"
+	SessionEventTypeSubagentDeselected         SessionEventType = "subagent.deselected"
+	SessionEventTypeSubagentFailed             SessionEventType = "subagent.failed"
+	SessionEventTypeSubagentSelected           SessionEventType = "subagent.selected"
+	SessionEventTypeSubagentStarted            SessionEventType = "subagent.started"
+	SessionEventTypeSystemMessage              SessionEventType = "system.message"
+	SessionEventTypeSystemNotification         SessionEventType = "system.notification"
+	SessionEventTypeToolExecutionComplete      SessionEventType = "tool.execution_complete"
+	SessionEventTypeToolExecutionPartialResult SessionEventType = "tool.execution_partial_result"
+	SessionEventTypeToolExecutionProgress      SessionEventType = "tool.execution_progress"
+	SessionEventTypeToolExecutionStart         SessionEventType = "tool.execution_start"
+	SessionEventTypeToolSearchActivated        SessionEventType = "tool_search.activated"
+	SessionEventTypeToolUserRequested          SessionEventType = "tool.user_requested"
 	// Experimental: SessionEventTypeUIEphemeralQuery identifies an experimental event that may
 	// change or be removed.
 	SessionEventTypeUIEphemeralQuery   SessionEventType = "ui.ephemeral_query"
@@ -398,6 +407,8 @@ type AssistantMessageData struct {
 	MessageID string `json:"messageId"`
 	// Model that produced this assistant message, if known
 	Model *string `json:"model,omitempty"`
+	// Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
+	OriginatingMessageID *string `json:"originatingMessageId,omitempty"`
 	// Actual output token count from the API response (completion_tokens), used for accurate token accounting
 	OutputTokens *int64 `json:"outputTokens,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -953,6 +964,21 @@ type SessionErrorData struct {
 func (*SessionErrorData) sessionEventData()      {}
 func (*SessionErrorData) Type() SessionEventType { return SessionEventTypeSessionError }
 
+// Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.
+type SkillContextDeliveredData struct {
+	// Exact model-facing skill wrapper, including its invocation-time file context
+	Content string `json:"content"`
+	// Interaction that delivered this context, when known
+	InteractionID *string `json:"interactionId,omitempty"`
+	// Unmodified injection provenance, in the form skill-<invocation-name>
+	Source string `json:"source"`
+}
+
+func (*SkillContextDeliveredData) sessionEventData() {}
+func (*SkillContextDeliveredData) Type() SessionEventType {
+	return SessionEventTypeSkillContextDelivered
+}
+
 // Experimental content-safe activity signal for a running HydraFusion phase.
 // Experimental: AssistantFusionPhaseActivityData is part of an experimental API and may change or be removed.
 type AssistantFusionPhaseActivityData struct {
@@ -1382,7 +1408,7 @@ type HookEndData struct {
 	HookInvocationID string `json:"hookInvocationId"`
 	// Type of hook that was invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
 	HookType string `json:"hookType"`
-	// Output data produced by the hook
+	// Output data produced by the hook. Durable and resumed postToolUse receipts may omit messages owned by a successful skill invocation and replace an unchanged skill sessionLog copy with an elision marker; hook-modified or re-sourced values are preserved, and the authoritative body remains in the skill invocation event.
 	Output any `json:"output,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
@@ -1399,7 +1425,7 @@ type HookStartData struct {
 	HookInvocationID string `json:"hookInvocationId"`
 	// Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
 	HookType string `json:"hookType"`
-	// Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
+	// Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) drops the tool result's inline `contents`/`uiResource`/`skillInvocation` and replaces duplicated text result fields with a `[copilot:elided ...]` marker; the live subscription stream still delivers the full value. Canonical tool output remains in the adjacent tool.execution_complete event, while an invoked skill's authoritative body remains in its skill invocation event.
 	Input any `json:"input,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
@@ -1422,6 +1448,56 @@ type SessionInfoData struct {
 
 func (*SessionInfoData) sessionEventData()      {}
 func (*SessionInfoData) Type() SessionEventType { return SessionEventTypeSessionInfo }
+
+// Internal durable receipt that reconstructs exact model-visible skill context from earlier session content.
+type SkillContextDeliveredRefData struct {
+	// Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:<lowercase hex digest>` over the UTF-8 bytes of that event's `content`
+	ContentID string `json:"contentId"`
+	// Interaction that delivered this context, when known
+	InteractionID *string `json:"interactionId,omitempty"`
+	// Exact text preceding the referenced content in the delivered wrapper
+	Prefix *string `json:"prefix,omitempty"`
+	// Unmodified injection provenance, in the form skill-<invocation-name>
+	Source string `json:"source"`
+	// Exact text following the referenced content in the delivered wrapper
+	Suffix *string `json:"suffix,omitempty"`
+}
+
+func (*SkillContextDeliveredRefData) sessionEventData() {}
+func (*SkillContextDeliveredRefData) Type() SessionEventType {
+	return SessionEventTypeSkillContextDeliveredRef
+}
+
+// Internal durable skill invocation receipt whose content resolves from an earlier inline skill event in the same session.
+type SkillInvokedRefData struct {
+	// Tool names that should be auto-approved when this skill is active
+	AllowedTools []string `json:"allowedTools,omitzero"`
+	// Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:<lowercase hex digest>` over the UTF-8 bytes of that event's `content`
+	ContentID string `json:"contentId"`
+	// UTF-16 code unit length of the referenced skill content. Derived from the referenced body and validated against it when the reference is expanded; a reference whose length disagrees with the body it names is rejected instead of expanded
+	ContentLength int64 `json:"contentLength"`
+	// Description of the skill from its SKILL.md frontmatter
+	Description *string `json:"description,omitempty"`
+	// Whether model invocation is disabled for this skill
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
+	// Model identifier active when the skill was invoked, when known
+	Model *string `json:"model,omitempty"`
+	// Name of the invoked skill
+	Name string `json:"name"`
+	// File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity
+	Path string `json:"path"`
+	// Name of the plugin this skill originated from, when applicable
+	PluginName *string `json:"pluginName,omitempty"`
+	// Version of the plugin this skill originated from, when applicable
+	PluginVersion *string `json:"pluginVersion,omitempty"`
+	// Source identifier for where the skill was discovered
+	Source *string `json:"source,omitempty"`
+	// What triggered the skill invocation
+	Trigger *SkillInvokedTrigger `json:"trigger,omitempty"`
+}
+
+func (*SkillInvokedRefData) sessionEventData()      {}
+func (*SkillInvokedRefData) Type() SessionEventType { return SessionEventTypeSkillInvokedRef }
 
 // LLM API call usage metrics including tokens, costs, quotas, and billing information
 type AssistantUsageData struct {
@@ -2760,6 +2836,8 @@ type SubagentStartedData struct {
 	FactoryRunID *string `json:"factoryRunId,omitempty"`
 	// Model the sub-agent will run with, when known at start.
 	Model *string `json:"model,omitempty"`
+	// Authority or runtime mechanism responsible for sub-agent model selection, when known at start.
+	ModelSelectionSource *SubagentModelSelectionSource `json:"modelSelectionSource,omitempty"`
 	// Task-registry ID of the spawning sub-agent. Absent when the root session spawned this child.
 	ParentID *string `json:"parentId,omitempty"`
 	// Whether this sub-agent can be resumed. Currently always false.
@@ -2872,6 +2950,10 @@ type ToolExecutionStartData struct {
 	// Experimental HydraFusion attribution for this tool execution.
 	// Experimental: Fusion is part of an experimental API and may change or be removed.
 	Fusion *FusionAttribution `json:"fusion,omitempty"`
+	// Preferred lookup name for the MCP server hosting this tool: the configured (namespaced) config-map key when the tool carries one, otherwise the display name from `mcpServerName`. Present when the tool is an MCP tool; this is the name unrestricted provenance telemetry hashes so it joins with `mcp_server_setup`, which keys off the configured name too.
+	MCPConfigServerName *string `json:"mcpConfigServerName,omitempty"`
+	// Where the MCP server's configuration came from (`user`, `workspace`, `plugin`, or `builtin`), when the tool is an MCP tool and the server is configured
+	MCPConfigSource *MCPServerSource `json:"mcpConfigSource,omitempty"`
 	// Name of the MCP server hosting this tool, when the tool is an MCP tool
 	MCPServerName *string `json:"mcpServerName,omitempty"`
 	// Original tool name on the MCP server, when the tool is an MCP tool
@@ -3651,7 +3733,7 @@ type MCPServersLoadedServer struct {
 	PluginVersion *string `json:"pluginVersion,omitempty"`
 	// Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.
 	ServerMetadata *MCPServerMetadata `json:"serverMetadata,omitempty"`
-	// Configuration source: user, workspace, plugin, or builtin
+	// Configuration source: user, workspace, plugin, builtin, or managed
 	Source *MCPServerSource `json:"source,omitempty"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
 	Status MCPServerStatus `json:"status"`
@@ -5049,7 +5131,7 @@ type ToolExecutionCompleteResult struct {
 	Content string `json:"content"`
 	// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
 	Contents []ToolExecutionCompleteContent `json:"contents,omitzero"`
-	// Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
+	// Detailed tool result for UI/timeline display, preserving complete content such as diffs for most tools. Successful skill invocations intentionally use the concise model-facing content here; the authoritative skill body is carried by the corresponding skill invocation event. Falls back to content when absent.
 	DetailedContent *string `json:"detailedContent,omitempty"`
 	// FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels) — persisted as `{ ifc: ... }` (only the `ifc` key, not the whole `_meta`). Persisted so the FIDES IFC label survives session resume: the engine rehydrates accumulated taint by replaying these on load. Populated for ingress sources when FIDES IFC is on. Experimental.
 	// Experimental: MCPMeta is part of an experimental API and may change or be removed.
@@ -5734,6 +5816,8 @@ const (
 type MCPHeadersRefreshCompletedOutcome string
 
 const (
+	// The host credential broker rejected or failed the refresh.
+	MCPHeadersRefreshCompletedOutcomeError MCPHeadersRefreshCompletedOutcome = "error"
 	// The host supplied dynamic headers.
 	MCPHeadersRefreshCompletedOutcomeHeaders MCPHeadersRefreshCompletedOutcome = "headers"
 	// The host responded with no dynamic headers.

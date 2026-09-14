@@ -230,6 +230,33 @@ pub enum SessionEventType {
     ToolSearchActivated,
     #[serde(rename = "skill.invoked")]
     SkillInvoked,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "skill.invoked_ref")]
+    SkillInvokedRef,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "skill.context_delivered")]
+    SkillContextDelivered,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "skill.context_delivered_ref")]
+    SkillContextDeliveredRef,
     #[serde(rename = "sandbox.decision")]
     SandboxDecision,
     #[serde(rename = "subagent.started")]
@@ -727,6 +754,12 @@ pub enum SessionEventData {
     ToolSearchActivated(ToolSearchActivatedData),
     #[serde(rename = "skill.invoked")]
     SkillInvoked(SkillInvokedData),
+    #[serde(rename = "skill.invoked_ref")]
+    SkillInvokedRef(SkillInvokedRefData),
+    #[serde(rename = "skill.context_delivered")]
+    SkillContextDelivered(SkillContextDeliveredData),
+    #[serde(rename = "skill.context_delivered_ref")]
+    SkillContextDeliveredRef(SkillContextDeliveredRefData),
     #[serde(rename = "sandbox.decision")]
     SandboxDecision(SandboxDecisionData),
     #[serde(rename = "subagent.started")]
@@ -2952,6 +2985,9 @@ pub struct AssistantMessageData {
     /// Model that produced this assistant message, if known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub originating_message_id: Option<String>,
     /// Actual output token count from the API response (completion_tokens), used for accurate token accounting
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<i64>,
@@ -3604,6 +3640,12 @@ pub struct ToolExecutionStartData {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fusion: Option<FusionAttribution>,
+    /// Preferred lookup name for the MCP server hosting this tool: the configured (namespaced) config-map key when the tool carries one, otherwise the display name from `mcpServerName`. Present when the tool is an MCP tool; this is the name unrestricted provenance telemetry hashes so it joins with `mcp_server_setup`, which keys off the configured name too.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_config_server_name: Option<String>,
+    /// Where the MCP server's configuration came from (`user`, `workspace`, `plugin`, or `builtin`), when the tool is an MCP tool and the server is configured
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_config_source: Option<McpServerSource>,
     /// Name of the MCP server hosting this tool, when the tool is an MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_server_name: Option<String>,
@@ -4058,7 +4100,7 @@ pub struct ToolExecutionCompleteResult {
     /// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contents: Option<Vec<ToolExecutionCompleteContent>>,
-    /// Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
+    /// Detailed tool result for UI/timeline display, preserving complete content such as diffs for most tools. Successful skill invocations intentionally use the concise model-facing content here; the authoritative skill body is carried by the corresponding skill invocation event. Falls back to content when absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detailed_content: Option<String>,
     /// FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels) — persisted as `{ ifc: ... }` (only the `ifc` key, not the whole `_meta`). Persisted so the FIDES IFC label survives session resume: the engine rehydrates accumulated taint by replaying these on load. Populated for ingress sources when FIDES IFC is on. Experimental.
@@ -4225,6 +4267,76 @@ pub struct SkillInvokedData {
     pub trigger: Option<SkillInvokedTrigger>,
 }
 
+/// Session event "skill.invoked_ref". Internal durable skill invocation receipt whose content resolves from an earlier inline skill event in the same session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInvokedRefData {
+    /// Tool names that should be auto-approved when this skill is active
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_tools: Option<Vec<String>>,
+    /// Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:<lowercase hex digest>` over the UTF-8 bytes of that event's `content`
+    pub content_id: String,
+    /// UTF-16 code unit length of the referenced skill content. Derived from the referenced body and validated against it when the reference is expanded; a reference whose length disagrees with the body it names is rejected instead of expanded
+    pub content_length: i64,
+    /// Description of the skill from its SKILL.md frontmatter
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Whether model invocation is disabled for this skill
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
+    /// Model identifier active when the skill was invoked, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Name of the invoked skill
+    pub name: String,
+    /// File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity
+    pub path: String,
+    /// Name of the plugin this skill originated from, when applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_name: Option<String>,
+    /// Version of the plugin this skill originated from, when applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_version: Option<String>,
+    /// Source identifier for where the skill was discovered
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    /// What triggered the skill invocation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<SkillInvokedTrigger>,
+}
+
+/// Session event "skill.context_delivered". Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillContextDeliveredData {
+    /// Exact model-facing skill wrapper, including its invocation-time file context
+    pub content: String,
+    /// Interaction that delivered this context, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_id: Option<String>,
+    /// Unmodified injection provenance, in the form skill-`<invocation-name>`
+    pub source: String,
+}
+
+/// Session event "skill.context_delivered_ref". Internal durable receipt that reconstructs exact model-visible skill context from earlier session content.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillContextDeliveredRefData {
+    /// Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:<lowercase hex digest>` over the UTF-8 bytes of that event's `content`
+    pub content_id: String,
+    /// Interaction that delivered this context, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_id: Option<String>,
+    /// Exact text preceding the referenced content in the delivered wrapper
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefix: Option<String>,
+    /// Unmodified injection provenance, in the form skill-`<invocation-name>`
+    pub source: String,
+    /// Exact text following the referenced content in the delivered wrapper
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suffix: Option<String>,
+}
+
 /// Session event "sandbox.decision". Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -4252,6 +4364,9 @@ pub struct SubagentStartedData {
     /// Model the sub-agent will run with, when known at start.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Authority or runtime mechanism responsible for sub-agent model selection, when known at start.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_selection_source: Option<SubagentModelSelectionSource>,
     /// Task-registry ID of the spawning sub-agent. Absent when the root session spawned this child.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
@@ -4401,7 +4516,7 @@ pub struct HookStartData {
     pub hook_invocation_id: String,
     /// Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
     pub hook_type: String,
-    /// Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
+    /// Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) drops the tool result's inline `contents`/`uiResource`/`skillInvocation` and replaces duplicated text result fields with a `[copilot:elided ...]` marker; the live subscription stream still delivers the full value. Canonical tool output remains in the adjacent tool.execution_complete event, while an invoked skill's authoritative body remains in its skill invocation event.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<serde_json::Value>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -4434,7 +4549,7 @@ pub struct HookEndData {
     pub hook_invocation_id: String,
     /// Type of hook that was invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
     pub hook_type: String,
-    /// Output data produced by the hook
+    /// Output data produced by the hook. Durable and resumed postToolUse receipts may omit messages owned by a successful skill invocation and replace an unchanged skill sessionLog copy with an elision marker; hook-modified or re-sourced values are preserved, and the authoritative body remains in the skill invocation event.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<serde_json::Value>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -4512,7 +4627,7 @@ pub struct SystemMessageData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemNotificationData {
-    /// The notification text, typically wrapped in <system_notification> XML tags
+    /// The notification text, typically wrapped in `<system_notification>` XML tags
     pub content: String,
     /// Structured metadata identifying what triggered this notification
     pub kind: serde_json::Value,
@@ -6672,7 +6787,7 @@ pub struct McpServersLoadedServer {
     /// Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub server_metadata: Option<McpServerMetadata>,
-    /// Configuration source: user, workspace, plugin, or builtin
+    /// Configuration source: user, workspace, plugin, builtin, or managed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<McpServerSource>,
     /// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
@@ -7922,6 +8037,30 @@ pub enum AbortReason {
     Unknown,
 }
 
+/// Configuration source: user, workspace, plugin, builtin, or managed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpServerSource {
+    /// Server configured in the user's global MCP configuration.
+    #[serde(rename = "user")]
+    User,
+    /// Server configured by the current workspace.
+    #[serde(rename = "workspace")]
+    Workspace,
+    /// Server contributed by an installed plugin.
+    #[serde(rename = "plugin")]
+    Plugin,
+    /// Server bundled with the runtime.
+    #[serde(rename = "builtin")]
+    Builtin,
+    /// Server supplied by a trusted host-managed catalog.
+    #[serde(rename = "managed")]
+    Managed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerTransport {
@@ -8159,27 +8298,6 @@ pub enum SkillInvokedTrigger {
     Unknown,
 }
 
-/// Where the model input for a task-tool sub-agent came from.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SubagentTaskModelSource {
-    /// The spawning agent supplied the task tool's model argument.
-    #[serde(rename = "task_argument")]
-    TaskArgument,
-    /// The task omitted a model and the per-sub-agent settings entry supplied a concrete one.
-    #[serde(rename = "subagent_configuration")]
-    SubagentConfiguration,
-    /// The task omitted a model and the user-defined custom agent's definition supplied one.
-    #[serde(rename = "custom_agent_definition")]
-    CustomAgentDefinition,
-    /// Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model.
-    #[serde(rename = "unset")]
-    Unset,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Authority or runtime mechanism responsible for sub-agent model selection.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SubagentModelSelectionSource {
@@ -8204,6 +8322,27 @@ pub enum SubagentModelSelectionSource {
     /// Runtime policy, Auto mode, or an experiment selected the model.
     #[serde(rename = "runtime_policy")]
     RuntimePolicy,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Where the model input for a task-tool sub-agent came from.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SubagentTaskModelSource {
+    /// The spawning agent supplied the task tool's model argument.
+    #[serde(rename = "task_argument")]
+    TaskArgument,
+    /// The task omitted a model and the per-sub-agent settings entry supplied a concrete one.
+    #[serde(rename = "subagent_configuration")]
+    SubagentConfiguration,
+    /// The task omitted a model and the user-defined custom agent's definition supplied one.
+    #[serde(rename = "custom_agent_definition")]
+    CustomAgentDefinition,
+    /// Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model.
+    #[serde(rename = "unset")]
+    Unset,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -8976,6 +9115,9 @@ pub enum McpHeadersRefreshCompletedOutcome {
     /// The host responded with no dynamic headers.
     #[serde(rename = "none")]
     None,
+    /// The host credential broker rejected or failed the refresh.
+    #[serde(rename = "error")]
+    Error,
     /// No response arrived within the bounded window.
     #[serde(rename = "timeout")]
     Timeout,
@@ -9226,30 +9368,6 @@ pub enum AgentModelPolicy {
     /// Require subagent execution to use one of the authored models.
     #[serde(rename = "required")]
     Required,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Configuration source: user, workspace, plugin, builtin, or managed
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpServerSource {
-    /// Server configured in the user's global MCP configuration.
-    #[serde(rename = "user")]
-    User,
-    /// Server configured by the current workspace.
-    #[serde(rename = "workspace")]
-    Workspace,
-    /// Server contributed by an installed plugin.
-    #[serde(rename = "plugin")]
-    Plugin,
-    /// Server bundled with the runtime.
-    #[serde(rename = "builtin")]
-    Builtin,
-    /// Server supplied by a trusted host-managed catalog.
-    #[serde(rename = "managed")]
-    Managed,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

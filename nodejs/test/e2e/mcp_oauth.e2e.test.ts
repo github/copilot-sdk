@@ -251,7 +251,7 @@ describe("MCP OAuth host auth", async () => {
             const upscopeRequest = authRequests.find((request) => request.reason === "upscope");
             expect(upscopeRequest?.wwwAuthenticateParams).toEqual({
                 resourceMetadataUrl: `${oauthServer.url}/.well-known/oauth-protected-resource`,
-                scope: "mcp.write",
+                scope: "mcp.read mcp.write",
                 error: "insufficient_scope",
             });
             expect(upscopeRequest?.resourceMetadata).toBe(

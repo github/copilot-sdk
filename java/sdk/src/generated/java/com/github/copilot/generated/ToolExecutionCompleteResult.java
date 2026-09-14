@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 public record ToolExecutionCompleteResult(
     /** Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency */
     @JsonProperty("content") String content,
-    /** Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent. */
+    /** Detailed tool result for UI/timeline display, preserving complete content such as diffs for most tools. Successful skill invocations intentionally use the concise model-facing content here; the authoritative skill body is carried by the corresponding skill invocation event. Falls back to content when absent. */
     @JsonProperty("detailedContent") String detailedContent,
     /** Structured content blocks (text, images, audio, resources) returned by the tool in their native format */
     @JsonProperty("contents") List<Object> contents,

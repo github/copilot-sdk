@@ -205,6 +205,12 @@ class SessionEventType(Enum):
     TOOL_EXECUTION_COMPLETE = "tool.execution_complete"
     TOOL_SEARCH_ACTIVATED = "tool_search.activated"
     SKILL_INVOKED = "skill.invoked"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    SKILL_INVOKED_REF = "skill.invoked_ref"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    SKILL_CONTEXT_DELIVERED = "skill.context_delivered"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    SKILL_CONTEXT_DELIVERED_REF = "skill.context_delivered_ref"
     SANDBOX_DECISION = "sandbox.decision"
     SUBAGENT_STARTED = "subagent.started"
     SUBAGENT_CONFIGURED = "subagent.configured"
@@ -2599,6 +2605,7 @@ class AssistantMessageData:
     fusion: FusionAttribution | None = None
     interaction_id: str | None = None
     model: str | None = None
+    originating_message_id: str | None = None
     output_tokens: int | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
@@ -2628,6 +2635,7 @@ class AssistantMessageData:
         fusion = from_union([from_none, FusionAttribution.from_dict], obj.get("fusion"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         model = from_union([from_none, from_str], obj.get("model"))
+        originating_message_id = from_union([from_none, from_str], obj.get("originatingMessageId"))
         output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         phase = from_union([from_none, from_str], obj.get("phase"))
@@ -2653,6 +2661,7 @@ class AssistantMessageData:
             fusion=fusion,
             interaction_id=interaction_id,
             model=model,
+            originating_message_id=originating_message_id,
             output_tokens=output_tokens,
             parent_tool_call_id=parent_tool_call_id,
             phase=phase,
@@ -2690,6 +2699,8 @@ class AssistantMessageData:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
+        if self.originating_message_id is not None:
+            result["originatingMessageId"] = from_union([from_none, from_str], self.originating_message_id)
         if self.output_tokens is not None:
             result["outputTokens"] = from_union([from_none, to_int], self.output_tokens)
         if self.parent_tool_call_id is not None:
@@ -9789,6 +9800,72 @@ class ShutdownTokenDetail:
 
 
 @dataclass
+class SkillContextDeliveredData:
+    "Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation."
+    content: str
+    source: str
+    interaction_id: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SkillContextDeliveredData":
+        assert isinstance(obj, dict)
+        content = from_str(obj.get("content"))
+        source = from_str(obj.get("source"))
+        interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
+        return SkillContextDeliveredData(
+            content=content,
+            source=source,
+            interaction_id=interaction_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["content"] = from_str(self.content)
+        result["source"] = from_str(self.source)
+        if self.interaction_id is not None:
+            result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
+        return result
+
+
+@dataclass
+class SkillContextDeliveredRefData:
+    "Internal durable receipt that reconstructs exact model-visible skill context from earlier session content."
+    content_id: str
+    source: str
+    interaction_id: str | None = None
+    prefix: str | None = None
+    suffix: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SkillContextDeliveredRefData":
+        assert isinstance(obj, dict)
+        content_id = from_str(obj.get("contentId"))
+        source = from_str(obj.get("source"))
+        interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
+        prefix = from_union([from_none, from_str], obj.get("prefix"))
+        suffix = from_union([from_none, from_str], obj.get("suffix"))
+        return SkillContextDeliveredRefData(
+            content_id=content_id,
+            source=source,
+            interaction_id=interaction_id,
+            prefix=prefix,
+            suffix=suffix,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contentId"] = from_str(self.content_id)
+        result["source"] = from_str(self.source)
+        if self.interaction_id is not None:
+            result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
+        if self.prefix is not None:
+            result["prefix"] = from_union([from_none, from_str], self.prefix)
+        if self.suffix is not None:
+            result["suffix"] = from_union([from_none, from_str], self.suffix)
+        return result
+
+
+@dataclass
 class SkillInvokedData:
     "Skill invocation details including content, allowed tools, and plugin metadata"
     content: str
@@ -9834,6 +9911,77 @@ class SkillInvokedData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["content"] = from_str(self.content)
+        result["name"] = from_str(self.name)
+        result["path"] = from_str(self.path)
+        if self.allowed_tools is not None:
+            result["allowedTools"] = from_union([from_none, lambda x: from_list(from_str, x)], self.allowed_tools)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.disable_model_invocation is not None:
+            result["disableModelInvocation"] = from_union([from_none, from_bool], self.disable_model_invocation)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
+        if self.plugin_name is not None:
+            result["pluginName"] = from_union([from_none, from_str], self.plugin_name)
+        if self.plugin_version is not None:
+            result["pluginVersion"] = from_union([from_none, from_str], self.plugin_version)
+        if self.source is not None:
+            result["source"] = from_union([from_none, from_str], self.source)
+        if self.trigger is not None:
+            result["trigger"] = from_union([from_none, lambda x: to_enum(SkillInvokedTrigger, x)], self.trigger)
+        return result
+
+
+@dataclass
+class SkillInvokedRefData:
+    "Internal durable skill invocation receipt whose content resolves from an earlier inline skill event in the same session."
+    content_id: str
+    content_length: int
+    name: str
+    path: str
+    allowed_tools: list[str] | None = None
+    description: str | None = None
+    disable_model_invocation: bool | None = None
+    model: str | None = None
+    plugin_name: str | None = None
+    plugin_version: str | None = None
+    source: str | None = None
+    trigger: SkillInvokedTrigger | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SkillInvokedRefData":
+        assert isinstance(obj, dict)
+        content_id = from_str(obj.get("contentId"))
+        content_length = from_int(obj.get("contentLength"))
+        name = from_str(obj.get("name"))
+        path = from_str(obj.get("path"))
+        allowed_tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("allowedTools"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        disable_model_invocation = from_union([from_none, from_bool], obj.get("disableModelInvocation"))
+        model = from_union([from_none, from_str], obj.get("model"))
+        plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
+        plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
+        source = from_union([from_none, from_str], obj.get("source"))
+        trigger = from_union([from_none, lambda x: parse_enum(SkillInvokedTrigger, x)], obj.get("trigger"))
+        return SkillInvokedRefData(
+            content_id=content_id,
+            content_length=content_length,
+            name=name,
+            path=path,
+            allowed_tools=allowed_tools,
+            description=description,
+            disable_model_invocation=disable_model_invocation,
+            model=model,
+            plugin_name=plugin_name,
+            plugin_version=plugin_version,
+            source=source,
+            trigger=trigger,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contentId"] = from_str(self.content_id)
+        result["contentLength"] = to_int(self.content_length)
         result["name"] = from_str(self.name)
         result["path"] = from_str(self.path)
         if self.allowed_tools is not None:
@@ -10161,6 +10309,7 @@ class SubagentStartedData:
     execution_mode: str | None = None
     factory_run_id: str | None = None
     model: str | None = None
+    model_selection_source: SubagentModelSelectionSource | None = None
     parent_id: str | None = None
     resumable: bool | None = None
     task_model_source: SubagentTaskModelSource | None = None
@@ -10176,6 +10325,7 @@ class SubagentStartedData:
         execution_mode = from_union([from_none, from_str], obj.get("executionMode"))
         factory_run_id = from_union([from_none, from_str], obj.get("factoryRunId"))
         model = from_union([from_none, from_str], obj.get("model"))
+        model_selection_source = from_union([from_none, lambda x: parse_enum(SubagentModelSelectionSource, x)], obj.get("modelSelectionSource"))
         parent_id = from_union([from_none, from_str], obj.get("parentId"))
         resumable = from_union([from_none, from_bool], obj.get("resumable"))
         task_model_source = from_union([from_none, lambda x: parse_enum(SubagentTaskModelSource, x)], obj.get("taskModelSource"))
@@ -10188,6 +10338,7 @@ class SubagentStartedData:
             execution_mode=execution_mode,
             factory_run_id=factory_run_id,
             model=model,
+            model_selection_source=model_selection_source,
             parent_id=parent_id,
             resumable=resumable,
             task_model_source=task_model_source,
@@ -10207,6 +10358,8 @@ class SubagentStartedData:
             result["factoryRunId"] = from_union([from_none, from_str], self.factory_run_id)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
+        if self.model_selection_source is not None:
+            result["modelSelectionSource"] = from_union([from_none, lambda x: to_enum(SubagentModelSelectionSource, x)], self.model_selection_source)
         if self.parent_id is not None:
             result["parentId"] = from_union([from_none, from_str], self.parent_id)
         if self.resumable is not None:
@@ -11354,6 +11507,8 @@ class ToolExecutionStartData:
     display_verbatim: bool | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     fusion: FusionAttribution | None = None
+    mcp_config_server_name: str | None = None
+    mcp_config_source: McpServerSource | None = None
     mcp_server_name: str | None = None
     mcp_tool_name: str | None = None
     mcp_transport: McpServerTransport | None = None
@@ -11373,6 +11528,8 @@ class ToolExecutionStartData:
         arguments = obj.get("arguments")
         display_verbatim = from_union([from_none, from_bool], obj.get("displayVerbatim"))
         fusion = from_union([from_none, FusionAttribution.from_dict], obj.get("fusion"))
+        mcp_config_server_name = from_union([from_none, from_str], obj.get("mcpConfigServerName"))
+        mcp_config_source = from_union([from_none, lambda x: parse_enum(McpServerSource, x)], obj.get("mcpConfigSource"))
         mcp_server_name = from_union([from_none, from_str], obj.get("mcpServerName"))
         mcp_tool_name = from_union([from_none, from_str], obj.get("mcpToolName"))
         mcp_transport = from_union([from_none, lambda x: parse_enum(McpServerTransport, x)], obj.get("mcpTransport"))
@@ -11388,6 +11545,8 @@ class ToolExecutionStartData:
             arguments=arguments,
             display_verbatim=display_verbatim,
             fusion=fusion,
+            mcp_config_server_name=mcp_config_server_name,
+            mcp_config_source=mcp_config_source,
             mcp_server_name=mcp_server_name,
             mcp_tool_name=mcp_tool_name,
             mcp_transport=mcp_transport,
@@ -11409,6 +11568,10 @@ class ToolExecutionStartData:
             result["displayVerbatim"] = from_union([from_none, from_bool], self.display_verbatim)
         if self.fusion is not None:
             result["fusion"] = from_union([from_none, lambda x: to_class(FusionAttribution, x)], self.fusion)
+        if self.mcp_config_server_name is not None:
+            result["mcpConfigServerName"] = from_union([from_none, from_str], self.mcp_config_server_name)
+        if self.mcp_config_source is not None:
+            result["mcpConfigSource"] = from_union([from_none, lambda x: to_enum(McpServerSource, x)], self.mcp_config_source)
         if self.mcp_server_name is not None:
             result["mcpServerName"] = from_union([from_none, from_str], self.mcp_server_name)
         if self.mcp_tool_name is not None:
@@ -12708,6 +12871,8 @@ class McpHeadersRefreshCompletedOutcome(Enum):
     HEADERS = "headers"
     # The host responded with no dynamic headers.
     NONE = "none"
+    # The host credential broker rejected or failed the refresh.
+    ERROR = "error"
     # No response arrived within the bounded window.
     TIMEOUT = "timeout"
 
@@ -13190,7 +13355,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -13287,6 +13452,9 @@ class SessionEvent:
             case SessionEventType.TOOL_EXECUTION_COMPLETE: data = ToolExecutionCompleteData.from_dict(data_obj)
             case SessionEventType.TOOL_SEARCH_ACTIVATED: data = ToolSearchActivatedData.from_dict(data_obj)
             case SessionEventType.SKILL_INVOKED: data = SkillInvokedData.from_dict(data_obj)
+            case SessionEventType.SKILL_INVOKED_REF: data = SkillInvokedRefData.from_dict(data_obj)
+            case SessionEventType.SKILL_CONTEXT_DELIVERED: data = SkillContextDeliveredData.from_dict(data_obj)
+            case SessionEventType.SKILL_CONTEXT_DELIVERED_REF: data = SkillContextDeliveredRefData.from_dict(data_obj)
             case SessionEventType.SANDBOX_DECISION: data = SandboxDecisionData.from_dict(data_obj)
             case SessionEventType.SUBAGENT_STARTED: data = SubagentStartedData.from_dict(data_obj)
             case SessionEventType.SUBAGENT_CONFIGURED: data = SubagentConfiguredData.from_dict(data_obj)
@@ -13717,7 +13885,10 @@ __all__ = [
     "ShutdownModelMetricUsage",
     "ShutdownTokenDetail",
     "ShutdownType",
+    "SkillContextDeliveredData",
+    "SkillContextDeliveredRefData",
     "SkillInvokedData",
+    "SkillInvokedRefData",
     "SkillInvokedTrigger",
     "SkillSource",
     "SkillsLoadedSkill",

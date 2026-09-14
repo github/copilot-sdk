@@ -2776,41 +2776,7 @@ impl<'a> ClientRpcSessions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.
-    ///
-    /// Wire method: `sessions.registerExtensionToolsOnSession`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Params to attach an extension loader's tools to a session.
-    ///
-    /// # Returns
-    ///
-    /// Handle for releasing the extension tool registration.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn register_extension_tools_on_session(
-        &self,
-        params: RegisterExtensionToolsParams,
-    ) -> Result<RegisterExtensionToolsResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(
-                rpc_methods::SESSIONS_REGISTEREXTENSIONTOOLSONSESSION,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Attaches (or detaches) an in-process ExtensionController delegate for the given session, used by shared-API surfaces that need to query or modify the session's extension state. Pass `controller: undefined` to detach. Marked internal because the controller is an in-process object that cannot cross the JSON-RPC boundary. Disappears alongside `registerExtensionToolsOnSession`: once the runtime owns extension management, the public surface exposes list/enable/disable/reload as dedicated RPCs served by the runtime.
+    /// Attaches (or detaches) an in-process ExtensionController delegate for the given session in a local host adapter. Pass `controller: undefined` to detach. Internal because the controller cannot cross the JSON-RPC boundary; the runtime manages its own session extension service.
     ///
     /// Wire method: `sessions.configureSessionExtensions`.
     ///
@@ -4532,17 +4498,17 @@ pub struct SessionRpcDebug<'a> {
 }
 
 impl<'a> SessionRpcDebug<'a> {
-    /// Collects a redacted session debug log bundle into a local archive or staging directory. The runtime includes session-owned logs by default and accepts caller-provided diagnostic entries so host applications can add their own files without changing this API shape.
+    /// Collects a session debug log bundle into a local archive or staging directory. Logs are redacted by default; redaction can be configured per caller-provided diagnostic entry. The runtime includes session-owned logs by default and accepts caller-provided diagnostic entries so host applications can add their own files without changing this API shape.
     ///
     /// Wire method: `session.debug.collectLogs`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Options for collecting a redacted session debug bundle.
+    /// * `params` - Options for collecting a session debug bundle with configurable redaction.
     ///
     /// # Returns
     ///
-    /// Result of collecting a redacted debug bundle.
+    /// Result of collecting a session debug bundle.
     ///
     /// <div class="warning">
     ///

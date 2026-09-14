@@ -15,7 +15,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Options for collecting a redacted session debug bundle.
+ * Options for collecting a session debug bundle with configurable redaction.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -27,7 +27,7 @@ import javax.annotation.processing.Generated;
 public record SessionDebugCollectLogsParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Where the redacted bundle should be written. Use `archive` to produce a .tgz, or `directory` to stage redacted files for caller-managed upload/post-processing. */
+    /** Where the bundle should be written. Use `archive` to produce a .tgz, or `directory` to stage files for caller-managed upload/post-processing. */
     @JsonProperty("destination") Object destination,
     /** Which built-in session diagnostics to include. Omitted fields default to true. */
     @JsonProperty("include") DebugCollectLogsInclude include,

@@ -475,7 +475,15 @@ function pushRustExperimentalDocs(
 
 function pushRustDoc(lines: string[], text: string | undefined, indent = ""): void {
 	if (!text) return;
-	const sanitized = text.replace(/\[::\]/g, "`[::]`");
+	const sanitized = text
+		.split("`")
+		.map((segment, index) =>
+			index % 2 === 0
+				? segment.replace(/<[A-Za-z][A-Za-z0-9_-]*>/g, "`$&`")
+				: segment,
+		)
+		.join("`")
+		.replace(/\[::\]/g, "`[::]`");
 	for (const paragraph of sanitized.trim().split(/\r?\n/)) {
 		if (paragraph.trim().length === 0) {
 			lines.push(`${indent}///`);

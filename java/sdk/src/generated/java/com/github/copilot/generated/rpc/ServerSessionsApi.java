@@ -395,17 +395,6 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Params to attach an extension loader's tools to a session.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionsRegisterExtensionToolsOnSessionResult> registerExtensionToolsOnSession(SessionsRegisterExtensionToolsOnSessionParams params) {
-        return caller.invoke("sessions.registerExtensionToolsOnSession", params, SessionsRegisterExtensionToolsOnSessionResult.class);
-    }
-
-    /**
      * Params to attach or detach an in-process ExtensionController delegate.
      *
      * @apiNote This method is experimental and may change in a future version.

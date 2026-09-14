@@ -347,7 +347,10 @@ type (
 	ShutdownModelMetricUsage                                       = rpc.ShutdownModelMetricUsage
 	ShutdownTokenDetail                                            = rpc.ShutdownTokenDetail
 	ShutdownType                                                   = rpc.ShutdownType
+	SkillContextDeliveredData                                      = rpc.SkillContextDeliveredData
+	SkillContextDeliveredRefData                                   = rpc.SkillContextDeliveredRefData
 	SkillInvokedData                                               = rpc.SkillInvokedData
+	SkillInvokedRefData                                            = rpc.SkillInvokedRefData
 	SkillInvokedTrigger                                            = rpc.SkillInvokedTrigger
 	SkillsLoadedSkill                                              = rpc.SkillsLoadedSkill
 	SkillSource                                                    = rpc.SkillSource
@@ -602,6 +605,7 @@ const (
 	ManagedSettingsResolvedSourceNone                                  = rpc.ManagedSettingsResolvedSourceNone
 	ManagedSettingsResolvedSourcePolicyHelper                          = rpc.ManagedSettingsResolvedSourcePolicyHelper
 	ManagedSettingsResolvedSourceServer                                = rpc.ManagedSettingsResolvedSourceServer
+	MCPHeadersRefreshCompletedOutcomeError                             = rpc.MCPHeadersRefreshCompletedOutcomeError
 	MCPHeadersRefreshCompletedOutcomeHeaders                           = rpc.MCPHeadersRefreshCompletedOutcomeHeaders
 	MCPHeadersRefreshCompletedOutcomeNone                              = rpc.MCPHeadersRefreshCompletedOutcomeNone
 	MCPHeadersRefreshCompletedOutcomeTimeout                           = rpc.MCPHeadersRefreshCompletedOutcomeTimeout
@@ -851,7 +855,10 @@ const (
 	SessionEventTypeSessionUsageInfo                                   = rpc.SessionEventTypeSessionUsageInfo
 	SessionEventTypeSessionWarning                                     = rpc.SessionEventTypeSessionWarning
 	SessionEventTypeSessionWorkspaceFileChanged                        = rpc.SessionEventTypeSessionWorkspaceFileChanged
+	SessionEventTypeSkillContextDelivered                              = rpc.SessionEventTypeSkillContextDelivered
+	SessionEventTypeSkillContextDeliveredRef                           = rpc.SessionEventTypeSkillContextDeliveredRef
 	SessionEventTypeSkillInvoked                                       = rpc.SessionEventTypeSkillInvoked
+	SessionEventTypeSkillInvokedRef                                    = rpc.SessionEventTypeSkillInvokedRef
 	SessionEventTypeSubagentCompleted                                  = rpc.SessionEventTypeSubagentCompleted
 	SessionEventTypeSubagentConfigured                                 = rpc.SessionEventTypeSubagentConfigured
 	SessionEventTypeSubagentDeselected                                 = rpc.SessionEventTypeSubagentDeselected

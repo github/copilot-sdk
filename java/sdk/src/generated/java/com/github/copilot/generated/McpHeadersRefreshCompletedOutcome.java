@@ -20,6 +20,8 @@ public enum McpHeadersRefreshCompletedOutcome {
     HEADERS("headers"),
     /** The {@code none} variant. */
     NONE("none"),
+    /** The {@code error} variant. */
+    ERROR("error"),
     /** The {@code timeout} variant. */
     TIMEOUT("timeout");
 

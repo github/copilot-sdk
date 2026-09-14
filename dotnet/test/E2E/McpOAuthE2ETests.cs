@@ -187,7 +187,7 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
                 {
                     Assert.NotNull(request.WwwAuthenticateParams);
                     Assert.Equal($"{oauthServer.Url}/.well-known/oauth-protected-resource", request.WwwAuthenticateParams!.ResourceMetadataUrl);
-                    Assert.Equal("mcp.write", request.WwwAuthenticateParams.Scope);
+                    Assert.Equal("mcp.read mcp.write", request.WwwAuthenticateParams.Scope);
                     Assert.Equal("insufficient_scope", request.WwwAuthenticateParams.Error);
                 }
 
