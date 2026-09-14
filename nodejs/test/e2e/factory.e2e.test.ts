@@ -259,6 +259,80 @@ it("resumes a failed factory when its session denies every permission request", 
     expect(denyPermissions).not.toHaveBeenCalled();
 });
 
+it("pauses a running factory through the session API", async () => {
+    if (!factoryTestContext) {
+        throw new Error("Factory E2E requires the stdio transport");
+    }
+    const { workDir } = factoryTestContext;
+    const extensionDir = join(workDir, ".github", "extensions", "factory-smoke");
+    await using session = await setupFactoryExtension(workDir);
+
+    const execution = session.factory.run("externally-paused", {
+        notifyOnComplete: false,
+    });
+    await retry(
+        "wait for the externally paused factory to enter its body",
+        async () => {
+            expect(existsSync(join(extensionDir, "external-pause-entered"))).toBe(true);
+        },
+        100,
+        100
+    );
+
+    let runId: string | undefined;
+    await retry(
+        "find the running factory before pausing it",
+        async () => {
+            const running = (await session.factory.listRuns()).find(
+                (run) => run.factoryName === "externally-paused" && run.status === "running"
+            );
+            expect(running).toBeDefined();
+            runId = running?.runId;
+        },
+        100,
+        100
+    );
+    if (!runId) {
+        throw new Error("Running factory did not expose a run ID");
+    }
+
+    await expect(session.factory.pause(runId)).resolves.toMatchObject({
+        runId,
+        status: "paused",
+    });
+    await expect(execution).resolves.toMatchObject({
+        runId,
+        status: "paused",
+    });
+});
+
+it("pauses once at a durable checkpoint and continues after resume", async () => {
+    if (!factoryTestContext) {
+        throw new Error("Factory E2E requires the stdio transport");
+    }
+    const { workDir } = factoryTestContext;
+    const extensionDir = join(workDir, ".github", "extensions", "factory-smoke");
+    await using session = await setupFactoryExtension(workDir);
+
+    const paused = await session.factory.run("durable-pause-checkpoint", {
+        notifyOnComplete: false,
+    });
+    expect(paused).toMatchObject({ status: "paused" });
+    expect(readFileSync(join(extensionDir, "checkpoint-attempts"), "utf8")).toBe("1");
+    expect(readFileSync(join(extensionDir, "checkpoint-preparations"), "utf8")).toBe("1");
+
+    const resumed = await session.factory.resume(paused.runId, {
+        notifyOnComplete: false,
+    });
+    expect(resumed).toMatchObject({
+        runId: paused.runId,
+        status: "completed",
+        result: { attempt: 2, prepared: 1 },
+    });
+    expect(readFileSync(join(extensionDir, "checkpoint-attempts"), "utf8")).toBe("2");
+    expect(readFileSync(join(extensionDir, "checkpoint-preparations"), "utf8")).toBe("1");
+});
+
 it("refuses a factory started through the context session from a factory body", async () => {
     if (!factoryTestContext) {
         throw new Error("Factory E2E requires the stdio transport");
