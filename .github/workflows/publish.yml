@@ -17,7 +17,7 @@ on:
           - unstable
           - canary
       version:
-        description: "Optional direct SDK version or unstable SemVer base"
+        description: "Version override (optional, e.g., 1.0.0). If empty, auto-increments. Unstable overrides must use an unstable prerelease base."
         type: string
         required: false
       mode:
