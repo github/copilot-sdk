@@ -11,7 +11,6 @@ client the original work to satisfy.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 import pytest
 
@@ -23,9 +22,16 @@ from copilot.rpc import (
     SessionsCheckInUseRequest,
 )
 from copilot.session import PermissionHandler
+from copilot.session_events import ExternalToolRequestedData, PermissionRequestedData
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
-from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext, wait_for_condition
+from .testharness import (
+    DEFAULT_GITHUB_TOKEN,
+    E2ETestContext,
+    get_next_event_of_type,
+    wait_for_condition,
+    wait_for_event,
+)
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -74,53 +80,6 @@ def _make_pending_tool(name: str, handler) -> Tool:
     )
 
 
-async def _wait_for_external_tool_requests(
-    session, tool_names: list[str], timeout: float = PENDING_WORK_TIMEOUT
-) -> dict[str, Any]:
-    """Wait for ExternalToolRequested events for the named tools."""
-    expected = set(tool_names)
-    seen: dict[str, Any] = {}
-    completed: asyncio.Future = asyncio.get_event_loop().create_future()
-
-    def on_event(event):
-        if completed.done():
-            return
-        if event.type.value == "external_tool.requested":
-            tool_name = event.data.tool_name
-            if tool_name in expected and tool_name not in seen:
-                seen[tool_name] = event
-                if len(seen) == len(expected):
-                    completed.set_result(dict(seen))
-        elif event.type.value == "session.error":
-            msg = event.data.message or "session error"
-            completed.set_exception(RuntimeError(msg))
-
-    unsubscribe = session.on(on_event)
-    try:
-        return await asyncio.wait_for(completed, timeout=timeout)
-    finally:
-        unsubscribe()
-
-
-async def _wait_for_permission_request(session, timeout: float = PENDING_WORK_TIMEOUT) -> Any:
-    completed: asyncio.Future = asyncio.get_event_loop().create_future()
-
-    def on_event(event):
-        if completed.done():
-            return
-        if event.type.value == "permission.requested":
-            completed.set_result(event)
-        elif event.type.value == "session.error":
-            msg = event.data.message or "session error"
-            completed.set_exception(RuntimeError(msg))
-
-    unsubscribe = session.on(on_event)
-    try:
-        return await asyncio.wait_for(completed, timeout=timeout)
-    finally:
-        unsubscribe()
-
-
 async def _safe_force_stop(client: CopilotClient) -> None:
     try:
         await client.stop()
@@ -160,13 +119,16 @@ class TestPendingWorkResume:
             )
             session_id = session1.session_id
 
+            permission_event_task = get_next_event_of_type(
+                session1, "permission.requested", timeout=PENDING_WORK_TIMEOUT
+            )
             try:
-                permission_event_task = asyncio.create_task(_wait_for_permission_request(session1))
                 await session1.send(
                     "Use resume_permission_tool with value 'alpha', then reply with the result."
                 )
                 _ = await captured_request
                 permission_event = await permission_event_task
+                assert isinstance(permission_event.data, PermissionRequestedData)
 
                 # Force-stop the suspended client without releasing the in-flight
                 # permission so the request remains pending in the runtime.
@@ -204,6 +166,8 @@ class TestPendingWorkResume:
                 finally:
                     await _safe_force_stop(resumed_client)
             finally:
+                permission_event_task.cancel()
+                await asyncio.gather(permission_event_task, return_exceptions=True)
                 if not release_original.done():
                     release_original.set_result(PermissionDecisionUserNotAvailable())
         finally:
@@ -237,14 +201,21 @@ class TestPendingWorkResume:
             )
             session_id = session1.session_id
 
+            tool_request_task = wait_for_event(
+                session1,
+                lambda event: (
+                    isinstance(event.data, ExternalToolRequestedData)
+                    and event.data.tool_name == "resume_external_tool"
+                ),
+                timeout=PENDING_WORK_TIMEOUT,
+                fail_on_session_error=True,
+            )
             try:
-                tool_request_task = asyncio.create_task(
-                    _wait_for_external_tool_requests(session1, ["resume_external_tool"])
-                )
                 await session1.send(
                     "Use resume_external_tool with value 'beta', then reply with the result."
                 )
-                tool_events = await tool_request_task
+                tool_event = await tool_request_task
+                assert isinstance(tool_event.data, ExternalToolRequestedData)
                 assert (await asyncio.wait_for(tool_started, PENDING_WORK_TIMEOUT)) == "beta"
 
                 await suspended_client.force_stop()
@@ -263,7 +234,7 @@ class TestPendingWorkResume:
 
                     tool_result = await session2.rpc.tools.handle_pending_tool_call(
                         HandlePendingToolCallRequest(
-                            request_id=tool_events["resume_external_tool"].data.request_id,
+                            request_id=tool_event.data.request_id,
                             result="EXTERNAL_RESUMED_BETA",
                         )
                     )
@@ -273,6 +244,8 @@ class TestPendingWorkResume:
                 finally:
                     await _safe_force_stop(resumed_client)
             finally:
+                tool_request_task.cancel()
+                await asyncio.gather(tool_request_task, return_exceptions=True)
                 if not release_original.done():
                     release_original.set_result("ORIGINAL_SHOULD_NOT_WIN")
         finally:
@@ -315,17 +288,32 @@ class TestPendingWorkResume:
             )
             session_id = session1.session_id
 
+            tool_a_request = wait_for_event(
+                session1,
+                lambda event: (
+                    isinstance(event.data, ExternalToolRequestedData)
+                    and event.data.tool_name == "pending_lookup_a"
+                ),
+                timeout=PENDING_WORK_TIMEOUT,
+                fail_on_session_error=True,
+            )
+            tool_b_request = wait_for_event(
+                session1,
+                lambda event: (
+                    isinstance(event.data, ExternalToolRequestedData)
+                    and event.data.tool_name == "pending_lookup_b"
+                ),
+                timeout=PENDING_WORK_TIMEOUT,
+                fail_on_session_error=True,
+            )
             try:
-                tool_requests_task = asyncio.create_task(
-                    _wait_for_external_tool_requests(
-                        session1, ["pending_lookup_a", "pending_lookup_b"]
-                    )
-                )
                 await session1.send(
                     "Call pending_lookup_a with value 'alpha' and "
                     "pending_lookup_b with value 'beta', then reply with both results."
                 )
-                tool_events = await tool_requests_task
+                tool_a_event, tool_b_event = await asyncio.gather(tool_a_request, tool_b_request)
+                assert isinstance(tool_a_event.data, ExternalToolRequestedData)
+                assert isinstance(tool_b_event.data, ExternalToolRequestedData)
                 await asyncio.wait_for(
                     asyncio.gather(tool_a_started, tool_b_started), PENDING_WORK_TIMEOUT
                 )
@@ -348,14 +336,14 @@ class TestPendingWorkResume:
 
                     result_b = await session2.rpc.tools.handle_pending_tool_call(
                         HandlePendingToolCallRequest(
-                            request_id=tool_events["pending_lookup_b"].data.request_id,
+                            request_id=tool_b_event.data.request_id,
                             result="PARALLEL_B_BETA",
                         )
                     )
                     assert result_b.success
                     result_a = await session2.rpc.tools.handle_pending_tool_call(
                         HandlePendingToolCallRequest(
-                            request_id=tool_events["pending_lookup_a"].data.request_id,
+                            request_id=tool_a_event.data.request_id,
                             result="PARALLEL_A_ALPHA",
                         )
                     )
@@ -365,6 +353,9 @@ class TestPendingWorkResume:
                 finally:
                     await _safe_force_stop(resumed_client)
             finally:
+                tool_a_request.cancel()
+                tool_b_request.cancel()
+                await asyncio.gather(tool_a_request, tool_b_request, return_exceptions=True)
                 if not release_a.done():
                     release_a.set_result("ORIGINAL_A_SHOULD_NOT_WIN")
                 if not release_b.done():
@@ -478,14 +469,21 @@ class TestPendingWorkResume:
             )
             session_id = session1.session_id
 
+            tool_request_task = wait_for_event(
+                session1,
+                lambda event: (
+                    isinstance(event.data, ExternalToolRequestedData)
+                    and event.data.tool_name == "resume_external_tool"
+                ),
+                timeout=PENDING_WORK_TIMEOUT,
+                fail_on_session_error=True,
+            )
             try:
-                tool_request_task = asyncio.create_task(
-                    _wait_for_external_tool_requests(session1, ["resume_external_tool"])
-                )
                 await session1.send(
                     "Use resume_external_tool with value 'beta', then reply with the result."
                 )
-                tool_events = await tool_request_task
+                tool_event = await tool_request_task
+                assert isinstance(tool_event.data, ExternalToolRequestedData)
                 assert (await asyncio.wait_for(tool_started, PENDING_WORK_TIMEOUT)) == "beta"
 
                 if disconnect_original_client:
@@ -564,7 +562,7 @@ class TestPendingWorkResume:
                     # session should still be healthy for new turns.
                     tool_result = await session2.rpc.tools.handle_pending_tool_call(
                         HandlePendingToolCallRequest(
-                            request_id=tool_events["resume_external_tool"].data.request_id,
+                            request_id=tool_event.data.request_id,
                             result="EXTERNAL_RESUMED_BETA",
                         )
                     )
@@ -582,6 +580,8 @@ class TestPendingWorkResume:
                 finally:
                     await _safe_force_stop(resumed_client)
             finally:
+                tool_request_task.cancel()
+                await asyncio.gather(tool_request_task, return_exceptions=True)
                 if not release_original.done():
                     release_original.set_result("ORIGINAL_SHOULD_NOT_WIN")
                 await _safe_force_stop(suspended_client)

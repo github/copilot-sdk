@@ -13,7 +13,7 @@ from copilot.rpc import (
 from copilot.session import PermissionHandler, PermissionNoResult
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
-from .testharness import E2ETestContext, get_final_assistant_message
+from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -28,8 +28,10 @@ class TestTools:
             on_permission_request=PermissionHandler.approve_all
         )
 
-        await session.send("What's the first line of README.md in this directory?")
-        assistant_message = await get_final_assistant_message(session)
+        assistant_message = await session.send_and_wait(
+            "What's the first line of README.md in this directory?", timeout=10.0
+        )
+        assert assistant_message is not None
         assert "ELIZA" in assistant_message.data.content
 
     async def test_invokes_custom_tool(self, ctx: E2ETestContext):
@@ -44,8 +46,10 @@ class TestTools:
             on_permission_request=PermissionHandler.approve_all, tools=[encrypt_string]
         )
 
-        await session.send("Use encrypt_string to encrypt this string: Hello")
-        assistant_message = await get_final_assistant_message(session)
+        assistant_message = await session.send_and_wait(
+            "Use encrypt_string to encrypt this string: Hello", timeout=10.0
+        )
+        assert assistant_message is not None
         assert "HELLO" in assistant_message.data.content
 
     async def test_low_level_tool_definition(self, ctx: E2ETestContext):
@@ -83,8 +87,8 @@ class TestTools:
             "First, set the current phase to 'analyzing'. Then search for items with "
             "keyword 'copilot'. Report the phase and search results."
         )
-        await session.send(prompt)
-        assistant_message = await get_final_assistant_message(session)
+        assistant_message = await session.send_and_wait(prompt, timeout=10.0)
+        assert assistant_message is not None
         content = assistant_message.data.content or ""
         assert content != ""
         assert "analyzing" in content.lower()
@@ -100,8 +104,10 @@ class TestTools:
             on_permission_request=PermissionHandler.approve_all, tools=[get_user_location]
         )
 
-        await session.send("What is my location? If you can't find out, just say 'unknown'.")
-        answer = await get_final_assistant_message(session)
+        answer = await session.send_and_wait(
+            "What is my location? If you can't find out, just say 'unknown'.", timeout=10.0
+        )
+        assert answer is not None
 
         # Check the underlying traffic
         traffic = await ctx.get_exchanges()
@@ -164,12 +170,13 @@ class TestTools:
         )
         expected_session_id = session.session_id
 
-        await session.send(
+        assistant_message = await session.send_and_wait(
             "Perform a DB query for the 'cities' table using IDs 12 and 19, "
-            "sorting ascending. Reply only with lines of the form: [cityname] [population]"
+            "sorting ascending. Reply only with lines of the form: [cityname] [population]",
+            timeout=10.0,
         )
 
-        assistant_message = await get_final_assistant_message(session)
+        assert assistant_message is not None
         response_content = assistant_message.data.content or ""
 
         assert response_content != ""
@@ -201,8 +208,10 @@ class TestTools:
             on_permission_request=tracking_handler, tools=[safe_lookup]
         )
 
-        await session.send("Use safe_lookup to look up 'test123'")
-        assistant_message = await get_final_assistant_message(session)
+        assistant_message = await session.send_and_wait(
+            "Use safe_lookup to look up 'test123'", timeout=10.0
+        )
+        assert assistant_message is not None
         assert "RESULT: test123" in assistant_message.data.content
         assert not did_run_permission_request
 
@@ -222,8 +231,10 @@ class TestTools:
             on_permission_request=PermissionHandler.approve_all, tools=[custom_grep]
         )
 
-        await session.send("Use grep to search for the word 'hello'")
-        assistant_message = await get_final_assistant_message(session)
+        assistant_message = await session.send_and_wait(
+            "Use grep to search for the word 'hello'", timeout=10.0
+        )
+        assert assistant_message is not None
         assert "CUSTOM_GREP_RESULT" in assistant_message.data.content
 
     async def test_invokes_custom_tool_with_permission_handler(self, ctx: E2ETestContext):
@@ -244,8 +255,10 @@ class TestTools:
             on_permission_request=on_permission_request, tools=[encrypt_string]
         )
 
-        await session.send("Use encrypt_string to encrypt this string: Hello")
-        assistant_message = await get_final_assistant_message(session)
+        assistant_message = await session.send_and_wait(
+            "Use encrypt_string to encrypt this string: Hello", timeout=10.0
+        )
+        assert assistant_message is not None
         assert "HELLO" in assistant_message.data.content
 
         # Should have received a custom-tool permission request
@@ -272,8 +285,10 @@ class TestTools:
             on_permission_request=on_permission_request, tools=[encrypt_string]
         )
 
-        await session.send("Use encrypt_string to encrypt this string: Hello")
-        await get_final_assistant_message(session)
+        assistant_message = await session.send_and_wait(
+            "Use encrypt_string to encrypt this string: Hello", timeout=10.0
+        )
+        assert assistant_message is not None
 
         # The tool handler should NOT have been called since permission was denied
         assert not tool_handler_called
@@ -328,9 +343,10 @@ class TestTools:
         )
 
         try:
-            await session.send(
+            assistant_message = await session.send_and_wait(
                 "Use lookup_city with 'Paris' and lookup_country with 'France' at the same time,"
-                " then combine both results in your reply."
+                " then combine both results in your reply.",
+                timeout=60.0,
             )
 
             city_result = await asyncio.wait_for(city_called, timeout=60.0)
@@ -338,7 +354,6 @@ class TestTools:
             assert city_result == "Paris"
             assert country_result == "France"
 
-            assistant_message = await get_final_assistant_message(session, timeout=60.0)
             assert assistant_message is not None
             content = assistant_message.data.content or ""
             assert "CITY_PARIS" in content

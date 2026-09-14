@@ -11,9 +11,10 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 import pytest
 
-from copilot import CopilotClient, RuntimeConnection
+from copilot import CopilotClient, CopilotRequestContext, CopilotRequestHandler, RuntimeConnection
 from copilot.rpc import (
     AccountGetQuotaRequest,
     AgentsDiscoverRequest,
@@ -55,7 +56,14 @@ from copilot.rpc import (
 )
 from copilot.session import PermissionHandler
 
-from .testharness import E2ETestContext, is_inprocess_transport, wait_for_condition
+from ._copilot_request_helpers import (
+    SYNTHETIC_TEXT,
+    assistant_text,
+    build_inference_response,
+    build_non_inference_response,
+    is_inference_url,
+)
+from .testharness import E2ETestContext, is_inprocess_transport
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -89,7 +97,12 @@ async def authed_ctx(ctx: E2ETestContext):
     return ctx
 
 
-def _make_authed_client(ctx: E2ETestContext, token: str) -> CopilotClient:
+def _make_authed_client(
+    ctx: E2ETestContext,
+    token: str,
+    *,
+    request_handler: CopilotRequestHandler | None = None,
+) -> CopilotClient:
     env = ctx.get_env()
     env["COPILOT_DEBUG_GITHUB_API_URL"] = ctx.proxy_url
     return CopilotClient(
@@ -97,7 +110,19 @@ def _make_authed_client(ctx: E2ETestContext, token: str) -> CopilotClient:
         working_directory=ctx.work_dir,
         env=env,
         github_token=token,
+        request_handler=request_handler,
     )
+
+
+class _PersistedSessionRequestHandler(CopilotRequestHandler):
+    """Complete the metadata fixture's real turn without a live inference request."""
+
+    async def send_request(
+        self, request: httpx.Request, ctx: CopilotRequestContext
+    ) -> httpx.Response:
+        if is_inference_url(str(request.url)):
+            return build_inference_response(request)
+        return build_non_inference_response(str(request.url), supported_endpoints=["/responses"])
 
 
 def _make_client_with_env(ctx: E2ETestContext, env_overrides: dict[str, str]) -> CopilotClient:
@@ -295,7 +320,9 @@ class TestRpcServer:
     ):
         token = os.environ.get("GITHUB_TOKEN", "fakevalue")
         await _configure_user(authed_ctx, token)
-        client = _make_authed_client(authed_ctx, token)
+        client = _make_authed_client(
+            authed_ctx, token, request_handler=_PersistedSessionRequestHandler()
+        )
 
         session_id = str(uuid.uuid4())
         working_directory = Path(authed_ctx.work_dir) / f"server-rpc-list-{uuid.uuid4().hex}"
@@ -311,33 +338,20 @@ class TestRpcServer:
                 on_permission_request=PermissionHandler.approve_all,
             )
 
-            await session.send(
-                "Record a turn for sessions.list discriminator coverage", mode="enqueue"
+            # A user turn makes sessions.list nonempty. Finish a synthetic turn
+            # before inspecting persistence or detaching; enqueue alone leaves
+            # unobserved inference racing cleanup.
+            message = await session.send_and_wait(
+                "Record a turn for sessions.list discriminator coverage", timeout=60.0
             )
-
-            listed = None
-
-            async def session_is_listed() -> bool:
-                nonlocal listed
-                # Re-save on every attempt: on slower runners the enqueued turn is not
-                # necessarily recorded yet when the first save runs, so a single save
-                # followed by a fixed sleep races the CLI's own persistence.
-                save = await client.rpc.sessions.save(SessionsSaveRequest(session_id=session_id))
-                assert save is not None
-                listed = await client.rpc.sessions.list(
-                    SessionsListRequest(
-                        filter=SessionListFilter(cwd=str(working_directory)),
-                        metadata_limit=0,
-                    )
+            assert assistant_text(message) == SYNTHETIC_TEXT
+            save = await client.rpc.sessions.save(SessionsSaveRequest(session_id=session_id))
+            assert save is not None
+            listed = await client.rpc.sessions.list(
+                SessionsListRequest(
+                    filter=SessionListFilter(cwd=str(working_directory)),
+                    metadata_limit=0,
                 )
-                return any(item.session_id == session_id for item in listed.sessions or [])
-
-            await wait_for_condition(
-                session_is_listed,
-                timeout=60.0,
-                timeout_message=(
-                    "Timed out waiting for the saved session to be returned by sessions.list."
-                ),
             )
 
             assert listed is not None
@@ -379,15 +393,17 @@ class TestRpcServer:
             )
             assert missing_session_id not in in_use.in_use
         finally:
-            if session is not None:
-                await session.disconnect()
             try:
-                await client.stop()
-            except ExceptionGroup:
-                # Intentional: shutting down the per-test client can race the
-                # CLI's own teardown and surface as an aggregated cancellation
-                # error from anyio. We don't want it to fail the test.
-                pass
+                if session is not None:
+                    await session.disconnect()
+            finally:
+                try:
+                    await client.stop()
+                except ExceptionGroup:
+                    # Intentional: shutting down the per-test client can race the
+                    # CLI's own teardown and surface as an aggregated cancellation
+                    # error from anyio. We don't want it to fail the test.
+                    pass
 
     async def test_should_enrich_basic_session_metadata(self, ctx: E2ETestContext):
         session_id = str(uuid.uuid4())

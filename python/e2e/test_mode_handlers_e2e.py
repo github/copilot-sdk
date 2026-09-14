@@ -20,7 +20,7 @@ from copilot.session_events import (
     SessionModelChangeData,
 )
 
-from .testharness import E2ETestContext
+from .testharness import E2ETestContext, wait_for_event
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -55,22 +55,6 @@ async def mode_ctx(ctx: E2ETestContext):
     return ctx
 
 
-async def _wait_for_event(session, predicate, timeout: float = 30.0):
-    """Wait for the first session event matching predicate."""
-    loop = asyncio.get_event_loop()
-    fut: asyncio.Future = loop.create_future()
-
-    def on_event(event):
-        if not fut.done() and predicate(event):
-            fut.set_result(event)
-
-    unsubscribe = session.on(on_event)
-    try:
-        return await asyncio.wait_for(fut, timeout=timeout)
-    finally:
-        unsubscribe()
-
-
 class TestModeHandlers:
     async def test_should_invoke_exit_plan_mode_handler_when_model_uses_tool(
         self, mode_ctx: E2ETestContext
@@ -92,27 +76,23 @@ class TestModeHandlers:
             on_exit_plan_mode_request=on_exit_plan_mode_request,
         )
 
-        try:
-            requested_event = asyncio.create_task(
-                _wait_for_event(
-                    session,
-                    lambda event: (
-                        isinstance(event.data, ExitPlanModeRequestedData)
-                        and event.data.summary == PLAN_SUMMARY
-                    ),
-                )
-            )
-            completed_event = asyncio.create_task(
-                _wait_for_event(
-                    session,
-                    lambda event: (
-                        isinstance(event.data, ExitPlanModeCompletedData)
-                        and event.data.approved is True
-                        and event.data.selected_action == ExitPlanModeAction.INTERACTIVE
-                    ),
-                )
-            )
+        requested_event = wait_for_event(
+            session,
+            lambda event: (
+                isinstance(event.data, ExitPlanModeRequestedData)
+                and event.data.summary == PLAN_SUMMARY
+            ),
+        )
+        completed_event = wait_for_event(
+            session,
+            lambda event: (
+                isinstance(event.data, ExitPlanModeCompletedData)
+                and event.data.approved is True
+                and event.data.selected_action == ExitPlanModeAction.INTERACTIVE
+            ),
+        )
 
+        try:
             await session.rpc.mode.set(ModeSetRequest(mode=SessionMode.PLAN))
             response = await session.send_and_wait(PLAN_PROMPT)
 
@@ -132,6 +112,9 @@ class TestModeHandlers:
             assert completed.data.feedback == "Approved by the Python E2E test"
             assert response is not None
         finally:
+            requested_event.cancel()
+            completed_event.cancel()
+            await asyncio.gather(requested_event, completed_event, return_exceptions=True)
             await session.disconnect()
 
     async def test_should_invoke_auto_mode_switch_handler_when_rate_limited(
@@ -150,42 +133,34 @@ class TestModeHandlers:
             on_auto_mode_switch_request=on_auto_mode_switch_request,
         )
 
-        try:
-            requested_event = asyncio.create_task(
-                _wait_for_event(
-                    session,
-                    lambda event: (
-                        isinstance(event.data, AutoModeSwitchRequestedData)
-                        and event.data.error_code == "user_weekly_rate_limited"
-                        and event.data.retry_after_seconds == 1
-                    ),
-                )
-            )
-            completed_event = asyncio.create_task(
-                _wait_for_event(
-                    session,
-                    lambda event: (
-                        isinstance(event.data, AutoModeSwitchCompletedData)
-                        and event.data.response == AutoModeSwitchResponse.YES
-                    ),
-                )
-            )
-            model_change_event = asyncio.create_task(
-                _wait_for_event(
-                    session,
-                    lambda event: (
-                        isinstance(event.data, SessionModelChangeData)
-                        and event.data.cause == "rate_limit_auto_switch"
-                    ),
-                )
-            )
-            idle_event = asyncio.create_task(
-                _wait_for_event(
-                    session,
-                    lambda event: isinstance(event.data, SessionIdleData),
-                )
-            )
+        requested_event = wait_for_event(
+            session,
+            lambda event: (
+                isinstance(event.data, AutoModeSwitchRequestedData)
+                and event.data.error_code == "user_weekly_rate_limited"
+                and event.data.retry_after_seconds == 1
+            ),
+        )
+        completed_event = wait_for_event(
+            session,
+            lambda event: (
+                isinstance(event.data, AutoModeSwitchCompletedData)
+                and event.data.response == AutoModeSwitchResponse.YES
+            ),
+        )
+        model_change_event = wait_for_event(
+            session,
+            lambda event: (
+                isinstance(event.data, SessionModelChangeData)
+                and event.data.cause == "rate_limit_auto_switch"
+            ),
+        )
+        idle_event = wait_for_event(
+            session,
+            lambda event: isinstance(event.data, SessionIdleData),
+        )
 
+        try:
             message_id = await session.send(AUTO_MODE_PROMPT)
             assert message_id
 
@@ -206,4 +181,8 @@ class TestModeHandlers:
             assert request["errorCode"] == "user_weekly_rate_limited"
             assert request["retryAfterSeconds"] == 1
         finally:
+            waiters = [requested_event, completed_event, model_change_event, idle_event]
+            for waiter in waiters:
+                waiter.cancel()
+            await asyncio.gather(*waiters, return_exceptions=True)
             await session.disconnect()
