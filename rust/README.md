@@ -1073,15 +1073,19 @@ github-copilot-sdk = { version = "1", default-features = false }
      managed runtime artifacts directly into the platform cache using staging
      files and atomic renames.
 
-3. **Runtime:** in both modes the artifacts share one versioned directory:
+3. **Runtime:** embedded CLI artifacts and build-time-extracted hostless runtime
+   artifacts use separate versioned namespaces:
 
-   | OS | Path |
-   |----|------|
-   | macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/` |
-   | Linux | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/cli/<version>/` |
-   | Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\` |
+   | OS | `bundled-cli` on | `bundled-cli` off |
+   |----|------------------|-------------------|
+   | macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/` | `~/Library/Caches/github-copilot-sdk/runtime/<version>/` |
+   | Linux | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/cli/<version>/` | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/runtime/<version>/` |
+   | Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\` | `%LOCALAPPDATA%\github-copilot-sdk\runtime\<version>\` |
 
-   Old version directories accumulate in siblings; clean them up at your leisure.
+   Separating these namespaces prevents stale hostless-runtime cleanup during a
+   non-bundled build from deleting a same-version bundled CLI used by another
+   application. Old version directories accumulate in siblings; clean them up
+   at your leisure.
 
 ### Overriding the extraction location
 
