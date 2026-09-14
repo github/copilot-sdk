@@ -19,7 +19,9 @@ public enum DebugCollectLogsRedaction {
     /** The {@code plain-text} variant. */
     PLAIN_TEXT("plain-text"),
     /** The {@code events-jsonl} variant. */
-    EVENTS_JSONL("events-jsonl");
+    EVENTS_JSONL("events-jsonl"),
+    /** The {@code none} variant. */
+    NONE("none");
 
     private final String value;
     DebugCollectLogsRedaction(String value) { this.value = value; }

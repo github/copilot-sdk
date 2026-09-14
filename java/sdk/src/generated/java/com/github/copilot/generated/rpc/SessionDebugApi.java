@@ -31,7 +31,7 @@ public final class SessionDebugApi {
     }
 
     /**
-     * Options for collecting a redacted session debug bundle.
+     * Options for collecting a session debug bundle with configurable redaction.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

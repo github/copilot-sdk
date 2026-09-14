@@ -10,21 +10,27 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Handle for releasing the extension tool registration.
+ * Non-secret host-managed HTTP MCP server configuration. The containing map key is the stable managed identity; credentials are supplied dynamically by the host.
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionsRegisterExtensionToolsOnSessionResult(
-    /** In-process unsubscribe function used only by the CLI. */
-    @JsonProperty("unsubscribe") Object unsubscribe
+public record ManagedMcpServerConfig(
+    /** Human-readable catalog display name. */
+    @JsonProperty("displayName") String displayName,
+    /** Hosted MCP streamable HTTP endpoint. */
+    @JsonProperty("url") String url,
+    /** Tools to include. Defaults to all tools when omitted. */
+    @JsonProperty("tools") List<String> tools,
+    /** Timeout in milliseconds for tool discovery and tool calls. */
+    @JsonProperty("timeout") Long timeout,
+    /** Maximum dynamic-header cache lifetime in milliseconds. */
+    @JsonProperty("headersRefreshTtlMs") Long headersRefreshTtlMs
 ) {
 }

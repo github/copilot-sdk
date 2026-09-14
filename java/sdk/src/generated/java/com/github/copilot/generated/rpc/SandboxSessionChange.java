@@ -10,32 +10,26 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Configuration source: user, workspace, plugin, builtin, or managed
+ * A session-scoped sandbox transition applied while handling a slash command
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum McpServerSource {
-    /** The {@code user} variant. */
-    USER("user"),
-    /** The {@code workspace} variant. */
-    WORKSPACE("workspace"),
-    /** The {@code plugin} variant. */
-    PLUGIN("plugin"),
-    /** The {@code builtin} variant. */
-    BUILTIN("builtin"),
-    /** The {@code managed} variant. */
-    MANAGED("managed");
+public enum SandboxSessionChange {
+    /** The {@code disabled} variant. */
+    DISABLED("disabled"),
+    /** The {@code restored} variant. */
+    RESTORED("restored");
 
     private final String value;
-    McpServerSource(String value) { this.value = value; }
+    SandboxSessionChange(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static McpServerSource fromValue(String value) {
-        for (McpServerSource v : values()) {
+    public static SandboxSessionChange fromValue(String value) {
+        for (SandboxSessionChange v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown McpServerSource value: " + value);
+        throw new IllegalArgumentException("Unknown SandboxSessionChange value: " + value);
     }
 }

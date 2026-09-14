@@ -146,7 +146,10 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionUsageInfoEvent), "session.usage_info")]
 [JsonDerivedType(typeof(SessionWarningEvent), "session.warning")]
 [JsonDerivedType(typeof(SessionWorkspaceFileChangedEvent), "session.workspace_file_changed")]
+[JsonDerivedType(typeof(SkillContextDeliveredEvent), "skill.context_delivered")]
+[JsonDerivedType(typeof(SkillContextDeliveredRefEvent), "skill.context_delivered_ref")]
 [JsonDerivedType(typeof(SkillInvokedEvent), "skill.invoked")]
+[JsonDerivedType(typeof(SkillInvokedRefEvent), "skill.invoked_ref")]
 [JsonDerivedType(typeof(SubagentCompletedEvent), "subagent.completed")]
 [JsonDerivedType(typeof(SubagentConfiguredEvent), "subagent.configured")]
 [JsonDerivedType(typeof(SubagentDeselectedEvent), "subagent.deselected")]
@@ -1139,6 +1142,48 @@ public sealed partial class SkillInvokedEvent : SessionEvent
     /// <summary>The <c>skill.invoked</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SkillInvokedData Data { get; set; }
+}
+
+/// <summary>Internal durable skill invocation receipt whose content resolves from an earlier inline skill event in the same session.</summary>
+/// <remarks>Represents the <c>skill.invoked_ref</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SkillInvokedRefEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "skill.invoked_ref";
+
+    /// <summary>The <c>skill.invoked_ref</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SkillInvokedRefData Data { get; set; }
+}
+
+/// <summary>Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.</summary>
+/// <remarks>Represents the <c>skill.context_delivered</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SkillContextDeliveredEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "skill.context_delivered";
+
+    /// <summary>The <c>skill.context_delivered</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SkillContextDeliveredData Data { get; set; }
+}
+
+/// <summary>Internal durable receipt that reconstructs exact model-visible skill context from earlier session content.</summary>
+/// <remarks>Represents the <c>skill.context_delivered_ref</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SkillContextDeliveredRefEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "skill.context_delivered_ref";
+
+    /// <summary>The <c>skill.context_delivered_ref</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SkillContextDeliveredRefData Data { get; set; }
 }
 
 /// <summary>Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`.</summary>
@@ -3885,6 +3930,11 @@ public sealed partial class AssistantMessageData
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
+    /// <summary>Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("originatingMessageId")]
+    public string? OriginatingMessageId { get; set; }
+
     /// <summary>Actual output token count from the API response (completion_tokens), used for accurate token accounting.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("outputTokens")]
@@ -4598,6 +4648,16 @@ public sealed partial class ToolExecutionStartData
     [JsonPropertyName("fusion")]
     public FusionAttribution? Fusion { get; set; }
 
+    /// <summary>Preferred lookup name for the MCP server hosting this tool: the configured (namespaced) config-map key when the tool carries one, otherwise the display name from `mcpServerName`. Present when the tool is an MCP tool; this is the name unrestricted provenance telemetry hashes so it joins with `mcp_server_setup`, which keys off the configured name too.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mcpConfigServerName")]
+    public string? McpConfigServerName { get; set; }
+
+    /// <summary>Where the MCP server's configuration came from (`user`, `workspace`, `plugin`, or `builtin`), when the tool is an MCP tool and the server is configured.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mcpConfigSource")]
+    public McpServerSource? McpConfigSource { get; set; }
+
     /// <summary>Name of the MCP server hosting this tool, when the tool is an MCP tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("mcpServerName")]
@@ -4831,6 +4891,110 @@ public sealed partial class SkillInvokedData
     public SkillInvokedTrigger? Trigger { get; set; }
 }
 
+/// <summary>Internal durable skill invocation receipt whose content resolves from an earlier inline skill event in the same session.</summary>
+public sealed partial class SkillInvokedRefData
+{
+    /// <summary>Tool names that should be auto-approved when this skill is active.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("allowedTools")]
+    public string[]? AllowedTools { get; set; }
+
+    /// <summary>Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:&lt;lowercase hex digest&gt;` over the UTF-8 bytes of that event's `content`.</summary>
+    [JsonPropertyName("contentId")]
+    public required string ContentId { get; set; }
+
+    /// <summary>UTF-16 code unit length of the referenced skill content. Derived from the referenced body and validated against it when the reference is expanded; a reference whose length disagrees with the body it names is rejected instead of expanded.</summary>
+    [JsonPropertyName("contentLength")]
+    public required long ContentLength { get; set; }
+
+    /// <summary>Description of the skill from its SKILL.md frontmatter.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Whether model invocation is disabled for this skill.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("disableModelInvocation")]
+    public bool? DisableModelInvocation { get; set; }
+
+    /// <summary>Model identifier active when the skill was invoked, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Name of the invoked skill.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+
+    /// <summary>Name of the plugin this skill originated from, when applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("pluginName")]
+    public string? PluginName { get; set; }
+
+    /// <summary>Version of the plugin this skill originated from, when applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("pluginVersion")]
+    public string? PluginVersion { get; set; }
+
+    /// <summary>Source identifier for where the skill was discovered.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("source")]
+    public string? Source { get; set; }
+
+    /// <summary>What triggered the skill invocation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("trigger")]
+    public SkillInvokedTrigger? Trigger { get; set; }
+}
+
+/// <summary>Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.</summary>
+public sealed partial class SkillContextDeliveredData
+{
+    /// <summary>Exact model-facing skill wrapper, including its invocation-time file context.</summary>
+    [JsonPropertyName("content")]
+    public required string Content { get; set; }
+
+    /// <summary>Interaction that delivered this context, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
+
+    /// <summary>Unmodified injection provenance, in the form skill-&lt;invocation-name&gt;.</summary>
+    [JsonPropertyName("source")]
+    public required string Source { get; set; }
+}
+
+/// <summary>Internal durable receipt that reconstructs exact model-visible skill context from earlier session content.</summary>
+public sealed partial class SkillContextDeliveredRefData
+{
+    /// <summary>Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:&lt;lowercase hex digest&gt;` over the UTF-8 bytes of that event's `content`.</summary>
+    [JsonPropertyName("contentId")]
+    public required string ContentId { get; set; }
+
+    /// <summary>Interaction that delivered this context, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
+
+    /// <summary>Exact text preceding the referenced content in the delivered wrapper.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("prefix")]
+    public string? Prefix { get; set; }
+
+    /// <summary>Unmodified injection provenance, in the form skill-&lt;invocation-name&gt;.</summary>
+    [JsonPropertyName("source")]
+    public required string Source { get; set; }
+
+    /// <summary>Exact text following the referenced content in the delivered wrapper.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("suffix")]
+    public string? Suffix { get; set; }
+}
+
 /// <summary>Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`.</summary>
 public sealed partial class SandboxDecisionData { }
 
@@ -4868,6 +5032,11 @@ public sealed partial class SubagentStartedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
     public string? Model { get; set; }
+
+    /// <summary>Authority or runtime mechanism responsible for sub-agent model selection, when known at start.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelSelectionSource")]
+    public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
 
     /// <summary>Task-registry ID of the spawning sub-agent. Absent when the root session spawned this child.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5096,7 +5265,7 @@ public sealed partial class HookStartData
     [JsonPropertyName("hookType")]
     public required string HookType { get; set; }
 
-    /// <summary>Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.</summary>
+    /// <summary>Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) drops the tool result's inline `contents`/`uiResource`/`skillInvocation` and replaces duplicated text result fields with a `[copilot:elided ...]` marker; the live subscription stream still delivers the full value. Canonical tool output remains in the adjacent tool.execution_complete event, while an invoked skill's authoritative body remains in its skill invocation event.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("input")]
     public JsonElement? Input { get; set; }
@@ -5123,7 +5292,7 @@ public sealed partial class HookEndData
     [JsonPropertyName("hookType")]
     public required string HookType { get; set; }
 
-    /// <summary>Output data produced by the hook.</summary>
+    /// <summary>Output data produced by the hook. Durable and resumed postToolUse receipts may omit messages owned by a successful skill invocation and replace an unchanged skill sessionLog copy with an elision marker; hook-modified or re-sourced values are preserved, and the authoritative body remains in the skill invocation event.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("output")]
     public JsonElement? Output { get; set; }
@@ -8660,7 +8829,7 @@ public sealed partial class ToolExecutionCompleteResult
     [JsonPropertyName("contents")]
     public ToolExecutionCompleteContent[]? Contents { get; set; }
 
-    /// <summary>Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.</summary>
+    /// <summary>Detailed tool result for UI/timeline display, preserving complete content such as diffs for most tools. Successful skill invocations intentionally use the concise model-facing content here; the authoritative skill body is carried by the corresponding skill invocation event. Falls back to content when absent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("detailedContent")]
     public string? DetailedContent { get; set; }
@@ -10869,6 +11038,11 @@ public sealed partial class McpServerMetadata
 /// <remarks>Nested data type for <c>McpServersLoadedServer</c>.</remarks>
 public sealed partial class McpServersLoadedServer
 {
+    /// <summary>Human-readable display name supplied by a managed server catalog.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
     /// <summary>Error message if the server failed to connect.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("error")]
@@ -10893,7 +11067,7 @@ public sealed partial class McpServersLoadedServer
     [JsonPropertyName("serverMetadata")]
     public McpServerMetadata? ServerMetadata { get; set; }
 
-    /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
+    /// <summary>Configuration source: user, workspace, plugin, builtin, or managed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("source")]
     public McpServerSource? Source { get; set; }
@@ -14069,6 +14243,76 @@ public readonly struct AbortReason : IEquatable<AbortReason>
     }
 }
 
+/// <summary>Configuration source: user, workspace, plugin, builtin, or managed.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpServerSource : IEquatable<McpServerSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpServerSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpServerSource"/>.</param>
+    [JsonConstructor]
+    public McpServerSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpServerSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Server configured in the user's global MCP configuration.</summary>
+    public static McpServerSource User { get; } = new("user");
+
+    /// <summary>Server configured by the current workspace.</summary>
+    public static McpServerSource Workspace { get; } = new("workspace");
+
+    /// <summary>Server contributed by an installed plugin.</summary>
+    public static McpServerSource Plugin { get; } = new("plugin");
+
+    /// <summary>Server bundled with the runtime.</summary>
+    public static McpServerSource Builtin { get; } = new("builtin");
+
+    /// <summary>Server supplied by a trusted host-managed catalog.</summary>
+    public static McpServerSource Managed { get; } = new("managed");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are equivalent.</summary>
+    public static bool operator ==(McpServerSource left, McpServerSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpServerSource left, McpServerSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpServerSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpServerSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpServerSource}"/> for serializing <see cref="McpServerSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpServerSource>
+    {
+        /// <inheritdoc />
+        public override McpServerSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpServerSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerSource));
+        }
+    }
+}
+
 /// <summary>Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server).</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -14566,73 +14810,6 @@ public readonly struct SkillInvokedTrigger : IEquatable<SkillInvokedTrigger>
     }
 }
 
-/// <summary>Where the model input for a task-tool sub-agent came from.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SubagentTaskModelSource : IEquatable<SubagentTaskModelSource>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SubagentTaskModelSource"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SubagentTaskModelSource"/>.</param>
-    [JsonConstructor]
-    public SubagentTaskModelSource(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SubagentTaskModelSource"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The spawning agent supplied the task tool's model argument.</summary>
-    public static SubagentTaskModelSource TaskArgument { get; } = new("task_argument");
-
-    /// <summary>The task omitted a model and the per-sub-agent settings entry supplied a concrete one.</summary>
-    public static SubagentTaskModelSource SubagentConfiguration { get; } = new("subagent_configuration");
-
-    /// <summary>The task omitted a model and the user-defined custom agent's definition supplied one.</summary>
-    public static SubagentTaskModelSource CustomAgentDefinition { get; } = new("custom_agent_definition");
-
-    /// <summary>Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model.</summary>
-    public static SubagentTaskModelSource Unset { get; } = new("unset");
-
-    /// <summary>Returns a value indicating whether two <see cref="SubagentTaskModelSource"/> instances are equivalent.</summary>
-    public static bool operator ==(SubagentTaskModelSource left, SubagentTaskModelSource right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SubagentTaskModelSource"/> instances are not equivalent.</summary>
-    public static bool operator !=(SubagentTaskModelSource left, SubagentTaskModelSource right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SubagentTaskModelSource other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SubagentTaskModelSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SubagentTaskModelSource}"/> for serializing <see cref="SubagentTaskModelSource"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SubagentTaskModelSource>
-    {
-        /// <inheritdoc />
-        public override SubagentTaskModelSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SubagentTaskModelSource value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SubagentTaskModelSource));
-        }
-    }
-}
-
 /// <summary>Authority or runtime mechanism responsible for sub-agent model selection.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -14705,6 +14882,73 @@ public readonly struct SubagentModelSelectionSource : IEquatable<SubagentModelSe
         public override void Write(Utf8JsonWriter writer, SubagentModelSelectionSource value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SubagentModelSelectionSource));
+        }
+    }
+}
+
+/// <summary>Where the model input for a task-tool sub-agent came from.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SubagentTaskModelSource : IEquatable<SubagentTaskModelSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SubagentTaskModelSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SubagentTaskModelSource"/>.</param>
+    [JsonConstructor]
+    public SubagentTaskModelSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SubagentTaskModelSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The spawning agent supplied the task tool's model argument.</summary>
+    public static SubagentTaskModelSource TaskArgument { get; } = new("task_argument");
+
+    /// <summary>The task omitted a model and the per-sub-agent settings entry supplied a concrete one.</summary>
+    public static SubagentTaskModelSource SubagentConfiguration { get; } = new("subagent_configuration");
+
+    /// <summary>The task omitted a model and the user-defined custom agent's definition supplied one.</summary>
+    public static SubagentTaskModelSource CustomAgentDefinition { get; } = new("custom_agent_definition");
+
+    /// <summary>Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model.</summary>
+    public static SubagentTaskModelSource Unset { get; } = new("unset");
+
+    /// <summary>Returns a value indicating whether two <see cref="SubagentTaskModelSource"/> instances are equivalent.</summary>
+    public static bool operator ==(SubagentTaskModelSource left, SubagentTaskModelSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SubagentTaskModelSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(SubagentTaskModelSource left, SubagentTaskModelSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SubagentTaskModelSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SubagentTaskModelSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SubagentTaskModelSource}"/> for serializing <see cref="SubagentTaskModelSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SubagentTaskModelSource>
+    {
+        /// <inheritdoc />
+        public override SubagentTaskModelSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SubagentTaskModelSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SubagentTaskModelSource));
         }
     }
 }
@@ -15942,6 +16186,9 @@ public readonly struct McpHeadersRefreshCompletedOutcome : IEquatable<McpHeaders
     /// <summary>The host responded with no dynamic headers.</summary>
     public static McpHeadersRefreshCompletedOutcome None { get; } = new("none");
 
+    /// <summary>The host credential broker rejected or failed the refresh.</summary>
+    public static McpHeadersRefreshCompletedOutcome Error { get; } = new("error");
+
     /// <summary>No response arrived within the bounded window.</summary>
     public static McpHeadersRefreshCompletedOutcome Timeout { get; } = new("timeout");
 
@@ -16728,73 +16975,6 @@ public readonly struct AgentModelPolicy : IEquatable<AgentModelPolicy>
     }
 }
 
-/// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct McpServerSource : IEquatable<McpServerSource>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="McpServerSource"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="McpServerSource"/>.</param>
-    [JsonConstructor]
-    public McpServerSource(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="McpServerSource"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Server configured in the user's global MCP configuration.</summary>
-    public static McpServerSource User { get; } = new("user");
-
-    /// <summary>Server configured by the current workspace.</summary>
-    public static McpServerSource Workspace { get; } = new("workspace");
-
-    /// <summary>Server contributed by an installed plugin.</summary>
-    public static McpServerSource Plugin { get; } = new("plugin");
-
-    /// <summary>Server bundled with the runtime.</summary>
-    public static McpServerSource Builtin { get; } = new("builtin");
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are equivalent.</summary>
-    public static bool operator ==(McpServerSource left, McpServerSource right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are not equivalent.</summary>
-    public static bool operator !=(McpServerSource left, McpServerSource right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is McpServerSource other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(McpServerSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{McpServerSource}"/> for serializing <see cref="McpServerSource"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<McpServerSource>
-    {
-        /// <inheritdoc />
-        public override McpServerSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, McpServerSource value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerSource));
-        }
-    }
-}
-
 /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -17383,8 +17563,14 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ShutdownModelMetricTokenDetail))]
 [JsonSerializable(typeof(ShutdownModelMetricUsage))]
 [JsonSerializable(typeof(ShutdownTokenDetail))]
+[JsonSerializable(typeof(SkillContextDeliveredData))]
+[JsonSerializable(typeof(SkillContextDeliveredEvent))]
+[JsonSerializable(typeof(SkillContextDeliveredRefData))]
+[JsonSerializable(typeof(SkillContextDeliveredRefEvent))]
 [JsonSerializable(typeof(SkillInvokedData))]
 [JsonSerializable(typeof(SkillInvokedEvent))]
+[JsonSerializable(typeof(SkillInvokedRefData))]
+[JsonSerializable(typeof(SkillInvokedRefEvent))]
 [JsonSerializable(typeof(SkillsLoadedSkill))]
 [JsonSerializable(typeof(SubagentCompletedData))]
 [JsonSerializable(typeof(SubagentCompletedEvent))]

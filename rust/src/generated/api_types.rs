@@ -199,9 +199,6 @@ pub mod rpc_methods {
     pub const SESSIONS_STOPREMOTECONTROL: &str = "sessions.stopRemoteControl";
     /// `sessions.getRemoteControlStatus`
     pub const SESSIONS_GETREMOTECONTROLSTATUS: &str = "sessions.getRemoteControlStatus";
-    /// `sessions.registerExtensionToolsOnSession`
-    pub const SESSIONS_REGISTEREXTENSIONTOOLSONSESSION: &str =
-        "sessions.registerExtensionToolsOnSession";
     /// `sessions.configureSessionExtensions`
     pub const SESSIONS_CONFIGURESESSIONEXTENSIONS: &str = "sessions.configureSessionExtensions";
     /// `agentRegistry.spawn`
@@ -4465,7 +4462,7 @@ pub struct CurrentToolMetadata {
     pub namespaced_name: Option<String>,
 }
 
-/// A file included in the redacted debug bundle.
+/// A file included in the session debug bundle.
 ///
 /// <div class="warning">
 ///
@@ -4501,7 +4498,7 @@ pub struct DebugCollectLogsDestinationArchive {
 pub struct DebugCollectLogsDestinationDirectory {
     /// Destination variant discriminator.
     pub kind: DebugCollectLogsDestinationDirectoryKind,
-    /// Directory where redacted files should be staged. The directory is created if needed.
+    /// Directory where files should be staged. The directory is created if needed.
     pub output_directory: String,
 }
 
@@ -4522,7 +4519,7 @@ pub struct DebugCollectLogsEntry {
     pub kind: DebugCollectLogsEntryKind,
     /// Server-local source path to read.
     pub path: String,
-    /// How text content from this entry should be redacted. Defaults to plain-text.
+    /// How text content from this entry should be redacted. Defaults to plain-text. With none, no redaction is applied; the caller must ensure any necessary redaction is performed before this call.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redaction: Option<DebugCollectLogsRedaction>,
     /// When true, collection fails if this entry cannot be read. Defaults to false, which records the entry in `skippedEntries`.
@@ -4564,7 +4561,7 @@ pub struct DebugCollectLogsInclude {
     pub shell_logs: Option<bool>,
 }
 
-/// Options for collecting a redacted session debug bundle.
+/// Options for collecting a session debug bundle with configurable redaction.
 ///
 /// <div class="warning">
 ///
@@ -4578,7 +4575,7 @@ pub struct DebugCollectLogsRequest {
     /// Caller-provided server-local files or directories to include in addition to the runtime's built-in session diagnostics. This lets host applications add their own diagnostics without changing the API shape.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_entries: Option<Vec<DebugCollectLogsEntry>>,
-    /// Where the redacted bundle should be written. Use `archive` to produce a .tgz, or `directory` to stage redacted files for caller-managed upload/post-processing.
+    /// Where the bundle should be written. Use `archive` to produce a .tgz, or `directory` to stage files for caller-managed upload/post-processing.
     pub destination: DebugCollectLogsDestination,
     /// Which built-in session diagnostics to include. Omitted fields default to true.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4605,7 +4602,7 @@ pub struct DebugCollectLogsSkippedEntry {
     pub reason: String,
 }
 
-/// Result of collecting a redacted debug bundle.
+/// Result of collecting a session debug bundle.
 ///
 /// <div class="warning">
 ///
@@ -4616,7 +4613,7 @@ pub struct DebugCollectLogsSkippedEntry {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DebugCollectLogsResult {
-    /// Files included in the redacted bundle.
+    /// Files included in the bundle.
     pub entries: Vec<DebugCollectLogsCollectedEntry>,
     /// Destination kind that was written.
     pub kind: DebugCollectLogsResultKind,
@@ -7072,6 +7069,9 @@ pub struct InstalledPluginInfo {
     pub marketplace: String,
     /// Plugin name
     pub name: String,
+    /// Runtime-reported plugin provenance. Currently set to "builtin" only for plugins registered through the trusted host built-in boundary; absent for installed, marketplace, direct, and live plugins.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
     /// Installed version (when reported by the plugin manifest)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
@@ -7304,6 +7304,29 @@ pub struct InterruptMainTurnRequest {
 pub struct InterruptMainTurnResult {
     /// Whether an in-flight main agent turn was interrupted. False when the main loop was not processing.
     pub interrupted: bool,
+}
+
+/// A JSON Schema output contract. OpenAI receives the name, description, schema and strict setting; Anthropic receives the schema in output_config.format and always uses its native strict enforcement.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JsonSchemaResponseFormat {
+    /// Optional description passed to OpenAI providers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Name of the output schema, subject to the provider's naming restrictions.
+    pub name: String,
+    /// JSON Schema passed unchanged to the inference provider. Schemas larger than 32 MiB when JSON-encoded are rejected before admission, using the runtime's existing request-size ceiling. This is not a guarantee that the entire model request fits. Supported keywords and schema restrictions are determined by the provider.
+    pub schema: serde_json::Value,
+    /// Optional strict enforcement setting for OpenAI providers. Omitted uses the provider default. Anthropic always enforces its supported schema subset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strict: Option<bool>,
 }
 
 /// A request body chunk or cancellation signal.
@@ -7615,6 +7638,32 @@ pub struct LspInitializeRequest {
     /// Working directory used to load project-level LSP configs. Defaults to the session working directory when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
+}
+
+/// Non-secret host-managed HTTP MCP server configuration. The containing map key is the stable managed identity; credentials are supplied dynamically by the host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedMcpServerConfig {
+    /// Human-readable catalog display name.
+    pub display_name: String,
+    /// Maximum dynamic-header cache lifetime in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers_refresh_ttl_ms: Option<i64>,
+    /// Timeout in milliseconds for tool discovery and tool calls.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<i64>,
+    /// Tools to include. Defaults to all tools when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
+    /// Hosted MCP streamable HTTP endpoint.
+    pub url: String,
 }
 
 /// Validated device-managed settings discovered before a session exists.
@@ -8378,6 +8427,9 @@ pub struct McpHeadersHandlePendingHeadersRefreshRequestHeaders {
     pub headers: HashMap<String, String>,
     /// Headers-refresh response variant discriminator.
     pub kind: McpHeadersHandlePendingHeadersRefreshRequestHeadersKind,
+    /// Optional lifetime in milliseconds for these returned headers. The runtime clamps its configured cache lifetime to this value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ttl_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -8385,6 +8437,15 @@ pub struct McpHeadersHandlePendingHeadersRefreshRequestHeaders {
 pub struct McpHeadersHandlePendingHeadersRefreshRequestNone {
     /// Headers-refresh response variant discriminator.
     pub kind: McpHeadersHandlePendingHeadersRefreshRequestNoneKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersHandlePendingHeadersRefreshRequestError {
+    /// Headers-refresh response variant discriminator.
+    pub kind: McpHeadersHandlePendingHeadersRefreshRequestErrorKind,
+    /// Host credential broker failure, denial, or revocation reason.
+    pub message: String,
 }
 
 /// MCP headers refresh request id and the host response.
@@ -9610,6 +9671,9 @@ pub struct McpSamplingExecutionResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServer {
+    /// Human-readable display name supplied by a managed server catalog.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     /// Error message if the server failed to connect
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -9618,7 +9682,7 @@ pub struct McpServer {
     /// Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub server_metadata: Option<McpServerMetadata>,
-    /// Configuration source: user, workspace, plugin, or builtin
+    /// Configuration source: user, workspace, plugin, builtin, or managed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<McpServerSource>,
     /// Plugin name that provided this server, when source is plugin.
@@ -13662,6 +13726,97 @@ pub struct ProtocolExternalToolDefinition {
     pub title: Option<String>,
 }
 
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolStaticSectionOverride {
+    /// Declarative operation applied to the section.
+    pub action: ProtocolStaticSectionAction,
+    /// Optional content used by replace, append, and prepend operations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolSystemMessageAppendConfig {
+    /// Text appended to the standard system prompt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    /// Append-mode discriminator. Omission also selects append mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ProtocolAppendMode>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolSystemMessageCustomizeConfig {
+    /// Text appended after the customized sections.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    /// Customize-mode discriminator.
+    pub mode: ProtocolCustomizeMode,
+    /// Named standard-prompt section overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sections: Option<HashMap<String, serde_json::Value>>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemMessageBlock {
+    /// Text content for this system-message block.
+    pub content: String,
+    /// Whether the block is static and may be cached independently of dynamic prompt content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_static: Option<bool>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolSystemMessageReplaceConfig {
+    /// Complete replacement system-message text.
+    pub content: String,
+    /// Optional structured blocks corresponding to the replacement content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_blocks: Option<Vec<SystemMessageBlock>>,
+    /// Replace-mode discriminator.
+    pub mode: ProtocolReplaceMode,
+}
+
 /// A BYOK model definition referencing a named provider.
 ///
 /// <div class="warning">
@@ -13695,6 +13850,9 @@ pub struct ProviderModelConfig {
     pub name: Option<String>,
     /// Name of the configured provider that serves this model.
     pub provider: String,
+    /// System-message configuration used when the runtime builds the standard prompt for this provider-qualified model, including general-purpose subagents. It uses the same object hierarchy as session-level systemMessage configuration, except transform actions are rejected because the current callback protocol is not model-scoped. When present, it overrides the session-wide configuration on those prompt paths. Selected custom-agent and specialized-subagent prompts remain authoritative.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system_message: Option<serde_json::Value>,
     /// The model name sent to the provider API for inference. Defaults to `id`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wire_model: Option<String>,
@@ -14860,60 +15018,6 @@ pub struct RegisterEventInterestResult {
     pub handle: String,
 }
 
-/// Optional registration options.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionsRegisterExtensionToolsOnSessionOptions {
-    /// In-process `() => boolean` gating callback used only by the CLI.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) enabled: Option<serde_json::Value>,
-}
-
-/// Params to attach an extension loader's tools to a session.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct RegisterExtensionToolsParams {
-    /// In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK surface.
-    #[doc(hidden)]
-    pub(crate) loader: serde_json::Value,
-    /// Optional registration options.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub options: Option<SessionsRegisterExtensionToolsOnSessionOptions>,
-    /// Session to register extension tools on.
-    pub session_id: SessionId,
-}
-
-/// Handle for releasing the extension tool registration.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct RegisterExtensionToolsResult {
-    /// In-process unsubscribe function used only by the CLI.
-    #[doc(hidden)]
-    pub(crate) unsubscribe: serde_json::Value,
-}
-
 /// Opaque handle previously returned by `registerInterest` to release.
 ///
 /// <div class="warning">
@@ -15276,6 +15380,23 @@ pub struct RemoteSessionRepository {
     pub owner: String,
 }
 
+/// Provider-native structured output format. JSON Schema is forwarded without rewriting or validating the schema or the generated output.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResponseFormat {
+    /// JSON Schema and provider options for the turn's output.
+    pub json_schema: JsonSchemaResponseFormat,
+    /// Output format discriminator. Currently only json_schema is supported.
+    pub r#type: ResponseFormatType,
+}
+
 /// Credential-injection capability flags applied while the sandbox is enabled. For the same capability independent of sandboxing, and matched to the credential's GitHub host, see `shell.credentials`; the two are additive.
 ///
 /// <div class="warning">
@@ -15384,13 +15505,19 @@ pub struct SandboxConfigUserPolicyNetworkProxy {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SandboxConfigUserPolicyNetwork {
+    /// Hosts allowed through the built-in sandbox proxy. A non-empty list denies unmatched hosts; an absent or empty list allows all hosts not blocked. Supports exact hostnames, IP addresses, and *.example.com for strict subdomains. Host rules do not override the outbound or local-network toggles.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_hosts: Option<Vec<String>>,
     /// Whether traffic to local/loopback addresses is allowed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_local_network: Option<bool>,
     /// Whether outbound network traffic is allowed at all.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_outbound: Option<bool>,
-    /// HTTP proxy for sandboxed process traffic. Linux restricts egress to the proxy endpoint, requires that endpoint to be reachable over IPv4 (the `[::]` dual-stack wildcard is accepted and routed through the IPv4 gateway), and does not support proxy credentials. macOS relies on applications honoring proxy environment variables. Windows also configures a per-AppContainer WinHTTP proxy, but enforcement depends on the application's networking stack. Configure supported credentials in the separate `username` and `password` fields. A credential-free http:// loopback URL uses the localhost proxy form, while an https:// or authenticated loopback URL uses the URL form.
+    /// Hosts denied by the built-in sandbox proxy. Deny rules take precedence over allowedHosts. A domain also denies all its subdomains. IP addresses match exactly; *.example.com matches strict subdomains, and * denies every host.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocked_hosts: Option<Vec<String>>,
+    /// HTTP(S) proxy for sandboxed traffic. With host rules, this is the built-in local proxy's upstream; credentials stay in the runtime, and Linux and macOS restrict the child to the local listener. Without host rules, Linux restricts egress to this endpoint but rejects credentials, and macOS proxying is cooperative. Windows enforcement depends on the application's networking stack. Configure credentials in the separate username/password fields. The transient local listener URL is never persisted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<SandboxConfigUserPolicyNetworkProxy>,
 }
@@ -15841,6 +15968,15 @@ pub struct SendMessageItem {
     pub(crate) source: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendMessagesRequestResponseFormat {
+    /// JSON Schema and provider options for the turn's output.
+    pub json_schema: JsonSchemaResponseFormat,
+    /// Output format discriminator. Currently only json_schema is supported.
+    pub r#type: SendMessagesRequestResponseFormatType,
+}
+
 /// Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
 ///
 /// <div class="warning">
@@ -15855,7 +15991,7 @@ pub struct SendMessagesRequest {
     /// The UI mode the agent was in when these messages were sent. Defaults to the session's current mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_mode: Option<SendAgentMode>,
-    /// The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.
+    /// The user messages to append to the conversation, in order, before running one agent loop. When the batch starts a run, its final message is the primary initiating message; earlier messages provide context, not separate runs or replies. May be empty, in which case a single turn runs over the existing history with no new user message or originatingMessageId.
     pub messages: Vec<SendMessageItem>,
     /// How to deliver the messages. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -15866,6 +16002,9 @@ pub struct SendMessagesRequest {
     /// Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_headers: Option<HashMap<String, String>>,
+    /// Provider-native output format for the whole turn, including an empty message batch and all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<SendMessagesRequestResponseFormat>,
     /// W3C Trace Context traceparent header for distributed tracing of this agent turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traceparent: Option<String>,
@@ -15888,8 +16027,17 @@ pub struct SendMessagesRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SendMessagesResult {
-    /// Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
+    /// Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId.
     pub message_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendRequestResponseFormat {
+    /// JSON Schema and provider options for the turn's output.
+    pub json_schema: JsonSchemaResponseFormat,
+    /// Output format discriminator. Currently only json_schema is supported.
+    pub r#type: SendRequestResponseFormatType,
 }
 
 /// Parameters for sending a user message to the session
@@ -15929,6 +16077,9 @@ pub struct SendRequest {
     /// If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required_tool: Option<String>,
+    /// Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<SendRequestResponseFormat>,
     /// Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -17530,7 +17681,7 @@ pub struct SessionOpenOptions {
     /// Opt in to capturing file changes for session rewind and session diff. Capture cannot reconstruct changes made before it was enabled. On create it starts capture from the first turn. It is also honored on resume: for a session that already has tracked prior turns, tracking continues automatically even if this is omitted; passing it on resume additionally enables tracking for an eligible session that has no prior root turn yet. Resuming a session whose prior root turns were never tracked has no restorable baseline, so tracking stays disabled for it and rewind reports file change tracking as unavailable; the resume itself still succeeds, so sessions that predate tracking remain loadable. The opt-in is only rejected when the session can never track (a subagent session, or one without local session storage). It is intentionally absent from the mutable options update because enabling it after edits have occurred would create an incomplete, misleading baseline. Subagents share the parent session's capture store and are not tracked as separate rewind points: a file a subagent writes is attributed to whichever root user turn was open when the capture was staged, just before the tool body ran. A turn cannot open while a staged capture is still in flight, so a subagent tool that staged under the spawning turn stays attributed to it however late the write lands, while a capture it stages after the user's next message belongs to that later turn. Attribution decides which turn's rewind point counts and file preview include that write; it does not narrow which rewinds revert it, because a rewind restores every capture from the selected turn onward, so the earlier spawning turn reverts it as well.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_file_change_tracking: Option<bool>,
-    /// Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
+    /// Opt-in: self-fetch and enforce enterprise managed settings, including managed hook policies, at session bootstrap.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_managed_settings: Option<bool>,
     /// Whether on-demand custom instruction discovery is enabled.
@@ -17599,6 +17750,16 @@ pub struct SessionOpenOptions {
     /// Identifier sent to LSP-style integrations.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lsp_client_name: Option<String>,
+    /// Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed provenance is runtime-established from this separate field and credentials are supplied through dynamic-header refresh.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_mcp_servers: Option<HashMap<String, ManagedMcpServerConfig>>,
     /// Permissions-only enterprise policy injected by the SDK host at session create or resume. Composes restrictively with self-fetched and device policy and is not persisted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_settings: Option<SessionManagedSettings>,
@@ -19744,6 +19905,9 @@ pub struct SlashCommandTextResult {
     /// True when the invocation mutated user runtime settings; consumers caching settings should refresh
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime_settings_changed: Option<bool>,
+    /// Present when the invocation changed the sandbox for this session only. Nothing was persisted, so consumers must mirror the change onto the live session rather than reloading settings, and must not treat it as a settings change.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandbox_session_change: Option<SandboxSessionChange>,
     /// Text output for the client to render
     pub text: String,
 }
@@ -23161,22 +23325,6 @@ pub struct SessionsGetRemoteControlStatusResult {
     pub status: serde_json::Value,
 }
 
-/// Handle for releasing the extension tool registration.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct SessionsRegisterExtensionToolsOnSessionResult {
-    /// In-process unsubscribe function used only by the CLI.
-    #[doc(hidden)]
-    pub(crate) unsubscribe: serde_json::Value,
-}
-
 /// Identifies the target session.
 ///
 /// <div class="warning">
@@ -23218,7 +23366,7 @@ pub struct SessionSendResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSendMessagesResult {
-    /// Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
+    /// Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId.
     pub message_ids: Vec<String>,
 }
 
@@ -23460,7 +23608,7 @@ pub struct SessionGitHubAuthLastAuthErrorsParams {
     pub session_id: SessionId,
 }
 
-/// Result of collecting a redacted debug bundle.
+/// Result of collecting a session debug bundle.
 ///
 /// <div class="warning">
 ///
@@ -23471,7 +23619,7 @@ pub struct SessionGitHubAuthLastAuthErrorsParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionDebugCollectLogsResult {
-    /// Files included in the redacted bundle.
+    /// Files included in the bundle.
     pub entries: Vec<DebugCollectLogsCollectedEntry>,
     /// Destination kind that was written.
     pub kind: DebugCollectLogsResultKind,
@@ -30594,7 +30742,7 @@ pub enum DebugCollectLogsDestinationDirectoryKind {
     Directory,
 }
 
-/// Destination for the redacted debug bundle.
+/// Destination for the session debug bundle.
 ///
 /// <div class="warning">
 ///
@@ -30647,6 +30795,9 @@ pub enum DebugCollectLogsRedaction {
     /// Redact each non-empty line as a session event JSON object, falling back to plain-text redaction for malformed lines.
     #[serde(rename = "events-jsonl")]
     EventsJsonl,
+    /// No redaction is applied. The caller must ensure any necessary redaction is performed before this call.
+    #[serde(rename = "none")]
+    None,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -30666,7 +30817,7 @@ pub enum DebugCollectLogsResultKind {
     /// A .tgz archive was written.
     #[serde(rename = "archive")]
     Archive,
-    /// A directory containing redacted files was written.
+    /// A directory containing the collected files was written.
     #[serde(rename = "directory")]
     Directory,
     /// Unknown variant for forward compatibility.
@@ -31885,6 +32036,14 @@ pub enum McpHeadersHandlePendingHeadersRefreshRequestNoneKind {
     None,
 }
 
+/// Headers-refresh response variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpHeadersHandlePendingHeadersRefreshRequestErrorKind {
+    #[serde(rename = "error")]
+    #[default]
+    Error,
+}
+
 /// Host response: supply dynamic headers or decline this refresh.
 ///
 /// <div class="warning">
@@ -31898,6 +32057,7 @@ pub enum McpHeadersHandlePendingHeadersRefreshRequestNoneKind {
 pub enum McpHeadersHandlePendingHeadersRefreshRequest {
     Headers(McpHeadersHandlePendingHeadersRefreshRequestHeaders),
     None(McpHeadersHandlePendingHeadersRefreshRequestNone),
+    Error(McpHeadersHandlePendingHeadersRefreshRequestError),
 }
 
 /// Whether a planned configuration change would create or modify an entry
@@ -33691,6 +33851,40 @@ pub enum PluginInstallStagingMode {
     Unknown,
 }
 
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProtocolAppendMode {
+    #[serde(rename = "append")]
+    Append,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProtocolCustomizeMode {
+    #[serde(rename = "customize")]
+    Customize,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Controls whether the runtime may defer loading an external tool definition.
 ///
 /// <div class="warning">
@@ -33707,6 +33901,50 @@ pub enum ProtocolExternalToolDefer {
     /// The runtime must include the tool without deferring it.
     #[serde(rename = "never")]
     Never,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProtocolReplaceMode {
+    #[serde(rename = "replace")]
+    Replace,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProtocolStaticSectionAction {
+    /// Replace the section content.
+    #[serde(rename = "replace")]
+    Replace,
+    /// Remove the section content.
+    #[serde(rename = "remove")]
+    Remove,
+    /// Append content to the section.
+    #[serde(rename = "append")]
+    Append,
+    /// Prepend content to the section.
+    #[serde(rename = "prepend")]
+    Prepend,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -34090,6 +34328,14 @@ pub enum RemoteSessionMetadataTaskType {
     Unknown,
 }
 
+/// Output format discriminator. Currently only json_schema is supported.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ResponseFormatType {
+    #[serde(rename = "json_schema")]
+    #[default]
+    JsonSchema,
+}
+
 /// Origin of the sandbox choice supplied by an internal client.
 ///
 /// <div class="warning">
@@ -34125,6 +34371,44 @@ pub enum SandboxConfigSource {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// A session-scoped sandbox transition applied while handling a slash command
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SandboxSessionChange {
+    /// The sandbox is off for the rest of this session; nothing was persisted and a new session starts from managed policy.
+    #[serde(rename = "disabled")]
+    Disabled,
+    /// A previous session-scoped opt-out was cleared and the sandbox is enforced again.
+    #[serde(rename = "restored")]
+    Restored,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Output format discriminator. Currently only json_schema is supported.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SendMessagesRequestResponseFormatType {
+    #[serde(rename = "json_schema")]
+    #[default]
+    JsonSchema,
+}
+
+/// Output format discriminator. Currently only json_schema is supported.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SendRequestResponseFormatType {
+    #[serde(rename = "json_schema")]
+    #[default]
+    JsonSchema,
 }
 
 /// Session capability enabled for this session

@@ -2655,7 +2655,7 @@ type CurrentToolMetadata struct {
 	NamespacedName *string `json:"namespacedName,omitempty"`
 }
 
-// A file included in the redacted debug bundle.
+// A file included in the session debug bundle.
 // Experimental: DebugCollectLogsCollectedEntry is part of an experimental API and may
 // change or be removed.
 type DebugCollectLogsCollectedEntry struct {
@@ -2667,7 +2667,7 @@ type DebugCollectLogsCollectedEntry struct {
 	Source DebugCollectLogsSource `json:"source"`
 }
 
-// Destination for the redacted debug bundle.
+// Destination for the session debug bundle.
 // Experimental: DebugCollectLogsDestination is part of an experimental API and may change
 // or be removed.
 type DebugCollectLogsDestination interface {
@@ -2699,7 +2699,7 @@ func (DebugCollectLogsDestinationArchive) Kind() DebugCollectLogsDestinationKind
 }
 
 type DebugCollectLogsDestinationDirectory struct {
-	// Directory where redacted files should be staged. The directory is created if needed.
+	// Directory where files should be staged. The directory is created if needed.
 	OutputDirectory string `json:"outputDirectory"`
 }
 
@@ -2718,7 +2718,9 @@ type DebugCollectLogsEntry struct {
 	Kind DebugCollectLogsEntryKind `json:"kind"`
 	// Server-local source path to read.
 	Path string `json:"path"`
-	// How text content from this entry should be redacted. Defaults to plain-text.
+	// How text content from this entry should be redacted. Defaults to plain-text. With none,
+	// no redaction is applied; the caller must ensure any necessary redaction is performed
+	// before this call.
 	Redaction *DebugCollectLogsRedaction `json:"redaction,omitempty"`
 	// When true, collection fails if this entry cannot be read. Defaults to false, which
 	// records the entry in `skippedEntries`.
@@ -2749,7 +2751,7 @@ type DebugCollectLogsInclude struct {
 	ShellLogs *bool `json:"shellLogs,omitempty"`
 }
 
-// Options for collecting a redacted session debug bundle.
+// Options for collecting a session debug bundle with configurable redaction.
 // Experimental: DebugCollectLogsRequest is part of an experimental API and may change or be
 // removed.
 type DebugCollectLogsRequest struct {
@@ -2757,18 +2759,18 @@ type DebugCollectLogsRequest struct {
 	// built-in session diagnostics. This lets host applications add their own diagnostics
 	// without changing the API shape.
 	AdditionalEntries []DebugCollectLogsEntry `json:"additionalEntries,omitzero"`
-	// Where the redacted bundle should be written. Use `archive` to produce a .tgz, or
-	// `directory` to stage redacted files for caller-managed upload/post-processing.
+	// Where the bundle should be written. Use `archive` to produce a .tgz, or `directory` to
+	// stage files for caller-managed upload/post-processing.
 	Destination DebugCollectLogsDestination `json:"destination"`
 	// Which built-in session diagnostics to include. Omitted fields default to true.
 	Include *DebugCollectLogsInclude `json:"include,omitempty"`
 }
 
-// Result of collecting a redacted debug bundle.
+// Result of collecting a session debug bundle.
 // Experimental: DebugCollectLogsResult is part of an experimental API and may change or be
 // removed.
 type DebugCollectLogsResult struct {
-	// Files included in the redacted bundle.
+	// Files included in the bundle.
 	Entries []DebugCollectLogsCollectedEntry `json:"entries"`
 	// Destination kind that was written.
 	Kind DebugCollectLogsResultKind `json:"kind"`
@@ -4732,6 +4734,10 @@ type InstalledPluginInfo struct {
 	Marketplace string `json:"marketplace"`
 	// Plugin name
 	Name string `json:"name"`
+	// Runtime-reported plugin provenance. Currently set to "builtin" only for plugins
+	// registered through the trusted host built-in boundary; absent for installed, marketplace,
+	// direct, and live plugins.
+	Source *string `json:"source,omitempty"`
 	// Installed version (when reported by the plugin manifest)
 	Version *string `json:"version,omitempty"`
 }
@@ -4897,6 +4903,26 @@ type InterruptMainTurnResult struct {
 	// Whether an in-flight main agent turn was interrupted. False when the main loop was not
 	// processing.
 	Interrupted bool `json:"interrupted"`
+}
+
+// A JSON Schema output contract. OpenAI receives the name, description, schema and strict
+// setting; Anthropic receives the schema in output_config.format and always uses its native
+// strict enforcement.
+// Experimental: JSONSchemaResponseFormat is part of an experimental API and may change or
+// be removed.
+type JSONSchemaResponseFormat struct {
+	// Optional description passed to OpenAI providers.
+	Description *string `json:"description,omitempty"`
+	// Name of the output schema, subject to the provider's naming restrictions.
+	Name string `json:"name"`
+	// JSON Schema passed unchanged to the inference provider. Schemas larger than 32 MiB when
+	// JSON-encoded are rejected before admission, using the runtime's existing request-size
+	// ceiling. This is not a guarantee that the entire model request fits. Supported keywords
+	// and schema restrictions are determined by the provider.
+	Schema any `json:"schema"`
+	// Optional strict enforcement setting for OpenAI providers. Omitted uses the provider
+	// default. Anthropic always enforces its supported schema subset.
+	Strict *bool `json:"strict,omitempty"`
 }
 
 // HTTP headers as a map from lowercased header name to a list of values. Multi-valued
@@ -5137,6 +5163,23 @@ type LspInitializeRequest struct {
 	// Working directory used to load project-level LSP configs. Defaults to the session working
 	// directory when omitted.
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
+}
+
+// Non-secret host-managed HTTP MCP server configuration. The containing map key is the
+// stable managed identity; credentials are supplied dynamically by the host.
+// Experimental: ManagedMCPServerConfig is part of an experimental API and may change or be
+// removed.
+type ManagedMCPServerConfig struct {
+	// Human-readable catalog display name.
+	DisplayName string `json:"displayName"`
+	// Maximum dynamic-header cache lifetime in milliseconds.
+	HeadersRefreshTtlMs *int64 `json:"headersRefreshTtlMs,omitempty"`
+	// Timeout in milliseconds for tool discovery and tool calls.
+	Timeout *int64 `json:"timeout,omitempty"`
+	// Tools to include. Defaults to all tools when omitted.
+	Tools []string `json:"tools,omitzero"`
+	// Hosted MCP streamable HTTP endpoint.
+	URL string `json:"url"`
 }
 
 // Experimental: ManagedSettingsClearCacheResult is part of an experimental API and may
@@ -5653,10 +5696,24 @@ func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) Kind() MCPHeadersHa
 	return r.Discriminator
 }
 
+type MCPHeadersHandlePendingHeadersRefreshRequestError struct {
+	// Host credential broker failure, denial, or revocation reason.
+	Message string `json:"message"`
+}
+
+func (MCPHeadersHandlePendingHeadersRefreshRequestError) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (MCPHeadersHandlePendingHeadersRefreshRequestError) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return MCPHeadersHandlePendingHeadersRefreshRequestKindError
+}
+
 type MCPHeadersHandlePendingHeadersRefreshRequestHeaders struct {
 	// Headers to overlay onto the MCP request. Dynamic headers override static config headers
 	// but do not replace SDK-managed request headers.
 	Headers map[string]string `json:"headers"`
+	// Optional lifetime in milliseconds for these returned headers. The runtime clamps its
+	// configured cache lifetime to this value.
+	TtlMs *int64 `json:"ttlMs,omitempty"`
 }
 
 func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) mcpHeadersHandlePendingHeadersRefreshRequest() {
@@ -6847,6 +6904,8 @@ func (MCPServerConfigStdio) mcpSerializableServerConfig() {}
 // MCP server status entry, including config source/plugin source and any connection error.
 // Experimental: MCPServer is part of an experimental API and may change or be removed.
 type MCPServer struct {
+	// Human-readable display name supplied by a managed server catalog.
+	DisplayName *string `json:"displayName,omitempty"`
 	// Error message if the server failed to connect
 	Error *string `json:"error,omitempty"`
 	// Server name (config key)
@@ -6855,7 +6914,7 @@ type MCPServer struct {
 	// metadata is available, including while pending or when failed, disabled, stopped, or not
 	// configured.
 	ServerMetadata *MCPServerMetadata `json:"serverMetadata,omitempty"`
-	// Configuration source: user, workspace, plugin, or builtin
+	// Configuration source: user, workspace, plugin, builtin, or managed
 	Source *MCPServerSource `json:"source,omitempty"`
 	// Plugin name that provided this server, when source is plugin.
 	SourcePlugin *string `json:"sourcePlugin,omitempty"`
@@ -9689,6 +9748,99 @@ type ProtocolExternalToolDefinition struct {
 	Title *string `json:"title,omitempty"`
 }
 
+// Experimental: ProtocolMarkerSectionOverride is part of an experimental API and may change
+// or be removed.
+type ProtocolMarkerSectionOverride interface {
+	protocolMarkerSectionOverride()
+	Action() ProtocolMarkerSectionOverrideAction
+}
+
+type RawProtocolMarkerSectionOverrideData struct {
+	Discriminator ProtocolMarkerSectionOverrideAction
+	Raw           json.RawMessage
+}
+
+func (RawProtocolMarkerSectionOverrideData) protocolMarkerSectionOverride() {}
+func (r RawProtocolMarkerSectionOverrideData) Action() ProtocolMarkerSectionOverrideAction {
+	return r.Discriminator
+}
+
+type ProtocolMarkerSectionOverridePreserve struct {
+}
+
+func (ProtocolMarkerSectionOverridePreserve) protocolMarkerSectionOverride() {}
+func (ProtocolMarkerSectionOverridePreserve) Action() ProtocolMarkerSectionOverrideAction {
+	return ProtocolMarkerSectionOverrideActionPreserve
+}
+
+type ProtocolMarkerSectionOverrideTransform struct {
+}
+
+func (ProtocolMarkerSectionOverrideTransform) protocolMarkerSectionOverride() {}
+func (ProtocolMarkerSectionOverrideTransform) Action() ProtocolMarkerSectionOverrideAction {
+	return ProtocolMarkerSectionOverrideActionTransform
+}
+
+// Experimental: ProtocolSectionOverride is part of an experimental API and may change or be
+// removed.
+type ProtocolSectionOverride struct {
+	ProtocolMarkerSectionOverride ProtocolMarkerSectionOverride
+	ProtocolStaticSectionOverride *ProtocolStaticSectionOverride
+}
+
+// Experimental: ProtocolStaticSectionOverride is part of an experimental API and may change
+// or be removed.
+type ProtocolStaticSectionOverride struct {
+	// Declarative operation applied to the section.
+	Action ProtocolStaticSectionAction `json:"action"`
+	// Optional content used by replace, append, and prepend operations.
+	Content *string `json:"content,omitempty"`
+}
+
+// Experimental: ProtocolSystemMessageAppendConfig is part of an experimental API and may
+// change or be removed.
+type ProtocolSystemMessageAppendConfig struct {
+	// Text appended to the standard system prompt.
+	Content *string `json:"content,omitempty"`
+	// Append-mode discriminator. Omission also selects append mode.
+	Mode *ProtocolAppendMode `json:"mode,omitempty"`
+}
+
+// Experimental: ProtocolSystemMessageConfig is part of an experimental API and may change
+// or be removed.
+type ProtocolSystemMessageConfig struct {
+	// Text appended to the standard system prompt.
+	Content *string `json:"content,omitempty"`
+	// Optional structured blocks corresponding to the replacement content.
+	ContentBlocks []SystemMessageBlock `json:"contentBlocks,omitzero"`
+	// Append-mode discriminator. Omission also selects append mode.
+	Mode *ProtocolSystemMessageConfigMode `json:"mode,omitempty"`
+	// Named standard-prompt section overrides.
+	Sections map[string]*ProtocolSectionOverride `json:"sections,omitzero"`
+}
+
+// Experimental: ProtocolSystemMessageCustomizeConfig is part of an experimental API and may
+// change or be removed.
+type ProtocolSystemMessageCustomizeConfig struct {
+	// Text appended after the customized sections.
+	Content *string `json:"content,omitempty"`
+	// Customize-mode discriminator.
+	Mode ProtocolCustomizeMode `json:"mode"`
+	// Named standard-prompt section overrides.
+	Sections map[string]*ProtocolSectionOverride `json:"sections,omitzero"`
+}
+
+// Experimental: ProtocolSystemMessageReplaceConfig is part of an experimental API and may
+// change or be removed.
+type ProtocolSystemMessageReplaceConfig struct {
+	// Complete replacement system-message text.
+	Content string `json:"content"`
+	// Optional structured blocks corresponding to the replacement content.
+	ContentBlocks []SystemMessageBlock `json:"contentBlocks,omitzero"`
+	// Replace-mode discriminator.
+	Mode ProtocolReplaceMode `json:"mode"`
+}
+
 // BYOK providers and/or models to add to the session's registry at runtime. Both fields are
 // optional; provide providers, models, or both.
 // Experimental: ProviderAddRequest is part of an experimental API and may change or be
@@ -9820,6 +9972,13 @@ type ProviderModelConfig struct {
 	Name *string `json:"name,omitempty"`
 	// Name of the configured provider that serves this model.
 	Provider string `json:"provider"`
+	// System-message configuration used when the runtime builds the standard prompt for this
+	// provider-qualified model, including general-purpose subagents. It uses the same object
+	// hierarchy as session-level systemMessage configuration, except transform actions are
+	// rejected because the current callback protocol is not model-scoped. When present, it
+	// overrides the session-wide configuration on those prompt paths. Selected custom-agent and
+	// specialized-subagent prompts remain authoritative.
+	SystemMessage *ProtocolSystemMessageConfig `json:"systemMessage,omitempty"`
 	// The model name sent to the provider API for inference. Defaults to `id`.
 	WireModel *string `json:"wireModel,omitempty"`
 }
@@ -10583,35 +10742,6 @@ type RegisterEventInterestResult struct {
 type RegisterExtensionLaunchProviderResult struct {
 }
 
-// Params to attach an extension loader's tools to a session.
-// Experimental: RegisterExtensionToolsParams is part of an experimental API and may change
-// or be removed.
-// Internal: RegisterExtensionToolsParams is an internal SDK API and is not part of the
-// public surface.
-type RegisterExtensionToolsParams struct {
-	// In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK
-	// surface.
-	// Internal: Loader is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Loader any `json:"loader"`
-	// Optional registration options.
-	Options *SessionsRegisterExtensionToolsOnSessionOptions `json:"options,omitempty"`
-	// Session to register extension tools on.
-	SessionID string `json:"sessionId"`
-}
-
-// Handle for releasing the extension tool registration.
-// Experimental: RegisterExtensionToolsResult is part of an experimental API and may change
-// or be removed.
-// Internal: RegisterExtensionToolsResult is an internal SDK API and is not part of the
-// public surface.
-type RegisterExtensionToolsResult struct {
-	// In-process unsubscribe function used only by the CLI.
-	// Internal: Unsubscribe is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Unsubscribe any `json:"unsubscribe"`
-}
-
 // Opaque handle previously returned by `registerInterest` to release.
 // Experimental: ReleaseEventInterestParams is part of an experimental API and may change or
 // be removed.
@@ -10838,6 +10968,14 @@ type RemoteSessionRepository struct {
 	Owner string `json:"owner"`
 }
 
+// Experimental: ResponseFormat is part of an experimental API and may change or be removed.
+type ResponseFormat struct {
+	// JSON Schema and provider options for the turn's output.
+	JSONSchema JSONSchemaResponseFormat `json:"jsonSchema"`
+	// Output format discriminator. Currently only json_schema is supported.
+	Type ResponseFormatType `json:"type"`
+}
+
 // Options controlling factory invocation.
 // Experimental: RunOptions is part of an experimental API and may change or be removed.
 type RunOptions struct {
@@ -10974,18 +11112,25 @@ type SandboxConfigUserPolicyFilesystem struct {
 // Experimental: SandboxConfigUserPolicyNetwork is part of an experimental API and may
 // change or be removed.
 type SandboxConfigUserPolicyNetwork struct {
+	// Hosts allowed through the built-in sandbox proxy. A non-empty list denies unmatched
+	// hosts; an absent or empty list allows all hosts not blocked. Supports exact hostnames, IP
+	// addresses, and *.example.com for strict subdomains. Host rules do not override the
+	// outbound or local-network toggles.
+	AllowedHosts []string `json:"allowedHosts,omitzero"`
 	// Whether traffic to local/loopback addresses is allowed.
 	AllowLocalNetwork *bool `json:"allowLocalNetwork,omitempty"`
 	// Whether outbound network traffic is allowed at all.
 	AllowOutbound *bool `json:"allowOutbound,omitempty"`
-	// HTTP proxy for sandboxed process traffic. Linux restricts egress to the proxy endpoint,
-	// requires that endpoint to be reachable over IPv4 (the [::] dual-stack wildcard is
-	// accepted and routed through the IPv4 gateway), and does not support proxy credentials.
-	// macOS relies on applications honoring proxy environment variables. Windows also
-	// configures a per-AppContainer WinHTTP proxy, but enforcement depends on the application's
-	// networking stack. Configure supported credentials in the separate `username` and
-	// `password` fields. A credential-free http:// loopback URL uses the localhost proxy form,
-	// while an https:// or authenticated loopback URL uses the URL form.
+	// Hosts denied by the built-in sandbox proxy. Deny rules take precedence over allowedHosts.
+	// A domain also denies all its subdomains. IP addresses match exactly; *.example.com
+	// matches strict subdomains, and * denies every host.
+	BlockedHosts []string `json:"blockedHosts,omitzero"`
+	// HTTP(S) proxy for sandboxed traffic. With host rules, this is the built-in local proxy's
+	// upstream; credentials stay in the runtime, and Linux and macOS restrict the child to the
+	// local listener. Without host rules, Linux restricts egress to this endpoint but rejects
+	// credentials, and macOS proxying is cooperative. Windows enforcement depends on the
+	// application's networking stack. Configure credentials in the separate username/password
+	// fields. The transient local listener URL is never persisted.
 	Proxy *SandboxConfigUserPolicyNetworkProxy `json:"proxy,omitempty"`
 }
 
@@ -11254,8 +11399,11 @@ type SendMessagesRequest struct {
 	// The UI mode the agent was in when these messages were sent. Defaults to the session's
 	// current mode.
 	AgentMode *SendAgentMode `json:"agentMode,omitempty"`
-	// The user messages to append to the conversation, in order. May be empty, in which case a
-	// single turn runs over the existing history with no new user message.
+	// The user messages to append to the conversation, in order, before running one agent loop.
+	// When the batch starts a run, its final message is the primary initiating message; earlier
+	// messages provide context, not separate runs or replies. May be empty, in which case a
+	// single turn runs over the existing history with no new user message or
+	// originatingMessageId.
 	Messages []SendMessageItem `json:"messages"`
 	// How to deliver the messages. `enqueue` (default) appends to the message queue.
 	// `immediate` interjects during an in-progress turn.
@@ -11266,6 +11414,12 @@ type SendMessagesRequest struct {
 	// session-level provider headers; per-turn headers augment and overwrite session-level
 	// headers with the same key.
 	RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
+	// Provider-native output format for the whole turn, including an empty message batch and
+	// all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering
+	// inherits the active format; specifying responseFormat with mode: immediate is an error,
+	// even while idle. Returned assistant content remains text; the runtime does not parse or
+	// validate it. Unsupported models or schemas produce provider errors.
+	ResponseFormat *ResponseFormat `json:"responseFormat,omitempty"`
 	// W3C Trace Context traceparent header for distributed tracing of this agent turn
 	Traceparent *string `json:"traceparent,omitempty"`
 	// W3C Trace Context tracestate header for distributed tracing
@@ -11286,8 +11440,11 @@ type SendMessagesRequest struct {
 // Experimental: SendMessagesResult is part of an experimental API and may change or be
 // removed.
 type SendMessagesResult struct {
-	// Unique identifiers assigned to the messages, one per provided message in order. Empty
-	// when no messages were provided.
+	// Unique identifiers assigned to the messages, one per provided message in order. For a
+	// batch that starts a run, assistant messages use the final ID as originatingMessageId
+	// throughout that run, including tool iterations and stop-hook corrections. Immediate
+	// steering does not replace the active run's origin. Empty when no messages were provided;
+	// that run has no originatingMessageId.
 	MessageIDs []string `json:"messageIds"`
 }
 
@@ -11319,6 +11476,12 @@ type SendRequest struct {
 	// If set, the request will fail if the named tool is not available when this message is
 	// among the user messages at the start of the current exchange
 	RequiredTool *string `json:"requiredTool,omitempty"`
+	// Provider-native output format for this turn, including all tool-call iterations. Not
+	// inherited by later turns or subagents. Ordinary steering inherits the active format;
+	// specifying responseFormat with mode: immediate is an error, even while idle. Returned
+	// assistant content remains text; the runtime does not parse or validate it. Unsupported
+	// models or schemas produce provider errors.
+	ResponseFormat *ResponseFormat `json:"responseFormat,omitempty"`
 	// Optional provenance tag copied to the resulting user.message event. Must be `user`,
 	// `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>`
 	// for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
@@ -12654,7 +12817,8 @@ type SessionOpenOptions struct {
 	// narrow which rewinds revert it, because a rewind restores every capture from the selected
 	// turn onward, so the earlier spawning turn reverts it as well.
 	EnableFileChangeTracking *bool `json:"enableFileChangeTracking,omitempty"`
-	// Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
+	// Opt-in: self-fetch and enforce enterprise managed settings, including managed hook
+	// policies, at session bootstrap.
 	EnableManagedSettings *bool `json:"enableManagedSettings,omitempty"`
 	// Whether on-demand custom instruction discovery is enabled.
 	EnableOnDemandInstructionDiscovery *bool `json:"enableOnDemandInstructionDiscovery,omitempty"`
@@ -12714,6 +12878,12 @@ type SessionOpenOptions struct {
 	LogInteractiveShells *bool `json:"logInteractiveShells,omitempty"`
 	// Identifier sent to LSP-style integrations.
 	LspClientName *string `json:"lspClientName,omitempty"`
+	// Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed
+	// provenance is runtime-established from this separate field and credentials are supplied
+	// through dynamic-header refresh.
+	// Experimental: ManagedMCPServers is part of an experimental API and may change or be
+	// removed.
+	ManagedMCPServers map[string]ManagedMCPServerConfig `json:"managedMcpServers,omitzero"`
 	// Permissions-only enterprise policy injected by the SDK host at session create or resume.
 	// Composes restrictively with self-fetched and device policy and is not persisted.
 	ManagedSettings *SessionManagedSettings `json:"managedSettings,omitempty"`
@@ -13707,16 +13877,6 @@ type SessionsReadPersistedEventsRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-// Optional registration options.
-// Experimental: SessionsRegisterExtensionToolsOnSessionOptions is part of an experimental
-// API and may change or be removed.
-type SessionsRegisterExtensionToolsOnSessionOptions struct {
-	// In-process `() => boolean` gating callback used only by the CLI.
-	// Internal: Enabled is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Enabled any `json:"enabled,omitempty"`
-}
-
 // Session ID whose in-use lock should be released.
 // Experimental: SessionsReleaseLockRequest is part of an experimental API and may change or
 // be removed.
@@ -14700,6 +14860,10 @@ type SlashCommandTextResult struct {
 	// True when the invocation mutated user runtime settings; consumers caching settings should
 	// refresh
 	RuntimeSettingsChanged *bool `json:"runtimeSettingsChanged,omitempty"`
+	// Present when the invocation changed the sandbox for this session only. Nothing was
+	// persisted, so consumers must mirror the change onto the live session rather than
+	// reloading settings, and must not treat it as a settings change.
+	SandboxSessionChange *SandboxSessionChange `json:"sandboxSessionChange,omitempty"`
 	// Text output for the client to render
 	Text string `json:"text"`
 }
@@ -14780,6 +14944,15 @@ type SubagentSettingsEntry struct {
 	Model *string `json:"model,omitempty"`
 	// Whether the configured model strategy is preferred or required
 	ModelPolicy *AgentModelPolicy `json:"modelPolicy,omitempty"`
+}
+
+// Experimental: SystemMessageBlock is part of an experimental API and may change or be
+// removed.
+type SystemMessageBlock struct {
+	// Text content for this system-message block.
+	Content string `json:"content"`
+	// Whether the block is static and may be cached independently of dynamic prompt content.
+	IsStatic *bool `json:"isStatic,omitempty"`
 }
 
 // Public owner attribution for a client-owned task. Identifiers are opaque and never
@@ -17621,6 +17794,9 @@ const (
 	// Redact each non-empty line as a session event JSON object, falling back to plain-text
 	// redaction for malformed lines.
 	DebugCollectLogsRedactionEventsJsonl DebugCollectLogsRedaction = "events-jsonl"
+	// No redaction is applied. The caller must ensure any necessary redaction is performed
+	// before this call.
+	DebugCollectLogsRedactionNone DebugCollectLogsRedaction = "none"
 	// Redact the file as plain UTF-8 log text.
 	DebugCollectLogsRedactionPlainText DebugCollectLogsRedaction = "plain-text"
 )
@@ -17633,7 +17809,7 @@ type DebugCollectLogsResultKind string
 const (
 	// A .tgz archive was written.
 	DebugCollectLogsResultKindArchive DebugCollectLogsResultKind = "archive"
-	// A directory containing redacted files was written.
+	// A directory containing the collected files was written.
 	DebugCollectLogsResultKindDirectory DebugCollectLogsResultKind = "directory"
 )
 
@@ -18362,6 +18538,7 @@ const (
 type MCPHeadersHandlePendingHeadersRefreshRequestKind string
 
 const (
+	MCPHeadersHandlePendingHeadersRefreshRequestKindError   MCPHeadersHandlePendingHeadersRefreshRequestKind = "error"
 	MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders MCPHeadersHandlePendingHeadersRefreshRequestKind = "headers"
 	MCPHeadersHandlePendingHeadersRefreshRequestKindNone    MCPHeadersHandlePendingHeadersRefreshRequestKind = "none"
 )
@@ -18752,13 +18929,15 @@ const (
 	MCPServerConfigStdioTypeStdio MCPServerConfigStdioType = "stdio"
 )
 
-// Configuration source: user, workspace, plugin, or builtin
+// Configuration source: user, workspace, plugin, builtin, or managed
 // Experimental: MCPServerSource is part of an experimental API and may change or be removed.
 type MCPServerSource string
 
 const (
 	// Server bundled with the runtime.
 	MCPServerSourceBuiltin MCPServerSource = "builtin"
+	// Server supplied by a trusted host-managed catalog.
+	MCPServerSourceManaged MCPServerSource = "managed"
 	// Server contributed by an installed plugin.
 	MCPServerSourcePlugin MCPServerSource = "plugin"
 	// Server configured in the user's global MCP configuration.
@@ -19261,6 +19440,22 @@ const (
 	PluginInstallStagingModeExternal PluginInstallStagingMode = "external"
 )
 
+// Experimental: ProtocolAppendMode is part of an experimental API and may change or be
+// removed.
+type ProtocolAppendMode string
+
+const (
+	ProtocolAppendModeAppend ProtocolAppendMode = "append"
+)
+
+// Experimental: ProtocolCustomizeMode is part of an experimental API and may change or be
+// removed.
+type ProtocolCustomizeMode string
+
+const (
+	ProtocolCustomizeModeCustomize ProtocolCustomizeMode = "customize"
+)
+
 // Controls whether the runtime may defer loading an external tool definition.
 // Experimental: ProtocolExternalToolDefer is part of an experimental API and may change or
 // be removed.
@@ -19271,6 +19466,45 @@ const (
 	ProtocolExternalToolDeferAuto ProtocolExternalToolDefer = "auto"
 	// The runtime must include the tool without deferring it.
 	ProtocolExternalToolDeferNever ProtocolExternalToolDefer = "never"
+)
+
+// Action discriminator for ProtocolMarkerSectionOverride.
+type ProtocolMarkerSectionOverrideAction string
+
+const (
+	ProtocolMarkerSectionOverrideActionPreserve  ProtocolMarkerSectionOverrideAction = "preserve"
+	ProtocolMarkerSectionOverrideActionTransform ProtocolMarkerSectionOverrideAction = "transform"
+)
+
+// Experimental: ProtocolReplaceMode is part of an experimental API and may change or be
+// removed.
+type ProtocolReplaceMode string
+
+const (
+	ProtocolReplaceModeReplace ProtocolReplaceMode = "replace"
+)
+
+// Experimental: ProtocolStaticSectionAction is part of an experimental API and may change
+// or be removed.
+type ProtocolStaticSectionAction string
+
+const (
+	// Append content to the section.
+	ProtocolStaticSectionActionAppend ProtocolStaticSectionAction = "append"
+	// Prepend content to the section.
+	ProtocolStaticSectionActionPrepend ProtocolStaticSectionAction = "prepend"
+	// Remove the section content.
+	ProtocolStaticSectionActionRemove ProtocolStaticSectionAction = "remove"
+	// Replace the section content.
+	ProtocolStaticSectionActionReplace ProtocolStaticSectionAction = "replace"
+)
+
+type ProtocolSystemMessageConfigMode string
+
+const (
+	ProtocolSystemMessageConfigModeAppend    ProtocolSystemMessageConfigMode = "append"
+	ProtocolSystemMessageConfigModeCustomize ProtocolSystemMessageConfigMode = "customize"
+	ProtocolSystemMessageConfigModeReplace   ProtocolSystemMessageConfigMode = "replace"
 )
 
 // Provider transport. Defaults to "http".
@@ -19492,6 +19726,13 @@ const (
 	RemoteSessionModeOn RemoteSessionMode = "on"
 )
 
+// Output format discriminator. Currently only json_schema is supported.
+type ResponseFormatType string
+
+const (
+	ResponseFormatTypeJSONSchema ResponseFormatType = "json_schema"
+)
+
 // Origin of the sandbox choice supplied by an internal client.
 // Experimental: SandboxConfigSource is part of an experimental API and may change or be
 // removed.
@@ -19512,6 +19753,19 @@ const (
 	SandboxConfigSourceUserDisabled SandboxConfigSource = "user_disabled"
 	// The user's persisted settings enabled the sandbox.
 	SandboxConfigSourceUserEnabled SandboxConfigSource = "user_enabled"
+)
+
+// A session-scoped sandbox transition applied while handling a slash command
+// Experimental: SandboxSessionChange is part of an experimental API and may change or be
+// removed.
+type SandboxSessionChange string
+
+const (
+	// The sandbox is off for the rest of this session; nothing was persisted and a new session
+	// starts from managed policy.
+	SandboxSessionChangeDisabled SandboxSessionChange = "disabled"
+	// A previous session-scoped opt-out was cleared and the sandbox is enforced again.
+	SandboxSessionChangeRestored SandboxSessionChange = "restored"
 )
 
 // The UI mode the agent was in when this message was sent. Defaults to the session's
@@ -22392,12 +22646,9 @@ type internalServerAPI struct {
 type InternalServerSessionsAPI internalServerAPI
 
 // ConfigureSessionExtensions attaches (or detaches) an in-process ExtensionController
-// delegate for the given session, used by shared-API surfaces that need to query or modify
-// the session's extension state. Pass `controller: undefined` to detach. Marked internal
-// because the controller is an in-process object that cannot cross the JSON-RPC boundary.
-// Disappears alongside `registerExtensionToolsOnSession`: once the runtime owns extension
-// management, the public surface exposes list/enable/disable/reload as dedicated RPCs
-// served by the runtime.
+// delegate for the given session in a local host adapter. Pass `controller: undefined` to
+// detach. Internal because the controller cannot cross the JSON-RPC boundary; the runtime
+// manages its own session extension service.
 //
 // RPC method: sessions.configureSessionExtensions.
 //
@@ -22550,34 +22801,6 @@ func (a *InternalServerSessionsAPI) ListNonEmptySessionIds(ctx context.Context, 
 		return nil, err
 	}
 	var result SessionsListNonEmptySessionIDsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// RegisterExtensionToolsOnSession registers extension-provided tools on the given session,
-// gated by an optional `enabled` callback. Returns an opaque unsubscribe function the
-// caller must invoke to deregister the tools when the extension is torn down. Marked
-// internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process
-// handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery /
-// launch / tool registration are owned by the runtime: SDK consumers will pass pure config
-// (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch,
-// register, and tear down extensions itself.
-//
-// RPC method: sessions.registerExtensionToolsOnSession.
-//
-// Parameters: Params to attach an extension loader's tools to a session.
-//
-// Returns: Handle for releasing the extension tool registration.
-// Internal: RegisterExtensionToolsOnSession is part of the SDK's internal
-// handshake/plumbing; external callers should not use it.
-func (a *InternalServerSessionsAPI) RegisterExtensionToolsOnSession(ctx context.Context, params *RegisterExtensionToolsParams) (*RegisterExtensionToolsResult, error) {
-	raw, err := a.client.Request(ctx, "sessions.registerExtensionToolsOnSession", params)
-	if err != nil {
-		return nil, err
-	}
-	var result RegisterExtensionToolsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -23175,16 +23398,17 @@ func (a *ContentExclusionAPI) CheckPaths(ctx context.Context, params *ContentExc
 // Experimental: DebugAPI contains experimental APIs that may change or be removed.
 type DebugAPI sessionAPI
 
-// CollectLogs collects a redacted session debug log bundle into a local archive or staging
-// directory. The runtime includes session-owned logs by default and accepts caller-provided
-// diagnostic entries so host applications can add their own files without changing this API
-// shape.
+// CollectLogs collects a session debug log bundle into a local archive or staging
+// directory. Logs are redacted by default; redaction can be configured per caller-provided
+// diagnostic entry. The runtime includes session-owned logs by default and accepts
+// caller-provided diagnostic entries so host applications can add their own files without
+// changing this API shape.
 //
 // RPC method: session.debug.collectLogs.
 //
-// Parameters: Options for collecting a redacted session debug bundle.
+// Parameters: Options for collecting a session debug bundle with configurable redaction.
 //
-// Returns: Result of collecting a redacted debug bundle.
+// Returns: Result of collecting a session debug bundle.
 func (a *DebugAPI) CollectLogs(ctx context.Context, params *DebugCollectLogsRequest) (*DebugCollectLogsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -28722,6 +28946,9 @@ func (a *SessionRPC) Send(ctx context.Context, params *SendRequest) (*SendResult
 		if params.RequiredTool != nil {
 			req["requiredTool"] = *params.RequiredTool
 		}
+		if params.ResponseFormat != nil {
+			req["responseFormat"] = *params.ResponseFormat
+		}
 		if params.Source != nil {
 			req["source"] = *params.Source
 		}
@@ -28776,6 +29003,9 @@ func (a *SessionRPC) SendMessages(ctx context.Context, params *SendMessagesReque
 		}
 		if params.RequestHeaders != nil {
 			req["requestHeaders"] = params.RequestHeaders
+		}
+		if params.ResponseFormat != nil {
+			req["responseFormat"] = *params.ResponseFormat
 		}
 		if params.Traceparent != nil {
 			req["traceparent"] = *params.Traceparent

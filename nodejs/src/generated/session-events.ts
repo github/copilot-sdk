@@ -646,6 +646,20 @@ export type AbortReason =
   /** Autopilot stopped the run because the active objective reached its user-set --max-ai-credits limit. */
   | "autopilot_credit_limit";
 /**
+ * Configuration source: user, workspace, plugin, builtin, or managed
+ */
+export type McpServerSource =
+  /** Server configured in the user's global MCP configuration. */
+  | "user"
+  /** Server configured by the current workspace. */
+  | "workspace"
+  /** Server contributed by an installed plugin. */
+  | "plugin"
+  /** Server bundled with the runtime. */
+  | "builtin"
+  /** Server supplied by a trusted host-managed catalog. */
+  | "managed";
+/**
  * Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
  */
 export type McpServerTransport =
@@ -736,18 +750,6 @@ export type SkillInvokedTrigger =
   /** Skill content loaded as part of another context, such as a configured custom agent or subagent. */
   | "context-load";
 /**
- * Where the model input for a task-tool sub-agent came from.
- */
-export type SubagentTaskModelSource =
-  /** The spawning agent supplied the task tool's model argument. */
-  | "task_argument"
-  /** The task omitted a model and the per-sub-agent settings entry supplied a concrete one. */
-  | "subagent_configuration"
-  /** The task omitted a model and the user-defined custom agent's definition supplied one. */
-  | "custom_agent_definition"
-  /** Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model. */
-  | "unset";
-/**
  * Authority or runtime mechanism responsible for sub-agent model selection.
  */
 export type SubagentModelSelectionSource =
@@ -765,6 +767,18 @@ export type SubagentModelSelectionSource =
   | "agent_definition_default"
   /** Runtime policy, Auto mode, or an experiment selected the model. */
   | "runtime_policy";
+/**
+ * Where the model input for a task-tool sub-agent came from.
+ */
+export type SubagentTaskModelSource =
+  /** The spawning agent supplied the task tool's model argument. */
+  | "task_argument"
+  /** The task omitted a model and the per-sub-agent settings entry supplied a concrete one. */
+  | "subagent_configuration"
+  /** The task omitted a model and the user-defined custom agent's definition supplied one. */
+  | "custom_agent_definition"
+  /** Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model. */
+  | "unset";
 /**
  * Binary asset type discriminator. Use "image" for images and "resource" otherwise.
  */
@@ -1055,6 +1069,8 @@ export type McpHeadersRefreshCompletedOutcome =
   | "headers"
   /** The host responded with no dynamic headers. */
   | "none"
+  /** The host credential broker rejected or failed the refresh. */
+  | "error"
   /** No response arrived within the bounded window. */
   | "timeout";
 /**
@@ -1200,18 +1216,6 @@ export type AgentModelPolicy =
   | "preferred"
   /** Require subagent execution to use one of the authored models. */
   | "required";
-/**
- * Configuration source: user, workspace, plugin, or builtin
- */
-export type McpServerSource =
-  /** Server configured in the user's global MCP configuration. */
-  | "user"
-  /** Server configured by the current workspace. */
-  | "workspace"
-  /** Server contributed by an installed plugin. */
-  | "plugin"
-  /** Server bundled with the runtime. */
-  | "builtin";
 /**
  * Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
  */
@@ -5077,6 +5081,10 @@ export interface AssistantMessageData {
    */
   model?: string;
   /**
+   * Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
+   */
+  originatingMessageId?: string;
+  /**
    * Actual output token count from the API response (completion_tokens), used for accurate token accounting
    */
   outputTokens?: number;
@@ -6234,6 +6242,11 @@ export interface ToolExecutionStartData {
    */
   fusion?: FusionAttribution;
   /**
+   * Preferred lookup name for the MCP server hosting this tool: the configured (namespaced) config-map key when the tool carries one, otherwise the display name from `mcpServerName`. Present when the tool is an MCP tool; this is the name unrestricted provenance telemetry hashes so it joins with `mcp_server_setup`, which keys off the configured name too.
+   */
+  mcpConfigServerName?: string;
+  mcpConfigSource?: McpServerSource;
+  /**
    * Name of the MCP server hosting this tool, when the tool is an MCP tool
    */
   mcpServerName?: string;
@@ -6540,7 +6553,7 @@ export interface ToolExecutionCompleteResult {
    */
   contents?: ToolExecutionCompleteContent[];
   /**
-   * Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
+   * Detailed tool result for UI/timeline display, preserving complete content such as diffs for most tools. Successful skill invocations intentionally use the concise model-facing content here; the authoritative skill body is carried by the corresponding skill invocation event. Falls back to content when absent.
    */
   detailedContent?: string;
   /**
@@ -7164,6 +7177,7 @@ export interface SubagentStartedData {
    * Model the sub-agent will run with, when known at start.
    */
   model?: string;
+  modelSelectionSource?: SubagentModelSelectionSource;
   /**
    * Task-registry ID of the spawning sub-agent. Absent when the root session spawned this child.
    */
@@ -7537,7 +7551,7 @@ export interface HookStartData {
    */
   hookType: string;
   /**
-   * Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
+   * Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) drops the tool result's inline `contents`/`uiResource`/`skillInvocation` and replaces duplicated text result fields with a `[copilot:elided ...]` marker; the live subscription stream still delivers the full value. Canonical tool output remains in the adjacent tool.execution_complete event, while an invoked skill's authoritative body remains in its skill invocation event.
    */
   input?: JsonValue;
   /**
@@ -7589,7 +7603,7 @@ export interface HookEndData {
    */
   hookType: string;
   /**
-   * Output data produced by the hook
+   * Output data produced by the hook. Durable and resumed postToolUse receipts may omit messages owned by a successful skill invocation and replace an unchanged skill sessionLog copy with an elision marker; hook-modified or re-sourced values are preserved, and the authoritative body remains in the skill invocation event.
    */
   output?: JsonValue;
   /**
@@ -11661,6 +11675,10 @@ export interface McpServersLoadedData {
  * A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata.
  */
 export interface McpServersLoadedServer {
+  /**
+   * Human-readable display name supplied by a managed server catalog.
+   */
+  displayName?: string;
   /**
    * Error message if the server failed to connect
    */

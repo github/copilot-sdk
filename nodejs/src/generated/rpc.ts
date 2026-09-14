@@ -943,7 +943,7 @@ export type DebugCollectLogsSource =
   /** Caller-provided diagnostic entry. */
   | "additional";
 /**
- * Destination for the redacted debug bundle.
+ * Destination for the session debug bundle.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "DebugCollectLogsDestination".
@@ -966,7 +966,7 @@ export type DebugCollectLogsDestination =
     }
   | {
       /**
-       * Directory where redacted files should be staged. The directory is created if needed.
+       * Directory where files should be staged. The directory is created if needed.
        */
       outputDirectory: string;
       /**
@@ -997,7 +997,9 @@ export type DebugCollectLogsRedaction =
   /** Redact the file as plain UTF-8 log text. */
   | "plain-text"
   /** Redact each non-empty line as a session event JSON object, falling back to plain-text redaction for malformed lines. */
-  | "events-jsonl";
+  | "events-jsonl"
+  /** No redaction is applied. The caller must ensure any necessary redaction is performed before this call. */
+  | "none";
 /**
  * Destination kind that was written.
  *
@@ -1008,7 +1010,7 @@ export type DebugCollectLogsRedaction =
 export type DebugCollectLogsResultKind =
   /** A .tgz archive was written. */
   | "archive"
-  /** A directory containing redacted files was written. */
+  /** A directory containing the collected files was written. */
   | "directory";
 /**
  * Persisted extension discovery source
@@ -1935,6 +1937,10 @@ export type McpHeadersHandlePendingHeadersRefreshRequest =
         [k: string]: string | undefined;
       };
       /**
+       * Optional lifetime in milliseconds for these returned headers. The runtime clamps its configured cache lifetime to this value.
+       */
+      ttlMs?: number;
+      /**
        * Headers-refresh response variant discriminator.
        */
       kind: "headers";
@@ -1944,6 +1950,16 @@ export type McpHeadersHandlePendingHeadersRefreshRequest =
        * Headers-refresh response variant discriminator.
        */
       kind: "none";
+    }
+  | {
+      /**
+       * Host credential broker failure, denial, or revocation reason.
+       */
+      message: string;
+      /**
+       * Headers-refresh response variant discriminator.
+       */
+      kind: "error";
     };
 /**
  * One eligible way to run the server, represented as a tagged package or remote variant so package identity and endpoint states cannot contradict the install method.
@@ -2938,6 +2954,12 @@ export type PluginsReloadRequest =
        */
       deferRepoHooks?: boolean;
     };
+
+/** @experimental */
+export type ProtocolAppendMode = "append";
+
+/** @experimental */
+export type ProtocolCustomizeMode = "customize";
 /**
  * Controls whether the runtime may defer loading an external tool definition.
  *
@@ -2950,6 +2972,44 @@ export type ProtocolExternalToolDefer =
   | "auto"
   /** The runtime must include the tool without deferring it. */
   | "never";
+
+/** @experimental */
+export type ProtocolMarkerSectionOverride =
+  | {
+      /**
+       * Section override action discriminator.
+       */
+      action: "transform";
+    }
+  | {
+      /**
+       * Section override action discriminator.
+       */
+      action: "preserve";
+    };
+
+/** @experimental */
+export type ProtocolReplaceMode = "replace";
+
+/** @experimental */
+export type ProtocolSectionOverride = ProtocolStaticSectionOverride | ProtocolMarkerSectionOverride;
+
+/** @experimental */
+export type ProtocolStaticSectionAction =
+  /** Replace the section content. */
+  | "replace"
+  /** Remove the section content. */
+  | "remove"
+  /** Append content to the section. */
+  | "append"
+  /** Prepend content to the section. */
+  | "prepend";
+
+/** @experimental */
+export type ProtocolSystemMessageConfig =
+  | ProtocolSystemMessageAppendConfig
+  | ProtocolSystemMessageReplaceConfig
+  | ProtocolSystemMessageCustomizeConfig;
 /**
  * Provider family. Matches the `type` field of a BYOK provider config.
  *
@@ -3137,6 +3197,20 @@ export type RemoteSessionMetadataTaskType =
   /** CLI remote task. */
   | "cli";
 /**
+ * Provider-native structured output format. JSON Schema is forwarded without rewriting or validating the schema or the generated output.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ResponseFormat".
+ */
+/** @experimental */
+export type ResponseFormat = {
+  jsonSchema: JsonSchemaResponseFormat;
+  /**
+   * Output format discriminator. Currently only json_schema is supported.
+   */
+  type: "json_schema";
+};
+/**
  * Origin of the sandbox choice supplied by an internal client.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3159,6 +3233,18 @@ export type SandboxConfigSource =
   | "unsupported_host"
   /** A repository policy selected the sandbox state. */
   | "repository_policy";
+/**
+ * A session-scoped sandbox transition applied while handling a slash command
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxSessionChange".
+ */
+/** @experimental */
+export type SandboxSessionChange =
+  /** The sandbox is off for the rest of this session; nothing was persisted and a new session starts from managed policy. */
+  | "disabled"
+  /** A previous session-scoped opt-out was cleared and the sandbox is enforced again. */
+  | "restored";
 /**
  * Current authentication information, or null when no authentication is active.
  *
@@ -7336,7 +7422,7 @@ export interface CurrentToolMetadata {
   deferLoading?: boolean;
 }
 /**
- * A file included in the redacted debug bundle.
+ * A file included in the session debug bundle.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "DebugCollectLogsCollectedEntry".
@@ -7414,7 +7500,7 @@ export interface DebugCollectLogsInclude {
   previousProcessLogLimit?: number;
 }
 /**
- * Options for collecting a redacted session debug bundle.
+ * Options for collecting a session debug bundle with configurable redaction.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "DebugCollectLogsRequest".
@@ -7429,7 +7515,7 @@ export interface DebugCollectLogsRequest {
   additionalEntries?: DebugCollectLogsEntry[];
 }
 /**
- * Result of collecting a redacted debug bundle.
+ * Result of collecting a session debug bundle.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "DebugCollectLogsResult".
@@ -7442,7 +7528,7 @@ export interface DebugCollectLogsResult {
    */
   path: string;
   /**
-   * Files included in the redacted bundle.
+   * Files included in the bundle.
    */
   entries: DebugCollectLogsCollectedEntry[];
   /**
@@ -10042,6 +10128,10 @@ export interface InstalledPluginInfo {
    * Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — a plugin belonging to a directory/local marketplace, which is loaded from its real directory on every pass instead of a copy under the installed-plugins cache. Its presence is what marks a listed plugin as live: such a plugin is always present on disk, so `enabled` is its only meaningful state and it is never "not installed".
    */
   installedFrom?: string;
+  /**
+   * Runtime-reported plugin provenance. Currently set to "builtin" only for plugins registered through the trusted host built-in boundary; absent for installed, marketplace, direct, and live plugins.
+   */
+  source?: string;
 }
 /**
  * Canonical file or directory where custom instructions can be discovered or created, with location, kind, preference, and project path.
@@ -10194,6 +10284,31 @@ export interface InterruptMainTurnResult {
    * Whether an in-flight main agent turn was interrupted. False when the main loop was not processing.
    */
   interrupted: boolean;
+}
+/**
+ * A JSON Schema output contract. OpenAI receives the name, description, schema and strict setting; Anthropic receives the schema in output_config.format and always uses its native strict enforcement.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "JsonSchemaResponseFormat".
+ */
+/** @experimental */
+export interface JsonSchemaResponseFormat {
+  /**
+   * Name of the output schema, subject to the provider's naming restrictions.
+   */
+  name: string;
+  /**
+   * JSON Schema passed unchanged to the inference provider. Schemas larger than 32 MiB when JSON-encoded are rejected before admission, using the runtime's existing request-size ceiling. This is not a guarantee that the entire model request fits. Supported keywords and schema restrictions are determined by the provider.
+   */
+  schema: JsonValue;
+  /**
+   * Optional description passed to OpenAI providers.
+   */
+  description?: string;
+  /**
+   * Optional strict enforcement setting for OpenAI providers. Omitted uses the provider default. Anthropic always enforces its supported schema subset.
+   */
+  strict?: boolean;
 }
 /**
  * HTTP headers as a map from lowercased header name to a list of values. Multi-valued headers (e.g. Set-Cookie) preserve all values.
@@ -10540,6 +10655,35 @@ export interface LspInitializeRequest {
    * Force re-initialization even when LSP configs were already loaded for the working directory.
    */
   force?: boolean;
+}
+/**
+ * Non-secret host-managed HTTP MCP server configuration. The containing map key is the stable managed identity; credentials are supplied dynamically by the host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedMcpServerConfig".
+ */
+/** @experimental */
+export interface ManagedMcpServerConfig {
+  /**
+   * Human-readable catalog display name.
+   */
+  displayName: string;
+  /**
+   * Hosted MCP streamable HTTP endpoint.
+   */
+  url: string;
+  /**
+   * Tools to include. Defaults to all tools when omitted.
+   */
+  tools?: string[];
+  /**
+   * Timeout in milliseconds for tool discovery and tool calls.
+   */
+  timeout?: number;
+  /**
+   * Maximum dynamic-header cache lifetime in milliseconds.
+   */
+  headersRefreshTtlMs?: number;
 }
 /**
  * Validated device-managed settings discovered before a session exists.
@@ -12585,6 +12729,10 @@ export interface McpServer {
    * Plugin version that provided this server, when source is plugin.
    */
   sourcePluginVersion?: string;
+  /**
+   * Human-readable display name supplied by a managed server catalog.
+   */
+  displayName?: string;
   /**
    * Error message if the server failed to connect
    */
@@ -15990,6 +16138,64 @@ export interface ProtocolExternalToolDefinition {
     [k: string]: JsonValue | undefined;
   };
 }
+
+/** @experimental */
+export interface ProtocolStaticSectionOverride {
+  action: ProtocolStaticSectionAction;
+  /**
+   * Optional content used by replace, append, and prepend operations.
+   */
+  content?: string;
+}
+
+/** @experimental */
+export interface ProtocolSystemMessageAppendConfig {
+  mode?: ProtocolAppendMode;
+  /**
+   * Text appended to the standard system prompt.
+   */
+  content?: string;
+}
+
+/** @experimental */
+export interface ProtocolSystemMessageReplaceConfig {
+  mode: ProtocolReplaceMode;
+  /**
+   * Complete replacement system-message text.
+   */
+  content: string;
+  /**
+   * Optional structured blocks corresponding to the replacement content.
+   */
+  contentBlocks?: SystemMessageBlock[];
+}
+
+/** @experimental */
+export interface SystemMessageBlock {
+  /**
+   * Text content for this system-message block.
+   */
+  content: string;
+  /**
+   * Whether the block is static and may be cached independently of dynamic prompt content.
+   */
+  isStatic?: boolean;
+}
+
+/** @experimental */
+export interface ProtocolSystemMessageCustomizeConfig {
+  mode: ProtocolCustomizeMode;
+  /**
+   * Named standard-prompt section overrides.
+   */
+  sections?: {
+    [k: string]: ProtocolSectionOverride;
+  };
+  /**
+   * Text appended after the customized sections.
+   */
+  content?: string;
+}
 /**
  * BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
  *
@@ -16048,6 +16254,7 @@ export interface ProviderModelConfig {
    */
   maxOutputTokens?: number;
   capabilities?: ModelCapabilitiesOverride;
+  systemMessage?: ProtocolSystemMessageConfig;
 }
 /**
  * The selectable model entries synthesized for the models added by this call.
@@ -17119,62 +17326,6 @@ export interface RegisterEventInterestResult {
   handle: string;
 }
 /**
- * Params to attach an extension loader's tools to a session.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "RegisterExtensionToolsParams".
- */
-/** @experimental */
-/** @internal */
-export interface RegisterExtensionToolsParams {
-  /**
-   * Session to register extension tools on.
-   */
-  sessionId: string;
-  /**
-   * In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK surface.
-   *
-   * @internal
-   *
-   * @internal
-   */
-  loader: OpaqueInProcessValue;
-  options?: SessionsRegisterExtensionToolsOnSessionOptions;
-}
-/**
- * Optional registration options.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionsRegisterExtensionToolsOnSessionOptions".
- */
-/** @experimental */
-export interface SessionsRegisterExtensionToolsOnSessionOptions {
-  /**
-   * In-process `() => boolean` gating callback used only by the CLI.
-   *
-   * @internal
-   */
-  enabled?: OpaqueInProcessValue;
-}
-/**
- * Handle for releasing the extension tool registration.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "RegisterExtensionToolsResult".
- */
-/** @experimental */
-/** @internal */
-export interface RegisterExtensionToolsResult {
-  /**
-   * In-process unsubscribe function used only by the CLI.
-   *
-   * @internal
-   *
-   * @internal
-   */
-  unsubscribe: OpaqueInProcessValue;
-}
-/**
  * Opaque handle previously returned by `registerInterest` to release.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17618,6 +17769,14 @@ export interface SandboxConfigUserPolicyFilesystem {
  */
 /** @experimental */
 export interface SandboxConfigUserPolicyNetwork {
+  /**
+   * Hosts allowed through the built-in sandbox proxy. A non-empty list denies unmatched hosts; an absent or empty list allows all hosts not blocked. Supports exact hostnames, IP addresses, and *.example.com for strict subdomains. Host rules do not override the outbound or local-network toggles.
+   */
+  allowedHosts?: string[];
+  /**
+   * Hosts denied by the built-in sandbox proxy. Deny rules take precedence over allowedHosts. A domain also denies all its subdomains. IP addresses match exactly; *.example.com matches strict subdomains, and * denies every host.
+   */
+  blockedHosts?: string[];
   /**
    * Whether outbound network traffic is allowed at all.
    */
@@ -18068,7 +18227,7 @@ export interface SendMessageItem {
 /** @experimental */
 export interface SendMessagesRequest {
   /**
-   * The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.
+   * The user messages to append to the conversation, in order, before running one agent loop. When the batch starts a run, its final message is the primary initiating message; earlier messages provide context, not separate runs or replies. May be empty, in which case a single turn runs over the existing history with no new user message or originatingMessageId.
    */
   messages: SendMessageItem[];
   mode?: SendMode;
@@ -18083,6 +18242,7 @@ export interface SendMessagesRequest {
   requestHeaders?: {
     [k: string]: string | undefined;
   };
+  responseFormat?: ResponseFormat;
   /**
    * W3C Trace Context traceparent header for distributed tracing of this agent turn
    */
@@ -18105,7 +18265,7 @@ export interface SendMessagesRequest {
 /** @experimental */
 export interface SendMessagesResult {
   /**
-   * Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
+   * Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId.
    */
   messageIds: string[];
 }
@@ -18155,6 +18315,7 @@ export interface SendRequest {
   requestHeaders?: {
     [k: string]: string | undefined;
   };
+  responseFormat?: ResponseFormat;
   /**
    * W3C Trace Context traceparent header for distributed tracing of this agent turn
    */
@@ -19329,7 +19490,7 @@ export interface SessionOpenOptions {
    */
   expAssignments?: JsonValue;
   /**
-   * Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
+   * Opt-in: self-fetch and enforce enterprise managed settings, including managed hook policies, at session bootstrap.
    */
   enableManagedSettings?: boolean;
   managedSettings?: SessionManagedSettings;
@@ -19437,6 +19598,14 @@ export interface SessionOpenOptions {
    * MCP server names disabled for this session. Disabled servers are not started or authenticated on create or cold resume.
    */
   disabledMcpServers?: string[];
+  /**
+   * Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed provenance is runtime-established from this separate field and credentials are supplied through dynamic-header refresh.
+   *
+   * @experimental
+   */
+  managedMcpServers?: {
+    [k: string]: ManagedMcpServerConfig;
+  };
   /**
    * Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
    */
@@ -21605,6 +21774,7 @@ export interface SlashCommandTextResult {
    * True when the invocation mutated user runtime settings; consumers caching settings should refresh
    */
   runtimeSettingsChanged?: boolean;
+  sandboxSessionChange?: SandboxSessionChange;
 }
 /**
  * Slash-command invocation result asking the client to present subcommand options for a parent command.
@@ -25178,16 +25348,7 @@ export function createInternalServerRpc(connection: MessageConnection) {
             getBoardEntryCount: async (params: SessionsGetBoardEntryCountRequest): Promise<SessionsGetBoardEntryCountResult> =>
                 connection.sendRequest("sessions.getBoardEntryCount", params),
             /**
-             * Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.
-             *
-             * @param params Params to attach an extension loader's tools to a session.
-             *
-             * @returns Handle for releasing the extension tool registration.
-             */
-            registerExtensionToolsOnSession: async (params: RegisterExtensionToolsParams): Promise<RegisterExtensionToolsResult> =>
-                connection.sendRequest("sessions.registerExtensionToolsOnSession", params),
-            /**
-             * Attaches (or detaches) an in-process ExtensionController delegate for the given session, used by shared-API surfaces that need to query or modify the session's extension state. Pass `controller: undefined` to detach. Marked internal because the controller is an in-process object that cannot cross the JSON-RPC boundary. Disappears alongside `registerExtensionToolsOnSession`: once the runtime owns extension management, the public surface exposes list/enable/disable/reload as dedicated RPCs served by the runtime.
+             * Attaches (or detaches) an in-process ExtensionController delegate for the given session in a local host adapter. Pass `controller: undefined` to detach. Internal because the controller cannot cross the JSON-RPC boundary; the runtime manages its own session extension service.
              *
              * @param params Params to attach or detach an in-process ExtensionController delegate.
              */
@@ -25310,11 +25471,11 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         /** @experimental */
         debug: {
             /**
-             * Collects a redacted session debug log bundle into a local archive or staging directory. The runtime includes session-owned logs by default and accepts caller-provided diagnostic entries so host applications can add their own files without changing this API shape.
+             * Collects a session debug log bundle into a local archive or staging directory. Logs are redacted by default; redaction can be configured per caller-provided diagnostic entry. The runtime includes session-owned logs by default and accepts caller-provided diagnostic entries so host applications can add their own files without changing this API shape.
              *
-             * @param params Options for collecting a redacted session debug bundle.
+             * @param params Options for collecting a session debug bundle with configurable redaction.
              *
-             * @returns Result of collecting a redacted debug bundle.
+             * @returns Result of collecting a session debug bundle.
              */
             collectLogs: async (params: DebugCollectLogsRequest): Promise<DebugCollectLogsResult> =>
                 connection.sendRequest("session.debug.collectLogs", { sessionId, ...params }),

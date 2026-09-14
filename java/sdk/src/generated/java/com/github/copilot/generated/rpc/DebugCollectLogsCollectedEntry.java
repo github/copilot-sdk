@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * A file included in the redacted debug bundle.
+ * A file included in the session debug bundle.
  *
  * @since 1.0.0
  */

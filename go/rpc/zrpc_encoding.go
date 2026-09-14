@@ -2693,6 +2693,12 @@ func unmarshalMCPHeadersHandlePendingHeadersRefreshRequest(data []byte) (MCPHead
 	}
 
 	switch raw.Kind {
+	case MCPHeadersHandlePendingHeadersRefreshRequestKindError:
+		var d MCPHeadersHandlePendingHeadersRefreshRequestError
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders:
 		var d MCPHeadersHandlePendingHeadersRefreshRequestHeaders
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -2718,6 +2724,17 @@ func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) MarshalJSON() ([]by
 		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
 	}{
 		Kind: r.Discriminator,
+	})
+}
+
+func (r MCPHeadersHandlePendingHeadersRefreshRequestError) MarshalJSON() ([]byte, error) {
+	type alias MCPHeadersHandlePendingHeadersRefreshRequestError
+	return json.Marshal(struct {
+		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
 	})
 }
 
@@ -5017,6 +5034,101 @@ func (r *PermissionLocationAddToolApprovalParams) UnmarshalJSON(data []byte) err
 	return nil
 }
 
+func unmarshalProtocolMarkerSectionOverride(data []byte) (ProtocolMarkerSectionOverride, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Action {
+	case ProtocolMarkerSectionOverrideActionPreserve:
+		var d ProtocolMarkerSectionOverridePreserve
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ProtocolMarkerSectionOverrideActionTransform:
+		var d ProtocolMarkerSectionOverrideTransform
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawProtocolMarkerSectionOverrideData{Discriminator: raw.Action, Raw: data}, nil
+	}
+}
+
+func (r RawProtocolMarkerSectionOverrideData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+	}{
+		Action: r.Discriminator,
+	})
+}
+
+func (r ProtocolMarkerSectionOverridePreserve) MarshalJSON() ([]byte, error) {
+	type alias ProtocolMarkerSectionOverridePreserve
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+		alias
+	}{
+		Action: r.Action(),
+		alias:  alias(r),
+	})
+}
+
+func (r ProtocolMarkerSectionOverrideTransform) MarshalJSON() ([]byte, error) {
+	type alias ProtocolMarkerSectionOverrideTransform
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+		alias
+	}{
+		Action: r.Action(),
+		alias:  alias(r),
+	})
+}
+
+func (r ProtocolSectionOverride) MarshalJSON() ([]byte, error) {
+	if r.ProtocolMarkerSectionOverride != nil {
+		return json.Marshal(r.ProtocolMarkerSectionOverride)
+	}
+	if r.ProtocolStaticSectionOverride != nil {
+		return json.Marshal(r.ProtocolStaticSectionOverride)
+	}
+	return []byte("null"), nil
+}
+
+func (r *ProtocolSectionOverride) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*r = ProtocolSectionOverride{}
+		return nil
+	}
+	{
+		value, err := unmarshalProtocolMarkerSectionOverride(data)
+		if err == nil {
+			*r = ProtocolSectionOverride{ProtocolMarkerSectionOverride: value}
+			return nil
+		}
+	}
+	{
+		var value ProtocolStaticSectionOverride
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = ProtocolSectionOverride{ProtocolStaticSectionOverride: &value}
+			return nil
+		}
+	}
+	return errors.New("data did not match any union variant for ProtocolSectionOverride")
+}
+
 func unmarshalPushAttachment(data []byte) (PushAttachment, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -5564,6 +5676,7 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 		Prompt         string            `json:"prompt"`
 		RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
 		RequiredTool   *string           `json:"requiredTool,omitempty"`
+		ResponseFormat *ResponseFormat   `json:"responseFormat,omitempty"`
 		Source         *string           `json:"source,omitempty"`
 		Traceparent    *string           `json:"traceparent,omitempty"`
 		Tracestate     *string           `json:"tracestate,omitempty"`
@@ -5591,6 +5704,7 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 	r.Prompt = raw.Prompt
 	r.RequestHeaders = raw.RequestHeaders
 	r.RequiredTool = raw.RequiredTool
+	r.ResponseFormat = raw.ResponseFormat
 	r.Source = raw.Source
 	r.Traceparent = raw.Traceparent
 	r.Tracestate = raw.Tracestate
@@ -5871,6 +5985,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		IsExperimentalMode                     *bool                                                `json:"isExperimentalMode,omitempty"`
 		LogInteractiveShells                   *bool                                                `json:"logInteractiveShells,omitempty"`
 		LspClientName                          *string                                              `json:"lspClientName,omitempty"`
+		ManagedMCPServers                      map[string]ManagedMCPServerConfig                    `json:"managedMcpServers,omitzero"`
 		ManagedSettings                        *SessionManagedSettings                              `json:"managedSettings,omitempty"`
 		MaxInlineBinaryBytes                   *int64                                               `json:"maxInlineBinaryBytes,omitempty"`
 		Memory                                 *MemoryConfiguration                                 `json:"memory,omitempty"`
@@ -5955,6 +6070,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.IsExperimentalMode = raw.IsExperimentalMode
 	r.LogInteractiveShells = raw.LogInteractiveShells
 	r.LspClientName = raw.LspClientName
+	r.ManagedMCPServers = raw.ManagedMCPServers
 	r.ManagedSettings = raw.ManagedSettings
 	r.MaxInlineBinaryBytes = raw.MaxInlineBinaryBytes
 	r.Memory = raw.Memory

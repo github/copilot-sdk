@@ -38,7 +38,7 @@ public final class HookEndEvent extends SessionEvent {
         @JsonProperty("hookInvocationId") String hookInvocationId,
         /** Type of hook that was invoked (e.g., "preToolUse", "postToolUse", "sessionStart") */
         @JsonProperty("hookType") String hookType,
-        /** Output data produced by the hook */
+        /** Output data produced by the hook. Durable and resumed postToolUse receipts may omit messages owned by a successful skill invocation and replace an unchanged skill sessionLog copy with an elision marker; hook-modified or re-sourced values are preserved, and the authoritative body remains in the skill invocation event. */
         @JsonProperty("output") Object output,
         /** Whether the hook completed successfully */
         @JsonProperty("success") Boolean success,
