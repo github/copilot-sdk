@@ -36,9 +36,11 @@ var toolRequested = WaitForEventAsync<ExternalToolRequestedEvent>(
     session2,
     evt => evt.Data.ToolName == "manual_resume_status");
 
+#pragma warning disable GHCP001
 await session2.Rpc.Permissions.HandlePendingPermissionRequestAsync(
     permissionEvent.Data.RequestId,
     new PermissionDecisionApproveOnce());
+#pragma warning restore GHCP001
 
 var toolEvent = await toolRequested;
 await client2.ForceStopAsync();
