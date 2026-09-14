@@ -1,6 +1,6 @@
 # Canary and unstable Node SDK releases
 
-Canary releases remain an internal runtime-to-SDK channel. Unstable Node SDK
+Canary releases are an internal runtime-to-SDK channel. Unstable Node SDK
 releases can either publish the selected SDK branch with its existing bundled
 runtime or package exact runtime inputs supplied by `github/copilot-agent-runtime`.
 All production release jobs run in `.github/workflows/publish.yml`.
