@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -355,6 +355,131 @@ export type CardDigestValue = string;
 /** @experimental */
 export type CatalogCandidateSource = CatalogCandidateSourceUrl | CatalogCandidateSourceEmbedded;
 /**
+ * A versioned, bounded trust observation carried unchanged with a catalog candidate and its private handle context. Current observations require a recognised T1/T2 tier; every non-current state structurally forbids a tier. Eligibility remains `unknown` while Agent Finder supplies no exposure decision, and states absent from its current wire are never inferred from age, relevance, popularity, or a tier transition.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshot".
+ */
+/** @experimental */
+export type CatalogTrustSnapshot =
+  | CatalogTrustSnapshotCurrent
+  | CatalogTrustSnapshotAbsent
+  | CatalogTrustSnapshotStale
+  | CatalogTrustSnapshotDowngraded
+  | CatalogTrustSnapshotRevoked
+  | CatalogTrustSnapshotUnsupported
+  | CatalogTrustSnapshotMalformed;
+/**
+ * Schema version of the catalogue trust snapshot envelope
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotSchemaVersion".
+ */
+/** @experimental */
+export type CatalogTrustSnapshotSchemaVersion =
+  /** Initial envelope carrying one bounded service tier or one explicit unavailable state. */
+  "v1";
+/**
+ * A recognised T1 or T2 service tier was observed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotCurrentStatus".
+ */
+/** @experimental */
+export type CatalogTrustSnapshotCurrentStatus = /** A recognised T1 or T2 service tier was observed. */ "current";
+/**
+ * Service-computed trust tier currently emitted by Agent Finder. It is independent of search score, popularity, and client-side ranking.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustTier".
+ */
+/** @experimental */
+export type CatalogTrustTier =
+  /** Tier one as assigned by the catalogue authority. */
+  | "T1"
+  /** Tier two as assigned by the catalogue authority. */
+  | "T2";
+/**
+ * Authority-computed exposure eligibility, kept separate from tier. The current tier-only Agent Finder response maps to `unknown`, never to a locally inferred eligibility.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustEligibility".
+ */
+/** @experimental */
+export type CatalogTrustEligibility =
+  /** Eligible for default catalogue exposure. */
+  | "default"
+  /** Eligible only when expanded or community results are requested. */
+  | "expanded"
+  /** Not eligible for normal catalogue exposure. */
+  | "hidden"
+  /** The authority did not supply an eligibility decision. */
+  | "unknown";
+/**
+ * Bounded authority that supplied a catalogue trust observation
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSource".
+ */
+/** @experimental */
+export type CatalogTrustSource =
+  /** GitHub Agent Finder supplied the trust field on its search result. */
+  "agent-finder";
+/**
+ * The authority omitted trust metadata.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotAbsentStatus".
+ */
+/** @experimental */
+export type CatalogTrustSnapshotAbsentStatus = /** The authority omitted trust metadata. */ "absent";
+/**
+ * The authority explicitly marked its assessment stale.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotStaleStatus".
+ */
+/** @experimental */
+export type CatalogTrustSnapshotStaleStatus = /** The authority explicitly marked its assessment stale. */ "stale";
+/**
+ * The authority explicitly reported a downgraded assessment.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotDowngradedStatus".
+ */
+/** @experimental */
+export type CatalogTrustSnapshotDowngradedStatus =
+  /** The authority explicitly reported a downgraded assessment. */
+  "downgraded";
+/**
+ * The authority explicitly revoked its assessment.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotRevokedStatus".
+ */
+/** @experimental */
+export type CatalogTrustSnapshotRevokedStatus = /** The authority explicitly revoked its assessment. */ "revoked";
+/**
+ * The authority supplied a bounded trust value this runtime does not understand.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotUnsupportedStatus".
+ */
+/** @experimental */
+export type CatalogTrustSnapshotUnsupportedStatus =
+  /** The authority supplied a bounded trust value this runtime does not understand. */
+  "unsupported";
+/**
+ * The trust field was empty, unbounded, or had the wrong JSON type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotMalformedStatus".
+ */
+/** @experimental */
+export type CatalogTrustSnapshotMalformedStatus =
+  /** The trust field was empty, unbounded, or had the wrong JSON type. */
+  "malformed";
+/**
  * Why the catalog authority did not accept the caller's identity
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -429,7 +554,9 @@ export type CatalogCapability =
   /** Understands side-effect-free MCP install-plan requests, results, and plan handles; `planning-unavailable` separately reports that planning is not enabled. */
   | "mcp-install-planning"
   /** Understands plans that enumerate every eligible transport rather than a single preferred one. */
-  | "multiple-transport-choice";
+  | "multiple-transport-choice"
+  /** Understands versioned candidate trust snapshots. Protocol-3 callers must require this capability before the runtime adds the optional snapshot field. */
+  | "trust-snapshot";
 /**
  * Bounded extensible wire-feature identifier. Known values are described by `CatalogCapability`; newer callers may send future identifiers so an older runtime can return a typed negotiation refusal instead of failing schema validation. Capability negotiation establishes contract understanding, while each operation's result separately reports runtime availability.
  *
@@ -1016,16 +1143,16 @@ export type EventsReadDirection =
   /** Tail-first: return the newest events and page toward older events. */
   | "backward";
 /**
- * Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history (the beginning for a forward read, the tail for a backward read). The fallback page is a fresh boundary snapshot, not a continuation of the requested cursor, so it may overlap already-rendered events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate by event id) before continuing from the returned cursor.
+ * Cursor status: 'ok' means the read succeeded against the requested history; 'expired' means the requested continuation is unavailable. Recovery is endpoint-specific: session.eventLog.read returns a boundary window of remaining active history that may overlap prior pages, while sessions.readPersistedEvents returns an empty terminal page and never switches journal generations. An expired persisted read is not successful completion; a complete persisted snapshot requires cursorStatus 'ok' and hasMore false.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "EventsCursorStatus".
  */
 /** @experimental */
 export type EventsCursorStatus =
-  /** The cursor was applied successfully. */
+  /** The read succeeded against the requested history. */
   | "ok"
-  /** The cursor referred to history that is no longer available. */
+  /** The requested continuation is unavailable; see the endpoint's recovery semantics. */
   | "expired";
 /**
  * Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)
@@ -2644,22 +2771,6 @@ export type PermissionDecisionOutcome =
   /** The response came from an interactive user prompt. */
   | "prompted_user";
 /**
- * Controlled reason or actor responsible for a permission response.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionDecisionSource".
- */
-/** @experimental */
-export type PermissionDecisionSource =
-  /** The response followed the assisted-approval judge recommendation. */
-  | "assisted_approval"
-  /** A human supplied the response through an interactive prompt. */
-  | "human_response"
-  /** The host applied a standing policy or override rather than a judge recommendation or human decision. */
-  | "host_policy"
-  /** The host denied the request because no interactive user response was available. */
-  | "unattended_fallback";
-/**
  * Client surface that submitted a permission response.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4256,7 +4367,7 @@ export interface CopilotUserResponse {
    */
   organization_login_list?: string[];
   /**
-   * Organizations the user belongs to, each with an optional login and display name.
+   * Organizations the user belongs to, each with an optional ID, login, and display name.
    */
   organization_list?:
     | (
@@ -4264,6 +4375,10 @@ export interface CopilotUserResponse {
             [k: string]: unknown | undefined;
           }
         | ({
+            /**
+             * Numeric database ID of the organization.
+             */
+            id?: number;
             /**
              * GitHub login of the organization.
              */
@@ -5981,6 +6096,7 @@ export interface CatalogAiSkillCandidate {
   publisher?: string;
   source: CatalogCandidateSource;
   provenance: CatalogAiSkillCandidateProvenance;
+  trust?: CatalogTrustSnapshot;
 }
 /**
  * Candidate whose card is retrieved from a URL through the runtime's hardened fetch boundary.
@@ -6032,6 +6148,112 @@ export interface CatalogAiSkillCandidateProvenance {
    * Media type advertised for the referenced AI skill card
    */
   mediaType: "application/ai-skill";
+}
+/**
+ * A recognised current Agent Finder T1 or T2 trust tier.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotCurrent".
+ */
+/** @experimental */
+export interface CatalogTrustSnapshotCurrent {
+  schemaVersion: CatalogTrustSnapshotSchemaVersion;
+  status: CatalogTrustSnapshotCurrentStatus;
+  tier: CatalogTrustTier;
+  eligibility: CatalogTrustEligibility;
+  provenance: CatalogTrustProvenance;
+}
+/**
+ * Where and when the runtime observed the trust metadata. Observation time is not the authority's evaluation time and must not be used to infer staleness.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustProvenance".
+ */
+/** @experimental */
+export interface CatalogTrustProvenance {
+  source: CatalogTrustSource;
+  /**
+   * ISO 8601 timestamp with a timezone offset at which the runtime observed the search result carrying this trust field.
+   */
+  observedAt: string;
+}
+/**
+ * Discriminator: the authority omitted trust metadata.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotAbsent".
+ */
+/** @experimental */
+export interface CatalogTrustSnapshotAbsent {
+  schemaVersion: CatalogTrustSnapshotSchemaVersion;
+  status: CatalogTrustSnapshotAbsentStatus;
+  eligibility: CatalogTrustEligibility;
+  provenance: CatalogTrustProvenance;
+}
+/**
+ * Discriminator: the authority explicitly marked the assessment stale.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotStale".
+ */
+/** @experimental */
+export interface CatalogTrustSnapshotStale {
+  schemaVersion: CatalogTrustSnapshotSchemaVersion;
+  status: CatalogTrustSnapshotStaleStatus;
+  eligibility: CatalogTrustEligibility;
+  provenance: CatalogTrustProvenance;
+}
+/**
+ * Discriminator: the authority explicitly reported a downgraded assessment.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotDowngraded".
+ */
+/** @experimental */
+export interface CatalogTrustSnapshotDowngraded {
+  schemaVersion: CatalogTrustSnapshotSchemaVersion;
+  status: CatalogTrustSnapshotDowngradedStatus;
+  eligibility: CatalogTrustEligibility;
+  provenance: CatalogTrustProvenance;
+}
+/**
+ * Discriminator: the authority explicitly revoked the assessment.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotRevoked".
+ */
+/** @experimental */
+export interface CatalogTrustSnapshotRevoked {
+  schemaVersion: CatalogTrustSnapshotSchemaVersion;
+  status: CatalogTrustSnapshotRevokedStatus;
+  eligibility: CatalogTrustEligibility;
+  provenance: CatalogTrustProvenance;
+}
+/**
+ * Discriminator: the authority supplied a bounded trust value this runtime does not understand.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotUnsupported".
+ */
+/** @experimental */
+export interface CatalogTrustSnapshotUnsupported {
+  schemaVersion: CatalogTrustSnapshotSchemaVersion;
+  status: CatalogTrustSnapshotUnsupportedStatus;
+  eligibility: CatalogTrustEligibility;
+  provenance: CatalogTrustProvenance;
+}
+/**
+ * Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogTrustSnapshotMalformed".
+ */
+/** @experimental */
+export interface CatalogTrustSnapshotMalformed {
+  schemaVersion: CatalogTrustSnapshotSchemaVersion;
+  status: CatalogTrustSnapshotMalformedStatus;
+  eligibility: CatalogTrustEligibility;
+  provenance: CatalogTrustProvenance;
 }
 /**
  * An optional catalog authentication exchange did not establish the caller's identity. Anonymous search remains supported; this refusal is reserved for an operation that cannot continue after the attempted exchange. It is distinct from `policy-rejected` and from a network failure, and the reason identifies the recovery action.
@@ -6087,6 +6309,7 @@ export interface CatalogMcpServerCandidate {
   publisher?: string;
   source: CatalogCandidateSource;
   provenance: CatalogMcpServerCandidateProvenance;
+  trust?: CatalogTrustSnapshot;
 }
 /**
  * Where and when an MCP server catalog reference was observed. Discovery provenance deliberately carries no content digest because search does not establish the exact validated content a later plan will bind.
@@ -6238,9 +6461,11 @@ export interface CatalogNegotiationRefusedError {
    */
   minimumSupportedProtocolVersion: number;
   /**
-   * Every wire feature this runtime understands, so the caller can retry within that contract. This list does not imply that every deployment has enabled every operation.
+   * Capabilities this runtime can safely advertise to this caller. The complete five-capability protocol-3 legacy set is always present; every capability added after that baseline appears only when the caller required it, so an older closed-enum decoder can still consume a refusal. This list does not imply that every deployment has enabled every operation.
+   *
+   * @maxItems 32
    */
-  supportedCapabilities: CatalogCapability[];
+  supportedCapabilities: CatalogCapabilityId[];
   /**
    * The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.
    *
@@ -7553,7 +7778,7 @@ export interface EventsReadResult {
    */
   cursor: string;
   /**
-   * True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
+   * True when more events are available in the read's direction. For a backward read, true means older persisted events remain before the returned window. A persisted-event page may contain fewer than `max` events because of its byte budget while still reporting hasMore true; continue according to this flag rather than the event count.
    */
   hasMore: boolean;
   cursorStatus: EventsCursorStatus;
@@ -9016,7 +9241,7 @@ export interface FactoryToolRunRequest {
   toolCallId?: string;
 }
 /**
- * Optional user prompt to combine with the fleet orchestration instructions.
+ * Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "FleetStartRequest".
@@ -9027,6 +9252,20 @@ export interface FleetStartRequest {
    * Optional user prompt to combine with fleet instructions
    */
   prompt?: string;
+  /**
+   * Optional attachments (files, directories, selections, blobs, GitHub references) to include with the fleet request
+   */
+  attachments?: Attachment[];
+  /**
+   * If false, this request will not trigger a Premium Request Unit charge. User requests default to billable.
+   *
+   * @internal
+   */
+  billable?: boolean;
+  /**
+   * If true, await completion of the agentic loop for this fleet request before returning. Defaults to false.
+   */
+  wait?: boolean;
 }
 /**
  * Indicates whether fleet mode was successfully activated.
@@ -13160,6 +13399,10 @@ export interface ModelApplyStartupOverlayRequest {
    */
   repoContextTier?: string;
   /**
+   * Auto routing preference selected by repository settings, when configured. Applied only when the overlay selects the Auto model; beside a concrete model it stays dormant.
+   */
+  repoAutoTier?: string;
+  /**
    * Model explicitly selected by the CLI, when provided.
    */
   cliModel?: string;
@@ -13515,6 +13758,7 @@ export interface ModelSwitchToResult {
 /** @experimental */
 export interface ModeSetRequest {
   mode: SessionMode;
+  expectedMode?: SessionMode;
   /**
    * Session whose plan-mode base state should be inherited.
    */
@@ -13569,6 +13813,10 @@ export interface ModeSetResult {
    * Whether applying the mode changed the active model.
    */
   modelChanged: boolean;
+  /**
+   * Whether the requested mode was applied to the session. False only when an 'expectedMode' precondition did not hold, in which case any model change reported alongside it was still applied.
+   */
+  modeApplied?: boolean;
   confirmation?: ModelSwitchConfirmation;
   /**
    * User-facing warning produced while applying the mode change.
@@ -19229,6 +19477,10 @@ export interface SessionOpenOptions {
    */
   skipCustomInstructions?: boolean;
   /**
+   * Whether to invalidate cached custom-instruction discovery before constructing the session. Use when instruction files may have changed earlier in the same runtime process.
+   */
+  refreshCustomInstructions?: boolean;
+  /**
    * Instruction source IDs disabled for this session.
    */
   disabledInstructionSources?: string[];
@@ -20405,11 +20657,11 @@ export interface SessionsReadPersistedEventsRequest {
    */
   sessionId: string;
   /**
-   * Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+   * Opaque, process-local, single-use cursor returned by the previous persisted-event read. Omit on the first call and issue continuations sequentially; reusing the same cursor returns an expired terminal page.
    */
   cursor?: string;
   /**
-   * Maximum number of events to return in this batch (1–1000, default 200).
+   * Maximum number of events to return in this batch (1–1000, default 200). Pages may contain fewer events to keep the serialized event array within a soft 1 MiB budget including resolved binary assets; one oversized event is returned alone to guarantee progress.
    */
   max?: number;
   direction?: EventsReadDirection;
@@ -24662,7 +24914,7 @@ export function createServerRpc(connection: MessageConnection) {
             getClientMetadata: async (params: SessionsGetClientMetadataRequest): Promise<SessionsGetClientMetadataResult> =>
                 connection.sendRequest("sessions.getClientMetadata", params),
             /**
-             * Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.
+             * Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The first read pins the currently opened journal generation and its byte-length boundary; opaque cursor continuations remain on that generation across runtime-owned compaction, truncation, and rewrite operations, which replace the live path atomically, and events appended after the boundary are excluded. For cold hydration, await the first successful page before activation and establish lossless live-event buffering before resume; merge subsequent live events by ID, preserving persisted order and letting live payloads win. Continuations are process-local, single-use capabilities bound to the originating session and storage context and must be paged sequentially; concurrent or repeated use of the same cursor expires that duplicate read rather than reading the generation twice. A complete snapshot has cursorStatus 'ok' and hasMore false. Snapshots expire after five idle minutes, with at most eight retained per process and idle-only eviction under pressure; completion and cancelled-worker exit release their handles. No transcript copy is created, but retained handles may keep replaced files' disk blocks alive until release. Pages have a soft 1 MiB serialized event-array budget including resolved binary assets; one oversized event is returned alone to guarantee progress. Working memory also includes a record/lookahead and asset resolution; resolving the first binary reference may scan the full pinned generation to build a bounded offset index. If the snapshot expires, is evicted, is cancelled before a continuation is established, or becomes unreadable after an observable unsupported in-place shortening, the continuation returns cursorStatus 'expired' with an empty terminal page and never falls back to a different generation. A missing or initially unreadable journal is an RPC error. Persisted history excludes ephemeral events and may omit payloads that are reconstructed only for an active session; use the active session event stream for post-resume live events.
              *
              * @param params Pagination options for reading an inactive or active local session's persisted event journal.
              *
@@ -25539,7 +25791,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Starts fleet mode by submitting the fleet orchestration prompt to the session.
              *
-             * @param params Optional user prompt to combine with the fleet orchestration instructions.
+             * @param params Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
              *
              * @returns Indicates whether fleet mode was successfully activated.
              */

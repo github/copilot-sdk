@@ -3,7 +3,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient, approveAll, defineTool, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN, isCI } from "./harness/sdkTestContext.js";
-import { getFinalAssistantMessage, getNextEventOfType, retry } from "./harness/sdkTestHelper.js";
+import { withFinalAssistantMessage, getNextEventOfType, retry } from "./harness/sdkTestHelper.js";
 
 const {
     copilotClient: client,
@@ -440,12 +440,12 @@ describe("Sessions", () => {
         });
         expect(session2.sessionId).toBe(sessionId);
 
-        // session.idle is ephemeral and not persisted, so use alreadyIdle
-        // to find the assistant message from the completed session.
-        const answer2 = await getFinalAssistantMessage(session2, { alreadyIdle: true });
+        // sendAndWait already observed idle on session1; only durable messages
+        // are needed to verify the completed turn survived resumption.
+        const messages = await session2.getEvents();
+        const answer2 = messages.findLast((m) => m.type === "assistant.message");
         expect(answer2?.data.content).toContain("2");
 
-        const messages = await session2.getEvents();
         expect(messages).toContainEqual(expect.objectContaining({ type: "user.message" }));
         expect(messages).toContainEqual(expect.objectContaining({ type: "session.resume" }));
 
@@ -671,9 +671,9 @@ describe("Sessions", () => {
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
         // Session should work normally with custom config dir
-        await session.send({ prompt: "What is 1+1?" });
-        const assistantMessage = await getFinalAssistantMessage(session);
-        expect(assistantMessage.data.content).toContain("2");
+        const assistantMessage = await session.sendAndWait({ prompt: "What is 1+1?" });
+        expect(assistantMessage).toBeDefined();
+        expect(assistantMessage?.data.content).toContain("2");
     });
 
     it("should log messages at all levels and emit matching session events", async () => {
@@ -969,14 +969,13 @@ describe("Send Blocking Behavior", async () => {
             events.push(event.type);
         });
 
-        // Use a slow command so we can verify send() returns before completion
-        await session.send({ prompt: "Run 'sleep 2 && echo done'" });
+        const message = await withFinalAssistantMessage(session, async () => {
+            // Use a slow command so we can verify send() returns before completion.
+            await session.send({ prompt: "Run 'sleep 2 && echo done'" });
 
-        // send() should return before turn completes (no session.idle yet)
-        expect(events).not.toContain("session.idle");
-
-        // Wait for turn to complete
-        const message = await getFinalAssistantMessage(session);
+            // send() should return before turn completes (no session.idle yet).
+            expect(events).not.toContain("session.idle");
+        });
 
         expect(message.data.content).toContain("done");
         expect(events).toContain("session.idle");

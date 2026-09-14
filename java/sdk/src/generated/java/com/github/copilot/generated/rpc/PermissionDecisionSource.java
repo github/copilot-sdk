@@ -23,7 +23,9 @@ public enum PermissionDecisionSource {
     /** The {@code host_policy} variant. */
     HOST_POLICY("host_policy"),
     /** The {@code unattended_fallback} variant. */
-    UNATTENDED_FALLBACK("unattended_fallback");
+    UNATTENDED_FALLBACK("unattended_fallback"),
+    /** The {@code authorization_carry_forward} variant. */
+    AUTHORIZATION_CARRY_FORWARD("authorization_carry_forward");
 
     private final String value;
     PermissionDecisionSource(String value) { this.value = value; }

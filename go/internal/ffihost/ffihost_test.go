@@ -56,15 +56,13 @@ func TestDisposeRetainsOutboundTargetUntilConnectionCloseSucceeds(t *testing.T) 
 	if got := shutdownCalls.Load(); got != 0 {
 		t.Fatalf("Expected host shutdown to be deferred, got %d calls", got)
 	}
+	if WaitForCleanup(20 * time.Millisecond) {
+		t.Fatal("Expected cleanup wait to remain blocked before connection close succeeds")
+	}
 
 	allowClose.Store(true)
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		_, registered := outboundTargets.Load(token)
-		if !registered && shutdownCalls.Load() == 1 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	if !WaitForCleanup(5 * time.Second) {
+		t.Fatal("Timed out waiting for deferred cleanup")
 	}
 
 	if _, ok := outboundTargets.Load(token); ok {

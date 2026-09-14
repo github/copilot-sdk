@@ -118,12 +118,24 @@ const (
 	SessionEventTypeModelCallFinished          SessionEventType = "model.call_finished"
 	SessionEventTypeModelCallStart             SessionEventType = "model.call_start"
 	SessionEventTypePendingMessagesModified    SessionEventType = "pending_messages.modified"
-	SessionEventTypePermissionCompleted        SessionEventType = "permission.completed"
-	SessionEventTypePermissionRequested        SessionEventType = "permission.requested"
-	SessionEventTypePromptCacheBreak           SessionEventType = "prompt_cache_break"
-	SessionEventTypeSamplingCompleted          SessionEventType = "sampling.completed"
-	SessionEventTypeSamplingRequested          SessionEventType = "sampling.requested"
-	SessionEventTypeSandboxDecision            SessionEventType = "sandbox.decision"
+	// Experimental: SessionEventTypePermissionCarriedForward identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypePermissionCarriedForward SessionEventType = "permission.carriedForward"
+	SessionEventTypePermissionCompleted      SessionEventType = "permission.completed"
+	// Experimental: SessionEventTypePermissionMessageAuthorization identifies an experimental
+	// event that may change or be removed.
+	SessionEventTypePermissionMessageAuthorization SessionEventType = "permission.messageAuthorization"
+	// Experimental: SessionEventTypePermissionMessageAuthorizationDegraded identifies an
+	// experimental event that may change or be removed.
+	SessionEventTypePermissionMessageAuthorizationDegraded SessionEventType = "permission.messageAuthorizationDegraded"
+	// Experimental: SessionEventTypePermissionMessageAuthorizationRead identifies an
+	// experimental event that may change or be removed.
+	SessionEventTypePermissionMessageAuthorizationRead SessionEventType = "permission.messageAuthorizationRead"
+	SessionEventTypePermissionRequested                SessionEventType = "permission.requested"
+	SessionEventTypePromptCacheBreak                   SessionEventType = "prompt_cache_break"
+	SessionEventTypeSamplingCompleted                  SessionEventType = "sampling.completed"
+	SessionEventTypeSamplingRequested                  SessionEventType = "sampling.requested"
+	SessionEventTypeSandboxDecision                    SessionEventType = "sandbox.decision"
 	// Experimental: SessionEventTypeSessionAutoModeResolved identifies an experimental event
 	// that may change or be removed.
 	SessionEventTypeSessionAutoModeResolved          SessionEventType = "session.auto_mode_resolved"
@@ -1325,6 +1337,43 @@ type ModelCallFinishedData struct {
 func (*ModelCallFinishedData) sessionEventData()      {}
 func (*ModelCallFinishedData) Type() SessionEventType { return SessionEventTypeModelCallFinished }
 
+// Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.
+// Experimental: PermissionMessageAuthorizationData is part of an experimental API and may change or be removed.
+type PermissionMessageAuthorizationData struct {
+	// The kind of effect authorized, as an action-class identifier.
+	// Experimental: ActionClass is part of an experimental API and may change or be removed.
+	ActionClass string `json:"actionClass"`
+	// Whether the claim granted or denied authority.
+	// Experimental: Polarity is part of an experimental API and may change or be removed.
+	Polarity PermissionMessageAuthorizationPolarity `json:"polarity"`
+	// Deterministic identity of the record, derived from the turn and span offsets so re-extracting the same span mints nothing new.
+	// Experimental: RecordID is part of an experimental API and may change or be removed.
+	RecordID string `json:"recordId"`
+	// End byte offset of the authorizing span within the turn.
+	// Experimental: SpanEnd is part of an experimental API and may change or be removed.
+	SpanEnd int64 `json:"spanEnd"`
+	// Start byte offset of the authorizing span within the turn.
+	// Experimental: SpanStart is part of an experimental API and may change or be removed.
+	SpanStart int64 `json:"spanStart"`
+	// Concrete named targets that appear verbatim inside the span.
+	// Experimental: TargetMembers is part of an experimental API and may change or be removed.
+	TargetMembers []string `json:"targetMembers,omitzero"`
+	// The task the permission is scoped to, when the human named one.
+	// Experimental: Task is part of an experimental API and may change or be removed.
+	Task *string `json:"task,omitempty"`
+	// The human turn the quoted span was read from.
+	// Experimental: TurnIndex is part of an experimental API and may change or be removed.
+	TurnIndex int64 `json:"turnIndex"`
+	// The trusted version discriminator, when one exists. Exact shell-command grants carry the byte-identical commands grounded in the human span; world-derived classes carry a file object, remote tip, or runner only when that state was captured safely. An opaque object mirroring the runtime's adjacently-tagged resolution.
+	// Experimental: World is part of an experimental API and may change or be removed.
+	World any `json:"world,omitempty"`
+}
+
+func (*PermissionMessageAuthorizationData) sessionEventData() {}
+func (*PermissionMessageAuthorizationData) Type() SessionEventType {
+	return SessionEventTypePermissionMessageAuthorization
+}
+
 // Hook invocation completion details including output, success status, and error information
 type HookEndData struct {
 	// Error details when the hook failed
@@ -1965,6 +2014,9 @@ func (*UserMessageData) Type() SessionEventType { return SessionEventTypeUserMes
 
 // Permission request completion notification signaling UI dismissal
 type PermissionCompletedData struct {
+	// Who decided this permission request. Absent on completions recorded before this field existed, which consumers must treat as "not a human decision" rather than assuming one. Authorization records are minted only for `human_response`; an assisted-approval verdict, a host policy, an unattended fallback, and a hook resolution all produce the same `result` a person does, so this is the only field that distinguishes them.
+	// Experimental: DecisionSource is part of an experimental API and may change or be removed.
+	DecisionSource *PermissionDecisionSource `json:"decisionSource,omitempty"`
 	// Request ID of the resolved permission request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
 	// The result of the permission request
@@ -2094,6 +2146,28 @@ type CommandQueuedData struct {
 func (*CommandQueuedData) sessionEventData()      {}
 func (*CommandQueuedData) Type() SessionEventType { return SessionEventTypeCommandQueued }
 
+// Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.
+// Experimental: PermissionCarriedForwardData is part of an experimental API and may change or be removed.
+type PermissionCarriedForwardData struct {
+	// Always `authorization_carry_forward`. Stated explicitly so a consumer reading this event cannot mistake it for a human, host-policy, or assisted-approval decision.
+	// Experimental: DecisionSource is part of an experimental API and may change or be removed.
+	DecisionSource PermissionDecisionSource `json:"decisionSource"`
+	// Identity of the prior authorization record that contained the proposal.
+	// Experimental: RecordID is part of an experimental API and may change or be removed.
+	RecordID string `json:"recordId"`
+	// Authorization edge minted for this admission. Not a prompt id: no prompt was raised, so no client should expect a request with this id.
+	// Experimental: RequestID is part of an experimental API and may change or be removed.
+	RequestID string `json:"requestId"`
+	// Tool call this admission authorizes. Its execution receipts the prior grant, which is how a single-effect approval is spent rather than carried forward again.
+	// Experimental: ToolCallID is part of an experimental API and may change or be removed.
+	ToolCallID string `json:"toolCallId"`
+}
+
+func (*PermissionCarriedForwardData) sessionEventData() {}
+func (*PermissionCarriedForwardData) Type() SessionEventType {
+	return SessionEventTypePermissionCarriedForward
+}
+
 // Records that a mode transition notice reached the model so cache-stable mode tools can remain offered across resume.
 type SessionModeNoticeDeliveredData struct {
 	// Model-visible transition notice persisted for a mid-turn delivery
@@ -2105,6 +2179,32 @@ type SessionModeNoticeDeliveredData struct {
 func (*SessionModeNoticeDeliveredData) sessionEventData() {}
 func (*SessionModeNoticeDeliveredData) Type() SessionEventType {
 	return SessionEventTypeSessionModeNoticeDelivered
+}
+
+// Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.
+// Experimental: PermissionMessageAuthorizationDegradedData is part of an experimental API and may change or be removed.
+type PermissionMessageAuthorizationDegradedData struct {
+	// The human turn that could not be represented safely.
+	// Experimental: TurnIndex is part of an experimental API and may change or be removed.
+	TurnIndex int64 `json:"turnIndex"`
+}
+
+func (*PermissionMessageAuthorizationDegradedData) sessionEventData() {}
+func (*PermissionMessageAuthorizationDegradedData) Type() SessionEventType {
+	return SessionEventTypePermissionMessageAuthorizationDegraded
+}
+
+// Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.
+// Experimental: PermissionMessageAuthorizationReadData is part of an experimental API and may change or be removed.
+type PermissionMessageAuthorizationReadData struct {
+	// The human turn that was read by the proposer.
+	// Experimental: TurnIndex is part of an experimental API and may change or be removed.
+	TurnIndex int64 `json:"turnIndex"`
+}
+
+func (*PermissionMessageAuthorizationReadData) sessionEventData() {}
+func (*PermissionMessageAuthorizationReadData) Type() SessionEventType {
+	return SessionEventTypePermissionMessageAuthorizationRead
 }
 
 // Registered command dispatch request routed to the owning client
@@ -2776,6 +2876,8 @@ type ToolExecutionStartData struct {
 	MCPServerName *string `json:"mcpServerName,omitempty"`
 	// Original tool name on the MCP server, when the tool is an MCP tool
 	MCPToolName *string `json:"mcpToolName,omitempty"`
+	// Transport the MCP server hosting this tool is connected over, when the tool is an MCP tool and the server is configured
+	MCPTransport *MCPServerTransport `json:"mcpTransport,omitempty"`
 	// Model identifier that generated this tool call
 	Model *string `json:"model,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -3854,6 +3956,9 @@ type PermissionPromptRequestRead struct {
 	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Path of the file or directory being read
 	Path string `json:"path"`
+	// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.
+	// Experimental: ResolvedPath is part of an experimental API and may change or be removed.
+	ResolvedPath *string `json:"resolvedPath,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
@@ -3906,6 +4011,9 @@ type PermissionPromptRequestWrite struct {
 	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Complete new file contents for newly created files
 	NewFileContents *string `json:"newFileContents,omitempty"`
+	// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.
+	// Experimental: ResolvedPath is part of an experimental API and may change or be removed.
+	ResolvedPath *string `json:"resolvedPath,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
@@ -4134,6 +4242,9 @@ type PermissionRequestRead struct {
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
 	// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
+	// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.
+	// Experimental: ResolvedPath is part of an experimental API and may change or be removed.
+	ResolvedPath *string `json:"resolvedPath,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
@@ -4169,6 +4280,12 @@ type PermissionRequestShell struct {
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// True when the requested escalation is a permissive retry rather than a full bypass: the command re-runs inside the sandbox with its file and process restrictions recording instead of blocking, while the network policy stays enforced. Always accompanied by requestSandboxBypass, so hosts that do not recognize this field still treat the request as the escalation it is. Hosts that do recognize it must not describe the command as running outside the sandbox, which would overstate the privilege being granted.
 	RequestSandboxPermissive *bool `json:"requestSandboxPermissive,omitempty"`
+	// Runtime-resolved canonical object each possiblePaths entry names, keyed by the requested spelling, used for authorization identity checks. Internal and experimental; clients should continue to display possiblePaths.
+	// Experimental: ResolvedPaths is part of an experimental API and may change or be removed.
+	ResolvedPaths map[string]string `json:"resolvedPaths,omitzero"`
+	// Runtime-resolved canonical working directory the command runs in, used for authorization identity checks. Internal and experimental; clients should not display it.
+	// Experimental: ResolvedWorkingDirectory is part of an experimental API and may change or be removed.
+	ResolvedWorkingDirectory *string `json:"resolvedWorkingDirectory,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Optional warning message about risks of running this command
@@ -4221,6 +4338,9 @@ type PermissionRequestWrite struct {
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
 	// Justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
+	// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.
+	// Experimental: ResolvedPath is part of an experimental API and may change or be removed.
+	ResolvedPath *string `json:"resolvedPath,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
@@ -5741,6 +5861,17 @@ const (
 	OmittedBinaryTypeImage OmittedBinaryType = "image"
 	// Other binary resource data.
 	OmittedBinaryTypeResource OmittedBinaryType = "resource"
+)
+
+// Which direction a message-backed authorization claim moves authority in.
+// Experimental: PermissionMessageAuthorizationPolarity is part of an experimental API and may change or be removed.
+type PermissionMessageAuthorizationPolarity string
+
+const (
+	// The human's words refused an effect.
+	PermissionMessageAuthorizationPolarityDenial PermissionMessageAuthorizationPolarity = "denial"
+	// The human's words authorized an effect.
+	PermissionMessageAuthorizationPolarityGrant PermissionMessageAuthorizationPolarity = "grant"
 )
 
 // Kind discriminator for PermissionPromptRequest.

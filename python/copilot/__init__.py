@@ -104,12 +104,12 @@ from .generated.rpc import (
     ModelSwitchAutoTierStatus,
     PermissionDecisionContext,
     PermissionDecisionOutcome,
-    PermissionDecisionSource,
     PermissionDecisionSurface,
     PermissionResponseCapability,
 )
 from .generated.session_events import (
     AutoTierSwitchFailureReason,
+    PermissionDecisionSource,
     PermissionRequest,
     SessionAutoTierSwitchFailedData,
     SessionEvent,

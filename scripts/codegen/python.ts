@@ -215,10 +215,20 @@ function preservePythonSessionEventConstructorOrder(schema: JSONSchema7): void {
     for (const definitions of [schema.definitions, schema.$defs]) {
         if (!definitions) continue;
         const customTool = definitions.PermissionRequestCustomTool;
-        if (!customTool || typeof customTool !== "object") continue;
-        const skipPermission = (customTool as JSONSchema7).properties?.skipPermission;
-        if (!skipPermission || typeof skipPermission !== "object") continue;
-        (skipPermission as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+        if (customTool && typeof customTool === "object") {
+            const skipPermission = (customTool as JSONSchema7).properties?.skipPermission;
+            if (skipPermission && typeof skipPermission === "object") {
+                (skipPermission as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+            }
+        }
+
+        const read = definitions.PermissionRequestRead;
+        if (read && typeof read === "object") {
+            const resolvedPath = (read as JSONSchema7).properties?.resolvedPath;
+            if (resolvedPath && typeof resolvedPath === "object") {
+                (resolvedPath as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+            }
+        }
     }
 }
 

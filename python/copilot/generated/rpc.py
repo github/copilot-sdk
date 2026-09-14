@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import ClassVar, TYPE_CHECKING
 
-from .session_events import AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity
+from .session_events import AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity
 
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
@@ -1148,6 +1148,68 @@ class CatalogCandidateSourceKind(Enum):
     EMBEDDED = "embedded"
     URL = "url"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogTrustEligibility(Enum):
+    """Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+    no explicit eligibility field.
+
+    Authority-computed exposure eligibility, kept separate from tier. The current tier-only
+    Agent Finder response maps to `unknown`, never to a locally inferred eligibility.
+    """
+    DEFAULT = "default"
+    EXPANDED = "expanded"
+    HIDDEN = "hidden"
+    UNKNOWN = "unknown"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogTrustSource(Enum):
+    """Bounded authority that supplied the trust field.
+
+    Bounded authority that supplied a catalogue trust observation
+    """
+    AGENT_FINDER = "agent-finder"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogTrustSnapshotSchemaVersion(Enum):
+    """Schema version of this runtime-owned snapshot envelope.
+
+    Schema version of the catalogue trust snapshot envelope
+    """
+    V1 = "v1"
+
+class CatalogTrustSnapshotStatus(Enum):
+    """A recognised T1 or T2 service tier was observed.
+
+    The authority omitted trust metadata.
+
+    The authority explicitly marked its assessment stale.
+
+    The authority explicitly reported a downgraded assessment.
+
+    The authority explicitly revoked its assessment.
+
+    The authority supplied a bounded trust value this runtime does not understand.
+
+    The trust field was empty, unbounded, or had the wrong JSON type.
+    """
+    ABSENT = "absent"
+    CURRENT = "current"
+    DOWNGRADED = "downgraded"
+    MALFORMED = "malformed"
+    REVOKED = "revoked"
+    STALE = "stale"
+    UNSUPPORTED = "unsupported"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogTrustTier(Enum):
+    """Service-computed T1 or T2 trust tier.
+
+    Service-computed trust tier currently emitted by Agent Finder. It is independent of
+    search score, popularity, and client-side ranking.
+    """
+    T1 = "T1"
+    T2 = "T2"
+
 class CatalogAuthenticationRequiredErrorKind(Enum):
     AUTHENTICATION_REQUIRED = "authentication-required"
 
@@ -1221,6 +1283,7 @@ class CatalogCapability(Enum):
     MCP_INSTALL_PLANNING = "mcp-install-planning"
     MCP_SERVER_CARD = "mcp-server-card"
     MULTIPLE_TRANSPORT_CHOICE = "multiple-transport-choice"
+    TRUST_SNAPSHOT = "trust-snapshot"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
@@ -1495,6 +1558,48 @@ class CatalogSearchResultReason(Enum):
 
 class CatalogSearchSucceededKind(Enum):
     SUCCEEDED = "succeeded"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogTrustSnapshotAbsentStatus(Enum):
+    """The authority omitted trust metadata."""
+
+    ABSENT = "absent"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogTrustSnapshotCurrentStatus(Enum):
+    """A recognised T1 or T2 service tier was observed."""
+
+    CURRENT = "current"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogTrustSnapshotDowngradedStatus(Enum):
+    """The authority explicitly reported a downgraded assessment."""
+
+    DOWNGRADED = "downgraded"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogTrustSnapshotMalformedStatus(Enum):
+    """The trust field was empty, unbounded, or had the wrong JSON type."""
+
+    MALFORMED = "malformed"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogTrustSnapshotRevokedStatus(Enum):
+    """The authority explicitly revoked its assessment."""
+
+    REVOKED = "revoked"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogTrustSnapshotStaleStatus(Enum):
+    """The authority explicitly marked its assessment stale."""
+
+    STALE = "stale"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogTrustSnapshotUnsupportedStatus(Enum):
+    """The authority supplied a bounded trust value this runtime does not understand."""
+
+    UNSUPPORTED = "unsupported"
 
 class CatalogUnavailableErrorKind(Enum):
     UNAVAILABLE = "unavailable"
@@ -2728,7 +2833,8 @@ class EventsReadDirection(Enum):
     (oldest-to-newest), even for a backward read.
 
     Direction to page through persisted history. Forward starts at the beginning; backward
-    starts with the newest events. Events in each page remain chronological.
+    starts with the newest events. Events in each page remain chronological. This selects the
+    initial read only; a continuation always uses the direction bound into its cursor.
     """
     BACKWARD = "backward"
     FORWARD = "forward"
@@ -2781,30 +2887,6 @@ class EventLogTailResult:
         result: dict = {}
         result["cursor"] = from_str(self.cursor)
         return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-class EventsCursorStatus(Enum):
-    """Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor
-    referred to an event that no longer exists in history (e.g. truncated or compacted away)
-    and the read fell back to a boundary of the remaining history (the beginning for a
-    forward read, the tail for a backward read). The fallback page is a fresh boundary
-    snapshot, not a continuation of the requested cursor, so it may overlap already-rendered
-    events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate
-    by event id) before continuing from the returned cursor.
-
-    Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor
-    referred to an event that no longer exists in history (e.g. truncated or compacted away)
-    and the read fell back to a boundary of the remaining history. For a forward read the
-    fallback starts from the beginning of the remaining history; for a backward read it falls
-    back to the tail (the newest window). Because the fallback page is a fresh boundary
-    snapshot rather than a continuation of the requested cursor, it may overlap events the
-    consumer has already rendered — a backward fallback to the tail in particular can repeat
-    the newest window. On 'expired', consumers should reset or rebase their local pagination
-    state (or deduplicate by event id) before continuing from the returned cursor rather than
-    blindly appending/prepending the fallback page.
-    """
-    EXPIRED = "expired"
-    OK = "ok"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
@@ -3646,21 +3728,45 @@ class FactoryRunLimits:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class FleetStartRequest:
-    """Optional user prompt to combine with the fleet orchestration instructions."""
-
+    """Parameters for starting fleet orchestration: an optional user prompt combined with the
+    fleet instructions, plus the send options forwarded to the resulting turn.
+    """
+    attachments: list[Attachment] | None = None
+    """Optional attachments (files, directories, selections, blobs, GitHub references) to
+    include with the fleet request
+    """
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    billable: bool | None = None
+    """If false, this request will not trigger a Premium Request Unit charge. User requests
+    default to billable.
+    """
     prompt: str | None = None
     """Optional user prompt to combine with fleet instructions"""
+
+    wait: bool | None = None
+    """If true, await completion of the agentic loop for this fleet request before returning.
+    Defaults to false.
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'FleetStartRequest':
         assert isinstance(obj, dict)
+        attachments = from_union([lambda x: from_list(Attachment.from_dict, x), from_none], obj.get("attachments"))
+        billable = from_union([from_bool, from_none], obj.get("billable"))
         prompt = from_union([from_str, from_none], obj.get("prompt"))
-        return FleetStartRequest(prompt)
+        wait = from_union([from_bool, from_none], obj.get("wait"))
+        return FleetStartRequest(attachments, billable, prompt, wait)
 
     def to_dict(self) -> dict:
         result: dict = {}
+        if self.attachments is not None:
+            result["attachments"] = from_union([lambda x: from_list(lambda x: to_class(Attachment, x), x), from_none], self.attachments)
+        if self.billable is not None:
+            result["billable"] = from_union([from_bool, from_none], self.billable)
         if self.prompt is not None:
             result["prompt"] = from_union([from_str, from_none], self.prompt)
+        if self.wait is not None:
+            result["wait"] = from_union([from_bool, from_none], self.wait)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -7602,17 +7708,6 @@ class PermissionResponseCapability(Enum):
     HEADLESS = "headless"
     INTERACTIVE = "interactive"
     NONE = "none"
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-class PermissionDecisionSource(Enum):
-    """Controlled reason or actor responsible for the response.
-
-    Controlled reason or actor responsible for a permission response.
-    """
-    ASSISTED_APPROVAL = "assisted_approval"
-    HOST_POLICY = "host_policy"
-    HUMAN_RESPONSE = "human_response"
-    UNATTENDED_FALLBACK = "unattended_fallback"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class PermissionDecisionSurface(Enum):
@@ -15592,6 +15687,35 @@ class CardDigest:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class CatalogTrustProvenance:
+    """Bounded source and observation time for this snapshot. This is distinct from evidence
+    used by the authority to calculate trust.
+
+    Where and when the runtime observed the trust metadata. Observation time is not the
+    authority's evaluation time and must not be used to infer staleness.
+    """
+    observed_at: datetime
+    """ISO 8601 timestamp with a timezone offset at which the runtime observed the search result
+    carrying this trust field.
+    """
+    source: CatalogTrustSource
+    """Bounded authority that supplied the trust field."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogTrustProvenance':
+        assert isinstance(obj, dict)
+        observed_at = from_datetime(obj.get("observedAt"))
+        source = CatalogTrustSource(obj.get("source"))
+        return CatalogTrustProvenance(observed_at, source)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["observedAt"] = self.observed_at.isoformat()
+        result["source"] = to_enum(CatalogTrustSource, self.source)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class CatalogAuthenticationRequiredError:
     """An optional catalog authentication exchange did not establish the caller's identity.
     Anonymous search remains supported; this refusal is reserved for an operation that cannot
@@ -16038,9 +16162,12 @@ class CatalogNegotiationRefusedError:
     runtime_protocol_version: int
     """Protocol version of the runtime that refused the request."""
 
-    supported_capabilities: list[CatalogCapability]
-    """Every wire feature this runtime understands, so the caller can retry within that
-    contract. This list does not imply that every deployment has enabled every operation.
+    supported_capabilities: list[str]
+    """Capabilities this runtime can safely advertise to this caller. The complete
+    five-capability protocol-3 legacy set is always present; every capability added after
+    that baseline appears only when the caller required it, so an older closed-enum decoder
+    can still consume a refusal. This list does not imply that every deployment has enabled
+    every operation.
     """
     unsupported_capabilities: list[str]
     """The subset of the caller's bounded extensible capability identifiers this runtime cannot
@@ -16054,7 +16181,7 @@ class CatalogNegotiationRefusedError:
         minimum_supported_protocol_version = from_int(obj.get("minimumSupportedProtocolVersion"))
         reason = CatalogNegotiationRefusedReason(obj.get("reason"))
         runtime_protocol_version = from_int(obj.get("runtimeProtocolVersion"))
-        supported_capabilities = from_list(CatalogCapability, obj.get("supportedCapabilities"))
+        supported_capabilities = from_list(from_str, obj.get("supportedCapabilities"))
         unsupported_capabilities = from_list(from_str, obj.get("unsupportedCapabilities"))
         return CatalogNegotiationRefusedError(message, minimum_supported_protocol_version, reason, runtime_protocol_version, supported_capabilities, unsupported_capabilities)
 
@@ -16065,7 +16192,7 @@ class CatalogNegotiationRefusedError:
         result["minimumSupportedProtocolVersion"] = from_int(self.minimum_supported_protocol_version)
         result["reason"] = to_enum(CatalogNegotiationRefusedReason, self.reason)
         result["runtimeProtocolVersion"] = from_int(self.runtime_protocol_version)
-        result["supportedCapabilities"] = from_list(lambda x: to_enum(CatalogCapability, x), self.supported_capabilities)
+        result["supportedCapabilities"] = from_list(from_str, self.supported_capabilities)
         result["unsupportedCapabilities"] = from_list(from_str, self.unsupported_capabilities)
         return result
 
@@ -17194,14 +17321,20 @@ class SessionsReadPersistedEventsRequest:
     """Session ID whose persisted event journal should be read."""
 
     cursor: str | None = None
-    """Opaque cursor returned by a previous persisted-event read. Omit on the first call."""
-
+    """Opaque, process-local, single-use cursor returned by the previous persisted-event read.
+    Omit on the first call and issue continuations sequentially; reusing the same cursor
+    returns an expired terminal page.
+    """
     direction: EventsReadDirection | None = None
     """Direction to page through persisted history. Forward starts at the beginning; backward
-    starts with the newest events. Events in each page remain chronological.
+    starts with the newest events. Events in each page remain chronological. This selects the
+    initial read only; a continuation always uses the direction bound into its cursor.
     """
     max: int | None = None
-    """Maximum number of events to return in this batch (1–1000, default 200)."""
+    """Maximum number of events to return in this batch (1–1000, default 200). Pages may contain
+    fewer events to keep the serialized event array within a soft 1 MiB budget including
+    resolved binary assets; one oversized event is returned alone to guarantee progress.
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionsReadPersistedEventsRequest':
@@ -17312,60 +17445,6 @@ class EventLogReadRequest:
             result["types"] = from_union([lambda x: from_list(from_str, x), lambda x: to_enum(EventLogTypes, x), from_none], self.types)
         if self.wait_ms is not None:
             result["waitMs"] = from_union([from_int, from_none], self.wait_ms)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class EventsReadResult:
-    """Batch of session events returned by a read, with cursor and continuation metadata."""
-
-    cursor: str
-    """Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue
-    from where this read left off. Always present, even when no events were returned. For a
-    backward read this cursor pages toward OLDER events; keep passing `direction: backward`
-    with it (the cursor is also self-describing, so backward paging continues correctly).
-    """
-    cursor_status: EventsCursorStatus
-    """Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor
-    referred to an event that no longer exists in history (e.g. truncated or compacted away)
-    and the read fell back to a boundary of the remaining history. For a forward read the
-    fallback starts from the beginning of the remaining history; for a backward read it falls
-    back to the tail (the newest window). Because the fallback page is a fresh boundary
-    snapshot rather than a continuation of the requested cursor, it may overlap events the
-    consumer has already rendered — a backward fallback to the tail in particular can repeat
-    the newest window. On 'expired', consumers should reset or rebase their local pagination
-    state (or deduplicate by event id) before continuing from the returned cursor rather than
-    blindly appending/prepending the fallback page.
-    """
-    events: list[SessionEvent]
-    """Session events for this batch, merged into a single stream in creation order: durable
-    (persisted) events and ephemeral events interleave exactly as they were emitted. Set
-    `includeEphemeral: false` to receive only durable events. Ephemeral events are never
-    replayable once pruned from the in-memory ring, so a consumer that needs them should keep
-    reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window
-    contains persisted events only, still in chronological (oldest-to-newest) append order.
-    """
-    has_more: bool
-    """True when more events are available in the read's direction. For a forward read, true
-    means the batch returned `max` events and more are available immediately. For a backward
-    read, true means older persisted events remain before the returned window.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'EventsReadResult':
-        assert isinstance(obj, dict)
-        cursor = from_str(obj.get("cursor"))
-        cursor_status = EventsCursorStatus(obj.get("cursorStatus"))
-        events = from_list(SessionEvent.from_dict, obj.get("events"))
-        has_more = from_bool(obj.get("hasMore"))
-        return EventsReadResult(cursor, cursor_status, events, has_more)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["cursor"] = from_str(self.cursor)
-        result["cursorStatus"] = to_enum(EventsCursorStatus, self.cursor_status)
-        result["events"] = from_list(lambda x: to_class(SessionEvent, x), self.events)
-        result["hasMore"] = from_bool(self.has_more)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -20461,6 +20540,10 @@ class ModeSetRequest:
     compaction_decision: str | None = None
     """Explicit response to a model-switch compaction preflight."""
 
+    expected_mode: SessionMode | None = None
+    """Mode the session must currently be in for the change to apply. When set and the session
+    is in a different mode the request is a no-op and reports status 'unchanged'.
+    """
     inherit_plan_base_from_session_id: str | None = None
     """Session whose plan-mode base state should be inherited."""
 
@@ -20493,6 +20576,7 @@ class ModeSetRequest:
         assert isinstance(obj, dict)
         mode = SessionMode(obj.get("mode"))
         compaction_decision = from_union([from_str, from_none], obj.get("compactionDecision"))
+        expected_mode = from_union([SessionMode, from_none], obj.get("expectedMode"))
         inherit_plan_base_from_session_id = from_union([from_str, from_none], obj.get("inheritPlanBaseFromSessionId"))
         persist_plan_selection = from_union([from_bool, from_none], obj.get("persistPlanSelection"))
         picker_settings_context = from_union([ModelPickerSettingsContext.from_dict, from_none], obj.get("pickerSettingsContext"))
@@ -20502,13 +20586,15 @@ class ModeSetRequest:
         plan_model_configured = from_union([from_bool, from_none], obj.get("planModelConfigured"))
         plan_reasoning_effort = from_union([from_str, from_none], obj.get("planReasoningEffort"))
         restore_plan_model = from_union([from_bool, from_none], obj.get("restorePlanModel"))
-        return ModeSetRequest(mode, compaction_decision, inherit_plan_base_from_session_id, persist_plan_selection, picker_settings_context, plan_context_tier, plan_exit_action, plan_model, plan_model_configured, plan_reasoning_effort, restore_plan_model)
+        return ModeSetRequest(mode, compaction_decision, expected_mode, inherit_plan_base_from_session_id, persist_plan_selection, picker_settings_context, plan_context_tier, plan_exit_action, plan_model, plan_model_configured, plan_reasoning_effort, restore_plan_model)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["mode"] = to_enum(SessionMode, self.mode)
         if self.compaction_decision is not None:
             result["compactionDecision"] = from_union([from_str, from_none], self.compaction_decision)
+        if self.expected_mode is not None:
+            result["expectedMode"] = from_union([lambda x: to_enum(SessionMode, x), from_none], self.expected_mode)
         if self.inherit_plan_base_from_session_id is not None:
             result["inheritPlanBaseFromSessionId"] = from_union([from_str, from_none], self.inherit_plan_base_from_session_id)
         if self.persist_plan_selection is not None:
@@ -20587,6 +20673,11 @@ class ModeSetResult:
     message: str | None = None
     """User-facing outcome message for the model switch triggered by the mode change."""
 
+    mode_applied: bool | None = None
+    """Whether the requested mode was applied to the session. False only when an 'expectedMode'
+    precondition did not hold, in which case any model change reported alongside it was still
+    applied.
+    """
     warning: str | None = None
     """User-facing warning produced while applying the mode change."""
 
@@ -20600,8 +20691,9 @@ class ModeSetResult:
         defer_implementation = from_union([from_bool, from_none], obj.get("deferImplementation"))
         deprecation_warnings = from_union([lambda x: from_list(from_str, x), from_none], obj.get("deprecationWarnings"))
         message = from_union([from_str, from_none], obj.get("message"))
+        mode_applied = from_union([from_bool, from_none], obj.get("modeApplied"))
         warning = from_union([from_str, from_none], obj.get("warning"))
-        return ModeSetResult(model_changed, status, arm_interactive_continuation, confirmation, defer_implementation, deprecation_warnings, message, warning)
+        return ModeSetResult(model_changed, status, arm_interactive_continuation, confirmation, defer_implementation, deprecation_warnings, message, mode_applied, warning)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -20617,6 +20709,8 @@ class ModeSetResult:
             result["deprecationWarnings"] = from_union([lambda x: from_list(from_str, x), from_none], self.deprecation_warnings)
         if self.message is not None:
             result["message"] = from_union([from_str, from_none], self.message)
+        if self.mode_applied is not None:
+            result["modeApplied"] = from_union([from_bool, from_none], self.mode_applied)
         if self.warning is not None:
             result["warning"] = from_union([from_str, from_none], self.warning)
         return result
@@ -26611,6 +26705,259 @@ class MCPPlanProvenance:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class CatalogTrustSnapshotAbsent:
+    """Discriminator: the authority omitted trust metadata."""
+
+    eligibility: CatalogTrustEligibility
+    """Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+    no explicit eligibility field.
+    """
+    provenance: CatalogTrustProvenance
+    """Bounded source and observation time for this snapshot. This is distinct from evidence
+    used by the authority to calculate trust.
+    """
+    schema_version: CatalogTrustSnapshotSchemaVersion
+    """Schema version of this runtime-owned snapshot envelope."""
+
+    status: ClassVar[str] = "absent"
+    """Discriminator: the authority omitted trust metadata."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogTrustSnapshotAbsent':
+        assert isinstance(obj, dict)
+        eligibility = CatalogTrustEligibility(obj.get("eligibility"))
+        provenance = CatalogTrustProvenance.from_dict(obj.get("provenance"))
+        schema_version = CatalogTrustSnapshotSchemaVersion(obj.get("schemaVersion"))
+        return CatalogTrustSnapshotAbsent(eligibility, provenance, schema_version)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eligibility"] = to_enum(CatalogTrustEligibility, self.eligibility)
+        result["provenance"] = to_class(CatalogTrustProvenance, self.provenance)
+        result["schemaVersion"] = to_enum(CatalogTrustSnapshotSchemaVersion, self.schema_version)
+        result["status"] = self.status
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CatalogTrustSnapshotCurrent:
+    """A recognised current Agent Finder T1 or T2 trust tier."""
+
+    eligibility: CatalogTrustEligibility
+    """Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+    no explicit eligibility field.
+    """
+    provenance: CatalogTrustProvenance
+    """Bounded source and observation time for this snapshot. This is distinct from evidence
+    used by the authority to calculate trust.
+    """
+    schema_version: CatalogTrustSnapshotSchemaVersion
+    """Schema version of this runtime-owned snapshot envelope."""
+
+    status: ClassVar[str] = "current"
+    """Discriminator: a recognised current trust tier was observed."""
+
+    tier: CatalogTrustTier
+    """Service-computed T1 or T2 trust tier."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogTrustSnapshotCurrent':
+        assert isinstance(obj, dict)
+        eligibility = CatalogTrustEligibility(obj.get("eligibility"))
+        provenance = CatalogTrustProvenance.from_dict(obj.get("provenance"))
+        schema_version = CatalogTrustSnapshotSchemaVersion(obj.get("schemaVersion"))
+        tier = CatalogTrustTier(obj.get("tier"))
+        return CatalogTrustSnapshotCurrent(eligibility, provenance, schema_version, tier)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eligibility"] = to_enum(CatalogTrustEligibility, self.eligibility)
+        result["provenance"] = to_class(CatalogTrustProvenance, self.provenance)
+        result["schemaVersion"] = to_enum(CatalogTrustSnapshotSchemaVersion, self.schema_version)
+        result["status"] = self.status
+        result["tier"] = to_enum(CatalogTrustTier, self.tier)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CatalogTrustSnapshotDowngraded:
+    """Discriminator: the authority explicitly reported a downgraded assessment."""
+
+    eligibility: CatalogTrustEligibility
+    """Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+    no explicit eligibility field.
+    """
+    provenance: CatalogTrustProvenance
+    """Bounded source and observation time for this snapshot. This is distinct from evidence
+    used by the authority to calculate trust.
+    """
+    schema_version: CatalogTrustSnapshotSchemaVersion
+    """Schema version of this runtime-owned snapshot envelope."""
+
+    status: ClassVar[str] = "downgraded"
+    """Discriminator: the authority explicitly reported a downgraded assessment."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogTrustSnapshotDowngraded':
+        assert isinstance(obj, dict)
+        eligibility = CatalogTrustEligibility(obj.get("eligibility"))
+        provenance = CatalogTrustProvenance.from_dict(obj.get("provenance"))
+        schema_version = CatalogTrustSnapshotSchemaVersion(obj.get("schemaVersion"))
+        return CatalogTrustSnapshotDowngraded(eligibility, provenance, schema_version)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eligibility"] = to_enum(CatalogTrustEligibility, self.eligibility)
+        result["provenance"] = to_class(CatalogTrustProvenance, self.provenance)
+        result["schemaVersion"] = to_enum(CatalogTrustSnapshotSchemaVersion, self.schema_version)
+        result["status"] = self.status
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CatalogTrustSnapshotMalformed:
+    """Discriminator: the trust field was empty, unbounded, or had the wrong JSON type."""
+
+    eligibility: CatalogTrustEligibility
+    """Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+    no explicit eligibility field.
+    """
+    provenance: CatalogTrustProvenance
+    """Bounded source and observation time for this snapshot. This is distinct from evidence
+    used by the authority to calculate trust.
+    """
+    schema_version: CatalogTrustSnapshotSchemaVersion
+    """Schema version of this runtime-owned snapshot envelope."""
+
+    status: ClassVar[str] = "malformed"
+    """Discriminator: the trust field was empty, unbounded, or had the wrong JSON type."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogTrustSnapshotMalformed':
+        assert isinstance(obj, dict)
+        eligibility = CatalogTrustEligibility(obj.get("eligibility"))
+        provenance = CatalogTrustProvenance.from_dict(obj.get("provenance"))
+        schema_version = CatalogTrustSnapshotSchemaVersion(obj.get("schemaVersion"))
+        return CatalogTrustSnapshotMalformed(eligibility, provenance, schema_version)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eligibility"] = to_enum(CatalogTrustEligibility, self.eligibility)
+        result["provenance"] = to_class(CatalogTrustProvenance, self.provenance)
+        result["schemaVersion"] = to_enum(CatalogTrustSnapshotSchemaVersion, self.schema_version)
+        result["status"] = self.status
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CatalogTrustSnapshotRevoked:
+    """Discriminator: the authority explicitly revoked the assessment."""
+
+    eligibility: CatalogTrustEligibility
+    """Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+    no explicit eligibility field.
+    """
+    provenance: CatalogTrustProvenance
+    """Bounded source and observation time for this snapshot. This is distinct from evidence
+    used by the authority to calculate trust.
+    """
+    schema_version: CatalogTrustSnapshotSchemaVersion
+    """Schema version of this runtime-owned snapshot envelope."""
+
+    status: ClassVar[str] = "revoked"
+    """Discriminator: the authority explicitly revoked the assessment."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogTrustSnapshotRevoked':
+        assert isinstance(obj, dict)
+        eligibility = CatalogTrustEligibility(obj.get("eligibility"))
+        provenance = CatalogTrustProvenance.from_dict(obj.get("provenance"))
+        schema_version = CatalogTrustSnapshotSchemaVersion(obj.get("schemaVersion"))
+        return CatalogTrustSnapshotRevoked(eligibility, provenance, schema_version)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eligibility"] = to_enum(CatalogTrustEligibility, self.eligibility)
+        result["provenance"] = to_class(CatalogTrustProvenance, self.provenance)
+        result["schemaVersion"] = to_enum(CatalogTrustSnapshotSchemaVersion, self.schema_version)
+        result["status"] = self.status
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CatalogTrustSnapshotStale:
+    """Discriminator: the authority explicitly marked the assessment stale."""
+
+    eligibility: CatalogTrustEligibility
+    """Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+    no explicit eligibility field.
+    """
+    provenance: CatalogTrustProvenance
+    """Bounded source and observation time for this snapshot. This is distinct from evidence
+    used by the authority to calculate trust.
+    """
+    schema_version: CatalogTrustSnapshotSchemaVersion
+    """Schema version of this runtime-owned snapshot envelope."""
+
+    status: ClassVar[str] = "stale"
+    """Discriminator: the authority explicitly marked the assessment stale."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogTrustSnapshotStale':
+        assert isinstance(obj, dict)
+        eligibility = CatalogTrustEligibility(obj.get("eligibility"))
+        provenance = CatalogTrustProvenance.from_dict(obj.get("provenance"))
+        schema_version = CatalogTrustSnapshotSchemaVersion(obj.get("schemaVersion"))
+        return CatalogTrustSnapshotStale(eligibility, provenance, schema_version)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eligibility"] = to_enum(CatalogTrustEligibility, self.eligibility)
+        result["provenance"] = to_class(CatalogTrustProvenance, self.provenance)
+        result["schemaVersion"] = to_enum(CatalogTrustSnapshotSchemaVersion, self.schema_version)
+        result["status"] = self.status
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CatalogTrustSnapshotUnsupported:
+    """Discriminator: the authority supplied a bounded trust value this runtime does not
+    understand.
+    """
+    eligibility: CatalogTrustEligibility
+    """Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+    no explicit eligibility field.
+    """
+    provenance: CatalogTrustProvenance
+    """Bounded source and observation time for this snapshot. This is distinct from evidence
+    used by the authority to calculate trust.
+    """
+    schema_version: CatalogTrustSnapshotSchemaVersion
+    """Schema version of this runtime-owned snapshot envelope."""
+
+    status: ClassVar[str] = "unsupported"
+    """Discriminator: the authority supplied a bounded trust value this runtime does not
+    understand.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogTrustSnapshotUnsupported':
+        assert isinstance(obj, dict)
+        eligibility = CatalogTrustEligibility(obj.get("eligibility"))
+        provenance = CatalogTrustProvenance.from_dict(obj.get("provenance"))
+        schema_version = CatalogTrustSnapshotSchemaVersion(obj.get("schemaVersion"))
+        return CatalogTrustSnapshotUnsupported(eligibility, provenance, schema_version)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eligibility"] = to_enum(CatalogTrustEligibility, self.eligibility)
+        result["provenance"] = to_class(CatalogTrustProvenance, self.provenance)
+        result["schemaVersion"] = to_enum(CatalogTrustSnapshotSchemaVersion, self.schema_version)
+        result["status"] = self.status
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class SlashCommandInfo:
     """Slash-command metadata with name, aliases, description, kind, input hint, execution
     allowance, and schedulability.
@@ -26793,6 +27140,12 @@ class CatalogAISkillCandidate:
     publisher: str | None = None
     """Publisher taken verbatim from the card. Inert untrusted text."""
 
+    trust: CatalogTrustSnapshot | None = None
+    """Versioned trust metadata observed from the catalog authority. Optional for protocol-3
+    compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits
+    an explicit snapshot even when the authority omitted or malformed its trust field.
+    """
+
     @staticmethod
     def from_dict(obj: Any) -> 'CatalogAISkillCandidate':
         assert isinstance(obj, dict)
@@ -26806,7 +27159,8 @@ class CatalogAISkillCandidate:
         source = _load_CatalogCandidateSource(obj.get("source"))
         description = from_union([from_str, from_none], obj.get("description"))
         publisher = from_union([from_str, from_none], obj.get("publisher"))
-        return CatalogAISkillCandidate(display_name, handle, handle_expires_at, installability, kind, media_type, provenance, source, description, publisher)
+        trust = from_union([_load_CatalogTrustSnapshot, from_none], obj.get("trust"))
+        return CatalogAISkillCandidate(display_name, handle, handle_expires_at, installability, kind, media_type, provenance, source, description, publisher, trust)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -26822,6 +27176,8 @@ class CatalogAISkillCandidate:
             result["description"] = from_union([from_str, from_none], self.description)
         if self.publisher is not None:
             result["publisher"] = from_union([from_str, from_none], self.publisher)
+        if self.trust is not None:
+            result["trust"] = from_union([lambda x: (x).to_dict(), from_none], self.trust)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -26876,6 +27232,12 @@ class CatalogCandidate:
     publisher: str | None = None
     """Publisher taken verbatim from the card. Inert untrusted text."""
 
+    trust: CatalogTrustSnapshot | None = None
+    """Versioned trust metadata observed from the catalog authority. Optional for protocol-3
+    compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits
+    an explicit snapshot even when the authority omitted or malformed its trust field.
+    """
+
     @staticmethod
     def from_dict(obj: Any) -> 'CatalogCandidate':
         assert isinstance(obj, dict)
@@ -26889,7 +27251,8 @@ class CatalogCandidate:
         source = _load_CatalogCandidateSource(obj.get("source"))
         description = from_union([from_str, from_none], obj.get("description"))
         publisher = from_union([from_str, from_none], obj.get("publisher"))
-        return CatalogCandidate(display_name, handle, handle_expires_at, installability, kind, media_type, provenance, source, description, publisher)
+        trust = from_union([_load_CatalogTrustSnapshot, from_none], obj.get("trust"))
+        return CatalogCandidate(display_name, handle, handle_expires_at, installability, kind, media_type, provenance, source, description, publisher, trust)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -26905,6 +27268,8 @@ class CatalogCandidate:
             result["description"] = from_union([from_str, from_none], self.description)
         if self.publisher is not None:
             result["publisher"] = from_union([from_str, from_none], self.publisher)
+        if self.trust is not None:
+            result["trust"] = from_union([lambda x: (x).to_dict(), from_none], self.trust)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -26947,6 +27312,12 @@ class CatalogMCPServerCandidate:
     publisher: str | None = None
     """Publisher taken verbatim from the card. Inert untrusted text."""
 
+    trust: CatalogTrustSnapshot | None = None
+    """Versioned trust metadata observed from the catalog authority. Optional for protocol-3
+    compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits
+    an explicit snapshot even when the authority omitted or malformed its trust field.
+    """
+
     @staticmethod
     def from_dict(obj: Any) -> 'CatalogMCPServerCandidate':
         assert isinstance(obj, dict)
@@ -26960,7 +27331,8 @@ class CatalogMCPServerCandidate:
         source = _load_CatalogCandidateSource(obj.get("source"))
         description = from_union([from_str, from_none], obj.get("description"))
         publisher = from_union([from_str, from_none], obj.get("publisher"))
-        return CatalogMCPServerCandidate(display_name, handle, handle_expires_at, installability, kind, media_type, provenance, source, description, publisher)
+        trust = from_union([_load_CatalogTrustSnapshot, from_none], obj.get("trust"))
+        return CatalogMCPServerCandidate(display_name, handle, handle_expires_at, installability, kind, media_type, provenance, source, description, publisher, trust)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -26976,6 +27348,8 @@ class CatalogMCPServerCandidate:
             result["description"] = from_union([from_str, from_none], self.description)
         if self.publisher is not None:
             result["publisher"] = from_union([from_str, from_none], self.publisher)
+        if self.trust is not None:
+            result["trust"] = from_union([lambda x: (x).to_dict(), from_none], self.trust)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -32954,6 +33328,10 @@ class SessionOpenOptions:
     reasoning_summary: ReasoningSummary | None = None
     """Initial reasoning summary mode for supported model clients."""
 
+    refresh_custom_instructions: bool | None = None
+    """Whether to invalidate cached custom-instruction discovery before constructing the
+    session. Use when instruction files may have changed earlier in the same runtime process.
+    """
     remote_defaulted_on: bool | None = None
     """Telemetry-only remote-defaulted flag."""
 
@@ -33067,6 +33445,7 @@ class SessionOpenOptions:
         providers = from_union([lambda x: from_list(NamedProviderConfig.from_dict, x), from_none], obj.get("providers"))
         reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
         reasoning_summary = from_union([ReasoningSummary, from_none], obj.get("reasoningSummary"))
+        refresh_custom_instructions = from_union([from_bool, from_none], obj.get("refreshCustomInstructions"))
         remote_defaulted_on = from_union([from_bool, from_none], obj.get("remoteDefaultedOn"))
         remote_exporting = from_union([from_bool, from_none], obj.get("remoteExporting"))
         remote_steerable = from_union([from_bool, from_none], obj.get("remoteSteerable"))
@@ -33085,7 +33464,7 @@ class SessionOpenOptions:
         verbosity = from_union([Verbosity, from_none], obj.get("verbosity"))
         working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
         working_directory_context = from_union([SessionContext.from_dict, from_none], obj.get("workingDirectoryContext"))
-        return SessionOpenOptions(additional_content_exclusion_policies, additional_directories, agent_context, allow_all_mcp_server_instructions, ask_user_disabled, auth_client_id_metadata_url, auth_info, available_tools, capi, client_kind, client_name, coauthor_enabled, config_dir, continue_on_auto_mode, copilot_url, custom_agents_local_only, detached_from_spawning_parent_engagement_id, detached_from_spawning_parent_session_id, disabled_instruction_sources, disabled_mcp_servers, disabled_skills, enable_citations, enable_file_change_tracking, enable_managed_settings, enable_on_demand_instruction_discovery, enable_script_safety, enable_skills, enable_streaming, env_value_mode, events_log_directory, events_log_includes_subagents, excluded_builtin_agents, excluded_tools, exp_assignments, feature_flags, has_skill_provider, included_builtin_agents, included_builtin_skills, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, managed_settings, max_inline_binary_bytes, memory, model, model_capabilities_overrides, models, name, provider, providers, reasoning_effort, reasoning_summary, remote_defaulted_on, remote_exporting, remote_steerable, running_in_interactive_mode, sandbox_config, sandbox_config_source, session_capabilities, session_id, session_limits, shell, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, trajectory_file, verbosity, working_directory, working_directory_context)
+        return SessionOpenOptions(additional_content_exclusion_policies, additional_directories, agent_context, allow_all_mcp_server_instructions, ask_user_disabled, auth_client_id_metadata_url, auth_info, available_tools, capi, client_kind, client_name, coauthor_enabled, config_dir, continue_on_auto_mode, copilot_url, custom_agents_local_only, detached_from_spawning_parent_engagement_id, detached_from_spawning_parent_session_id, disabled_instruction_sources, disabled_mcp_servers, disabled_skills, enable_citations, enable_file_change_tracking, enable_managed_settings, enable_on_demand_instruction_discovery, enable_script_safety, enable_skills, enable_streaming, env_value_mode, events_log_directory, events_log_includes_subagents, excluded_builtin_agents, excluded_tools, exp_assignments, feature_flags, has_skill_provider, included_builtin_agents, included_builtin_skills, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, managed_settings, max_inline_binary_bytes, memory, model, model_capabilities_overrides, models, name, provider, providers, reasoning_effort, reasoning_summary, refresh_custom_instructions, remote_defaulted_on, remote_exporting, remote_steerable, running_in_interactive_mode, sandbox_config, sandbox_config_source, session_capabilities, session_id, session_limits, shell, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, trajectory_file, verbosity, working_directory, working_directory_context)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -33197,6 +33576,8 @@ class SessionOpenOptions:
             result["reasoningEffort"] = from_union([from_str, from_none], self.reasoning_effort)
         if self.reasoning_summary is not None:
             result["reasoningSummary"] = from_union([lambda x: to_enum(ReasoningSummary, x), from_none], self.reasoning_summary)
+        if self.refresh_custom_instructions is not None:
+            result["refreshCustomInstructions"] = from_union([from_bool, from_none], self.refresh_custom_instructions)
         if self.remote_defaulted_on is not None:
             result["remoteDefaultedOn"] = from_union([from_bool, from_none], self.remote_defaulted_on)
         if self.remote_exporting is not None:
@@ -33886,7 +34267,7 @@ class CopilotUserResponse:
     """Per-category monthly quota allotments, keyed by quota category."""
 
     organization_list: Any = None
-    """Organizations the user belongs to, each with an optional login and display name."""
+    """Organizations the user belongs to, each with an optional ID, login, and display name."""
 
     organization_login_list: list[str] | None = None
     """Logins of the organizations the user belongs to."""
@@ -34511,6 +34892,80 @@ class EnvAuthInfo:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         if self.login is not None:
             result["login"] = from_union([from_str, from_none], self.login)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class EventsCursorStatus(Enum):
+    """Cursor status: 'ok' means the read succeeded against the requested history; 'expired'
+    means the requested continuation is unavailable. Recovery is endpoint-specific:
+    session.eventLog.read returns a boundary window of remaining active history that may
+    overlap prior pages, while sessions.readPersistedEvents returns an empty terminal page
+    and never switches journal generations. An expired persisted read is not successful
+    completion; a complete persisted snapshot requires cursorStatus 'ok' and hasMore false.
+
+    Cursor status: 'ok' means the cursor was applied successfully. For session.eventLog.read,
+    'expired' means the cursor referred to an event that no longer exists in active history
+    and the read fell back to a boundary of the remaining history: the beginning for a
+    forward read or the newest window for a backward read. That fallback may overlap already
+    rendered events, so active-session consumers should reset, rebase, or deduplicate before
+    continuing. sessions.readPersistedEvents has stricter snapshot semantics: 'expired'
+    returns an empty terminal page and never switches to a replacement journal generation.
+    Other persisted-read I/O failures are RPC errors with diagnostics, not cursor expiry.
+    """
+    EXPIRED = "expired"
+    OK = "ok"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class EventsReadResult:
+    """Batch of session events returned by a read, with cursor and continuation metadata."""
+
+    cursor: str
+    """Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue
+    from where this read left off. Always present, even when no events were returned. For a
+    backward read this cursor pages toward OLDER events; keep passing `direction: backward`
+    with it (the cursor is also self-describing, so backward paging continues correctly).
+    """
+    cursor_status: EventsCursorStatus
+    """Cursor status: 'ok' means the cursor was applied successfully. For session.eventLog.read,
+    'expired' means the cursor referred to an event that no longer exists in active history
+    and the read fell back to a boundary of the remaining history: the beginning for a
+    forward read or the newest window for a backward read. That fallback may overlap already
+    rendered events, so active-session consumers should reset, rebase, or deduplicate before
+    continuing. sessions.readPersistedEvents has stricter snapshot semantics: 'expired'
+    returns an empty terminal page and never switches to a replacement journal generation.
+    Other persisted-read I/O failures are RPC errors with diagnostics, not cursor expiry.
+    """
+    events: list[SessionEvent]
+    """Session events for this batch, merged into a single stream in creation order: durable
+    (persisted) events and ephemeral events interleave exactly as they were emitted. Set
+    `includeEphemeral: false` to receive only durable events. Ephemeral events are never
+    replayable once pruned from the in-memory ring, so a consumer that needs them should keep
+    reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window
+    contains persisted events only, still in chronological (oldest-to-newest) append order.
+    """
+    has_more: bool
+    """True when more events are available in the read's direction. For a backward read, true
+    means older persisted events remain before the returned window. A persisted-event page
+    may contain fewer than `max` events because of its byte budget while still reporting
+    hasMore true; continue according to this flag rather than the event count.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'EventsReadResult':
+        assert isinstance(obj, dict)
+        cursor = from_str(obj.get("cursor"))
+        cursor_status = EventsCursorStatus(obj.get("cursorStatus"))
+        events = from_list(SessionEvent.from_dict, obj.get("events"))
+        has_more = from_bool(obj.get("hasMore"))
+        return EventsReadResult(cursor, cursor_status, events, has_more)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["cursor"] = from_str(self.cursor)
+        result["cursorStatus"] = to_enum(EventsCursorStatus, self.cursor_status)
+        result["events"] = from_list(lambda x: to_class(SessionEvent, x), self.events)
+        result["hasMore"] = from_bool(self.has_more)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -35939,6 +36394,10 @@ class ModelApplyStartupOverlayRequest:
     managed sources: it applies only when neither device nor server policy names a model, and
     an explicit user selection still wins.
     """
+    repo_auto_tier: str | None = None
+    """Auto routing preference selected by repository settings, when configured. Applied only
+    when the overlay selects the Auto model; beside a concrete model it stays dormant.
+    """
     repo_context_tier: str | None = None
     """Context tier selected by repository settings, when configured."""
 
@@ -35958,11 +36417,12 @@ class ModelApplyStartupOverlayRequest:
         deferred_resume = from_union([from_bool, from_none], obj.get("deferredResume"))
         device_managed_model = from_union([from_str, from_none], obj.get("deviceManagedModel"))
         policy_helper_model = from_union([from_str, from_none], obj.get("policyHelperModel"))
+        repo_auto_tier = from_union([from_str, from_none], obj.get("repoAutoTier"))
         repo_context_tier = from_union([from_str, from_none], obj.get("repoContextTier"))
         repo_model = from_union([from_str, from_none], obj.get("repoModel"))
         repo_reasoning_effort = from_union([from_str, from_none], obj.get("repoReasoningEffort"))
         server_managed_model = from_union([from_str, from_none], obj.get("serverManagedModel"))
-        return ModelApplyStartupOverlayRequest(cli_model, deferred_resume, device_managed_model, policy_helper_model, repo_context_tier, repo_model, repo_reasoning_effort, server_managed_model)
+        return ModelApplyStartupOverlayRequest(cli_model, deferred_resume, device_managed_model, policy_helper_model, repo_auto_tier, repo_context_tier, repo_model, repo_reasoning_effort, server_managed_model)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -35974,6 +36434,8 @@ class ModelApplyStartupOverlayRequest:
             result["deviceManagedModel"] = from_union([from_str, from_none], self.device_managed_model)
         if self.policy_helper_model is not None:
             result["policyHelperModel"] = from_union([from_str, from_none], self.policy_helper_model)
+        if self.repo_auto_tier is not None:
+            result["repoAutoTier"] = from_union([from_str, from_none], self.repo_auto_tier)
         if self.repo_context_tier is not None:
             result["repoContextTier"] = from_union([from_str, from_none], self.repo_context_tier)
         if self.repo_model is not None:
@@ -37178,6 +37640,26 @@ class RPC:
     catalog_search_request: CatalogSearchRequest
     catalog_search_result: CatalogSearchResult
     catalog_search_succeeded: CatalogSearchSucceeded
+    catalog_trust_eligibility: CatalogTrustEligibility
+    catalog_trust_provenance: CatalogTrustProvenance
+    catalog_trust_snapshot: CatalogTrustSnapshot
+    catalog_trust_snapshot_absent: CatalogTrustSnapshotAbsent
+    catalog_trust_snapshot_absent_status: CatalogTrustSnapshotAbsentStatus
+    catalog_trust_snapshot_current: CatalogTrustSnapshotCurrent
+    catalog_trust_snapshot_current_status: CatalogTrustSnapshotCurrentStatus
+    catalog_trust_snapshot_downgraded: CatalogTrustSnapshotDowngraded
+    catalog_trust_snapshot_downgraded_status: CatalogTrustSnapshotDowngradedStatus
+    catalog_trust_snapshot_malformed: CatalogTrustSnapshotMalformed
+    catalog_trust_snapshot_malformed_status: CatalogTrustSnapshotMalformedStatus
+    catalog_trust_snapshot_revoked: CatalogTrustSnapshotRevoked
+    catalog_trust_snapshot_revoked_status: CatalogTrustSnapshotRevokedStatus
+    catalog_trust_snapshot_schema_version: CatalogTrustSnapshotSchemaVersion
+    catalog_trust_snapshot_stale: CatalogTrustSnapshotStale
+    catalog_trust_snapshot_stale_status: CatalogTrustSnapshotStaleStatus
+    catalog_trust_snapshot_unsupported: CatalogTrustSnapshotUnsupported
+    catalog_trust_snapshot_unsupported_status: CatalogTrustSnapshotUnsupportedStatus
+    catalog_trust_source: CatalogTrustSource
+    catalog_trust_tier: CatalogTrustTier
     catalog_unavailable_error: CatalogUnavailableError
     catalog_unavailable_reason: CatalogUnavailableReason
     catalog_unavailable_transport_error: CatalogUnavailableTransportError
@@ -37687,7 +38169,6 @@ class RPC:
     permission_decision_outcome: PermissionDecisionOutcome
     permission_decision_reject: PermissionDecisionReject
     permission_decision_request: PermissionDecisionRequest
-    permission_decision_source: PermissionDecisionSource
     permission_decision_surface: PermissionDecisionSurface
     permission_decision_user_not_available: PermissionDecisionUserNotAvailable
     permission_location_add_tool_approval_params: PermissionLocationAddToolApprovalParams
@@ -38416,6 +38897,26 @@ class RPC:
         catalog_search_request = CatalogSearchRequest.from_dict(obj.get("CatalogSearchRequest"))
         catalog_search_result = _load_CatalogSearchResult(obj.get("CatalogSearchResult"))
         catalog_search_succeeded = CatalogSearchSucceeded.from_dict(obj.get("CatalogSearchSucceeded"))
+        catalog_trust_eligibility = CatalogTrustEligibility(obj.get("CatalogTrustEligibility"))
+        catalog_trust_provenance = CatalogTrustProvenance.from_dict(obj.get("CatalogTrustProvenance"))
+        catalog_trust_snapshot = _load_CatalogTrustSnapshot(obj.get("CatalogTrustSnapshot"))
+        catalog_trust_snapshot_absent = CatalogTrustSnapshotAbsent.from_dict(obj.get("CatalogTrustSnapshotAbsent"))
+        catalog_trust_snapshot_absent_status = CatalogTrustSnapshotAbsentStatus(obj.get("CatalogTrustSnapshotAbsentStatus"))
+        catalog_trust_snapshot_current = CatalogTrustSnapshotCurrent.from_dict(obj.get("CatalogTrustSnapshotCurrent"))
+        catalog_trust_snapshot_current_status = CatalogTrustSnapshotCurrentStatus(obj.get("CatalogTrustSnapshotCurrentStatus"))
+        catalog_trust_snapshot_downgraded = CatalogTrustSnapshotDowngraded.from_dict(obj.get("CatalogTrustSnapshotDowngraded"))
+        catalog_trust_snapshot_downgraded_status = CatalogTrustSnapshotDowngradedStatus(obj.get("CatalogTrustSnapshotDowngradedStatus"))
+        catalog_trust_snapshot_malformed = CatalogTrustSnapshotMalformed.from_dict(obj.get("CatalogTrustSnapshotMalformed"))
+        catalog_trust_snapshot_malformed_status = CatalogTrustSnapshotMalformedStatus(obj.get("CatalogTrustSnapshotMalformedStatus"))
+        catalog_trust_snapshot_revoked = CatalogTrustSnapshotRevoked.from_dict(obj.get("CatalogTrustSnapshotRevoked"))
+        catalog_trust_snapshot_revoked_status = CatalogTrustSnapshotRevokedStatus(obj.get("CatalogTrustSnapshotRevokedStatus"))
+        catalog_trust_snapshot_schema_version = CatalogTrustSnapshotSchemaVersion(obj.get("CatalogTrustSnapshotSchemaVersion"))
+        catalog_trust_snapshot_stale = CatalogTrustSnapshotStale.from_dict(obj.get("CatalogTrustSnapshotStale"))
+        catalog_trust_snapshot_stale_status = CatalogTrustSnapshotStaleStatus(obj.get("CatalogTrustSnapshotStaleStatus"))
+        catalog_trust_snapshot_unsupported = CatalogTrustSnapshotUnsupported.from_dict(obj.get("CatalogTrustSnapshotUnsupported"))
+        catalog_trust_snapshot_unsupported_status = CatalogTrustSnapshotUnsupportedStatus(obj.get("CatalogTrustSnapshotUnsupportedStatus"))
+        catalog_trust_source = CatalogTrustSource(obj.get("CatalogTrustSource"))
+        catalog_trust_tier = CatalogTrustTier(obj.get("CatalogTrustTier"))
         catalog_unavailable_error = CatalogUnavailableError.from_dict(obj.get("CatalogUnavailableError"))
         catalog_unavailable_reason = CatalogUnavailableReason(obj.get("CatalogUnavailableReason"))
         catalog_unavailable_transport_error = CatalogUnavailableTransportError.from_dict(obj.get("CatalogUnavailableTransportError"))
@@ -38925,7 +39426,6 @@ class RPC:
         permission_decision_outcome = PermissionDecisionOutcome(obj.get("PermissionDecisionOutcome"))
         permission_decision_reject = PermissionDecisionReject.from_dict(obj.get("PermissionDecisionReject"))
         permission_decision_request = PermissionDecisionRequest.from_dict(obj.get("PermissionDecisionRequest"))
-        permission_decision_source = PermissionDecisionSource(obj.get("PermissionDecisionSource"))
         permission_decision_surface = PermissionDecisionSurface(obj.get("PermissionDecisionSurface"))
         permission_decision_user_not_available = PermissionDecisionUserNotAvailable.from_dict(obj.get("PermissionDecisionUserNotAvailable"))
         permission_location_add_tool_approval_params = PermissionLocationAddToolApprovalParams.from_dict(obj.get("PermissionLocationAddToolApprovalParams"))
@@ -39530,7 +40030,7 @@ class RPC:
         subagent_settings = from_union([SubagentSettings.from_dict, from_none], obj.get("SubagentSettings"))
         task_progress = from_union([TaskProgress.from_dict, from_none], obj.get("TaskProgress"))
         workspace_summary = from_union([WorkspaceSummary.from_dict, from_none], obj.get("WorkspaceSummary"))
-        return RPC(abort_request, abort_result, account_all_users, account_get_all_users_result, account_get_current_auth_result, account_get_quota_request, account_get_quota_result, account_login_request, account_login_result, account_logout_request, account_logout_result, account_quota_snapshot, adaptive_thinking_support, agent_discovery_path, agent_discovery_path_list, agent_discovery_path_scope, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_list_request, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agents_discover_request, agent_select_request, agent_select_result, agent_set_prompt_request, agents_get_discovery_paths_request, api_key_auth_info, auth_identity, auth_info, auth_info_type, auth_validation_error, auth_validation_errors, autopilot_objective_credit_limit, autopilot_objective_get_state_result, autopilot_objective_state, autopilot_objective_status, built_in_model_catalog, built_in_model_catalog_entry, builtin_tool_descriptor, builtin_tool_format, builtin_tool_format_type, builtin_tool_input_schema, builtin_tool_input_schema_type, builtin_tool_safe_for_telemetry, builtin_tool_safe_telemetry_fields, cancel_user_requested_shell_command_result, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_provider_register_request, canvas_provider_unregister_request, canvas_session_context, capi_session_options, card_digest, card_digest_algorithm, card_digest_value, catalog_ai_skill_candidate, catalog_ai_skill_candidate_provenance, catalog_authentication_required_error, catalog_authentication_required_reason, catalog_candidate, catalog_candidate_kind, catalog_candidate_source, catalog_candidate_source_embedded, catalog_candidate_source_url, catalog_capability, catalog_capability_id, catalog_client_contract, catalog_contract_violation_error, catalog_contract_violation_reason, catalog_handle_rejected_error, catalog_handle_rejection_reason, catalog_handle_type, catalog_invalid_request_error, catalog_invalid_request_field, catalog_malformed_card_error, catalog_malformed_card_reason, catalog_mcp_server_candidate, catalog_mcp_server_candidate_provenance, catalog_mcp_server_installability, catalog_media_type, catalog_negotiated_contract, catalog_negotiation_refused_error, catalog_negotiation_refused_reason, catalog_network_failure_error, catalog_network_failure_reason, catalog_not_installable_error, catalog_not_installable_reason, catalog_policy_rejected_error, catalog_search_request, catalog_search_result, catalog_search_succeeded, catalog_unavailable_error, catalog_unavailable_reason, catalog_unavailable_transport_error, catalog_unavailable_transport_reason, catalog_unsafe_retrieval_error, catalog_unsafe_retrieval_reason, catalog_unsupported_kind_error, client_metadata, client_task_cancel_reason, client_task_cancel_request, client_task_cancel_result, command_list, commands_finalize_invocation_effect_request, commands_finalize_invocation_effect_result, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invocation_effect_outcome, commands_invocation_origin, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, completions_get_trigger_characters_result, completions_request_request, completions_request_result, configure_session_extensions_params, connect_client_info, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_exclusion_check_paths_request, content_exclusion_check_paths_result, content_exclusion_path_check, content_filter_mode, context_heaviest_message, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, debug_collect_logs_collected_entry, debug_collect_logs_destination, debug_collect_logs_entry, debug_collect_logs_entry_kind, debug_collect_logs_include, debug_collect_logs_redaction, debug_collect_logs_request, debug_collect_logs_result, debug_collect_logs_result_kind, debug_collect_logs_skipped_entry, debug_collect_logs_source, discovered_canvas, discovered_extension, discovered_extension_mode, discovered_extension_plugin, discovered_extensions, discovered_extensions_disable_request, discovered_extensions_enable_request, discovered_extension_source, discovered_hook, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_direction, events_read_result, execute_command_params, execute_command_result, extension, extension_context_push_input, extension_launch_profile, extension_launch_provider_resolve_request, extension_launch_provider_resolve_result, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_shell_exit, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, factory_abort_request, factory_ack_result, factory_agent_options, factory_agent_request, factory_agent_result, factory_agent_summary, factory_cancel_request, factory_current_phase, factory_declared_limits, factory_durable_operation, factory_execute_request, factory_execute_result, factory_get_run_progress_request, factory_get_run_request, factory_journal_get_request, factory_journal_get_result, factory_journal_put_request, factory_list_runs_request, factory_list_runs_result, factory_log_line, factory_log_line_kind, factory_log_request, factory_pause_checkpoint_action, factory_pause_checkpoint_request, factory_pause_checkpoint_result, factory_pause_info, factory_pause_request, factory_phase_observation, factory_phase_status, factory_progress_line, factory_progress_page, factory_resume_request, factory_resume_result, factory_run_consumed, factory_run_detail, factory_run_failure, factory_run_failure_kind, factory_run_limits, factory_run_request, factory_run_result, factory_run_status, factory_run_summary, factory_run_terminal, factory_tool_resume_request, factory_tool_run_options, factory_tool_run_request, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, git_hub_telemetry_client_info, git_hub_telemetry_event, git_hub_telemetry_notification, git_hub_token_acquire_reason, git_hub_token_acquire_request, git_hub_token_acquire_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_clear_context_request, history_clear_context_result, history_compact_context_window, history_compact_request, history_compact_result, history_file_restore_skip_reason, history_list_rewind_points_result, history_preview_rewind_request, history_preview_rewind_result, history_rewind_change_type, history_rewind_file_preview, history_rewind_mode, history_rewind_outcome, history_rewind_point, history_rewind_request, history_rewind_result, history_rewind_unavailable_reason, history_skipped_file_restore, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, hook_invoke_request, hook_invoke_response, hook_origin, hooks_discover_request, hooks_discover_result, hook_type, installed_plugin, installed_plugin_info, installed_plugin_source, installed_plugin_source_git_hub, installed_plugin_source_local, installed_plugin_source_url, instruction_discovery_path, instruction_discovery_path_kind, instruction_discovery_path_list, instruction_discovery_path_location, instructions_discover_request, instructions_get_discovery_paths_request, instructions_get_sources_result, instruction_source, instruction_source_location, instruction_source_type, interrupt_main_turn_request, interrupt_main_turn_result, llm_inference_headers, llm_inference_http_request_chunk_request, llm_inference_http_request_chunk_result, llm_inference_http_request_start_request, llm_inference_http_request_start_result, llm_inference_http_request_start_transport, llm_inference_http_response_chunk_error, llm_inference_http_response_chunk_request, llm_inference_http_response_chunk_result, llm_inference_http_response_start_request, llm_inference_http_response_start_result, llm_inference_set_provider_result, local_session_metadata_value, log_request, log_result, lsp_initialize_request, managed_settings_read_result, marketplace_add_result, marketplace_browse_result, marketplace_info, marketplace_list_result, marketplace_plugin_info, marketplace_refresh_entry, marketplace_refresh_result, marketplace_remove_result, mcp_allowed_server, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_configure_git_hub_request, mcp_configure_git_hub_result, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_elicitation_form_mode, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_failed_server, mcp_filtered_server, mcp_headers_handle_pending_headers_refresh_request, mcp_headers_handle_pending_headers_refresh_request_request, mcp_headers_handle_pending_headers_refresh_request_result, mcp_host_state, mcp_install_plan, mcp_is_server_running_request, mcp_is_server_running_result, mcp_list_tools_request, mcp_list_tools_result, mcp_oauth_authentication_state_changed_request, mcp_oauth_handle_pending_request, mcp_oauth_handle_pending_result, mcp_oauth_login_grant_type, mcp_oauth_login_request, mcp_oauth_login_result, mcp_oauth_pending_request_response, mcp_oauth_probe_needs_auth_reason, mcp_oauth_probe_request, mcp_oauth_probe_result, mcp_oauth_respond_request, mcp_oauth_respond_result, mcp_plan_configuration_change, mcp_plan_configuration_operation, mcp_plan_enum_value_type, mcp_plan_install_planned, mcp_plan_install_request, mcp_plan_install_result, mcp_plan_install_source, mcp_plan_install_source_candidate, mcp_plan_install_source_candidate_kind, mcp_plan_install_source_card, mcp_plan_install_source_card_kind, mcp_plan_package_install_method, mcp_plan_package_transport, mcp_plan_policy_decision, mcp_plan_policy_result, mcp_plan_policy_source, mcp_plan_provenance, mcp_plan_remote_install_method, mcp_plan_remote_transport, mcp_plan_required_value, mcp_plan_required_value_enum, mcp_plan_required_value_enum_kind, mcp_plan_required_value_scalar, mcp_plan_required_value_scalar_kind, mcp_plan_resource_identity, mcp_plan_scalar_value_type, mcp_plan_scope, mcp_plan_secret_placeholder, mcp_plan_secret_reference, mcp_plan_target, mcp_plan_transport_choice, mcp_plan_transport_choice_package, mcp_plan_transport_choice_remote, mcp_plan_value_category, mcp_register_external_client_request, mcp_reload_config, mcp_reload_with_config_request, mcp_remove_git_hub_result, mcp_resource, mcp_resource_annotations, mcp_resource_content, mcp_resource_icon, mcp_resources_list_request, mcp_resources_list_result, mcp_resources_list_templates_request, mcp_resources_list_templates_result, mcp_resources_read_request, mcp_resources_read_result, mcp_resource_template, mcp_restart_server_request, mcp_safe_for_telemetry, mcp_safe_for_telemetry_fields, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_serializable_server_config, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_card_embedded, mcp_server_card_embedded_kind, mcp_server_card_media_type, mcp_server_card_reference, mcp_server_card_url, mcp_server_card_url_kind, mcp_server_config, mcp_server_config_defer_tools, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_memory, mcp_server_config_memory_type, mcp_server_config_stdio, mcp_server_config_stdio_type, mcp_server_failure_info, mcp_server_list, mcp_server_needs_auth_info, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, mcp_source_file, mcp_source_plugin, mcp_source_ref, mcp_start_server_request, mcp_start_servers_result, mcp_stop_server_request, mcp_task_metadata, mcp_tools, mcp_tool_ui, mcp_tool_ui_visibility, mcp_unregister_external_client_request, memory_configuration, metadata_context_attribution_result, metadata_context_heaviest_messages_request, metadata_context_heaviest_messages_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, metadata_update_client_metadata_request, model, model_apply_startup_overlay_request, model_billing, model_billing_promo, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_list_request, model_message, model_picker_category, model_picker_persistence_request, model_picker_price_category, model_picker_settings_context, model_policy, model_policy_state, model_set_allowed_models_request, model_set_allowed_models_result, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_auto_tier_request, model_switch_auto_tier_result, model_switch_auto_tier_status, model_switch_confirmation, model_switch_to_request, model_switch_to_result, model_warning_text, mode_set_request, mode_set_result, move_mcp_loading_to_background_result, named_provider_config, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_additional_content_exclusion_policy, options_update_additional_content_exclusion_policy_rule, options_update_additional_content_exclusion_policy_rule_source, options_update_additional_content_exclusion_policy_scope, options_update_context_tier, options_update_env_value_mode, options_update_reasoning_summary, options_update_tool_filter_precedence, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_env_access, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_factory, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_env_access, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_factory, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_context, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_outcome, permission_decision_reject, permission_decision_request, permission_decision_source, permission_decision_surface, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_mode_source, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_response_capability, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_get_mode_request, permissions_get_mode_result, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_env_access, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_factory, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_mode_request, permissions_set_mode_result, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_read_sql_todos_result, plan_read_sql_todos_with_dependencies_result, plan_sql_todo_dependency, plan_sql_todos_row, plan_update_request, plugin, plugin_install_result, plugin_install_staging_mode, plugin_list, plugin_list_result, plugins_builtin_set_request, plugins_disable_request, plugins_enable_request, plugins_install_request, plugins_marketplaces_add_request, plugins_marketplaces_browse_request, plugins_marketplaces_refresh_request, plugins_marketplaces_remove_request, plugins_reload_request, plugins_uninstall_request, plugins_update_request, plugin_update_all_entry, plugin_update_all_result, plugin_update_result, protocol_external_tool_defer, protocol_external_tool_definition, provider_add_request, provider_add_result, provider_config, provider_config_azure, provider_config_transport, provider_config_type, provider_config_wire_api, provider_endpoint, provider_endpoint_transport, provider_endpoint_type, provider_endpoint_wire_api, provider_get_endpoint_request, provider_model_config, provider_session_token, provider_token_acquire_request, provider_token_acquire_result, push_attachment, push_attachment_blob, push_attachment_directory, push_attachment_file, push_attachment_file_line_range, push_attachment_git_hub_actions_job, push_attachment_git_hub_commit, push_attachment_git_hub_file, push_attachment_git_hub_file_diff, push_attachment_git_hub_file_diff_side, push_attachment_git_hub_reference, push_attachment_git_hub_reference_type, push_attachment_git_hub_release, push_attachment_git_hub_repository, push_attachment_git_hub_snippet, push_attachment_git_hub_tree_comparison, push_attachment_git_hub_tree_comparison_side, push_attachment_git_hub_url, push_attachment_selection, push_attachment_selection_details, push_attachment_selection_details_end, push_attachment_selection_details_start, push_git_hub_repo_ref, queue_begin_deferred_idle_drain_request, queue_begin_deferred_idle_drain_result, queue_consume_system_notifications_request, queued_command_handled, queued_command_not_handled, queued_command_result, queue_defer_session_idle_request, queue_duplicate_at_request, queue_duplicate_at_result, queue_enqueue_resume_pending_result, queue_finish_deferred_idle_drain_request, queue_finish_deferred_idle_drain_result, queue_has_pending_result, queue_insert_at_request, queue_insert_at_result, queue_insert_message, queue_move_item_request, queue_move_item_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_at_request, queue_remove_at_result, queue_remove_most_recent_result, queue_send_now_request, queue_send_now_result, queue_set_drain_paused_request, queue_snapshot_result, queue_update_text_request, queue_update_text_result, register_event_interest_params, register_event_interest_result, register_extension_tools_params, register_extension_tools_result, release_event_interest_params, remote_control_config, remote_control_config_existing_mc_session, remote_control_status, remote_control_status_active, remote_control_status_connecting, remote_control_status_error, remote_control_status_off, remote_control_status_result, remote_control_stop_result, remote_control_transfer_result, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_host_status, remote_session_metadata_repository, remote_session_metadata_task_type, remote_session_metadata_value, remote_session_mode, remote_session_repository, run_options, sandbox_config, sandbox_config_auth, sandbox_config_source, sandbox_config_user_policy, sandbox_config_user_policy_experimental, sandbox_config_user_policy_experimental_seatbelt, sandbox_config_user_policy_filesystem, sandbox_config_user_policy_network, sandbox_config_user_policy_network_proxy, sandbox_config_user_policy_seatbelt, sandbox_disable_for_session_request, sandbox_disable_for_session_result, sandbox_enforcement_status, schedule_add_at_request, schedule_add_cron_request, schedule_add_request, schedule_add_result, schedule_add_self_paced_request, schedule_entry, schedule_has_self_paced_result, schedule_list, schedule_rearm_self_paced_request, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachments_to_message_params, send_message_item, send_messages_request, send_messages_result, send_mode, send_request, send_result, send_system_notification_request, server_agent_list, server_instruction_source_list, server_skill, server_skill_list, session_activity, session_agent_list_request, session_auth_login_request, session_auth_logout_user_request, session_auth_status, session_auth_switch_request, session_bulk_delete_result, session_cancel_all_background_agents_result, session_capability, session_commands_list_request, session_completion_item, session_context, session_context_host_type, session_enrich_metadata_result, session_factory_pause_at_checkpoint_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_sqlite_transaction_error, session_fs_sqlite_transaction_error_class, session_fs_sqlite_transaction_request, session_fs_sqlite_transaction_result, session_fs_sqlite_transaction_statement, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_git_hub_auth_get_all_auth_available_result, session_git_hub_auth_logout_result, session_git_hub_auth_logout_user_result, session_history_compact_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_git_hub, session_installed_plugin_source_local, session_installed_plugin_source_url, session_limit_prediction_baseline_data, session_limit_prediction_client_type, session_limit_prediction_details, session_limit_prediction_predict_request, session_limit_prediction_request, session_limit_prediction_result, session_limit_prediction_source, session_limit_prediction_tier, session_limit_prediction_tier_option, session_limit_prediction_unavailable_reason, session_list, session_list_entry, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_managed_permissions, session_managed_settings, session_mcp_apps_call_tool_result, session_metadata_snapshot, session_mode, session_model_list, session_model_list_request, session_model_price_category, session_open_options, session_open_options_additional_content_exclusion_policy, session_open_options_additional_content_exclusion_policy_rule, session_open_options_additional_content_exclusion_policy_rule_source, session_open_options_additional_content_exclusion_policy_scope, session_open_options_env_value_mode, session_open_options_reasoning_summary, session_open_params, session_open_result, session_plugins_reload_request, session_provider_get_endpoint_request, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_client_metadata_entry, sessions_close_request, sessions_close_result, sessions_delete_request, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, session_settings_built_in_tool_availability_snapshot, session_settings_evaluate_predicate_request, session_settings_evaluate_predicate_result, session_settings_job_snapshot, session_settings_model_snapshot, session_settings_online_evaluation_snapshot, session_settings_predicate_name, session_settings_repo_snapshot, session_settings_snapshot, session_settings_validation_snapshot, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_board_entry_count_request, sessions_get_board_entry_count_result, sessions_get_client_metadata_request, sessions_get_client_metadata_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_metadata_request, sessions_get_metadata_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_non_empty_session_ids_request, sessions_list_non_empty_session_ids_result, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_open_attach, sessions_open_cloud, sessions_open_create, sessions_open_handoff, sessions_open_handoff_task_type, sessions_open_progress, sessions_open_progress_status, sessions_open_progress_step, sessions_open_remote, sessions_open_resume, sessions_open_resume_last, sessions_open_status, session_source, sessions_prune_old_request, sessions_read_persisted_events_request, sessions_register_extension_tools_on_session_options, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, sessions_set_remote_control_steering_request, sessions_start_remote_control_request, sessions_stop_remote_control_request, sessions_transfer_remote_control_request, session_telemetry_engagement, session_update_options_params, session_update_options_result, session_visibility_status, session_working_directory_context, session_working_directory_context_host_type, settable_auth_info, settable_token_auth_info, shell_cancel_user_requested_request, shell_credentials, shell_exec_request, shell_exec_result, shell_execute_user_requested_request, shell_init_profile, shell_init_script, shell_init_script_shell, shell_kill_request, shell_kill_result, shell_kill_signal, shell_options, shutdown_request, skill, skill_discovery_path, skill_discovery_path_list, skill_discovery_scope, skill_list, skill_provider_descriptor, skill_provider_list_request, skill_provider_list_result, skill_provider_read_request, skill_provider_read_result, skills_config_set_disabled_skills_request, skills_config_set_skill_disabled_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_discovery_paths_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_add_timeline_entry_result, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_choice, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_model_picker_dialog, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_set_model_result, slash_command_set_plan_model_result, slash_command_show_dialog_result, slash_command_text_result, slash_command_timeline_entry, subagent_settings_entry, subagent_settings_entry_context_tier, task_agent_info, task_agent_progress, task_client_active_status, task_client_execution_mode, task_client_info, task_client_owner, task_client_owner_kind, task_client_owner_presence, task_client_progress, task_client_status, task_client_type, task_client_update, task_complete_data, task_completion_decision, task_execution_mode, task_info, task_kind, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_register_request, tasks_register_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_update_request, tasks_update_result, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, token_provider_auth_info, tool, tool_list, tool_result, tool_result_expanded, tool_result_new_message, tool_result_type, tools_execute_request, tools_get_builtin_descriptors_request, tools_get_builtin_descriptors_result, tools_get_current_metadata_result, tools_initialize_and_validate_result, tools_list_request, tools_set_request, tools_set_result, tools_shell_descriptor_config, tools_task_complete_event_data_request, tools_update_subagent_settings_result, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_ephemeral_query_request, ui_ephemeral_query_result, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_session_limits_exhausted_request, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_session_limits_exhausted_response, ui_session_limits_exhausted_response_action, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, update_subagent_settings_request, usage_get_metrics_result, usage_metrics_agent_metric, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, user_requested_shell_command_result, user_setting_metadata, user_settings_get_result, user_settings_set_request, user_settings_set_result, visibility_get_result, visibility_set_request, visibility_set_result, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_add_summary_request, workspaces_add_summary_result, workspaces_autopilot_objective_exists_result, workspaces_checkpoints, workspaces_create_file_request, workspaces_delete_autopilot_objective_result, workspaces_diff_request, workspaces_ensure_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_autopilot_objective_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspaces_truncate_summaries_request, workspace_summary_host_type, workspaces_update_metadata_request, workspaces_workspace_details_host_type, workspaces_write_autopilot_objective_request, workspaces_write_autopilot_objective_result, session_auth_info_result, session_context_attribution, session_context_info, subagent_settings, task_progress, workspace_summary)
+        return RPC(abort_request, abort_result, account_all_users, account_get_all_users_result, account_get_current_auth_result, account_get_quota_request, account_get_quota_result, account_login_request, account_login_result, account_logout_request, account_logout_result, account_quota_snapshot, adaptive_thinking_support, agent_discovery_path, agent_discovery_path_list, agent_discovery_path_scope, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_list_request, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agents_discover_request, agent_select_request, agent_select_result, agent_set_prompt_request, agents_get_discovery_paths_request, api_key_auth_info, auth_identity, auth_info, auth_info_type, auth_validation_error, auth_validation_errors, autopilot_objective_credit_limit, autopilot_objective_get_state_result, autopilot_objective_state, autopilot_objective_status, built_in_model_catalog, built_in_model_catalog_entry, builtin_tool_descriptor, builtin_tool_format, builtin_tool_format_type, builtin_tool_input_schema, builtin_tool_input_schema_type, builtin_tool_safe_for_telemetry, builtin_tool_safe_telemetry_fields, cancel_user_requested_shell_command_result, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_provider_register_request, canvas_provider_unregister_request, canvas_session_context, capi_session_options, card_digest, card_digest_algorithm, card_digest_value, catalog_ai_skill_candidate, catalog_ai_skill_candidate_provenance, catalog_authentication_required_error, catalog_authentication_required_reason, catalog_candidate, catalog_candidate_kind, catalog_candidate_source, catalog_candidate_source_embedded, catalog_candidate_source_url, catalog_capability, catalog_capability_id, catalog_client_contract, catalog_contract_violation_error, catalog_contract_violation_reason, catalog_handle_rejected_error, catalog_handle_rejection_reason, catalog_handle_type, catalog_invalid_request_error, catalog_invalid_request_field, catalog_malformed_card_error, catalog_malformed_card_reason, catalog_mcp_server_candidate, catalog_mcp_server_candidate_provenance, catalog_mcp_server_installability, catalog_media_type, catalog_negotiated_contract, catalog_negotiation_refused_error, catalog_negotiation_refused_reason, catalog_network_failure_error, catalog_network_failure_reason, catalog_not_installable_error, catalog_not_installable_reason, catalog_policy_rejected_error, catalog_search_request, catalog_search_result, catalog_search_succeeded, catalog_trust_eligibility, catalog_trust_provenance, catalog_trust_snapshot, catalog_trust_snapshot_absent, catalog_trust_snapshot_absent_status, catalog_trust_snapshot_current, catalog_trust_snapshot_current_status, catalog_trust_snapshot_downgraded, catalog_trust_snapshot_downgraded_status, catalog_trust_snapshot_malformed, catalog_trust_snapshot_malformed_status, catalog_trust_snapshot_revoked, catalog_trust_snapshot_revoked_status, catalog_trust_snapshot_schema_version, catalog_trust_snapshot_stale, catalog_trust_snapshot_stale_status, catalog_trust_snapshot_unsupported, catalog_trust_snapshot_unsupported_status, catalog_trust_source, catalog_trust_tier, catalog_unavailable_error, catalog_unavailable_reason, catalog_unavailable_transport_error, catalog_unavailable_transport_reason, catalog_unsafe_retrieval_error, catalog_unsafe_retrieval_reason, catalog_unsupported_kind_error, client_metadata, client_task_cancel_reason, client_task_cancel_request, client_task_cancel_result, command_list, commands_finalize_invocation_effect_request, commands_finalize_invocation_effect_result, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invocation_effect_outcome, commands_invocation_origin, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, completions_get_trigger_characters_result, completions_request_request, completions_request_result, configure_session_extensions_params, connect_client_info, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_exclusion_check_paths_request, content_exclusion_check_paths_result, content_exclusion_path_check, content_filter_mode, context_heaviest_message, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, debug_collect_logs_collected_entry, debug_collect_logs_destination, debug_collect_logs_entry, debug_collect_logs_entry_kind, debug_collect_logs_include, debug_collect_logs_redaction, debug_collect_logs_request, debug_collect_logs_result, debug_collect_logs_result_kind, debug_collect_logs_skipped_entry, debug_collect_logs_source, discovered_canvas, discovered_extension, discovered_extension_mode, discovered_extension_plugin, discovered_extensions, discovered_extensions_disable_request, discovered_extensions_enable_request, discovered_extension_source, discovered_hook, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_direction, events_read_result, execute_command_params, execute_command_result, extension, extension_context_push_input, extension_launch_profile, extension_launch_provider_resolve_request, extension_launch_provider_resolve_result, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_shell_exit, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, factory_abort_request, factory_ack_result, factory_agent_options, factory_agent_request, factory_agent_result, factory_agent_summary, factory_cancel_request, factory_current_phase, factory_declared_limits, factory_durable_operation, factory_execute_request, factory_execute_result, factory_get_run_progress_request, factory_get_run_request, factory_journal_get_request, factory_journal_get_result, factory_journal_put_request, factory_list_runs_request, factory_list_runs_result, factory_log_line, factory_log_line_kind, factory_log_request, factory_pause_checkpoint_action, factory_pause_checkpoint_request, factory_pause_checkpoint_result, factory_pause_info, factory_pause_request, factory_phase_observation, factory_phase_status, factory_progress_line, factory_progress_page, factory_resume_request, factory_resume_result, factory_run_consumed, factory_run_detail, factory_run_failure, factory_run_failure_kind, factory_run_limits, factory_run_request, factory_run_result, factory_run_status, factory_run_summary, factory_run_terminal, factory_tool_resume_request, factory_tool_run_options, factory_tool_run_request, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, git_hub_telemetry_client_info, git_hub_telemetry_event, git_hub_telemetry_notification, git_hub_token_acquire_reason, git_hub_token_acquire_request, git_hub_token_acquire_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_clear_context_request, history_clear_context_result, history_compact_context_window, history_compact_request, history_compact_result, history_file_restore_skip_reason, history_list_rewind_points_result, history_preview_rewind_request, history_preview_rewind_result, history_rewind_change_type, history_rewind_file_preview, history_rewind_mode, history_rewind_outcome, history_rewind_point, history_rewind_request, history_rewind_result, history_rewind_unavailable_reason, history_skipped_file_restore, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, hook_invoke_request, hook_invoke_response, hook_origin, hooks_discover_request, hooks_discover_result, hook_type, installed_plugin, installed_plugin_info, installed_plugin_source, installed_plugin_source_git_hub, installed_plugin_source_local, installed_plugin_source_url, instruction_discovery_path, instruction_discovery_path_kind, instruction_discovery_path_list, instruction_discovery_path_location, instructions_discover_request, instructions_get_discovery_paths_request, instructions_get_sources_result, instruction_source, instruction_source_location, instruction_source_type, interrupt_main_turn_request, interrupt_main_turn_result, llm_inference_headers, llm_inference_http_request_chunk_request, llm_inference_http_request_chunk_result, llm_inference_http_request_start_request, llm_inference_http_request_start_result, llm_inference_http_request_start_transport, llm_inference_http_response_chunk_error, llm_inference_http_response_chunk_request, llm_inference_http_response_chunk_result, llm_inference_http_response_start_request, llm_inference_http_response_start_result, llm_inference_set_provider_result, local_session_metadata_value, log_request, log_result, lsp_initialize_request, managed_settings_read_result, marketplace_add_result, marketplace_browse_result, marketplace_info, marketplace_list_result, marketplace_plugin_info, marketplace_refresh_entry, marketplace_refresh_result, marketplace_remove_result, mcp_allowed_server, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_configure_git_hub_request, mcp_configure_git_hub_result, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_elicitation_form_mode, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_failed_server, mcp_filtered_server, mcp_headers_handle_pending_headers_refresh_request, mcp_headers_handle_pending_headers_refresh_request_request, mcp_headers_handle_pending_headers_refresh_request_result, mcp_host_state, mcp_install_plan, mcp_is_server_running_request, mcp_is_server_running_result, mcp_list_tools_request, mcp_list_tools_result, mcp_oauth_authentication_state_changed_request, mcp_oauth_handle_pending_request, mcp_oauth_handle_pending_result, mcp_oauth_login_grant_type, mcp_oauth_login_request, mcp_oauth_login_result, mcp_oauth_pending_request_response, mcp_oauth_probe_needs_auth_reason, mcp_oauth_probe_request, mcp_oauth_probe_result, mcp_oauth_respond_request, mcp_oauth_respond_result, mcp_plan_configuration_change, mcp_plan_configuration_operation, mcp_plan_enum_value_type, mcp_plan_install_planned, mcp_plan_install_request, mcp_plan_install_result, mcp_plan_install_source, mcp_plan_install_source_candidate, mcp_plan_install_source_candidate_kind, mcp_plan_install_source_card, mcp_plan_install_source_card_kind, mcp_plan_package_install_method, mcp_plan_package_transport, mcp_plan_policy_decision, mcp_plan_policy_result, mcp_plan_policy_source, mcp_plan_provenance, mcp_plan_remote_install_method, mcp_plan_remote_transport, mcp_plan_required_value, mcp_plan_required_value_enum, mcp_plan_required_value_enum_kind, mcp_plan_required_value_scalar, mcp_plan_required_value_scalar_kind, mcp_plan_resource_identity, mcp_plan_scalar_value_type, mcp_plan_scope, mcp_plan_secret_placeholder, mcp_plan_secret_reference, mcp_plan_target, mcp_plan_transport_choice, mcp_plan_transport_choice_package, mcp_plan_transport_choice_remote, mcp_plan_value_category, mcp_register_external_client_request, mcp_reload_config, mcp_reload_with_config_request, mcp_remove_git_hub_result, mcp_resource, mcp_resource_annotations, mcp_resource_content, mcp_resource_icon, mcp_resources_list_request, mcp_resources_list_result, mcp_resources_list_templates_request, mcp_resources_list_templates_result, mcp_resources_read_request, mcp_resources_read_result, mcp_resource_template, mcp_restart_server_request, mcp_safe_for_telemetry, mcp_safe_for_telemetry_fields, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_serializable_server_config, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_card_embedded, mcp_server_card_embedded_kind, mcp_server_card_media_type, mcp_server_card_reference, mcp_server_card_url, mcp_server_card_url_kind, mcp_server_config, mcp_server_config_defer_tools, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_memory, mcp_server_config_memory_type, mcp_server_config_stdio, mcp_server_config_stdio_type, mcp_server_failure_info, mcp_server_list, mcp_server_needs_auth_info, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, mcp_source_file, mcp_source_plugin, mcp_source_ref, mcp_start_server_request, mcp_start_servers_result, mcp_stop_server_request, mcp_task_metadata, mcp_tools, mcp_tool_ui, mcp_tool_ui_visibility, mcp_unregister_external_client_request, memory_configuration, metadata_context_attribution_result, metadata_context_heaviest_messages_request, metadata_context_heaviest_messages_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, metadata_update_client_metadata_request, model, model_apply_startup_overlay_request, model_billing, model_billing_promo, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_list_request, model_message, model_picker_category, model_picker_persistence_request, model_picker_price_category, model_picker_settings_context, model_policy, model_policy_state, model_set_allowed_models_request, model_set_allowed_models_result, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_auto_tier_request, model_switch_auto_tier_result, model_switch_auto_tier_status, model_switch_confirmation, model_switch_to_request, model_switch_to_result, model_warning_text, mode_set_request, mode_set_result, move_mcp_loading_to_background_result, named_provider_config, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_additional_content_exclusion_policy, options_update_additional_content_exclusion_policy_rule, options_update_additional_content_exclusion_policy_rule_source, options_update_additional_content_exclusion_policy_scope, options_update_context_tier, options_update_env_value_mode, options_update_reasoning_summary, options_update_tool_filter_precedence, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_env_access, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_factory, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_env_access, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_factory, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_context, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_outcome, permission_decision_reject, permission_decision_request, permission_decision_surface, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_mode_source, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_response_capability, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_get_mode_request, permissions_get_mode_result, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_env_access, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_factory, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_mode_request, permissions_set_mode_result, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_read_sql_todos_result, plan_read_sql_todos_with_dependencies_result, plan_sql_todo_dependency, plan_sql_todos_row, plan_update_request, plugin, plugin_install_result, plugin_install_staging_mode, plugin_list, plugin_list_result, plugins_builtin_set_request, plugins_disable_request, plugins_enable_request, plugins_install_request, plugins_marketplaces_add_request, plugins_marketplaces_browse_request, plugins_marketplaces_refresh_request, plugins_marketplaces_remove_request, plugins_reload_request, plugins_uninstall_request, plugins_update_request, plugin_update_all_entry, plugin_update_all_result, plugin_update_result, protocol_external_tool_defer, protocol_external_tool_definition, provider_add_request, provider_add_result, provider_config, provider_config_azure, provider_config_transport, provider_config_type, provider_config_wire_api, provider_endpoint, provider_endpoint_transport, provider_endpoint_type, provider_endpoint_wire_api, provider_get_endpoint_request, provider_model_config, provider_session_token, provider_token_acquire_request, provider_token_acquire_result, push_attachment, push_attachment_blob, push_attachment_directory, push_attachment_file, push_attachment_file_line_range, push_attachment_git_hub_actions_job, push_attachment_git_hub_commit, push_attachment_git_hub_file, push_attachment_git_hub_file_diff, push_attachment_git_hub_file_diff_side, push_attachment_git_hub_reference, push_attachment_git_hub_reference_type, push_attachment_git_hub_release, push_attachment_git_hub_repository, push_attachment_git_hub_snippet, push_attachment_git_hub_tree_comparison, push_attachment_git_hub_tree_comparison_side, push_attachment_git_hub_url, push_attachment_selection, push_attachment_selection_details, push_attachment_selection_details_end, push_attachment_selection_details_start, push_git_hub_repo_ref, queue_begin_deferred_idle_drain_request, queue_begin_deferred_idle_drain_result, queue_consume_system_notifications_request, queued_command_handled, queued_command_not_handled, queued_command_result, queue_defer_session_idle_request, queue_duplicate_at_request, queue_duplicate_at_result, queue_enqueue_resume_pending_result, queue_finish_deferred_idle_drain_request, queue_finish_deferred_idle_drain_result, queue_has_pending_result, queue_insert_at_request, queue_insert_at_result, queue_insert_message, queue_move_item_request, queue_move_item_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_at_request, queue_remove_at_result, queue_remove_most_recent_result, queue_send_now_request, queue_send_now_result, queue_set_drain_paused_request, queue_snapshot_result, queue_update_text_request, queue_update_text_result, register_event_interest_params, register_event_interest_result, register_extension_tools_params, register_extension_tools_result, release_event_interest_params, remote_control_config, remote_control_config_existing_mc_session, remote_control_status, remote_control_status_active, remote_control_status_connecting, remote_control_status_error, remote_control_status_off, remote_control_status_result, remote_control_stop_result, remote_control_transfer_result, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_host_status, remote_session_metadata_repository, remote_session_metadata_task_type, remote_session_metadata_value, remote_session_mode, remote_session_repository, run_options, sandbox_config, sandbox_config_auth, sandbox_config_source, sandbox_config_user_policy, sandbox_config_user_policy_experimental, sandbox_config_user_policy_experimental_seatbelt, sandbox_config_user_policy_filesystem, sandbox_config_user_policy_network, sandbox_config_user_policy_network_proxy, sandbox_config_user_policy_seatbelt, sandbox_disable_for_session_request, sandbox_disable_for_session_result, sandbox_enforcement_status, schedule_add_at_request, schedule_add_cron_request, schedule_add_request, schedule_add_result, schedule_add_self_paced_request, schedule_entry, schedule_has_self_paced_result, schedule_list, schedule_rearm_self_paced_request, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachments_to_message_params, send_message_item, send_messages_request, send_messages_result, send_mode, send_request, send_result, send_system_notification_request, server_agent_list, server_instruction_source_list, server_skill, server_skill_list, session_activity, session_agent_list_request, session_auth_login_request, session_auth_logout_user_request, session_auth_status, session_auth_switch_request, session_bulk_delete_result, session_cancel_all_background_agents_result, session_capability, session_commands_list_request, session_completion_item, session_context, session_context_host_type, session_enrich_metadata_result, session_factory_pause_at_checkpoint_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_sqlite_transaction_error, session_fs_sqlite_transaction_error_class, session_fs_sqlite_transaction_request, session_fs_sqlite_transaction_result, session_fs_sqlite_transaction_statement, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_git_hub_auth_get_all_auth_available_result, session_git_hub_auth_logout_result, session_git_hub_auth_logout_user_result, session_history_compact_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_git_hub, session_installed_plugin_source_local, session_installed_plugin_source_url, session_limit_prediction_baseline_data, session_limit_prediction_client_type, session_limit_prediction_details, session_limit_prediction_predict_request, session_limit_prediction_request, session_limit_prediction_result, session_limit_prediction_source, session_limit_prediction_tier, session_limit_prediction_tier_option, session_limit_prediction_unavailable_reason, session_list, session_list_entry, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_managed_permissions, session_managed_settings, session_mcp_apps_call_tool_result, session_metadata_snapshot, session_mode, session_model_list, session_model_list_request, session_model_price_category, session_open_options, session_open_options_additional_content_exclusion_policy, session_open_options_additional_content_exclusion_policy_rule, session_open_options_additional_content_exclusion_policy_rule_source, session_open_options_additional_content_exclusion_policy_scope, session_open_options_env_value_mode, session_open_options_reasoning_summary, session_open_params, session_open_result, session_plugins_reload_request, session_provider_get_endpoint_request, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_client_metadata_entry, sessions_close_request, sessions_close_result, sessions_delete_request, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, session_settings_built_in_tool_availability_snapshot, session_settings_evaluate_predicate_request, session_settings_evaluate_predicate_result, session_settings_job_snapshot, session_settings_model_snapshot, session_settings_online_evaluation_snapshot, session_settings_predicate_name, session_settings_repo_snapshot, session_settings_snapshot, session_settings_validation_snapshot, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_board_entry_count_request, sessions_get_board_entry_count_result, sessions_get_client_metadata_request, sessions_get_client_metadata_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_metadata_request, sessions_get_metadata_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_non_empty_session_ids_request, sessions_list_non_empty_session_ids_result, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_open_attach, sessions_open_cloud, sessions_open_create, sessions_open_handoff, sessions_open_handoff_task_type, sessions_open_progress, sessions_open_progress_status, sessions_open_progress_step, sessions_open_remote, sessions_open_resume, sessions_open_resume_last, sessions_open_status, session_source, sessions_prune_old_request, sessions_read_persisted_events_request, sessions_register_extension_tools_on_session_options, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, sessions_set_remote_control_steering_request, sessions_start_remote_control_request, sessions_stop_remote_control_request, sessions_transfer_remote_control_request, session_telemetry_engagement, session_update_options_params, session_update_options_result, session_visibility_status, session_working_directory_context, session_working_directory_context_host_type, settable_auth_info, settable_token_auth_info, shell_cancel_user_requested_request, shell_credentials, shell_exec_request, shell_exec_result, shell_execute_user_requested_request, shell_init_profile, shell_init_script, shell_init_script_shell, shell_kill_request, shell_kill_result, shell_kill_signal, shell_options, shutdown_request, skill, skill_discovery_path, skill_discovery_path_list, skill_discovery_scope, skill_list, skill_provider_descriptor, skill_provider_list_request, skill_provider_list_result, skill_provider_read_request, skill_provider_read_result, skills_config_set_disabled_skills_request, skills_config_set_skill_disabled_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_discovery_paths_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_add_timeline_entry_result, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_choice, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_model_picker_dialog, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_set_model_result, slash_command_set_plan_model_result, slash_command_show_dialog_result, slash_command_text_result, slash_command_timeline_entry, subagent_settings_entry, subagent_settings_entry_context_tier, task_agent_info, task_agent_progress, task_client_active_status, task_client_execution_mode, task_client_info, task_client_owner, task_client_owner_kind, task_client_owner_presence, task_client_progress, task_client_status, task_client_type, task_client_update, task_complete_data, task_completion_decision, task_execution_mode, task_info, task_kind, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_register_request, tasks_register_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_update_request, tasks_update_result, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, token_provider_auth_info, tool, tool_list, tool_result, tool_result_expanded, tool_result_new_message, tool_result_type, tools_execute_request, tools_get_builtin_descriptors_request, tools_get_builtin_descriptors_result, tools_get_current_metadata_result, tools_initialize_and_validate_result, tools_list_request, tools_set_request, tools_set_result, tools_shell_descriptor_config, tools_task_complete_event_data_request, tools_update_subagent_settings_result, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_ephemeral_query_request, ui_ephemeral_query_result, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_session_limits_exhausted_request, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_session_limits_exhausted_response, ui_session_limits_exhausted_response_action, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, update_subagent_settings_request, usage_get_metrics_result, usage_metrics_agent_metric, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, user_requested_shell_command_result, user_setting_metadata, user_settings_get_result, user_settings_set_request, user_settings_set_result, visibility_get_result, visibility_set_request, visibility_set_result, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_add_summary_request, workspaces_add_summary_result, workspaces_autopilot_objective_exists_result, workspaces_checkpoints, workspaces_create_file_request, workspaces_delete_autopilot_objective_result, workspaces_diff_request, workspaces_ensure_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_autopilot_objective_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspaces_truncate_summaries_request, workspace_summary_host_type, workspaces_update_metadata_request, workspaces_workspace_details_host_type, workspaces_write_autopilot_objective_request, workspaces_write_autopilot_objective_result, session_auth_info_result, session_context_attribution, session_context_info, subagent_settings, task_progress, workspace_summary)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -39654,6 +40154,26 @@ class RPC:
         result["CatalogSearchRequest"] = to_class(CatalogSearchRequest, self.catalog_search_request)
         result["CatalogSearchResult"] = (self.catalog_search_result).to_dict()
         result["CatalogSearchSucceeded"] = to_class(CatalogSearchSucceeded, self.catalog_search_succeeded)
+        result["CatalogTrustEligibility"] = to_enum(CatalogTrustEligibility, self.catalog_trust_eligibility)
+        result["CatalogTrustProvenance"] = to_class(CatalogTrustProvenance, self.catalog_trust_provenance)
+        result["CatalogTrustSnapshot"] = (self.catalog_trust_snapshot).to_dict()
+        result["CatalogTrustSnapshotAbsent"] = to_class(CatalogTrustSnapshotAbsent, self.catalog_trust_snapshot_absent)
+        result["CatalogTrustSnapshotAbsentStatus"] = to_enum(CatalogTrustSnapshotAbsentStatus, self.catalog_trust_snapshot_absent_status)
+        result["CatalogTrustSnapshotCurrent"] = to_class(CatalogTrustSnapshotCurrent, self.catalog_trust_snapshot_current)
+        result["CatalogTrustSnapshotCurrentStatus"] = to_enum(CatalogTrustSnapshotCurrentStatus, self.catalog_trust_snapshot_current_status)
+        result["CatalogTrustSnapshotDowngraded"] = to_class(CatalogTrustSnapshotDowngraded, self.catalog_trust_snapshot_downgraded)
+        result["CatalogTrustSnapshotDowngradedStatus"] = to_enum(CatalogTrustSnapshotDowngradedStatus, self.catalog_trust_snapshot_downgraded_status)
+        result["CatalogTrustSnapshotMalformed"] = to_class(CatalogTrustSnapshotMalformed, self.catalog_trust_snapshot_malformed)
+        result["CatalogTrustSnapshotMalformedStatus"] = to_enum(CatalogTrustSnapshotMalformedStatus, self.catalog_trust_snapshot_malformed_status)
+        result["CatalogTrustSnapshotRevoked"] = to_class(CatalogTrustSnapshotRevoked, self.catalog_trust_snapshot_revoked)
+        result["CatalogTrustSnapshotRevokedStatus"] = to_enum(CatalogTrustSnapshotRevokedStatus, self.catalog_trust_snapshot_revoked_status)
+        result["CatalogTrustSnapshotSchemaVersion"] = to_enum(CatalogTrustSnapshotSchemaVersion, self.catalog_trust_snapshot_schema_version)
+        result["CatalogTrustSnapshotStale"] = to_class(CatalogTrustSnapshotStale, self.catalog_trust_snapshot_stale)
+        result["CatalogTrustSnapshotStaleStatus"] = to_enum(CatalogTrustSnapshotStaleStatus, self.catalog_trust_snapshot_stale_status)
+        result["CatalogTrustSnapshotUnsupported"] = to_class(CatalogTrustSnapshotUnsupported, self.catalog_trust_snapshot_unsupported)
+        result["CatalogTrustSnapshotUnsupportedStatus"] = to_enum(CatalogTrustSnapshotUnsupportedStatus, self.catalog_trust_snapshot_unsupported_status)
+        result["CatalogTrustSource"] = to_enum(CatalogTrustSource, self.catalog_trust_source)
+        result["CatalogTrustTier"] = to_enum(CatalogTrustTier, self.catalog_trust_tier)
         result["CatalogUnavailableError"] = to_class(CatalogUnavailableError, self.catalog_unavailable_error)
         result["CatalogUnavailableReason"] = to_enum(CatalogUnavailableReason, self.catalog_unavailable_reason)
         result["CatalogUnavailableTransportError"] = to_class(CatalogUnavailableTransportError, self.catalog_unavailable_transport_error)
@@ -40163,7 +40683,6 @@ class RPC:
         result["PermissionDecisionOutcome"] = to_enum(PermissionDecisionOutcome, self.permission_decision_outcome)
         result["PermissionDecisionReject"] = to_class(PermissionDecisionReject, self.permission_decision_reject)
         result["PermissionDecisionRequest"] = to_class(PermissionDecisionRequest, self.permission_decision_request)
-        result["PermissionDecisionSource"] = to_enum(PermissionDecisionSource, self.permission_decision_source)
         result["PermissionDecisionSurface"] = to_enum(PermissionDecisionSurface, self.permission_decision_surface)
         result["PermissionDecisionUserNotAvailable"] = to_class(PermissionDecisionUserNotAvailable, self.permission_decision_user_not_available)
         result["PermissionLocationAddToolApprovalParams"] = to_class(PermissionLocationAddToolApprovalParams, self.permission_location_add_tool_approval_params)
@@ -40836,6 +41355,22 @@ def _load_CatalogSearchResult(obj: Any) -> "CatalogSearchResult":
         case "contract-violation": return CatalogContractViolationError.from_dict(obj)
         case "unavailable": return CatalogUnavailableError.from_dict(obj)
         case _: raise ValueError(f"Unknown CatalogSearchResult kind: {kind!r}")
+
+# A versioned, bounded trust observation carried unchanged with a catalog candidate and its private handle context. Current observations require a recognised T1/T2 tier; every non-current state structurally forbids a tier. Eligibility remains `unknown` while Agent Finder supplies no exposure decision, and states absent from its current wire are never inferred from age, relevance, popularity, or a tier transition.
+CatalogTrustSnapshot = CatalogTrustSnapshotCurrent | CatalogTrustSnapshotAbsent | CatalogTrustSnapshotStale | CatalogTrustSnapshotDowngraded | CatalogTrustSnapshotRevoked | CatalogTrustSnapshotUnsupported | CatalogTrustSnapshotMalformed
+
+def _load_CatalogTrustSnapshot(obj: Any) -> "CatalogTrustSnapshot":
+    assert isinstance(obj, dict)
+    kind = obj.get("status")
+    match kind:
+        case "current": return CatalogTrustSnapshotCurrent.from_dict(obj)
+        case "absent": return CatalogTrustSnapshotAbsent.from_dict(obj)
+        case "stale": return CatalogTrustSnapshotStale.from_dict(obj)
+        case "downgraded": return CatalogTrustSnapshotDowngraded.from_dict(obj)
+        case "revoked": return CatalogTrustSnapshotRevoked.from_dict(obj)
+        case "unsupported": return CatalogTrustSnapshotUnsupported.from_dict(obj)
+        case "malformed": return CatalogTrustSnapshotMalformed.from_dict(obj)
+        case _: raise ValueError(f"Unknown CatalogTrustSnapshot status: {kind!r}")
 
 # A content block within a tool result, which may be text, terminal output, image, audio, or a resource
 ExternalToolTextResultForLlmContent = ExternalToolTextResultForLlmContentText | ExternalToolTextResultForLlmContentTerminal | ExternalToolTextResultForLlmContentShellExit | ExternalToolTextResultForLlmContentImage | ExternalToolTextResultForLlmContentAudio | ExternalToolTextResultForLlmContentResourceLink | ExternalToolTextResultForLlmContentResource
@@ -41665,7 +42200,7 @@ class ServerSessionsApi:
         return list(await self._client.request("sessions.getClientMetadata", params_dict, **_timeout_kwargs(timeout)))
 
     async def read_persisted_events(self, params: SessionsReadPersistedEventsRequest, *, timeout: float | None = None) -> EventsReadResult:
-        "Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.\n\nArgs:\n    params: Pagination options for reading an inactive or active local session's persisted event journal.\n\nReturns:\n    Batch of session events returned by a read, with cursor and continuation metadata."
+        "Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The first read pins the currently opened journal generation and its byte-length boundary; opaque cursor continuations remain on that generation across runtime-owned compaction, truncation, and rewrite operations, which replace the live path atomically, and events appended after the boundary are excluded. For cold hydration, await the first successful page before activation and establish lossless live-event buffering before resume; merge subsequent live events by ID, preserving persisted order and letting live payloads win. Continuations are process-local, single-use capabilities bound to the originating session and storage context and must be paged sequentially; concurrent or repeated use of the same cursor expires that duplicate read rather than reading the generation twice. A complete snapshot has cursorStatus 'ok' and hasMore false. Snapshots expire after five idle minutes, with at most eight retained per process and idle-only eviction under pressure; completion and cancelled-worker exit release their handles. No transcript copy is created, but retained handles may keep replaced files' disk blocks alive until release. Pages have a soft 1 MiB serialized event-array budget including resolved binary assets; one oversized event is returned alone to guarantee progress. Working memory also includes a record/lookahead and asset resolution; resolving the first binary reference may scan the full pinned generation to build a bounded offset index. If the snapshot expires, is evicted, is cancelled before a continuation is established, or becomes unreadable after an observable unsupported in-place shortening, the continuation returns cursorStatus 'expired' with an empty terminal page and never falls back to a different generation. A missing or initially unreadable journal is an RPC error. Persisted history excludes ephemeral events and may omit payloads that are reconstructed only for an active session; use the active session event stream for post-resume live events.\n\nArgs:\n    params: Pagination options for reading an inactive or active local session's persisted event journal.\n\nReturns:\n    Batch of session events returned by a read, with cursor and continuation metadata."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return EventsReadResult.from_dict(await self._client.request("sessions.readPersistedEvents", params_dict, **_timeout_kwargs(timeout)))
 
@@ -42289,7 +42824,7 @@ class FleetApi:
         self._session_id = session_id
 
     async def start(self, params: FleetStartRequest, *, timeout: float | None = None) -> FleetStartResult:
-        "Starts fleet mode by submitting the fleet orchestration prompt to the session.\n\nArgs:\n    params: Optional user prompt to combine with the fleet orchestration instructions.\n\nReturns:\n    Indicates whether fleet mode was successfully activated."
+        "Starts fleet mode by submitting the fleet orchestration prompt to the session.\n\nArgs:\n    params: Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.\n\nReturns:\n    Indicates whether fleet mode was successfully activated."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return FleetStartResult.from_dict(await self._client.request("session.fleet.start", params_dict, **_timeout_kwargs(timeout)))
@@ -44258,6 +44793,27 @@ __all__ = [
     "CatalogSearchResultReason",
     "CatalogSearchSucceeded",
     "CatalogSearchSucceededKind",
+    "CatalogTrustEligibility",
+    "CatalogTrustProvenance",
+    "CatalogTrustSnapshot",
+    "CatalogTrustSnapshotAbsent",
+    "CatalogTrustSnapshotAbsentStatus",
+    "CatalogTrustSnapshotCurrent",
+    "CatalogTrustSnapshotCurrentStatus",
+    "CatalogTrustSnapshotDowngraded",
+    "CatalogTrustSnapshotDowngradedStatus",
+    "CatalogTrustSnapshotMalformed",
+    "CatalogTrustSnapshotMalformedStatus",
+    "CatalogTrustSnapshotRevoked",
+    "CatalogTrustSnapshotRevokedStatus",
+    "CatalogTrustSnapshotSchemaVersion",
+    "CatalogTrustSnapshotStale",
+    "CatalogTrustSnapshotStaleStatus",
+    "CatalogTrustSnapshotStatus",
+    "CatalogTrustSnapshotUnsupported",
+    "CatalogTrustSnapshotUnsupportedStatus",
+    "CatalogTrustSource",
+    "CatalogTrustTier",
     "CatalogUnavailableError",
     "CatalogUnavailableErrorKind",
     "CatalogUnavailableReason",
@@ -44867,7 +45423,6 @@ __all__ = [
     "PermissionDecisionReject",
     "PermissionDecisionRejectKind",
     "PermissionDecisionRequest",
-    "PermissionDecisionSource",
     "PermissionDecisionSurface",
     "PermissionDecisionUserNotAvailable",
     "PermissionDecisionUserNotAvailableKind",

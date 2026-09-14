@@ -31,8 +31,7 @@ public class SystemMessageSectionsE2ETests(E2ETestFixture fixture, ITestOutputHe
             }
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "Who are you?" });
-        var response = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var response = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions { Prompt = "Who are you?" });
 
         Assert.NotNull(response);
         var content = response.Data.Content.ToLowerInvariant();
@@ -61,8 +60,7 @@ public class SystemMessageSectionsE2ETests(E2ETestFixture fixture, ITestOutputHe
             }
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "Who are you?" });
-        var response = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var response = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions { Prompt = "Who are you?" });
 
         Assert.NotNull(response);
         var content = response.Data.Content.ToLowerInvariant();

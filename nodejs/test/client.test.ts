@@ -4285,6 +4285,32 @@ describe("CopilotClient", () => {
     });
 
     describe("shutdown", () => {
+        it.each(["stop", "forceStop"] as const)(
+            "%s waits for the initial in-process cleanup attempt",
+            async (method) => {
+                const client = new CopilotClient({
+                    connection: RuntimeConnection.forInProcess(),
+                });
+                let finishCleanup!: () => void;
+                const cleanup = new Promise<void>((resolve) => {
+                    finishCleanup = resolve;
+                });
+                const dispose = vi.fn(() => cleanup);
+                (client as any).ffiHost = { dispose };
+
+                let stopped = false;
+                const shutdown = client[method]().then(() => {
+                    stopped = true;
+                });
+                await vi.waitFor(() => expect(dispose).toHaveBeenCalledTimes(1));
+                expect(stopped).toBe(false);
+
+                finishCleanup();
+                await shutdown;
+                expect(stopped).toBe(true);
+            }
+        );
+
         it("requests runtime shutdown when stopping an SDK-owned process", async () => {
             const client = new CopilotClient();
             const calls: string[] = [];

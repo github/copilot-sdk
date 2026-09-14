@@ -48,12 +48,10 @@ public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputH
 
         await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "test.txt"), "Hello transform!");
 
-        await session.SendAsync(new MessageOptions
+        await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Read the contents of test.txt and tell me what it says"
         });
-
-        await TestHelper.GetFinalAssistantMessageAsync(session);
 
         Assert.True(identityCallbackInvoked, "Expected identity transform callback to be invoked");
         Assert.True(toneCallbackInvoked, "Expected tone transform callback to be invoked");
@@ -83,12 +81,10 @@ public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputH
 
         await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "hello.txt"), "Hello!");
 
-        await session.SendAsync(new MessageOptions
+        await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Read the contents of hello.txt"
         });
-
-        await TestHelper.GetFinalAssistantMessageAsync(session);
 
         // Verify the transform result was actually applied to the system message
         var traffic = await Ctx.GetExchangesAsync();
@@ -128,12 +124,10 @@ public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputH
 
         await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "combo.txt"), "Combo test!");
 
-        await session.SendAsync(new MessageOptions
+        await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Read the contents of combo.txt and tell me what it says"
         });
-
-        await TestHelper.GetFinalAssistantMessageAsync(session);
 
         Assert.True(transformCallbackInvoked, "Expected identity transform callback to be invoked");
     }

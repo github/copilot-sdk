@@ -20,7 +20,11 @@ const ffi = vi.hoisted(() => {
     const hostShutdown = vi.fn(() => true);
     const connectionOpen = vi.fn(() => 21);
     const connectionWrite = vi.fn(() => true);
-    const connectionClose = vi.fn<() => boolean>();
+    const connectionClose = Object.assign(vi.fn<() => boolean>(), {
+        async: vi.fn<
+            (connectionId: number, callback: (error: Error | null, result: boolean) => void) => void
+        >(),
+    });
     const register = vi.fn(
         (callback: (userData: unknown, bytesPtr: unknown, bytesLen: number) => void) => {
             registeredCallback = callback;
@@ -73,6 +77,9 @@ describe("FfiRuntimeHost callback cleanup", () => {
     beforeEach(() => {
         vi.useFakeTimers();
         ffi.connectionClose.mockReset();
+        ffi.connectionClose.async
+            .mockReset()
+            .mockImplementation((_id, callback) => callback(null, true));
         ffi.connectionOpen.mockClear();
         ffi.hostShutdown.mockClear();
         ffi.hostStart.mockClear();
@@ -82,18 +89,19 @@ describe("FfiRuntimeHost callback cleanup", () => {
     });
 
     afterEach(() => {
+        expect(ffi.connectionClose).not.toHaveBeenCalled();
         vi.clearAllTimers();
         vi.useRealTimers();
     });
 
-    it("retains the callback and keepalive until a retry closes the connection", async () => {
-        ffi.connectionClose.mockReturnValueOnce(false).mockReturnValueOnce(true);
+    it("finishes disposal after a false close while retaining resources for the detached retry", async () => {
+        ffi.connectionClose.async.mockImplementationOnce((_id, callback) => callback(null, false));
         const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, []);
         await host.start();
 
-        host.dispose();
+        await host.dispose();
 
-        expect(ffi.connectionClose).toHaveBeenCalledTimes(1);
+        expect(ffi.connectionClose.async).toHaveBeenCalledTimes(1);
         expect(ffi.unregister).not.toHaveBeenCalled();
         expect(ffi.hostShutdown).not.toHaveBeenCalled();
         expect((host as any).outboundCallback).toBe(ffi.callbackToken);
@@ -101,25 +109,60 @@ describe("FfiRuntimeHost callback cleanup", () => {
 
         await vi.advanceTimersByTimeAsync(100);
 
-        expect(ffi.connectionClose).toHaveBeenCalledTimes(2);
+        expect(ffi.connectionClose.async).toHaveBeenCalledTimes(2);
         expect(ffi.unregister).toHaveBeenCalledTimes(1);
         expect(ffi.hostShutdown).toHaveBeenCalledTimes(1);
         expect((host as any).outboundCallback).toBeUndefined();
         expect((host as any).keepAliveTimer).toBeUndefined();
         expect(vi.getTimerCount()).toBe(0);
 
-        host.dispose();
+        await host.dispose();
         await vi.advanceTimersByTimeAsync(100);
-        expect(ffi.connectionClose).toHaveBeenCalledTimes(2);
+        expect(ffi.connectionClose.async).toHaveBeenCalledTimes(2);
         expect(ffi.unregister).toHaveBeenCalledTimes(1);
         expect(ffi.hostShutdown).toHaveBeenCalledTimes(1);
     });
 
-    it("defers reclamation when dispose is called from the outbound callback", async () => {
-        ffi.connectionClose.mockReturnValueOnce(false).mockReturnValueOnce(true);
+    it("waits for successful initial cleanup without overlapping close calls", async () => {
+        let finishClose!: (error: Error | null, result: boolean) => void;
+        ffi.connectionClose.async.mockImplementationOnce((_id, callback) => {
+            finishClose = callback;
+        });
         const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, []);
         await host.start();
-        vi.spyOn(host as any, "feedInbound").mockImplementation(() => host.dispose());
+
+        let disposed = false;
+        const cleanup = host.dispose().then(() => {
+            disposed = true;
+        });
+        await host.dispose();
+        await vi.advanceTimersByTimeAsync(1000);
+
+        expect(disposed).toBe(false);
+        expect(ffi.connectionClose.async).toHaveBeenCalledTimes(1);
+        expect(ffi.unregister).not.toHaveBeenCalled();
+        expect(ffi.hostShutdown).not.toHaveBeenCalled();
+        expect((host as any).outboundCallback).toBe(ffi.callbackToken);
+        expect((host as any).keepAliveTimer).toBeDefined();
+
+        finishClose(null, true);
+        await cleanup;
+
+        expect(disposed).toBe(true);
+        expect(ffi.unregister).toHaveBeenCalledTimes(1);
+        expect(ffi.hostShutdown).toHaveBeenCalledTimes(1);
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("defers reclamation when dispose is called from the outbound callback", async () => {
+        ffi.connectionClose.async.mockImplementationOnce((_id, callback) => {
+            setImmediate(() => callback(null, true));
+        });
+        const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, []);
+        await host.start();
+        host.receiveStream.once("data", () => {
+            void host.dispose();
+        });
 
         ffi.getRegisteredCallback()?.(null, {}, 1);
 
@@ -133,17 +176,44 @@ describe("FfiRuntimeHost callback cleanup", () => {
         expect(vi.getTimerCount()).toBe(0);
     });
 
+    it.each(["callback", "throw"])(
+        "quarantines the callback on a close %s error",
+        async (failure) => {
+            const closeError = new Error("close failed");
+            ffi.connectionClose.async.mockImplementationOnce((_id, callback) => {
+                if (failure === "throw") {
+                    throw closeError;
+                }
+                callback(closeError, false);
+            });
+            const error = vi.spyOn(console, "error").mockImplementation(() => {});
+            const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, []);
+            await host.start();
+
+            await host.dispose();
+            await vi.advanceTimersByTimeAsync(500);
+
+            expect(ffi.connectionClose.async).toHaveBeenCalledTimes(1);
+            expect(ffi.unregister).not.toHaveBeenCalled();
+            expect(ffi.hostShutdown).not.toHaveBeenCalled();
+            expect((host as any).outboundCallback).toBe(ffi.callbackToken);
+            expect((FfiRuntimeHost as any).quarantinedHosts.has(host)).toBe(true);
+            expect(error).toHaveBeenCalledTimes(1);
+            expect(vi.getTimerCount()).toBe(0);
+            error.mockRestore();
+        }
+    );
+
     it("does not retry a terminal host shutdown failure", async () => {
-        ffi.connectionClose.mockReturnValue(true);
         ffi.hostShutdown.mockReturnValueOnce(false);
         const error = vi.spyOn(console, "error").mockImplementation(() => {});
         const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, []);
         await host.start();
 
-        host.dispose();
+        await host.dispose();
         await vi.advanceTimersByTimeAsync(500);
 
-        expect(ffi.connectionClose).toHaveBeenCalledTimes(1);
+        expect(ffi.connectionClose.async).toHaveBeenCalledTimes(1);
         expect(ffi.unregister).toHaveBeenCalledTimes(1);
         expect(ffi.hostShutdown).toHaveBeenCalledTimes(1);
         expect(vi.getTimerCount()).toBe(0);
@@ -151,7 +221,6 @@ describe("FfiRuntimeHost callback cleanup", () => {
     });
 
     it("retains the callback token when Koffi unregistration fails", async () => {
-        ffi.connectionClose.mockReturnValue(true);
         ffi.unregister.mockImplementationOnce(() => {
             throw new Error("unregister failed");
         });
@@ -159,10 +228,10 @@ describe("FfiRuntimeHost callback cleanup", () => {
         const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, []);
         await host.start();
 
-        host.dispose();
+        await host.dispose();
         await vi.advanceTimersByTimeAsync(500);
 
-        expect(ffi.connectionClose).toHaveBeenCalledTimes(1);
+        expect(ffi.connectionClose.async).toHaveBeenCalledTimes(1);
         expect(ffi.unregister).toHaveBeenCalledTimes(1);
         expect(ffi.hostShutdown).toHaveBeenCalledTimes(1);
         expect((host as any).outboundCallback).toBe(ffi.callbackToken);
@@ -170,7 +239,7 @@ describe("FfiRuntimeHost callback cleanup", () => {
         expect((host as any).keepAliveTimer).toBeUndefined();
         expect(vi.getTimerCount()).toBe(0);
 
-        host.dispose();
+        await host.dispose();
         expect(ffi.unregister).toHaveBeenCalledTimes(1);
         error.mockRestore();
     });
