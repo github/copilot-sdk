@@ -25,7 +25,6 @@ describe("runtime version identity", () => {
         ["canary", "9.9.9-canary.test"],
         ["unstable", "1.0.83-5.unstable.123.gabcdef0"],
         ["unstable", "9.9.9-unstable.test"],
-        ["unstable", "1.0.83-5.unstable.123.gabcdef0+build.42"],
     ] as const)("accepts a %s runtime version: %s", (channel, runtimeVersion) => {
         expect(() => validateRuntimeVersionChannel(runtimeVersion, channel)).not.toThrow();
     });
@@ -43,6 +42,9 @@ describe("runtime version identity", () => {
     it("rejects non-canonical runtime versions", () => {
         expect(() => validateRuntimeVersionChannel(" 1.2.3-unstable.4", "unstable")).toThrow();
         expect(() => validateRuntimeVersionChannel("1.2.3", "unstable")).toThrow();
+        expect(() =>
+            validateRuntimeVersionChannel("1.0.83-5.unstable.123.gabcdef0+build.42", "unstable")
+        ).toThrow("must not contain build metadata");
     });
 });
 

@@ -72,7 +72,7 @@ describe("release manifest", () => {
             createdAt: "2026-09-04T00:00:00Z",
             runtimeRunId: "9001",
             runtimeSha,
-            runtimeVersion: "1.0.83-5.unstable.123.g1234567+build.42",
+            runtimeVersion: "1.0.83-5.unstable.123.g1234567",
             sdkRef: "feature/unstable",
             sdkSha,
             sdkVersion: version,
@@ -91,6 +91,11 @@ describe("release manifest", () => {
         mismatched.runtime.version = "1.0.83-5.canary.123.g1234567.unsigned";
         expect(() => verifyReleaseManifest(mismatched, root)).toThrow(
             "does not belong to the 'unstable' channel"
+        );
+        const buildMetadata = structuredClone(manifest);
+        buildMetadata.runtime.version += "+build.42";
+        expect(() => verifyReleaseManifest(buildMetadata, root)).toThrow(
+            "must not contain build metadata"
         );
         await expect(
             createReleaseManifest(root, {

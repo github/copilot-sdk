@@ -38,10 +38,8 @@ export function validateRuntimeVersionChannel(
     assert(channel === "canary" || channel === "unstable", "Invalid channel");
     const parsed = semver.parse(version);
     assert(parsed, "Runtime version must be exact SemVer");
-    const canonicalVersion = `${parsed.version}${
-        parsed.build.length > 0 ? `+${parsed.build.join(".")}` : ""
-    }`;
-    assert.equal(version, canonicalVersion, "Runtime version must be exact SemVer");
+    assert.equal(parsed.build.length, 0, "Runtime version must not contain build metadata");
+    assert.equal(version, parsed.version, "Runtime version must be exact SemVer");
     assert(
         parsed.prerelease.some((identifier) => identifier === channel),
         `Runtime version '${version}' does not belong to the '${channel}' channel`

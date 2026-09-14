@@ -216,6 +216,10 @@ describe("runtime-backed publishing path", () => {
         expect(runtimeInternalJob).toContain('"$FEED_URL" azure');
         expect(runtimeInternalJob).toContain("Clean install and package version check");
         expect(runtimePublicJob).toContain("inputs.dist-tag == 'unstable'");
+        expect(runtimePublicJob).toContain("always()");
+        expect(runtimePublicJob).toContain("!cancelled()");
+        expect(runtimePublicJob).toContain("needs.runtime-plan.result == 'success'");
+        expect(runtimePublicJob).toContain("needs.runtime-publish-internal.result == 'success'");
         expect(runtimePublicJob).toContain("needs: [runtime-plan, runtime-publish-internal]");
         expect(runtimePublicJob).toContain("https://registry.npmjs.org public");
     });

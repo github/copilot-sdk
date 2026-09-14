@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { x as extractTar } from "tar";
+import { runCommand } from "./npm-release.js";
 import { RUNTIME_PLATFORMS, validateFile } from "../src/runtimeArtifacts.js";
 
 interface CommandResult {
@@ -33,35 +33,12 @@ export interface AcquireRuntimePackagesOptions {
     runtimeVersion: string;
 }
 
-export type CommandRunner = (
-    command: string,
-    args: string[],
-    options?: { cwd?: string }
-) => Promise<CommandResult>;
+export type CommandRunner = (command: string, args: string[]) => Promise<CommandResult>;
 
 const GITHUB_PACKAGES_REGISTRY = "https://npm.pkg.github.com";
 
 export function getSourceRuntimePackageName(platform: string): string {
     return `@github/copilot-${platform}`;
-}
-
-export function runCommand(
-    command: string,
-    args: string[],
-    options: { cwd?: string } = {}
-): Promise<CommandResult> {
-    return new Promise((resolveResult, reject) => {
-        const child = spawn(command, args, {
-            cwd: options.cwd,
-            shell: false,
-        });
-        let stdout = "";
-        let stderr = "";
-        child.stdout.on("data", (chunk) => (stdout += chunk));
-        child.stderr.on("data", (chunk) => (stderr += chunk));
-        child.on("error", reject);
-        child.on("close", (status) => resolveResult({ status: status ?? 1, stdout, stderr }));
-    });
 }
 
 function parseJsonOutput<T>(result: CommandResult, description: string): T {

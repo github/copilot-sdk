@@ -990,7 +990,13 @@ jobs:
 
   runtime-publish-public:
     name: Publish runtime release publicly
-    if: inputs.dist-tag == 'unstable' && inputs.mode == 'publish'
+    if: |
+      always() &&
+      !cancelled() &&
+      inputs.dist-tag == 'unstable' &&
+      inputs.mode == 'publish' &&
+      needs.runtime-plan.result == 'success' &&
+      needs.runtime-publish-internal.result == 'success'
     needs: [runtime-plan, runtime-publish-internal]
     runs-on: ubuntu-latest
     concurrency:
