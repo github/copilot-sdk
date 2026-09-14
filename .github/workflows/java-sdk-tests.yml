@@ -419,7 +419,7 @@ jobs:
             "-Dmaven.repo.local=$LOCAL_REPOSITORY"
           node copilot-native/scripts/validate-local-publication.mjs \
             "$LOCAL_REPOSITORY" copilot-sdk-java-runtime "$VERSION" .. --signatures
-          mvn -B -pl sdk install -Prelease -DskipTests \
+          mvn -B -pl sdk install -Prelease -DskipTests -DskipITs \
             "-Drevision=$VERSION" \
             "-Dmaven.repo.local=$LOCAL_REPOSITORY"
           node copilot-native/scripts/validate-local-publication.mjs \

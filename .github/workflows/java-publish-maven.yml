@@ -531,7 +531,7 @@ jobs:
         id: publish-maven
         run: |
           VERSION="${{ needs.resolve-source.outputs.release_version }}"
-          mvn -B deploy -DskipTests -Prelease -Drevision="$VERSION" -Dcopilot.native.libc=glibc \
+          mvn -B deploy -DskipTests -DskipITs -Prelease -Drevision="$VERSION" -Dcopilot.native.libc=glibc \
             "-Dcopilot.native.external.linux.arm64.classifier.path=${{ steps.linux-arm64-artifact.outputs.linux_arm64_jar }}" \
             "-Dcopilot.native.external.win32.classifier.path=${{ steps.windows-artifact.outputs.windows_jar }}" \
             "-Dcopilot.native.external.win32.arm64.classifier.path=${{ steps.windows-arm64-artifact.outputs.windows_arm64_jar }}" \
