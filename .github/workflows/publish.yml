@@ -33,7 +33,7 @@ on:
         type: string
         required: false
       test-policy:
-        description: "Runtime E2E policy: required, advisory, or skipped"
+        description: "Runtime E2E test policy"
         type: choice
         required: true
         default: required
