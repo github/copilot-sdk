@@ -318,8 +318,8 @@ it("pauses once at a durable checkpoint and continues after resume", async () =>
         notifyOnComplete: false,
     });
     expect(paused).toMatchObject({ status: "paused" });
-    expect(readFileSync(join(extensionDir, "checkpoint-attempts"), "utf8")).toBe("1");
-    expect(readFileSync(join(extensionDir, "checkpoint-preparations"), "utf8")).toBe("1");
+    expect(readFileSync(join(extensionDir, "checkpoint-attempts"))).toHaveLength(1);
+    expect(readFileSync(join(extensionDir, "checkpoint-preparations"))).toHaveLength(1);
 
     const resumed = await session.factory.resume(paused.runId, {
         notifyOnComplete: false,
@@ -329,8 +329,8 @@ it("pauses once at a durable checkpoint and continues after resume", async () =>
         status: "completed",
         result: { attempt: 2, prepared: 1 },
     });
-    expect(readFileSync(join(extensionDir, "checkpoint-attempts"), "utf8")).toBe("2");
-    expect(readFileSync(join(extensionDir, "checkpoint-preparations"), "utf8")).toBe("1");
+    expect(readFileSync(join(extensionDir, "checkpoint-attempts"))).toHaveLength(2);
+    expect(readFileSync(join(extensionDir, "checkpoint-preparations"))).toHaveLength(1);
 });
 
 it("refuses a factory started through the context session from a factory body", async () => {

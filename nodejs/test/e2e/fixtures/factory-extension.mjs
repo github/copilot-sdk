@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fstatSync, openSync, writeFileSync, writeSync } from "node:fs";
 import { defineFactory, joinSession } from "@github/copilot-sdk/extension";
 
 const marker = (name) => new URL(`./${name}`, import.meta.url);
@@ -14,11 +14,13 @@ async function waitForMarker(name, timeoutMs) {
 }
 
 function incrementMarker(name) {
-    const path = marker(name);
-    const current = existsSync(path) ? Number.parseInt(readFileSync(path, "utf8"), 10) : 0;
-    const next = current + 1;
-    writeFileSync(path, String(next));
-    return next;
+    const descriptor = openSync(marker(name), "a+");
+    try {
+        writeSync(descriptor, "1");
+        return fstatSync(descriptor).size;
+    } finally {
+        closeSync(descriptor);
+    }
 }
 
 const argumentEcho = defineFactory({
