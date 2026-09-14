@@ -76,6 +76,7 @@ describe("release manifest", () => {
             sdkRef: "feature/unstable",
             sdkSha,
             sdkVersion: version,
+            testPolicy: "advisory",
             workflowRunId: "812300",
             workflowRunNumber: "8123",
         });
@@ -83,6 +84,7 @@ describe("release manifest", () => {
         expect(manifest.packages).toHaveLength(9);
         expect(manifest.runtime.runId).toBe("9001");
         expect(manifest.runtime.source).toBe("github-packages");
+        expect(manifest.workflow.testPolicy).toBe("advisory");
         expect(() => verifyReleaseManifest(manifest, root)).not.toThrow();
 
         const mismatched = structuredClone(manifest);
@@ -100,10 +102,17 @@ describe("release manifest", () => {
                 sdkRef: "feature/unstable",
                 sdkSha,
                 sdkVersion: version,
+                testPolicy: "required",
                 workflowRunId: "812300",
                 workflowRunNumber: "8123",
             })
         ).rejects.toThrow("does not belong to the 'canary' channel");
+
+        const invalidPolicy = structuredClone(manifest);
+        invalidPolicy.workflow.testPolicy = "optional" as "required";
+        expect(() => verifyReleaseManifest(invalidPolicy, root)).toThrow(
+            "Invalid runtime E2E test policy"
+        );
 
         const damaged = join(root, manifest.packages[0].filename);
         writeFileSync(damaged, Buffer.concat([readFileSync(damaged), Buffer.from("tampered")]));

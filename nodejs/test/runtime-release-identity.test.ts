@@ -14,6 +14,7 @@ const inputs: ReleaseDispatchInputs = {
     distTag: "unstable",
     mode: "publish",
     runtimeJson: "",
+    testPolicy: "required",
     version: "",
 };
 
@@ -54,6 +55,7 @@ describe("release dispatch", () => {
                 runtimeRunId: "",
                 runtimeSha: "",
                 runtimeVersion: "",
+                testPolicy: "required",
             });
         }
     );
@@ -82,8 +84,22 @@ describe("release dispatch", () => {
             runtimeRunId: runtime.run_id,
             runtimeSha: runtime.sha,
             runtimeVersion: version,
+            testPolicy: "required",
         });
     });
+
+    it.each(["required", "advisory", "skipped"] as const)(
+        "accepts runtime-backed releases with %s tests",
+        (testPolicy) => {
+            expect(
+                validateReleaseDispatch({
+                    ...inputs,
+                    runtimeJson: JSON.stringify(runtime),
+                    testPolicy,
+                }).testPolicy
+            ).toBe(testPolicy);
+        }
+    );
 
     it("rejects canary without runtime JSON", () => {
         expect(() => validateReleaseDispatch({ ...inputs, distTag: "canary" })).toThrow(
@@ -117,13 +133,25 @@ describe("release dispatch", () => {
         ).toThrow("direct version input");
     });
 
-    it("rejects unknown dist-tags and modes", () => {
+    it.each(["advisory", "skipped"] as const)(
+        "rejects %s tests for direct releases",
+        (testPolicy) => {
+            expect(() => validateReleaseDispatch({ ...inputs, testPolicy })).toThrow(
+                "Direct releases require the default runtime E2E test policy"
+            );
+        }
+    );
+
+    it("rejects unknown dist-tags, modes, and test policies", () => {
         expect(() =>
             validateReleaseDispatch({ ...inputs, distTag: "preview" as "unstable" })
         ).toThrow("Invalid release dist-tag");
         expect(() => validateReleaseDispatch({ ...inputs, mode: "test" as "publish" })).toThrow(
             "Invalid release mode"
         );
+        expect(() =>
+            validateReleaseDispatch({ ...inputs, testPolicy: "optional" as "required" })
+        ).toThrow("Invalid runtime E2E test policy");
     });
 
     it.each([

@@ -32,6 +32,15 @@ on:
         description: 'Automation-only runtime JSON: {"version":"...","sha":"...","run_id":"..."}'
         type: string
         required: false
+      test-policy:
+        description: "Runtime E2E policy: required, advisory, or skipped"
+        type: choice
+        required: true
+        default: required
+        options:
+          - required
+          - advisory
+          - skipped
 
 permissions:
   contents: read
@@ -49,6 +58,7 @@ jobs:
       runtime_run_id: ${{ steps.validate.outputs.runtime_run_id }}
       runtime_sha: ${{ steps.validate.outputs.runtime_sha }}
       runtime_version: ${{ steps.validate.outputs.runtime_version }}
+      test_policy: ${{ steps.validate.outputs.test_policy }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -63,6 +73,7 @@ jobs:
           DIST_TAG: ${{ inputs.dist-tag }}
           MODE: ${{ inputs.mode }}
           RUNTIME_JSON: ${{ inputs.runtime }}
+          TEST_POLICY: ${{ inputs.test-policy }}
           VERSION_OVERRIDE: ${{ inputs.version }}
         run: npx tsx scripts/runtime-release-identity.ts
 
@@ -698,6 +709,7 @@ jobs:
           SDK_VERSION="$(npx tsx scripts/unstable-version.ts)"
           npm exec -- semver "$SDK_VERSION" >/dev/null
           ARTIFACT_NAME="nodejs-${CHANNEL}-${SDK_VERSION}"
+          echo "Runtime E2E test policy: ${{ needs.validate-dispatch.outputs.test_policy }}" >> "$GITHUB_STEP_SUMMARY"
           {
             echo "artifact_name=$ARTIFACT_NAME"
             echo "sdk_version=$SDK_VERSION"
@@ -751,6 +763,7 @@ jobs:
   runtime-test:
     name: Test runtime (${{ matrix.os }})
     needs: [validate-dispatch, runtime-plan, runtime-acquire]
+    if: needs.validate-dispatch.outputs.test_policy != 'skipped'
     permissions:
       contents: read
     strategy:
@@ -801,13 +814,36 @@ jobs:
         if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
       - name: Run Node SDK tests
+        id: e2e
+        continue-on-error: ${{ needs.validate-dispatch.outputs.test_policy == 'advisory' }}
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
         run: npm test
+      - name: Report advisory E2E failure
+        if: needs.validate-dispatch.outputs.test_policy == 'advisory' && steps.e2e.outcome == 'failure'
+        env:
+          RUNNER_OS: ${{ runner.os }}
+        run: |
+          echo "::warning::Runtime-backed Node SDK E2E tests failed on ${RUNNER_OS}; continuing because test-policy is advisory."
+          {
+            echo "### Advisory runtime E2E failure"
+            echo
+            echo "Runtime-backed Node SDK E2E tests failed on **${RUNNER_OS}**. Publication remains eligible because \`test-policy\` is \`advisory\`."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   runtime-package:
     name: Build and verify runtime release
     needs: [validate-dispatch, runtime-plan, runtime-acquire, runtime-test]
+    if: |
+      always() &&
+      !cancelled() &&
+      needs.validate-dispatch.result == 'success' &&
+      needs.runtime-plan.result == 'success' &&
+      needs.runtime-acquire.result == 'success' &&
+      (
+        needs.runtime-test.result == 'success' ||
+        (needs.validate-dispatch.outputs.test_policy == 'skipped' && needs.runtime-test.result == 'skipped')
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -857,6 +893,7 @@ jobs:
           SDK_REF: ${{ github.ref }}
           SDK_SHA: ${{ github.sha }}
           SDK_VERSION: ${{ needs.runtime-plan.outputs.sdk_version }}
+          TEST_POLICY: ${{ needs.validate-dispatch.outputs.test_policy }}
           WORKFLOW_CREATED_AT: ${{ needs.runtime-plan.outputs.workflow_created_at }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_NUMBER: ${{ github.run_number }}

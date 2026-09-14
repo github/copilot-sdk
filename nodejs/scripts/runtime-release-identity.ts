@@ -6,12 +6,14 @@ import * as semver from "semver";
 
 export type ReleaseDistTag = "canary" | "latest" | "prerelease" | "unstable";
 export type ReleaseMode = "dry-run" | "publish";
+export type ReleaseTestPolicy = "advisory" | "required" | "skipped";
 export type RuntimeReleaseChannel = "canary" | "unstable";
 
 export interface ReleaseDispatchInputs {
     distTag: ReleaseDistTag;
     mode: ReleaseMode;
     runtimeJson: string;
+    testPolicy: ReleaseTestPolicy;
     version: string;
 }
 
@@ -20,6 +22,7 @@ export interface ReleaseDispatchPlan {
     runtimeRunId: string;
     runtimeSha: string;
     runtimeVersion: string;
+    testPolicy: ReleaseTestPolicy;
 }
 
 interface RuntimeDescriptor {
@@ -77,8 +80,19 @@ export function validateReleaseDispatch(inputs: ReleaseDispatchInputs): ReleaseD
         "Invalid release dist-tag"
     );
     assert(inputs.mode === "publish" || inputs.mode === "dry-run", "Invalid release mode");
+    assert(
+        inputs.testPolicy === "required" ||
+            inputs.testPolicy === "advisory" ||
+            inputs.testPolicy === "skipped",
+        "Invalid runtime E2E test policy"
+    );
 
     if (inputs.runtimeJson === "") {
+        assert.equal(
+            inputs.testPolicy,
+            "required",
+            "Direct releases require the default runtime E2E test policy"
+        );
         assert(inputs.distTag !== "canary", "Canary releases require runtime JSON");
         assert(
             inputs.mode !== "dry-run" || inputs.distTag === "unstable",
@@ -89,6 +103,7 @@ export function validateReleaseDispatch(inputs: ReleaseDispatchInputs): ReleaseD
             runtimeRunId: "",
             runtimeSha: "",
             runtimeVersion: "",
+            testPolicy: inputs.testPolicy,
         };
     }
 
@@ -119,6 +134,7 @@ export function validateReleaseDispatch(inputs: ReleaseDispatchInputs): ReleaseD
         runtimeRunId: runtime.run_id,
         runtimeSha: runtime.sha,
         runtimeVersion: runtime.version,
+        testPolicy: inputs.testPolicy,
     };
 }
 
@@ -135,6 +151,7 @@ function main(): void {
         distTag: requiredEnvironment("DIST_TAG") as ReleaseDistTag,
         mode: requiredEnvironment("MODE") as ReleaseMode,
         runtimeJson: process.env.RUNTIME_JSON ?? "",
+        testPolicy: requiredEnvironment("TEST_POLICY") as ReleaseTestPolicy,
         version: process.env.VERSION_OVERRIDE ?? "",
     });
     appendFileSync(
@@ -144,6 +161,7 @@ function main(): void {
             `runtime_run_id=${plan.runtimeRunId}`,
             `runtime_sha=${plan.runtimeSha}`,
             `runtime_version=${plan.runtimeVersion}`,
+            `test_policy=${plan.testPolicy}`,
             "",
         ].join("\n")
     );
