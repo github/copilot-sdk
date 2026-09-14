@@ -272,7 +272,7 @@ it("refuses a factory started through the context session from a factory body", 
 
     expect(result).toMatchObject({
         status: "completed",
-        result: expect.stringContaining("factory.run and factory.resume"),
+        result: expect.stringContaining("factory.run, factory.resume, and factory.pause"),
     });
     expect((result as { result: string }).result).toContain("factory body");
 });
@@ -290,7 +290,7 @@ it("refuses a factory started through the module session from a factory body", a
 
     expect(result).toMatchObject({
         status: "completed",
-        result: expect.stringContaining("factory.run and factory.resume"),
+        result: expect.stringContaining("factory.run, factory.resume, and factory.pause"),
     });
     expect((result as { result: string }).result).toContain("factory body");
 });
