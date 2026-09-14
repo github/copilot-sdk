@@ -2,61 +2,114 @@ import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
 import { generateRpcCode } from "../../scripts/codegen/csharp.ts";
+import type { ApiSchema } from "../../scripts/codegen/utils.ts";
 
 describe("C# RPC codegen", () => {
-    it.each(["anyOf", "oneOf"] as const)("preserves named single-variant %s objects", (keyword) => {
-        const responseFormat: JSONSchema7 = {
-            title: "ResponseFormat",
-            description: "A provider-native output format.",
-            [keyword]: [
-                {
-                    type: "object",
-                    properties: {
-                        type: { type: "string", const: "json_schema" },
-                        jsonSchema: { $ref: "#/definitions/JsonSchemaResponseFormat" },
-                    },
-                    required: ["type", "jsonSchema"],
+    it.each([
+        ["anyOf", false],
+        ["anyOf", true],
+        ["oneOf", false],
+        ["oneOf", true],
+    ] as const)(
+        "preserves the %s hierarchy when adding a variant (nullable: %s)",
+        (keyword, nullable) => {
+            const jsonSchemaVariant: JSONSchema7 = {
+                type: "object",
+                properties: {
+                    type: { type: "string", const: "json_schema" },
+                    jsonSchema: { $ref: "#/definitions/JsonSchemaResponseFormat" },
                 },
-            ],
-        };
-        const code = generateRpcCode({
-            session: {
-                send: {
-                    rpcMethod: "session.send",
-                    params: {
-                        type: "object",
-                        title: "SendRequest",
-                        properties: {
-                            responseFormat: { $ref: "#/definitions/ResponseFormat" },
-                            requiredFormat: { $ref: "#/definitions/ResponseFormat" },
+                required: ["type", "jsonSchema"],
+            };
+            const nullVariants: JSONSchema7[] = nullable ? [{ type: "null" }] : [];
+            const responseFormat: JSONSchema7 = {
+                title: "ResponseFormat",
+                description: "A provider-native output format.",
+                [keyword]: [jsonSchemaVariant, ...nullVariants],
+            };
+            const schema: ApiSchema = {
+                session: {
+                    send: {
+                        rpcMethod: "session.send",
+                        params: {
+                            type: "object",
+                            title: "SendRequest",
+                            properties: {
+                                responseFormat: { $ref: "#/definitions/ResponseFormat" },
+                                requiredFormat: { $ref: "#/definitions/ResponseFormat" },
+                            },
+                            required: ["requiredFormat"],
                         },
-                        required: ["requiredFormat"],
                     },
                 },
-            },
-            definitions: {
-                ResponseFormat: responseFormat,
-                JsonSchemaResponseFormat: {
-                    type: "object",
-                    properties: {
-                        name: { type: "string" },
-                        schema: { "x-opaque-json": true } as JSONSchema7,
-                        strict: { type: "boolean" },
+                definitions: {
+                    ResponseFormat: responseFormat,
+                    JsonSchemaResponseFormat: {
+                        type: "object",
+                        properties: {
+                            name: { type: "string" },
+                            schema: { "x-opaque-json": true } as JSONSchema7,
+                            strict: { type: "boolean" },
+                        },
+                        required: ["name", "schema"],
                     },
-                    required: ["name", "schema"],
                 },
-            },
-        });
+            };
+            const code = generateRpcCode(schema);
+            const futureCode = generateRpcCode({
+                ...schema,
+                definitions: {
+                    ...schema.definitions,
+                    ResponseFormat: {
+                        ...responseFormat,
+                        [keyword]: [
+                            jsonSchemaVariant,
+                            {
+                                type: "object",
+                                properties: { type: { type: "string", const: "text" } },
+                                required: ["type"],
+                            },
+                            ...nullVariants,
+                        ],
+                    },
+                },
+            });
 
-        expect(code).toContain("public sealed class ResponseFormat");
-        expect(code).toContain("A provider-native output format.");
-        expect(code).toContain("public ResponseFormat? ResponseFormat");
-        expect(code).toContain("public ResponseFormat RequiredFormat");
-        expect(code).toContain("public JsonSchemaResponseFormat JsonSchema");
-        expect(code).toContain("public JsonElement Schema");
-        expect(code).toContain("public bool? Strict");
-        expect(code.match(/public sealed class ResponseFormat\b/g)).toHaveLength(1);
-    });
+            for (const generated of [code, futureCode]) {
+                expect(generated).toContain("public partial class ResponseFormat\n");
+                expect(generated).toContain("A provider-native output format.");
+                expect(generated).toContain(
+                    '[JsonPolymorphic(\n    TypeDiscriminatorPropertyName = "type",'
+                );
+                expect(generated).toContain(
+                    '[JsonDerivedType(typeof(ResponseFormatJsonSchema), "json_schema")]'
+                );
+                expect(generated).toContain(
+                    "public partial class ResponseFormatJsonSchema : ResponseFormat"
+                );
+                expect(generated).toContain('public override string Type => "json_schema";');
+                expect(generated).toContain("public ResponseFormat? ResponseFormat");
+                expect(generated).toContain(
+                    `public ResponseFormat${nullable ? "?" : ""} RequiredFormat`
+                );
+                expect(generated).toContain("public required JsonSchemaResponseFormat JsonSchema");
+                expect(generated).toContain("public JsonElement Schema");
+                expect(generated).toContain("public bool? Strict");
+                expect(generated).toContain("[JsonSerializable(typeof(ResponseFormat))]");
+                expect(generated.match(/public partial class ResponseFormat\b/g)).toHaveLength(1);
+            }
+            for (const name of ["ResponseFormat", "ResponseFormatJsonSchema"]) {
+                const declaration = new RegExp(
+                    `public partial class ${name}\\b[^\\n]*\\n\\{[\\s\\S]*?\\n\\}`
+                );
+                expect(code.match(declaration)?.[0]).toBe(futureCode.match(declaration)?.[0]);
+            }
+            expect(futureCode).toContain('[JsonDerivedType(typeof(ResponseFormatText), "text")]');
+            expect(futureCode).toContain(
+                "public partial class ResponseFormatText : ResponseFormat"
+            );
+        }
+    );
 
     it.each(["anyOf", "oneOf"] as const)(
         "preserves referenced enum discriminators and nested %s unions",

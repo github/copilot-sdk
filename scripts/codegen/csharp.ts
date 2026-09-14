@@ -1723,22 +1723,11 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
 
         return resolveRpcType({ ...refSchema, title: refSchema.title ?? typeName }, isRequired, parentClassName, propName, classes);
     }
-    // Handle anyOf: [T, null/{not:{}}] → T? (nullable typed property)
-    const nullableInner = getNullableInner(schema);
-    if (nullableInner) {
-        return resolveRpcType(nullableInner, false, parentClassName, propName, classes);
-    }
     const unionVariants = schema.anyOf ?? schema.oneOf;
-    if (unionVariants?.length === 1 && typeof unionVariants[0] === "object") {
-        return resolveRpcType(
-            { ...schema, anyOf: undefined, oneOf: undefined, ...unionVariants[0], title: schema.title ?? unionVariants[0].title },
-            isRequired, parentClassName, propName, classes,
-        );
-    }
-    // Discriminated union: anyOf with multiple variants sharing a const discriminator
-    if (schema.anyOf && Array.isArray(schema.anyOf)) {
-        const nonNull = schema.anyOf.filter((s) => typeof s === "object" && s !== null && (s as JSONSchema7).type !== "null");
-        if (nonNull.length > 1) {
+    // Keep the same polymorphic API even when a discriminated union has only one variant.
+    if (unionVariants) {
+        const nonNull = getNonNullUnionMembers(schema);
+        if (nonNull.length > 0) {
             const variants = (nonNull as JSONSchema7[]).map((v) => {
                 if (v.$ref) {
                     const resolved = resolveRef(v.$ref, rpcDefinitions);
@@ -1748,7 +1737,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
             });
             const discriminatorInfo = findDiscriminator(variants);
             if (discriminatorInfo) {
-                const hasNull = schema.anyOf.length > nonNull.length;
+                const hasNull = unionVariants.length > nonNull.length;
                 const baseClassName = (schema.title as string) ?? `${parentClassName}${propName}`;
                 if (!emittedRpcClassSchemas.has(baseClassName)) {
                     emittedRpcClassSchemas.set(baseClassName, "polymorphic");
@@ -1769,7 +1758,12 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
             }
         }
     }
-    if (unionVariants && getNonNullUnionMembers(schema).length > 1) {
+    // Preserve nullable references without introducing another wrapper around their declared type.
+    const nullableInner = getNullableInner(schema);
+    if (nullableInner) {
+        return resolveRpcType(nullableInner, false, parentClassName, propName, classes);
+    }
+    if (unionVariants && getNonNullUnionMembers(schema).length > 0) {
         const members = getNonNullUnionMembers(schema);
         const matchExpressions = members.map((member) => getRpcUnionMatchExpression(member));
         if (matchExpressions.every((expression) => expression !== undefined)) {
