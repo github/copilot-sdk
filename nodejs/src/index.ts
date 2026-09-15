@@ -77,7 +77,7 @@ export type {
     InProcessRuntimeConnection,
     TcpRuntimeConnection,
     UriRuntimeConnection,
-    ChildProcessRuntimeConnection,
+    OutOfProcessRuntimeConnection,
     CustomAgentConfig,
     ElicitationFieldValue,
     ElicitationHandler,

@@ -3,7 +3,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use async_trait::async_trait;
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, Error, ListModelsHandler, Model, Transport,
+    CliProgram, Client, ClientOptions, Error, ListModelsHandler, Model, OutOfProcessOptions,
+    Transport,
 };
 
 use super::support::{is_inprocess_default, with_e2e_context};
@@ -42,6 +43,7 @@ async fn should_start_ping_and_stop_tcp_client() {
             let client = Client::start(ctx.client_options_with_transport(Transport::Tcp {
                 port: 0,
                 connection_token: Some("tcp-e2e-token".to_string()),
+                process: OutOfProcessOptions::default(),
             }))
             .await
             .expect("start TCP client");
@@ -162,8 +164,10 @@ async fn should_force_stop_client() {
 async fn should_report_error_with_stderr_when_cli_fails_to_start() {
     let err = Client::start(
         ClientOptions::new()
-            .with_program(CliProgram::Path(std::path::PathBuf::from(
-                "definitely-not-copilot-cli-for-rust-e2e",
+            .with_transport(Transport::Stdio(OutOfProcessOptions::new().with_program(
+                CliProgram::Path(std::path::PathBuf::from(
+                    "definitely-not-copilot-cli-for-rust-e2e",
+                )),
             )))
             .with_use_logged_in_user(false),
     )

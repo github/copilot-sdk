@@ -31,15 +31,17 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    public async Task Should_Use_Client_Cwd_For_Default_WorkingDirectory()
+    public async Task Should_Use_OutOfProcess_Connection_WorkingDirectory()
     {
         var clientCwd = Path.Join(Ctx.WorkDir, "client-cwd");
         Directory.CreateDirectory(clientCwd);
         await File.WriteAllTextAsync(Path.Join(clientCwd, "marker.txt"), "I am in the client cwd");
+        var connection = RuntimeConnection.ForStdio();
+        connection.WorkingDirectory = clientCwd;
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            WorkingDirectory = clientCwd,
+            Connection = connection,
         });
 
         var session = await Ctx.CreateSessionAsync(client, new SessionConfig

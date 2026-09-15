@@ -22,6 +22,8 @@ import com.github.copilot.ffi.InProcessEnvGuard;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.InProcessRuntimeConnection;
 import com.github.copilot.rpc.RuntimeConnection;
+import com.github.copilot.rpc.StdioRuntimeConnection;
+import com.github.copilot.rpc.TcpRuntimeConnection;
 
 /**
  * E2E test context that manages the test environment including the CapiProxy,
@@ -419,8 +421,9 @@ public class E2ETestContext implements AutoCloseable {
      * options for this test context.
      *
      * @param options
-     *            options to apply; environment and cliPath will be set from the
-     *            context if not already set
+     *            options to apply; the out-of-process connection environment,
+     *            working directory, and CLI path will be set from the context if
+     *            not already set
      * @return a new CopilotClient
      */
     public CopilotClient createClient(CopilotClientOptions options) {
@@ -437,11 +440,9 @@ public class E2ETestContext implements AutoCloseable {
 
     private CopilotClient applyContextOptions(CopilotClientOptions options) {
         if (isInProcessMode(options)) {
-            InProcessEnvGuard guard = new InProcessEnvGuard(buildInProcessEnvironment(options));
+            InProcessEnvGuard guard = new InProcessEnvGuard(buildInProcessEnvironment());
             inProcessEnvGuards.add(guard);
             try {
-                options.setEnvironment(null);
-                options.setCwd(null);
                 options.setCliArgs(null);
                 return new CopilotClient(options, guard::close);
             } catch (RuntimeException e) {
@@ -449,15 +450,7 @@ public class E2ETestContext implements AutoCloseable {
                 throw e;
             }
         }
-        if (options.getCliPath() == null) {
-            options.setCliPath(cliPath);
-        }
-        if (options.getCwd() == null) {
-            options.setCwd(workDir.toString());
-        }
-        if (options.getEnvironment() == null || options.getEnvironment().isEmpty()) {
-            options.setEnvironment(getEnvironment());
-        }
+        applyOutOfProcessContext(options);
         return null;
     }
 
@@ -474,14 +467,49 @@ public class E2ETestContext implements AutoCloseable {
         return defaultConnection != null && "inprocess".equalsIgnoreCase(defaultConnection.trim());
     }
 
-    private Map<String, String> buildInProcessEnvironment(CopilotClientOptions options) {
-        Map<String, String> env = new HashMap<>(getEnvironment());
-        Map<String, String> optionEnvironment = options.getEnvironment();
-        if (optionEnvironment != null && !optionEnvironment.isEmpty()) {
-            env.putAll(optionEnvironment);
-            options.setEnvironment(null);
+    private Map<String, String> buildInProcessEnvironment() {
+        return new HashMap<>(getEnvironment());
+    }
+
+    private void applyOutOfProcessContext(CopilotClientOptions options) {
+        RuntimeConnection connection = options.getConnection();
+        if (connection == null) {
+            connection = CopilotClient.resolveDefaultConnection(options,
+                    System.getenv(CopilotClient.DEFAULT_CONNECTION_ENV_VAR));
+            if (connection instanceof StdioRuntimeConnection || connection instanceof TcpRuntimeConnection) {
+                options.setConnection(connection);
+            }
         }
-        return env;
+
+        if (connection instanceof StdioRuntimeConnection stdio) {
+            if (stdio.getPath() == null) {
+                stdio.setPath(cliPath);
+            }
+            if (stdio.getWorkingDirectory() == null) {
+                stdio.setWorkingDirectory(workDir.toString());
+            }
+            if (stdio.getEnvironment() == null || stdio.getEnvironment().isEmpty()) {
+                stdio.setEnvironment(getEnvironment());
+            }
+            return;
+        }
+
+        if (connection instanceof TcpRuntimeConnection tcp) {
+            if (tcp.getPath() == null) {
+                tcp.setPath(cliPath);
+            }
+            if (tcp.getWorkingDirectory() == null) {
+                tcp.setWorkingDirectory(workDir.toString());
+            }
+            if (tcp.getEnvironment() == null || tcp.getEnvironment().isEmpty()) {
+                tcp.setEnvironment(getEnvironment());
+            }
+            return;
+        }
+
+        if (options.getCliPath() == null && (options.getCliUrl() == null || options.getCliUrl().isEmpty())) {
+            options.setCliPath(cliPath);
+        }
     }
 
     /**

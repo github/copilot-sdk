@@ -1,0 +1,22 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read the file marker.txt and tell me what it says
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"cat marker.txt","description":"Read marker.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          I am in the client cwd
+          <exited with exit code 0>
+      - role: assistant
+        content: 'marker.txt says: **"I am in the client cwd"**'

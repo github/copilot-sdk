@@ -110,7 +110,7 @@ Follow these steps to embed the CLI:
 1. Run `go get -tool github.com/github/copilot-sdk/go/cmd/bundler`. This is a one-time setup step per project.
 2. Run `go tool bundler` in your build environment just before building your application.
 
-That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`), the SDK automatically installs the embedded `copilot-runtime` executable and adjacent `runtime.node` to a cache directory for managed child-process connections.
+That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`), the SDK automatically installs the embedded `copilot-runtime` executable and adjacent `runtime.node` to a cache directory for managed out-of-process connections.
 
 The bundler prepares the native runtime library required by the [in-process transport](#in-process-transport-experimental). It is included in the application only when building with the `copilot_inprocess` build tag.
 
@@ -118,7 +118,7 @@ The bundler prepares the native runtime library required by the [in-process tran
 
 > **Experimental:** the in-process API may change in a future release.
 
-By default the SDK starts the runtime as a child process and talks JSON-RPC over stdio or TCP. The **in-process** transport instead loads a native runtime library directly into your process.
+By default the SDK starts the runtime out of process and talks JSON-RPC over stdio or TCP. The **in-process** transport instead loads a native runtime library directly into your process.
 
 Build your application with the `copilot_inprocess` build tag:
 
@@ -144,7 +144,7 @@ Resolution and requirements:
   always takes precedence.
 - Set `COPILOT_CLI_PATH` only when using an externally provisioned compatible runtime package; otherwise the bundled runtime is used. No `PATH` lookup is performed.
 - Embedded runtime versions are isolated in separate cache directories. Start fails loudly if the native runtime is unavailable.
-- Managed child-process start fails if the embedded `copilot-runtime` and
+- Managed out-of-process start fails if the embedded `copilot-runtime` and
   `runtime.node` pair is unavailable; explicit paths and `COPILOT_CLI_PATH`
   remain direct overrides.
 - Linux in-process bundles include both glibc and musl runtime packages and select the matching package automatically at startup.
@@ -152,9 +152,7 @@ Resolution and requirements:
 
 The in-process transport rejects options that cannot be honored by a runtime hosted in your shared process (each panics at `NewClient`):
 
-- `Env` — the host process has a single environment block. Set variables on the host process environment instead.
-- `WorkingDirectory` — the runtime shares the host process's working directory. Change the process working directory before creating the client.
-- `Telemetry` — per-client telemetry is lowered to native-runtime environment variables. Use a child-process transport for per-client telemetry.
+- `Telemetry` — per-client telemetry is lowered to native-runtime environment variables. Use an out-of-process connection for per-client telemetry.
 
 Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)), so `CGO_ENABLED=0` and cross-compilation are preserved; no C toolchain is required.
 
@@ -199,18 +197,16 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 **ClientOptions:**
 
 - `Connection` (RuntimeConnection): How the SDK connects to the runtime. Construct via one of:
-  - `StdioConnection{Path, Args, Env}` — spawn a runtime over stdio (the default if `Connection` is nil)
-  - `TCPConnection{Port, ConnectionToken, Path, Args, Env}` — spawn a runtime that listens on TCP
+  - `StdioConnection{Path, Args, WorkingDirectory, Env}` — spawn and manage an out-of-process runtime over stdio (the default if `Connection` is nil)
+  - `TCPConnection{Port, ConnectionToken, Path, Args, WorkingDirectory, Env}` — spawn and manage an out-of-process runtime that listens on TCP
   - `URIConnection{URL, ConnectionToken}` — connect to an already-running runtime (no process spawned)
-  - `InProcessConnection{}` — **Experimental.** Host the runtime in-process via the native FFI library instead of spawning a child process. See [In-process transport](#in-process-transport-experimental) below.
+  - `InProcessConnection{}` — **Experimental.** Host the runtime in-process via the native FFI library instead of spawning an out-of-process runtime. See [In-process transport](#in-process-transport-experimental) below.
 
   When `Path` is empty for stdio/tcp, the SDK uses `COPILOT_CLI_PATH` when set, then the bundled `copilot-runtime` and adjacent `runtime.node`.
 
-  `StdioConnection` and `TCPConnection` accept an optional connection-level `Env`. Set environment variables via **either** the client-level `Env` option or the connection's `Env`, not both (setting both panics); prefer the connection-level `Env`.
-- `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
+  Process-scoped settings are configured on `StdioConnection` and `TCPConnection`, not on `ClientOptions`, because they do not apply to `InProcessConnection`.
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
-- `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
 - `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `URIConnection`.
 - `EnableRemoteSessions` (bool): Enable remote session support (Mission Control integration). Ignored with `URIConnection`.

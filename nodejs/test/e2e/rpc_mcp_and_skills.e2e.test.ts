@@ -63,14 +63,16 @@ describe("Session MCP and skills RPC", async () => {
 
     function createMcpAppsClient(): CopilotClient {
         const mcpAppsClient = new CopilotClient({
-            workingDirectory: workDir,
-            env: {
-                ...env,
-                COPILOT_MCP_APPS: "true",
-                MCP_APPS: "true",
-            },
             logLevel: "error",
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: workDir,
+                env: {
+                    ...env,
+                    COPILOT_MCP_APPS: "true",
+                    MCP_APPS: "true",
+                },
+            }),
         });
         onTestFinished(async () => {
             try {

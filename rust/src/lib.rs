@@ -141,6 +141,116 @@ fn record_optional_millis(span: &tracing::Span, field: &'static str, value: Opti
     }
 }
 
+/// Process-scoped configuration for **out-of-process** transports
+/// ([`Transport::Stdio`] and [`Transport::Tcp`]) — the SDK spawns and owns
+/// the CLI process for these, so per-connection process configuration is
+/// coherent.
+///
+/// These settings have no equivalent for [`Transport::InProcess`] (the
+/// native runtime shares this process — there is no child process to
+/// configure) or [`Transport::External`] (the SDK connects to a server it
+/// did not spawn, so process-launch settings do not apply).
+///
+/// `#[non_exhaustive]` and `Default`, so this type can grow new fields
+/// compatibly. Construct with [`OutOfProcessOptions::new`] or
+/// `Default::default()` plus the `with_*` builders.
+#[non_exhaustive]
+#[derive(Clone, Default)]
+pub struct OutOfProcessOptions {
+    /// How to locate the runtime binary. See [`CliProgram`].
+    pub program: CliProgram,
+    /// Arguments prepended before `--server` (e.g. the script path for node).
+    pub prefix_args: Vec<OsString>,
+    /// Working directory for the CLI process.
+    pub working_directory: PathBuf,
+    /// Environment variables set on the CLI process. A nonempty value
+    /// **replaces** the inherited process environment (instead of adding to
+    /// it) before SDK-managed variables (auth token, telemetry,
+    /// `COPILOT_HOME`, etc.) and this map are layered on top, consistent
+    /// with the other SDKs. Leave empty to inherit the ambient environment
+    /// unchanged.
+    pub env: Vec<(OsString, OsString)>,
+    /// Environment variable names to remove from the CLI process (applied
+    /// after [`Self::env`], so this can strip SDK-injected variables too).
+    pub env_remove: Vec<OsString>,
+    /// Extra flags appended after the transport-specific arguments.
+    pub extra_args: Vec<String>,
+}
+
+impl std::fmt::Debug for OutOfProcessOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OutOfProcessOptions")
+            .field("program", &self.program)
+            .field("prefix_args", &self.prefix_args)
+            .field("working_directory", &self.working_directory)
+            .field("env", &self.env)
+            .field("env_remove", &self.env_remove)
+            .field("extra_args", &self.extra_args)
+            .finish()
+    }
+}
+
+impl OutOfProcessOptions {
+    /// Construct a new [`OutOfProcessOptions`] with default values.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// How to locate the runtime binary. See [`CliProgram`].
+    pub fn with_program(mut self, program: impl Into<CliProgram>) -> Self {
+        self.program = program.into();
+        self
+    }
+
+    /// Arguments prepended before `--server` (e.g. the script path for node).
+    pub fn with_prefix_args<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<OsString>,
+    {
+        self.prefix_args = args.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Working directory for the CLI process.
+    pub fn with_working_directory(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.working_directory = dir.into();
+        self
+    }
+
+    /// Environment variables to set on the CLI process. See [`Self::env`]
+    /// for replace-vs-merge semantics.
+    pub fn with_env<I, K, V>(mut self, env: I) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<OsString>,
+        V: Into<OsString>,
+    {
+        self.env = env.into_iter().map(|(k, v)| (k.into(), v.into())).collect();
+        self
+    }
+
+    /// Environment variable names to remove from the CLI process.
+    pub fn with_env_remove<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<OsString>,
+    {
+        self.env_remove = names.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Extra CLI flags appended after the transport-specific arguments.
+    pub fn with_extra_args<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.extra_args = args.into_iter().map(Into::into).collect();
+        self
+    }
+}
+
 /// How the SDK communicates with the CLI server.
 #[derive(Debug, Default)]
 #[non_exhaustive]
@@ -149,22 +259,25 @@ pub enum Transport {
     /// back to [`Transport::Stdio`] when the variable is unset.
     #[default]
     Default,
-    /// Communicate over stdin/stdout pipes (default).
-    Stdio,
+    /// Communicate over stdin/stdout pipes (default). Carries
+    /// out-of-process configuration (program, working directory, env,
+    /// extra args) — see [`OutOfProcessOptions`].
+    Stdio(OutOfProcessOptions),
     /// Host the runtime in-process over FFI (no child process).
     ///
     /// Loads the native runtime library and speaks JSON-RPC over its C ABI.
-    /// This is **experimental**. Per-client [`ClientOptions::program`],
-    /// [`ClientOptions::extra_args`], [`ClientOptions::working_directory`],
-    /// [`ClientOptions::env`]/[`ClientOptions::env_remove`],
-    /// and [`ClientOptions::telemetry`] are not supported because native
-    /// runtime code shares the host process. Typed runtime options such as
-    /// authentication, log level, and [`ClientOptions::base_directory`] remain
-    /// supported.
+    /// This is **experimental**. [`OutOfProcessOptions`] (program, working
+    /// directory, env, extra args — not applicable, there is no child
+    /// process) and [`ClientOptions::telemetry`] are not supported because
+    /// native runtime code shares the host process. Typed runtime options
+    /// such as authentication, log level, and [`ClientOptions::base_directory`]
+    /// remain supported and are forwarded to the native runtime.
     ///
     /// Requires the `bundled-in-process` Cargo feature.
     InProcess,
-    /// Spawn the CLI with `--port` and connect via TCP.
+    /// Spawn the CLI with `--port` and connect via TCP. Carries
+    /// out-of-process configuration like [`Transport::Stdio`] — see
+    /// [`OutOfProcessOptions`].
     Tcp {
         /// Port to listen on (0 for OS-assigned).
         port: u16,
@@ -172,8 +285,15 @@ pub enum Transport {
         /// the CLI, the SDK auto-generates a 128-bit hex token so the
         /// loopback listener is safe by default.
         connection_token: Option<String>,
+        /// Process-scoped configuration for the spawned CLI. See
+        /// [`OutOfProcessOptions`].
+        process: OutOfProcessOptions,
     },
-    /// Connect to an already-running CLI server (no process spawning).
+    /// Connect to an already-running CLI server (no process spawning). The
+    /// SDK does not own this process, so [`OutOfProcessOptions`] settings
+    /// (program, working directory, env, extra args) do not apply here —
+    /// unlike [`Transport::Stdio`]/[`Transport::Tcp`], this variant has no
+    /// such field.
     External {
         /// Hostname or IP of the running server.
         host: String,
@@ -185,10 +305,18 @@ pub enum Transport {
     },
 }
 
+impl Transport {
+    /// Convenience constructor for [`Transport::Stdio`] with default
+    /// [`OutOfProcessOptions`].
+    pub fn stdio() -> Self {
+        Transport::Stdio(OutOfProcessOptions::default())
+    }
+}
+
 /// How the SDK locates the GitHub Copilot CLI binary.
 #[derive(Debug, Clone, Default)]
 pub enum CliProgram {
-    /// Auto-resolve the transport's program. Managed child-process transports
+    /// Auto-resolve the transport's program. Managed out-of-process transports
     /// select `COPILOT_CLI_PATH`, then the bundled runtime wrapper. In-process
     /// transport loads the wrapper's adjacent runtime library directly unless
     /// `COPILOT_CLI_PATH` explicitly selects a legacy embedded host.
@@ -266,31 +394,18 @@ pub fn install_bundled_runtime() -> Option<PathBuf> {
 
 /// Options for starting a [`Client`].
 ///
-/// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]
-/// uses `COPILOT_CLI_PATH` when set to a real file. Managed child-process
-/// transports next use the bundled `copilot-runtime` wrapper. In-process
-/// transport loads the wrapper's adjacent runtime library. With `bundled-cli`
-/// disabled, the corresponding artifact is resolved from the build-time
-/// extraction cache.
-///
-/// Set `program` to [`CliProgram::Path`] to use an explicit binary instead.
-/// This skips auto-resolution entirely.
+/// Process-scoped settings — the program/binary path, working directory,
+/// environment, and extra CLI args — are no longer configured here. Set them
+/// on the out-of-process transport instead: [`Transport::Stdio`] and
+/// [`Transport::Tcp`] carry an [`OutOfProcessOptions`] value for exactly this
+/// purpose. [`CliProgram::Resolve`] (the default) uses `COPILOT_CLI_PATH`
+/// when set to a real file, then falls back to the bundled `copilot-runtime`
+/// wrapper (out-of-process) or the wrapper's adjacent runtime library
+/// (in-process). With `bundled-cli` disabled, the corresponding artifact is
+/// resolved from the build-time extraction cache.
 #[non_exhaustive]
+#[derive(Default)]
 pub struct ClientOptions {
-    /// How to locate the child-process runtime.
-    pub program: CliProgram,
-    /// Arguments prepended before `--server` (e.g. the script path for node).
-    pub prefix_args: Vec<OsString>,
-    /// Working directory for the CLI process.
-    ///
-    /// Setting this option is not supported with [`Transport::InProcess`].
-    pub working_directory: PathBuf,
-    /// Environment variables set on the child process.
-    pub env: Vec<(OsString, OsString)>,
-    /// Environment variable names to remove from the child process.
-    pub env_remove: Vec<OsString>,
-    /// Extra flags for child-process transports.
-    pub extra_args: Vec<String>,
     /// Absolute paths to trusted plugin directories bundled by the host.
     ///
     /// When non-empty, [`Client::start`] replaces the runtime's complete
@@ -508,12 +623,6 @@ impl ClientInfo {
 impl std::fmt::Debug for ClientOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ClientOptions")
-            .field("program", &self.program)
-            .field("prefix_args", &self.prefix_args)
-            .field("working_directory", &self.working_directory)
-            .field("env", &self.env)
-            .field("env_remove", &self.env_remove)
-            .field("extra_args", &self.extra_args)
             .field(
                 "builtin_plugin_directories",
                 &self.builtin_plugin_directories,
@@ -684,7 +793,7 @@ impl OtlpHttpProtocol {
 /// | [`source_name`]      | `COPILOT_OTEL_SOURCE_NAME`                            |
 /// | [`capture_content`]  | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`  |
 ///
-/// Caller-supplied entries in [`ClientOptions::env`] override these, so a
+/// Caller-supplied entries in [`OutOfProcessOptions::env`] override these, so a
 /// developer can pin any individual variable to a different value while
 /// keeping the rest of the config managed by [`TelemetryConfig`].
 ///
@@ -778,37 +887,6 @@ impl TelemetryConfig {
     }
 }
 
-impl Default for ClientOptions {
-    fn default() -> Self {
-        Self {
-            program: CliProgram::Resolve,
-            prefix_args: Vec::new(),
-            working_directory: PathBuf::new(),
-            env: Vec::new(),
-            env_remove: Vec::new(),
-            extra_args: Vec::new(),
-            builtin_plugin_directories: Vec::new(),
-            transport: Transport::default(),
-            github_token: None,
-            use_logged_in_user: None,
-            log_level: None,
-            session_idle_timeout_seconds: None,
-            on_list_models: None,
-            session_fs: None,
-            request_handler: None,
-            extension_launch_provider: None,
-            on_github_telemetry: None,
-            on_get_trace_context: None,
-            telemetry: None,
-            base_directory: None,
-            enable_remote_sessions: false,
-            bundled_cli_extract_dir: None,
-            mode: ClientMode::default(),
-            client_info: None,
-        }
-    }
-}
-
 impl ClientOptions {
     /// Construct a new [`ClientOptions`] with default values.
     ///
@@ -827,59 +905,6 @@ impl ClientOptions {
     /// ```
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// How to locate the child-process runtime. See [`CliProgram`].
-    pub fn with_program(mut self, program: impl Into<CliProgram>) -> Self {
-        self.program = program.into();
-        self
-    }
-
-    /// Arguments prepended before `--server` (e.g. the script path for node).
-    pub fn with_prefix_args<I, S>(mut self, args: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<OsString>,
-    {
-        self.prefix_args = args.into_iter().map(Into::into).collect();
-        self
-    }
-
-    /// Working directory for the CLI process.
-    pub fn with_cwd(mut self, cwd: impl Into<PathBuf>) -> Self {
-        self.working_directory = cwd.into();
-        self
-    }
-
-    /// Environment variables to set on the child process.
-    pub fn with_env<I, K, V>(mut self, env: I) -> Self
-    where
-        I: IntoIterator<Item = (K, V)>,
-        K: Into<OsString>,
-        V: Into<OsString>,
-    {
-        self.env = env.into_iter().map(|(k, v)| (k.into(), v.into())).collect();
-        self
-    }
-
-    /// Environment variable names to remove from the child process.
-    pub fn with_env_remove<I, S>(mut self, names: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<OsString>,
-    {
-        self.env_remove = names.into_iter().map(Into::into).collect();
-        self
-    }
-
-    /// Extra CLI flags appended after the transport-specific arguments.
-    pub fn with_extra_args<I, S>(mut self, args: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.extra_args = args.into_iter().map(Into::into).collect();
-        self
     }
 
     /// Set trusted plugin directories bundled by the host.
@@ -1086,24 +1111,20 @@ fn generate_connection_token() -> String {
 /// stdio. Any other value is an error.
 const DEFAULT_CONNECTION_ENV_VAR: &str = "COPILOT_SDK_DEFAULT_CONNECTION";
 
-/// Resolve a transport override from [`DEFAULT_CONNECTION_ENV_VAR`].
-fn resolve_default_transport(options: &ClientOptions) -> Result<Transport> {
-    let configured = options
-        .env
-        .iter()
-        .find(|(key, _)| {
-            key.to_string_lossy()
-                .eq_ignore_ascii_case(DEFAULT_CONNECTION_ENV_VAR)
-        })
-        .map(|(_, value)| value.to_string_lossy().into_owned());
-    let process = std::env::var(DEFAULT_CONNECTION_ENV_VAR).ok();
-    resolve_default_transport_value(configured.as_deref().or(process.as_deref()))
+/// Resolve a transport override from [`DEFAULT_CONNECTION_ENV_VAR`] in the
+/// real process environment. There is no longer a way to override this via
+/// [`ClientOptions`] — process-scoped env now lives on
+/// [`OutOfProcessOptions`], which is only available once a transport has
+/// already been chosen, so it cannot influence the choice of transport
+/// itself.
+fn resolve_default_transport() -> Result<Transport> {
+    resolve_default_transport_value(std::env::var(DEFAULT_CONNECTION_ENV_VAR).ok().as_deref())
 }
 
 fn resolve_default_transport_value(value: Option<&str>) -> Result<Transport> {
     match value {
-        None => Ok(Transport::Stdio),
-        Some(v) if v.is_empty() || v.eq_ignore_ascii_case("stdio") => Ok(Transport::Stdio),
+        None => Ok(Transport::stdio()),
+        Some(v) if v.is_empty() || v.eq_ignore_ascii_case("stdio") => Ok(Transport::stdio()),
         Some(v) if v.eq_ignore_ascii_case("inprocess") => Ok(Transport::InProcess),
         Some(v) => Err(Error::with_message(
             ErrorKind::InvalidConfig,
@@ -1115,44 +1136,21 @@ fn resolve_default_transport_value(value: Option<&str>) -> Result<Transport> {
     }
 }
 
+/// Validate options that don't apply to [`Transport::InProcess`].
+///
+/// Process-scoped settings (program, working directory, env, extra args) are
+/// no longer reachable here at all — they live on [`OutOfProcessOptions`],
+/// which [`Transport::InProcess`] structurally does not carry. Only
+/// [`ClientOptions::telemetry`] remains client-wide and still needs a
+/// runtime check, since native runtime code loaded in-process shares this
+/// process and cannot honor per-client telemetry export configuration.
 #[cfg(any(feature = "bundled-in-process", test))]
 fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
-    if !matches!(&options.program, CliProgram::Resolve) {
+    if options.telemetry.is_some() {
         return Err(Error::with_message(
             ErrorKind::InvalidConfig,
-            "ClientOptions::program is not supported with Transport::InProcess; \
-             set COPILOT_CLI_PATH only when using an externally provisioned runtime package",
-        ));
-    }
-    if !options.extra_args.is_empty() {
-        return Err(Error::with_message(
-            ErrorKind::InvalidConfig,
-            "ClientOptions::extra_args is not supported with Transport::InProcess; \
-             use typed client options instead",
-        ));
-    }
-
-    let unsupported = if !options.working_directory.as_os_str().is_empty() {
-        Some("working_directory")
-    } else if !options.env.is_empty() {
-        Some("env")
-    } else if !options.env_remove.is_empty() {
-        Some("env_remove")
-    } else if options.telemetry.is_some() {
-        Some("telemetry")
-    } else if !options.prefix_args.is_empty() {
-        Some("prefix_args")
-    } else {
-        None
-    };
-
-    if let Some(option) = unsupported {
-        return Err(Error::with_message(
-            ErrorKind::InvalidConfig,
-            format!(
-                "ClientOptions::{option} is not supported with Transport::InProcess; \
-                 configure process-global settings on the host process instead"
-            ),
+            "ClientOptions::telemetry is not supported with Transport::InProcess; \
+             configure process-global telemetry settings on the host process instead",
         ));
     }
 
@@ -1243,7 +1241,7 @@ impl Client {
         let mut timings = StartupTimings::default();
         let mut options = options;
         if matches!(options.transport, Transport::Default) {
-            options.transport = resolve_default_transport(&options)?;
+            options.transport = resolve_default_transport()?;
         }
         if matches!(options.transport, Transport::InProcess) {
             #[cfg(not(feature = "bundled-in-process"))]
@@ -1336,7 +1334,7 @@ impl Client {
         // default.
         let effective_connection_token: Option<String> = match &mut options.transport {
             Transport::Default => unreachable!("default transport resolved above"),
-            Transport::Stdio | Transport::InProcess => None,
+            Transport::Stdio(_) | Transport::InProcess => None,
             Transport::Tcp {
                 connection_token, ..
             } => Some(
@@ -1355,50 +1353,9 @@ impl Client {
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
             .is_some_and(|caps| caps.sqlite);
-        let program = match &options.program {
-            CliProgram::Path(path) => {
-                info!(path = %path.display(), "using explicit copilot CLI path");
-                path.clone()
-            }
-            CliProgram::Resolve => {
-                let resolve_start = Instant::now();
-                let resolved = resolve::copilot_binary_with_extract_dir(
-                    options.bundled_cli_extract_dir.as_deref(),
-                    true,
-                )?;
-                let resolve_elapsed = resolve_start.elapsed();
-                timings.program_resolve_ms = Some(StartupTimings::millis(resolve_elapsed));
-                debug!(
-                    elapsed_ms = resolve_elapsed.as_millis(),
-                    "Client::start CLI program resolution complete"
-                );
-                info!(path = %resolved.display(), "resolved copilot runtime");
-                #[cfg(windows)]
-                {
-                    if let Some(ext) = resolved.extension().and_then(|e| e.to_str()).filter(|ext| {
-                        ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat")
-                    }) {
-                        warn!(
-                            path = %resolved.display(),
-                            ext = %ext,
-                            "resolved copilot CLI is a .cmd/.bat wrapper; \
-                             this may cause console window flashes on Windows"
-                        );
-                    }
-                }
-                resolved
-            }
-        };
-        let working_directory = {
-            let cwd = options.working_directory.clone();
-            if cwd.as_os_str().is_empty() {
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-            } else {
-                cwd
-            }
-        };
 
         let transport_setup_start = Instant::now();
+        let bundled_cli_extract_dir = options.bundled_cli_extract_dir.clone();
         let client = match options.transport {
             Transport::Default => unreachable!("default transport resolved above"),
             Transport::External {
@@ -1406,6 +1363,8 @@ impl Client {
                 port,
                 connection_token: _,
             } => {
+                let working_directory =
+                    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
                 info!(host = %host, port = %port, "connecting to external CLI server");
                 let connect_start = Instant::now();
                 let stream = TcpStream::connect((host.as_str(), port)).await?;
@@ -1436,9 +1395,16 @@ impl Client {
             Transport::Tcp {
                 port,
                 connection_token: _,
+                ref process,
             } => {
+                let program = Self::resolve_cli_program(
+                    &process.program,
+                    bundled_cli_extract_dir.as_deref(),
+                    &mut timings,
+                )?;
+                let working_directory = Self::resolve_working_directory(&process.working_directory);
                 let (mut child, tree, actual_port, spawn_elapsed, port_wait_elapsed) =
-                    Self::spawn_tcp(&program, &options, &working_directory, port).await?;
+                    Self::spawn_tcp(&program, &options, process, &working_directory, port).await?;
                 timings.process_spawn_ms = Some(StartupTimings::millis(spawn_elapsed));
                 timings.port_wait_ms = Some(StartupTimings::millis(port_wait_elapsed));
                 let connect_start = Instant::now();
@@ -1467,9 +1433,15 @@ impl Client {
                     options.client_info,
                 )?
             }
-            Transport::Stdio => {
+            Transport::Stdio(ref process) => {
+                let program = Self::resolve_cli_program(
+                    &process.program,
+                    bundled_cli_extract_dir.as_deref(),
+                    &mut timings,
+                )?;
+                let working_directory = Self::resolve_working_directory(&process.working_directory);
                 let (mut child, tree, spawn_elapsed) =
-                    Self::spawn_stdio(&program, &options, &working_directory)?;
+                    Self::spawn_stdio(&program, &options, process, &working_directory)?;
                 timings.process_spawn_ms = Some(StartupTimings::millis(spawn_elapsed));
                 let stdin = child.stdin.take().expect("stdin is piped");
                 let stdout = child.stdout.take().expect("stdout is piped");
@@ -1494,6 +1466,13 @@ impl Client {
             Transport::InProcess => {
                 #[cfg(feature = "bundled-in-process")]
                 {
+                    let program = Self::resolve_cli_program(
+                        &CliProgram::Resolve,
+                        bundled_cli_extract_dir.as_deref(),
+                        &mut timings,
+                    )?;
+                    let working_directory =
+                        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
                     info!(runtime_path = %program.display(), "hosting copilot runtime in-process (FFI)");
                     let mut environment = Vec::new();
                     if let Some(base_directory) = &options.base_directory {
@@ -1565,6 +1544,7 @@ impl Client {
                 unreachable!("in-process feature validation returned above")
             }
         };
+
         timings.transport_setup_ms = StartupTimings::millis(transport_setup_start.elapsed());
         debug!(
             elapsed_ms = start_time.elapsed().as_millis(),
@@ -1976,10 +1956,79 @@ impl Client {
         });
     }
 
-    fn build_command(program: &Path, options: &ClientOptions, working_directory: &Path) -> Command {
+    /// Resolve [`OutOfProcessOptions::program`] (or [`CliProgram::Resolve`]
+    /// for [`Transport::InProcess`], which cannot carry an
+    /// [`OutOfProcessOptions`]) to a concrete path, recording the resolution
+    /// time in `timings`.
+    fn resolve_cli_program(
+        program: &CliProgram,
+        bundled_cli_extract_dir: Option<&Path>,
+        timings: &mut StartupTimings,
+    ) -> Result<PathBuf> {
+        match program {
+            CliProgram::Path(path) => {
+                info!(path = %path.display(), "using explicit copilot CLI path");
+                Ok(path.clone())
+            }
+            CliProgram::Resolve => {
+                let resolve_start = Instant::now();
+                let resolved =
+                    resolve::copilot_binary_with_extract_dir(bundled_cli_extract_dir, true)?;
+                let resolve_elapsed = resolve_start.elapsed();
+                timings.program_resolve_ms = Some(StartupTimings::millis(resolve_elapsed));
+                debug!(
+                    elapsed_ms = resolve_elapsed.as_millis(),
+                    "Client::start CLI program resolution complete"
+                );
+                info!(path = %resolved.display(), "resolved copilot runtime");
+                #[cfg(windows)]
+                {
+                    if let Some(ext) = resolved.extension().and_then(|e| e.to_str()).filter(|ext| {
+                        ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat")
+                    }) {
+                        warn!(
+                            path = %resolved.display(),
+                            ext = %ext,
+                            "resolved copilot CLI is a .cmd/.bat wrapper; \
+                             this may cause console window flashes on Windows"
+                        );
+                    }
+                }
+                Ok(resolved)
+            }
+        }
+    }
+
+    /// Resolve [`OutOfProcessOptions::working_directory`] to a concrete
+    /// path, falling back to the current process working directory when
+    /// unset (empty).
+    fn resolve_working_directory(configured: &Path) -> PathBuf {
+        if configured.as_os_str().is_empty() {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+        } else {
+            configured.to_path_buf()
+        }
+    }
+
+    fn build_command(
+        program: &Path,
+        options: &ClientOptions,
+        process: &OutOfProcessOptions,
+        working_directory: &Path,
+    ) -> Command {
         let mut command = Command::new(program);
         command.kill_on_drop(true);
-        for arg in &options.prefix_args {
+        // A nonempty explicit `env` replaces the inherited process
+        // environment instead of layering on top of it, consistent with the
+        // other SDKs. SDK-managed variables (auth token, telemetry,
+        // `COPILOT_HOME`, etc.) are still injected below so they remain
+        // active even when the caller replaces the rest of the environment;
+        // explicit `env`/`env_remove` entries can still override or strip
+        // them, same as before this replaced the ambient environment.
+        if !process.env.is_empty() {
+            command.env_clear();
+        }
+        for arg in &process.prefix_args {
             command.arg(arg);
         }
         // Inject the SDK auth token first so explicit `env` / `env_remove`
@@ -1988,7 +2037,7 @@ impl Client {
             command.env("COPILOT_SDK_AUTH_TOKEN", token);
         }
         // Inject telemetry env vars before user env so callers can still
-        // override individual variables via `options.env`.
+        // override individual variables via `process.env`.
         if let Some(telemetry) = &options.telemetry {
             command.env("COPILOT_OTEL_ENABLED", "true");
             if let Some(endpoint) = &telemetry.otlp_endpoint {
@@ -2028,10 +2077,10 @@ impl Client {
         {
             command.env("COPILOT_CONNECTION_TOKEN", token);
         }
-        for (key, value) in &options.env {
+        for (key, value) in &process.env {
             command.env(key, value);
         }
-        for key in &options.env_remove {
+        for key in &process.env_remove {
             command.env_remove(key);
         }
         command
@@ -2094,17 +2143,18 @@ impl Client {
     fn spawn_stdio(
         program: &Path,
         options: &ClientOptions,
+        process: &OutOfProcessOptions,
         working_directory: &Path,
     ) -> Result<(Child, Option<process_tree::ProcessTree>, Duration)> {
         info!(cwd = ?working_directory, program = %program.display(), "spawning copilot CLI (stdio)");
-        let mut command = Self::build_command(program, options, working_directory);
+        let mut command = Self::build_command(program, options, process, working_directory);
         command
             .args(["--server", "--stdio", "--no-auto-update"])
             .args(Self::log_level_args(options))
             .args(Self::auth_args(options))
             .args(Self::session_idle_timeout_args(options))
             .args(Self::remote_args(options))
-            .args(&options.extra_args)
+            .args(&process.extra_args)
             .stdin(Stdio::piped());
         let spawn_start = Instant::now();
         let (child, tree) = process_tree::spawn(&mut command)?;
@@ -2119,6 +2169,7 @@ impl Client {
     async fn spawn_tcp(
         program: &Path,
         options: &ClientOptions,
+        process: &OutOfProcessOptions,
         working_directory: &Path,
         port: u16,
     ) -> Result<(
@@ -2129,14 +2180,14 @@ impl Client {
         Duration,
     )> {
         info!(cwd = ?working_directory, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
-        let mut command = Self::build_command(program, options, working_directory);
+        let mut command = Self::build_command(program, options, process, working_directory);
         command
             .args(["--server", "--port", &port.to_string(), "--no-auto-update"])
             .args(Self::log_level_args(options))
             .args(Self::auth_args(options))
             .args(Self::session_idle_timeout_args(options))
             .args(Self::remote_args(options))
-            .args(&options.extra_args)
+            .args(&process.extra_args)
             .stdin(Stdio::null());
         let spawn_start = Instant::now();
         let (mut child, tree) = process_tree::spawn(&mut command)?;
@@ -3082,29 +3133,38 @@ mod tests {
     #[test]
     fn client_options_builder_composes() {
         let opts = ClientOptions::new()
-            .with_program(CliProgram::Path(PathBuf::from("/usr/local/bin/copilot")))
-            .with_prefix_args(["node"])
-            .with_cwd(PathBuf::from("/tmp"))
-            .with_env([("KEY", "value")])
-            .with_env_remove(["UNWANTED"])
-            .with_extra_args(["--quiet"])
+            .with_transport(Transport::Stdio(
+                OutOfProcessOptions::new()
+                    .with_program(CliProgram::Path(PathBuf::from("/usr/local/bin/copilot")))
+                    .with_prefix_args(["node"])
+                    .with_working_directory(PathBuf::from("/tmp"))
+                    .with_env([("KEY", "value")])
+                    .with_env_remove(["UNWANTED"])
+                    .with_extra_args(["--quiet"]),
+            ))
             .with_github_token("ghp_test")
             .with_use_logged_in_user(false)
             .with_log_level(LogLevel::Debug)
             .with_session_idle_timeout_seconds(120)
             .with_enable_remote_sessions(true);
-        assert!(matches!(opts.program, CliProgram::Path(_)));
-        assert_eq!(opts.prefix_args, vec![std::ffi::OsString::from("node")]);
-        assert_eq!(opts.working_directory, PathBuf::from("/tmp"));
+        let Transport::Stdio(process) = &opts.transport else {
+            panic!("expected Transport::Stdio");
+        };
+        assert!(matches!(process.program, CliProgram::Path(_)));
+        assert_eq!(process.prefix_args, vec![std::ffi::OsString::from("node")]);
+        assert_eq!(process.working_directory, PathBuf::from("/tmp"));
         assert_eq!(
-            opts.env,
+            process.env,
             vec![(
                 std::ffi::OsString::from("KEY"),
                 std::ffi::OsString::from("value")
             )]
         );
-        assert_eq!(opts.env_remove, vec![std::ffi::OsString::from("UNWANTED")]);
-        assert_eq!(opts.extra_args, vec!["--quiet".to_string()]);
+        assert_eq!(
+            process.env_remove,
+            vec![std::ffi::OsString::from("UNWANTED")]
+        );
+        assert_eq!(process.extra_args, vec!["--quiet".to_string()]);
         assert_eq!(opts.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(opts.use_logged_in_user, Some(false));
         assert!(matches!(opts.log_level, Some(LogLevel::Debug)));
@@ -3116,11 +3176,11 @@ mod tests {
     fn default_transport_values_resolve_without_process_state() {
         assert!(matches!(
             resolve_default_transport_value(None).unwrap(),
-            Transport::Stdio
+            Transport::Stdio(_)
         ));
         assert!(matches!(
             resolve_default_transport_value(Some("stdio")).unwrap(),
-            Transport::Stdio
+            Transport::Stdio(_)
         ));
         assert!(matches!(
             resolve_default_transport_value(Some("INPROCESS")).unwrap(),
@@ -3131,15 +3191,7 @@ mod tests {
 
     #[test]
     fn inprocess_rejects_process_scoped_options() {
-        let invalid = [
-            ClientOptions::new().with_cwd("."),
-            ClientOptions::new().with_env([("KEY", "value")]),
-            ClientOptions::new().with_env_remove(["KEY"]),
-            ClientOptions::new().with_telemetry(TelemetryConfig::default()),
-            ClientOptions::new().with_prefix_args(["index.js"]),
-            ClientOptions::new().with_program(CliProgram::Path("copilot".into())),
-            ClientOptions::new().with_extra_args(["--verbose"]),
-        ];
+        let invalid = [ClientOptions::new().with_telemetry(TelemetryConfig::default())];
 
         for options in invalid {
             assert!(validate_inprocess_options(&options).is_err());
@@ -3179,10 +3231,13 @@ mod tests {
     fn build_command_lets_env_remove_strip_injected_token() {
         let opts = ClientOptions {
             github_token: Some("secret".to_string()),
+            ..Default::default()
+        };
+        let process = OutOfProcessOptions {
             env_remove: vec![std::ffi::OsString::from("COPILOT_SDK_AUTH_TOKEN")],
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, &process, Path::new("/tmp"));
         // get_envs() iter yields the latest action per key — None means removed.
         let action = cmd
             .as_std()
@@ -3200,13 +3255,16 @@ mod tests {
     fn build_command_lets_env_override_injected_token() {
         let opts = ClientOptions {
             github_token: Some("from-options".to_string()),
+            ..Default::default()
+        };
+        let process = OutOfProcessOptions {
             env: vec![(
                 std::ffi::OsString::from("COPILOT_SDK_AUTH_TOKEN"),
                 std::ffi::OsString::from("from-env"),
             )],
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, &process, Path::new("/tmp"));
         let value = cmd
             .as_std()
             .get_envs()
@@ -3221,7 +3279,8 @@ mod tests {
             github_token: Some("just-the-token".to_string()),
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
+        let process = OutOfProcessOptions::default();
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, &process, Path::new("/tmp"));
         let value = cmd
             .as_std()
             .get_envs()
@@ -3289,7 +3348,12 @@ mod tests {
             }),
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
+        let cmd = Client::build_command(
+            Path::new("/bin/echo"),
+            &opts,
+            &OutOfProcessOptions::default(),
+            Path::new("/tmp"),
+        );
         assert_eq!(
             env_value(&cmd, "COPILOT_OTEL_ENABLED"),
             Some(std::ffi::OsStr::new("true")),
@@ -3323,7 +3387,12 @@ mod tests {
     #[test]
     fn build_command_omits_otel_env_when_telemetry_none() {
         let opts = ClientOptions::default();
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
+        let cmd = Client::build_command(
+            Path::new("/bin/echo"),
+            &opts,
+            &OutOfProcessOptions::default(),
+            Path::new("/tmp"),
+        );
         for key in [
             "COPILOT_OTEL_ENABLED",
             "OTEL_EXPORTER_OTLP_ENDPOINT",
@@ -3349,7 +3418,12 @@ mod tests {
             }),
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
+        let cmd = Client::build_command(
+            Path::new("/bin/echo"),
+            &opts,
+            &OutOfProcessOptions::default(),
+            Path::new("/tmp"),
+        );
         // The one set field plus the implicit enabled flag should propagate.
         assert_eq!(
             env_value(&cmd, "COPILOT_OTEL_ENABLED"),
@@ -3378,13 +3452,16 @@ mod tests {
                 otlp_endpoint: Some("http://from-config:4318".to_string()),
                 ..Default::default()
             }),
+            ..Default::default()
+        };
+        let process = OutOfProcessOptions {
             env: vec![(
                 std::ffi::OsString::from("OTEL_EXPORTER_OTLP_ENDPOINT"),
                 std::ffi::OsString::from("http://from-user-env:4318"),
             )],
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, &process, Path::new("/tmp"));
         assert_eq!(
             env_value(&cmd, "OTEL_EXPORTER_OTLP_ENDPOINT"),
             Some(std::ffi::OsStr::new("http://from-user-env:4318")),
@@ -3395,14 +3472,24 @@ mod tests {
     #[test]
     fn build_command_sets_copilot_home_env_when_configured() {
         let opts = ClientOptions::new().with_base_directory(PathBuf::from("/custom/copilot"));
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
+        let cmd = Client::build_command(
+            Path::new("/bin/echo"),
+            &opts,
+            &OutOfProcessOptions::default(),
+            Path::new("/tmp"),
+        );
         assert_eq!(
             env_value(&cmd, "COPILOT_HOME"),
             Some(std::ffi::OsStr::new("/custom/copilot")),
         );
 
         let opts = ClientOptions::default();
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
+        let cmd = Client::build_command(
+            Path::new("/bin/echo"),
+            &opts,
+            &OutOfProcessOptions::default(),
+            Path::new("/tmp"),
+        );
         assert!(env_value(&cmd, "COPILOT_HOME").is_none());
     }
 
@@ -3411,26 +3498,37 @@ mod tests {
         let opts = ClientOptions::new().with_transport(Transport::Tcp {
             port: 0,
             connection_token: Some("secret-token".to_string()),
+            process: OutOfProcessOptions::default(),
         });
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
+        let cmd = Client::build_command(
+            Path::new("/bin/echo"),
+            &opts,
+            &OutOfProcessOptions::default(),
+            Path::new("/tmp"),
+        );
         assert_eq!(
             env_value(&cmd, "COPILOT_CONNECTION_TOKEN"),
             Some(std::ffi::OsStr::new("secret-token")),
         );
 
         let opts = ClientOptions::default();
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
+        let cmd = Client::build_command(
+            Path::new("/bin/echo"),
+            &opts,
+            &OutOfProcessOptions::default(),
+            Path::new("/tmp"),
+        );
         assert!(env_value(&cmd, "COPILOT_CONNECTION_TOKEN").is_none());
     }
 
     #[tokio::test]
     async fn start_rejects_empty_connection_token() {
-        let opts = ClientOptions::new()
-            .with_transport(Transport::Tcp {
-                port: 0,
-                connection_token: Some(String::new()),
-            })
-            .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
+        let opts = ClientOptions::new().with_transport(Transport::Tcp {
+            port: 0,
+            connection_token: Some(String::new()),
+            process: OutOfProcessOptions::new()
+                .with_program(CliProgram::Path(PathBuf::from("/bin/echo"))),
+        });
         let err = Client::start(opts).await.unwrap_err();
         assert!(
             matches!(err.kind(), ErrorKind::InvalidConfig),
@@ -3440,13 +3538,11 @@ mod tests {
 
     #[tokio::test]
     async fn start_rejects_empty_external_connection_token() {
-        let opts = ClientOptions::new()
-            .with_transport(Transport::External {
-                host: "127.0.0.1".to_string(),
-                port: 1,
-                connection_token: Some(String::new()),
-            })
-            .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
+        let opts = ClientOptions::new().with_transport(Transport::External {
+            host: "127.0.0.1".to_string(),
+            port: 1,
+            connection_token: Some(String::new()),
+        });
         let err = Client::start(opts).await.unwrap_err();
         assert!(
             matches!(err.kind(), ErrorKind::InvalidConfig),
@@ -3470,9 +3566,18 @@ mod tests {
             }),
             ..Default::default()
         };
-        let cmd_true = Client::build_command(Path::new("/bin/echo"), &opts_true, Path::new("/tmp"));
-        let cmd_false =
-            Client::build_command(Path::new("/bin/echo"), &opts_false, Path::new("/tmp"));
+        let cmd_true = Client::build_command(
+            Path::new("/bin/echo"),
+            &opts_true,
+            &OutOfProcessOptions::default(),
+            Path::new("/tmp"),
+        );
+        let cmd_false = Client::build_command(
+            Path::new("/bin/echo"),
+            &opts_false,
+            &OutOfProcessOptions::default(),
+            Path::new("/tmp"),
+        );
         assert_eq!(
             env_value(
                 &cmd_true,
@@ -3734,8 +3839,12 @@ mod tests {
     fn test_child_command(temp: &Path, ready: &Path, survived: &Path) -> Command {
         #[cfg(unix)]
         let mut command = {
-            let mut command =
-                Client::build_command(Path::new("sh"), &ClientOptions::default(), temp);
+            let mut command = Client::build_command(
+                Path::new("sh"),
+                &ClientOptions::default(),
+                &OutOfProcessOptions::default(),
+                temp,
+            );
             command.args([
                 "-c",
                 "printf ready > \"$READY\"; sleep 1; printf survived > \"$SURVIVED\"",
@@ -3744,8 +3853,12 @@ mod tests {
         };
         #[cfg(windows)]
         let mut command = {
-            let mut command =
-                Client::build_command(Path::new("powershell.exe"), &ClientOptions::default(), temp);
+            let mut command = Client::build_command(
+                Path::new("powershell.exe"),
+                &ClientOptions::default(),
+                &OutOfProcessOptions::default(),
+                temp,
+            );
             command.args([
                 "-NoLogo",
                 "-NoProfile",

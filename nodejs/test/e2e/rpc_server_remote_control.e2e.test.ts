@@ -13,10 +13,12 @@ describe("Server-scoped remote-control RPC", async () => {
 
     function createDedicatedClient(): CopilotClient {
         return new CopilotClient({
-            workingDirectory: workDir,
-            env,
             logLevel: "error",
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: workDir,
+                env,
+            }),
             gitHubToken: DEFAULT_GITHUB_TOKEN,
         });
     }

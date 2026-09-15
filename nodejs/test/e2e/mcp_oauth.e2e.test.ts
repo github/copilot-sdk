@@ -8,7 +8,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, onTestFinished } from "vitest";
 import type { CopilotSession, MCPServerConfig, McpAuthRequest } from "../../src/index.js";
-import { approveAll } from "../../src/index.js";
+import { approveAll, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { stopChildProcess, waitForCondition } from "./harness/sdkTestHelper.js";
 
@@ -24,10 +24,12 @@ const CIMD_URL = "https://github.com/copilot/cli/client-metadata.json";
 describe("MCP OAuth host auth", async () => {
     const { copilotClient: client } = await createSdkTestContext({
         copilotClientOptions: {
-            env: {
-                COPILOT_MCP_APPS: "true",
-                MCP_APPS: "true",
-            },
+            connection: RuntimeConnection.forStdio({
+                env: {
+                    COPILOT_MCP_APPS: "true",
+                    MCP_APPS: "true",
+                },
+            }),
         },
     });
 

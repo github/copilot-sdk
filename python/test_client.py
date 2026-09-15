@@ -64,21 +64,23 @@ def test_inprocess_connection_has_no_child_process_options():
 
 def test_explicit_child_process_path_does_not_require_runtime_bundle(tmp_path):
     explicit = tmp_path / "copilot"
-    connection = RuntimeConnection.for_stdio(path=str(explicit))
+    connection = RuntimeConnection.for_stdio(
+        path=str(explicit),
+        env={"PATH": str(tmp_path)},
+    )
 
-    CopilotClient(connection=connection, env={"PATH": str(tmp_path)})
+    CopilotClient(connection=connection)
 
     assert connection.path == str(explicit)
 
 
 def test_copilot_cli_path_does_not_require_runtime_bundle(tmp_path):
     explicit = tmp_path / "copilot"
-    connection = RuntimeConnection.for_stdio()
-
-    CopilotClient(
-        connection=connection,
+    connection = RuntimeConnection.for_stdio(
         env={"PATH": str(tmp_path), "COPILOT_CLI_PATH": str(explicit)},
     )
+
+    CopilotClient(connection=connection)
 
     assert connection.path == str(explicit)
 

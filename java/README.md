@@ -176,7 +176,16 @@ and `setExcludedTools(...)`, prefer the source-qualified filter form
 `DefaultAgentConfig.setExcludedTools(...)`, use `<server-key>-<tool-name>`
 directly.
 
-`CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
+Process-scoped settings are configured on the out-of-process connection (`StdioRuntimeConnection`/`TcpRuntimeConnection`), not on `CopilotClientOptions`, because they do not apply to in-process (FFI) hosting:
+
+```java
+var options = new CopilotClientOptions().setConnection(
+    RuntimeConnection.forStdio()
+        .setWorkingDirectory("/srv/app")
+        .setEnvironment(Map.of("KEY", "value")));
+```
+
+`SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
 
 `SessionConfig.setAskUserVariant(AskUserVariant.ELICITATION)` selects the
 structured form-based `ask_user` tool when an elicitation handler is also set.
