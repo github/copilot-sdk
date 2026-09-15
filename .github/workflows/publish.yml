@@ -296,6 +296,59 @@ jobs:
           dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols
           dotnet nuget push ./artifacts/*.snupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
+  publish-dotnet-internal:
+    name: Publish .NET SDK to internal feed
+    needs: publish-dotnet
+    if: github.ref == 'refs/heads/main'
+    environment: cicd
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    env:
+      ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
+      FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/nuget/v3/index.json
+    steps:
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+      - name: Download .NET package
+        uses: actions/download-artifact@v8.0.0
+        with:
+          name: dotnet-package
+          path: ./dist
+      - name: Azure Login (OIDC -> id-cpd-ci)
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: "${{ vars.CPD_ID_CLIENT_ID }}" # id-cpd-ci
+          tenant-id: "${{ vars.CPD_ID_TENANT_ID }}"
+          allow-no-subscriptions: true
+      - name: Publish package to internal feed
+        run: |
+          set -euo pipefail
+          if [ "$FEED_URL" != "https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/nuget/v3/index.json" ]; then
+            echo "::error::FEED_URL ('$FEED_URL') is not the expected internal feed. Refusing to publish."
+            exit 1
+          fi
+          shopt -s nullglob
+          PACKAGES=(./dist/*.nupkg)
+          if [ "${#PACKAGES[@]}" -ne 1 ]; then
+            echo "::error::Expected one .NET package, found ${#PACKAGES[@]}."
+            exit 1
+          fi
+          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
+          echo "::add-mask::$TOKEN"
+          dotnet nuget add source "$FEED_URL" --name CopilotInternal
+          # Keep the short-lived token out of NuGet.Config and command-line arguments.
+          export NuGetPackageSourceCredentials_CopilotInternal="Username=azure;Password=$TOKEN;ValidAuthenticationTypes=Basic"
+          # Azure Artifacts does not support .snupkg symbol packages.
+          dotnet nuget push "${PACKAGES[0]}" \
+            --api-key AzureArtifacts \
+            --source CopilotInternal \
+            --skip-duplicate \
+            --no-symbols
+
   publish-rust:
     name: Publish Rust SDK
     if: github.event.inputs.dist-tag != 'unstable'
