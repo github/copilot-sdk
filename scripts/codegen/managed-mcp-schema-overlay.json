@@ -1,0 +1,243 @@
+{
+  "api.schema.json": {
+    "ManagedMcpServerConfig": {
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable catalog display name."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Hosted MCP streamable HTTP endpoint."
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tools to include. Defaults to all tools when omitted."
+        },
+        "timeout": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "format": "duration",
+          "description": "Timeout in milliseconds for tool discovery and tool calls."
+        },
+        "headersRefreshTtlMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum dynamic-header cache lifetime in milliseconds."
+        }
+      },
+      "required": [
+        "displayName",
+        "url"
+      ],
+      "additionalProperties": false,
+      "description": "Non-secret host-managed HTTP MCP server configuration. The containing map key is the stable managed identity; credentials are supplied dynamically by the host.",
+      "title": "ManagedMcpServerConfig"
+    },
+    "McpHeadersHandlePendingHeadersRefreshRequest": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "headers": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Headers to overlay onto the MCP request. Dynamic headers override static config headers but do not replace SDK-managed request headers."
+            },
+            "ttlMs": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Optional lifetime in milliseconds for these returned headers. The runtime clamps its configured cache lifetime to this value."
+            },
+            "kind": {
+              "type": "string",
+              "const": "headers",
+              "description": "Headers-refresh response variant discriminator."
+            }
+          },
+          "required": [
+            "kind",
+            "headers"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "none",
+              "description": "Headers-refresh response variant discriminator."
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "description": "Host credential broker failure, denial, or revocation reason."
+            },
+            "kind": {
+              "type": "string",
+              "const": "error",
+              "description": "Headers-refresh response variant discriminator."
+            }
+          },
+          "required": [
+            "kind",
+            "message"
+          ]
+        }
+      ],
+      "description": "Host response: supply dynamic headers or decline this refresh.",
+      "title": "McpHeadersHandlePendingHeadersRefreshRequest"
+    },
+    "managedMcpServers": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ManagedMcpServerConfig",
+        "description": "Non-secret host-managed HTTP MCP server configuration. The containing map key is the stable managed identity; credentials are supplied dynamically by the host."
+      },
+      "description": "Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed provenance is runtime-established from this separate field and credentials are supplied through dynamic-header refresh.",
+      "stability": "experimental"
+    },
+    "McpServerSource": {
+      "type": "string",
+      "enum": [
+        "user",
+        "workspace",
+        "plugin",
+        "builtin",
+        "managed"
+      ],
+      "description": "Configuration source: user, workspace, plugin, builtin, or managed",
+      "title": "McpServerSource",
+      "x-enumDescriptions": {
+        "user": "Server configured in the user's global MCP configuration.",
+        "workspace": "Server configured by the current workspace.",
+        "plugin": "Server contributed by an installed plugin.",
+        "builtin": "Server bundled with the runtime.",
+        "managed": "Server supplied by a trusted host-managed catalog."
+      }
+    },
+    "mcpServerDisplayName": {
+      "type": "string",
+      "description": "Human-readable display name supplied by a managed server catalog."
+    }
+  },
+  "session-events.schema.json": {
+    "McpServerSource": {
+      "type": "string",
+      "enum": [
+        "user",
+        "workspace",
+        "plugin",
+        "builtin",
+        "managed"
+      ],
+      "description": "Configuration source: user, workspace, plugin, builtin, or managed",
+      "title": "McpServerSource",
+      "x-enumDescriptions": {
+        "user": "Server configured in the user's global MCP configuration.",
+        "workspace": "Server configured by the current workspace.",
+        "plugin": "Server contributed by an installed plugin.",
+        "builtin": "Server bundled with the runtime.",
+        "managed": "Server supplied by a trusted host-managed catalog."
+      }
+    },
+    "mcpServersLoadedDisplayName": {
+      "type": "string",
+      "description": "Human-readable display name supplied by a managed server catalog."
+    }
+  },
+  "legacy": {
+    "api.schema.json": {
+      "McpHeadersHandlePendingHeadersRefreshRequest": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "headers": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Headers to overlay onto the MCP request. Dynamic headers override static config headers but do not replace SDK-managed request headers."
+              },
+              "kind": {
+                "type": "string",
+                "const": "headers",
+                "description": "Headers-refresh response variant discriminator."
+              }
+            },
+            "required": [
+              "kind",
+              "headers"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "none",
+                "description": "Headers-refresh response variant discriminator."
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        ],
+        "description": "Host response: supply dynamic headers or decline this refresh.",
+        "title": "McpHeadersHandlePendingHeadersRefreshRequest"
+      },
+      "McpServerSource": {
+        "type": "string",
+        "enum": [
+          "user",
+          "workspace",
+          "plugin",
+          "builtin"
+        ],
+        "description": "Configuration source: user, workspace, plugin, or builtin",
+        "title": "McpServerSource",
+        "x-enumDescriptions": {
+          "user": "Server configured in the user's global MCP configuration.",
+          "workspace": "Server configured by the current workspace.",
+          "plugin": "Server contributed by an installed plugin.",
+          "builtin": "Server bundled with the runtime."
+        }
+      }
+    },
+    "session-events.schema.json": {
+      "McpServerSource": {
+        "type": "string",
+        "enum": [
+          "user",
+          "workspace",
+          "plugin",
+          "builtin"
+        ],
+        "description": "Configuration source: user, workspace, plugin, or builtin",
+        "title": "McpServerSource",
+        "x-enumDescriptions": {
+          "user": "Server configured in the user's global MCP configuration.",
+          "workspace": "Server configured by the current workspace.",
+          "plugin": "Server contributed by an installed plugin.",
+          "builtin": "Server bundled with the runtime."
+        }
+      }
+    }
+  }
+}

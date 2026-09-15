@@ -555,6 +555,37 @@ type MCPAuthInvocation struct {
 // MCPAuthHandler handles MCP OAuth requests from the runtime.
 type MCPAuthHandler func(request MCPAuthRequest, invocation MCPAuthInvocation) (*MCPAuthResult, error)
 
+// ManagedMCPServerConfig is a non-secret hosted MCP server from a trusted
+// managed catalog. Credentials are supplied only through [MCPHeadersRefreshHandler].
+//
+// Experimental: ManagedMCPServerConfig is part of an experimental API and may change.
+type ManagedMCPServerConfig = rpc.ManagedMCPServerConfig
+
+// MCPHeadersRefreshRequest identifies a managed MCP server whose short-lived
+// HTTP headers need refreshing.
+type MCPHeadersRefreshRequest struct {
+	ServerName string
+	ServerURL  string
+	Reason     MCPHeadersRefreshRequiredReason
+}
+
+// MCPHeadersRefreshResult contains dynamic headers and their optional
+// credential-bounded cache lifetime. A nil result means no headers are available.
+type MCPHeadersRefreshResult struct {
+	Headers map[string]string
+	TTLMS   *int64
+}
+
+// MCPHeadersRefreshInvocation provides context for a managed MCP headers refresh.
+type MCPHeadersRefreshInvocation struct {
+	SessionID string
+}
+
+// MCPHeadersRefreshHandler supplies short-lived HTTP headers for managed MCP
+// servers. Returning an error sends an explicit broker error to the runtime.
+// Handler panics are recovered and also sent as explicit broker errors.
+type MCPHeadersRefreshHandler func(request MCPHeadersRefreshRequest, invocation MCPHeadersRefreshInvocation) (*MCPHeadersRefreshResult, error)
+
 // UserInputRequest represents a request for user input from the agent
 type UserInputRequest struct {
 	Question      string
@@ -1402,6 +1433,8 @@ type SessionConfig struct {
 	// When provided, the SDK can satisfy MCP server OAuth requests with host-provided
 	// token data or cancellation.
 	OnMCPAuthRequest MCPAuthHandler
+	// OnMCPHeadersRefresh supplies short-lived HTTP headers for ManagedMCPServers.
+	OnMCPHeadersRefresh MCPHeadersRefreshHandler
 	// GitHubTokenProvider acquires session-scoped GitHub tokens on demand. It
 	// cannot be combined with GitHubToken.
 	GitHubTokenProvider GitHubTokenProvider
@@ -1490,6 +1523,9 @@ type SessionConfig struct {
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
 	// MCPServers configures MCP servers for the session
 	MCPServers map[string]MCPServerConfig
+	// ManagedMCPServers contains non-secret hosted MCP servers keyed by stable
+	// managed identity. Re-supply this map when cold-resuming a session.
+	ManagedMCPServers map[string]ManagedMCPServerConfig
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
@@ -1992,6 +2028,8 @@ type ResumeSessionConfig struct {
 	// OnMCPAuthRequest is an optional handler for MCP OAuth requests from MCP servers.
 	// See SessionConfig.OnMCPAuthRequest.
 	OnMCPAuthRequest MCPAuthHandler
+	// OnMCPHeadersRefresh supplies short-lived HTTP headers for ManagedMCPServers.
+	OnMCPHeadersRefresh MCPHeadersRefreshHandler
 	// OnUserInputRequest handles legacy question-and-answer requests from the agent
 	// and enables the legacy ask_user tool.
 	OnUserInputRequest UserInputHandler
@@ -2053,6 +2091,9 @@ type ResumeSessionConfig struct {
 	IncludeSubAgentStreamingEvents *bool
 	// MCPServers configures MCP servers for the session
 	MCPServers map[string]MCPServerConfig
+	// ManagedMCPServers contains non-secret hosted MCP servers keyed by stable
+	// managed identity. Re-supply this map when cold-resuming a session.
+	ManagedMCPServers map[string]ManagedMCPServerConfig
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
@@ -2650,6 +2691,7 @@ type createSessionRequest struct {
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
 	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
+	ManagedMCPServers                  map[string]ManagedMCPServerConfig      `json:"managedMcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
@@ -2762,6 +2804,7 @@ type resumeSessionRequest struct {
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
 	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
+	ManagedMCPServers                  map[string]ManagedMCPServerConfig      `json:"managedMcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`

@@ -15,15 +15,16 @@ use github_copilot_sdk::github_token::{
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, McpAuthHandler, McpAuthRequest, McpAuthResult,
-    PermissionHandler, PermissionResult, UserInputHandler, UserInputResponse,
+    McpHeadersRefreshHandler, McpHeadersRefreshRequest, McpHeadersRefreshResult, PermissionHandler,
+    PermissionResult, UserInputHandler, UserInputResponse,
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
     OpenCanvasInstance, SendAgentMode, SendMode, SendRequest,
 };
 use github_copilot_sdk::session_events::{
-    ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
-    SessionManagedSettingsResolvedData,
+    ManagedSettingsResolvedSource, McpHeadersRefreshRequiredReason, McpOauthRequiredData,
+    ReasoningSummary, SessionLimitsConfig, SessionManagedSettingsResolvedData,
 };
 use github_copilot_sdk::types::{
     AskUserVariant, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository,
@@ -188,6 +189,10 @@ struct TestCanvasHandler;
 
 struct CancelMcpAuthHandler;
 
+struct TestMcpHeadersHandler {
+    calls: tokio::sync::mpsc::UnboundedSender<(SessionId, RequestId, McpHeadersRefreshRequest)>,
+}
+
 struct ContextualApproveHandler;
 
 struct GatedApproveHandler {
@@ -235,6 +240,41 @@ impl McpAuthHandler for CancelMcpAuthHandler {
         _request: McpAuthRequest,
     ) -> McpAuthResult {
         McpAuthResult::Cancelled
+    }
+}
+
+#[async_trait]
+impl McpHeadersRefreshHandler for TestMcpHeadersHandler {
+    async fn handle(
+        &self,
+        session_id: SessionId,
+        request_id: RequestId,
+        request: McpHeadersRefreshRequest,
+    ) -> Result<McpHeadersRefreshResult, github_copilot_sdk::Error> {
+        self.calls
+            .send((session_id, request_id, request.clone()))
+            .unwrap();
+        match request.server_name.as_str() {
+            "ttl-absent" => Ok(McpHeadersRefreshResult::Headers {
+                headers: HashMap::from([(
+                    "Authorization".to_string(),
+                    "Bearer absent".to_string(),
+                )]),
+                ttl_ms: None,
+            }),
+            "ttl-present" => Ok(McpHeadersRefreshResult::Headers {
+                headers: HashMap::from([(
+                    "Authorization".to_string(),
+                    "Bearer present".to_string(),
+                )]),
+                ttl_ms: Some(12_345),
+            }),
+            "none" => Ok(McpHeadersRefreshResult::None),
+            _ => Err(github_copilot_sdk::Error::with_message(
+                ErrorKind::InvalidConfig,
+                "credential broker unavailable",
+            )),
+        }
     }
 }
 
@@ -1229,6 +1269,244 @@ async fn resume_session_registers_mcp_auth_interest_only_with_handler() {
 
     respond_to_reload(&mut server_read, &mut server_write).await;
     let _session = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn managed_mcp_headers_handler_dispatches_all_results() {
+    let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel();
+    let handler = Arc::new(TestMcpHeadersHandler { calls: calls_tx });
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "managed-mcp-session".to_string(),
+    };
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_session_id("managed-mcp-session")
+                        .with_mcp_headers_handler(handler),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let create_request = server.read_request().await;
+    assert_eq!(create_request["method"], "session.create");
+    server
+        .send_event(
+            "mcp.headers_refresh_required",
+            serde_json::json!({
+                "requestId": "headers-before-create",
+                "serverName": "ttl-absent",
+                "serverUrl": "https://ttl-absent.example.test/mcp",
+                "reason": "startup"
+            }),
+        )
+        .await;
+    let response_request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(
+        response_request["method"],
+        "session.mcp.headers.handlePendingHeadersRefreshRequest"
+    );
+    assert_eq!(
+        response_request["params"]["sessionId"],
+        "managed-mcp-session"
+    );
+    assert_eq!(
+        response_request["params"]["requestId"],
+        "headers-before-create"
+    );
+    assert_eq!(response_request["params"]["result"]["kind"], "headers");
+    assert!(
+        response_request["params"]["result"]["headers"]["Authorization"]
+            .as_str()
+            .is_some()
+    );
+    let (received_session_id, received_request_id, received_request) =
+        timeout(TIMEOUT, calls_rx.recv()).await.unwrap().unwrap();
+    assert_eq!(received_session_id.as_str(), "managed-mcp-session");
+    assert_eq!(received_request_id, "headers-before-create");
+    assert_eq!(received_request.server_name, "ttl-absent");
+    assert_eq!(
+        received_request.server_url,
+        "https://ttl-absent.example.test/mcp"
+    );
+    assert_eq!(
+        received_request.reason,
+        McpHeadersRefreshRequiredReason::Startup
+    );
+    server
+        .respond(&response_request, serde_json::json!({ "success": true }))
+        .await;
+
+    server
+        .respond(
+            &create_request,
+            serde_json::json!({
+                "sessionId": "managed-mcp-session",
+                "workspacePath": "/workspace"
+            }),
+        )
+        .await;
+    let interest_request = server.read_request().await;
+    assert_eq!(
+        interest_request["method"],
+        "session.eventLog.registerInterest"
+    );
+    assert_eq!(
+        interest_request["params"]["eventType"],
+        "mcp.headers_refresh_required"
+    );
+    server
+        .respond(&interest_request, serde_json::json!({ "id": "interest-1" }))
+        .await;
+    let _session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+
+    let cases = [
+        (
+            "ttl-absent",
+            "startup",
+            McpHeadersRefreshRequiredReason::Startup,
+            serde_json::json!({
+                "kind": "headers",
+                "headers": { "Authorization": "Bearer absent" }
+            }),
+        ),
+        (
+            "ttl-present",
+            "ttl-expired",
+            McpHeadersRefreshRequiredReason::TtlExpired,
+            serde_json::json!({
+                "kind": "headers",
+                "headers": { "Authorization": "Bearer present" },
+                "ttlMs": 12_345
+            }),
+        ),
+        (
+            "none",
+            "auth-failed",
+            McpHeadersRefreshRequiredReason::AuthFailed,
+            serde_json::json!({ "kind": "none" }),
+        ),
+        (
+            "error",
+            "startup",
+            McpHeadersRefreshRequiredReason::Startup,
+            serde_json::json!({
+                "kind": "error",
+                "message": "credential broker unavailable"
+            }),
+        ),
+    ];
+
+    for (index, (server_name, reason, expected_reason, expected_result)) in
+        cases.into_iter().enumerate()
+    {
+        let request_id = format!("headers-{index}");
+        let server_url = format!("https://{server_name}.example.test/mcp");
+        server
+            .send_event(
+                "mcp.headers_refresh_required",
+                serde_json::json!({
+                    "requestId": request_id,
+                    "serverName": server_name,
+                    "serverUrl": server_url,
+                    "reason": reason
+                }),
+            )
+            .await;
+
+        let response_request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(
+            response_request["method"],
+            "session.mcp.headers.handlePendingHeadersRefreshRequest"
+        );
+        assert_eq!(response_request["params"]["requestId"], request_id);
+        assert_eq!(response_request["params"]["result"], expected_result);
+
+        let (received_session_id, received_request_id, received_request) =
+            timeout(TIMEOUT, calls_rx.recv()).await.unwrap().unwrap();
+        assert_eq!(received_session_id.as_str(), "managed-mcp-session");
+        assert_eq!(received_request_id, request_id);
+        assert_eq!(received_request.server_name, server_name);
+        assert_eq!(received_request.server_url, server_url);
+        assert_eq!(received_request.reason, expected_reason);
+
+        server
+            .respond(&response_request, serde_json::json!({ "success": true }))
+            .await;
+    }
+}
+
+#[tokio::test]
+async fn managed_mcp_interest_failure_cleans_up_session_dispatch() {
+    let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel();
+    let handler = Arc::new(TestMcpHeadersHandler { calls: calls_tx });
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "managed-mcp-interest-failure".to_string(),
+    };
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_session_id("managed-mcp-interest-failure")
+                        .with_mcp_headers_handler(handler),
+                )
+                .await
+        }
+    });
+
+    let create_request = server.read_request().await;
+    server
+        .respond(
+            &create_request,
+            serde_json::json!({
+                "sessionId": "managed-mcp-interest-failure",
+                "workspacePath": "/workspace"
+            }),
+        )
+        .await;
+    let interest_request = server.read_request().await;
+    assert_eq!(
+        interest_request["method"],
+        "session.eventLog.registerInterest"
+    );
+    assert_eq!(
+        interest_request["params"]["eventType"],
+        "mcp.headers_refresh_required"
+    );
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": interest_request["id"],
+        "error": { "code": -32603, "message": "registration failed" }
+    });
+    write_framed(&mut server.write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let result = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+    assert!(result.is_err());
+
+    server
+        .send_event(
+            "mcp.headers_refresh_required",
+            serde_json::json!({
+                "requestId": "stale-request",
+                "serverName": "ttl-absent",
+                "serverUrl": "https://example.test/mcp",
+                "reason": "startup"
+            }),
+        )
+        .await;
+    assert!(timeout(TIMEOUT, calls_rx.recv()).await.unwrap().is_none());
 }
 
 async fn server_respond_create(
@@ -5488,11 +5766,25 @@ async fn create_session_pair_with_hooks(
 
 #[tokio::test]
 async fn hooks_invoke_dispatches_to_session_hooks() {
-    use github_copilot_sdk::hooks::{HookEvent, HookOutput, PreToolUseOutput, SessionHooks};
+    use github_copilot_sdk::hooks::{
+        HookEvent, HookOutput, HookResponseSent, PreToolUseOutput, SessionHooks,
+    };
 
-    struct PolicyHooks;
+    struct PolicyHooks {
+        invoked: tokio::sync::mpsc::UnboundedSender<(SessionId, u64)>,
+        response_sent: tokio::sync::mpsc::UnboundedSender<HookResponseSent>,
+    }
     #[async_trait]
     impl SessionHooks for PolicyHooks {
+        async fn on_hook_with_request_id(&self, event: HookEvent, request_id: u64) -> HookOutput {
+            if let HookEvent::PreToolUse { ctx, .. } = &event {
+                self.invoked
+                    .send((ctx.session_id.clone(), request_id))
+                    .unwrap();
+            }
+            self.on_hook(event).await
+        }
+
         async fn on_hook(&self, event: HookEvent) -> HookOutput {
             match event {
                 HookEvent::PreToolUse { input, .. } => {
@@ -5509,9 +5801,20 @@ async fn hooks_invoke_dispatches_to_session_hooks() {
                 _ => HookOutput::None,
             }
         }
+
+        async fn on_hook_response_sent(&self, response: HookResponseSent) {
+            self.response_sent.send(response).unwrap();
+        }
     }
 
-    let (_session, mut server) = create_session_pair_with_hooks(Arc::new(PolicyHooks)).await;
+    let (response_sent_tx, mut response_sent_rx) =
+        tokio::sync::mpsc::unbounded_channel::<HookResponseSent>();
+    let (invoked_tx, mut invoked_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (_session, mut server) = create_session_pair_with_hooks(Arc::new(PolicyHooks {
+        invoked: invoked_tx,
+        response_sent: response_sent_tx,
+    }))
+    .await;
 
     // Send a hooks.invoke request for a denied tool
     server
@@ -5539,6 +5842,84 @@ async fn hooks_invoke_dispatches_to_session_hooks() {
         response["result"]["output"]["permissionDecisionReason"],
         "destructive"
     );
+    let response_sent = timeout(TIMEOUT, response_sent_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(response_sent.request_id, 300);
+    assert_eq!(response_sent.hook_type, "preToolUse");
+    assert_eq!(response_sent.session_id.as_str(), server.session_id);
+    let invoked = timeout(TIMEOUT, invoked_rx.recv()).await.unwrap().unwrap();
+    assert_eq!(
+        invoked,
+        (response_sent.session_id, response_sent.request_id)
+    );
+}
+
+#[test]
+fn hooks_context_supports_legacy_literal_and_exhaustive_pattern() {
+    use github_copilot_sdk::hooks::HookContext;
+
+    let context = HookContext {
+        session_id: SessionId::from("legacy-session"),
+    };
+    let HookContext { session_id } = context;
+    assert_eq!(session_id.as_str(), "legacy-session");
+}
+
+#[tokio::test]
+async fn hooks_response_sent_is_not_called_when_write_fails() {
+    use github_copilot_sdk::hooks::{HookEvent, HookOutput, HookResponseSent, SessionHooks};
+
+    struct GatedHooks {
+        entered: Notify,
+        release: Notify,
+        response_sent: tokio::sync::mpsc::UnboundedSender<HookResponseSent>,
+    }
+
+    #[async_trait]
+    impl SessionHooks for GatedHooks {
+        async fn on_hook(&self, _event: HookEvent) -> HookOutput {
+            self.entered.notify_one();
+            self.release.notified().await;
+            HookOutput::None
+        }
+
+        async fn on_hook_response_sent(&self, response: HookResponseSent) {
+            self.response_sent.send(response).unwrap();
+        }
+    }
+
+    let (response_sent_tx, mut response_sent_rx) = tokio::sync::mpsc::unbounded_channel();
+    let hooks = Arc::new(GatedHooks {
+        entered: Notify::new(),
+        release: Notify::new(),
+        response_sent: response_sent_tx,
+    });
+    let (_session, mut server) = create_session_pair_with_hooks(hooks.clone()).await;
+    server
+        .send_request(
+            302,
+            "hooks.invoke",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "hookType": "sessionEnd",
+                "input": {
+                    "sessionId": server.session_id,
+                    "timestamp": 1234567890,
+                    "cwd": ".",
+                    "reason": "complete"
+                }
+            }),
+        )
+        .await;
+    timeout(TIMEOUT, hooks.entered.notified()).await.unwrap();
+    assert!(response_sent_rx.try_recv().is_err());
+
+    // Keep the inbound stream open, but force the response write to fail.
+    drop(server.read);
+    hooks.release.notify_one();
+    assert!(timeout(TIMEOUT, response_sent_rx.recv()).await.is_err());
 }
 
 #[tokio::test]

@@ -12,6 +12,8 @@ import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import { applyManagedMcpSchemaOverlay } from "../../../scripts/codegen/managedMcpSchemaOverlay.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -861,7 +863,12 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
 async function generateSessionEvents(schemaPath: string): Promise<void> {
     console.log("\n📋 Generating session event classes...");
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent) as JSONSchema7);
+    const schema = normalizeSchemaBrandCasing(
+        applyManagedMcpSchemaOverlay(
+            JSON.parse(schemaContent) as JSONSchema7,
+            path.basename(schemaPath)
+        )
+    );
 
     // Set module-level definitions for $ref resolution
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
@@ -1478,7 +1485,9 @@ function generateRpcClass(
 async function generateRpcTypes(schemaPath: string): Promise<void> {
     console.log("\n🔌 Generating RPC types...");
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent)) as Record<string, unknown> & {
+    const schema = normalizeSchemaBrandCasing(
+        applyManagedMcpSchemaOverlay(JSON.parse(schemaContent), path.basename(schemaPath))
+    ) as Record<string, unknown> & {
         server?: Record<string, unknown>;
         session?: Record<string, unknown>;
         clientSession?: Record<string, unknown>;
@@ -2342,7 +2351,9 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
     console.log("\n🔧 Generating RPC wrapper classes...");
 
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent)) as {
+    const schema = normalizeSchemaBrandCasing(
+        applyManagedMcpSchemaOverlay(JSON.parse(schemaContent), path.basename(schemaPath))
+    ) as {
         server?: Record<string, unknown>;
         session?: Record<string, unknown>;
         clientSession?: Record<string, unknown>;

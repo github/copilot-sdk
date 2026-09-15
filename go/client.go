@@ -902,6 +902,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.WorkingDirectory = config.WorkingDirectory
 	req.AdditionalDirectories = config.AdditionalDirectories
 	req.MCPServers = config.MCPServers
+	req.ManagedMCPServers = config.ManagedMCPServers
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
 	req.AuthClientIDMetadataURL = config.AuthClientIDMetadataURL
 	req.EnvValueMode = "direct"
@@ -1040,6 +1041,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		s.registerTools(config.Tools)
 		s.registerPermissionHandler(config.OnPermissionRequest)
 		s.registerMCPAuthHandler(config.OnMCPAuthRequest)
+		s.registerMCPHeadersRefreshHandler(config.OnMCPHeadersRefresh)
 		if config.OnUserInputRequest != nil {
 			s.registerUserInputHandler(config.OnUserInputRequest)
 		}
@@ -1167,6 +1169,17 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			"eventType": "mcp.oauth_required",
 		}); err != nil {
 			unregisterSession(registeredSessionID, session)
+			return nil, err
+		}
+	}
+	if config.OnMCPHeadersRefresh != nil {
+		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
+			"sessionId": session.SessionID,
+			"eventType": "mcp.headers_refresh_required",
+		}); err != nil {
+			c.sessionsMux.Lock()
+			delete(c.sessions, registeredSessionID)
+			c.sessionsMux.Unlock()
 			return nil, err
 		}
 	}
@@ -1322,6 +1335,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	req.ContinuePendingWork = config.ContinuePendingWork
 	req.MCPServers = config.MCPServers
+	req.ManagedMCPServers = config.ManagedMCPServers
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
 	req.AuthClientIDMetadataURL = config.AuthClientIDMetadataURL
 	req.EnvValueMode = "direct"
@@ -1397,6 +1411,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
 	session.registerMCPAuthHandler(config.OnMCPAuthRequest)
+	session.registerMCPHeadersRefreshHandler(config.OnMCPHeadersRefresh)
 	if config.OnUserInputRequest != nil {
 		session.registerUserInputHandler(config.OnUserInputRequest)
 	}
@@ -1482,6 +1497,15 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
 			"sessionId": sessionID,
 			"eventType": "mcp.oauth_required",
+		}); err != nil {
+			restoreReplacedSession()
+			return nil, err
+		}
+	}
+	if config.OnMCPHeadersRefresh != nil {
+		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
+			"sessionId": sessionID,
+			"eventType": "mcp.headers_refresh_required",
 		}); err != nil {
 			restoreReplacedSession()
 			return nil, err

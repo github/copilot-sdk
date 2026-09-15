@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -325,6 +326,246 @@ func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for MCP OAuth request")
 	}
+}
+
+func TestSession_MCPHeadersRefreshResponses(t *testing.T) {
+	ttl := int64(5_000)
+	tests := []struct {
+		name     string
+		result   *MCPHeadersRefreshResult
+		err      error
+		expected map[string]any
+	}{
+		{
+			name:   "headers without ttl",
+			result: &MCPHeadersRefreshResult{Headers: map[string]string{"Authorization": "Bearer first"}},
+			expected: map[string]any{
+				"kind":    "headers",
+				"headers": map[string]any{"Authorization": "Bearer first"},
+			},
+		},
+		{
+			name: "headers with ttl",
+			result: &MCPHeadersRefreshResult{
+				Headers: map[string]string{"Authorization": "Bearer refreshed"},
+				TTLMS:   &ttl,
+			},
+			expected: map[string]any{
+				"kind":    "headers",
+				"headers": map[string]any{"Authorization": "Bearer refreshed"},
+				"ttlMs":   float64(5_000),
+			},
+		},
+		{
+			name:     "no headers",
+			expected: map[string]any{"kind": "none"},
+		},
+		{
+			name:     "broker error",
+			err:      errors.New("credential revoked"),
+			expected: map[string]any{"kind": "error", "message": "credential revoked"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdinR, stdinW := io.Pipe()
+			stdoutR, stdoutW := io.Pipe()
+			defer stdinR.Close()
+			defer stdinW.Close()
+			defer stdoutR.Close()
+			defer stdoutW.Close()
+
+			client := jsonrpc2.NewClient(stdinW, stdoutR)
+			client.Start()
+			defer client.Stop()
+
+			paramsCh := make(chan map[string]any, 1)
+			errCh := make(chan error, 1)
+			go func() {
+				frame, err := readTestJSONRPCFrame(stdinR)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				var request struct {
+					ID     json.RawMessage `json:"id"`
+					Method string          `json:"method"`
+					Params map[string]any  `json:"params"`
+				}
+				if err := json.Unmarshal(frame, &request); err != nil {
+					errCh <- err
+					return
+				}
+				if request.Method != "session.mcp.headers.handlePendingHeadersRefreshRequest" {
+					errCh <- fmt.Errorf("unexpected method %s", request.Method)
+					return
+				}
+				paramsCh <- request.Params
+				response, err := json.Marshal(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      json.RawMessage(request.ID),
+					"result":  map[string]any{"success": true},
+				})
+				if err != nil {
+					errCh <- err
+					return
+				}
+				_, err = fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(response), response)
+				if err != nil {
+					errCh <- err
+				}
+			}()
+
+			session := &Session{
+				SessionID: "session-1",
+				client:    client,
+				RPC:       rpc.NewSessionRPC(client, "session-1"),
+			}
+			session.registerMCPHeadersRefreshHandler(
+				func(request MCPHeadersRefreshRequest, invocation MCPHeadersRefreshInvocation) (*MCPHeadersRefreshResult, error) {
+					if request.ServerName != "GitHub" || request.Reason != MCPHeadersRefreshRequiredReasonStartup {
+						t.Fatalf("unexpected request: %#v", request)
+					}
+					if invocation.SessionID != "session-1" {
+						t.Fatalf("unexpected invocation: %#v", invocation)
+					}
+					return tt.result, tt.err
+				},
+			)
+			session.handleBroadcastEvent(SessionEvent{
+				Data: &MCPHeadersRefreshRequiredData{
+					RequestID:  "refresh-1",
+					ServerName: "GitHub",
+					ServerURL:  "https://example.com/mcp",
+					Reason:     MCPHeadersRefreshRequiredReasonStartup,
+				},
+			})
+
+			select {
+			case params := <-paramsCh:
+				if params["requestId"] != "refresh-1" {
+					t.Fatalf("unexpected requestId: %v", params["requestId"])
+				}
+				if !mapsEqual(params["result"], tt.expected) {
+					t.Fatalf("unexpected result: %#v", params["result"])
+				}
+			case err := <-errCh:
+				t.Fatal(err)
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for MCP headers refresh response")
+			}
+		})
+	}
+}
+
+func TestSession_MCPHeadersRefreshPanicDoesNotStopDispatch(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdinW.Close()
+	defer stdoutR.Close()
+	defer stdoutW.Close()
+
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+	defer client.Stop()
+
+	paramsCh := make(chan map[string]any, 2)
+	errCh := make(chan error, 1)
+	go func() {
+		for range 2 {
+			frame, err := readTestJSONRPCFrame(stdinR)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			var request struct {
+				ID     json.RawMessage `json:"id"`
+				Method string          `json:"method"`
+				Params map[string]any  `json:"params"`
+			}
+			if err := json.Unmarshal(frame, &request); err != nil {
+				errCh <- err
+				return
+			}
+			if request.Method != "session.mcp.headers.handlePendingHeadersRefreshRequest" {
+				errCh <- fmt.Errorf("unexpected method %s", request.Method)
+				return
+			}
+			response, err := json.Marshal(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      request.ID,
+				"result":  map[string]any{"success": true},
+			})
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if _, err := fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(response), response); err != nil {
+				errCh <- err
+				return
+			}
+			paramsCh <- request.Params
+		}
+	}()
+
+	session, cleanup := newTestSession()
+	defer cleanup()
+	session.SessionID = "session-panic"
+	session.client = client
+	session.RPC = rpc.NewSessionRPC(client, session.SessionID)
+	var calls atomic.Int32
+	session.registerMCPHeadersRefreshHandler(
+		func(MCPHeadersRefreshRequest, MCPHeadersRefreshInvocation) (*MCPHeadersRefreshResult, error) {
+			if calls.Add(1) == 1 {
+				panic("credential broker crashed")
+			}
+			return &MCPHeadersRefreshResult{Headers: map[string]string{"Authorization": "refreshed"}}, nil
+		},
+	)
+
+	for i, expected := range []map[string]any{
+		{"kind": "error", "message": "MCP headers refresh handler panic: credential broker crashed"},
+		{"kind": "headers", "headers": map[string]any{"Authorization": "refreshed"}},
+	} {
+		requestID := fmt.Sprintf("refresh-%d", i)
+		session.dispatchEvent(SessionEvent{Data: &MCPHeadersRefreshRequiredData{
+			RequestID:  requestID,
+			ServerName: "GitHub",
+			ServerURL:  "https://example.com/mcp",
+			Reason:     MCPHeadersRefreshRequiredReasonStartup,
+		}})
+
+		select {
+		case params := <-paramsCh:
+			if params["sessionId"] != session.SessionID || params["requestId"] != requestID {
+				t.Fatalf("unexpected response correlation: %#v", params)
+			}
+			if !mapsEqual(params["result"], expected) {
+				t.Fatalf("unexpected result: %#v", params["result"])
+			}
+		case err := <-errCh:
+			t.Fatal(err)
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for MCP headers refresh response")
+		}
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("expected two callback invocations, got %d", got)
+	}
+}
+
+func mapsEqual(actual any, expected map[string]any) bool {
+	actualJSON, err := json.Marshal(actual)
+	if err != nil {
+		return false
+	}
+	expectedJSON, err := json.Marshal(expected)
+	if err != nil {
+		return false
+	}
+	return string(actualJSON) == string(expectedJSON)
 }
 
 func TestMCPAuthRequestAllowsMissingOptionalMetadata(t *testing.T) {
