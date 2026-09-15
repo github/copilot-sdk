@@ -783,6 +783,63 @@ var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
+### In-memory skills (experimental)
+
+Use `SessionConfig.SkillProvider` to supply text-only skills from application storage
+without writing skill files or replacing the native `skill` tool. The runtime requests
+metadata through `ListAsync` and reads the complete Markdown lazily through `ReadAsync`.
+
+```csharp
+#pragma warning disable GHCP001 // Experimental native skill-provider API.
+using GitHub.Copilot;
+
+await using var client = new CopilotClient();
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    SkillProvider = new ApplicationSkills(),
+    EnableSkills = true,
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+});
+
+sealed class ApplicationSkills : SkillProvider
+{
+    public override Task<IReadOnlyList<SkillProviderDescriptor>> ListAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<SkillProviderDescriptor>>(
+        [
+            new() { Name = "release-review", Description = "Review a release checklist." }
+        ]);
+    }
+
+    public override Task<string> ReadAsync(
+        string name, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (name != "release-review")
+            throw new KeyNotFoundException(name);
+
+        return Task.FromResult("""
+            ---
+            name: release-review
+            description: Review a release checklist.
+            ---
+            Check the version, changelog, and test results before recommending a release.
+            """);
+    }
+}
+```
+
+- The provider uses experimental native callbacks; it does not expose supporting files or assets.
+- Markdown frontmatter must agree with the catalog descriptor. Names must be unique
+  case-insensitively and match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`.
+- Implementations must support concurrent calls and honor cancellation.
+- Re-supply `SkillProvider` on resume. Its binding is not serialized or persisted.
+- `EnableSkills = false` leaves the provider bound but dormant. Set it to `true`
+  explicitly when using `CopilotClientMode.Empty`.
+- Existing `SkillDirectories` can be used alongside provider skills.
+
 ### Multiple Sessions
 
 ```csharp

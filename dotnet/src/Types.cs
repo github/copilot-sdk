@@ -2883,8 +2883,9 @@ public sealed class CustomAgentConfig
     /// <summary>
     /// List of skill names to preload into this agent's context.
     /// When set, the full content of each listed skill is eagerly injected into
-    /// the agent's context at startup. Skills are resolved by name from the
-    /// session's configured skill directories (<see cref="SessionConfigBase.SkillDirectories"/>).
+    /// the agent's context at startup. Skills are resolved by name from the session's native
+    /// catalog, including <see cref="SessionConfigBase.SkillDirectories"/> and
+    /// <see cref="SessionConfigBase.SkillProvider"/>.
     /// When omitted, no skills are injected (opt-in model).
     /// </summary>
     [JsonPropertyName("skills")]
@@ -3371,6 +3372,7 @@ public abstract class SessionConfigBase
         CanvasHandler = other.CanvasHandler;
 #pragma warning restore GHCP001
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        SkillProvider = other.SkillProvider;
         PluginDirectories = other.PluginDirectories is not null ? [.. other.PluginDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         SessionLimits = other.SessionLimits;
@@ -3497,9 +3499,9 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// When <see langword="true"/>, enables skill loading, including built-in
-    /// skills and discovered skill directories. When <see langword="false"/>, no
-    /// skills are loaded regardless of <see cref="SkillDirectories"/> or
-    /// <see cref="EnableConfigDiscovery"/>.
+    /// skills, discovered skill directories, and <see cref="SkillProvider"/>.
+    /// When <see langword="false"/>, no skills are loaded regardless of
+    /// <see cref="SkillDirectories"/>, <see cref="SkillProvider"/>, or <see cref="EnableConfigDiscovery"/>.
     /// </summary>
     public bool? EnableSkills { get; set; }
 
@@ -3746,6 +3748,19 @@ public abstract class SessionConfigBase
 
     /// <summary>Directories to load skills from.</summary>
     public IList<string>? SkillDirectories { get; set; }
+
+    /// <summary>
+    /// Gets or sets an experimental, in-memory, text-only provider for the native <c>skill</c> tool.
+    /// </summary>
+    /// <remarks>
+    /// The provider is registered before the create/resume request and is not serialized or persisted.
+    /// Supply it again on resume. Setting <see cref="EnableSkills"/> to <see langword="false"/>
+    /// keeps the provider bound but prevents the runtime from loading skills. File-based skills may
+    /// coexist with provider skills. Cloud creation with a server-assigned session ID is not supported.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore]
+    public SkillProvider? SkillProvider { get; set; }
 
     /// <summary>
     /// Local filesystem paths to Open Plugins-format directories

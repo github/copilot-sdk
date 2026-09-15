@@ -18,7 +18,7 @@ using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
 
-public sealed class ClientSessionLifetimeTests
+public sealed partial class ClientSessionLifetimeTests
 {
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
 
