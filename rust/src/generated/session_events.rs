@@ -4121,6 +4121,21 @@ pub struct ToolExecutionCompleteResult {
     pub ui_resource: Option<ToolExecutionCompleteUIResource>,
 }
 
+/// Experimental shell completion facts retained independently of the full tool result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteShellExecution {
+    /// Process exit code reported by the shell driver.
+    pub exit_code: i64,
+}
+
 /// MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_complete`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -4206,6 +4221,16 @@ pub struct ToolExecutionCompleteData {
     /// Whether this tool execution ran inside a sandbox container
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandboxed: Option<bool>,
+    /// Experimental shell completion facts captured before the persisted result contents are stripped.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shell_execution: Option<ToolExecutionCompleteShellExecution>,
     /// Whether the tool execution completed successfully
     pub success: bool,
     /// Unique identifier for the completed tool call

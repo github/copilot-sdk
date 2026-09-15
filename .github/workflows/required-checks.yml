@@ -71,7 +71,7 @@ jobs:
               - '!**/.editorconfig'
               - '!**/*.{png,jpg,jpeg,gif,svg}'
             java:
-              - '{java/**,test/**,nodejs/package.json,nodejs/scripts/**,.github/workflows/java-sdk-tests.yml,.github/actions/setup-copilot/**,.github/actions/java-test-report/**}'
+              - '{java/**,test/**,nodejs/package.json,nodejs/scripts/**,.github/workflows/java-sdk-tests.yml,.github/workflows/java-publish-maven.yml,.github/workflows/java-publish-snapshot.yml,.github/workflows/java-smoke-test.yml,.github/workflows/java-codegen-check.yml,.github/workflows/publish.yml,.github/actions/setup-copilot/**,.github/actions/java-test-report/**}'
               - '!**/*.md'
               - '!**/LICENSE*'
               - '!**/.gitignore'

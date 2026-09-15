@@ -2417,6 +2417,26 @@ class SessionPermissionsChangedData:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class ToolExecutionCompleteShellExecution:
+    "Experimental shell completion facts retained independently of the full tool result."
+    exit_code: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteShellExecution":
+        assert isinstance(obj, dict)
+        exit_code = from_int(obj.get("exitCode"))
+        return ToolExecutionCompleteShellExecution(
+            exit_code=exit_code,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["exitCode"] = to_int(self.exit_code)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class UiEphemeralQueryData:
     "Ordered output and terminal state for a transient query that does not modify conversation history."
     phase: UIEphemeralQueryPhase
@@ -11008,6 +11028,8 @@ class ToolExecutionCompleteData:
     result: ToolExecutionCompleteResult | None = None
     rte: bool | None = None
     sandboxed: bool | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    shell_execution: ToolExecutionCompleteShellExecution | None = None
     tool_description: ToolExecutionCompleteToolDescription | None = None
     tool_telemetry: dict[str, Any] | None = None
     turn_id: str | None = None
@@ -11027,6 +11049,7 @@ class ToolExecutionCompleteData:
         result = from_union([from_none, ToolExecutionCompleteResult.from_dict], obj.get("result"))
         rte = from_union([from_none, from_bool], obj.get("rte"))
         sandboxed = from_union([from_none, from_bool], obj.get("sandboxed"))
+        shell_execution = from_union([from_none, ToolExecutionCompleteShellExecution.from_dict], obj.get("shellExecution"))
         tool_description = from_union([from_none, ToolExecutionCompleteToolDescription.from_dict], obj.get("toolDescription"))
         tool_telemetry = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("toolTelemetry"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
@@ -11043,6 +11066,7 @@ class ToolExecutionCompleteData:
             result=result,
             rte=rte,
             sandboxed=sandboxed,
+            shell_execution=shell_execution,
             tool_description=tool_description,
             tool_telemetry=tool_telemetry,
             turn_id=turn_id,
@@ -11072,6 +11096,8 @@ class ToolExecutionCompleteData:
             result["rte"] = from_union([from_none, from_bool], self.rte)
         if self.sandboxed is not None:
             result["sandboxed"] = from_union([from_none, from_bool], self.sandboxed)
+        if self.shell_execution is not None:
+            result["shellExecution"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteShellExecution, x)], self.shell_execution)
         if self.tool_description is not None:
             result["toolDescription"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteToolDescription, x)], self.tool_description)
         if self.tool_telemetry is not None:
@@ -13932,6 +13958,7 @@ __all__ = [
     "ToolExecutionCompleteData",
     "ToolExecutionCompleteError",
     "ToolExecutionCompleteResult",
+    "ToolExecutionCompleteShellExecution",
     "ToolExecutionCompleteToolDescription",
     "ToolExecutionCompleteToolDescriptionMeta",
     "ToolExecutionCompleteToolDescriptionMetaUI",

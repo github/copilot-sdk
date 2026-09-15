@@ -117,6 +117,70 @@ public final class SessionWorkspacesApi {
     }
 
     /**
+     * Relative path of the workspace file or directory to inspect.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionWorkspacesStatFileResult> statFile(SessionWorkspacesStatFileParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.statFile", _p, SessionWorkspacesStatFileResult.class);
+    }
+
+    /**
+     * Directory to create within the session workspace files directory.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> createDirectory(SessionWorkspacesCreateDirectoryParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.createDirectory", _p, Void.class);
+    }
+
+    /**
+     * File or directory to remove from the session workspace files directory.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> removePath(SessionWorkspacesRemovePathParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.removePath", _p, Void.class);
+    }
+
+    /**
+     * Source and destination paths for a rename within the session workspace files directory.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> renamePath(SessionWorkspacesRenamePathParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.renamePath", _p, Void.class);
+    }
+
+    /**
      * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.

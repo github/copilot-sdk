@@ -399,6 +399,7 @@ type (
 	ToolExecutionCompleteData                                      = rpc.ToolExecutionCompleteData
 	ToolExecutionCompleteError                                     = rpc.ToolExecutionCompleteError
 	ToolExecutionCompleteResult                                    = rpc.ToolExecutionCompleteResult
+	ToolExecutionCompleteShellExecution                            = rpc.ToolExecutionCompleteShellExecution
 	ToolExecutionCompleteToolDescription                           = rpc.ToolExecutionCompleteToolDescription
 	ToolExecutionCompleteToolDescriptionMeta                       = rpc.ToolExecutionCompleteToolDescriptionMeta
 	ToolExecutionCompleteToolDescriptionMetaUI                     = rpc.ToolExecutionCompleteToolDescriptionMetaUI

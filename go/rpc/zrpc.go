@@ -7664,8 +7664,10 @@ type ModelCapabilitiesOverrideLimitsVision struct {
 // Experimental: ModelCapabilitiesOverrideSupports is part of an experimental API and may
 // change or be removed.
 type ModelCapabilitiesOverrideSupports struct {
-	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required.
-	// 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required /
+	// adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still
+	// accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing
+	// but 'adaptive' (e.g. fable, mythos).
 	AdaptiveThinking *AdaptiveThinkingSupport `json:"adaptive_thinking,omitempty"`
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
@@ -7677,8 +7679,10 @@ type ModelCapabilitiesOverrideSupports struct {
 // Experimental: ModelCapabilitiesSupports is part of an experimental API and may change or
 // be removed.
 type ModelCapabilitiesSupports struct {
-	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required.
-	// 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required /
+	// adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still
+	// accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing
+	// but 'adaptive' (e.g. fable, mythos).
 	AdaptiveThinking *AdaptiveThinkingSupport `json:"adaptive_thinking,omitempty"`
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
@@ -14196,9 +14200,24 @@ type SessionWorkingDirectoryContext struct {
 	RepositoryHost *string `json:"repositoryHost,omitempty"`
 }
 
+// Experimental: SessionWorkspacesCreateDirectoryResult is part of an experimental API and
+// may change or be removed.
+type SessionWorkspacesCreateDirectoryResult struct {
+}
+
 // Experimental: SessionWorkspacesCreateFileResult is part of an experimental API and may
 // change or be removed.
 type SessionWorkspacesCreateFileResult struct {
+}
+
+// Experimental: SessionWorkspacesRemovePathResult is part of an experimental API and may
+// change or be removed.
+type SessionWorkspacesRemovePathResult struct {
+}
+
+// Experimental: SessionWorkspacesRenamePathResult is part of an experimental API and may
+// change or be removed.
+type SessionWorkspacesRenamePathResult struct {
 }
 
 // Authentication credentials accepted by session.gitHubAuth.setCredentials. Session-owned
@@ -14411,6 +14430,12 @@ type ShellOptions struct {
 // Parameters for shutting down the session
 // Experimental: ShutdownRequest is part of an experimental API and may change or be removed.
 type ShutdownRequest struct {
+	// Dispatch deferred sessionEnd hooks in the background with their full per-hook timeoutSec
+	// instead of awaiting them under the short shared shutdown budget. Set this when the host
+	// process keeps running after the session closes (for example the CLI's /clear), so a slow
+	// hook neither blocks the close nor is aborted. Hooks still detached when the process later
+	// exits are terminated with it. Defaults to false.
+	DetachSessionEndHooks *bool `json:"detachSessionEndHooks,omitempty"`
 	// Optional human-readable reason. Typically the message of the error that triggered
 	// shutdown when type is 'error'.
 	Reason *string `json:"reason,omitempty"`
@@ -16704,13 +16729,23 @@ type WorkspacesCheckpoints struct {
 	Title string `json:"title"`
 }
 
+// Directory to create within the session workspace files directory.
+// Experimental: WorkspacesCreateDirectoryRequest is part of an experimental API and may
+// change or be removed.
+type WorkspacesCreateDirectoryRequest struct {
+	// Slash-separated relative path within the workspace files directory
+	Path string `json:"path"`
+	// Whether to create missing parent directories. Defaults to false.
+	Recursive *bool `json:"recursive,omitempty"`
+}
+
 // Relative path and UTF-8 content for the workspace file to create or overwrite.
 // Experimental: WorkspacesCreateFileRequest is part of an experimental API and may change
 // or be removed.
 type WorkspacesCreateFileRequest struct {
 	// File content to write as a UTF-8 string
 	Content string `json:"content"`
-	// Relative path within the workspace files directory
+	// Slash-separated relative path within the workspace files directory
 	Path string `json:"path"`
 }
 
@@ -16801,7 +16836,7 @@ type WorkspacesListCheckpointsResult struct {
 // Experimental: WorkspacesListFilesResult is part of an experimental API and may change or
 // be removed.
 type WorkspacesListFilesResult struct {
-	// Relative file paths in the workspace files directory
+	// Slash-separated relative file paths in the workspace files directory
 	Files []string `json:"files"`
 }
 
@@ -16833,7 +16868,7 @@ type WorkspacesReadCheckpointResult struct {
 // Experimental: WorkspacesReadFileRequest is part of an experimental API and may change or
 // be removed.
 type WorkspacesReadFileRequest struct {
-	// Relative path within the workspace files directory
+	// Slash-separated relative path within the workspace files directory
 	Path string `json:"path"`
 }
 
@@ -16843,6 +16878,28 @@ type WorkspacesReadFileRequest struct {
 type WorkspacesReadFileResult struct {
 	// File content as a UTF-8 string
 	Content string `json:"content"`
+}
+
+// File or directory to remove from the session workspace files directory.
+// Experimental: WorkspacesRemovePathRequest is part of an experimental API and may change
+// or be removed.
+type WorkspacesRemovePathRequest struct {
+	// Whether a missing path should be treated as success. Defaults to false.
+	Force *bool `json:"force,omitempty"`
+	// Slash-separated relative path within the workspace files directory
+	Path string `json:"path"`
+	// Whether to remove directory contents recursively. Defaults to false.
+	Recursive *bool `json:"recursive,omitempty"`
+}
+
+// Source and destination paths for a rename within the session workspace files directory.
+// Experimental: WorkspacesRenamePathRequest is part of an experimental API and may change
+// or be removed.
+type WorkspacesRenamePathRequest struct {
+	// Slash-separated destination path relative to the workspace files directory
+	Destination string `json:"destination"`
+	// Slash-separated source path relative to the workspace files directory
+	Source string `json:"source"`
 }
 
 // Pasted content to save as a UTF-8 file in the session workspace.
@@ -16869,6 +16926,30 @@ type WorkspacesSaveLargePasteResultSaved struct {
 	FilePath string `json:"filePath"`
 	// Size of the saved file in bytes
 	SizeBytes int64 `json:"sizeBytes"`
+}
+
+// Relative path of the workspace file or directory to inspect.
+// Experimental: WorkspacesStatFileRequest is part of an experimental API and may change or
+// be removed.
+type WorkspacesStatFileRequest struct {
+	// Slash-separated relative path within the workspace files directory
+	Path string `json:"path"`
+}
+
+// Filesystem metadata for a path in the session workspace files directory.
+// Experimental: WorkspacesStatFileResult is part of an experimental API and may change or
+// be removed.
+type WorkspacesStatFileResult struct {
+	// Creation time in Unix epoch milliseconds
+	BirthtimeMs float64 `json:"birthtimeMs"`
+	// Whether the path identifies a directory
+	IsDirectory bool `json:"isDirectory"`
+	// Whether the path identifies a regular file
+	IsFile bool `json:"isFile"`
+	// Last modification time in Unix epoch milliseconds
+	MtimeMs float64 `json:"mtimeMs"`
+	// Size in bytes
+	Size float64 `json:"size"`
 }
 
 // Rollback point for local workspace summaries.
@@ -16953,10 +17034,13 @@ const (
 type AdaptiveThinkingSupport string
 
 const (
+	// The model accepts only thinking.type='adaptive'; 'enabled', 'disabled', and an omitted
+	// thinking block all fail with HTTP 400 (e.g. fable, mythos)
+	AdaptiveThinkingSupportAdaptiveOnly AdaptiveThinkingSupport = "adaptive_only"
 	// The model accepts adaptive thinking but also accepts thinking.type='enabled'
 	AdaptiveThinkingSupportOptional AdaptiveThinkingSupport = "optional"
-	// The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP
-	// 400 (e.g. opus-4.7/4.8)
+	// The model defaults to adaptive thinking and rejects thinking.type='enabled' with HTTP
+	// 400, but still accepts thinking.type='disabled' (e.g. opus-4.7/4.8/5, sonnet-5)
 	AdaptiveThinkingSupportRequired AdaptiveThinkingSupport = "required"
 	// The model does not accept thinking.type='adaptive'
 	AdaptiveThinkingSupportUnsupported AdaptiveThinkingSupport = "unsupported"
@@ -19345,6 +19429,8 @@ const (
 	PermissionModeSourceAutopilotConfirmation PermissionModeSource = "autopilot_confirmation"
 	// The mode was set from a CLI command-line flag.
 	PermissionModeSourceCLIFlag PermissionModeSource = "cli_flag"
+	// The mode was set at startup by authenticated organization targeting.
+	PermissionModeSourceOrganizationTargeting PermissionModeSource = "organization_targeting"
 	// The mode was set through an RPC caller.
 	PermissionModeSourceRPC PermissionModeSource = "rpc"
 	// The mode was set by a slash command.
@@ -28427,6 +28513,30 @@ func (a *WorkspacesAPI) AutopilotObjectiveExists(ctx context.Context) (*Workspac
 	return &result, nil
 }
 
+// CreateDirectory creates a directory in the session workspace files directory.
+//
+// RPC method: session.workspaces.createDirectory.
+//
+// Parameters: Directory to create within the session workspace files directory.
+func (a *WorkspacesAPI) CreateDirectory(ctx context.Context, params *WorkspacesCreateDirectoryRequest) (*SessionWorkspacesCreateDirectoryResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["path"] = params.Path
+		if params.Recursive != nil {
+			req["recursive"] = *params.Recursive
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.workspaces.createDirectory", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionWorkspacesCreateDirectoryResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // CreateFile creates or overwrites a file in the session workspace files directory.
 //
 // RPC method: session.workspaces.createFile.
@@ -28644,6 +28754,56 @@ func (a *WorkspacesAPI) ReadFile(ctx context.Context, params *WorkspacesReadFile
 	return &result, nil
 }
 
+// RemovePath removes a file or directory from the session workspace files directory.
+//
+// RPC method: session.workspaces.removePath.
+//
+// Parameters: File or directory to remove from the session workspace files directory.
+func (a *WorkspacesAPI) RemovePath(ctx context.Context, params *WorkspacesRemovePathRequest) (*SessionWorkspacesRemovePathResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Force != nil {
+			req["force"] = *params.Force
+		}
+		req["path"] = params.Path
+		if params.Recursive != nil {
+			req["recursive"] = *params.Recursive
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.workspaces.removePath", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionWorkspacesRemovePathResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RenamePath renames a file or directory within the session workspace files directory.
+//
+// RPC method: session.workspaces.renamePath.
+//
+// Parameters: Source and destination paths for a rename within the session workspace files
+// directory.
+func (a *WorkspacesAPI) RenamePath(ctx context.Context, params *WorkspacesRenamePathRequest) (*SessionWorkspacesRenamePathResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["destination"] = params.Destination
+		req["source"] = params.Source
+	}
+	raw, err := a.client.Request(ctx, "session.workspaces.renamePath", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionWorkspacesRenamePathResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SaveLargePaste saves pasted content as a UTF-8 file in the session workspace.
 //
 // RPC method: session.workspaces.saveLargePaste.
@@ -28661,6 +28821,30 @@ func (a *WorkspacesAPI) SaveLargePaste(ctx context.Context, params *WorkspacesSa
 		return nil, err
 	}
 	var result WorkspacesSaveLargePasteResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// StatFile returns metadata for a file or directory in the session workspace files
+// directory.
+//
+// RPC method: session.workspaces.statFile.
+//
+// Parameters: Relative path of the workspace file or directory to inspect.
+//
+// Returns: Filesystem metadata for a path in the session workspace files directory.
+func (a *WorkspacesAPI) StatFile(ctx context.Context, params *WorkspacesStatFileRequest) (*WorkspacesStatFileResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["path"] = params.Path
+	}
+	raw, err := a.client.Request(ctx, "session.workspaces.statFile", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkspacesStatFileResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -29040,6 +29224,9 @@ func (a *SessionRPC) SendMessages(ctx context.Context, params *SendMessagesReque
 func (a *SessionRPC) Shutdown(ctx context.Context, params *ShutdownRequest) (*SessionShutdownResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
+		if params.DetachSessionEndHooks != nil {
+			req["detachSessionEndHooks"] = *params.DetachSessionEndHooks
+		}
 		if params.Reason != nil {
 			req["reason"] = *params.Reason
 		}
