@@ -22,6 +22,8 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
+    ExtensionLaunchProviderResolveRequest,
+    ExtensionLaunchProviderResolveResult,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
@@ -34,6 +36,9 @@ import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
+    ExtensionLaunchProfile,
+    ExtensionLaunchProviderResolveRequest,
+    ExtensionLaunchProviderResolveResult,
     GitHubTokenAcquireReason,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
@@ -344,6 +349,17 @@ export interface CopilotClientInfo {
 }
 
 export interface CopilotClientOptions {
+    /**
+     * Resolves a launch profile for an extension entrypoint discovered by the runtime.
+     * Registration completes during client.start(), before sessions can be created.
+     * Return an empty object for unsupported entrypoints. The runtime owns discovery,
+     * process creation, lifetime, and reserved SDK/session environment variables.
+     *
+     * @experimental
+     */
+    onExtensionLaunch?: (
+        request: ExtensionLaunchProviderResolveRequest
+    ) => ExtensionLaunchProviderResolveResult | Promise<ExtensionLaunchProviderResolveResult>;
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
      * {@link RuntimeConnection.forStdio} with the bundled runtime.

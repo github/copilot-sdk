@@ -177,6 +177,74 @@ describe("CopilotClient", () => {
         expect(sendRequest).toHaveBeenCalledWith("plugins.builtin.set", { paths });
     });
 
+    it("registers the extension launch provider before start completes and forwards its profile", async () => {
+        const profile = {
+            launch: {
+                executable: "/node",
+                args: ["/bootstrap.mjs"],
+                env: { EXTENSION_PATH: "/extension.mjs" },
+            },
+        };
+        const onExtensionLaunch = vi.fn(async () => profile);
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri("localhost:1234"),
+            onExtensionLaunch,
+        });
+        let finishRegistration!: () => void;
+        const registration = new Promise<void>((resolve) => {
+            finishRegistration = resolve;
+        });
+        const sendRequest = vi.fn(() => registration);
+        vi.spyOn(client as any, "connectToServer").mockImplementation(async () => {
+            (client as any).connection = { sendRequest };
+        });
+        vi.spyOn(client as any, "verifyProtocolVersion").mockResolvedValue(undefined);
+        let started = false;
+        const starting = client.start().then(() => {
+            started = true;
+        });
+        await vi.waitFor(() =>
+            expect(sendRequest).toHaveBeenCalledWith("registerExtensionLaunchProvider", {})
+        );
+        expect(started).toBe(false);
+        finishRegistration();
+        await starting;
+        const request = {
+            id: "project:example",
+            name: "example",
+            modulePath: "/extension.mjs",
+            source: "project" as const,
+        };
+        const result = await (client as any).clientGlobalHandlers.extensionLaunchProvider.resolve(
+            request
+        );
+        expect({
+            supported: CopilotClient.supportsExtensionLaunchProvider,
+            result,
+            calls: onExtensionLaunch.mock.calls,
+        }).toEqual({
+            supported: true,
+            result: profile,
+            calls: [[request]],
+        });
+    });
+
+    it("fails startup when extension launch provider registration is rejected", async () => {
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri("localhost:1234"),
+            onExtensionLaunch: () => ({}),
+        });
+        vi.spyOn(client as any, "connectToServer").mockImplementation(async () => {
+            (client as any).connection = {
+                sendRequest: vi.fn().mockRejectedValue(new Error("unsupported")),
+            };
+        });
+        vi.spyOn(client as any, "verifyProtocolVersion").mockResolvedValue(undefined);
+        const stop = vi.spyOn(client, "forceStop").mockResolvedValue();
+        await expect(client.start()).rejects.toThrow("unsupported");
+        expect(stop).toHaveBeenCalledOnce();
+    });
+
     it("rejects relative built-in plugin directories", () => {
         expect(
             () =>
