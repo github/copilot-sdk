@@ -1935,6 +1935,65 @@ class TestInstructionDirectories:
         finally:
             await client.force_stop()
 
+    @pytest.mark.asyncio
+    async def test_create_session_sends_custom_agent_directories(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method == "session.create":
+                    sid = params.get("sessionId") or "session-id"
+                    result = {"sessionId": sid, "workspacePath": None}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                custom_agent_directories=["C:\\extra-agents", "C:\\more-agents"],
+            )
+
+            assert captured["session.create"]["customAgentDirectories"] == [
+                "C:\\extra-agents",
+                "C:\\more-agents",
+            ]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_sends_custom_agent_directories(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+
+            await client.resume_session(
+                "session-id",
+                on_permission_request=PermissionHandler.approve_all,
+                custom_agent_directories=["C:\\resume-agents"],
+            )
+
+            assert captured["session.resume"]["customAgentDirectories"] == ["C:\\resume-agents"]
+        finally:
+            await client.force_stop()
+
 
 class TestModelBilling:
     def test_token_prices_round_trip(self):

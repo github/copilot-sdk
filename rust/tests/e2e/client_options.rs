@@ -61,6 +61,7 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
                 .with_skill_directories([PathBuf::from("skills")])
                 .with_plugin_directories([PathBuf::from("plugins")])
                 .with_instruction_directories([PathBuf::from("instructions")])
+                .with_custom_agent_directories([PathBuf::from("agents")])
                 .with_disabled_skills(["disabled-skill"])
                 .with_enable_mcp_apps(true)
                 .with_canvases([CanvasDeclaration::new(
@@ -127,6 +128,7 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
     assert_eq!(params["skillDirectories"], json!(["skills"]));
     assert_eq!(params["pluginDirectories"], json!(["plugins"]));
     assert_eq!(params["instructionDirectories"], json!(["instructions"]));
+    assert_eq!(params["customAgentDirectories"], json!(["agents"]));
     assert_eq!(params["disabledSkills"], json!(["disabled-skill"]));
     assert_eq!(params["sessionLimits"]["maxAiCredits"], json!(42));
     assert_eq!(
@@ -234,6 +236,7 @@ async fn should_forward_advanced_session_resume_options_to_the_cli() {
                 .with_streaming(true)
                 .with_include_sub_agent_streaming_events(false)
                 .with_github_token("advanced-resume-session-token")
+                .with_custom_agent_directories([PathBuf::from("resume-agents")])
                 .with_canvases([CanvasDeclaration::new(
                     "resume-canvas",
                     "Resume Canvas",
@@ -313,6 +316,7 @@ async fn should_forward_advanced_session_resume_options_to_the_cli() {
         params["expAssignments"]["Flights"]["resumeFeature"],
         json!("enabled")
     );
+    assert_eq!(params["customAgentDirectories"], json!(["resume-agents"]));
 
     let update = fake.captured_request("session.options.update");
     let update_params = update.params.as_object().expect("options update params");
