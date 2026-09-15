@@ -1171,6 +1171,9 @@ images. A valid warm cache requires only read access. Missing or corrupt files
 are staged in uniquely created sibling files, with archive permissions
 preserved, then atomically replaced after archive validation. Replacement is
 atomic per file, not across the entire bundle.
+Names inside bundled archives must be portable ASCII paths and cannot differ
+only by case or path separators. This restriction does not apply to the
+caller-selected installation directory.
 
 The [`runtime_install` example](examples/runtime_install.rs) exercises the real
 bundled runtime without starting a client or contacting a model. Run it with
