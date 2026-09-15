@@ -306,10 +306,16 @@ func NewClient(options *ClientOptions) *Client {
 		opts.Env = os.Environ()
 	}
 
-	// Check the effective environment for a child-process runtime override.
-	if client.cliPath == "" && !client.useInProcess {
-		if cliPath := getEnvValue(opts.Env, "COPILOT_CLI_PATH"); cliPath != "" {
-			client.cliPath = cliPath
+	// Capture runtime selection at construction, even when native environment
+	// inheritance itself is deferred until the in-process host starts.
+	if client.cliPath == "" {
+		if client.useInProcess {
+			client.cliPath = inProcessEnvironmentOverrides(opts.Env)["COPILOT_CLI_PATH"]
+			if client.cliPath == "" {
+				client.cliPath = os.Getenv("COPILOT_CLI_PATH")
+			}
+		} else {
+			client.cliPath = getEnvValue(opts.Env, "COPILOT_CLI_PATH")
 		}
 	}
 
@@ -2282,12 +2288,6 @@ func (c *Client) startInProcess(ctx context.Context) error {
 
 	config := c.inProcessHostConfig()
 	cliEntrypoint := c.cliPath
-	if cliEntrypoint == "" {
-		cliEntrypoint = config.Environment["COPILOT_CLI_PATH"]
-	}
-	if cliEntrypoint == "" {
-		cliEntrypoint = os.Getenv("COPILOT_CLI_PATH")
-	}
 	runtimePath := cliEntrypoint
 	if runtimePath == "" {
 		runtimePath = embeddedcli.RuntimePath()

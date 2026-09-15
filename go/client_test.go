@@ -1450,6 +1450,7 @@ func TestClient_InProcessConnection(t *testing.T) {
 	})
 
 	t.Run("uses in-process transport", func(t *testing.T) {
+		t.Setenv("COPILOT_CLI_PATH", "")
 		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
 		if !client.useInProcess {
 			t.Error("Expected useInProcess=true for InProcessConnection")
@@ -1465,11 +1466,11 @@ func TestClient_InProcessConnection(t *testing.T) {
 		}
 	})
 
-	t.Run("does not resolve COPILOT_CLI_PATH into cliPath at construction", func(t *testing.T) {
+	t.Run("captures COPILOT_CLI_PATH at construction", func(t *testing.T) {
 		t.Setenv("COPILOT_CLI_PATH", "/from/env/copilot")
 		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
-		if client.cliPath != "" {
-			t.Errorf("Expected in-process cliPath to stay empty at construction, got %q", client.cliPath)
+		if client.cliPath != "/from/env/copilot" {
+			t.Errorf("Expected in-process cliPath to capture the environment override, got %q", client.cliPath)
 		}
 	})
 
@@ -1532,6 +1533,42 @@ func TestClient_InProcessConnection(t *testing.T) {
 			if got := client.inProcessHostConfig().Environment; len(got) != 0 {
 				t.Fatalf("Unexpected explicit environment overrides: %v", got)
 			}
+		}
+	})
+
+	t.Run("captures explicit runtime override before startup", func(t *testing.T) {
+		t.Setenv("COPILOT_CLI_PATH", "ambient-runtime")
+		client := NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Env:        []string{"COPILOT_CLI_PATH=override-runtime"},
+		})
+		t.Setenv("COPILOT_CLI_PATH", "later-runtime")
+		if client.cliPath != "override-runtime" {
+			t.Fatalf("Expected explicit runtime override, got %q", client.cliPath)
+		}
+	})
+
+	t.Run("uses platform casing rules for runtime override", func(t *testing.T) {
+		t.Setenv("COPILOT_CLI_PATH", "ambient-runtime")
+		client := NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Env:        []string{"COPILOT_CLI_PATH=first-runtime", "copilot_cli_path=last-runtime"},
+		})
+		want := "first-runtime"
+		if runtime.GOOS == "windows" {
+			want = "last-runtime"
+		}
+		if client.cliPath != want {
+			t.Fatalf("Expected runtime override %q, got %q", want, client.cliPath)
+		}
+	})
+
+	t.Run("preserves bundled runtime selection when override was empty", func(t *testing.T) {
+		t.Setenv("COPILOT_CLI_PATH", "")
+		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
+		t.Setenv("COPILOT_CLI_PATH", "later-runtime")
+		if client.cliPath != "" {
+			t.Fatalf("Expected bundled runtime selection, got %q", client.cliPath)
 		}
 	})
 
