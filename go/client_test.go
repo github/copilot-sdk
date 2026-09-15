@@ -1392,21 +1392,35 @@ func TestClient_EnvOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("should default to inherit from current process", func(t *testing.T) {
-		client := NewClient(&ClientOptions{})
-
-		if want := os.Environ(); !reflect.DeepEqual(client.options.Env, want) {
-			t.Errorf("Expected Env to be %v, got %v", want, client.options.Env)
-		}
-	})
-
-	t.Run("should default to inherit from current process with nil options", func(t *testing.T) {
-		client := NewClient(nil)
-
-		if want := os.Environ(); !reflect.DeepEqual(client.options.Env, want) {
-			t.Errorf("Expected Env to be %v, got %v", want, client.options.Env)
-		}
-	})
+	for _, tc := range []struct {
+		name    string
+		options *ClientOptions
+	}{
+		{"should default to inherit from current process", &ClientOptions{}},
+		{"should default to inherit from current process with nil options", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, transport := range []string{"stdio", "inprocess"} {
+				t.Run(transport, func(t *testing.T) {
+					t.Setenv(defaultConnectionEnvVar, transport)
+					client := NewClient(tc.options)
+					if client.useInProcess != (transport == "inprocess") {
+						t.Fatalf("Expected default transport %s", transport)
+					}
+					if transport == "inprocess" {
+						if client.options.Env != nil {
+							t.Error("Expected native host to inherit ambient environment at startup")
+						}
+						if len(client.inProcessHostConfig().Environment) != 0 {
+							t.Error("Ambient environment must not become explicit per-host overrides")
+						}
+					} else if !reflect.DeepEqual(client.options.Env, os.Environ()) {
+						t.Error("Expected child-process environment snapshot to match ambient environment")
+					}
+				})
+			}
+		})
+	}
 
 	t.Run("should allow empty environment", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
