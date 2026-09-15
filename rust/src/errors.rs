@@ -5,6 +5,8 @@ use std::borrow::{Borrow, Cow};
 use std::fmt;
 use std::time::Duration;
 
+use serde_json::Value;
+
 use crate::types::SessionId;
 
 /// Crate-specific [`Result`](std::result::Result).
@@ -252,6 +254,7 @@ impl fmt::Display for ErrorKind {
 /// Errors returned by the SDK.
 pub struct Error {
     repr: Repr<ErrorKind>,
+    rpc_data: Option<Box<Value>>,
     // Only `Some` when `RUST_BACKTRACE` is set; boxed so the `Some` variant
     // doesn't inflate `Error` beyond `clippy::result_large_err` limits.
     backtrace: Option<Box<Backtrace>>,
@@ -268,6 +271,7 @@ impl Error {
                 kind,
                 error: error.into(),
             }),
+            rpc_data: None,
             backtrace: capture_backtrace(),
         }
     }
@@ -297,6 +301,18 @@ impl Error {
     {
         Self {
             repr: Repr::SimpleMessage(kind, message.into()),
+            rpc_data: None,
+            backtrace: capture_backtrace(),
+        }
+    }
+
+    pub(crate) fn from_rpc<C>(code: i32, message: C, data: Option<Value>) -> Self
+    where
+        C: Into<Cow<'static, str>>,
+    {
+        Self {
+            repr: Repr::SimpleMessage(ErrorKind::Rpc { code }, message.into()),
+            rpc_data: data.map(Box::new),
             backtrace: capture_backtrace(),
         }
     }
@@ -318,6 +334,11 @@ impl Error {
             ErrorKind::Rpc { code } => Some(*code),
             _ => None,
         }
+    }
+
+    /// Returns the structured JSON-RPC error data provided by the CLI, if any.
+    pub fn rpc_data(&self) -> Option<&Value> {
+        self.rpc_data.as_deref()
     }
 }
 
@@ -341,6 +362,9 @@ impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut dbg = f.debug_struct("Error");
         dbg.field("context", &self.repr);
+        if let Some(rpc_data) = &self.rpc_data {
+            dbg.field("rpc_data", rpc_data);
+        }
         if let Some(backtrace) = &self.backtrace {
             return dbg.field("backtrace", backtrace).finish();
         }
@@ -361,6 +385,7 @@ impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Self {
         Self {
             repr: Repr::Simple(kind),
+            rpc_data: None,
             backtrace: capture_backtrace(),
         }
     }

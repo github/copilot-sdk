@@ -92,11 +92,22 @@ impl FakeServer {
     }
 
     async fn respond_error(&mut self, request: &Value, code: i64, message: &str) {
+        self.respond_error_with_data(request, code, message, None)
+            .await;
+    }
+
+    async fn respond_error_with_data(
+        &mut self,
+        request: &Value,
+        code: i64,
+        message: &str,
+        data: Option<Value>,
+    ) {
         let id = request["id"].as_u64().unwrap();
         let response = json!({
             "jsonrpc": "2.0",
             "id": id,
-            "error": { "code": code, "message": message },
+            "error": { "code": code, "message": message, "data": data },
         });
         write_framed(&mut self.write, &serde_json::to_vec(&response).unwrap()).await;
     }
@@ -176,6 +187,59 @@ fn make_client() -> (Client, FakeServer) {
 
 fn cloud_options() -> CloudSessionOptions {
     CloudSessionOptions::with_repository(CloudSessionRepository::new("octocat", "hello-world"))
+}
+
+#[tokio::test]
+async fn client_call_preserves_structured_rpc_error_data() {
+    let (client, mut server) = make_client();
+    let call = tokio::spawn({
+        let client = client.clone();
+        async move { client.call("session.raw", None).await }
+    });
+
+    let request = server.read_request().await;
+    let data = json!({
+        "code": "managed_policy_blocked",
+        "setting": "extensions",
+        "message": "Extensions are disabled by policy",
+    });
+    server
+        .respond_error_with_data(
+            &request,
+            -32001,
+            "managed policy blocked",
+            Some(data.clone()),
+        )
+        .await;
+
+    let error = timeout(TIMEOUT, call).await.unwrap().unwrap().unwrap_err();
+    assert_eq!(error.rpc_code(), Some(-32001));
+    assert_eq!(error.message(), Some("managed policy blocked"));
+    assert_eq!(error.rpc_data(), Some(&data));
+    assert_eq!(
+        error.to_string(),
+        "RPC error -32001: managed policy blocked"
+    );
+}
+
+#[tokio::test]
+async fn client_call_handles_rpc_error_without_data() {
+    let (client, mut server) = make_client();
+    let call = tokio::spawn({
+        let client = client.clone();
+        async move { client.call("session.raw", None).await }
+    });
+
+    let request = server.read_request().await;
+    server
+        .respond_error(&request, -32002, "request failed")
+        .await;
+
+    let error = timeout(TIMEOUT, call).await.unwrap().unwrap().unwrap_err();
+    assert_eq!(error.rpc_code(), Some(-32002));
+    assert_eq!(error.message(), Some("request failed"));
+    assert_eq!(error.rpc_data(), None);
+    assert_eq!(error.to_string(), "RPC error -32002: request failed");
 }
 
 fn create_result(session_id: &str) -> Value {
