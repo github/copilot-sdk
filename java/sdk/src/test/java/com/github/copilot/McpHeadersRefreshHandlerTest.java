@@ -7,6 +7,7 @@ package com.github.copilot;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -33,6 +34,38 @@ class McpHeadersRefreshHandlerTest {
     private static final String METHOD = "session.mcp.headers.handlePendingHeadersRefreshRequest";
 
     @Test
+    void createConfigPreservesRefreshHandlerWithoutSerializingIt() {
+        var config = new SessionConfig();
+        assertNull(config.getOnMcpHeadersRefresh());
+        McpHeadersRefreshHandler handler = (request, invocation) -> CompletableFuture
+                .completedFuture(McpHeadersRefreshResult.none());
+
+        assertSame(config, config.setOnMcpHeadersRefresh(handler));
+        assertSame(handler, config.getOnMcpHeadersRefresh());
+        assertSame(handler, config.clone().getOnMcpHeadersRefresh());
+        assertFalse(JsonRpcClient.getObjectMapper().valueToTree(config).has("onMcpHeadersRefresh"));
+
+        assertSame(config, config.setOnMcpHeadersRefresh(null));
+        assertNull(config.getOnMcpHeadersRefresh());
+    }
+
+    @Test
+    void resumeConfigPreservesRefreshHandlerWithoutSerializingIt() {
+        var config = new ResumeSessionConfig();
+        assertNull(config.getOnMcpHeadersRefresh());
+        McpHeadersRefreshHandler handler = (request, invocation) -> CompletableFuture
+                .completedFuture(McpHeadersRefreshResult.none());
+
+        assertSame(config, config.setOnMcpHeadersRefresh(handler));
+        assertSame(handler, config.getOnMcpHeadersRefresh());
+        assertSame(handler, config.clone().getOnMcpHeadersRefresh());
+        assertFalse(JsonRpcClient.getObjectMapper().valueToTree(config).has("onMcpHeadersRefresh"));
+
+        assertSame(config, config.setOnMcpHeadersRefresh(null));
+        assertNull(config.getOnMcpHeadersRefresh());
+    }
+
+    @Test
     void createHandlerDispatchesHeadersWithoutTtl() {
         McpHeadersRefreshHandler handler = (request, invocation) -> {
             assertEquals("managed-server", request.serverName());
@@ -43,7 +76,7 @@ class McpHeadersRefreshHandlerTest {
                     .completedFuture(McpHeadersRefreshResult.withHeaders(Map.of("Authorization", "Bearer dynamic")));
         };
 
-        JsonNode params = dispatch(new SessionConfig().setOnMcpHeadersRefreshRequest(handler));
+        JsonNode params = dispatch(new SessionConfig().setOnMcpHeadersRefresh(handler));
 
         assertEquals("headers", params.path("result").path("kind").asText());
         assertEquals("Bearer dynamic", params.path("result").path("headers").path("Authorization").asText());
@@ -55,7 +88,7 @@ class McpHeadersRefreshHandlerTest {
         McpHeadersRefreshHandler handler = (request, invocation) -> CompletableFuture
                 .completedFuture(McpHeadersRefreshResult.withHeaders(Map.of("X-Dynamic", "value"), 60_000L));
 
-        JsonNode params = dispatch(new ResumeSessionConfig().setOnMcpHeadersRefreshRequest(handler));
+        JsonNode params = dispatch(new ResumeSessionConfig().setOnMcpHeadersRefresh(handler));
 
         assertEquals("headers", params.path("result").path("kind").asText());
         assertEquals("value", params.path("result").path("headers").path("X-Dynamic").asText());
@@ -67,7 +100,7 @@ class McpHeadersRefreshHandlerTest {
         McpHeadersRefreshHandler handler = (request, invocation) -> CompletableFuture
                 .completedFuture(McpHeadersRefreshResult.none());
 
-        JsonNode params = dispatch(new SessionConfig().setOnMcpHeadersRefreshRequest(handler));
+        JsonNode params = dispatch(new SessionConfig().setOnMcpHeadersRefresh(handler));
 
         assertEquals("none", params.path("result").path("kind").asText());
         assertEquals(1, params.path("result").size());
@@ -78,7 +111,7 @@ class McpHeadersRefreshHandlerTest {
         McpHeadersRefreshHandler handler = (request, invocation) -> CompletableFuture
                 .failedFuture(new IllegalStateException("header provider unavailable"));
 
-        JsonNode params = dispatch(new SessionConfig().setOnMcpHeadersRefreshRequest(handler));
+        JsonNode params = dispatch(new SessionConfig().setOnMcpHeadersRefresh(handler));
 
         assertEquals("error", params.path("result").path("kind").asText());
         assertEquals("header provider unavailable", params.path("result").path("message").asText());
@@ -90,7 +123,7 @@ class McpHeadersRefreshHandlerTest {
             throw new IllegalArgumentException("invalid header configuration");
         };
 
-        JsonNode params = dispatch(new SessionConfig().setOnMcpHeadersRefreshRequest(handler));
+        JsonNode params = dispatch(new SessionConfig().setOnMcpHeadersRefresh(handler));
 
         assertEquals("error", params.path("result").path("kind").asText());
         assertEquals("invalid header configuration", params.path("result").path("message").asText());

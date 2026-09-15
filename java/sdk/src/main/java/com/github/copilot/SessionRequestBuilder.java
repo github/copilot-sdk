@@ -391,8 +391,8 @@ final class SessionRequestBuilder {
         if (config.getOnMcpAuthRequest() != null) {
             session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
         }
-        if (config.getOnMcpHeadersRefreshRequest() != null) {
-            session.registerMcpHeadersRefreshHandler(config.getOnMcpHeadersRefreshRequest());
+        if (config.getOnMcpHeadersRefresh() != null) {
+            session.registerMcpHeadersRefreshHandler(config.getOnMcpHeadersRefresh());
         }
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());
@@ -446,8 +446,8 @@ final class SessionRequestBuilder {
         if (config.getOnMcpAuthRequest() != null) {
             session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
         }
-        if (config.getOnMcpHeadersRefreshRequest() != null) {
-            session.registerMcpHeadersRefreshHandler(config.getOnMcpHeadersRefreshRequest());
+        if (config.getOnMcpHeadersRefresh() != null) {
+            session.registerMcpHeadersRefreshHandler(config.getOnMcpHeadersRefresh());
         }
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());

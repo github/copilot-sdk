@@ -68,7 +68,7 @@ public class SessionConfig {
     private Boolean manageScheduleEnabled;
     private PermissionHandler onPermissionRequest;
     private McpAuthHandler onMcpAuthRequest;
-    private McpHeadersRefreshHandler onMcpHeadersRefreshRequest;
+    private McpHeadersRefreshHandler onMcpHeadersRefresh;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
@@ -918,19 +918,19 @@ public class SessionConfig {
      * @return the handler, or {@code null} if not set
      */
     @JsonIgnore
-    public McpHeadersRefreshHandler getOnMcpHeadersRefreshRequest() {
-        return onMcpHeadersRefreshRequest;
+    public McpHeadersRefreshHandler getOnMcpHeadersRefresh() {
+        return onMcpHeadersRefresh;
     }
 
     /**
      * Sets the managed MCP dynamic-header refresh handler.
      *
-     * @param onMcpHeadersRefreshRequest
+     * @param onMcpHeadersRefresh
      *            the handler
      * @return this config instance for method chaining
      */
-    public SessionConfig setOnMcpHeadersRefreshRequest(McpHeadersRefreshHandler onMcpHeadersRefreshRequest) {
-        this.onMcpHeadersRefreshRequest = onMcpHeadersRefreshRequest;
+    public SessionConfig setOnMcpHeadersRefresh(McpHeadersRefreshHandler onMcpHeadersRefresh) {
+        this.onMcpHeadersRefresh = onMcpHeadersRefresh;
         return this;
     }
 
@@ -1080,6 +1080,7 @@ public class SessionConfig {
      *
      * @return the managed MCP servers map
      */
+    @CopilotExperimental
     public Map<String, ManagedMcpServerConfig> getManagedMcpServers() {
         return managedMcpServers == null ? null : Collections.unmodifiableMap(managedMcpServers);
     }
@@ -1091,6 +1092,7 @@ public class SessionConfig {
      *            non-secret server configurations keyed by stable managed identity
      * @return this config instance for method chaining
      */
+    @CopilotExperimental
     public SessionConfig setManagedMcpServers(Map<String, ManagedMcpServerConfig> managedMcpServers) {
         this.managedMcpServers = managedMcpServers;
         return this;
@@ -2355,7 +2357,7 @@ public class SessionConfig {
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
         copy.onElicitationRequest = this.onElicitationRequest;
         copy.onMcpAuthRequest = this.onMcpAuthRequest;
-        copy.onMcpHeadersRefreshRequest = this.onMcpHeadersRefreshRequest;
+        copy.onMcpHeadersRefresh = this.onMcpHeadersRefresh;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;

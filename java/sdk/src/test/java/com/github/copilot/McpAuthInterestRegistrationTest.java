@@ -181,10 +181,10 @@ class McpAuthInterestRegistrationTest {
     void createAndResumeRegisterManagedMcpHeadersRefreshInterest() throws Exception {
         try (var server = new RecordingRuntime();
                 var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()))) {
-            try (var session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                    .setOnMcpHeadersRefreshRequest((request, invocation) -> java.util.concurrent.CompletableFuture
-                            .completedFuture(McpHeadersRefreshResult.none())))
+            try (var session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setOnMcpHeadersRefresh((request, invocation) -> java.util.concurrent.CompletableFuture
+                                    .completedFuture(McpHeadersRefreshResult.none())))
                     .get()) {
                 assertNotNull(session);
             }
@@ -201,9 +201,8 @@ class McpAuthInterestRegistrationTest {
 
             try (var session = client.resumeSession("managed-session",
                     new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setOnMcpHeadersRefreshRequest(
-                                    (request, invocation) -> java.util.concurrent.CompletableFuture
-                                            .completedFuture(McpHeadersRefreshResult.none())))
+                            .setOnMcpHeadersRefresh((request, invocation) -> java.util.concurrent.CompletableFuture
+                                    .completedFuture(McpHeadersRefreshResult.none())))
                     .get()) {
                 assertNotNull(session);
             }

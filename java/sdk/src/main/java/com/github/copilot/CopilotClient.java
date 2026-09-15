@@ -1027,7 +1027,7 @@ public final class CopilotClient implements AutoCloseable {
                         }
                         registeredIdHolder[0] = returnedId;
                         CompletableFuture<Void> interests = registerMcpEventInterests(session, returnedId,
-                                config.getOnMcpAuthRequest() != null, config.getOnMcpHeadersRefreshRequest() != null);
+                                config.getOnMcpAuthRequest() != null, config.getOnMcpHeadersRefresh() != null);
                         session.setWorkspacePath(response.workspacePath());
                         session.setCapabilities(response.capabilities());
                         session.setOpenCanvases(response.openCanvases());
@@ -1214,7 +1214,7 @@ public final class CopilotClient implements AutoCloseable {
                         String returnedId = response.sessionId();
                         String interestSessionId = returnedId != null ? returnedId : sessionId;
                         return registerMcpEventInterests(session, interestSessionId,
-                                config.getOnMcpAuthRequest() != null, config.getOnMcpHeadersRefreshRequest() != null)
+                                config.getOnMcpAuthRequest() != null, config.getOnMcpHeadersRefresh() != null)
                                 .thenApply(v -> response);
                     }).thenCompose(response -> {
                         session.setWorkspacePath(response.workspacePath());

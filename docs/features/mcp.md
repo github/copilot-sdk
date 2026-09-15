@@ -70,7 +70,7 @@ The corresponding configuration and callback names are:
 | Python | `managed_mcp_servers` | `on_mcp_headers_refresh` |
 | Go | `ManagedMCPServers` | `OnMCPHeadersRefresh` |
 | .NET | `ManagedMcpServers` | `OnMcpHeadersRefresh` |
-| Java | `setManagedMcpServers(...)` | `setOnMcpHeadersRefreshRequest(...)` |
+| Java | `setManagedMcpServers(...)` | `setOnMcpHeadersRefresh(...)` |
 | Rust | `with_managed_mcp_servers(...)` | `with_mcp_headers_handler(...)` |
 
 ### Host responsibilities

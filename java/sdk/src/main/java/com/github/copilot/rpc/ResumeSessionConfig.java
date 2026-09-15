@@ -68,7 +68,7 @@ public class ResumeSessionConfig {
     private ModelCapabilitiesOverride modelCapabilities;
     private PermissionHandler onPermissionRequest;
     private McpAuthHandler onMcpAuthRequest;
-    private McpHeadersRefreshHandler onMcpHeadersRefreshRequest;
+    private McpHeadersRefreshHandler onMcpHeadersRefresh;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
@@ -874,19 +874,19 @@ public class ResumeSessionConfig {
      * @return the handler, or {@code null} if not set
      */
     @JsonIgnore
-    public McpHeadersRefreshHandler getOnMcpHeadersRefreshRequest() {
-        return onMcpHeadersRefreshRequest;
+    public McpHeadersRefreshHandler getOnMcpHeadersRefresh() {
+        return onMcpHeadersRefresh;
     }
 
     /**
      * Sets the managed MCP dynamic-header refresh handler.
      *
-     * @param onMcpHeadersRefreshRequest
+     * @param onMcpHeadersRefresh
      *            the handler
      * @return this config instance for method chaining
      */
-    public ResumeSessionConfig setOnMcpHeadersRefreshRequest(McpHeadersRefreshHandler onMcpHeadersRefreshRequest) {
-        this.onMcpHeadersRefreshRequest = onMcpHeadersRefreshRequest;
+    public ResumeSessionConfig setOnMcpHeadersRefresh(McpHeadersRefreshHandler onMcpHeadersRefresh) {
+        this.onMcpHeadersRefresh = onMcpHeadersRefresh;
         return this;
     }
 
@@ -1427,6 +1427,7 @@ public class ResumeSessionConfig {
      *
      * @return the managed MCP servers map
      */
+    @CopilotExperimental
     public Map<String, ManagedMcpServerConfig> getManagedMcpServers() {
         return managedMcpServers == null ? null : Collections.unmodifiableMap(managedMcpServers);
     }
@@ -1438,6 +1439,7 @@ public class ResumeSessionConfig {
      *            non-secret server configurations keyed by stable managed identity
      * @return this config instance for method chaining
      */
+    @CopilotExperimental
     public ResumeSessionConfig setManagedMcpServers(Map<String, ManagedMcpServerConfig> managedMcpServers) {
         this.managedMcpServers = managedMcpServers;
         return this;
@@ -2215,7 +2217,7 @@ public class ResumeSessionConfig {
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
         copy.onElicitationRequest = this.onElicitationRequest;
         copy.onMcpAuthRequest = this.onMcpAuthRequest;
-        copy.onMcpHeadersRefreshRequest = this.onMcpHeadersRefreshRequest;
+        copy.onMcpHeadersRefresh = this.onMcpHeadersRefresh;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;

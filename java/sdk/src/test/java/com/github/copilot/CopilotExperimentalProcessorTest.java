@@ -12,6 +12,11 @@ import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import javax.tools.ToolProvider;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.util.ElementFilter;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
@@ -19,8 +24,12 @@ import java.security.CodeSource;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -146,6 +155,49 @@ class CopilotExperimentalProcessorTest {
 
         boolean hasError = diagnostics.getDiagnostics().stream().anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR);
         assertFalse(hasError, "Expected no errors with opt-in flag, got: " + diagnostics.getDiagnostics());
+    }
+
+    @Test
+    void managedMcpServerAccessorsAreExperimentalForCreateAndResume() {
+        var diagnostics = new DiagnosticCollector<JavaFileObject>();
+        var checkedMethods = new AtomicInteger();
+        var task = ToolProvider.getSystemJavaCompiler().getTask(null, null, diagnostics,
+                List.of("-classpath", resolveClasspath(), "-proc:only"), null,
+                List.of(inMemorySource("consumer.Consumer", "package consumer; public class Consumer {}")));
+        task.setProcessors(List.of(new AbstractProcessor() {
+            @Override
+            public Set<String> getSupportedAnnotationTypes() {
+                return Set.of("*");
+            }
+
+            @Override
+            public SourceVersion getSupportedSourceVersion() {
+                return SourceVersion.latestSupported();
+            }
+
+            @Override
+            public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+                if (!roundEnv.processingOver()) {
+                    for (String configName : List.of("SessionConfig", "ResumeSessionConfig")) {
+                        var config = processingEnv.getElementUtils()
+                                .getTypeElement("com.github.copilot.rpc." + configName);
+                        assertNotNull(config);
+                        for (var method : ElementFilter.methodsIn(config.getEnclosedElements())) {
+                            if (Set.of("getManagedMcpServers", "setManagedMcpServers")
+                                    .contains(method.getSimpleName().toString())) {
+                                assertNotNull(method.getAnnotation(CopilotExperimental.class),
+                                        configName + "." + method.getSimpleName());
+                                checkedMethods.incrementAndGet();
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+        }));
+
+        assertTrue(task.call(), () -> "Compiler diagnostics: " + diagnostics.getDiagnostics());
+        assertEquals(4, checkedMethods.get());
     }
 
     private DiagnosticCollector<JavaFileObject> compile(List<JavaFileObject> sources, List<String> extraOptions) {
