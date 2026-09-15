@@ -1,5 +1,6 @@
 use std::net::TcpListener;
 use std::sync::Arc;
+use std::time::Instant;
 
 use async_trait::async_trait;
 use github_copilot_sdk::handler::ApproveAllHandler;
@@ -145,32 +146,49 @@ async fn should_resume_successfully_when_no_pending_work_exists() {
         "should_resume_successfully_when_no_pending_work_exists",
         |ctx| {
             Box::pin(async move {
+                // The outer timeout otherwise hides which lifecycle operation stalled.
+                let started = Instant::now();
+                let phase = |name| {
+                    eprintln!(
+                        "pending_work_resume/should_resume_successfully_when_no_pending_work_exists [{:?}]: {name}",
+                        started.elapsed()
+                    );
+                };
                 ctx.set_default_copilot_user();
                 let port = free_tcp_port();
+                phase("start managed TCP server");
                 let server = start_tcp_server(ctx, port).await;
+                phase("start first external client");
                 let first_client = start_external_client(ctx, port).await;
+                phase("create first session");
                 let session1 = first_client
                     .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
                 let session_id = session1.id().clone();
+                phase("send and wait for first turn");
                 let first = session1
                     .send_and_wait("Reply with exactly: NO_PENDING_TURN_ONE")
                     .await
                     .expect("send first")
                     .expect("first answer");
                 assert!(assistant_message_content(&first).contains("NO_PENDING_TURN_ONE"));
+                phase("disconnect first session");
                 session1
                     .disconnect()
                     .await
                     .expect("disconnect first session");
+                phase("force-stop first external client");
                 first_client.force_stop();
 
+                phase("start resumed external client");
                 let resumed_client = start_external_client(ctx, port).await;
+                phase("resume session with continuePendingWork=true");
                 let session2 = resumed_client
                     .resume_session(resume_config(session_id).with_continue_pending_work(true))
                     .await
                     .expect("resume session");
+                phase("send and wait for resumed turn");
                 let follow_up = session2
                     .send_and_wait("Reply with exactly: NO_PENDING_TURN_TWO")
                     .await
@@ -178,12 +196,16 @@ async fn should_resume_successfully_when_no_pending_work_exists() {
                     .expect("follow-up answer");
                 assert!(assistant_message_content(&follow_up).contains("NO_PENDING_TURN_TWO"));
 
+                phase("disconnect resumed session");
                 session2
                     .disconnect()
                     .await
                     .expect("disconnect resumed session");
+                phase("force-stop resumed external client");
                 resumed_client.force_stop();
+                phase("stop managed TCP server");
                 server.stop().await.expect("stop server client");
+                phase("completed");
             })
         },
     )

@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -5,13 +6,14 @@ use github_copilot_sdk::hooks::{
     HookContext, PostToolUseInput, PostToolUseOutput, PreToolUseInput, PreToolUseOutput,
     SessionHooks,
 };
+use github_copilot_sdk::session_events::SessionEventType;
 use github_copilot_sdk::{
     CopilotHttpRequest, CopilotHttpResponse, CopilotRequestContext, CopilotRequestError,
     CopilotRequestHandler, forward_http,
 };
 use parking_lot::Mutex;
 
-use super::support::with_e2e_context;
+use super::support::{assistant_message_content, wait_for_event, with_e2e_context};
 
 #[tokio::test]
 async fn should_invoke_pretooluse_and_posttooluse_hooks_for_sub_agent_tool_calls() {
@@ -49,14 +51,30 @@ async fn should_invoke_pretooluse_and_posttooluse_hooks_for_sub_agent_tool_calls
                     .await
                     .expect("create session");
 
-                session
-                    .send_and_wait(
+                let saw_final_response = Cell::new(false);
+                let completion = wait_for_event(
+                    session.subscribe(),
+                    "parent's subagent result followed by session.idle",
+                    |event| {
+                        if event.parsed_type() == SessionEventType::AssistantMessage {
+                            let content = assistant_message_content(event);
+                            if content.contains("Hello from subagent test!") {
+                                saw_final_response.set(true);
+                            }
+                        }
+                        event.parsed_type() == SessionEventType::SessionIdle
+                            && saw_final_response.get()
+                    },
+                );
+                let (send_result, _) = tokio::join!(
+                    session.send_and_wait(
                         "Use the task tool to spawn an explore agent that reads the file \
                          subagent-test.txt in the current directory and reports its contents. \
                          You must use the task tool.",
-                    )
-                    .await
-                    .expect("send");
+                    ),
+                    completion,
+                );
+                send_result.expect("send");
 
                 let log = hook_log.lock().clone();
 
