@@ -1,5 +1,16 @@
 import { createHash } from "node:crypto";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+    chmodSync,
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { c as createTar } from "tar";
@@ -53,16 +64,23 @@ async function createRuntimePackage(root: string, platform: string): Promise<str
             },
         })
     );
-    for (const path of [
-        "LICENSE.md",
+    const executablePaths = new Set([
         windows ? "copilot.exe" : "copilot",
         join("prebuilds", platform, windows ? "copilot-runtime.exe" : "copilot-runtime"),
+    ]);
+    for (const path of [
+        "LICENSE.md",
+        ...executablePaths,
         join("prebuilds", platform, "runtime.node"),
         join("copilot-sdk", "extension.js"),
         join("preloads", "extension_bootstrap.mjs"),
         join("sdk", "index.js"),
     ]) {
-        writeFileSync(join(packageRoot, path), path);
+        const destination = join(packageRoot, path);
+        writeFileSync(destination, path);
+        if (executablePaths.has(path)) {
+            chmodSync(destination, 0o755);
+        }
     }
     const archive = join(root, `${platform}.tgz`);
     await createTar({ cwd: join(root, platform), file: archive, gzip: true }, ["package"]);
@@ -95,9 +113,9 @@ describe("runtime npm package acquisition", () => {
         }
     });
 
-    it("downloads and validates all eight exact runtime platform packages", async () => {
+    it("downloads all platforms and creates a compact executable-preserving handoff", async () => {
         const root = temporaryRoot("copilot-runtime-acquisition-");
-        const output = join(root, "output");
+        const output = join(root, "runtime-packages");
         const archives = new Map<string, { integrity: string; path: string }>();
         for (const platform of RUNTIME_PLATFORMS) {
             const path = await createRuntimePackage(root, platform);
@@ -148,6 +166,43 @@ describe("runtime npm package acquisition", () => {
                 runtimeVersion,
                 runtimeSha
             );
+        }
+
+        const archive = join(root, "runtime-packages.tar.gz");
+        const archived = spawnSync(
+            "tar",
+            [
+                "-czf",
+                archive,
+                "--exclude",
+                "runtime-packages/tarballs",
+                "-C",
+                root,
+                "runtime-packages",
+            ],
+            { encoding: "utf8" }
+        );
+        expect(archived.status, archived.stderr).toBe(0);
+
+        const extractedRoot = join(root, "extracted");
+        mkdirSync(extractedRoot);
+        const extracted = spawnSync("tar", ["-xzf", archive, "-C", extractedRoot], {
+            encoding: "utf8",
+        });
+        expect(extracted.status, extracted.stderr).toBe(0);
+        const handoffRoot = join(extractedRoot, "runtime-packages");
+        expect(existsSync(join(handoffRoot, "runtime-packages.json"))).toBe(true);
+        expect(existsSync(join(handoffRoot, "tarballs"))).toBe(false);
+        for (const platform of RUNTIME_PLATFORMS) {
+            validateRuntimePackageRoot(
+                join(handoffRoot, platform),
+                platform,
+                runtimeVersion,
+                runtimeSha
+            );
+        }
+        if (process.platform !== "win32") {
+            expect(statSync(join(handoffRoot, "linux-x64", "copilot")).mode & 0o111).not.toBe(0);
         }
     });
 

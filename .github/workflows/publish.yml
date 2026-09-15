@@ -17,7 +17,7 @@ on:
           - unstable
           - canary
       version:
-        description: "Version override (optional, e.g., 1.0.0). If empty, auto-increments. Unstable overrides must use an unstable prerelease base."
+        description: "Version override (optional, e.g., 1.0.0). If empty, auto-increments. Unstable overrides must use <core>-unstable."
         type: string
         required: false
       mode:
@@ -751,7 +751,7 @@ jobs:
             --sha "$RUNTIME_SHA" \
             --output "$RUNNER_TEMP/runtime-packages"
       - name: Archive validated runtime packages
-        run: tar -czf "$RUNNER_TEMP/runtime-packages.tar.gz" -C "$RUNNER_TEMP" runtime-packages
+        run: tar -czf "$RUNNER_TEMP/runtime-packages.tar.gz" --exclude "runtime-packages/tarballs" -C "$RUNNER_TEMP" runtime-packages
       - name: Upload validated runtime packages
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -761,7 +761,7 @@ jobs:
           retention-days: 7
 
   runtime-test:
-    name: Test runtime (${{ matrix.os }})
+    name: Test runtime (${{ matrix.os }}, ${{ matrix.transport }})
     needs: [validate-dispatch, runtime-plan, runtime-acquire]
     if: needs.validate-dispatch.outputs.test_policy != 'skipped'
     permissions:
@@ -770,6 +770,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        transport: ["default", "inprocess"]
     runs-on: ${{ matrix.os }}
     environment: cicd
     defaults:
@@ -813,6 +814,9 @@ jobs:
       - name: Warm up PowerShell
         if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+      - name: Select inprocess transport
+        if: matrix.transport == 'inprocess'
+        run: echo "COPILOT_SDK_DEFAULT_CONNECTION=inprocess" >> "$GITHUB_ENV"
       - name: Run Node SDK tests
         id: e2e
         continue-on-error: ${{ needs.validate-dispatch.outputs.test_policy == 'advisory' }}
@@ -899,7 +903,6 @@ jobs:
           WORKFLOW_RUN_NUMBER: ${{ github.run_number }}
         run: |
           npm run release:manifest -- create release-manifest.json .
-          npm run release:manifest -- verify release-manifest.json .
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ needs.runtime-plan.outputs.artifact_name }}

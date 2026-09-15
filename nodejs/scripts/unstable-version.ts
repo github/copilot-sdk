@@ -115,13 +115,15 @@ export function calculateUnstableVersion(options: UnstableVersionOptions): strin
         if (
             !parsed ||
             semver.valid(options.versionOverride) !== options.versionOverride ||
-            parsed.prerelease[0] !== "unstable"
+            parsed.prerelease.length !== 1 ||
+            parsed.prerelease[0] !== "unstable" ||
+            parsed.build.length !== 0
         ) {
             throw new Error(
-                `Explicit unstable SDK version must be valid SemVer with an unstable prerelease: ${options.versionOverride}`
+                `Explicit unstable SDK version must use the form <core>-unstable: ${options.versionOverride}`
             );
         }
-        return `${parsed.major}.${parsed.minor}.${parsed.patch}-${parsed.prerelease.join(".")}.${options.runId}.g${options.sdkSha.slice(0, 7)}`;
+        return `${parsed.major}.${parsed.minor}.${parsed.patch}-unstable.${options.runId}.g${options.sdkSha.slice(0, 7)}`;
     }
 
     const eligibleTags = new Set(

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as semver from "semver";
 import {
     calculateCanaryVersion,
     calculateUnstableVersion,
@@ -76,38 +77,50 @@ describe("unstable SDK version planning", () => {
         );
     });
 
-    it("appends workflow identity to explicit unstable SemVer bases", () => {
+    it("keeps explicit and generated versions in the same numeric-first ordering", () => {
         const options = {
             createdAt: "2026-09-04T00:00:00Z",
-            firstParentTags: [],
-            releases: [],
+            firstParentTags: ["v1.9.9"],
+            releases: [release("v1.9.9")],
             runId,
             sdkSha: sha,
         };
-        expect(
-            calculateUnstableVersion({
-                ...options,
-                versionOverride: "2.0.0-unstable.manual.1",
-            })
-        ).toBe("2.0.0-unstable.manual.1.34640000001.gabcdef0");
-        expect(
-            calculateUnstableVersion({
-                ...options,
-                runId: "34640000002",
-                versionOverride: "2.0.0-unstable.manual.1",
-            })
-        ).toBe("2.0.0-unstable.manual.1.34640000002.gabcdef0");
+        const explicit = calculateUnstableVersion({
+            ...options,
+            versionOverride: "1.9.10-unstable",
+        });
+        const laterGenerated = calculateUnstableVersion({
+            ...options,
+            runId: "34640000002",
+        });
+
+        expect(explicit).toBe("1.9.10-unstable.34640000001.gabcdef0");
+        expect(laterGenerated).toBe("1.9.10-unstable.34640000002.gabcdef0");
+        expect(semver.gt(laterGenerated, explicit)).toBe(true);
         expect(
             calculateUnstableVersion({
                 ...options,
                 sdkSha: otherSha,
-                versionOverride: "2.0.0-unstable.manual.1",
+                versionOverride: "1.9.10-unstable",
             })
-        ).toBe("2.0.0-unstable.manual.1.34640000001.g1234567");
-        expect(() =>
-            calculateUnstableVersion({ ...options, versionOverride: "2.0.0-preview.1" })
-        ).toThrow("unstable prerelease");
+        ).toBe("1.9.10-unstable.34640000001.g1234567");
     });
+
+    it.each(["2.0.0-unstable.manual.1", "2.0.0-unstable+build.1", "2.0.0-preview.1"])(
+        "rejects unsupported explicit unstable base %s",
+        (versionOverride) => {
+            expect(() =>
+                calculateUnstableVersion({
+                    createdAt: "2026-09-04T00:00:00Z",
+                    firstParentTags: [],
+                    releases: [],
+                    runId,
+                    sdkSha: sha,
+                    versionOverride,
+                })
+            ).toThrow("<core>-unstable");
+        }
+    );
 
     it("cannot collide across workflows with coincident per-workflow run numbers", () => {
         const options = {
