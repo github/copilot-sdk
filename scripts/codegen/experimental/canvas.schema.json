@@ -1,0 +1,346 @@
+{
+  "$comment": "Reviewed experimental Node-only canvas contract. This is a schema input, not a released CLI version or runtime capability assertion.",
+  "provenance": {
+    "predecessor": {
+      "cliVersion": "1.0.84-5",
+      "apiSchemaSha256": "5835517c600d1661bb857aa74deeb2abd2cfb9ed1e69cdedd1402181ea9eca98",
+      "sessionEventsSchemaSha256": "fded8ae9faa212cc84adae273c8b107a450b90ab66a723ee03e9057d41f8e4c5"
+    },
+    "canonical": {
+      "apiSchemaSha256": "37a0f38a49aed1b6a9edbac763e2ee2a7fb72c10f6ddaff8534ecc32b65c335e",
+      "sessionEventsSchemaSha256": "8742c94016ec0ad6be83814f72003c4e77530c2fe83e395d00a467941b1b119e",
+      "definitions": "src/native/sdk-contract/src/api/rpc.rs and src/native/sdk-contract/src/session_events/events.rs"
+    },
+    "fingerprint": "SHA-256 of scripts/codegen/utils.ts stableStringify output"
+  },
+  "api": {
+    "replacements": [
+      {
+        "path": [
+          "definitions",
+          "ExtensionLaunchProfile"
+        ],
+        "beforeSha256": "796c245ca25c8db7f10437251bffe1a4500ef5e28f92f6dc90e093bf5b2af5af",
+        "value": {
+          "type": "object",
+          "properties": {
+            "executable": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Executable used to launch the extension entrypoint."
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Opaque integrator-defined arguments passed to the executable. The runtime does not append the extension entrypoint."
+            },
+            "env": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Opaque integrator-defined environment variables. Runtime-owned COPILOT_SDK_PATH, SESSION_ID, and COPILOT_EXTENSION_PARENT_PID values take precedence."
+            }
+          },
+          "required": [
+            "executable",
+            "args",
+            "env"
+          ],
+          "additionalProperties": false,
+          "description": "Opaque integrator-owned process launch profile for one extension entrypoint.",
+          "title": "ExtensionLaunchProfile",
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "definitions",
+          "ExtensionLaunchProviderRegistrationResult"
+        ],
+        "beforeSha256": null,
+        "value": {
+          "type": "object",
+          "properties": {
+            "contractVersion": {
+              "type": "integer",
+              "minimum": 0,
+              "const": 1,
+              "description": "Supported extension launch-provider contract version. Clients requiring this contract must check for version 1 before creating or resuming sessions."
+            }
+          },
+          "required": [
+            "contractVersion"
+          ],
+          "additionalProperties": false,
+          "description": "Authoritative capability acknowledgement for the registered extension launch provider.",
+          "title": "ExtensionLaunchProviderRegistrationResult",
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "definitions",
+          "ExtensionLaunchProviderResolveRequest"
+        ],
+        "beforeSha256": "dad7ed71eb5e07faf614f827bd753a8e3828f8e177dd0b482e44b73ac4c5e72c",
+        "value": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Source-qualified extension identifier."
+            },
+            "name": {
+              "type": "string",
+              "description": "Human-readable extension name."
+            },
+            "modulePath": {
+              "type": "string",
+              "description": "Absolute path to the discovered extension entrypoint."
+            },
+            "source": {
+              "$ref": "#/definitions/ExtensionSource",
+              "description": "Discovery source for the extension entrypoint."
+            },
+            "sessionId": {
+              "type": "string",
+              "description": "Owning runtime session identifier, when known."
+            },
+            "defaultLaunch": {
+              "$ref": "#/definitions/ExtensionLaunchProfile",
+              "description": "Runtime-computed built-in launch profile, not yet executed. Contains only bootstrap environment overrides, never the inherited process environment. Return unchanged to approve this candidate. Omitted when this embedding has no built-in launcher; no private bootstrap paths should be fabricated by the client."
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "modulePath",
+            "source"
+          ],
+          "additionalProperties": false,
+          "description": "A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.",
+          "title": "ExtensionLaunchProviderResolveRequest",
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "definitions",
+          "ExtensionLaunchProviderResolveResult"
+        ],
+        "beforeSha256": "3e27c78ee6be64dabbe9805a13e563bf9c56b627f575208d2d7c66bab12804a9",
+        "value": {
+          "type": "object",
+          "properties": {
+            "launch": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ExtensionLaunchProfile",
+                  "description": "Opaque integrator-owned process launch profile for one extension entrypoint."
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Approved launch profile, or absent/null to deny this candidate without fallback."
+            }
+          },
+          "additionalProperties": false,
+          "description": "The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.",
+          "title": "ExtensionLaunchProviderResolveResult",
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "definitions",
+          "ExtensionSource"
+        ],
+        "beforeSha256": "58a2258b134f7eb4d008719d7e3d7c4fb3cdbb699b63e9477e36c47c092be2d4",
+        "value": {
+          "type": "string",
+          "enum": [
+            "project",
+            "user",
+            "plugin",
+            "session"
+          ],
+          "description": "Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)",
+          "title": "ExtensionSource",
+          "x-enumDescriptions": {
+            "project": "Extension discovered from the current project's .github/extensions directory.",
+            "user": "Extension discovered from the user's ~/.copilot/extensions directory.",
+            "plugin": "Extension contributed by an installed plugin.",
+            "session": "Extension discovered from the current session's state directory (loaded only for this session)."
+          }
+        }
+      },
+      {
+        "path": [
+          "server",
+          "registerExtensionLaunchProvider"
+        ],
+        "beforeSha256": "1994969d70c4c0718055be5543386db0a61d83a739e1a0954adf320ad61de467",
+        "value": {
+          "rpcMethod": "registerExtensionLaunchProvider",
+          "description": "Registers the calling SDK client as the authoritative per-entrypoint extension launch provider and returns the supported contract version. Call before creating any sessions. Contract version 1 supplies sessionId and defaultLaunch when available; absent or null launch, provider errors, timeouts, and shutdown cancellation never fall back. Without a registered provider, legacy launching is unchanged.",
+          "params": null,
+          "result": {
+            "$ref": "#/definitions/ExtensionLaunchProviderRegistrationResult",
+            "description": "Authoritative capability acknowledgement for the registered extension launch provider."
+          },
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "clientGlobal",
+          "extensionLaunchProvider",
+          "resolve"
+        ],
+        "beforeSha256": "221dcedfb17a4b83ddf9f07666a9b34e0d3cfc135fecfe15a47904ebea09aa36",
+        "value": {
+          "rpcMethod": "extensionLaunchProvider.resolve",
+          "description": "Asks the registered SDK client to approve a launch profile immediately before every extension launch or reload. Return defaultLaunch unchanged to approve the runtime's built-in launcher, or return another profile. An absent or null launch denies execution with no fallback. The provider must respond within 15 seconds. Approval does not sandbox code or freeze mutable files; the host is responsible for approved package contents.",
+          "params": {
+            "$ref": "#/definitions/ExtensionLaunchProviderResolveRequest",
+            "description": "A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile."
+          },
+          "result": {
+            "$ref": "#/definitions/ExtensionLaunchProviderResolveResult",
+            "description": "The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher."
+          },
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "session",
+          "retain"
+        ],
+        "beforeSha256": null,
+        "value": {
+          "rpcMethod": "session.retain",
+          "description": "Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.",
+          "params": {
+            "type": "object",
+            "properties": {
+              "sessionId": {
+                "type": "string",
+                "description": "Target session identifier"
+              }
+            },
+            "required": [
+              "sessionId"
+            ],
+            "additionalProperties": false,
+            "description": "Identifies the target session."
+          },
+          "result": {
+            "type": "null"
+          },
+          "stability": "experimental"
+        }
+      }
+    ],
+    "insertions": []
+  },
+  "sessionEvents": {
+    "replacements": [
+      {
+        "path": [
+          "definitions",
+          "RetainedData"
+        ],
+        "beforeSha256": null,
+        "value": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false,
+          "description": "Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.",
+          "title": "RetainedData",
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "definitions",
+          "RetainedEvent"
+        ],
+        "beforeSha256": null,
+        "value": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Unique event identifier (UUID v4), generated when the event is emitted"
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time",
+              "description": "ISO 8601 timestamp when the event was created"
+            },
+            "parentId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event."
+            },
+            "ephemeral": {
+              "type": "boolean",
+              "description": "When true, the event is transient and not persisted to the session event log on disk"
+            },
+            "agentId": {
+              "type": "string",
+              "description": "Sub-agent instance identifier. Absent for events from the root/main agent and session-level events."
+            },
+            "type": {
+              "type": "string",
+              "const": "session.retained",
+              "description": "Type discriminator. Always \"session.retained\"."
+            },
+            "data": {
+              "$ref": "#/definitions/RetainedData",
+              "description": "Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message."
+            }
+          },
+          "required": [
+            "id",
+            "timestamp",
+            "parentId",
+            "type",
+            "data"
+          ],
+          "additionalProperties": false,
+          "description": "Session event \"session.retained\". Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.",
+          "title": "RetainedEvent",
+          "stability": "experimental"
+        }
+      }
+    ],
+    "insertions": [
+      {
+        "path": [
+          "definitions",
+          "SessionEvent",
+          "anyOf"
+        ],
+        "after": "#/definitions/AutopilotObjectiveChangedEvent",
+        "value": {
+          "$ref": "#/definitions/RetainedEvent",
+          "description": "Session event \"session.retained\". Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message."
+        }
+      }
+    ]
+  }
+}

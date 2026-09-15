@@ -11,6 +11,7 @@ import type { JSONSchema7 } from "json-schema";
 import { compile } from "json-schema-to-typescript";
 import path from "path";
 import { fileURLToPath } from "url";
+import { applySchemaRevision, loadCanvasSchemaRevisions } from "./canvas-schema.js";
 import {
     getApiSchemaPath,
     fixNullableRequiredRefsInApiSchema,
@@ -52,6 +53,8 @@ import {
 } from "./utils.js";
 
 const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
+// Retention must also be callable before a create/resume response exposes a session.
+const CONNECTION_SESSION_METHODS = new Set(["session.retain"]);
 const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
     "session-events.schema.json": "./session-events.js",
 };
@@ -522,11 +525,9 @@ export function filterPublicSessionEventVariants(
     return { publicVariants, excludedDefinitionNames };
 }
 
-async function generateSessionEvents(schemaPath?: string): Promise<void> {
+async function generateSessionEvents(schema: JSONSchema7, source: string): Promise<void> {
     console.log("TypeScript: generating session-events...");
 
-    const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = (await loadSchemaJson(resolvedPath)) as JSONSchema7;
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     const definitionCollections = collectDefinitionCollections(processed as Record<string, unknown>);
     const sessionEvent =
@@ -562,7 +563,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
             bannerComment: [
                 `/**
  * AUTO-GENERATED FILE - DO NOT EDIT
- * Generated from: session-events.schema.json
+ * Generated from: ${source}
  */`,
                 opaqueTypeAliasBlock(opaqueTypeAliases),
             ]
@@ -678,7 +679,9 @@ function tsNullableResultTypeName(method: RpcMethod): string | undefined {
 }
 
 function tsResultType(method: RpcMethod): string {
-    if (isVoidSchema(getMethodResultSchema(method))) return "void";
+    if (isVoidSchema(getMethodResultSchema(method))) {
+        return CONNECTION_SESSION_METHODS.has(method.rpcMethod) ? "null" : "void";
+    }
     return tsNullableResultTypeName(method) ?? resultTypeName(method);
 }
 
@@ -692,11 +695,10 @@ function paramsTypeName(method: RpcMethod): string {
     return externalRef?.definitionName ?? getRpcSchemaTypeName(schema, fallback);
 }
 
-async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema7): Promise<void> {
+async function generateRpc(input: ApiSchema, source: string, sessionEventsSchema?: JSONSchema7): Promise<void> {
     console.log("TypeScript: generating RPC types...");
 
-    const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    let schema = fixNullableRequiredRefsInApiSchema((await loadSchemaJson(resolvedPath)) as ApiSchema);
+    let schema = fixNullableRequiredRefsInApiSchema(input);
     if (sessionEventsSchema) {
         const sharedDefinitions = findSharedSchemaDefinitions(
             schema as unknown as Record<string, unknown>,
@@ -714,10 +716,10 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     const lines: string[] = [];
     lines.push(`/**
  * AUTO-GENERATED FILE - DO NOT EDIT
- * Generated from: api.schema.json
+ * Generated from: ${source}
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 `);
 
     const externalSchemaRefs = collectExternalSchemaRefNames(schema);
@@ -794,7 +796,11 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
             if (paramsExternalRef) {
                 continue;
             }
-            if (method.rpcMethod.startsWith("session.") && resolvedParams?.properties) {
+            if (
+                method.rpcMethod.startsWith("session.") &&
+                !CONNECTION_SESSION_METHODS.has(method.rpcMethod) &&
+                resolvedParams?.properties
+            ) {
                 const filtered: JSONSchema7 = {
                     ...resolvedParams,
                     properties: Object.fromEntries(
@@ -889,6 +895,14 @@ function hasInternalMethods(node: Record<string, unknown>): boolean {
         lines.push(`export function createServerRpc(connection: MessageConnection) {`);
         lines.push(`    return {`);
         lines.push(...emitGroup(schema.server, "        ", false, false, false, "public"));
+        const connectionSessionMethods = Object.fromEntries(
+            Object.entries(schema.session ?? {}).filter(
+                ([, method]) => isRpcMethod(method) && CONNECTION_SESSION_METHODS.has(method.rpcMethod)
+            )
+        );
+        if (Object.keys(connectionSessionMethods).length > 0) {
+            lines.push(...emitGroup({ session: connectionSessionMethods }, "        ", false, false, false, "public"));
+        }
         lines.push(`    };`);
         lines.push(`}`);
         lines.push("");
@@ -1211,7 +1225,8 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
                 includeExperimental: method.stability === "experimental" && !groupExperimental,
             });
             if (hasParams) {
-                lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
+                const cancellationParam = method.notification ? "" : ", token?: CancellationToken";
+                lines.push(`    ${name}(params: ${pType}${cancellationParam}): Promise<${rType}>;`);
             } else {
                 lines.push(`    ${name}(): Promise<${rType}>;`);
             }
@@ -1270,10 +1285,10 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
                     lines.push(`    });`);
                 }
             } else if (hasParams) {
-                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}) => {`);
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}, token: CancellationToken) => {`);
                 lines.push(`        const handler = handlers.${groupName};`);
                 lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);
-                lines.push(`        return handler.${name}(params);`);
+                lines.push(`        return handler.${name}(params, token);`);
                 lines.push(`    });`);
             } else {
                 lines.push(`    connection.onRequest("${method.rpcMethod}", async () => {`);
@@ -1294,11 +1309,24 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
 // ── Main ────────────────────────────────────────────────────────────────────
 
 async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
-    await generateSessionEvents(sessionSchemaPath);
+    // Explicit schema arguments remain complete, caller-supplied inputs.
+    const canvas = sessionSchemaPath || apiSchemaPath ? undefined : await loadCanvasSchemaRevisions();
+    const sourceSuffix = canvas ? " + experimental/canvas.schema.json" : "";
+    const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
+    const releasedSessionSchema = await loadSchemaJson<JSONSchema7>(resolvedSessionPath);
+    const sessionSchema = canvas
+        ? applySchemaRevision(releasedSessionSchema, canvas.sessionEvents)
+        : releasedSessionSchema;
+    await generateSessionEvents(sessionSchema, `session-events.schema.json${sourceSuffix}`);
     try {
-        const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
-        const sessionSchema = propagateInternalVisibility(postProcessSchema((await loadSchemaJson(resolvedSessionPath)) as JSONSchema7));
-        await generateRpc(apiSchemaPath, sessionSchema);
+        const resolvedApiPath = apiSchemaPath ?? (await getApiSchemaPath());
+        const releasedApiSchema = await loadSchemaJson<ApiSchema>(resolvedApiPath);
+        const apiSchema = canvas ? applySchemaRevision(releasedApiSchema, canvas.api) : releasedApiSchema;
+        await generateRpc(
+            apiSchema,
+            `api.schema.json${sourceSuffix}`,
+            propagateInternalVisibility(postProcessSchema(sessionSchema))
+        );
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {
             console.log("TypeScript: skipping RPC (api.schema.json not found)");
