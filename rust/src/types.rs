@@ -13,6 +13,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::app_extension::AppMediatedFetchHandler;
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
 pub use crate::copilot_request_handler::{
     CopilotHttpRequest, CopilotHttpResponse, CopilotHttpResponseBody, CopilotRequestContext,
@@ -1973,10 +1974,17 @@ pub struct SessionConfig {
     /// this handler. Use [`with_canvas_handler`](Self::with_canvas_handler)
     /// to install one.
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    /// Trusted app-host handler for validated mediated-fetch effects.
+    #[doc(hidden)]
+    pub app_mediated_fetch_handler: Option<Arc<dyn AppMediatedFetchHandler>>,
     /// Request canvas renderer tools for this connection.
     pub request_canvas_renderer: Option<bool>,
     /// Request extension tools and dispatch for this connection.
     pub request_extensions: Option<bool>,
+    /// Package IDs whose trusted app-scoped activations may run in this
+    /// session. Intended for app hosts that discover bundled packages.
+    #[doc(hidden)]
+    pub app_extension_package_ids: Option<Vec<String>>,
     /// Optional override path to a `copilot-sdk/` folder to inject into
     /// extension subprocesses for this session. Invalid paths fall back
     /// to the bundled SDK; takes precedence over the host's default.
@@ -2315,8 +2323,13 @@ impl std::fmt::Debug for SessionConfig {
                 "canvas_handler",
                 &self.canvas_handler.as_ref().map(|_| "<set>"),
             )
+            .field(
+                "app_mediated_fetch_handler",
+                &self.app_mediated_fetch_handler.as_ref().map(|_| "<set>"),
+            )
             .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("request_extensions", &self.request_extensions)
+            .field("app_extension_package_ids", &self.app_extension_package_ids)
             .field("extension_sdk_path", &self.extension_sdk_path)
             .field("extension_info", &self.extension_info)
             .field("canvas_provider", &self.canvas_provider)
@@ -2459,8 +2472,10 @@ impl Default for SessionConfig {
             tools: None,
             canvases: None,
             canvas_handler: None,
+            app_mediated_fetch_handler: None,
             request_canvas_renderer: None,
             request_extensions: None,
+            app_extension_package_ids: None,
             extension_sdk_path: None,
             extension_info: None,
             canvas_provider: None,
@@ -2554,6 +2569,7 @@ pub(crate) struct SessionConfigRuntime {
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
     pub tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>>,
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    pub app_mediated_fetch_handler: Option<Arc<dyn AppMediatedFetchHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     pub bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
     pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
@@ -2614,6 +2630,7 @@ impl SessionConfig {
         });
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
+        let app_mediated_fetch_handler = self.app_mediated_fetch_handler.clone();
         let bearer_token_providers =
             prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
@@ -2631,6 +2648,7 @@ impl SessionConfig {
             canvases: wire_canvases,
             request_canvas_renderer: self.request_canvas_renderer,
             request_extensions: self.request_extensions,
+            app_extension_package_ids: self.app_extension_package_ids,
             extension_sdk_path: self.extension_sdk_path,
             extension_info: self.extension_info,
             canvas_provider: self.canvas_provider,
@@ -2710,6 +2728,7 @@ impl SessionConfig {
             system_message_transform: self.system_message_transform,
             tool_handlers,
             canvas_handler,
+            app_mediated_fetch_handler,
             session_fs_provider: self.session_fs_provider,
             bearer_token_providers,
             github_token_provider: self.github_token_provider,
@@ -2901,6 +2920,16 @@ impl SessionConfig {
         self
     }
 
+    /// Install the trusted app-host mediated-fetch handler for this session.
+    #[doc(hidden)]
+    pub fn with_app_mediated_fetch_handler(
+        mut self,
+        handler: Arc<dyn AppMediatedFetchHandler>,
+    ) -> Self {
+        self.app_mediated_fetch_handler = Some(handler);
+        self
+    }
+
     /// Request host canvas renderer tools for this connection.
     pub fn with_request_canvas_renderer(mut self, request: bool) -> Self {
         self.request_canvas_renderer = Some(request);
@@ -2910,6 +2939,17 @@ impl SessionConfig {
     /// Request extension tools and dispatch for this connection.
     pub fn with_request_extensions(mut self, request: bool) -> Self {
         self.request_extensions = Some(request);
+        self
+    }
+
+    /// Set trusted app-extension package IDs available to this session.
+    #[doc(hidden)]
+    pub fn with_app_extension_package_ids<I, S>(mut self, package_ids: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.app_extension_package_ids = Some(package_ids.into_iter().map(Into::into).collect());
         self
     }
 
@@ -3430,12 +3470,18 @@ pub struct ResumeSessionConfig {
     /// Provider-side canvas lifecycle handler. See
     /// [`SessionConfig::canvas_handler`].
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    /// Trusted app-host handler for validated mediated-fetch effects.
+    #[doc(hidden)]
+    pub app_mediated_fetch_handler: Option<Arc<dyn AppMediatedFetchHandler>>,
     /// Open canvas instances the caller knows were open before this resume.
     pub open_canvases: Option<Vec<OpenCanvasInstance>>,
     /// Request canvas renderer tools for this connection.
     pub request_canvas_renderer: Option<bool>,
     /// Request extension tools and dispatch for this connection.
     pub request_extensions: Option<bool>,
+    /// Re-supply trusted app-extension package IDs on resume.
+    #[doc(hidden)]
+    pub app_extension_package_ids: Option<Vec<String>>,
     /// Optional override path to a `copilot-sdk/` folder to inject into
     /// extension subprocesses for this session on resume. See
     /// `SessionConfig::extension_sdk_path`.
@@ -3685,9 +3731,14 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "canvas_handler",
                 &self.canvas_handler.as_ref().map(|_| "<set>"),
             )
+            .field(
+                "app_mediated_fetch_handler",
+                &self.app_mediated_fetch_handler.as_ref().map(|_| "<set>"),
+            )
             .field("open_canvases", &self.open_canvases)
             .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("request_extensions", &self.request_extensions)
+            .field("app_extension_package_ids", &self.app_extension_package_ids)
             .field("extension_sdk_path", &self.extension_sdk_path)
             .field("extension_info", &self.extension_info)
             .field("canvas_provider", &self.canvas_provider)
@@ -3856,6 +3907,7 @@ impl ResumeSessionConfig {
         });
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
+        let app_mediated_fetch_handler = self.app_mediated_fetch_handler.clone();
         let bearer_token_providers =
             prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
@@ -3874,6 +3926,7 @@ impl ResumeSessionConfig {
             open_canvases: self.open_canvases,
             request_canvas_renderer: self.request_canvas_renderer,
             request_extensions: self.request_extensions,
+            app_extension_package_ids: self.app_extension_package_ids,
             extension_sdk_path: self.extension_sdk_path,
             extension_info: self.extension_info,
             canvas_provider: self.canvas_provider,
@@ -3954,6 +4007,7 @@ impl ResumeSessionConfig {
             system_message_transform: self.system_message_transform,
             tool_handlers,
             canvas_handler,
+            app_mediated_fetch_handler,
             session_fs_provider: self.session_fs_provider,
             bearer_token_providers,
             github_token_provider: self.github_token_provider,
@@ -3981,9 +4035,11 @@ impl ResumeSessionConfig {
             tools: None,
             canvases: None,
             canvas_handler: None,
+            app_mediated_fetch_handler: None,
             open_canvases: None,
             request_canvas_renderer: None,
             request_extensions: None,
+            app_extension_package_ids: None,
             extension_sdk_path: None,
             extension_info: None,
             canvas_provider: None,
@@ -4222,6 +4278,16 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Install the trusted app-host mediated-fetch handler for the resumed session.
+    #[doc(hidden)]
+    pub fn with_app_mediated_fetch_handler(
+        mut self,
+        handler: Arc<dyn AppMediatedFetchHandler>,
+    ) -> Self {
+        self.app_mediated_fetch_handler = Some(handler);
+        self
+    }
+
     /// Seed open canvas instances that were visible before resuming.
     pub fn with_open_canvases<I: IntoIterator<Item = OpenCanvasInstance>>(
         mut self,
@@ -4240,6 +4306,17 @@ impl ResumeSessionConfig {
     /// Request extension tools and dispatch for this connection on resume.
     pub fn with_request_extensions(mut self, request: bool) -> Self {
         self.request_extensions = Some(request);
+        self
+    }
+
+    /// Re-supply trusted app-extension package IDs on resume.
+    #[doc(hidden)]
+    pub fn with_app_extension_package_ids<I, S>(mut self, package_ids: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.app_extension_package_ids = Some(package_ids.into_iter().map(Into::into).collect());
         self
     }
 
@@ -5497,6 +5574,10 @@ pub struct MessageOptions {
     pub tracestate: Option<String>,
     /// If provided, this is shown in the timeline instead of `prompt`.
     pub display_prompt: Option<String>,
+    /// Require this tool to be available for the turn.
+    ///
+    /// The request fails before execution when the named tool is unavailable.
+    pub required_tool: Option<String>,
 }
 
 impl MessageOptions {
@@ -5513,6 +5594,7 @@ impl MessageOptions {
             traceparent: None,
             tracestate: None,
             display_prompt: None,
+            required_tool: None,
         }
     }
 
@@ -5583,6 +5665,12 @@ impl MessageOptions {
     /// Set the display prompt shown in the timeline instead of `prompt`.
     pub fn with_display_prompt(mut self, display_prompt: impl Into<String>) -> Self {
         self.display_prompt = Some(display_prompt.into());
+        self
+    }
+
+    /// Require this tool to be available for the turn.
+    pub fn with_required_tool(mut self, required_tool: impl Into<String>) -> Self {
+        self.required_tool = Some(required_tool.into());
         self
     }
 }
@@ -6558,6 +6646,64 @@ mod tests {
     }
 
     #[test]
+    fn app_extension_package_ids_serialize_on_create_and_resume() {
+        let package_ids = ["github.app.pr-badges", "github.app.checks"];
+        assert_eq!(SessionConfig::default().app_extension_package_ids, None);
+        assert_eq!(
+            ResumeSessionConfig::new(SessionId::from("default-resume")).app_extension_package_ids,
+            None
+        );
+
+        let create_config = SessionConfig::default().with_app_extension_package_ids(package_ids);
+        assert!(format!("{create_config:?}").contains("app_extension_package_ids"));
+        let create = create_config
+            .into_wire(Some(SessionId::from("create-app-extensions")))
+            .expect("create config has no duplicate handlers")
+            .0;
+        let create_json = serde_json::to_value(&create).unwrap();
+        assert_eq!(
+            create_json["appExtensionPackageIds"],
+            json!(["github.app.pr-badges", "github.app.checks"])
+        );
+
+        let resume_config = ResumeSessionConfig::new(SessionId::from("resume-app-extensions"))
+            .with_app_extension_package_ids(package_ids);
+        assert!(format!("{resume_config:?}").contains("app_extension_package_ids"));
+        let resume = resume_config
+            .into_wire()
+            .expect("resume config has no duplicate handlers")
+            .0;
+        let resume_json = serde_json::to_value(&resume).unwrap();
+        assert_eq!(
+            resume_json["appExtensionPackageIds"],
+            json!(["github.app.pr-badges", "github.app.checks"])
+        );
+
+        let unset_create = SessionConfig::default()
+            .into_wire(Some(SessionId::from("create-without-app-extensions")))
+            .expect("create config has no duplicate handlers")
+            .0;
+        assert!(
+            serde_json::to_value(&unset_create)
+                .unwrap()
+                .get("appExtensionPackageIds")
+                .is_none()
+        );
+
+        let unset_resume =
+            ResumeSessionConfig::new(SessionId::from("resume-without-app-extensions"))
+                .into_wire()
+                .expect("resume config has no duplicate handlers")
+                .0;
+        assert!(
+            serde_json::to_value(&unset_resume)
+                .unwrap()
+                .get("appExtensionPackageIds")
+                .is_none()
+        );
+    }
+
+    #[test]
     fn session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
         let cfg = SessionConfig::default().with_enable_mcp_apps(true);
         assert_eq!(cfg.enable_mcp_apps, Some(true));
@@ -7162,6 +7308,7 @@ mod tests {
             .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(false)
+            .with_app_extension_package_ids(["github.app.pr-badges"])
             .with_extension_info(ExtensionInfo::new("github-app", "counter"));
 
         assert_eq!(cfg.session_id.as_ref().map(|s| s.as_str()), Some("sess-1"));
@@ -7211,6 +7358,10 @@ mod tests {
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
         assert_eq!(
+            cfg.app_extension_package_ids.as_deref(),
+            Some(&["github.app.pr-badges".to_string()][..])
+        );
+        assert_eq!(
             cfg.extension_info,
             Some(ExtensionInfo::new("github-app", "counter"))
         );
@@ -7245,6 +7396,7 @@ mod tests {
             .with_include_sub_agent_streaming_events(true)
             .with_suppress_resume_event(true)
             .with_continue_pending_work(true)
+            .with_app_extension_package_ids(["github.app.pr-badges"])
             .with_extension_info(ExtensionInfo::new("github-app", "counter"));
 
         assert_eq!(cfg.session_id.as_str(), "sess-2");
@@ -7293,6 +7445,10 @@ mod tests {
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
         assert_eq!(cfg.suppress_resume_event, Some(true));
         assert_eq!(cfg.continue_pending_work, Some(true));
+        assert_eq!(
+            cfg.app_extension_package_ids.as_deref(),
+            Some(&["github.app.pr-badges".to_string()][..])
+        );
         assert_eq!(
             cfg.extension_info,
             Some(ExtensionInfo::new("github-app", "counter"))

@@ -79,6 +79,28 @@ function controlledSession(
     };
 }
 
+describe("send", () => {
+    it("forwards requiredTool in the session.send request", async () => {
+        const sendRequest = vi.fn().mockResolvedValue({ messageId: "msg-1" });
+        const connection = { sendRequest } as unknown as MessageConnection;
+        const session = new CopilotSession("session-1", connection);
+
+        await session.send({
+            prompt: "Create the pull request",
+            requiredTool: "create_ado_pull_request",
+        });
+
+        expect(sendRequest).toHaveBeenCalledWith(
+            "session.send",
+            expect.objectContaining({
+                sessionId: "session-1",
+                prompt: "Create the pull request",
+                requiredTool: "create_ado_pull_request",
+            })
+        );
+    });
+});
+
 describe("sendAndWait", () => {
     it("does not emit an unhandled rejection when session.error arrives before the idle race is armed", async () => {
         const { session, sendStarted, resolveSend } = controlledSession();

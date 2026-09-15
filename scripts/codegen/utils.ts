@@ -66,6 +66,27 @@ export async function getApiSchemaPath(cliArg?: string): Promise<string> {
     return resolveCopilotSchemaPath("api.schema.json");
 }
 
+/**
+ * Resolve the pinned API schema with SDK-owned private app-extension methods.
+ *
+ * The runtime schema remains authoritative for public APIs. This overlay is
+ * intentionally consumed only by Node and Rust, which implement the private
+ * bundled app-extension architecture.
+ */
+export async function getSdkApiSchemaPath(cliArg?: string): Promise<string> {
+    const basePath = await getApiSchemaPath(cliArg);
+    const overlayPath = path.join(__dirname, "app-extension-api.schema.json");
+    const [base, overlay] = await Promise.all([
+        loadSchemaJson(basePath) as Promise<ApiSchema>,
+        loadSchemaJson(overlayPath) as Promise<ApiSchema>,
+    ]);
+    const merged = mergeApiSchemaOverlay(base, overlay);
+    const outputPath = path.join(__dirname, ".cache", "api.schema.json");
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+    await fs.writeFile(outputPath, `${JSON.stringify(merged, null, 2)}\n`, "utf-8");
+    return outputPath;
+}
+
 // ── Brand casing normalization ──────────────────────────────────────────────
 
 /**
@@ -371,6 +392,7 @@ export interface RpcMethod {
     visibility?: string;
     deprecated?: boolean;
     notification?: boolean;
+    supportsCancellation?: boolean;
 }
 
 export function getRpcSchemaTypeName(schema: JSONSchema7 | null | undefined, fallback: string): string {
@@ -539,6 +561,72 @@ export interface ApiSchema {
     session?: Record<string, unknown>;
     clientSession?: Record<string, unknown>;
     clientGlobal?: Record<string, unknown>;
+}
+
+export function mergeApiSchemaOverlay(base: ApiSchema, overlay: ApiSchema): ApiSchema {
+    const mergeRecord = (
+        baseRecord: Record<string, unknown> | undefined,
+        overlayRecord: Record<string, unknown> | undefined,
+        pathPrefix: string,
+    ): Record<string, unknown> | undefined => {
+        if (!overlayRecord) return baseRecord;
+        const merged = cloneSchemaForCodegen(baseRecord ?? {});
+        for (const [key, overlayValue] of Object.entries(overlayRecord)) {
+            const pathName = pathPrefix ? `${pathPrefix}.${key}` : key;
+            const baseValue = merged[key];
+            if (baseValue === undefined) {
+                merged[key] = cloneSchemaForCodegen(overlayValue);
+                continue;
+            }
+            if (
+                typeof baseValue === "object" &&
+                baseValue !== null &&
+                !Array.isArray(baseValue) &&
+                typeof overlayValue === "object" &&
+                overlayValue !== null &&
+                !Array.isArray(overlayValue) &&
+                !isRpcMethod(baseValue) &&
+                !isRpcMethod(overlayValue)
+            ) {
+                merged[key] = mergeRecord(
+                    baseValue as Record<string, unknown>,
+                    overlayValue as Record<string, unknown>,
+                    pathName,
+                );
+                continue;
+            }
+            if (stableStringify(baseValue) !== stableStringify(overlayValue)) {
+                throw new Error(
+                    `SDK API schema overlay conflicts with the runtime schema at ${pathName}`,
+                );
+            }
+        }
+        return merged;
+    };
+
+    return {
+        ...base,
+        definitions: mergeRecord(
+            base.definitions,
+            overlay.definitions,
+            "definitions",
+        ) as Record<string, JSONSchema7Definition> | undefined,
+        $defs: mergeRecord(base.$defs, overlay.$defs, "$defs") as
+            | Record<string, JSONSchema7Definition>
+            | undefined,
+        server: mergeRecord(base.server, overlay.server, "server"),
+        session: mergeRecord(base.session, overlay.session, "session"),
+        clientSession: mergeRecord(
+            base.clientSession,
+            overlay.clientSession,
+            "clientSession",
+        ),
+        clientGlobal: mergeRecord(
+            base.clientGlobal,
+            overlay.clientGlobal,
+            "clientGlobal",
+        ),
+    };
 }
 
 export function isRpcMethod(node: unknown): node is RpcMethod {

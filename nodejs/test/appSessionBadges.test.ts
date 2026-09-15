@@ -1,0 +1,436 @@
+import { describe, expect, it, vi } from "vitest";
+import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import { AppSessionBadgesExtension } from "../src/appSessionBadges.js";
+import type { CopilotSession } from "../src/session.js";
+
+interface RecordedRequest {
+    method: string;
+    params: unknown;
+}
+
+function createConnection() {
+    const requests: RecordedRequest[] = [];
+    const notifications = new Map<string, (payload: unknown) => void>();
+    const disposed = vi.fn();
+    const connection = {
+        onNotification(method: string, handler: (payload: unknown) => void) {
+            notifications.set(method, handler);
+            return { dispose: disposed };
+        },
+        async sendRequest(method: string, params?: unknown) {
+            requests.push({ method, params });
+            if (method === "extensions.appSessionBadges.register") {
+                notifications.get("appSessionBadges.snapshot")?.({
+                    protocolVersion: 1,
+                    revision: 7,
+                    sessions: [
+                        {
+                            workspaceId: "workspace-1",
+                            sessionId: "session-1",
+                            repositoryPath: "C:\\src\\repo",
+                            worktreePath: "C:\\src\\worktree",
+                            branch: "feature",
+                        },
+                    ],
+                });
+            }
+            return null;
+        },
+    } as unknown as MessageConnection;
+
+    return { connection, requests, notifications, disposed };
+}
+
+describe("AppSessionBadgesExtension", () => {
+    it("registers after installing the snapshot listener and retains the immediate snapshot", async () => {
+        const { connection, requests } = createConnection();
+
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+
+        expect(requests).toEqual([
+            {
+                method: "extensions.appSessionBadges.register",
+                params: undefined,
+            },
+        ]);
+        expect(contribution.snapshot).toEqual({
+            protocolVersion: 1,
+            revision: 7,
+            sessions: [
+                {
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    repositoryPath: "C:\\src\\repo",
+                    worktreePath: "C:\\src\\worktree",
+                    branch: "feature",
+                },
+            ],
+        });
+    });
+
+    it("replays the latest snapshot and delivers later full replacements", async () => {
+        const { connection, notifications } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+        const handler = vi.fn();
+
+        const unsubscribe = contribution.onSnapshot(handler);
+        notifications.get("appSessionBadges.snapshot")?.({
+            protocolVersion: 1,
+            revision: 8,
+            sessions: [],
+        });
+        unsubscribe();
+        notifications.get("appSessionBadges.snapshot")?.({
+            protocolVersion: 1,
+            revision: 9,
+            sessions: [],
+        });
+
+        expect(handler).toHaveBeenCalledTimes(2);
+        expect(handler.mock.calls[0]![0].revision).toBe(7);
+        expect(handler.mock.calls[1]![0]).toEqual({
+            protocolVersion: 1,
+            revision: 8,
+            sessions: [],
+        });
+        expect(contribution.snapshot?.revision).toBe(9);
+    });
+
+    it("continues snapshot delivery when one handler throws", async () => {
+        const { connection, notifications } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+        const error = new Error("handler failed");
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+        const secondHandler = vi.fn();
+        let shouldThrow = false;
+        contribution.onSnapshot(() => {
+            if (shouldThrow) {
+                throw error;
+            }
+        });
+        contribution.onSnapshot(secondHandler);
+        secondHandler.mockClear();
+        shouldThrow = true;
+
+        notifications.get("appSessionBadges.snapshot")?.({
+            protocolVersion: 1,
+            revision: 8,
+            sessions: [],
+        });
+
+        expect(secondHandler).toHaveBeenCalledOnce();
+        expect(consoleError).toHaveBeenCalledWith(
+            "App session badges snapshot handler failed",
+            error
+        );
+        consoleError.mockRestore();
+    });
+
+    it("publishes and clears exact constrained v1 badge payloads", async () => {
+        const { connection, requests } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+        const target = { workspaceId: "workspace-1", sessionId: "session-1" };
+
+        await contribution.setBadge(target, { state: "open", label: "PR available" });
+        await contribution.clearBadge(target);
+
+        expect(requests.slice(1)).toEqual([
+            {
+                method: "extensions.appSessionBadges.setBadge",
+                params: {
+                    protocolVersion: 1,
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    badge: { state: "open", label: "PR available" },
+                },
+            },
+            {
+                method: "extensions.appSessionBadges.setBadge",
+                params: {
+                    protocolVersion: 1,
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    badge: null,
+                },
+            },
+        ]);
+    });
+
+    it("publishes one ordered atomic batch with null clears", async () => {
+        const { connection, requests } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+
+        await contribution.setBadges([
+            {
+                workspaceId: "workspace-2",
+                sessionId: "session-2",
+                badge: { state: "draft", label: "Draft" },
+            },
+            {
+                workspaceId: "workspace-1",
+                sessionId: "session-1",
+                badge: null,
+            },
+        ]);
+
+        expect(requests.slice(1)).toEqual([
+            {
+                method: "extensions.appSessionBadges.setBadges",
+                params: {
+                    protocolVersion: 1,
+                    updates: [
+                        {
+                            workspaceId: "workspace-2",
+                            sessionId: "session-2",
+                            badge: { state: "draft", label: "Draft" },
+                        },
+                        {
+                            workspaceId: "workspace-1",
+                            sessionId: "session-1",
+                            badge: null,
+                        },
+                    ],
+                },
+            },
+        ]);
+    });
+
+    it("publishes ordered atomic presentations while legacy badges omit action changes", async () => {
+        const { connection, requests } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+
+        await contribution.setPresentations([
+            {
+                workspaceId: "workspace-2",
+                sessionId: "session-2",
+                presentation: {
+                    badge: { state: "draft", label: "Draft" },
+                    action: {
+                        kind: "createPullRequest",
+                        state: "inProgress",
+                        supportsDraft: true,
+                    },
+                },
+            },
+            {
+                workspaceId: "workspace-1",
+                sessionId: "session-1",
+                presentation: {
+                    badge: null,
+                    action: {
+                        kind: "createPullRequest",
+                        state: "available",
+                        supportsDraft: false,
+                    },
+                },
+            },
+        ]);
+        await contribution.setBadge(
+            { workspaceId: "workspace-1", sessionId: "session-1" },
+            { state: "open" }
+        );
+
+        expect(requests.slice(1)).toEqual([
+            {
+                method: "extensions.appSessionBadges.setPresentations",
+                params: {
+                    protocolVersion: 1,
+                    updates: [
+                        {
+                            workspaceId: "workspace-2",
+                            sessionId: "session-2",
+                            presentation: {
+                                badge: { state: "draft", label: "Draft" },
+                                action: {
+                                    kind: "createPullRequest",
+                                    state: "inProgress",
+                                    supportsDraft: true,
+                                },
+                            },
+                        },
+                        {
+                            workspaceId: "workspace-1",
+                            sessionId: "session-1",
+                            presentation: {
+                                badge: null,
+                                action: {
+                                    kind: "createPullRequest",
+                                    state: "available",
+                                    supportsDraft: false,
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                method: "extensions.appSessionBadges.setBadge",
+                params: {
+                    protocolVersion: 1,
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    badge: { state: "open" },
+                },
+            },
+        ]);
+    });
+
+    it("validates complete presentations before transport", async () => {
+        const { connection, requests } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+
+        await expect(
+            contribution.setPresentation({ workspaceId: "workspace-1", sessionId: "session-1" }, {
+                badge: null,
+                action: {
+                    kind: "createPullRequest",
+                    state: "queued",
+                    supportsDraft: true,
+                },
+            } as never)
+        ).rejects.toThrow("Unsupported app session action state");
+        await expect(
+            contribution.setPresentations([
+                {
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    presentation: { badge: null, action: null },
+                },
+                {
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    presentation: { badge: null, action: null },
+                },
+            ])
+        ).rejects.toThrow("updates contains duplicate target");
+        await contribution.setPresentations([]);
+
+        expect(requests).toHaveLength(1);
+    });
+
+    it("validates an entire batch before sending and rejects duplicate targets", async () => {
+        const { connection, requests } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+
+        await expect(
+            contribution.setBadges([
+                {
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    badge: { state: "open" },
+                },
+                {
+                    workspaceId: "workspace-2",
+                    sessionId: "session-2",
+                    badge: { state: "queued" },
+                },
+            ] as never)
+        ).rejects.toThrow("Unsupported app session badge state");
+        await expect(
+            contribution.setBadges([
+                {
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    badge: { state: "open" },
+                },
+                {
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    badge: null,
+                },
+            ])
+        ).rejects.toThrow("updates contains duplicate target: workspace-1/session-1");
+        await contribution.setBadges([]);
+
+        expect(requests).toHaveLength(1);
+    });
+
+    it("rejects unsupported badge states", async () => {
+        const { connection, notifications } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+
+        await expect(
+            contribution.setBadge({ workspaceId: "workspace-1", sessionId: "session-1" }, {
+                state: "queued",
+            } as never)
+        ).rejects.toThrow("Unsupported app session badge state");
+        expect(notifications.has("appSessionBadges.snapshot")).toBe(true);
+    });
+
+    it("reports malformed snapshots and continues delivering valid snapshots", async () => {
+        const { connection, notifications } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+        const handler = vi.fn();
+        contribution.onSnapshot(handler);
+        handler.mockClear();
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+        notifications.get("appSessionBadges.snapshot")?.({
+            protocolVersion: 1,
+            revision: 8,
+            sessions: [
+                {
+                    workspace_id: "workspace-1",
+                    session_id: "session-1",
+                    repository_path: "C:\\src\\repo",
+                    worktree_path: "C:\\src\\worktree",
+                },
+            ],
+        });
+        notifications.get("appSessionBadges.snapshot")?.({
+            protocolVersion: 1,
+            revision: 9,
+            sessions: [],
+        });
+
+        expect(consoleError).toHaveBeenCalledOnce();
+        expect(consoleError.mock.calls[0]?.[0]).toBe("Invalid app session badges snapshot ignored");
+        expect(consoleError.mock.calls[0]?.[1]).toBeInstanceOf(TypeError);
+        expect(handler).toHaveBeenCalledOnce();
+        expect(handler.mock.calls[0]?.[0].revision).toBe(9);
+        expect(contribution.snapshot?.revision).toBe(9);
+        consoleError.mockRestore();
+    });
+
+    it("disposes its notification registration", async () => {
+        const { connection, disposed } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+
+        contribution.dispose();
+
+        expect(disposed).toHaveBeenCalledOnce();
+    });
+});

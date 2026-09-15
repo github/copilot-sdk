@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CopilotClient } from "../src/client.js";
 import { approveAll } from "../src/index.js";
-import { createCanvas, joinSession } from "../src/extension.js";
+import { createCanvas, joinAppSessionBadges, joinSession } from "../src/extension.js";
+import type { AppSessionBadgesExtension } from "../src/appSessionBadges.js";
+import type { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 describe("joinSession", () => {
@@ -89,5 +91,31 @@ describe("joinSession", () => {
         });
 
         expect(canvas.declaration.id).toBe("counter");
+    });
+
+    it("explicitly registers an app-session badge contribution", async () => {
+        process.env.SESSION_ID = "session-123";
+        const session = { disconnect: vi.fn() } as unknown as CopilotSession;
+        vi.spyOn(CopilotClient.prototype, "resumeSessionForExtension").mockResolvedValue(session);
+        const contribution = { session } as unknown as AppSessionBadgesExtension;
+        const register = vi
+            .spyOn(CopilotClient.prototype, "registerAppSessionBadges")
+            .mockResolvedValue(contribution);
+
+        await expect(joinAppSessionBadges()).resolves.toBe(contribution);
+
+        expect(register).toHaveBeenCalledWith(session);
+    });
+
+    it("stops the parent-process client when extension session resume fails", async () => {
+        process.env.SESSION_ID = "session-123";
+        vi.spyOn(CopilotClient.prototype, "resumeSessionForExtension").mockRejectedValue(
+            new Error("resume failed")
+        );
+        const stop = vi.spyOn(CopilotClient.prototype, "stop").mockResolvedValue([]);
+
+        await expect(joinSession()).rejects.toThrow("resume failed");
+
+        expect(stop).toHaveBeenCalledOnce();
     });
 });

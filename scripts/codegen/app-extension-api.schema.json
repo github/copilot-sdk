@@ -1,0 +1,1436 @@
+{
+    "definitions": {
+        "AppExtensionRegisterRequest": {
+            "title": "AppExtensionRegisterRequest",
+            "description": "Private app-extension activation handshake. Identity is derived from trusted runtime connection metadata and is never accepted from request parameters.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["protocolVersion"],
+            "properties": {
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                }
+            }
+        },
+        "AppExtensionPrincipal": {
+            "title": "AppExtensionPrincipal",
+            "description": "Opaque runtime-authenticated identity for one allowlisted app-extension activation.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["packageId", "activationId"],
+            "properties": {
+                "packageId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "activationId": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        },
+        "AppExtensionCapabilities": {
+            "title": "AppExtensionCapabilities",
+            "description": "Capability grants bound to an authenticated app-extension principal. Keys are present only when granted.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "sessionBadges": {
+                    "type": "boolean",
+                    "const": true
+                },
+                "canvases": {
+                    "type": "boolean",
+                    "const": true
+                },
+                "forgeProvider": {
+                    "type": "boolean",
+                    "const": true
+                },
+                "mediatedFetch": {
+                    "type": "boolean",
+                    "const": true
+                }
+            }
+        },
+        "AppExtensionContributionPoint": {
+            "title": "AppExtensionContributionPoint",
+            "description": "Capability contribution point declared by a trusted app-extension manifest.",
+            "visibility": "internal",
+            "type": "string",
+            "enum": ["sessionBadges", "canvases", "forgeProvider"]
+        },
+        "AppExtensionDeclaredContribution": {
+            "title": "AppExtensionDeclaredContribution",
+            "description": "Runtime-authenticated identity of one statically declared app-extension contribution.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["contributionPoint", "contributionId"],
+            "properties": {
+                "contributionPoint": {
+                    "$ref": "#/definitions/AppExtensionContributionPoint"
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        },
+        "AppExtensionRegisterResult": {
+            "title": "AppExtensionRegisterResult",
+            "description": "Authenticated principal and capability grants for one private app-extension activation.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "protocolVersion",
+                "principal",
+                "capabilities",
+                "contributions"
+            ],
+            "properties": {
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "principal": {
+                    "$ref": "#/definitions/AppExtensionPrincipal"
+                },
+                "capabilities": {
+                    "$ref": "#/definitions/AppExtensionCapabilities"
+                },
+                "contributions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AppExtensionDeclaredContribution"
+                    }
+                }
+            }
+        },
+        "AppExtensionContributionRegistrationRequest": {
+            "title": "AppExtensionContributionRegistrationRequest",
+            "description": "Registers or unregisters one runtime-authenticated app-extension contribution on its owning connection.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["protocolVersion", "contributionId"],
+            "properties": {
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                }
+            }
+        },
+        "AppForgeRegisterRequest": {
+            "title": "AppForgeRegisterRequest",
+            "description": "Registers one runtime-authenticated forge-provider contribution and its supported operation names.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["protocolVersion", "contributionId", "operations"],
+            "properties": {
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "operations": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 128,
+                    "uniqueItems": true,
+                    "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                    }
+                }
+            }
+        },
+        "AppExtensionContributionTarget": {
+            "title": "AppExtensionContributionTarget",
+            "description": "Stable runtime-authenticated app-extension contribution identity used by a trusted app host.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["packageId", "activationId", "contributionId"],
+            "properties": {
+                "packageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "activationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                }
+            }
+        },
+        "AppSessionPresentationTarget": {
+            "title": "AppSessionPresentationTarget",
+            "description": "Exact app-visible session target from the current eligible-session snapshot.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "workspaceId",
+                "sessionId",
+                "repositoryPath",
+                "worktreePath"
+            ],
+            "properties": {
+                "workspaceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "repositoryPath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32768
+                },
+                "worktreePath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32768
+                },
+                "branch": {
+                    "type": "string",
+                    "maxLength": 4096
+                }
+            }
+        },
+        "AppSessionBadgePresentation": {
+            "title": "AppSessionBadgePresentation",
+            "description": "Constrained pull-request identity presentation contributed for one eligible app session.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["state"],
+            "properties": {
+                "state": {
+                    "type": "string",
+                    "enum": ["draft", "open", "merged", "closed"]
+                },
+                "label": {
+                    "type": "string",
+                    "maxLength": 512
+                }
+            }
+        },
+        "AppSessionPullRequestAction": {
+            "title": "AppSessionPullRequestAction",
+            "description": "Constrained Create Pull Request action state contributed for one eligible app session.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "state", "supportsDraft"],
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "const": "createPullRequest"
+                },
+                "state": {
+                    "type": "string",
+                    "enum": ["available", "inProgress"]
+                },
+                "supportsDraft": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "AppSessionPresentation": {
+            "title": "AppSessionPresentation",
+            "description": "Atomic extension-provided badge and Create Pull Request action presentation.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["badge", "action"],
+            "properties": {
+                "badge": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/definitions/AppSessionBadgePresentation"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "action": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/definitions/AppSessionPullRequestAction"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            }
+        },
+        "AppSessionPresentationUpdate": {
+            "title": "AppSessionPresentationUpdate",
+            "description": "One ordered atomic presentation replacement for an eligible app session.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["workspaceId", "sessionId", "presentation"],
+            "properties": {
+                "workspaceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "presentation": {
+                    "$ref": "#/definitions/AppSessionPresentation"
+                }
+            }
+        },
+        "AppSessionSetPresentationRequest": {
+            "title": "AppSessionSetPresentationRequest",
+            "description": "Publishes one atomic badge and action presentation for an eligible app session.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "protocolVersion",
+                "workspaceId",
+                "sessionId",
+                "presentation"
+            ],
+            "properties": {
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "workspaceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "presentation": {
+                    "$ref": "#/definitions/AppSessionPresentation"
+                }
+            }
+        },
+        "AppSessionSetPresentationsRequest": {
+            "title": "AppSessionSetPresentationsRequest",
+            "description": "Publishes an ordered batch of atomic badge and action presentations.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["protocolVersion", "updates"],
+            "properties": {
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "updates": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1024,
+                    "items": {
+                        "$ref": "#/definitions/AppSessionPresentationUpdate"
+                    }
+                }
+            }
+        },
+        "AppSessionPullRequestActionInvocation": {
+            "title": "AppSessionPullRequestActionInvocation",
+            "description": "Create Pull Request action selected by the app host.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "draft"],
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "const": "createPullRequest"
+                },
+                "draft": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "AppSessionActionCallbackRequest": {
+            "title": "AppSessionActionCallbackRequest",
+            "description": "Create Pull Request callback routed to the owning app extension.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "sessionId",
+                "protocolVersion",
+                "contributionId",
+                "target",
+                "action"
+            ],
+            "properties": {
+                "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "target": {
+                    "$ref": "#/definitions/AppSessionPresentationTarget"
+                },
+                "action": {
+                    "$ref": "#/definitions/AppSessionPullRequestActionInvocation"
+                }
+            }
+        },
+        "AppSessionActionResult": {
+            "title": "AppSessionActionResult",
+            "description": "Bounded extension-authored prompt and required session tool for a Create Pull Request action.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["prompt", "requiredTool"],
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32768
+                },
+                "requiredTool": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                }
+            }
+        },
+        "AppSessionActionHostRequest": {
+            "title": "AppSessionActionHostRequest",
+            "description": "Trusted app-host request to invoke a Create Pull Request action on its owning extension contribution.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "appSessionId",
+                "protocolVersion",
+                "packageId",
+                "activationId",
+                "contributionId",
+                "target",
+                "action"
+            ],
+            "properties": {
+                "appSessionId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "packageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "activationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "target": {
+                    "$ref": "#/definitions/AppSessionPresentationTarget"
+                },
+                "action": {
+                    "$ref": "#/definitions/AppSessionPullRequestActionInvocation"
+                }
+            }
+        },
+        "AppSessionPresentationChangedEventData": {
+            "title": "AppSessionPresentationChangedEventData",
+            "description": "Authenticated provider presentation update emitted on the retained hidden app session. A null presentation resets provider state.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "protocolVersion",
+                "extensionId",
+                "packageId",
+                "activationId",
+                "contributionId",
+                "workspaceId",
+                "sessionId",
+                "presentation"
+            ],
+            "properties": {
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "extensionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "packageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "activationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "workspaceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "presentation": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/definitions/AppSessionPresentation"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            }
+        },
+        "AppCanvasActionDescriptor": {
+            "title": "AppCanvasActionDescriptor",
+            "description": "Bounded generic action descriptor rendered by the trusted app host.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "label"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                },
+                "input": {
+                    "description": "Serializable action input returned when the action is selected.",
+                    "x-opaque-json": true
+                },
+                "variant": {
+                    "type": "string",
+                    "enum": ["default", "primary", "danger"]
+                },
+                "disabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "AppCanvasProjectContext": {
+            "title": "AppCanvasProjectContext",
+            "description": "Trusted project context supplied by the app host to an app-scoped canvas.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["forgeProviderId", "repositoryLocator"],
+            "properties": {
+                "forgeProviderId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "repositoryLocator": {
+                    "description": "Opaque versioned repository locator interpreted only by the owning forge provider.",
+                    "x-opaque-json": true
+                },
+                "forgeAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                }
+            }
+        },
+        "AppCanvasContext": {
+            "title": "AppCanvasContext",
+            "description": "Optional trusted app context for one canvas instance. The hidden control-session identity is never exposed.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "projectId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "workspaceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "project": {
+                    "$ref": "#/definitions/AppCanvasProjectContext"
+                }
+            }
+        },
+        "AppCanvasOpenCallbackRequest": {
+            "title": "AppCanvasOpenCallbackRequest",
+            "description": "App-canvas open callback routed to the owning extension connection.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "sessionId",
+                "protocolVersion",
+                "contributionId",
+                "instanceId"
+            ],
+            "properties": {
+                "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "instanceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "input": {
+                    "description": "Serializable canvas input.",
+                    "x-opaque-json": true
+                },
+                "context": {
+                    "$ref": "#/definitions/AppCanvasContext"
+                }
+            }
+        },
+        "AppCanvasActionCallbackRequest": {
+            "title": "AppCanvasActionCallbackRequest",
+            "description": "App-canvas action callback routed to the owning extension connection.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "sessionId",
+                "protocolVersion",
+                "contributionId",
+                "instanceId",
+                "actionName"
+            ],
+            "properties": {
+                "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "instanceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "actionName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "input": {
+                    "description": "Serializable action input.",
+                    "x-opaque-json": true
+                },
+                "context": {
+                    "$ref": "#/definitions/AppCanvasContext"
+                }
+            }
+        },
+        "AppCanvasCloseCallbackRequest": {
+            "title": "AppCanvasCloseCallbackRequest",
+            "description": "App-canvas close callback routed to the owning extension connection.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "sessionId",
+                "protocolVersion",
+                "contributionId",
+                "instanceId"
+            ],
+            "properties": {
+                "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "instanceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "context": {
+                    "$ref": "#/definitions/AppCanvasContext"
+                }
+            }
+        },
+        "AppCanvasOpenResult": {
+            "title": "AppCanvasOpenResult",
+            "description": "Bounded app-canvas state and display metadata. Arbitrary navigation URLs are not supported.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "state": {
+                    "description": "Serializable initial canvas state.",
+                    "x-opaque-json": true
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "status": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "actions": {
+                    "type": "array",
+                    "maxItems": 32,
+                    "items": {
+                        "$ref": "#/definitions/AppCanvasActionDescriptor"
+                    }
+                }
+            }
+        },
+        "AppCanvasHostOpenRequest": {
+            "title": "AppCanvasHostOpenRequest",
+            "description": "Trusted app-host request to open an app-extension canvas.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "appSessionId",
+                "protocolVersion",
+                "packageId",
+                "activationId",
+                "contributionId",
+                "instanceId"
+            ],
+            "properties": {
+                "appSessionId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "packageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "activationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "instanceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "input": {
+                    "description": "Serializable canvas input.",
+                    "x-opaque-json": true
+                },
+                "context": {
+                    "$ref": "#/definitions/AppCanvasContext"
+                }
+            }
+        },
+        "AppCanvasHostActionRequest": {
+            "title": "AppCanvasHostActionRequest",
+            "description": "Trusted app-host request to invoke an app-extension canvas action.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "appSessionId",
+                "protocolVersion",
+                "packageId",
+                "activationId",
+                "contributionId",
+                "instanceId",
+                "actionName"
+            ],
+            "properties": {
+                "appSessionId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "packageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "activationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "instanceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "actionName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "input": {
+                    "description": "Serializable action input.",
+                    "x-opaque-json": true
+                },
+                "context": {
+                    "$ref": "#/definitions/AppCanvasContext"
+                }
+            }
+        },
+        "AppCanvasHostCloseRequest": {
+            "title": "AppCanvasHostCloseRequest",
+            "description": "Trusted app-host request to close an app-extension canvas.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "appSessionId",
+                "protocolVersion",
+                "packageId",
+                "activationId",
+                "contributionId",
+                "instanceId"
+            ],
+            "properties": {
+                "appSessionId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "packageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "activationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "instanceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "context": {
+                    "$ref": "#/definitions/AppCanvasContext"
+                }
+            }
+        },
+        "AppForgeInvokeCallbackRequest": {
+            "title": "AppForgeInvokeCallbackRequest",
+            "description": "Forge-provider operation callback routed to the owning extension connection.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "sessionId",
+                "protocolVersion",
+                "contributionId",
+                "operation"
+            ],
+            "properties": {
+                "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "operation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "input": {
+                    "description": "Serializable operation input.",
+                    "x-opaque-json": true
+                }
+            }
+        },
+        "AppForgeHostInvokeRequest": {
+            "title": "AppForgeHostInvokeRequest",
+            "description": "Trusted app-host request to invoke an app-extension forge provider.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "appSessionId",
+                "protocolVersion",
+                "packageId",
+                "activationId",
+                "contributionId",
+                "operation"
+            ],
+            "properties": {
+                "appSessionId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "packageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "activationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "operation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "input": {
+                    "description": "Serializable operation input.",
+                    "x-opaque-json": true
+                }
+            }
+        },
+        "AppMediatedFetchHttpRequest": {
+            "title": "AppMediatedFetchHttpRequest",
+            "description": "Constrained credential-free HTTP request interpreted by the trusted app host.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["method", "path"],
+            "properties": {
+                "method": {
+                    "type": "string",
+                    "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]
+                },
+                "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8192
+                },
+                "headers": {
+                    "type": "object",
+                    "maxProperties": 64,
+                    "additionalProperties": {
+                        "type": "string",
+                        "maxLength": 8192
+                    }
+                },
+                "body": {
+                    "type": "string",
+                    "maxLength": 262144
+                }
+            }
+        },
+        "AppMediatedFetchRequest": {
+            "title": "AppMediatedFetchRequest",
+            "description": "Requests a capability-gated forge operation through the trusted app host.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "protocolVersion",
+                "contributionId",
+                "accountId",
+                "operation",
+                "request"
+            ],
+            "properties": {
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "operation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "request": {
+                    "$ref": "#/definitions/AppMediatedFetchHttpRequest"
+                }
+            }
+        },
+        "AppMediatedFetchHostRequest": {
+            "title": "AppMediatedFetchHostRequest",
+            "description": "Validated mediated-fetch effect routed to the trusted app session host.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "sessionId",
+                "protocolVersion",
+                "packageId",
+                "activationId",
+                "contributionId",
+                "accountId",
+                "operation",
+                "request"
+            ],
+            "properties": {
+                "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "packageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "activationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "operation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "request": {
+                    "$ref": "#/definitions/AppMediatedFetchHttpRequest"
+                }
+            }
+        },
+        "AppMediatedFetchResponse": {
+            "title": "AppMediatedFetchResponse",
+            "description": "Bounded sanitized HTTP response returned by the trusted app host.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "headers", "truncated"],
+            "properties": {
+                "status": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 599
+                },
+                "headers": {
+                    "type": "object",
+                    "maxProperties": 64,
+                    "additionalProperties": {
+                        "type": "string",
+                        "maxLength": 8192
+                    }
+                },
+                "body": {
+                    "type": "string",
+                    "maxLength": 1048576
+                },
+                "truncated": {
+                    "type": "boolean"
+                }
+            }
+        }
+    },
+    "server": {
+        "extensions": {
+            "appExtension": {
+                "register": {
+                    "rpcMethod": "extensions.appExtension.register",
+                    "description": "Authenticates an allowlisted app-extension connection and returns its opaque principal and capability grants.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppExtensionRegisterRequest"
+                    },
+                    "result": {
+                        "$ref": "#/definitions/AppExtensionRegisterResult"
+                    }
+                }
+            },
+            "appSessionBadges": {
+                "setPresentation": {
+                    "rpcMethod": "extensions.appSessionBadges.setPresentation",
+                    "description": "Publishes one atomic badge and Create Pull Request action presentation.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppSessionSetPresentationRequest"
+                    },
+                    "result": {
+                        "type": "null"
+                    }
+                },
+                "setPresentations": {
+                    "rpcMethod": "extensions.appSessionBadges.setPresentations",
+                    "description": "Publishes an ordered atomic batch of badge and Create Pull Request action presentations.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppSessionSetPresentationsRequest"
+                    },
+                    "result": {
+                        "type": "null"
+                    }
+                },
+                "action": {
+                    "invoke": {
+                        "rpcMethod": "extensions.appSessionBadges.action.invoke",
+                        "description": "Routes a trusted app-host Create Pull Request action to its owning extension contribution.",
+                        "visibility": "internal",
+                        "stability": "experimental",
+                        "params": {
+                            "$ref": "#/definitions/AppSessionActionHostRequest"
+                        },
+                        "result": {
+                            "description": "AppSessionActionResult or null when the extension declines the action.",
+                            "x-opaque-json": true
+                        }
+                    }
+                }
+            },
+            "appCanvas": {
+                "register": {
+                    "rpcMethod": "extensions.appCanvas.register",
+                    "description": "Registers one trusted app-canvas contribution on its owning extension connection.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppExtensionContributionRegistrationRequest"
+                    },
+                    "result": {
+                        "type": "null"
+                    }
+                },
+                "unregister": {
+                    "rpcMethod": "extensions.appCanvas.unregister",
+                    "description": "Unregisters one trusted app-canvas contribution from its owning extension connection.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppExtensionContributionRegistrationRequest"
+                    },
+                    "result": {
+                        "type": "null"
+                    }
+                },
+                "open": {
+                    "rpcMethod": "extensions.appCanvas.open",
+                    "description": "Routes a trusted app-host canvas open request to its owning extension contribution.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppCanvasHostOpenRequest"
+                    },
+                    "result": {
+                        "$ref": "#/definitions/AppCanvasOpenResult"
+                    }
+                },
+                "action": {
+                    "invoke": {
+                        "rpcMethod": "extensions.appCanvas.action.invoke",
+                        "description": "Routes a trusted app-host canvas action to its owning extension contribution.",
+                        "visibility": "internal",
+                        "stability": "experimental",
+                        "params": {
+                            "$ref": "#/definitions/AppCanvasHostActionRequest"
+                        },
+                        "result": {
+                            "description": "Serializable action result.",
+                            "x-opaque-json": true
+                        }
+                    }
+                },
+                "close": {
+                    "rpcMethod": "extensions.appCanvas.close",
+                    "description": "Routes a trusted app-host canvas close request to its owning extension contribution.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppCanvasHostCloseRequest"
+                    },
+                    "result": {
+                        "type": "null"
+                    }
+                }
+            },
+            "appForge": {
+                "register": {
+                    "rpcMethod": "extensions.appForge.register",
+                    "description": "Registers one trusted forge-provider contribution and its supported operations.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppForgeRegisterRequest"
+                    },
+                    "result": {
+                        "type": "null"
+                    }
+                },
+                "unregister": {
+                    "rpcMethod": "extensions.appForge.unregister",
+                    "description": "Unregisters one trusted forge-provider contribution from its owning extension connection.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppExtensionContributionRegistrationRequest"
+                    },
+                    "result": {
+                        "type": "null"
+                    }
+                },
+                "invoke": {
+                    "rpcMethod": "extensions.appForge.invoke",
+                    "description": "Routes a trusted app-host operation to its owning forge-provider contribution.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppForgeHostInvokeRequest"
+                    },
+                    "result": {
+                        "description": "Serializable forge-provider operation result.",
+                        "x-opaque-json": true
+                    }
+                },
+                "fetch": {
+                    "rpcMethod": "extensions.appForge.fetch",
+                    "description": "Requests a bounded capability-gated HTTP operation through the trusted app host.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppMediatedFetchRequest"
+                    },
+                    "result": {
+                        "$ref": "#/definitions/AppMediatedFetchResponse"
+                    }
+                }
+            }
+        }
+    },
+    "clientSession": {
+        "appSessionBadges": {
+            "action": {
+                "invoke": {
+                    "rpcMethod": "appSessionBadges.action.invoke",
+                    "description": "Invokes a Create Pull Request action on the owning app-extension contribution.",
+                    "supportsCancellation": true,
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppSessionActionCallbackRequest"
+                    },
+                    "result": {
+                        "description": "AppSessionActionResult or null when the extension declines the action.",
+                        "x-opaque-json": true
+                    }
+                }
+            }
+        },
+        "appCanvas": {
+            "open": {
+                "rpcMethod": "appCanvas.open",
+                "description": "Opens an app-scoped canvas contribution on its owning extension connection.",
+                "supportsCancellation": true,
+                "stability": "experimental",
+                "params": {
+                    "$ref": "#/definitions/AppCanvasOpenCallbackRequest"
+                },
+                "result": {
+                    "$ref": "#/definitions/AppCanvasOpenResult"
+                }
+            },
+            "close": {
+                "rpcMethod": "appCanvas.close",
+                "description": "Closes an app-scoped canvas contribution on its owning extension connection.",
+                "supportsCancellation": true,
+                "stability": "experimental",
+                "params": {
+                    "$ref": "#/definitions/AppCanvasCloseCallbackRequest"
+                },
+                "result": {
+                    "type": "null"
+                }
+            },
+            "action": {
+                "invoke": {
+                    "rpcMethod": "appCanvas.action.invoke",
+                    "description": "Invokes an action on an app-scoped canvas contribution.",
+                    "supportsCancellation": true,
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppCanvasActionCallbackRequest"
+                    },
+                    "result": {
+                        "description": "Serializable action result.",
+                        "x-opaque-json": true
+                    }
+                }
+            }
+        },
+        "appForgeProvider": {
+            "invoke": {
+                "rpcMethod": "appForge.invoke",
+                "description": "Invokes one registered forge-provider operation on its owning extension connection.",
+                "supportsCancellation": true,
+                "stability": "experimental",
+                "params": {
+                    "$ref": "#/definitions/AppForgeInvokeCallbackRequest"
+                },
+                "result": {
+                    "description": "Serializable forge-provider operation result.",
+                    "x-opaque-json": true
+                }
+            }
+        },
+        "appForgeHost": {
+            "fetch": {
+                "rpcMethod": "appForge.fetch",
+                "description": "Delegates one validated mediated-fetch effect to the trusted app session host.",
+                "stability": "experimental",
+                "params": {
+                    "$ref": "#/definitions/AppMediatedFetchHostRequest"
+                },
+                "result": {
+                    "$ref": "#/definitions/AppMediatedFetchResponse"
+                }
+            }
+        }
+    }
+}

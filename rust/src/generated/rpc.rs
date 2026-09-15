@@ -590,6 +590,34 @@ pub struct ClientRpcExtensions<'a> {
 }
 
 impl<'a> ClientRpcExtensions<'a> {
+    /// `extensions.appCanvas.*` sub-namespace.
+    pub fn app_canvas(&self) -> ClientRpcExtensionsAppCanvas<'a> {
+        ClientRpcExtensionsAppCanvas {
+            client: self.client,
+        }
+    }
+
+    /// `extensions.appExtension.*` sub-namespace.
+    pub fn app_extension(&self) -> ClientRpcExtensionsAppExtension<'a> {
+        ClientRpcExtensionsAppExtension {
+            client: self.client,
+        }
+    }
+
+    /// `extensions.appForge.*` sub-namespace.
+    pub fn app_forge(&self) -> ClientRpcExtensionsAppForge<'a> {
+        ClientRpcExtensionsAppForge {
+            client: self.client,
+        }
+    }
+
+    /// `extensions.appSessionBadges.*` sub-namespace.
+    pub fn app_session_badges(&self) -> ClientRpcExtensionsAppSessionBadges<'a> {
+        ClientRpcExtensionsAppSessionBadges {
+            client: self.client,
+        }
+    }
+
     /// Discovers user and enabled installed-plugin extensions from persisted Copilot home state, including enablement preferences. Launch-scoped additional plugins are not included.
     ///
     /// Wire method: `extensions.discover`.
@@ -660,6 +688,461 @@ impl<'a> ClientRpcExtensions<'a> {
             .call(rpc_methods::EXTENSIONS_DISABLE, Some(wire_params))
             .await?;
         Ok(())
+    }
+}
+
+/// `extensions.appCanvas.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcExtensionsAppCanvas<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcExtensionsAppCanvas<'a> {
+    /// `appCanvas.action.*` sub-namespace.
+    pub fn action(&self) -> ClientRpcExtensionsAppCanvasAction<'a> {
+        ClientRpcExtensionsAppCanvasAction {
+            client: self.client,
+        }
+    }
+
+    /// Registers one trusted app-canvas contribution on its owning extension connection.
+    ///
+    /// Wire method: `extensions.appCanvas.register`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Registers or unregisters one runtime-authenticated app-extension contribution on its owning connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn register(
+        &self,
+        params: AppExtensionContributionRegistrationRequest,
+    ) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPCANVAS_REGISTER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Unregisters one trusted app-canvas contribution from its owning extension connection.
+    ///
+    /// Wire method: `extensions.appCanvas.unregister`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Registers or unregisters one runtime-authenticated app-extension contribution on its owning connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn unregister(
+        &self,
+        params: AppExtensionContributionRegistrationRequest,
+    ) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPCANVAS_UNREGISTER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Routes a trusted app-host canvas open request to its owning extension contribution.
+    ///
+    /// Wire method: `extensions.appCanvas.open`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Trusted app-host request to open an app-extension canvas.
+    ///
+    /// # Returns
+    ///
+    /// Bounded app-canvas state and display metadata. Arbitrary navigation URLs are not supported.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn open(
+        &self,
+        params: AppCanvasHostOpenRequest,
+    ) -> Result<AppCanvasOpenResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::EXTENSIONS_APPCANVAS_OPEN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Routes a trusted app-host canvas close request to its owning extension contribution.
+    ///
+    /// Wire method: `extensions.appCanvas.close`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Trusted app-host request to close an app-extension canvas.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn close(&self, params: AppCanvasHostCloseRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::EXTENSIONS_APPCANVAS_CLOSE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+}
+
+/// `appCanvas.action.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcExtensionsAppCanvasAction<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcExtensionsAppCanvasAction<'a> {
+    /// Routes a trusted app-host canvas action to its owning extension contribution.
+    ///
+    /// Wire method: `extensions.appCanvas.action.invoke`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Trusted app-host request to invoke an app-extension canvas action.
+    ///
+    /// # Returns
+    ///
+    /// Serializable action result.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn invoke(
+        &self,
+        params: AppCanvasHostActionRequest,
+    ) -> Result<serde_json::Value, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPCANVAS_ACTION_INVOKE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `extensions.appExtension.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcExtensionsAppExtension<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcExtensionsAppExtension<'a> {
+    /// Authenticates an allowlisted app-extension connection and returns its opaque principal and capability grants.
+    ///
+    /// Wire method: `extensions.appExtension.register`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Private app-extension activation handshake. Identity is derived from trusted runtime connection metadata and is never accepted from request parameters.
+    ///
+    /// # Returns
+    ///
+    /// Authenticated principal and capability grants for one private app-extension activation.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn register(
+        &self,
+        params: AppExtensionRegisterRequest,
+    ) -> Result<AppExtensionRegisterResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPEXTENSION_REGISTER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `extensions.appForge.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcExtensionsAppForge<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcExtensionsAppForge<'a> {
+    /// Registers one trusted forge-provider contribution and its supported operations.
+    ///
+    /// Wire method: `extensions.appForge.register`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Registers one runtime-authenticated forge-provider contribution and its supported operation names.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn register(&self, params: AppForgeRegisterRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::EXTENSIONS_APPFORGE_REGISTER, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    /// Unregisters one trusted forge-provider contribution from its owning extension connection.
+    ///
+    /// Wire method: `extensions.appForge.unregister`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Registers or unregisters one runtime-authenticated app-extension contribution on its owning connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn unregister(
+        &self,
+        params: AppExtensionContributionRegistrationRequest,
+    ) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPFORGE_UNREGISTER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Routes a trusted app-host operation to its owning forge-provider contribution.
+    ///
+    /// Wire method: `extensions.appForge.invoke`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Trusted app-host request to invoke an app-extension forge provider.
+    ///
+    /// # Returns
+    ///
+    /// Serializable forge-provider operation result.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn invoke(
+        &self,
+        params: AppForgeHostInvokeRequest,
+    ) -> Result<serde_json::Value, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::EXTENSIONS_APPFORGE_INVOKE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Requests a bounded capability-gated HTTP operation through the trusted app host.
+    ///
+    /// Wire method: `extensions.appForge.fetch`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Requests a capability-gated forge operation through the trusted app host.
+    ///
+    /// # Returns
+    ///
+    /// Bounded sanitized HTTP response returned by the trusted app host.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn fetch(
+        &self,
+        params: AppMediatedFetchRequest,
+    ) -> Result<AppMediatedFetchResponse, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::EXTENSIONS_APPFORGE_FETCH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `extensions.appSessionBadges.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcExtensionsAppSessionBadges<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcExtensionsAppSessionBadges<'a> {
+    /// `appSessionBadges.action.*` sub-namespace.
+    pub fn action(&self) -> ClientRpcExtensionsAppSessionBadgesAction<'a> {
+        ClientRpcExtensionsAppSessionBadgesAction {
+            client: self.client,
+        }
+    }
+
+    /// Publishes one atomic badge and Create Pull Request action presentation.
+    ///
+    /// Wire method: `extensions.appSessionBadges.setPresentation`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Publishes one atomic badge and action presentation for an eligible app session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn set_presentation(
+        &self,
+        params: AppSessionSetPresentationRequest,
+    ) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPSESSIONBADGES_SETPRESENTATION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Publishes an ordered atomic batch of badge and Create Pull Request action presentations.
+    ///
+    /// Wire method: `extensions.appSessionBadges.setPresentations`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Publishes an ordered batch of atomic badge and action presentations.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn set_presentations(
+        &self,
+        params: AppSessionSetPresentationsRequest,
+    ) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPSESSIONBADGES_SETPRESENTATIONS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+}
+
+/// `appSessionBadges.action.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcExtensionsAppSessionBadgesAction<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcExtensionsAppSessionBadgesAction<'a> {
+    /// Routes a trusted app-host Create Pull Request action to its owning extension contribution.
+    ///
+    /// Wire method: `extensions.appSessionBadges.action.invoke`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Trusted app-host request to invoke a Create Pull Request action on its owning extension contribution.
+    ///
+    /// # Returns
+    ///
+    /// AppSessionActionResult or null when the extension declines the action.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn invoke(
+        &self,
+        params: AppSessionActionHostRequest,
+    ) -> Result<serde_json::Value, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPSESSIONBADGES_ACTION_INVOKE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
     }
 }
 
