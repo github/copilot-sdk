@@ -173,20 +173,19 @@ describe("runtime npm package acquisition", () => {
             "tar",
             [
                 "-czf",
-                archive,
+                basename(archive),
                 "--exclude",
                 "runtime-packages/tarballs",
-                "-C",
-                root,
                 "runtime-packages",
             ],
-            { encoding: "utf8" }
+            { cwd: root, encoding: "utf8" }
         );
         expect(archived.status, archived.stderr).toBe(0);
 
         const extractedRoot = join(root, "extracted");
         mkdirSync(extractedRoot);
-        const extracted = spawnSync("tar", ["-xzf", archive, "-C", extractedRoot], {
+        const extracted = spawnSync("tar", ["-xzf", basename(archive), "-C", "extracted"], {
+            cwd: root,
             encoding: "utf8",
         });
         expect(extracted.status, extracted.stderr).toBe(0);
