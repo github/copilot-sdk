@@ -9,6 +9,9 @@ import (
 )
 
 func TestPerSessionAuthE2E(t *testing.T) {
+	if testharness.RunWithInProcessGlobals(t) {
+		return
+	}
 	ctx := testharness.NewTestContext(t)
 
 	// Create client with COPILOT_DEBUG_GITHUB_API_URL redirected to the proxy

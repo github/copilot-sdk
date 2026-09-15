@@ -150,9 +150,12 @@ Resolution and requirements:
 - Linux in-process bundles include both glibc and musl runtime packages and select the matching package automatically at startup.
 - Only one native runtime version may be loaded per process.
 
-The in-process transport rejects options that cannot be honored by a runtime hosted in your shared process (each panics at `NewClient`):
+For the in-process transport, `Env` entries override the native host's environment snapshot without changing the process environment. Nil or empty `Env` inherits the ambient environment. SDK-managed options such as `GitHubToken` and `BaseDirectory` take precedence over conflicting entries. Configure overrides through `Env` rather than changing process environment variables while native threads are running.
 
-- `Env` — the host process has a single environment block. Set variables on the host process environment instead.
+Some native options still read process-global state, including `COPILOT_DEBUG_GITHUB_API_URL` for per-session authentication, `COPILOT_ALLOW_GET_PROVIDER_ENDPOINT`, and `COPILOT_ENABLE_SECRET_FILTERING`. Configure those before starting the process; per-host overrides do not change them. Tests requiring these legacy globals run in fresh test processes with the same FFI transport and assertions.
+
+The in-process transport still rejects options that depend on shared process state (each panics at `NewClient`):
+
 - `WorkingDirectory` — the runtime shares the host process's working directory. Change the process working directory before creating the client.
 - `Telemetry` — per-client telemetry is lowered to native-runtime environment variables. Use a child-process transport for per-client telemetry.
 

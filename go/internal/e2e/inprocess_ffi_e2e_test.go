@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"os"
 	"testing"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -30,7 +31,6 @@ func TestInProcessFfiE2E(t *testing.T) {
 	if cliPath == "" {
 		t.Fatal("CLI not found. Run 'npm install' in the nodejs directory first.")
 	}
-	t.Setenv("COPILOT_CLI_PATH", cliPath)
 
 	t.Run("should start and connect over in-process FFI", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
@@ -58,5 +58,33 @@ func TestInProcessFfiE2E(t *testing.T) {
 		if err := client.Stop(); err != nil {
 			t.Errorf("Expected no errors on stop, got %v", err)
 		}
+	})
+
+	t.Run("keeps test environment isolated from host process", func(t *testing.T) {
+		ambientHome, hadAmbientHome := os.LookupEnv("COPILOT_HOME")
+		assertEnvironmentUnchanged := func() {
+			t.Helper()
+			if home, present := os.LookupEnv("COPILOT_HOME"); home != ambientHome || present != hadAmbientHome {
+				t.Fatal("In-process test client changed the host process environment")
+			}
+		}
+
+		ctx := testharness.NewTestContext(t)
+		client := ctx.NewClient()
+		t.Cleanup(func() { client.ForceStop() })
+		assertEnvironmentUnchanged()
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Failed to start isolated in-process client: %v", err)
+		}
+		assertEnvironmentUnchanged()
+
+		if _, err := client.Ping(t.Context(), "isolated environment"); err != nil {
+			t.Fatalf("Failed to ping isolated in-process client: %v", err)
+		}
+		if err := client.Stop(); err != nil {
+			t.Fatalf("Failed to stop isolated in-process client: %v", err)
+		}
+		assertEnvironmentUnchanged()
 	})
 }
