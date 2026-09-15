@@ -285,7 +285,7 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
 
 #[cfg(has_bundled_cli)]
 fn install_hostless_assets(install_dir: &Path, archive: &[u8]) -> Result<(), EmbeddedCliError> {
-    let gz = flate2::read::GzDecoder::new(archive);
+    let gz = flate2::bufread::GzDecoder::new(archive);
     let mut tar = tar::Archive::new(gz);
     for entry in tar
         .entries()
@@ -731,7 +731,7 @@ fn extract_cli_binary(archive: &[u8]) -> Result<Vec<u8>, EmbeddedCliError> {
 
 #[cfg(has_bundled_cli)]
 fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
-    let gz = flate2::read::GzDecoder::new(archive);
+    let gz = flate2::bufread::GzDecoder::new(archive);
     let mut tar = tar::Archive::new(gz);
     for entry in tar
         .entries()
@@ -890,6 +890,82 @@ impl std::error::Error for EmbeddedCliError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(has_bundled_cli)]
+    fn gzip_archive(path: &str, bytes: &[u8], mode: u32) -> Vec<u8> {
+        let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        let mut archive = tar::Builder::new(encoder);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(bytes.len() as u64);
+        header.set_mode(mode);
+        header.set_cksum();
+        archive.append_data(&mut header, path, bytes).unwrap();
+        archive.into_inner().unwrap().finish().unwrap()
+    }
+
+    #[cfg(has_bundled_cli)]
+    #[test]
+    fn gzip_extraction_preserves_bytes_modes_and_member_boundary() {
+        let dir = tempfile::tempdir().unwrap();
+        let bytes: Vec<u8> = (0..=255).cycle().take(65_537).collect();
+        let mut archive = gzip_archive("assets/first", &bytes, 0o750);
+        archive.extend(gzip_archive("second", b"another gzip member", 0o644));
+
+        assert_eq!(extract_binary(&archive, "first").unwrap(), bytes);
+        assert!(extract_binary(&archive, "second").is_err());
+        install_hostless_assets(dir.path(), &archive).unwrap();
+        let installed = dir.path().join("assets/first");
+        assert_eq!(fs::read(&installed).unwrap(), bytes);
+        assert!(!dir.path().join("second").exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(installed).unwrap().permissions().mode() & 0o777,
+                0o750
+            );
+        }
+    }
+
+    #[cfg(has_bundled_cli)]
+    #[test]
+    fn gzip_extraction_rejects_invalid_header_and_truncated_payload() {
+        let archive = gzip_archive("asset", &[0xAB; 65_537], 0o644);
+        let mut invalid_header = archive.clone();
+        invalid_header[0] ^= 0xFF;
+        let truncated = &archive[..archive.len() / 2];
+        for invalid in [invalid_header.as_slice(), truncated] {
+            let dir = tempfile::tempdir().unwrap();
+            assert!(extract_binary(invalid, "asset").is_err());
+            assert!(install_hostless_assets(dir.path(), invalid).is_err());
+            assert!(!dir.path().join("asset").exists());
+        }
+    }
+
+    #[cfg(has_bundled_cli)]
+    #[test]
+    fn gzip_extraction_rejects_invalid_trailers_at_end_of_stream() {
+        // An empty TAR stream reaches the gzip trailer instead of stopping at
+        // TAR end-of-archive blocks or returning a selected file early.
+        let empty = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default())
+            .finish()
+            .unwrap();
+        let mut invalid_crc = empty.clone();
+        invalid_crc[empty.len() - 8] ^= 0xFF;
+        let mut invalid_size = empty.clone();
+        invalid_size[empty.len() - 4] ^= 0xFF;
+        let truncated = &empty[..empty.len() - 1];
+        let dir = tempfile::tempdir().unwrap();
+        install_hostless_assets(dir.path(), &empty).unwrap();
+        for invalid in [invalid_crc.as_slice(), invalid_size.as_slice(), truncated] {
+            assert!(install_hostless_assets(dir.path(), invalid).is_err());
+            let error = extract_binary(invalid, "absent").unwrap_err();
+            assert!(
+                std::error::Error::source(&error).is_some(),
+                "invalid gzip must be an archive error, not a missing-file result"
+            );
+        }
+    }
 
     #[cfg(all(has_bundled_cli, feature = "bundled-in-process"))]
     #[test]
