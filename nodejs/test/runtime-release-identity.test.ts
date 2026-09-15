@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
     type ReleaseDispatchInputs,
     validateReleaseDispatch,
-    validateRuntimeVersionChannel,
+    validateRuntimeReleaseIdentity,
 } from "../scripts/runtime-release-identity.js";
 
 const runtime = {
     run_id: "34640000001",
     sha: "abcdef0123456789abcdef0123456789abcdef01",
-    version: "1.0.83-5.unstable.123.gabcdef0",
+    version: "1.0.83-5.unstable.r34640000001.gabcdef0",
 };
 const inputs: ReleaseDispatchInputs = {
     distTag: "unstable",
@@ -20,31 +20,55 @@ const inputs: ReleaseDispatchInputs = {
 
 describe("runtime version identity", () => {
     it.each([
-        ["canary", "1.2.4-canary.7.gdef5678.signed"],
-        ["canary", "1.2.4-canary.8.gdef5678.unsigned"],
-        ["canary", "9.9.9-canary.test"],
-        ["unstable", "1.0.83-5.unstable.123.gabcdef0"],
-        ["unstable", "9.9.9-unstable.test"],
+        ["canary", "1.2.4-canary.r34640000001.gabcdef0.signed"],
+        ["canary", "1.2.4-canary.r34640000001.gabcdef0.unsigned"],
+        ["canary", "1.2.4-7.canary.r34640000001.gabcdef0.signed"],
+        ["canary", "1.2.4-7.canary.r34640000001.gabcdef0.unsigned"],
+        ["unstable", "1.2.4-unstable.r34640000001.gabcdef0"],
+        ["unstable", "1.2.4-7.unstable.r34640000001.gabcdef0"],
     ] as const)("accepts a %s runtime version: %s", (channel, runtimeVersion) => {
-        expect(() => validateRuntimeVersionChannel(runtimeVersion, channel)).not.toThrow();
+        expect(() =>
+            validateRuntimeReleaseIdentity({
+                channel,
+                runId: runtime.run_id,
+                sha: runtime.sha,
+                version: runtimeVersion,
+            })
+        ).not.toThrow();
     });
 
     it.each([
-        ["unstable", "1.2.4-canary.7.gdef5678.signed"],
-        ["canary", "1.0.83-5.unstable.123.gabcdef0"],
-        ["canary", "1.2.4-canaryish.7.gdef5678"],
-    ] as const)("rejects a runtime version outside %s: %s", (channel, runtimeVersion) => {
-        expect(() => validateRuntimeVersionChannel(runtimeVersion, channel)).toThrow(
-            `does not belong to the '${channel}' channel`
-        );
-    });
-
-    it("rejects non-canonical runtime versions", () => {
-        expect(() => validateRuntimeVersionChannel(" 1.2.3-unstable.4", "unstable")).toThrow();
-        expect(() => validateRuntimeVersionChannel("1.2.3", "unstable")).toThrow();
+        ["wrong channel", "unstable", "1.2.4-canary.r34640000001.gabcdef0.signed"],
+        ["test suffix", "unstable", "1.2.4-unstable.r34640000001.gabcdef0.test"],
+        ["canary test suffix", "canary", "1.2.4-canary.r34640000001.gabcdef0.test"],
+        ["old numeric run", "unstable", "1.2.4-unstable.34640000001.gabcdef0"],
+        ["missing r", "unstable", "1.2.4-unstable.34640000001.gabcdef0"],
+        ["mismatched run", "unstable", "1.2.4-unstable.r34640000002.gabcdef0"],
+        ["mismatched sha", "unstable", "1.2.4-unstable.r34640000001.g1234567"],
+        ["build metadata", "unstable", "1.2.4-unstable.r34640000001.gabcdef0+build.42"],
+        ["canary without signing", "canary", "1.2.4-canary.r34640000001.gabcdef0"],
+        [
+            "canary extra signing suffix",
+            "canary",
+            "1.2.4-canary.r34640000001.gabcdef0.signed.extra",
+        ],
+        ["unstable signed", "unstable", "1.2.4-unstable.r34640000001.gabcdef0.signed"],
+        [
+            "non-numeric baseline prerelease",
+            "unstable",
+            "1.2.4-preview.unstable.r34640000001.gabcdef0",
+        ],
+        ["not a prerelease", "unstable", "1.2.4"],
+        ["surrounding whitespace", "unstable", " 1.2.4-unstable.r34640000001.gabcdef0"],
+    ] as const)("rejects %s: %s", (_name, channel, runtimeVersion) => {
         expect(() =>
-            validateRuntimeVersionChannel("1.0.83-5.unstable.123.gabcdef0+build.42", "unstable")
-        ).toThrow("must not contain build metadata");
+            validateRuntimeReleaseIdentity({
+                channel,
+                runId: runtime.run_id,
+                sha: runtime.sha,
+                version: runtimeVersion,
+            })
+        ).toThrow();
     });
 });
 
@@ -69,8 +93,8 @@ describe("release dispatch", () => {
     });
 
     it.each([
-        ["canary", "dry-run", "1.0.83-5.canary.123.gabcdef0"],
-        ["canary", "publish", "1.0.83-5.canary.123.gabcdef0"],
+        ["canary", "dry-run", "1.0.83-5.canary.r34640000001.gabcdef0.unsigned"],
+        ["canary", "publish", "1.0.83-5.canary.r34640000001.gabcdef0.signed"],
         ["unstable", "dry-run", runtime.version],
         ["unstable", "publish", runtime.version],
     ] as const)("accepts runtime-backed %s %s", (distTag, mode, version) => {
@@ -168,7 +192,34 @@ describe("release dispatch", () => {
         ["zero run ID", JSON.stringify({ ...runtime, run_id: "0" })],
         ["non-canonical run ID", JSON.stringify({ ...runtime, run_id: "0123" })],
         ["uppercase SHA", JSON.stringify({ ...runtime, sha: runtime.sha.toUpperCase() })],
-        ["wrong channel", JSON.stringify({ ...runtime, version: "1.0.83-5.canary.1" })],
+        [
+            "wrong channel",
+            JSON.stringify({
+                ...runtime,
+                version: "1.0.83-5.canary.r34640000001.gabcdef0.signed",
+            }),
+        ],
+        [
+            "mismatched version run ID",
+            JSON.stringify({
+                ...runtime,
+                version: "1.0.83-5.unstable.r34640000002.gabcdef0",
+            }),
+        ],
+        [
+            "mismatched version SHA",
+            JSON.stringify({
+                ...runtime,
+                version: "1.0.83-5.unstable.r34640000001.g1234567",
+            }),
+        ],
+        [
+            "obsolete test version",
+            JSON.stringify({
+                ...runtime,
+                version: "1.0.83-5.unstable.r34640000001.gabcdef0.test",
+            }),
+        ],
     ])("rejects %s", (_name, runtimeJson) => {
         expect(() => validateReleaseDispatch({ ...inputs, runtimeJson })).toThrow();
     });

@@ -31,19 +31,58 @@ interface RuntimeDescriptor {
     version: string;
 }
 
-export function validateRuntimeVersionChannel(
-    version: string,
-    channel: RuntimeReleaseChannel
-): void {
+export interface RuntimeReleaseIdentity {
+    channel: RuntimeReleaseChannel;
+    runId: string;
+    sha: string;
+    version: string;
+}
+
+export function validateRuntimeReleaseIdentity(identity: RuntimeReleaseIdentity): void {
+    const { channel, runId, sha, version } = identity;
     assert(channel === "canary" || channel === "unstable", "Invalid channel");
+    assert.match(runId, /^[1-9][0-9]*$/, "Runtime run_id must be a positive canonical integer");
+    assert.match(sha, /^[0-9a-f]{40}$/, "Runtime sha must be a lowercase full SHA");
     const parsed = semver.parse(version);
     assert(parsed, "Runtime version must be exact SemVer");
     assert.equal(parsed.build.length, 0, "Runtime version must not contain build metadata");
     assert.equal(version, parsed.version, "Runtime version must be exact SemVer");
-    assert(
-        parsed.prerelease.some((identifier) => identifier === channel),
-        `Runtime version '${version}' does not belong to the '${channel}' channel`
+
+    const channelIndex = typeof parsed.prerelease[0] === "number" ? 1 : 0;
+    assert.equal(
+        parsed.prerelease[channelIndex],
+        channel,
+        `Runtime version '${version}' does not use the '${channel}' channel identifier`
     );
+    assert.equal(
+        parsed.prerelease[channelIndex + 1],
+        `r${runId}`,
+        `Runtime version '${version}' does not match run_id '${runId}'`
+    );
+    assert.equal(
+        parsed.prerelease[channelIndex + 2],
+        `g${sha.slice(0, 7)}`,
+        `Runtime version '${version}' does not match runtime sha '${sha}'`
+    );
+
+    if (channel === "canary") {
+        assert.equal(
+            parsed.prerelease.length,
+            channelIndex + 4,
+            "Canary runtime version must end with exactly one signing identifier"
+        );
+        assert(
+            parsed.prerelease[channelIndex + 3] === "signed" ||
+                parsed.prerelease[channelIndex + 3] === "unsigned",
+            "Canary runtime version must end with signed or unsigned"
+        );
+    } else {
+        assert.equal(
+            parsed.prerelease.length,
+            channelIndex + 3,
+            "Unstable runtime version must not contain a signing or additional suffix"
+        );
+    }
 }
 
 function parseRuntimeDescriptor(value: string): RuntimeDescriptor {
@@ -120,13 +159,12 @@ export function validateReleaseDispatch(inputs: ReleaseDispatchInputs): ReleaseD
         "The direct version input cannot be combined with runtime JSON"
     );
     const runtime = parseRuntimeDescriptor(inputs.runtimeJson);
-    assert.match(
-        runtime.run_id,
-        /^[1-9][0-9]*$/,
-        "Runtime run_id must be a positive canonical integer"
-    );
-    assert.match(runtime.sha, /^[0-9a-f]{40}$/, "Runtime sha must be a lowercase full SHA");
-    validateRuntimeVersionChannel(runtime.version, inputs.distTag);
+    validateRuntimeReleaseIdentity({
+        channel: inputs.distTag,
+        runId: runtime.run_id,
+        sha: runtime.sha,
+        version: runtime.version,
+    });
     return {
         kind: "runtime",
         runtimeRunId: runtime.run_id,

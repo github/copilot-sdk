@@ -11,7 +11,7 @@ import {
     SDK_PACKAGE_NAMES,
     verifyPackageSetManifestFiles,
 } from "./package-set-manifest.js";
-import { validateRuntimeVersionChannel } from "./runtime-release-identity.js";
+import { validateRuntimeReleaseIdentity } from "./runtime-release-identity.js";
 import { getRuntimePackageName, RUNTIME_PLATFORMS } from "../src/runtimeArtifacts.js";
 
 export interface ReleaseManifestPackage {
@@ -100,8 +100,12 @@ export async function createReleaseManifest(
     metadata: ReleaseManifestMetadata
 ): Promise<ReleaseManifest> {
     validateFullSha(metadata.sdkSha, "SDK SHA");
-    validateFullSha(metadata.runtimeSha, "Runtime SHA");
-    validateRuntimeVersionChannel(metadata.runtimeVersion, metadata.channel);
+    validateRuntimeReleaseIdentity({
+        channel: metadata.channel,
+        runId: metadata.runtimeRunId,
+        sha: metadata.runtimeSha,
+        version: metadata.runtimeVersion,
+    });
     assert(Number.isFinite(Date.parse(metadata.createdAt)), "Workflow creation time is invalid");
     const packageSet = await createPackageSetManifest(packageDirectory, metadata.sdkVersion);
     return {
@@ -181,11 +185,14 @@ export function verifyReleaseManifest(manifest: ReleaseManifest, packageDirector
         "Invalid release channel"
     );
     validateFullSha(manifest.sdk.sha, "SDK SHA");
-    validateFullSha(manifest.runtime.sha, "Runtime SHA");
-    validateRuntimeVersionChannel(manifest.runtime.version, manifest.channel);
+    validateRuntimeReleaseIdentity({
+        channel: manifest.channel,
+        runId: manifest.runtime.runId,
+        sha: manifest.runtime.sha,
+        version: manifest.runtime.version,
+    });
     assert.match(manifest.workflow.runId, /^[0-9]+$/, "Invalid SDK workflow run ID");
     assert.match(manifest.workflow.runNumber, /^[0-9]+$/, "Invalid SDK workflow run number");
-    assert.match(manifest.runtime.runId, /^[0-9]+$/, "Invalid runtime workflow run ID");
     assert(
         manifest.workflow.testPolicy === "required" ||
             manifest.workflow.testPolicy === "advisory" ||

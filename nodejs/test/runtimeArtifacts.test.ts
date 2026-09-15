@@ -70,12 +70,16 @@ describe("release runtime selection", () => {
 
         const result = spawnSync(
             process.execPath,
-            [join(root, "scripts", "set-cli-version.js"), "9.9.9-canary.test", "--npm-package"],
+            [
+                join(root, "scripts", "set-cli-version.js"),
+                "9.9.9-canary.r123.gabcdef0.signed",
+                "--npm-package",
+            ],
             { encoding: "utf8" }
         );
         expect(result.status, result.stderr).toBe(0);
         expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8"))).toMatchObject({
-            copilotCliVersion: "9.9.9-canary.test",
+            copilotCliVersion: "9.9.9-canary.r123.gabcdef0.signed",
         });
 
         expect(existsSync(join(root, "copilot-cli.json"))).toBe(false);
@@ -96,7 +100,11 @@ describe("release runtime selection", () => {
 
         const result = spawnSync(
             process.execPath,
-            [join(root, "scripts", "set-cli-version.js"), "9.9.9-unstable.test", "--local-package"],
+            [
+                join(root, "scripts", "set-cli-version.js"),
+                "9.9.9-unstable.r123.gabcdef0",
+                "--local-package",
+            ],
             { encoding: "utf8" }
         );
         expect(result.status, result.stderr).toBe(0);

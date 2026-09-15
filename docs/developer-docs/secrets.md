@@ -59,7 +59,7 @@ These secrets support Java SDK Maven Central publishing, snapshot publishing, an
 
 * **`GITHUB_TOKEN`**: Automatically provided by GitHub Actions. No manual management required.
   The runtime-driven Node SDK workflow grants it `packages: read` only while acquiring
-  signed runtime packages from GitHub Packages.
+  private runtime packages from GitHub Packages.
 
 ## Further reading
 
