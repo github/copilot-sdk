@@ -7971,6 +7971,19 @@ export interface ExtensionLaunchProfile {
   };
 }
 /**
+ * Authoritative capability acknowledgement for the registered extension launch provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionLaunchProviderRegistrationResult".
+ */
+/** @experimental */
+export interface ExtensionLaunchProviderRegistrationResult {
+  /**
+   * Supported extension launch-provider contract version. Clients requiring this contract must check for version 1 before creating or resuming sessions.
+   */
+  contractVersion: 1;
+}
+/**
  * A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7991,16 +8004,24 @@ export interface ExtensionLaunchProviderResolveRequest {
    */
   modulePath: string;
   source: ExtensionSource;
+  /**
+   * Owning runtime session identifier, when known.
+   */
+  sessionId?: string;
+  defaultLaunch?: ExtensionLaunchProfile;
 }
 /**
- * The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
+ * The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ExtensionLaunchProviderResolveResult".
  */
 /** @experimental */
 export interface ExtensionLaunchProviderResolveResult {
-  launch?: ExtensionLaunchProfile;
+  /**
+   * Approved launch profile, or absent/null to deny this candidate without fallback.
+   */
+  launch?: ExtensionLaunchProfile | null;
 }
 /**
  * Extensions discovered for the session, with their current status.
@@ -24831,11 +24852,13 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("extensions.disable", params),
         },
         /**
-         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
+         * Registers the calling SDK client as the authoritative per-entrypoint extension launch provider and returns the supported contract version. Call before creating any sessions. Contract version 1 supplies sessionId and defaultLaunch when available; absent or null launch, provider errors, timeouts, and shutdown cancellation never fall back. Without a registered provider, legacy launching is unchanged.
+         *
+         * @returns Authoritative capability acknowledgement for the registered extension launch provider.
          *
          * @experimental
          */
-        registerExtensionLaunchProvider: async (): Promise<void> =>
+        registerExtensionLaunchProvider: async (): Promise<ExtensionLaunchProviderRegistrationResult> =>
             connection.sendRequest("registerExtensionLaunchProvider", {}),
         /** @experimental */
         catalog: {
@@ -25466,6 +25489,13 @@ export function createInternalServerRpc(connection: MessageConnection) {
 /** Create typed session-scoped RPC methods. */
 export function createSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
+        /**
+         * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
+         *
+         * @experimental
+         */
+        retain: async (): Promise<void> =>
+            connection.sendRequest("session.retain", { sessionId }),
         /**
          * Suspends the session while preserving persisted state for later resume.
          *
@@ -28152,11 +28182,11 @@ export function registerClientSessionApiHandlers(
 /** @experimental */
 export interface ExtensionLaunchProviderHandler {
     /**
-     * Asks the registered SDK client to resolve an opaque process launch profile for one discovered extension entrypoint immediately before launch or reload. The provider must respond within 15 seconds.
+     * Asks the registered SDK client to approve a launch profile immediately before every extension launch or reload. Return defaultLaunch unchanged to approve the runtime's built-in launcher, or return another profile. An absent or null launch denies execution with no fallback. The provider must respond within 15 seconds. Approval does not sandbox code or freeze mutable files; the host is responsible for approved package contents.
      *
      * @param params A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
      *
-     * @returns The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
+     * @returns The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.
      */
     resolve(params: ExtensionLaunchProviderResolveRequest): Promise<ExtensionLaunchProviderResolveResult>;
 }

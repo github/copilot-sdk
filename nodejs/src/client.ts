@@ -27,6 +27,7 @@ import {
 } from "vscode-jsonrpc/node.js";
 import {
     createServerRpc,
+    createSessionRpc,
     createInternalServerRpc,
     registerClientGlobalApiHandlers,
     registerClientSessionApiHandlers,
@@ -60,6 +61,7 @@ import type {
     ExitPlanModeRequest,
     ExitPlanModeResult,
     ExtensionJoinOptions,
+    ExtensionLaunchProvider,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     BearerTokenProvider,
@@ -450,6 +452,7 @@ export class CopilotClient {
     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
     private startPromise: Promise<void> | null = null;
+    private startAbortController: AbortController | null = null;
     private sessions: Map<string, CopilotSession> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
@@ -493,6 +496,7 @@ export class CopilotClient {
     private requestHandler: CopilotRequestHandler | null = null;
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
+    private extensionLaunchProvider: ExtensionLaunchProvider | null = null;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
     private githubTokenProviders = new Map<
         string,
@@ -504,7 +508,7 @@ export class CopilotClient {
      * @throws Error if the client is not connected
      */
     get rpc(): ReturnType<typeof createServerRpc> {
-        if (!this.connection) {
+        if (!this.connection || (this.extensionLaunchProvider && this.state !== "connected")) {
             throw new Error("Client is not connected. Call start() first.");
         }
         if (!this._rpc) {
@@ -690,6 +694,7 @@ export class CopilotClient {
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
         this.onGitHubTelemetry = options.onGitHubTelemetry;
+        this.extensionLaunchProvider = options.extensionLaunchProvider ?? null;
         this.setupClientGlobalHandlers();
 
         // Connection-level env (child-process transports only) takes precedence
@@ -855,6 +860,12 @@ export class CopilotClient {
                 },
             };
         }
+        if (this.extensionLaunchProvider) {
+            const provider = this.extensionLaunchProvider;
+            handlers.extensionLaunchProvider = {
+                resolve: async (params) => await provider(params),
+            };
+        }
         handlers.gitHubToken = {
             getToken: (params) => this.acquireGitHubToken(params),
         };
@@ -947,10 +958,17 @@ export class CopilotClient {
             await this.startPromise;
         } finally {
             this.startPromise = null;
+            this.startAbortController = null;
         }
     }
 
     private async doStart(): Promise<void> {
+        const controller = new AbortController();
+        this.startAbortController = controller;
+        if (this.connection || this.cliProcess || this.socket || this.ffiHost) {
+            await this.cleanupConnection();
+        }
+        controller.signal.throwIfAborted();
         this.forceStopping = false;
         this.connectionClosed = false;
         this.processTransportError = null;
@@ -963,12 +981,29 @@ export class CopilotClient {
             } else if (!this.isExternalServer) {
                 await this.startCLIServer();
             }
+            controller.signal.throwIfAborted();
 
             // Connect to the server
             await this.connectToServer();
+            controller.signal.throwIfAborted();
 
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
+            controller.signal.throwIfAborted();
+
+            // A live acknowledgement is required for every connection. An older
+            // runtime's null response does not guarantee fail-closed resolution.
+            if (this.extensionLaunchProvider) {
+                const registration = await createServerRpc(
+                    this.connection!
+                ).registerExtensionLaunchProvider();
+                if (registration?.contractVersion !== 1) {
+                    throw new Error(
+                        "Extension launch provider requires runtime contractVersion 1."
+                    );
+                }
+                controller.signal.throwIfAborted();
+            }
 
             if (this.builtinPluginDirectories.length > 0) {
                 try {
@@ -998,6 +1033,7 @@ export class CopilotClient {
                 await this.connection!.sendRequest("llmInference.setProvider", {});
             }
 
+            controller.signal.throwIfAborted();
             this.state = "connected";
         } catch (error) {
             const startupError = this.processTransportError ?? error;
@@ -1032,6 +1068,10 @@ export class CopilotClient {
      * ```
      */
     async stop(): Promise<Error[]> {
+        if (this.startAbortController) {
+            await this.forceStop();
+            return [];
+        }
         const errors: Error[] = [];
 
         // Disconnect all active sessions with retry logic
@@ -1264,6 +1304,11 @@ export class CopilotClient {
      * ```
      */
     async forceStop(): Promise<void> {
+        this.startAbortController?.abort(new Error("Client stopped during startup."));
+        await this.cleanupConnection();
+    }
+
+    private async cleanupConnection(): Promise<void> {
         this.forceStopping = true;
 
         // Clear sessions immediately without trying to destroy them
@@ -1527,7 +1572,7 @@ export class CopilotClient {
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
-        if (!this.connection) {
+        if (this.extensionLaunchProvider || !this.connection) {
             await this.start();
         }
 
@@ -1835,7 +1880,7 @@ export class CopilotClient {
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
-        if (!this.connection) {
+        if (this.extensionLaunchProvider || !this.connection) {
             await this.start();
         }
 
@@ -2286,6 +2331,32 @@ export class CopilotClient {
     }
 
     /**
+     * Records and flushes durable persistence intent for a local session by ID.
+     *
+     * Uses the already-connected runtime directly, without waiting for a
+     * {@link CopilotSession} or an in-flight create/resume operation. In an
+     * {@link ExtensionLaunchProvider}, await this before returning an approved
+     * profile when persistence must precede the extension's top-level code.
+     *
+     * This does not start or reconnect the client. Retention failures propagate;
+     * a launch provider must not approve a launch when retention fails.
+     *
+     * @param sessionId - The runtime session ID to retain
+     * @throws Error if the ID is empty, the client is not connected, or retention fails
+     * @experimental
+     */
+    async retainSession(sessionId: string): Promise<void> {
+        if (typeof sessionId !== "string" || sessionId.length === 0) {
+            throw new Error("sessionId must be a non-empty string.");
+        }
+        const connection = this.connection;
+        if (!connection || this.state !== "connected") {
+            throw new Error("Client is not connected. Call start() first.");
+        }
+        await createSessionRpc(connection, sessionId).retain();
+    }
+
+    /**
      * Permanently deletes a session and all its data from disk, including
      * conversation history, planning state, and artifacts.
      *
@@ -2697,6 +2768,7 @@ export class CopilotClient {
                 });
             }
 
+            const child = this.cliProcess;
             let stdout = "";
             let resolved = false;
 
@@ -2747,8 +2819,8 @@ export class CopilotClient {
 
             // Set up a promise that rejects when the process exits (used to race against RPC calls)
             this.processExitPromise = new Promise<never>((_, rejectProcessExit) => {
-                this.cliProcess!.on("exit", (code) => {
-                    if (this.messageWriter) {
+                child.on("exit", (code) => {
+                    if (this.cliProcess === child && this.messageWriter) {
                         this.messageWriter.suppressWriteErrors = true;
                     }
                     const stderrOutput = this.stderrBuffer.trim();
@@ -2923,8 +2995,9 @@ export class CopilotClient {
 
         // Keep stdin pipe errors inside the normal JSON-RPC teardown path.
         // Preserve the failure reason via the gated debug log rather than discarding it.
-        this.cliProcess.stdin?.on("error", (err) => {
-            if (this.forceStopping) {
+        const child = this.cliProcess;
+        child.stdin?.on("error", (err) => {
+            if (this.forceStopping || this.cliProcess !== child) {
                 return;
             }
             this.state = "error";
@@ -2975,24 +3048,34 @@ export class CopilotClient {
      * Connect to the CLI server via TCP socket
      */
     private async connectViaTcp(): Promise<void> {
+        if (this.connectionConfig.kind === "uri") {
+            const { host, port } = this.parseCliUrl(this.connectionConfig.url);
+            this.actualHost = host;
+            this.runtimePort = port;
+        }
         if (!this.runtimePort) {
             throw new Error("Server port not available");
         }
 
         return new Promise((resolve, reject) => {
-            this.socket = new Socket();
+            const socket = new Socket();
+            this.socket = socket;
 
             const connectionTimeout = setTimeout(() => {
-                this.socket?.destroy();
+                socket.destroy();
                 reject(new Error("Timeout connecting to CLI server"));
             }, 10000);
 
-            this.socket.connect(this.runtimePort!, this.actualHost, () => {
+            socket.once("close", () => {
+                clearTimeout(connectionTimeout);
+                reject(new Error("Connection closed while connecting to CLI server"));
+            });
+            socket.connect(this.runtimePort!, this.actualHost, () => {
                 clearTimeout(connectionTimeout);
                 // Create JSON-RPC connection
-                this.messageWriter = new TeardownResilientStreamMessageWriter(this.socket!);
+                this.messageWriter = new TeardownResilientStreamMessageWriter(socket);
                 this.connection = createMessageConnection(
-                    new StreamMessageReader(this.socket!),
+                    new StreamMessageReader(socket),
                     this.messageWriter
                 );
 
@@ -3001,7 +3084,7 @@ export class CopilotClient {
                 resolve();
             });
 
-            this.socket.on("error", (error) => {
+            socket.on("error", (error) => {
                 clearTimeout(connectionTimeout);
                 reject(new Error(`Failed to connect to CLI server: ${error.message}`));
             });
