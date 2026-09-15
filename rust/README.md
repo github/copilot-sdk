@@ -455,6 +455,15 @@ let session = client
 
 **Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `UserPromptTransformed`, `SessionStart`, `SessionEnd`, `ErrorOccurred`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. Return `HookOutput::None` for events you don't handle.
 
+For request correlation, override `on_hook_with_request_id(event, request_id)` and
+delegate to `self.on_hook(event).await` to preserve your existing hook dispatch.
+The default implementation delegates automatically, so existing `on_hook` and
+per-hook implementations need no changes; `HookContext` still contains only
+`session_id`. After successfully writing a response, the SDK calls
+`on_hook_response_sent(HookResponseSent)` with the same session and JSON-RPC
+request IDs and the runtime hook type. This notification confirms the write,
+not CLI processing, and does not fire if the write fails.
+
 ### System Message Transforms
 
 Transforms customize system message sections during session creation. The SDK injects `action: "transform"` entries for each section ID your transform handles.

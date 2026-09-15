@@ -19,8 +19,6 @@ use crate::types::SessionId;
 pub struct HookContext {
     /// The session this hook was triggered in.
     pub session_id: SessionId,
-    /// JSON-RPC request ID for this hook invocation.
-    pub request_id: u64,
 }
 
 /// Hook response that was successfully written back to the CLI.
@@ -525,6 +523,18 @@ impl HookOutput {
 /// sets automatically).
 #[async_trait]
 pub trait SessionHooks: Send + Sync + 'static {
+    /// Request-aware dispatch for correlating a hook invocation with
+    /// [`on_hook_response_sent`](Self::on_hook_response_sent).
+    ///
+    /// `request_id` is the JSON-RPC request ID also reported in
+    /// [`HookResponseSent::request_id`]. The default delegates to
+    /// [`on_hook`](Self::on_hook), preserving existing dispatch and per-hook
+    /// implementations. Override this method when correlation is needed,
+    /// and call `self.on_hook(event).await` to retain that dispatch.
+    async fn on_hook_with_request_id(&self, event: HookEvent, _request_id: u64) -> HookOutput {
+        self.on_hook(event).await
+    }
+
     /// Top-level dispatch. The default implementation fans out to the
     /// per-hook methods below; override this only if you want a single
     /// matching point across all hook types.
@@ -584,6 +594,11 @@ pub trait SessionHooks: Send + Sync + 'static {
     }
 
     /// Called after a hook response is successfully written back to the CLI.
+    ///
+    /// This confirms transport delivery, not CLI processing. It is not called
+    /// when writing the response fails. Correlate it with
+    /// [`on_hook_with_request_id`](Self::on_hook_with_request_id) using the
+    /// response's session and request IDs.
     async fn on_hook_response_sent(&self, _response: HookResponseSent) {}
 
     /// Called before a tool executes. Return `Some(output)` to approve/deny
@@ -715,7 +730,6 @@ pub(crate) async fn dispatch_hook_for_request(
 ) -> Result<Value, crate::Error> {
     let ctx = HookContext {
         session_id: session_id.clone(),
-        request_id,
     };
 
     let event = match hook_type {
@@ -770,7 +784,7 @@ pub(crate) async fn dispatch_hook_for_request(
     };
 
     let dispatch_start = Instant::now();
-    let output = hooks.on_hook(event).await;
+    let output = hooks.on_hook_with_request_id(event, request_id).await;
     tracing::debug!(
         elapsed_ms = dispatch_start.elapsed().as_millis(),
         session_id = %session_id,
