@@ -24,6 +24,9 @@ use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
 /// Acknowledgement and Auto preference snapshot returned by an Auto tier switch.
 pub use crate::generated::api_types::{ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus};
 /// Routing tier for the `auto` model with Auto mode V2.
+///
+/// [`AutoTier::Fast`] is an integrator-only latency preset, not a first-party
+/// GitHub Copilot product preference.
 pub use crate::generated::session_events::AutoTier;
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
@@ -1422,7 +1425,8 @@ impl ProviderConfig {
 #[non_exhaustive]
 pub struct CapiSessionOptions {
     /// Routing tier, meaningful only with model `auto` (Auto mode V2).
-    /// Requires a runtime version that supports `capi.autoTier`.
+    /// Requires a runtime version that supports `capi.autoTier`. Fast
+    /// requires Copilot CLI 1.0.84-0 or later.
     ///
     /// When omitted, the runtime chooses its default on create and restores
     /// the last committed tier on cold resume. On resident resume, a different
@@ -7562,6 +7566,7 @@ mod tests {
             (AutoTier::Efficiency, "efficiency"),
             (AutoTier::Balance, "balance"),
             (AutoTier::Intelligence, "intelligence"),
+            (AutoTier::Fast, "fast"),
         ] {
             let exported: crate::AutoTier = tier.clone();
             let capi = CapiSessionOptions::new().with_auto_tier(exported);

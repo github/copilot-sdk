@@ -16,7 +16,7 @@ var _ EmbeddedTextResourceContents = rpc.EmbeddedTextResourceContents{}
 
 func TestSessionEventAutoTier(t *testing.T) {
 	for _, eventType := range []string{"session.start", "session.resume"} {
-		for _, tier := range []AutoTier{"", AutoTierEfficiency, AutoTierBalance, AutoTierIntelligence} {
+		for _, tier := range []AutoTier{"", AutoTierEfficiency, AutoTierBalance, AutoTierIntelligence, AutoTierFast} {
 			t.Run(eventType+"/"+string(tier), func(t *testing.T) {
 				data := map[string]any{
 					"sessionId": "test-session", "version": 1,
@@ -317,7 +317,7 @@ func TestSessionAutoTierSwitchFailedEvent(t *testing.T) {
 				"type": "session.auto_tier_switch_failed",
 				"data": map[string]any{
 					"effectiveAutoTier": AutoTierBalance,
-					"requestedAutoTier": AutoTierIntelligence,
+					"requestedAutoTier": AutoTierFast,
 					"reason":            reason,
 				},
 			})
@@ -338,8 +338,8 @@ func TestSessionAutoTierSwitchFailedEvent(t *testing.T) {
 			if data.EffectiveAutoTier == nil || *data.EffectiveAutoTier != AutoTierBalance {
 				t.Fatalf("expected effective tier %q, got %v", AutoTierBalance, data.EffectiveAutoTier)
 			}
-			if data.RequestedAutoTier == nil || *data.RequestedAutoTier != AutoTierIntelligence {
-				t.Fatalf("expected requested tier %q, got %v", AutoTierIntelligence, data.RequestedAutoTier)
+			if data.RequestedAutoTier == nil || *data.RequestedAutoTier != AutoTierFast {
+				t.Fatalf("expected requested tier %q, got %v", AutoTierFast, data.RequestedAutoTier)
 			}
 		})
 	}

@@ -68,7 +68,7 @@ class CapiSessionOptionsTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"EFFICIENCY,efficiency", "BALANCE,balance", "INTELLIGENCE,intelligence"})
+    @CsvSource({"EFFICIENCY,efficiency", "BALANCE,balance", "INTELLIGENCE,intelligence", "FAST,fast"})
     void autoTierCanonicalValuesRoundTripAndForward(AutoTier tier, String value) throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
         var capi = new CapiSessionOptions().setAutoTier(tier);

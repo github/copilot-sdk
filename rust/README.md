@@ -365,9 +365,13 @@ next credential-consuming operation; there is no background refresh timer.
 ### Auto routing tiers
 
 Use `CapiSessionOptions::with_auto_tier` to select `AutoTier::Efficiency`,
-`AutoTier::Balance`, or `AutoTier::Intelligence`. This option is meaningful only
-with model `auto` (Auto mode V2).
-It requires a runtime version that supports `capi.autoTier`.
+`AutoTier::Balance`, `AutoTier::Intelligence`, or `AutoTier::Fast`. This option
+is meaningful only with model `auto` (Auto mode V2).
+It requires a runtime version that supports `capi.autoTier`; `AutoTier::Fast`
+additionally requires Copilot CLI `1.0.84-0` or later.
+`AutoTier::Fast` is an integrator-only latency preset, not a first-party
+GitHub Copilot product preference — the SDK does not decide Fast eligibility
+or apply it implicitly.
 
 ```rust
 use github_copilot_sdk::{AutoTier, CapiSessionOptions, SessionConfig};
@@ -388,7 +392,7 @@ resume succeeds; it cannot change a turn that is already in flight. The SDK does
 
 Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
 
-Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. A failed activation leaves the incumbent effective tier unchanged. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
 
 ```rust,ignore
 use github_copilot_sdk::{AutoTier, ModelSwitchAutoTierStatus};

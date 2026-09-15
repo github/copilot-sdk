@@ -1247,6 +1247,12 @@ class TestCreateSessionConfig:
                 {"autoTier": "intelligence"},
             ),
             (
+                {"auto_tier": "fast"},
+                {"auto_tier": "fast"},
+                {"autoTier": "fast"},
+                {"autoTier": "fast"},
+            ),
+            (
                 {"auto_tier": "balance", "enable_web_socket_responses": False},
                 {"auto_tier": "balance", "enable_web_socket_responses": True},
                 {"autoTier": "balance", "enableWebSocketResponses": False},
@@ -2673,10 +2679,10 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
-            await session.set_model("auto", auto_tier="intelligence")
+            await session.set_model("auto", auto_tier="fast")
             assert captured["session.model.switchTo"]["sessionId"] == session.session_id
             assert captured["session.model.switchTo"]["modelId"] == "auto"
-            assert captured["session.model.switchTo"]["autoTier"] == "intelligence"
+            assert captured["session.model.switchTo"]["autoTier"] == "fast"
         finally:
             await client.force_stop()
 
@@ -2711,7 +2717,7 @@ class TestSessionConfigForwarding:
 
 class TestSetAutoTier:
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("auto_tier", ["efficiency", "balance", "intelligence", None])
+    @pytest.mark.parametrize("auto_tier", ["efficiency", "balance", "intelligence", "fast", None])
     async def test_set_auto_tier_sends_correct_rpc(self, auto_tier):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
@@ -2766,16 +2772,16 @@ class TestSetAutoTier:
             async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.model.switchAutoTier":
-                    return {"status": "pending", "effectiveAutoTier": "intelligence"}
+                    return {"status": "pending", "effectiveAutoTier": "fast"}
                 return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
-            await session.set_auto_tier(AutoTierEnum.INTELLIGENCE)
+            await session.set_auto_tier(AutoTierEnum.FAST)
 
             params = captured["session.model.switchAutoTier"]
             # The value must be a plain string; the JSON-RPC encoder cannot
             # serialize an enum.
-            assert params["autoTier"] == "intelligence"
+            assert params["autoTier"] == "fast"
             assert isinstance(params["autoTier"], str)
             json.dumps(params)
         finally:
