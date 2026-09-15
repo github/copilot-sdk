@@ -149,6 +149,11 @@ type ClientOptions struct {
 	// Nil or empty Env inherits the ambient environment for that transport.
 	// Native options that read process-global state must instead be configured
 	// before starting the process; Env cannot override those options per host.
+	//
+	// Per-host overrides are intentionally Go-only for now, allowing callers to
+	// avoid races between Go process-environment mutations and native runtime
+	// environment reads. The Node.js, Python, .NET, Java, and Rust SDKs currently
+	// reject per-client environment overrides with their in-process transports.
 	Env []string
 	// GitHubToken is the GitHub token to use for authentication.
 	// When provided, the token is passed to the runtime via environment

@@ -152,6 +152,8 @@ Resolution and requirements:
 
 For the in-process transport, `Env` entries override the native host's environment snapshot without changing the process environment. Nil or empty `Env` inherits the ambient environment. SDK-managed options such as `GitHubToken` and `BaseDirectory` take precedence over conflicting entries. Configure overrides through `Env` rather than changing process environment variables while native threads are running.
 
+This per-host override support is intentionally Go-only for now, allowing callers to avoid races between Go process-environment mutations and native runtime environment reads. The Node.js, Python, .NET, Java, and Rust SDKs currently reject per-client environment overrides with their in-process transports.
+
 Some native options still read process-global state, including `COPILOT_DEBUG_GITHUB_API_URL` for per-session authentication, `COPILOT_ALLOW_GET_PROVIDER_ENDPOINT`, and `COPILOT_ENABLE_SECRET_FILTERING`. Configure those before starting the process; per-host overrides do not change them. Tests requiring these legacy globals run in fresh test processes with the same FFI transport and assertions.
 
 The in-process transport still rejects options that depend on shared process state (each panics at `NewClient`):
