@@ -306,27 +306,14 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
         }
         let path = entry
             .path()
-            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?
-            .into_owned();
-        if path.is_absolute()
-            || path.components().any(|component| {
-                matches!(
-                    component,
-                    std::path::Component::Prefix(_)
-                        | std::path::Component::RootDir
-                        | std::path::Component::ParentDir
-                )
-            })
-        {
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+        let path = runtime_asset_path(&path)?;
+        if !seen.insert(path.as_os_str().to_ascii_lowercase()) {
             return Err(EmbeddedCliError::with_message(
                 EmbeddedCliErrorKind::Archive,
-                format!("unsafe embedded runtime asset path: {}", path.display()),
+                format!("duplicate embedded runtime asset path: {}", path.display()),
             ));
         }
-        let path: PathBuf = path
-            .components()
-            .filter(|component| *component != std::path::Component::CurDir)
-            .collect();
         let file_name = path.file_name().and_then(|name| name.to_str());
         let is_library = matches!(
             file_name,
@@ -344,12 +331,6 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
             }
             #[cfg(not(feature = "bundled-in-process"))]
             continue;
-        }
-        if !seen.insert(path.clone()) {
-            return Err(EmbeddedCliError::with_message(
-                EmbeddedCliErrorKind::Archive,
-                format!("duplicate embedded runtime asset path: {}", path.display()),
-            ));
         }
         if let Some(index) = required.iter().position(|name| path == Path::new(name)) {
             if entry.size() == 0 {
@@ -402,12 +383,10 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
             if !entry.header().entry_type().is_file() {
                 continue;
             }
-            let path: PathBuf = entry
+            let path = entry
                 .path()
-                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?
-                .components()
-                .filter(|component| *component != std::path::Component::CurDir)
-                .collect();
+                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+            let path = runtime_asset_path(&path)?;
             if changed.contains(&path) {
                 pending.push(stage_runtime_entry(&mut entry, &root.join(path))?);
             }
@@ -419,6 +398,62 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
         publish(&staged.temporary, &staged.target)?;
     }
     Ok(install_dir.join(RUNTIME_BINARY_NAME))
+}
+
+#[cfg(has_bundled_cli)]
+fn runtime_asset_path(path: &Path) -> Result<PathBuf, EmbeddedCliError> {
+    let invalid = || {
+        EmbeddedCliError::with_message(
+            EmbeddedCliErrorKind::Archive,
+            format!(
+                "non-portable embedded runtime asset path: {}",
+                path.display()
+            ),
+        )
+    };
+    // Bundled release assets use ASCII names. Apply the same conservative
+    // naming rules on every filesystem, without probing a read-only cache.
+    // Reject Unicode, DOS device/short names and trailing-dot/space aliases
+    // rather than approximating platform-specific Unicode normalization.
+    let name = path
+        .to_str()
+        .filter(|name| name.is_ascii())
+        .ok_or_else(invalid)?;
+    if name.starts_with(['/', '\\']) {
+        return Err(invalid());
+    }
+    let mut normalized = PathBuf::new();
+    for component in name.split(['/', '\\']) {
+        if component.is_empty() || component == "." {
+            continue;
+        }
+        if component == ".."
+            || component.ends_with(['.', ' '])
+            || component
+                .bytes()
+                .any(|byte| byte.is_ascii_control() || b"<>:\"|?*~".contains(&byte))
+        {
+            return Err(invalid());
+        }
+        let stem = component
+            .split('.')
+            .next()
+            .expect("nonempty component")
+            .trim_end_matches(' ')
+            .to_ascii_uppercase();
+        if matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+            || (stem.len() == 4
+                && (stem.starts_with("COM") || stem.starts_with("LPT"))
+                && matches!(stem.as_bytes()[3], b'1'..=b'9'))
+        {
+            return Err(invalid());
+        }
+        normalized.push(component);
+    }
+    if normalized.as_os_str().is_empty() {
+        return Err(invalid());
+    }
+    Ok(normalized)
 }
 
 #[cfg(has_bundled_cli)]
@@ -1568,6 +1603,86 @@ mod tests {
             b"runtime"
         );
         assert_no_runtime_temps(dir.path());
+    }
+
+    #[cfg(has_bundled_cli)]
+    #[test]
+    fn runtime_case_aliases_cannot_overwrite_required_artifacts() {
+        let names = [
+            RUNTIME_NODE_NAME,
+            RUNTIME_BINARY_NAME,
+            #[cfg(feature = "bundled-in-process")]
+            RUNTIME_LIBRARY_NAME,
+        ];
+        for name in names {
+            let alias = name.to_ascii_uppercase();
+            let archive = runtime_fixture(&[(&alias, b"", 0o755)]);
+            let dir = tempfile::tempdir().unwrap();
+            let result = install_runtime(dir.path(), &archive);
+            assert!(result.is_err(), "accepted alias {alias}: {result:?}");
+            assert!(!dir.path().join(name).exists());
+            assert_no_runtime_temps(dir.path());
+
+            install_runtime(dir.path(), &runtime_fixture(&[])).unwrap();
+            let original = fs::read(dir.path().join(name)).unwrap();
+            assert!(install_runtime(dir.path(), &archive).is_err());
+            assert_eq!(fs::read(dir.path().join(name)).unwrap(), original);
+            fs::write(dir.path().join(name), b"corrupt").unwrap();
+            assert!(install_runtime(dir.path(), &archive).is_err());
+            assert_eq!(fs::read(dir.path().join(name)).unwrap(), b"corrupt");
+            assert_no_runtime_temps(dir.path());
+        }
+    }
+
+    #[cfg(has_bundled_cli)]
+    #[test]
+    fn runtime_mixed_separator_and_case_aliases_are_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive = runtime_fixture(&[
+            ("nested/asset", b"first", 0o644),
+            (r".\NESTED\ASSET", b"last", 0o644),
+        ]);
+        assert!(install_runtime(dir.path(), &archive).is_err());
+        assert!(!dir.path().join("nested/asset").exists());
+        assert_no_runtime_temps(dir.path());
+
+        install_runtime(
+            dir.path(),
+            &runtime_fixture(&[("nested/asset", b"last", 0o644)]),
+        )
+        .unwrap();
+        assert!(install_runtime(dir.path(), &archive).is_err());
+        assert_eq!(fs::read(dir.path().join("nested/asset")).unwrap(), b"last");
+        assert_no_runtime_temps(dir.path());
+    }
+
+    #[cfg(has_bundled_cli)]
+    #[test]
+    fn runtime_nonportable_alias_paths_are_rejected_before_publish() {
+        for name in [
+            "runtime.node.",
+            "runtime.node ",
+            "runtime.node:stream",
+            "RUNTIM~1.NOD",
+            "NUL",
+            "con.txt",
+            "aux .txt",
+            "COM1",
+            "LPT9.txt",
+            "n\u{00e9}sted/asset",
+            r"..\escaped",
+            r"C:\escaped",
+            r"\\server\share\asset",
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let archive = runtime_fixture(&[(name, b"bad", 0o644)]);
+            assert!(
+                install_runtime(dir.path(), &archive).is_err(),
+                "accepted {name}"
+            );
+            assert!(!dir.path().join(RUNTIME_NODE_NAME).exists());
+            assert_no_runtime_temps(dir.path());
+        }
     }
 
     #[cfg(all(has_bundled_cli, feature = "bundled-in-process"))]
