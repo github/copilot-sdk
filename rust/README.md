@@ -1165,9 +1165,9 @@ are staged in uniquely created sibling files, with archive permissions
 preserved, then atomically replaced after archive validation. Replacement is
 atomic per file, not across the entire bundle.
 
-An installer-only memory and latency reproduction is available in
-[`benchmarks/runtime_install.md`](benchmarks/runtime_install.md). It exercises
-the real bundled runtime without starting a client or contacting a model.
+The [`runtime_install` example](examples/runtime_install.rs) exercises the real
+bundled runtime without starting a client or contacting a model. Run it with
+an isolated `HOME` to keep its installation cache separate.
 
 ### Download cache (build-time, embed mode)
 

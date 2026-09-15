@@ -1,5 +1,5 @@
 //! Installer-only probe. No CLI subprocess, authentication, or model requests.
-//! Run with an isolated HOME; see benchmarks/runtime_install.py.
+//! Run with an isolated HOME to keep the installation cache separate.
 
 use std::io::{self, Write};
 use std::time::Instant;
