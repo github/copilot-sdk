@@ -41,6 +41,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -99,17 +100,14 @@ func validateSessionFSConfig(config *SessionFSConfig) error {
 // per-client environment, working directory, and telemetry. It panics (fails
 // loud) on a misconfiguration, matching the other SDKs.
 //
-// The in-process transport loads the native runtime into this process, whose
-// single environment block and process-global working directory cannot carry
-// per-client values, and whose telemetry lowers to shared process-global env
-// vars — so options that depend on them are rejected there. Child-process
-// transports each own their OS process, so per-connection env is allowed, but
+// The in-process runtime accepts per-host environment overrides without mutating
+// this process. Working directory and telemetry still depend on shared process
+// state and are rejected there. Child-process transports each own their OS
+// process, so per-connection env is allowed, but
 // setting it in both the client-level option and the connection is rejected.
 func validateEnvironmentOptions(connection RuntimeConnection, opts *ClientOptions) {
 	if _, ok := connection.(InProcessConnection); ok {
-		if opts.Env != nil {
-			panic("Env is not supported with InProcessConnection: the in-process transport loads the native runtime into the shared host process, whose single environment block cannot carry per-client values. Set the variables on the host process environment instead.")
-		}
+		inProcessEnvironmentOverrides(opts.Env)
 		if opts.WorkingDirectory != "" {
 			panic("WorkingDirectory is not supported with InProcessConnection: the native runtime shares the host process working directory. Use a child-process transport, or set the process working directory before creating the client.")
 		}
@@ -286,11 +284,7 @@ func NewClient(options *ClientOptions) *Client {
 		panic(fmt.Sprintf("unknown RuntimeConnection type: %T", connection))
 	}
 
-	// Validate transport-specific option constraints (fail loud). The in-process
-	// transport loads the runtime into this process, whose single environment
-	// block, process-global working directory, and shared telemetry state cannot
-	// carry per-client values. Child-process transports may set env via either
-	// the client-level option or the connection, but not both.
+	// Validate transport-specific option constraints before starting the runtime.
 	validateEnvironmentOptions(connection, &opts)
 
 	// Validate auth options when connecting to an external runtime.
@@ -307,15 +301,21 @@ func NewClient(options *ClientOptions) *Client {
 		}
 	}
 
-	// Default Env to current environment if not set
-	if opts.Env == nil {
+	// Native in-process hosts snapshot the ambient environment at startup.
+	if opts.Env == nil && !client.useInProcess {
 		opts.Env = os.Environ()
 	}
 
-	// Check the effective environment for a child-process runtime override.
-	if client.cliPath == "" && !client.useInProcess {
-		if cliPath := getEnvValue(opts.Env, "COPILOT_CLI_PATH"); cliPath != "" {
-			client.cliPath = cliPath
+	// Capture runtime selection at construction, even when native environment
+	// inheritance itself is deferred until the in-process host starts.
+	if client.cliPath == "" {
+		if client.useInProcess {
+			client.cliPath = inProcessEnvironmentOverrides(opts.Env)["COPILOT_CLI_PATH"]
+			if client.cliPath == "" {
+				client.cliPath = os.Getenv("COPILOT_CLI_PATH")
+			}
+		} else {
+			client.cliPath = getEnvValue(opts.Env, "COPILOT_CLI_PATH")
 		}
 	}
 
@@ -398,6 +398,29 @@ func setEnvValue(env []string, key string, value string) []string {
 		}
 	}
 	return append(filtered, key+"="+value)
+}
+
+func inProcessEnvironmentOverrides(env []string) map[string]string {
+	overrides := make(map[string]string, len(env))
+	for i, entry := range env {
+		if strings.ContainsRune(entry, '\x00') {
+			panic(fmt.Sprintf("invalid in-process Env entry at index %d: NUL is not allowed", i))
+		}
+		// Windows hidden entries (such as =C: and =ExitCode) are inherited
+		// separately and cannot be represented as ordinary host overrides.
+		if runtime.GOOS == "windows" && strings.HasPrefix(entry, "=") && strings.Contains(entry[1:], "=") {
+			continue
+		}
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok || key == "" {
+			panic(fmt.Sprintf("invalid in-process Env entry at index %d: expected KEY=VALUE", i))
+		}
+		if runtime.GOOS == "windows" {
+			key = strings.ToUpper(key)
+		}
+		overrides[key] = value
+	}
+	return overrides
 }
 
 // parseCLIURL parses a CLI URL into host and port components.
@@ -2263,10 +2286,8 @@ func (c *Client) startInProcess(ctx context.Context) error {
 		return errors.New("in-process transport unavailable: rebuild with -tags copilot_inprocess on a supported platform")
 	}
 
+	config := c.inProcessHostConfig()
 	cliEntrypoint := c.cliPath
-	if cliEntrypoint == "" {
-		cliEntrypoint = getEnvValue(c.options.Env, "COPILOT_CLI_PATH")
-	}
 	runtimePath := cliEntrypoint
 	if runtimePath == "" {
 		runtimePath = embeddedcli.RuntimePath()
@@ -2274,8 +2295,6 @@ func (c *Client) startInProcess(ctx context.Context) error {
 	if runtimePath == "" {
 		return errors.New("in-process runtime unavailable: build with the bundled embedded runtime or set COPILOT_CLI_PATH to a compatible runtime package")
 	}
-
-	config := c.inProcessHostConfig()
 
 	host, err := createInProcessHost(runtimePath, cliEntrypoint, config)
 	if err != nil {
@@ -2337,7 +2356,7 @@ func (c *Client) inProcessHostConfig() inProcessHostConfig {
 		args = append(args, "--remote")
 	}
 
-	environment := make(map[string]string)
+	environment := inProcessEnvironmentOverrides(c.options.Env)
 	if c.options.GitHubToken != "" {
 		environment["COPILOT_SDK_AUTH_TOKEN"] = c.options.GitHubToken
 	}

@@ -22,6 +22,31 @@ conversations:
       - role: user
         content: |-
           Image file at path ${workdir}/pixel.png
+          [image]
+      - role: assistant
+        content: Red
+  # Retain the exact one-image history for the SDK-pinned CLI 1.0.84-8.
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          What color is this pixel? Reply in one word.
+          pixel.png
+          [image]
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/pixel.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Viewed image file successfully.
+      - role: user
+        content: |-
+          Image file at path ${workdir}/pixel.png
           You've reached the maximum number of images you can view (1) so I can't provide the image for you to see.
       - role: assistant
         content: Red

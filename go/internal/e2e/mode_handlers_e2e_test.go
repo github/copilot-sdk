@@ -18,6 +18,9 @@ const (
 )
 
 func TestModeHandlersE2E(t *testing.T) {
+	if testharness.RunWithInProcessGlobals(t) {
+		return
+	}
 	ctx := testharness.NewTestContext(t)
 
 	client := ctx.NewClient(func(opts *copilot.ClientOptions) {

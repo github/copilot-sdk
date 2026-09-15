@@ -192,6 +192,9 @@ func TestRPCServerE2E(t *testing.T) {
 	})
 
 	t.Run("should add secret filter values", func(t *testing.T) {
+		if testharness.RunWithInProcessGlobals(t) {
+			return
+		}
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.Env = append(opts.Env, "COPILOT_ENABLE_SECRET_FILTERING=true")

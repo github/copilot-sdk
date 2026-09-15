@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -1391,21 +1392,35 @@ func TestClient_EnvOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("should default to inherit from current process", func(t *testing.T) {
-		client := NewClient(&ClientOptions{})
-
-		if want := os.Environ(); !reflect.DeepEqual(client.options.Env, want) {
-			t.Errorf("Expected Env to be %v, got %v", want, client.options.Env)
-		}
-	})
-
-	t.Run("should default to inherit from current process with nil options", func(t *testing.T) {
-		client := NewClient(nil)
-
-		if want := os.Environ(); !reflect.DeepEqual(client.options.Env, want) {
-			t.Errorf("Expected Env to be %v, got %v", want, client.options.Env)
-		}
-	})
+	for _, tc := range []struct {
+		name    string
+		options *ClientOptions
+	}{
+		{"should default to inherit from current process", &ClientOptions{}},
+		{"should default to inherit from current process with nil options", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, transport := range []string{"stdio", "inprocess"} {
+				t.Run(transport, func(t *testing.T) {
+					t.Setenv(defaultConnectionEnvVar, transport)
+					client := NewClient(tc.options)
+					if client.useInProcess != (transport == "inprocess") {
+						t.Fatalf("Expected default transport %s", transport)
+					}
+					if transport == "inprocess" {
+						if client.options.Env != nil {
+							t.Error("Expected native host to inherit ambient environment at startup")
+						}
+						if len(client.inProcessHostConfig().Environment) != 0 {
+							t.Error("Ambient environment must not become explicit per-host overrides")
+						}
+					} else if !reflect.DeepEqual(client.options.Env, os.Environ()) {
+						t.Error("Expected child-process environment snapshot to match ambient environment")
+					}
+				})
+			}
+		})
+	}
 
 	t.Run("should allow empty environment", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
@@ -1435,6 +1450,7 @@ func TestClient_InProcessConnection(t *testing.T) {
 	})
 
 	t.Run("uses in-process transport", func(t *testing.T) {
+		t.Setenv("COPILOT_CLI_PATH", "")
 		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
 		if !client.useInProcess {
 			t.Error("Expected useInProcess=true for InProcessConnection")
@@ -1450,24 +1466,124 @@ func TestClient_InProcessConnection(t *testing.T) {
 		}
 	})
 
-	t.Run("does not resolve COPILOT_CLI_PATH into cliPath at construction", func(t *testing.T) {
+	t.Run("captures COPILOT_CLI_PATH at construction", func(t *testing.T) {
 		t.Setenv("COPILOT_CLI_PATH", "/from/env/copilot")
 		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
-		if client.cliPath != "" {
-			t.Errorf("Expected in-process cliPath to stay empty at construction, got %q", client.cliPath)
+		if client.cliPath != "/from/env/copilot" {
+			t.Errorf("Expected in-process cliPath to capture the environment override, got %q", client.cliPath)
 		}
 	})
 
-	t.Run("panics when Env is set", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("Expected panic when Env is set with InProcessConnection")
-			}
-		}()
-		NewClient(&ClientOptions{
+	t.Run("forwards isolated environment overrides", func(t *testing.T) {
+		t.Setenv("COPILOT_ENV_ISOLATION_TEST", "ambient")
+		client := NewClient(&ClientOptions{
 			Connection: InProcessConnection{},
-			Env:        []string{"FOO=bar"},
+			Env: []string{
+				"COPILOT_ENV_ISOLATION_TEST=first",
+				"COPILOT_ENV_ISOLATION_TEST=override",
+				"COPILOT_SDK_AUTH_TOKEN=from-env",
+			},
+			GitHubToken: "from-options",
 		})
+		want := map[string]string{
+			"COPILOT_ENV_ISOLATION_TEST": "override",
+			"COPILOT_SDK_AUTH_TOKEN":     "from-options",
+		}
+		if got := client.inProcessHostConfig().Environment; !reflect.DeepEqual(got, want) {
+			t.Fatalf("Expected per-host overrides %v, got %v", want, got)
+		}
+		if got := os.Getenv("COPILOT_ENV_ISOLATION_TEST"); got != "ambient" {
+			t.Fatalf("Host process environment changed to %q", got)
+		}
+	})
+
+	t.Run("rejects invalid environment overrides", func(t *testing.T) {
+		for _, entry := range []string{"missing-value", "=empty-key", "KEY=bad\x00value"} {
+			t.Run(entry, func(t *testing.T) {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Fatal("Expected invalid Env entry to panic")
+					}
+				}()
+				NewClient(&ClientOptions{
+					Connection: InProcessConnection{},
+					Env:        []string{entry},
+				})
+			})
+		}
+	})
+
+	t.Run("preserves platform environment key casing rules", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Env:        []string{"COPILOT_CASE_TEST=first", "copilot_case_test=last"},
+		})
+		want := map[string]string{"COPILOT_CASE_TEST": "first", "copilot_case_test": "last"}
+		if runtime.GOOS == "windows" {
+			want = map[string]string{"COPILOT_CASE_TEST": "last"}
+		}
+		if got := client.inProcessHostConfig().Environment; !reflect.DeepEqual(got, want) {
+			t.Fatalf("Expected environment %v, got %v", want, got)
+		}
+	})
+
+	t.Run("leaves ambient inheritance to the native host", func(t *testing.T) {
+		for _, env := range [][]string{nil, {}} {
+			client := NewClient(&ClientOptions{Connection: InProcessConnection{}, Env: env})
+			if got := client.inProcessHostConfig().Environment; len(got) != 0 {
+				t.Fatalf("Unexpected explicit environment overrides: %v", got)
+			}
+		}
+	})
+
+	t.Run("captures explicit runtime override before startup", func(t *testing.T) {
+		t.Setenv("COPILOT_CLI_PATH", "ambient-runtime")
+		client := NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Env:        []string{"COPILOT_CLI_PATH=override-runtime"},
+		})
+		t.Setenv("COPILOT_CLI_PATH", "later-runtime")
+		if client.cliPath != "override-runtime" {
+			t.Fatalf("Expected explicit runtime override, got %q", client.cliPath)
+		}
+	})
+
+	t.Run("uses platform casing rules for runtime override", func(t *testing.T) {
+		t.Setenv("COPILOT_CLI_PATH", "ambient-runtime")
+		client := NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Env:        []string{"COPILOT_CLI_PATH=first-runtime", "copilot_cli_path=last-runtime"},
+		})
+		want := "first-runtime"
+		if runtime.GOOS == "windows" {
+			want = "last-runtime"
+		}
+		if client.cliPath != want {
+			t.Fatalf("Expected runtime override %q, got %q", want, client.cliPath)
+		}
+	})
+
+	t.Run("preserves bundled runtime selection when override was empty", func(t *testing.T) {
+		t.Setenv("COPILOT_CLI_PATH", "")
+		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
+		t.Setenv("COPILOT_CLI_PATH", "later-runtime")
+		if client.cliPath != "" {
+			t.Fatalf("Expected bundled runtime selection, got %q", client.cliPath)
+		}
+	})
+
+	t.Run("accepts Windows hidden environment entries", func(t *testing.T) {
+		if runtime.GOOS != "windows" {
+			return
+		}
+		client := NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Env:        []string{`=C:=C:\`, "=ExitCode=00000000", "KEY=value=with=equals", "EMPTY="},
+		})
+		want := map[string]string{"KEY": "value=with=equals", "EMPTY": ""}
+		if got := client.inProcessHostConfig().Environment; !reflect.DeepEqual(got, want) {
+			t.Fatalf("Expected environment %v, got %v", want, got)
+		}
 	})
 
 	t.Run("panics when WorkingDirectory is set", func(t *testing.T) {

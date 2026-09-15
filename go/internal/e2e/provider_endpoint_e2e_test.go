@@ -17,6 +17,9 @@ import (
 // session.provider.getEndpoint is gated behind COPILOT_ALLOW_GET_PROVIDER_ENDPOINT;
 // the harness env passed to the CLI subprocess opts in for this test file.
 func TestProviderEndpointE2E(t *testing.T) {
+	if testharness.RunWithInProcessGlobals(t) {
+		return
+	}
 	ctx := testharness.NewTestContext(t)
 
 	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
