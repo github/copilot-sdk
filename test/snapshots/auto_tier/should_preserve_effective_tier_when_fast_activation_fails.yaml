@@ -1,0 +1,30 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly AUTO_TIER_INITIAL_READY.
+      - role: assistant
+        content: AUTO_TIER_INITIAL_READY
+      - role: user
+        content: Reply with exactly AUTO_TIER_FAILURE_RECOVERED.
+      - role: assistant
+        content: AUTO_TIER_FAILURE_RECOVERED
+autoResponses:
+  - body:
+      session_token: auto-tier-replay-token-1
+      selected_model:
+        id: claude-sonnet-5
+        name: Claude Sonnet 5
+        capabilities:
+          supports:
+            vision: false
+          limits:
+            max_context_window_tokens: 128000
+  - statusCode: 500
+    body:
+      session_token: unused-auto-tier-token
+      selected_model:
+        id: unused-model

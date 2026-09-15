@@ -635,9 +635,11 @@ func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 		{"efficiency", &CapiSessionOptions{AutoTier: AutoTierEfficiency}, map[string]any{"autoTier": "efficiency"}},
 		{"balance", &CapiSessionOptions{AutoTier: AutoTierBalance}, map[string]any{"autoTier": "balance"}},
 		{"intelligence", &CapiSessionOptions{AutoTier: AutoTierIntelligence}, map[string]any{"autoTier": "intelligence"}},
+		{"fast", &CapiSessionOptions{AutoTier: AutoTierFast}, map[string]any{"autoTier": "fast"}},
 		{"efficiency with websocket", &CapiSessionOptions{AutoTier: AutoTierEfficiency, EnableWebSocketResponses: Bool(false)}, map[string]any{"autoTier": "efficiency", "enableWebSocketResponses": false}},
 		{"balance with websocket", &CapiSessionOptions{AutoTier: AutoTierBalance, EnableWebSocketResponses: Bool(false)}, map[string]any{"autoTier": "balance", "enableWebSocketResponses": false}},
 		{"intelligence with websocket", &CapiSessionOptions{AutoTier: AutoTierIntelligence, EnableWebSocketResponses: Bool(false)}, map[string]any{"autoTier": "intelligence", "enableWebSocketResponses": false}},
+		{"fast with websocket", &CapiSessionOptions{AutoTier: AutoTierFast, EnableWebSocketResponses: Bool(false)}, map[string]any{"autoTier": "fast", "enableWebSocketResponses": false}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

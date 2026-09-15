@@ -1,0 +1,38 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly AUTO_TIER_COLD_RESUME_READY.
+      - role: assistant
+        content: AUTO_TIER_COLD_RESUME_READY
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly AUTO_TIER_TIERLESS_READY.
+      - role: assistant
+        content: AUTO_TIER_TIERLESS_READY
+autoResponses:
+  - body:
+      session_token: auto-tier-replay-token-1
+      selected_model:
+        id: claude-sonnet-5
+        name: Claude Sonnet 5
+        capabilities:
+          supports:
+            vision: false
+          limits:
+            max_context_window_tokens: 128000
+  - body:
+      session_token: auto-tier-replay-token-2
+      selected_model:
+        id: claude-sonnet-5
+        name: Claude Sonnet 5
+        capabilities:
+          supports:
+            vision: false
+          limits:
+            max_context_window_tokens: 128000

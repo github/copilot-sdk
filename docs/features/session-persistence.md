@@ -257,7 +257,9 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 
 ### Auto tier persistence
 
-With `model: "auto"`, the optional `capi.autoTier` setting selects an Auto routing preference: `efficiency`, `balance`, or `intelligence`. In Python, use `capi={"auto_tier": "balance"}`. This requires Copilot CLI `1.0.82-1` or later with V2 Auto routing; V1 Auto requests are unchanged.
+With `model: "auto"`, the optional `capi.autoTier` setting selects an Auto routing preference: `efficiency`, `balance`, `intelligence`, or `fast`. In Python, use `capi={"auto_tier": "balance"}`. This requires Copilot CLI `1.0.82-1` or later with V2 Auto routing; V1 Auto requests are unchanged. `fast` additionally requires Copilot CLI `1.0.84-0` or later.
+
+`fast` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. The SDK does not decide Fast eligibility, inspect client identity, choose it as a default, or fall back to another tier when a runtime does not support it—an older runtime returns its native error unchanged.
 
 The runtime persists the selected tier, so applications do not need to resend it on every resume:
 
