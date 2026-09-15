@@ -57,7 +57,7 @@ parking_lot = "0.12"
 regex = "1"
 getrandom = "0.2"
 uuid = { version = "1", default-features = false, features = ["v4"] }
-flate2 = { version = "1", optional = true }
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"], optional = true }
 tar = { version = "0.4", optional = true }
 # LLM inference callback transport: idiomatic HTTP/WebSocket forwarding for the
 # `CopilotRequestHandler`, plus base64/byte/stream plumbing for the chunk protocol.
