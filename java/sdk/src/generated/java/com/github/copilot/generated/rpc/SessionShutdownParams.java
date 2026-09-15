@@ -29,6 +29,8 @@ public record SessionShutdownParams(
     /** Why the session is being shut down. Defaults to "routine" when omitted. */
     @JsonProperty("type") ShutdownType type,
     /** Optional human-readable reason. Typically the message of the error that triggered shutdown when type is 'error'. */
-    @JsonProperty("reason") String reason
+    @JsonProperty("reason") String reason,
+    /** Dispatch deferred sessionEnd hooks in the background with their full per-hook timeoutSec instead of awaiting them under the short shared shutdown budget. Set this when the host process keeps running after the session closes (for example the CLI's /clear), so a slow hook neither blocks the close nor is aborted. Hooks still detached when the process later exits are terminated with it. Defaults to false. */
+    @JsonProperty("detachSessionEndHooks") Boolean detachSessionEndHooks
 ) {
 }

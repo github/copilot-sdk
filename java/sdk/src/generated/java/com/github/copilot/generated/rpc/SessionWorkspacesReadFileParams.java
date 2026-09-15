@@ -26,7 +26,7 @@ import javax.annotation.processing.Generated;
 public record SessionWorkspacesReadFileParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Relative path within the workspace files directory */
+    /** Slash-separated relative path within the workspace files directory */
     @JsonProperty("path") String path
 ) {
 }

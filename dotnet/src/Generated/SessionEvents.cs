@@ -4799,6 +4799,12 @@ public sealed partial class ToolExecutionCompleteData
     [JsonPropertyName("sandboxed")]
     public bool? Sandboxed { get; set; }
 
+    /// <summary>Experimental shell completion facts captured before the persisted result contents are stripped.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("shellExecution")]
+    public ToolExecutionCompleteShellExecution? ShellExecution { get; set; }
+
     /// <summary>Whether the tool execution completed successfully.</summary>
     [JsonPropertyName("success")]
     public required bool Success { get; set; }
@@ -8849,6 +8855,16 @@ public sealed partial class ToolExecutionCompleteResult
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("uiResource")]
     public ToolExecutionCompleteUIResource? UiResource { get; set; }
+}
+
+/// <summary>Experimental shell completion facts retained independently of the full tool result.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteShellExecution</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class ToolExecutionCompleteShellExecution
+{
+    /// <summary>Process exit code reported by the shell driver.</summary>
+    [JsonPropertyName("exitCode")]
+    public required long ExitCode { get; set; }
 }
 
 /// <summary>MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_complete`.</summary>
@@ -17615,6 +17631,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ToolExecutionCompleteError))]
 [JsonSerializable(typeof(ToolExecutionCompleteEvent))]
 [JsonSerializable(typeof(ToolExecutionCompleteResult))]
+[JsonSerializable(typeof(ToolExecutionCompleteShellExecution))]
 [JsonSerializable(typeof(ToolExecutionCompleteToolDescription))]
 [JsonSerializable(typeof(ToolExecutionCompleteToolDescriptionMeta))]
 [JsonSerializable(typeof(ToolExecutionCompleteToolDescriptionMetaUI))]

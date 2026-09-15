@@ -177,6 +177,7 @@ async fn should_shutdown_session_with_routine_type() {
                     .shutdown(ShutdownRequest {
                         reason: Some("routine rust rpc test".to_string()),
                         r#type: Some(ShutdownType::Routine),
+                        ..Default::default()
                     })
                     .await
                     .expect("shutdown session");

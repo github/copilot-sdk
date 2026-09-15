@@ -10,22 +10,25 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Feature flags indicating what the model supports
+ * Source and destination paths for a rename within the session workspace files directory.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ModelCapabilitiesOverrideSupports(
-    /** Whether this model supports vision/image input */
-    @JsonProperty("vision") Boolean vision,
-    /** Whether this model supports reasoning effort configuration */
-    @JsonProperty("reasoningEffort") Boolean reasoningEffort,
-    /** Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos). */
-    @JsonProperty("adaptive_thinking") AdaptiveThinkingSupport adaptiveThinking
+public record SessionWorkspacesRenamePathParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** Slash-separated source path relative to the workspace files directory */
+    @JsonProperty("source") String source,
+    /** Slash-separated destination path relative to the workspace files directory */
+    @JsonProperty("destination") String destination
 ) {
 }
