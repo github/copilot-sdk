@@ -55,8 +55,10 @@ export type AdaptiveThinkingSupport =
   | "unsupported"
   /** The model accepts adaptive thinking but also accepts thinking.type='enabled' */
   | "optional"
-  /** The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8) */
-  | "required";
+  /** The model defaults to adaptive thinking and rejects thinking.type='enabled' with HTTP 400, but still accepts thinking.type='disabled' (e.g. opus-4.7/4.8/5, sonnet-5) */
+  | "required"
+  /** The model accepts only thinking.type='adaptive'; 'enabled', 'disabled', and an omitted thinking block all fail with HTTP 400 (e.g. fable, mythos) */
+  | "adaptive_only";
 /**
  * Which tier this directory belongs to
  *
@@ -2865,6 +2867,8 @@ export type PermissionModeSource =
   | "autopilot_confirmation"
   /** The mode was set at startup by the `defaultPermissionMode` user setting. */
   | "user_setting"
+  /** The mode was set at startup by authenticated organization targeting. */
+  | "organization_targeting"
   /** The mode was set through an RPC caller. */
   | "rpc";
 /**
@@ -21335,6 +21339,10 @@ export interface ShutdownRequest {
    * Optional human-readable reason. Typically the message of the error that triggered shutdown when type is 'error'.
    */
   reason?: string;
+  /**
+   * Dispatch deferred sessionEnd hooks in the background with their full per-hook timeoutSec instead of awaiting them under the short shared shutdown budget. Set this when the host process keeps running after the session closes (for example the CLI's /clear), so a slow hook neither blocks the close nor is aborted. Hooks still detached when the process later exits are terminated with it. Defaults to false.
+   */
+  detachSessionEndHooks?: boolean;
 }
 /**
  * Skill metadata available to a session, with name, description, source, enabled/invocable state, path, plugin, and argument hint.
@@ -24054,6 +24062,23 @@ export interface WorkspacesCheckpoints {
   filename: string;
 }
 /**
+ * Directory to create within the session workspace files directory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkspacesCreateDirectoryRequest".
+ */
+/** @experimental */
+export interface WorkspacesCreateDirectoryRequest {
+  /**
+   * Slash-separated relative path within the workspace files directory
+   */
+  path: string;
+  /**
+   * Whether to create missing parent directories. Defaults to false.
+   */
+  recursive?: boolean;
+}
+/**
  * Relative path and UTF-8 content for the workspace file to create or overwrite.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -24062,7 +24087,7 @@ export interface WorkspacesCheckpoints {
 /** @experimental */
 export interface WorkspacesCreateFileRequest {
   /**
-   * Relative path within the workspace files directory
+   * Slash-separated relative path within the workspace files directory
    */
   path: string;
   /**
@@ -24215,7 +24240,7 @@ export interface WorkspacesListCheckpointsResult {
 /** @experimental */
 export interface WorkspacesListFilesResult {
   /**
-   * Relative file paths in the workspace files directory
+   * Slash-separated relative file paths in the workspace files directory
    */
   files: string[];
 }
@@ -24267,7 +24292,7 @@ export interface WorkspacesReadCheckpointResult {
 /** @experimental */
 export interface WorkspacesReadFileRequest {
   /**
-   * Relative path within the workspace files directory
+   * Slash-separated relative path within the workspace files directory
    */
   path: string;
 }
@@ -24283,6 +24308,44 @@ export interface WorkspacesReadFileResult {
    * File content as a UTF-8 string
    */
   content: string;
+}
+/**
+ * File or directory to remove from the session workspace files directory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkspacesRemovePathRequest".
+ */
+/** @experimental */
+export interface WorkspacesRemovePathRequest {
+  /**
+   * Slash-separated relative path within the workspace files directory
+   */
+  path: string;
+  /**
+   * Whether to remove directory contents recursively. Defaults to false.
+   */
+  recursive?: boolean;
+  /**
+   * Whether a missing path should be treated as success. Defaults to false.
+   */
+  force?: boolean;
+}
+/**
+ * Source and destination paths for a rename within the session workspace files directory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkspacesRenamePathRequest".
+ */
+/** @experimental */
+export interface WorkspacesRenamePathRequest {
+  /**
+   * Slash-separated source path relative to the workspace files directory
+   */
+  source: string;
+  /**
+   * Slash-separated destination path relative to the workspace files directory
+   */
+  destination: string;
 }
 /**
  * Pasted content to save as a UTF-8 file in the session workspace.
@@ -24322,6 +24385,48 @@ export interface WorkspacesSaveLargePasteResult {
      */
     sizeBytes: number;
   } | null;
+}
+/**
+ * Relative path of the workspace file or directory to inspect.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkspacesStatFileRequest".
+ */
+/** @experimental */
+export interface WorkspacesStatFileRequest {
+  /**
+   * Slash-separated relative path within the workspace files directory
+   */
+  path: string;
+}
+/**
+ * Filesystem metadata for a path in the session workspace files directory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkspacesStatFileResult".
+ */
+/** @experimental */
+export interface WorkspacesStatFileResult {
+  /**
+   * Whether the path identifies a regular file
+   */
+  isFile: boolean;
+  /**
+   * Whether the path identifies a directory
+   */
+  isDirectory: boolean;
+  /**
+   * Size in bytes
+   */
+  size: number;
+  /**
+   * Last modification time in Unix epoch milliseconds
+   */
+  mtimeMs: number;
+  /**
+   * Creation time in Unix epoch milliseconds
+   */
+  birthtimeMs: number;
 }
 /**
  * Rollback point for local workspace summaries.
@@ -25825,6 +25930,36 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             createFile: async (params: WorkspacesCreateFileRequest): Promise<void> =>
                 connection.sendRequest("session.workspaces.createFile", { sessionId, ...params }),
+            /**
+             * Returns metadata for a file or directory in the session workspace files directory.
+             *
+             * @param params Relative path of the workspace file or directory to inspect.
+             *
+             * @returns Filesystem metadata for a path in the session workspace files directory.
+             */
+            statFile: async (params: WorkspacesStatFileRequest): Promise<WorkspacesStatFileResult> =>
+                connection.sendRequest("session.workspaces.statFile", { sessionId, ...params }),
+            /**
+             * Creates a directory in the session workspace files directory.
+             *
+             * @param params Directory to create within the session workspace files directory.
+             */
+            createDirectory: async (params: WorkspacesCreateDirectoryRequest): Promise<void> =>
+                connection.sendRequest("session.workspaces.createDirectory", { sessionId, ...params }),
+            /**
+             * Removes a file or directory from the session workspace files directory.
+             *
+             * @param params File or directory to remove from the session workspace files directory.
+             */
+            removePath: async (params: WorkspacesRemovePathRequest): Promise<void> =>
+                connection.sendRequest("session.workspaces.removePath", { sessionId, ...params }),
+            /**
+             * Renames a file or directory within the session workspace files directory.
+             *
+             * @param params Source and destination paths for a rename within the session workspace files directory.
+             */
+            renamePath: async (params: WorkspacesRenamePathRequest): Promise<void> =>
+                connection.sendRequest("session.workspaces.renamePath", { sessionId, ...params }),
             /**
              * Lists workspace checkpoints in chronological order.
              *

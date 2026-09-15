@@ -61,6 +61,8 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
         @JsonProperty("toolDescription") ToolExecutionCompleteToolDescription toolDescription,
         /** Whether this tool execution ran inside a sandbox container */
         @JsonProperty("sandboxed") Boolean sandboxed,
+        /** Experimental shell completion facts captured before the persisted result contents are stripped. */
+        @JsonProperty("shellExecution") ToolExecutionCompleteShellExecution shellExecution,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId,
         /** Experimental HydraFusion attribution for this tool completion. */

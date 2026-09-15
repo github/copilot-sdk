@@ -3,29 +3,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: api.schema.json
+// Generated from: session-events.schema.json
 
-package com.github.copilot.generated.rpc;
+package com.github.copilot.generated;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
-import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Relative paths of files stored in the session workspace files directory.
+ * Experimental shell completion facts retained independently of the full tool result.
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionWorkspacesListFilesResult(
-    /** Slash-separated relative file paths in the workspace files directory */
-    @JsonProperty("files") List<String> files
+public record ToolExecutionCompleteShellExecution(
+    /** Process exit code reported by the shell driver. */
+    @JsonProperty("exitCode") Long exitCode
 ) {
 }
