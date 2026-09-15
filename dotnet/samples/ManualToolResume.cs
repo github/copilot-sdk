@@ -39,7 +39,7 @@ var toolRequested = WaitForEventAsync<ExternalToolRequestedEvent>(
 #pragma warning disable GHCP001
 await session2.Rpc.Permissions.HandlePendingPermissionRequestAsync(
     permissionEvent.Data.RequestId,
-    new PermissionDecisionApproveOnce());
+    PermissionDecision.ApproveOnce());
 #pragma warning restore GHCP001
 
 var toolEvent = await toolRequested;
