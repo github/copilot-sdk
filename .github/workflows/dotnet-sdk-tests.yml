@@ -18,11 +18,11 @@ jobs:
         shell: bash
         working-directory: ./dotnet
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           dotnet-version: "10.0.x"
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
 
@@ -192,11 +192,11 @@ jobs:
         shell: bash
         working-directory: ./dotnet
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           dotnet-version: "10.0.x"
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
           cache: "npm"
@@ -363,7 +363,7 @@ jobs:
       matrix:
         transport: ["default", "inprocess"]
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run ${{ matrix.transport }} tests on ARM64 Alpine
         uses: ./.github/actions/run-alpine-tests

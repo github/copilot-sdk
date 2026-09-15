@@ -126,6 +126,15 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
+    public async Task Should_Clear_The_Managed_Settings_Cache()
+    {
+        await Client.StartAsync();
+
+        await Client.Rpc.ManagedSettings.ClearCacheAsync();
+    }
+
+    [Fact]
     public async Task Should_Reject_Llm_Inference_Response_Frames_For_Missing_Request()
     {
         await Client.StartAsync();

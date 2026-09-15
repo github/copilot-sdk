@@ -75,6 +75,7 @@ public class SessionConfig {
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
     private String mcpOAuthTokenStorage;
+    private String authClientIdMetadataUrl;
     private List<CustomAgentConfig> customAgents;
     private DefaultAgentConfig defaultAgent;
     private String agent;
@@ -1078,6 +1079,28 @@ public class SessionConfig {
      */
     public SessionConfig setMcpOAuthTokenStorage(String mcpOAuthTokenStorage) {
         this.mcpOAuthTokenStorage = mcpOAuthTokenStorage;
+        return this;
+    }
+
+    /**
+     * Gets the OAuth Client ID Metadata Document URL identifying the host.
+     *
+     * @return the metadata URL, or {@code null} if not set
+     */
+    public String getAuthClientIdMetadataUrl() {
+        return authClientIdMetadataUrl;
+    }
+
+    /**
+     * Sets the OAuth Client ID Metadata Document URL identifying the host for MCP
+     * authorization. When unset, no host identity is supplied.
+     *
+     * @param authClientIdMetadataUrl
+     *            the metadata URL
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setAuthClientIdMetadataUrl(String authClientIdMetadataUrl) {
+        this.authClientIdMetadataUrl = authClientIdMetadataUrl;
         return this;
     }
 
@@ -2249,6 +2272,8 @@ public class SessionConfig {
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.mcpOAuthTokenStorage = this.mcpOAuthTokenStorage;
+        copy.authClientIdMetadataUrl = this.authClientIdMetadataUrl;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
         copy.defaultAgent = this.defaultAgent;
         copy.agent = this.agent;

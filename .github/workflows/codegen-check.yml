@@ -28,19 +28,19 @@ jobs:
     if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: '1.22'
 
       # Rust generator runs `cargo fmt` on the output, so we need a toolchain with rustfmt.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: "1.94.0"
           components: rustfmt
@@ -51,7 +51,7 @@ jobs:
       # imports under stable rustfmt; nightly fmt consolidates them to match
       # the canonical committed form.
       - name: Install nightly rustfmt
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master
         with:
           toolchain: nightly-2026-04-14
           components: rustfmt

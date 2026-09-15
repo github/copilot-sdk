@@ -309,6 +309,7 @@ async fn should_add_byok_provider_and_model_at_runtime() {
                             model_id: None,
                             name: Some("Rust Added Model".to_string()),
                             provider: "rust-e2e-provider".to_string(),
+                            system_message: None,
                             wire_model: None,
                         }]),
                     })
@@ -490,6 +491,7 @@ async fn should_update_and_clear_live_subagent_settings() {
                             agents: Some(HashMap::from([(
                                 "general-purpose".to_string(),
                                 SubagentSettingsEntry {
+                                    auto_invoke: None,
                                     context_tier: Some(
                                         SubagentSettingsEntryContextTier::LongContext,
                                     ),

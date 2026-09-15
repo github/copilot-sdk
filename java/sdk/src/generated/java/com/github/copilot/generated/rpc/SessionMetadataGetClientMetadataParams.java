@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Handle for releasing the extension tool registration.
+ * Identifies the target session.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,8 +23,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionsRegisterExtensionToolsOnSessionResult(
-    /** In-process unsubscribe function used only by the CLI. */
-    @JsonProperty("unsubscribe") Object unsubscribe
+public record SessionMetadataGetClientMetadataParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId
 ) {
 }

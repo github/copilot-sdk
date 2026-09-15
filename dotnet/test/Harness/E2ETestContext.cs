@@ -31,6 +31,7 @@ public sealed class E2ETestContext : IAsyncDisposable
     private readonly object _clientsLock = new();
     private readonly List<CopilotClient> _persistentClients = [];
     private readonly List<CopilotClient> _transientClients = [];
+    private readonly List<CopilotSession> _testSessions = [];
 
     private E2ETestContext(string homeDir, string workDir, string proxyUrl, ReplayProxy proxy, string repoRoot)
     {
@@ -66,6 +67,13 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         var proxy = new ReplayProxy();
         var proxyUrl = await proxy.StartAsync();
+        // Creating an in-process fixture applies this URL before its first
+        // test-specific configuration is posted, so early runtime requests need
+        // an empty but valid replay state.
+        await proxy.ConfigureAsync(
+            Path.Combine(workDir, "__unconfigured__.yaml"),
+            workDir,
+            "capi");
         await proxy.SetCopilotUserByTokenAsync(DefaultGitHubToken, new CopilotUserConfig(
             Login: "e2e-test-user",
             CopilotPlan: "individual_pro",
@@ -382,23 +390,33 @@ public sealed class E2ETestContext : IAsyncDisposable
         return client;
     }
 
-    public Task<CopilotSession> CreateSessionAsync(
+    public async Task<CopilotSession> CreateSessionAsync(
         CopilotClient client,
         SessionConfig? config = null)
     {
         config ??= new SessionConfig();
         E2ETestBackendConfiguration.Current.ApplyProvider(config, ProxyUrl);
-        return client.CreateSessionAsync(config);
+        var session = await client.CreateSessionAsync(config);
+        lock (_clientsLock)
+        {
+            _testSessions.Add(session);
+        }
+        return session;
     }
 
-    public Task<CopilotSession> ResumeSessionAsync(
+    public async Task<CopilotSession> ResumeSessionAsync(
         CopilotClient client,
         string sessionId,
         ResumeSessionConfig? config = null)
     {
         config ??= new ResumeSessionConfig();
         E2ETestBackendConfiguration.Current.ApplyProvider(config, ProxyUrl);
-        return client.ResumeSessionAsync(sessionId, config);
+        var session = await client.ResumeSessionAsync(sessionId, config);
+        lock (_clientsLock)
+        {
+            _testSessions.Add(session);
+        }
+        return session;
     }
 
     internal void PrepareForTest()
@@ -438,12 +456,27 @@ public sealed class E2ETestContext : IAsyncDisposable
         // Per-test cleanup only stops clients created for a specific test.
         // The shared persistent client and temp directories are cleaned when the fixture is disposed.
         var errors = new List<Exception>();
+        CopilotSession[] testSessions;
         CopilotClient[] transientClients;
 
         lock (_clientsLock)
         {
+            testSessions = [.. _testSessions];
+            _testSessions.Clear();
             transientClients = [.. _transientClients];
             _transientClients.Clear();
+        }
+
+        foreach (var session in testSessions)
+        {
+            try
+            {
+                await session.DisposeAsync();
+            }
+            catch (Exception ex) when (IsTransientCleanupException(ex))
+            {
+                errors.Add(ex);
+            }
         }
 
         foreach (var client in transientClients)
@@ -471,13 +504,28 @@ public sealed class E2ETestContext : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         var errors = new List<Exception>();
+        CopilotSession[] testSessions;
         CopilotClient[] clients;
 
         lock (_clientsLock)
         {
+            testSessions = [.. _testSessions];
+            _testSessions.Clear();
             clients = [.. _persistentClients.Concat(_transientClients)];
             _persistentClients.Clear();
             _transientClients.Clear();
+        }
+
+        foreach (var session in testSessions)
+        {
+            try
+            {
+                await session.DisposeAsync();
+            }
+            catch (Exception ex) when (IsTransientCleanupException(ex))
+            {
+                errors.Add(ex);
+            }
         }
 
         foreach (var client in clients)

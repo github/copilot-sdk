@@ -34,14 +34,14 @@ runtime.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.13</version>
+    <version>1.0.14-preview.1</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.13'
+implementation 'com.github:copilot-sdk-java:1.0.14-preview.1'
 ```
 
 ### Snapshot builds
@@ -62,14 +62,14 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.14-SNAPSHOT</version>
+    <version>1.0.15-preview.1-SNAPSHOT</version>
 </dependency>
 ```
 
 #### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.14-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.15-preview.1-SNAPSHOT'
 ```
 
 ## In-process mode (experimental)
@@ -577,9 +577,6 @@ Requires JDK 25 or later and a supported [Node.js version](../nodejs/README.md#p
 git clone https://github.com/github/copilot-sdk.git
 cd copilot-sdk/java
 
-# Enable git hooks for code formatting
-git config core.hooksPath .githooks
-
 # Build and test with JDK 25
 mvn test-compile jar:jar
 mvn verify -Dskip.test.harness=true
@@ -588,6 +585,22 @@ mvn verify -Dskip.test.harness=true
 # Run the JDK 25 built jar with JDK 17 JVM for tests. Do not re-compile the jar.
 mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 ```
+
+#### Formatting and linting
+
+From the repository root, run `just format-java` to apply formatting and `just lint-java` to check formatting and Javadoc. These recipes are also included in `just format` and `just lint`.
+
+Without `just`, run the equivalent Maven commands from `java/`:
+
+```bash
+# Apply formatting
+mvn -pl sdk spotless:apply
+
+# Check formatting and Javadoc
+mvn -pl sdk spotless:check checkstyle:check
+```
+
+CI enforces both checks. Spotless runs explicitly in CI; `mvn verify` alone does not check formatting.
 
 #### Development Setup for native embedding
 
@@ -650,4 +663,4 @@ Each classifier JAR includes `runtime.node`, `platform.properties`, and `copilot
 
 ## License
 
-MIT — see [LICENSE](sdk/LICENSE) for details.
+MIT — see [LICENSE](../LICENSE) for details.

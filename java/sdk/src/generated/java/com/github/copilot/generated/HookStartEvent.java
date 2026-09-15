@@ -38,7 +38,7 @@ public final class HookStartEvent extends SessionEvent {
         @JsonProperty("hookInvocationId") String hookInvocationId,
         /** Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart") */
         @JsonProperty("hookType") String hookType,
-        /** Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself. */
+        /** Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) drops the tool result's inline `contents`/`uiResource`/`skillInvocation` and replaces duplicated text result fields with a `[copilot:elided ...]` marker; the live subscription stream still delivers the full value. Canonical tool output remains in the adjacent tool.execution_complete event, while an invoked skill's authoritative body remains in its skill invocation event. */
         @JsonProperty("input") Object input,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId

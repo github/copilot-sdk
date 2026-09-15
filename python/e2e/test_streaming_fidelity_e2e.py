@@ -5,11 +5,28 @@ import os
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
+from copilot.rpc import SessionsCheckInUseRequest
 from copilot.session import PermissionHandler
 
-from .testharness import E2ETestContext
+from .testharness import E2ETestContext, wait_for_condition
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
+
+RESUME_LOCK_TIMEOUT = 60.0
+
+
+async def _wait_for_session_lock_release(ctx: E2ETestContext, session_id: str) -> None:
+    async def session_lock_is_released() -> bool:
+        result = await ctx.client.rpc.sessions.check_in_use(
+            SessionsCheckInUseRequest(session_ids=[session_id])
+        )
+        return session_id not in result.in_use
+
+    await wait_for_condition(
+        session_lock_is_released,
+        timeout=RESUME_LOCK_TIMEOUT,
+        timeout_message=f"Timed out waiting for session '{session_id}' to release its lock.",
+    )
 
 
 class TestStreamingFidelity:
@@ -70,8 +87,11 @@ class TestStreamingFidelity:
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all, streaming=False
         )
+        session_id = session.session_id
         await session.send_and_wait("What is 3 + 6?")
         await session.disconnect()
+
+        await _wait_for_session_lock_release(ctx, session_id)
 
         # Resume using a new client
         github_token = (
@@ -86,7 +106,7 @@ class TestStreamingFidelity:
 
         try:
             session2 = await new_client.resume_session(
-                session.session_id,
+                session_id,
                 on_permission_request=PermissionHandler.approve_all,
                 streaming=True,
             )
@@ -125,6 +145,8 @@ class TestStreamingFidelity:
         await session.send_and_wait("What is 3 + 6?")
         session_id = session.session_id
         await session.disconnect()
+
+        await _wait_for_session_lock_release(ctx, session_id)
 
         # Resume with streaming disabled
         new_client = CopilotClient(

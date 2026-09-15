@@ -149,7 +149,7 @@ class RpcWrappersTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = new McpDiscoverParams("/workspace");
+        var params = new McpDiscoverParams("/workspace", null);
         server.mcp.discover(params);
 
         assertEquals(1, stub.calls.size());

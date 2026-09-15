@@ -35,22 +35,6 @@ from .testharness import E2ETestContext
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
-async def _wait_for_event(session, predicate, timeout: float = 15.0):
-    """Wait for the first session event matching predicate."""
-    loop = asyncio.get_event_loop()
-    fut: asyncio.Future = loop.create_future()
-
-    def on_event(event):
-        if not fut.done() and predicate(event):
-            fut.set_result(event)
-
-    unsub = session.on(on_event)
-    try:
-        return await asyncio.wait_for(fut, timeout=timeout)
-    finally:
-        unsub()
-
-
 class TestRpcEventSideEffects:
     async def test_should_emit_mode_changed_event_when_mode_set(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(

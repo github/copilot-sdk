@@ -25,6 +25,67 @@ func TestDisposeUnregistersOutboundTarget(t *testing.T) {
 	}
 }
 
+func TestDisposeRetainsOutboundTargetUntilConnectionCloseSucceeds(t *testing.T) {
+	token := uintptr(nextOutboundToken.Add(1))
+	var allowClose atomic.Bool
+	var closeCalls atomic.Int32
+	var shutdownCalls atomic.Int32
+	host := &Host{
+		lib: &ffiLibrary{
+			connectionClose: func(_ uint32) bool {
+				closeCalls.Add(1)
+				return allowClose.Load()
+			},
+			hostShutdown: func(_ uint32) bool {
+				shutdownCalls.Add(1)
+				return true
+			},
+		},
+		recv:          newReceiveBuffer(),
+		serverID:      11,
+		connectionID:  21,
+		callbackToken: token,
+	}
+	outboundTargets.Store(token, host)
+
+	host.Dispose()
+
+	if _, ok := outboundTargets.Load(token); !ok {
+		t.Fatal("Expected callback target to remain registered after connection close reported non-quiescence")
+	}
+	if got := shutdownCalls.Load(); got != 0 {
+		t.Fatalf("Expected host shutdown to be deferred, got %d calls", got)
+	}
+	if WaitForCleanup(20 * time.Millisecond) {
+		t.Fatal("Expected cleanup wait to remain blocked before connection close succeeds")
+	}
+
+	allowClose.Store(true)
+	if !WaitForCleanup(5 * time.Second) {
+		t.Fatal("Timed out waiting for deferred cleanup")
+	}
+
+	if _, ok := outboundTargets.Load(token); ok {
+		t.Fatal("Expected callback target to be removed after connection close succeeded")
+	}
+	if got := closeCalls.Load(); got < 2 {
+		t.Fatalf("Expected connection close to be retried, got %d calls", got)
+	}
+	if got := shutdownCalls.Load(); got != 1 {
+		t.Fatalf("Expected exactly one host shutdown, got %d", got)
+	}
+
+	closeCallsAfterCleanup := closeCalls.Load()
+	host.Dispose()
+	time.Sleep(150 * time.Millisecond)
+	if got := closeCalls.Load(); got != closeCallsAfterCleanup {
+		t.Fatalf("Expected repeated disposal to be a no-op, got %d additional close calls", got-closeCallsAfterCleanup)
+	}
+	if got := shutdownCalls.Load(); got != 1 {
+		t.Fatalf("Expected exactly one host shutdown after repeated disposal, got %d", got)
+	}
+}
+
 func TestBuildArgvWithoutEntrypointContainsOnlyManagedOptions(t *testing.T) {
 	host := &Host{
 		args: []string{"--log-level", "debug", "--remote"},

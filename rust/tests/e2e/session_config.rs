@@ -561,6 +561,9 @@ async fn should_enable_citations_for_anthropic_file_attachments_on_create() {
 
 #[tokio::test]
 async fn should_enable_citations_for_anthropic_file_attachments_on_resume() {
+    if super::support::skip_inprocess("LLM inference providers are process-global in-process") {
+        return;
+    }
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();

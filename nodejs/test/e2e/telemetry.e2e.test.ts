@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { approveAll, defineTool, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { getFinalAssistantMessage } from "./harness/sdkTestHelper.js";
 
 interface TelemetryEntry {
     type?: string;
@@ -85,10 +84,9 @@ describe("Telemetry export", async () => {
             ],
         });
 
-        await session.send({ prompt });
-        const assistantMessage = await getFinalAssistantMessage(session);
+        const assistantMessage = await session.sendAndWait({ prompt }, 90_000);
         expect(assistantMessage).toBeDefined();
-        expect(assistantMessage.data.content ?? "").toContain("TELEMETRY_E2E_DONE");
+        expect(assistantMessage?.data.content ?? "").toContain("TELEMETRY_E2E_DONE");
 
         await session.disconnect();
         await client.stop();

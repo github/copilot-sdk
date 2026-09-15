@@ -54,8 +54,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             SystemMessage = new SystemMessageConfig { Mode = SystemMessageMode.Append, Content = systemMessageSuffix }
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is your full name?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions { Prompt = "What is your full name?" });
         Assert.NotNull(assistantMessage);
 
         var content = assistantMessage!.Data.Content ?? string.Empty;
@@ -78,8 +77,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             SystemMessage = new SystemMessageConfig { Mode = SystemMessageMode.Replace, Content = testSystemMessage }
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is your full name?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions { Prompt = "What is your full name?" });
         Assert.NotNull(assistantMessage);
 
         var content = assistantMessage!.Data.Content ?? string.Empty;
@@ -219,8 +217,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ]
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is the secret number for key ALPHA?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions { Prompt = "What is the secret number for key ALPHA?" });
         Assert.NotNull(assistantMessage);
         Assert.Contains("54321", assistantMessage!.Data.Content ?? string.Empty);
     }
@@ -349,11 +346,15 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Abort_A_Session()
     {
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
+        await AssertAbortAndRecoveryAsync(session, TimeSpan.FromSeconds(120));
+    }
 
+    internal static async Task AssertAbortAndRecoveryAsync(CopilotSession session, TimeSpan timeout)
+    {
         // Set up wait for tool execution to start BEFORE sending
-        var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session);
-        var sessionIdleTask = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
+        var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session, timeout);
+        var sessionIdleTask = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session, timeout);
 
         // Send a message that will take some time to process
         await session.SendAsync(new MessageOptions
@@ -375,8 +376,8 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Verify an abort event exists in messages
         Assert.Contains(messages, m => m is AbortEvent);
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-        var recoveryMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        // Subscribe before sending: session.idle is ephemeral and cannot be backfilled.
+        var recoveryMessage = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" }, timeout);
         Assert.NotNull(recoveryMessage);
         Assert.Contains("4", recoveryMessage.Data.Content ?? string.Empty);
     }
@@ -459,10 +460,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Events must be dispatched serially — never more than one handler invocation at a time.
         Assert.Equal(1, maxConcurrent);
 
-        // Verify the assistant response contains the expected answer.
-        // session.idle is ephemeral and not in getEvents(), but we already
-        // confirmed idle via the live event handler above.
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session, alreadyIdle: true);
+        var assistantMessage = observedEvents.OfType<AssistantMessageEvent>().LastOrDefault();
         Assert.NotNull(assistantMessage);
         Assert.Contains("300", assistantMessage!.Data.Content);
 
@@ -477,8 +475,17 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
         var events = new ConcurrentQueue<string>();
+        AssistantMessageEvent? message = null;
 
-        session.On<SessionEvent>(evt => events.Enqueue(evt.Type));
+        session.On<SessionEvent>(evt =>
+        {
+            events.Enqueue(evt.Type);
+            if (evt is AssistantMessageEvent assistantMessage)
+            {
+                message = assistantMessage;
+            }
+        });
+        var idle = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
 
         // Use a slow command so we can verify SendAsync() returns before completion
         await session.SendAsync(new MessageOptions { Prompt = "Run 'sleep 2 && echo done'" });
@@ -487,7 +494,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         Assert.DoesNotContain("session.idle", events);
 
         // Wait for turn to complete
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+        await idle;
 
         Assert.Contains("done", message?.Data.Content ?? string.Empty);
         Assert.Contains("session.idle", events);
@@ -757,7 +764,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task DisposeAsync_From_Handler_Does_Not_Deadlock()
     {
-        var session = await CreateSessionAsync();
+        var client = Ctx.CreateClient();
+        var session = await Ctx.CreateSessionAsync(
+            client,
+            new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         var disposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         session.On<SessionEvent>(evt =>
@@ -774,7 +784,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // If this times out, we deadlocked.
         await disposed.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        await Client.ForceStopAsync();
+        await client.ForceStopAsync();
     }
 
     [Fact]

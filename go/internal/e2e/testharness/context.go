@@ -202,7 +202,9 @@ func NewTestContext(t *testing.T) *TestContext {
 	}
 
 	t.Cleanup(func() {
-		ctx.Close(t.Failed())
+		if err := ctx.Close(t.Failed()); err != nil {
+			t.Errorf("Failed to close E2E test context: %v", err)
+		}
 	})
 
 	return ctx
@@ -266,11 +268,17 @@ func (c *TestContext) ConfigureWithoutSnapshot(t *testing.T) {
 }
 
 // Close cleans up the test context resources.
-func (c *TestContext) Close(testFailed bool) {
+func (c *TestContext) Close(testFailed bool) error {
+	if c.inProcess {
+		if err := waitForInProcessCleanup(); err != nil {
+			return err
+		}
+	}
 	c.restoreInProcessEnvironment()
+	var proxyErr error
 	if c.proxy != nil {
 		if err := c.proxy.StopWithOptions(testFailed); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to stop E2E proxy: %v\n", err)
+			proxyErr = fmt.Errorf("failed to stop E2E proxy: %w", err)
 		}
 	}
 	if c.HomeDir != "" {
@@ -279,6 +287,7 @@ func (c *TestContext) Close(testFailed bool) {
 	if c.WorkDir != "" {
 		os.RemoveAll(c.WorkDir)
 	}
+	return proxyErr
 }
 
 // applyInProcessEnvironment mirrors the isolated test environment onto the real

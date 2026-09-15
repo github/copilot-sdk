@@ -42,9 +42,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void mcpDiscoverParams_record() {
-        var params = new McpDiscoverParams("/workspace");
+        var params = new McpDiscoverParams("/workspace", null);
         assertEquals("/workspace", params.workingDirectory());
-        assertNull(new McpDiscoverParams(null).workingDirectory());
+        assertNull(new McpDiscoverParams(null, null).workingDirectory());
     }
 
     @Test
@@ -141,7 +141,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFleetStartParams_record() {
-        var params = new SessionFleetStartParams("sess-11", "fix all bugs");
+        var params = new SessionFleetStartParams("sess-11", "fix all bugs", null, null, null);
         assertEquals("sess-11", params.sessionId());
         assertEquals("fix all bugs", params.prompt());
     }
@@ -303,7 +303,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionModeSetParams_record() {
         var params = new SessionModeSetParams("sess-30", SessionMode.PLAN, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
         assertEquals("sess-30", params.sessionId());
         assertEquals(SessionMode.PLAN, params.mode());
     }
@@ -405,11 +405,24 @@ class GeneratedRpcRecordsCoverageTest {
                 null, null, null, null, null, null, null, null);
         assertEquals("sess-32", params.sessionId());
         assertEquals("claude-sonnet-5", params.modelId());
+        assertNull(params.autoTier());
         assertEquals("high", params.reasoningEffort());
         assertNull(params.reasoningSummary());
         assertNull(params.verbosity());
         assertNull(params.modelCapabilities());
         assertNull(params.deferIfModelChangeQueued());
+    }
+
+    @Test
+    void sessionModelSwitchParams_distinguishRequiredNullFromOmittedOptionalValue() {
+        var mapper = new ObjectMapper();
+        var switchAutoTier = mapper.valueToTree(new SessionModelSwitchAutoTierParams("sess-32", null, null));
+        assertTrue(switchAutoTier.has("autoTier"));
+        assertTrue(switchAutoTier.get("autoTier").isNull());
+
+        var switchTo = mapper.valueToTree(new SessionModelSwitchToParams("sess-32", "auto", null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null));
+        assertFalse(switchTo.has("autoTier"));
     }
 
     @Test
@@ -714,7 +727,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionMcpListResult_nested() {
         var metadata = new McpServerMetadata("Use this server for repository operations.");
-        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null,
+        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null, null,
                 metadata);
         var result = new SessionMcpListResult(List.of(server), null);
         assertEquals(1, result.servers().size());
@@ -881,7 +894,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void mcpDiscoverResult_nested() {
         var server = new DiscoveredMcpServer("discovered-server", DiscoveredMcpServerType.STDIO, McpServerSource.USER,
-                null, null, true);
+                null, null, null, true);
         var result = new McpDiscoverResult(List.of(server));
         assertEquals(1, result.servers().size());
         assertEquals("discovered-server", result.servers().get(0).name());

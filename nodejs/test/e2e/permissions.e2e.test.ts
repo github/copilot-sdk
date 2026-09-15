@@ -15,7 +15,7 @@ import type {
 } from "../../src/index.js";
 import { approveAll, defineTool, createAttributedPermissionResult } from "../../src/index.js";
 import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
-import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
+import { withFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 const isWindows = process.platform === "win32";
 
@@ -342,9 +342,9 @@ describe("Permission callbacks", async () => {
             }
         });
 
-        const sessionDone = getFinalAssistantMessage(session);
-
-        void session.send({ prompt: "Run 'echo slow_handler_test'" });
+        const sessionDone = withFinalAssistantMessage(session, () =>
+            session.send({ prompt: "Run 'echo slow_handler_test'" })
+        );
 
         // Wait for permission handler to be invoked
         await handlerStarted;

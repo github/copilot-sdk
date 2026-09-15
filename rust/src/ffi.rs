@@ -12,14 +12,14 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 
 use libloading::Library;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{Error, ErrorKind};
 
@@ -45,7 +45,6 @@ type ConnectionCloseFn = unsafe extern "C" fn(u32) -> bool;
 /// route inbound frames back to the reader.
 struct CallbackState {
     tx: mpsc::UnboundedSender<Vec<u8>>,
-    active_callbacks: AtomicUsize,
     closing: AtomicBool,
 }
 
@@ -54,14 +53,11 @@ extern "C" fn on_outbound(user_data: *mut c_void, bytes: *const u8, len: usize) 
         return;
     }
     let state = unsafe { &*(user_data as *const CallbackState) };
-    state.active_callbacks.fetch_add(1, Ordering::SeqCst);
     if state.closing.load(Ordering::SeqCst) {
-        state.active_callbacks.fetch_sub(1, Ordering::SeqCst);
         return;
     }
     let slice = unsafe { std::slice::from_raw_parts(bytes, len) };
     let _ = state.tx.send(slice.to_vec());
-    state.active_callbacks.fetch_sub(1, Ordering::SeqCst);
 }
 
 /// Bound exports and connection lifecycle state, shared between the
@@ -98,24 +94,56 @@ impl FfiShared {
         if !state.is_null() {
             unsafe { &*state }.closing.store(true, Ordering::SeqCst);
         }
-        let conn = self.connection_id.swap(0, Ordering::SeqCst);
+        let conn = self.connection_id.load(Ordering::SeqCst);
         if conn != 0 {
-            unsafe { (self.connection_close)(conn) };
+            let quiesced = unsafe { (self.connection_close)(conn) };
+            if !quiesced {
+                let conn = self.connection_id.swap(0, Ordering::SeqCst);
+                let server = self.server_id.swap(0, Ordering::SeqCst);
+                let state =
+                    self.callback_state
+                        .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
+                let connection_close = self.connection_close;
+                let host_shutdown = self.host_shutdown;
+                let library_path = self.library_path.clone();
+                if let Err(error) = std::thread::Builder::new()
+                    .name("copilot-ffi-cleanup".to_owned())
+                    .spawn(move || {
+                        while !unsafe { connection_close(conn) } {
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                        }
+                        release_callback_state(state);
+                        if server != 0 && !unsafe { host_shutdown(server) } {
+                            warn!(
+                                library = %library_path.display(),
+                                server_id = server,
+                                "FFI runtime host shutdown did not recognize server"
+                            );
+                        }
+                        debug!(library = %library_path.display(), "FFI runtime connection closed");
+                    })
+                {
+                    warn!(
+                        error = %error,
+                        library = %self.library_path.display(),
+                        "failed to start deferred FFI cleanup thread; callback state retained"
+                    );
+                }
+                return;
+            }
+            self.connection_id.store(0, Ordering::SeqCst);
         }
         let server = self.server_id.swap(0, Ordering::SeqCst);
-        if server != 0 {
-            unsafe { (self.host_shutdown)(server) };
-        }
-        // Free the callback state only after the connection is closed and the
-        // host is shut down, so native can no longer invoke the callback.
         let state = self
             .callback_state
-            .swap(std::ptr::null_mut(), Ordering::SeqCst);
-        if !state.is_null() {
-            while unsafe { &*state }.active_callbacks.load(Ordering::SeqCst) != 0 {
-                std::thread::yield_now();
-            }
-            drop(unsafe { Box::from_raw(state) });
+            .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
+        release_callback_state(state);
+        if server != 0 && !unsafe { (self.host_shutdown)(server) } {
+            warn!(
+                library = %self.library_path.display(),
+                server_id = server,
+                "FFI runtime host shutdown did not recognize server"
+            );
         }
         debug!(library = %self.library_path.display(), "FFI runtime connection closed");
     }
@@ -125,12 +153,21 @@ impl FfiShared {
         if self.closed.load(Ordering::SeqCst) {
             return false;
         }
+
         let conn = self.connection_id.load(Ordering::SeqCst);
         if conn == 0 {
             return false;
         }
         unsafe { (self.connection_write)(conn, frame.as_ptr(), frame.len()) }
     }
+}
+
+fn release_callback_state(state: usize) {
+    if state == 0 {
+        return;
+    }
+    let state = state as *mut CallbackState;
+    drop(unsafe { Box::from_raw(state) });
 }
 
 impl Drop for FfiShared {
@@ -316,7 +353,6 @@ impl FfiHost {
         let (tx, rx) = mpsc::unbounded_channel::<Vec<u8>>();
         let state_ptr = Box::into_raw(Box::new(CallbackState {
             tx,
-            active_callbacks: AtomicUsize::new(0),
             closing: AtomicBool::new(false),
         }));
         let connection_id = unsafe {
@@ -559,7 +595,34 @@ fn build_env_json(environment: &[(String, String)]) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+    use std::sync::atomic::AtomicUsize;
+    use std::time::{Duration, Instant};
+
     use super::*;
+
+    static FFI_LIFECYCLE_TEST_LOCK: Mutex<()> = Mutex::new(());
+    static TEST_ALLOW_CLOSE: AtomicBool = AtomicBool::new(false);
+    static TEST_CLOSE_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static TEST_SHUTDOWN_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    unsafe extern "C" fn test_host_shutdown(_server_id: u32) -> bool {
+        TEST_SHUTDOWN_CALLS.fetch_add(1, Ordering::SeqCst);
+        true
+    }
+
+    unsafe extern "C" fn test_connection_write(
+        _connection_id: u32,
+        _bytes: *const u8,
+        _length: usize,
+    ) -> bool {
+        true
+    }
+
+    unsafe extern "C" fn test_connection_close(_connection_id: u32) -> bool {
+        TEST_CLOSE_CALLS.fetch_add(1, Ordering::SeqCst);
+        TEST_ALLOW_CLOSE.load(Ordering::SeqCst)
+    }
 
     #[test]
     fn argv_without_entrypoint_contains_only_client_options() {
@@ -619,5 +682,63 @@ mod tests {
                 "COPILOT_DISABLE_KEYTAR": "1",
             })
         );
+    }
+
+    #[test]
+    fn callback_state_is_retained_until_connection_close_succeeds() {
+        let _guard = FFI_LIFECYCLE_TEST_LOCK.lock().unwrap();
+        TEST_ALLOW_CLOSE.store(false, Ordering::SeqCst);
+        TEST_CLOSE_CALLS.store(0, Ordering::SeqCst);
+        TEST_SHUTDOWN_CALLS.store(0, Ordering::SeqCst);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let state_ptr = Box::into_raw(Box::new(CallbackState {
+            tx,
+            closing: AtomicBool::new(false),
+        }));
+        let shared = FfiShared {
+            host_shutdown: test_host_shutdown,
+            connection_write: test_connection_write,
+            connection_close: test_connection_close,
+            server_id: AtomicU32::new(11),
+            connection_id: AtomicU32::new(21),
+            callback_state: AtomicPtr::new(state_ptr),
+            closed: AtomicBool::new(false),
+            operation_lock: parking_lot::Mutex::new(()),
+            library_path: PathBuf::from("test-runtime"),
+        };
+
+        shared.close();
+
+        assert!(TEST_CLOSE_CALLS.load(Ordering::SeqCst) >= 1);
+        assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 0);
+        assert_eq!(shared.connection_id.load(Ordering::SeqCst), 0);
+        assert!(shared.callback_state.load(Ordering::SeqCst).is_null());
+
+        assert!(matches!(
+            rx.try_recv(),
+            Err(mpsc::error::TryRecvError::Empty)
+        ));
+
+        TEST_ALLOW_CLOSE.store(true, Ordering::SeqCst);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline && TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst) == 0 {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        assert!(TEST_CLOSE_CALLS.load(Ordering::SeqCst) >= 2);
+        assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 1);
+        assert!(matches!(
+            rx.try_recv(),
+            Err(mpsc::error::TryRecvError::Disconnected)
+        ));
+
+        let close_calls_after_cleanup = TEST_CLOSE_CALLS.load(Ordering::SeqCst);
+        shared.close();
+        assert_eq!(
+            TEST_CLOSE_CALLS.load(Ordering::SeqCst),
+            close_calls_after_cleanup
+        );
+        assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 1);
     }
 }

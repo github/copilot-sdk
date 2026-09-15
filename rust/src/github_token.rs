@@ -2,11 +2,15 @@
 
 use std::collections::HashMap;
 use std::future::Future;
+use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, OnceLock, Weak};
 
 use async_trait::async_trait;
+use futures_util::FutureExt;
 use parking_lot::Mutex;
 use serde_json::Value;
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use crate::generated::api_types::{
     GitHubTokenAcquireReason, GitHubTokenAcquireRequest, GitHubTokenAcquireResult,
@@ -124,9 +128,25 @@ where
     }
 }
 
+struct ProviderRegistration {
+    provider: Arc<dyn GitHubTokenProvider>,
+    worker: Option<TokenWorker>,
+}
+
+struct TokenWorker {
+    requests: mpsc::UnboundedSender<JsonRpcRequest>,
+    task: JoinHandle<()>,
+}
+
+impl Drop for TokenWorker {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
+}
+
 #[derive(Default)]
 struct RegistryState {
-    providers: HashMap<String, Arc<dyn GitHubTokenProvider>>,
+    providers: HashMap<String, ProviderRegistration>,
     session_owners: HashMap<crate::SessionId, String>,
 }
 
@@ -149,10 +169,13 @@ impl GitHubTokenRegistry {
 
     pub(crate) fn register(&self, provider: Arc<dyn GitHubTokenProvider>) -> String {
         let registration_id = uuid::Uuid::new_v4().to_string();
-        self.state
-            .lock()
-            .providers
-            .insert(registration_id.clone(), provider);
+        self.state.lock().providers.insert(
+            registration_id.clone(),
+            ProviderRegistration {
+                provider,
+                worker: None,
+            },
+        );
         registration_id
     }
 
@@ -188,11 +211,43 @@ impl GitHubTokenRegistry {
         state.session_owners.clear();
     }
 
-    pub(crate) async fn dispatch(&self, request: JsonRpcRequest) {
-        let Some(inner) = self.client.get().and_then(Weak::upgrade) else {
+    pub(crate) fn dispatch(&self, request: JsonRpcRequest) {
+        let Some(client) = self.client.get().cloned() else {
             return;
         };
-        let client = Client::from_inner(inner);
+        let registration_id = request
+            .params
+            .as_ref()
+            .and_then(|params| params.get("registrationId"))
+            .and_then(Value::as_str);
+        let mut state = self.state.lock();
+        if let Some(registration) = registration_id.and_then(|id| state.providers.get_mut(id)) {
+            let worker = registration.worker.get_or_insert_with(|| {
+                let provider = registration.provider.clone();
+                let (requests, mut rx) = mpsc::unbounded_channel();
+                let task = tokio::spawn(async move {
+                    // One worker per registration preserves callback order without
+                    // holding up requests for other providers or sessions.
+                    while let Some(request) = rx.recv().await {
+                        Self::handle_request(&client, Some(provider.as_ref()), request).await;
+                    }
+                });
+                TokenWorker { requests, task }
+            });
+            let _ = worker.requests.send(request);
+        } else {
+            // Invalid/retired registrations still receive the normal RPC error.
+            tokio::spawn(async move {
+                Self::handle_request(&client, None, request).await;
+            });
+        }
+    }
+
+    async fn handle_request(
+        client: &Weak<ClientInner>,
+        provider: Option<&dyn GitHubTokenProvider>,
+        request: JsonRpcRequest,
+    ) {
         let params = request
             .params
             .clone()
@@ -201,7 +256,7 @@ impl GitHubTokenRegistry {
             Ok(params) => params,
             Err(error) => {
                 send_error(
-                    &client,
+                    client,
                     request.id,
                     error_codes::INVALID_PARAMS,
                     &format!("invalid params: {error}"),
@@ -210,15 +265,9 @@ impl GitHubTokenRegistry {
                 return;
             }
         };
-        let provider = self
-            .state
-            .lock()
-            .providers
-            .get(&params.registration_id)
-            .cloned();
         let Some(provider) = provider else {
             send_error(
-                &client,
+                client,
                 request.id,
                 error_codes::INTERNAL_ERROR,
                 "unknown GitHub token provider registration",
@@ -232,7 +281,7 @@ impl GitHubTokenRegistry {
             GitHubTokenAcquireReason::Refresh => GitHubTokenRequestReason::Refresh,
             GitHubTokenAcquireReason::Unknown => {
                 send_error(
-                    &client,
+                    client,
                     request.id,
                     error_codes::INVALID_PARAMS,
                     "unknown GitHub token acquisition reason",
@@ -242,17 +291,34 @@ impl GitHubTokenRegistry {
             }
         };
 
-        match provider
-            .get_token(GitHubTokenProviderArgs {
-                host: params.host,
-                session_id: params.session_id,
-                reason,
-            })
-            .await
-        {
+        let result = AssertUnwindSafe(async {
+            provider
+                .get_token(GitHubTokenProviderArgs {
+                    host: params.host,
+                    session_id: params.session_id,
+                    reason,
+                })
+                .await
+        })
+        .catch_unwind()
+        .await;
+        let result = match result {
+            Ok(result) => result,
+            Err(_) => {
+                send_error(
+                    client,
+                    request.id,
+                    error_codes::INTERNAL_ERROR,
+                    "GitHub token provider panicked",
+                )
+                .await;
+                return;
+            }
+        };
+        match result {
             Ok(GitHubTokenProviderResult::Token(token)) => {
                 respond(
-                    &client,
+                    client,
                     request.id,
                     GitHubTokenAcquireResult::Token(token.into_wire()),
                 )
@@ -260,7 +326,7 @@ impl GitHubTokenRegistry {
             }
             Ok(GitHubTokenProviderResult::Cancelled) => {
                 respond(
-                    &client,
+                    client,
                     request.id,
                     GitHubTokenAcquireResult::Cancelled(GitHubTokenAcquireResultCancelled {
                         kind: Default::default(),
@@ -270,7 +336,7 @@ impl GitHubTokenRegistry {
             }
             Err(error) => {
                 send_error(
-                    &client,
+                    client,
                     request.id,
                     error_codes::INTERNAL_ERROR,
                     &format!("GitHub token provider failed: {error}"),
@@ -306,10 +372,13 @@ impl Drop for GitHubTokenRegistration {
     }
 }
 
-async fn respond(client: &Client, request_id: u64, result: GitHubTokenAcquireResult) {
+async fn respond(client: &Weak<ClientInner>, request_id: u64, result: GitHubTokenAcquireResult) {
     match serde_json::to_value(result) {
         Ok(result) => {
-            let _ = client
+            let Some(inner) = client.upgrade() else {
+                return;
+            };
+            let _ = Client::from_inner(inner)
                 .send_response(&JsonRpcResponse {
                     jsonrpc: "2.0".to_string(),
                     id: request_id,
@@ -330,8 +399,11 @@ async fn respond(client: &Client, request_id: u64, result: GitHubTokenAcquireRes
     }
 }
 
-async fn send_error(client: &Client, request_id: u64, code: i32, message: &str) {
-    let _ = client
+async fn send_error(client: &Weak<ClientInner>, request_id: u64, code: i32, message: &str) {
+    let Some(inner) = client.upgrade() else {
+        return;
+    };
+    let _ = Client::from_inner(inner)
         .send_response(&JsonRpcResponse {
             jsonrpc: "2.0".to_string(),
             id: request_id,

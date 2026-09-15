@@ -29,12 +29,11 @@ public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelp
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "What's the weather in Paris?"
         });
 
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
         Assert.Matches("(?i)sunny|72", assistantMessage!.Data.Content ?? string.Empty);
 
@@ -56,12 +55,11 @@ public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelp
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Check the status of the service using check_status. If it fails, say 'service is down'."
         });
 
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
         Assert.Contains("service is down", assistantMessage!.Data.Content?.ToLowerInvariant() ?? string.Empty);
 
@@ -84,12 +82,11 @@ public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelp
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Analyze the file main.ts for issues."
         });
 
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
         Assert.Contains("no issues", assistantMessage!.Data.Content?.ToLowerInvariant() ?? string.Empty);
 

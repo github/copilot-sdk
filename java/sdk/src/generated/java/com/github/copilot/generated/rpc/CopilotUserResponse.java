@@ -43,7 +43,7 @@ public record CopilotUserResponse(
     @JsonProperty("endpoints") CopilotUserResponseEndpoints endpoints,
     /** Logins of the organizations the user belongs to. */
     @JsonProperty("organization_login_list") List<String> organizationLoginList,
-    /** Organizations the user belongs to, each with an optional login and display name. */
+    /** Organizations the user belongs to, each with an optional ID, login, and display name. */
     @JsonProperty("organization_list") Object organizationList,
     /** Whether the Codex agent is enabled for the user. */
     @JsonProperty("codex_agent_enabled") Boolean codexAgentEnabled,

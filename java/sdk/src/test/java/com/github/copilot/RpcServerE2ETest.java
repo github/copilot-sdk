@@ -96,6 +96,17 @@ class RpcServerE2ETest {
     }
 
     @Test
+    void testShouldClearTheManagedSettingsCache() throws Exception {
+        ctx.configureForTest("rpc_server", "should_clear_the_managed_settings_cache");
+
+        try (var client = ctx.createClient()) {
+            client.start().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+            client.getRpc().managedSettings.clearCache().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
     void testShouldRejectLlmInferenceResponseFramesForMissingRequest() throws Exception {
         ctx.initializeProxy();
 
@@ -435,7 +446,7 @@ class RpcServerE2ETest {
             var skillName = "server-rpc-skill-" + UUID.randomUUID().toString().replace("-", "");
             var skillDirectory = createSkillDirectory(skillName, "Skill discovered by server-scoped RPC tests.");
 
-            var mcp = client.getRpc().mcp.discover(new McpDiscoverParams(workDir)).get(TIMEOUT_SECONDS,
+            var mcp = client.getRpc().mcp.discover(new McpDiscoverParams(workDir, null)).get(TIMEOUT_SECONDS,
                     TimeUnit.SECONDS);
             assertNotNull(mcp.servers());
 

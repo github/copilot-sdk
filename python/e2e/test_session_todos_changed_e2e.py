@@ -31,11 +31,13 @@ class TestSessionTodosChanged:
         async with await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         ) as session:
-            todos_changed = asyncio.create_task(
-                get_next_event_of_type(session, "session.todos_changed", timeout=120.0)
-            )
-            await session.send_and_wait(PROMPT, timeout=120.0)
-            await todos_changed
+            todos_changed = get_next_event_of_type(session, "session.todos_changed", timeout=120.0)
+            try:
+                await session.send_and_wait(PROMPT, timeout=120.0)
+                await todos_changed
+            finally:
+                todos_changed.cancel()
+                await asyncio.gather(todos_changed, return_exceptions=True)
 
             result = await session.rpc.plan.read_sql_todos_with_dependencies()
             ids = sorted(row.id for row in result.rows if row.id)

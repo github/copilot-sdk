@@ -29,12 +29,14 @@ func TestResumeMCPOAuthE2E(t *testing.T) {
 		}
 		sessionID := session1.SessionID
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session1)
+		defer finalMessage.Close()
 		_, err = session1.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session1)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}

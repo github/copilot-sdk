@@ -203,6 +203,7 @@ export type {
 export type {
     RunOptions,
     ResumeOptions,
+    FactoryLimitOverrides,
     FactoryResumeErrorCode,
     SessionFactoryApi,
     FactoryAgentOptions,

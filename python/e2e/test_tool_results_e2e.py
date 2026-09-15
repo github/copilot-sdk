@@ -9,7 +9,7 @@ from copilot import define_tool
 from copilot.session import PermissionHandler
 from copilot.tools import ToolInvocation, ToolResult
 
-from .testharness import E2ETestContext, get_final_assistant_message
+from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -33,8 +33,10 @@ class TestToolResults:
         )
 
         try:
-            await session.send("What's the weather in Paris?")
-            assistant_message = await get_final_assistant_message(session)
+            assistant_message = await session.send_and_wait(
+                "What's the weather in Paris?", timeout=10.0
+            )
+            assert assistant_message is not None
             assert (
                 "sunny" in assistant_message.data.content.lower()
                 or "72" in assistant_message.data.content
@@ -87,8 +89,10 @@ class TestToolResults:
         )
 
         try:
-            await session.send("Analyze the file main.ts for issues.")
-            assistant_message = await get_final_assistant_message(session)
+            assistant_message = await session.send_and_wait(
+                "Analyze the file main.ts for issues.", timeout=10.0
+            )
+            assert assistant_message is not None
             assert "no issues" in assistant_message.data.content.lower()
 
             # Verify the LLM received just textResultForLlm, not stringified JSON

@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fstatSync, openSync, writeFileSync, writeSync } from "node:fs";
 import { defineFactory, joinSession } from "@github/copilot-sdk/extension";
 
 const marker = (name) => new URL(`./${name}`, import.meta.url);
@@ -10,6 +10,16 @@ async function waitForMarker(name, timeoutMs) {
             throw new Error(`Timed out waiting for ${name}`);
         }
         await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+}
+
+function incrementMarker(name) {
+    const descriptor = openSync(marker(name), "a+");
+    try {
+        writeSync(descriptor, "1");
+        return fstatSync(descriptor).size;
+    } finally {
+        closeSync(descriptor);
     }
 }
 
@@ -152,6 +162,40 @@ const failsOnce = defineFactory({
     },
 });
 
+const externallyPaused = defineFactory({
+    meta: {
+        name: "externally-paused",
+        description: "Wait until the calling session pauses this run.",
+        phases: [],
+    },
+    run: async ({ signal }) => {
+        writeFileSync(marker("external-pause-entered"), "entered");
+        await new Promise((_, reject) => {
+            const abort = () => reject(signal.reason ?? new Error("Factory aborted"));
+            if (signal.aborted) {
+                abort();
+                return;
+            }
+            signal.addEventListener("abort", abort, { once: true });
+        });
+        return "unexpectedly completed";
+    },
+});
+
+const durablePauseCheckpoint = defineFactory({
+    meta: {
+        name: "durable-pause-checkpoint",
+        description: "Pause once after journaled preparation, then complete after resume.",
+        phases: [],
+    },
+    run: async ({ pause, step }) => {
+        const attempt = incrementMarker("checkpoint-attempts");
+        const prepared = await step("prepare", () => incrementMarker("checkpoint-preparations"));
+        await pause("review-ready");
+        return { attempt, prepared };
+    },
+});
+
 session = await joinSession({
     factories: [
         argumentEcho,
@@ -162,6 +206,8 @@ session = await joinSession({
         startsFromModuleSession,
         parked,
         failsOnce,
+        externallyPaused,
+        durablePauseCheckpoint,
     ],
 });
 

@@ -34,12 +34,14 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What's the first line of README.md in this directory?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -69,12 +71,14 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -126,6 +130,8 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "First, set the current phase to 'analyzing'. Then search for items with keyword 'copilot'. Report the phase and search results.",
 		})
@@ -133,7 +139,7 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -188,6 +194,8 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "What is my location? If you can't find out, just say 'unknown'.",
 		})
@@ -195,7 +203,7 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -306,6 +314,8 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "Perform a DB query for the 'cities' table using IDs 12 and 19, sorting ascending. " +
 				"Reply only with lines of the form: [cityname] [population]",
@@ -314,7 +324,7 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -383,12 +393,14 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use safe_lookup to look up 'test123'"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -551,12 +563,14 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use grep to search for the word 'hello'"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -594,12 +608,14 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -650,12 +666,14 @@ func TestToolsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
+		_, err = finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}

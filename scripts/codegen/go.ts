@@ -1702,8 +1702,15 @@ function pushGoJSONTargetedMatchSpecLines(
             const rawExpr = pushGoJSONRequiredRawPathLines(lines, rootRawExpr, group.parentPath, indent, groupVarPrefix);
             const structVar = goJSONPathVarName(groupVarPrefix, group.parentPath);
             const fieldNames = pushGoJSONRawStructUnmarshalLines(lines, rawExpr, structVar, groupProperties, indent);
-            for (const term of group.positiveTerms) {
-                pushGoJSONPositiveTermLines(lines, structVar, fieldNames, term, indent, groupVarPrefix);
+            for (const [termIndex, term] of group.positiveTerms.entries()) {
+                pushGoJSONPositiveTermLines(
+                    lines,
+                    structVar,
+                    fieldNames,
+                    term,
+                    indent,
+                    termIndex === 0 ? groupVarPrefix : `${groupVarPrefix}Term${termIndex}`
+                );
             }
             const finalReturn = pushGoJSONNegativePropertyLines(lines, structVar, fieldNames, group.negativeProperties, indent, emitFinalReturn);
             if (finalReturn) return finalReturn;

@@ -75,7 +75,11 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(ModelCallFinishedEvent), "model.call_finished")]
 [JsonDerivedType(typeof(ModelCallStartEvent), "model.call_start")]
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
+[JsonDerivedType(typeof(PermissionCarriedForwardEvent), "permission.carriedForward")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
+[JsonDerivedType(typeof(PermissionMessageAuthorizationEvent), "permission.messageAuthorization")]
+[JsonDerivedType(typeof(PermissionMessageAuthorizationDegradedEvent), "permission.messageAuthorizationDegraded")]
+[JsonDerivedType(typeof(PermissionMessageAuthorizationReadEvent), "permission.messageAuthorizationRead")]
 [JsonDerivedType(typeof(PermissionRequestedEvent), "permission.requested")]
 [JsonDerivedType(typeof(PromptCacheBreakEvent), "prompt_cache_break")]
 [JsonDerivedType(typeof(SamplingCompletedEvent), "sampling.completed")]
@@ -142,7 +146,10 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionUsageInfoEvent), "session.usage_info")]
 [JsonDerivedType(typeof(SessionWarningEvent), "session.warning")]
 [JsonDerivedType(typeof(SessionWorkspaceFileChangedEvent), "session.workspace_file_changed")]
+[JsonDerivedType(typeof(SkillContextDeliveredEvent), "skill.context_delivered")]
+[JsonDerivedType(typeof(SkillContextDeliveredRefEvent), "skill.context_delivered_ref")]
 [JsonDerivedType(typeof(SkillInvokedEvent), "skill.invoked")]
+[JsonDerivedType(typeof(SkillInvokedRefEvent), "skill.invoked_ref")]
 [JsonDerivedType(typeof(SubagentCompletedEvent), "subagent.completed")]
 [JsonDerivedType(typeof(SubagentConfiguredEvent), "subagent.configured")]
 [JsonDerivedType(typeof(SubagentDeselectedEvent), "subagent.deselected")]
@@ -1137,6 +1144,48 @@ public sealed partial class SkillInvokedEvent : SessionEvent
     public required SkillInvokedData Data { get; set; }
 }
 
+/// <summary>Internal durable skill invocation receipt whose content resolves from an earlier inline skill event in the same session.</summary>
+/// <remarks>Represents the <c>skill.invoked_ref</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SkillInvokedRefEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "skill.invoked_ref";
+
+    /// <summary>The <c>skill.invoked_ref</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SkillInvokedRefData Data { get; set; }
+}
+
+/// <summary>Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.</summary>
+/// <remarks>Represents the <c>skill.context_delivered</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SkillContextDeliveredEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "skill.context_delivered";
+
+    /// <summary>The <c>skill.context_delivered</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SkillContextDeliveredData Data { get; set; }
+}
+
+/// <summary>Internal durable receipt that reconstructs exact model-visible skill context from earlier session content.</summary>
+/// <remarks>Represents the <c>skill.context_delivered_ref</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SkillContextDeliveredRefEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "skill.context_delivered_ref";
+
+    /// <summary>The <c>skill.context_delivered_ref</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SkillContextDeliveredRefData Data { get; set; }
+}
+
 /// <summary>Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`.</summary>
 /// <remarks>Represents the <c>sandbox.decision</c> event.</remarks>
 public sealed partial class SandboxDecisionEvent : SessionEvent
@@ -1331,6 +1380,62 @@ public sealed partial class PermissionCompletedEvent : SessionEvent
     /// <summary>The <c>permission.completed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required PermissionCompletedData Data { get; set; }
+}
+
+/// <summary>Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.</summary>
+/// <remarks>Represents the <c>permission.carriedForward</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionCarriedForwardEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "permission.carriedForward";
+
+    /// <summary>The <c>permission.carriedForward</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required PermissionCarriedForwardData Data { get; set; }
+}
+
+/// <summary>Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.</summary>
+/// <remarks>Represents the <c>permission.messageAuthorization</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "permission.messageAuthorization";
+
+    /// <summary>The <c>permission.messageAuthorization</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required PermissionMessageAuthorizationData Data { get; set; }
+}
+
+/// <summary>Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.</summary>
+/// <remarks>Represents the <c>permission.messageAuthorizationRead</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationReadEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "permission.messageAuthorizationRead";
+
+    /// <summary>The <c>permission.messageAuthorizationRead</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required PermissionMessageAuthorizationReadData Data { get; set; }
+}
+
+/// <summary>Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.</summary>
+/// <remarks>Represents the <c>permission.messageAuthorizationDegraded</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationDegradedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "permission.messageAuthorizationDegraded";
+
+    /// <summary>The <c>permission.messageAuthorizationDegraded</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required PermissionMessageAuthorizationDegradedData Data { get; set; }
 }
 
 /// <summary>User input request notification with question and optional predefined choices.</summary>
@@ -3825,6 +3930,11 @@ public sealed partial class AssistantMessageData
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
+    /// <summary>Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("originatingMessageId")]
+    public string? OriginatingMessageId { get; set; }
+
     /// <summary>Actual output token count from the API response (completion_tokens), used for accurate token accounting.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("outputTokens")]
@@ -4538,6 +4648,16 @@ public sealed partial class ToolExecutionStartData
     [JsonPropertyName("fusion")]
     public FusionAttribution? Fusion { get; set; }
 
+    /// <summary>Preferred lookup name for the MCP server hosting this tool: the configured (namespaced) config-map key when the tool carries one, otherwise the display name from `mcpServerName`. Present when the tool is an MCP tool; this is the name unrestricted provenance telemetry hashes so it joins with `mcp_server_setup`, which keys off the configured name too.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mcpConfigServerName")]
+    public string? McpConfigServerName { get; set; }
+
+    /// <summary>Where the MCP server's configuration came from (`user`, `workspace`, `plugin`, or `builtin`), when the tool is an MCP tool and the server is configured.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mcpConfigSource")]
+    public McpServerSource? McpConfigSource { get; set; }
+
     /// <summary>Name of the MCP server hosting this tool, when the tool is an MCP tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("mcpServerName")]
@@ -4547,6 +4667,11 @@ public sealed partial class ToolExecutionStartData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("mcpToolName")]
     public string? McpToolName { get; set; }
+
+    /// <summary>Transport the MCP server hosting this tool is connected over, when the tool is an MCP tool and the server is configured.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mcpTransport")]
+    public McpServerTransport? McpTransport { get; set; }
 
     /// <summary>Model identifier that generated this tool call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4766,6 +4891,110 @@ public sealed partial class SkillInvokedData
     public SkillInvokedTrigger? Trigger { get; set; }
 }
 
+/// <summary>Internal durable skill invocation receipt whose content resolves from an earlier inline skill event in the same session.</summary>
+public sealed partial class SkillInvokedRefData
+{
+    /// <summary>Tool names that should be auto-approved when this skill is active.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("allowedTools")]
+    public string[]? AllowedTools { get; set; }
+
+    /// <summary>Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:&lt;lowercase hex digest&gt;` over the UTF-8 bytes of that event's `content`.</summary>
+    [JsonPropertyName("contentId")]
+    public required string ContentId { get; set; }
+
+    /// <summary>UTF-16 code unit length of the referenced skill content. Derived from the referenced body and validated against it when the reference is expanded; a reference whose length disagrees with the body it names is rejected instead of expanded.</summary>
+    [JsonPropertyName("contentLength")]
+    public required long ContentLength { get; set; }
+
+    /// <summary>Description of the skill from its SKILL.md frontmatter.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Whether model invocation is disabled for this skill.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("disableModelInvocation")]
+    public bool? DisableModelInvocation { get; set; }
+
+    /// <summary>Model identifier active when the skill was invoked, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Name of the invoked skill.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+
+    /// <summary>Name of the plugin this skill originated from, when applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("pluginName")]
+    public string? PluginName { get; set; }
+
+    /// <summary>Version of the plugin this skill originated from, when applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("pluginVersion")]
+    public string? PluginVersion { get; set; }
+
+    /// <summary>Source identifier for where the skill was discovered.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("source")]
+    public string? Source { get; set; }
+
+    /// <summary>What triggered the skill invocation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("trigger")]
+    public SkillInvokedTrigger? Trigger { get; set; }
+}
+
+/// <summary>Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.</summary>
+public sealed partial class SkillContextDeliveredData
+{
+    /// <summary>Exact model-facing skill wrapper, including its invocation-time file context.</summary>
+    [JsonPropertyName("content")]
+    public required string Content { get; set; }
+
+    /// <summary>Interaction that delivered this context, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
+
+    /// <summary>Unmodified injection provenance, in the form skill-&lt;invocation-name&gt;.</summary>
+    [JsonPropertyName("source")]
+    public required string Source { get; set; }
+}
+
+/// <summary>Internal durable receipt that reconstructs exact model-visible skill context from earlier session content.</summary>
+public sealed partial class SkillContextDeliveredRefData
+{
+    /// <summary>Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:&lt;lowercase hex digest&gt;` over the UTF-8 bytes of that event's `content`.</summary>
+    [JsonPropertyName("contentId")]
+    public required string ContentId { get; set; }
+
+    /// <summary>Interaction that delivered this context, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
+
+    /// <summary>Exact text preceding the referenced content in the delivered wrapper.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("prefix")]
+    public string? Prefix { get; set; }
+
+    /// <summary>Unmodified injection provenance, in the form skill-&lt;invocation-name&gt;.</summary>
+    [JsonPropertyName("source")]
+    public required string Source { get; set; }
+
+    /// <summary>Exact text following the referenced content in the delivered wrapper.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("suffix")]
+    public string? Suffix { get; set; }
+}
+
 /// <summary>Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`.</summary>
 public sealed partial class SandboxDecisionData { }
 
@@ -4803,6 +5032,11 @@ public sealed partial class SubagentStartedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
     public string? Model { get; set; }
+
+    /// <summary>Authority or runtime mechanism responsible for sub-agent model selection, when known at start.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelSelectionSource")]
+    public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
 
     /// <summary>Task-registry ID of the spawning sub-agent. Absent when the root session spawned this child.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4903,6 +5137,11 @@ public sealed partial class SubagentCompletedData
     [JsonPropertyName("modelOverrideReason")]
     public string? ModelOverrideReason { get; set; }
 
+    /// <summary>Authority or runtime mechanism responsible for sub-agent model selection.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelSelectionSource")]
+    public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
+
     /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
@@ -4974,6 +5213,11 @@ public sealed partial class SubagentFailedData
     [JsonPropertyName("modelOverrideReason")]
     public string? ModelOverrideReason { get; set; }
 
+    /// <summary>Authority or runtime mechanism responsible for sub-agent model selection.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelSelectionSource")]
+    public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
+
     /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
@@ -5021,7 +5265,7 @@ public sealed partial class HookStartData
     [JsonPropertyName("hookType")]
     public required string HookType { get; set; }
 
-    /// <summary>Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.</summary>
+    /// <summary>Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) drops the tool result's inline `contents`/`uiResource`/`skillInvocation` and replaces duplicated text result fields with a `[copilot:elided ...]` marker; the live subscription stream still delivers the full value. Canonical tool output remains in the adjacent tool.execution_complete event, while an invoked skill's authoritative body remains in its skill invocation event.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("input")]
     public JsonElement? Input { get; set; }
@@ -5048,7 +5292,7 @@ public sealed partial class HookEndData
     [JsonPropertyName("hookType")]
     public required string HookType { get; set; }
 
-    /// <summary>Output data produced by the hook.</summary>
+    /// <summary>Output data produced by the hook. Durable and resumed postToolUse receipts may omit messages owned by a successful skill invocation and replace an unchanged skill sessionLog copy with an elision marker; hook-modified or re-sourced values are preserved, and the authoritative body remains in the skill invocation event.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("output")]
     public JsonElement? Output { get; set; }
@@ -5185,6 +5429,12 @@ public sealed partial class PermissionRequestedData
 /// <summary>Permission request completion notification signaling UI dismissal.</summary>
 public sealed partial class PermissionCompletedData
 {
+    /// <summary>Who decided this permission request. Absent on completions recorded before this field existed, which consumers must treat as "not a human decision" rather than assuming one. Authorization records are minted only for `human_response`; an assisted-approval verdict, a host policy, an unattended fallback, and a hook resolution all produce the same `result` a person does, so this is the only field that distinguishes them.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("decisionSource")]
+    public PermissionDecisionSource? DecisionSource { get; set; }
+
     /// <summary>Request ID of the resolved permission request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
@@ -5197,6 +5447,104 @@ public sealed partial class PermissionCompletedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
     public string? ToolCallId { get; set; }
+}
+
+/// <summary>Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionCarriedForwardData
+{
+    /// <summary>Always `authorization_carry_forward`. Stated explicitly so a consumer reading this event cannot mistake it for a human, host-policy, or assisted-approval decision.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("decisionSource")]
+    public required PermissionDecisionSource DecisionSource { get; set; }
+
+    /// <summary>Identity of the prior authorization record that contained the proposal.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("recordId")]
+    public required string RecordId { get; set; }
+
+    /// <summary>Authorization edge minted for this admission. Not a prompt id: no prompt was raised, so no client should expect a request with this id.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>Tool call this admission authorizes. Its execution receipts the prior grant, which is how a single-effect approval is spent rather than carried forward again.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
+}
+
+/// <summary>Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationData
+{
+    /// <summary>The kind of effect authorized, as an action-class identifier.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("actionClass")]
+    public required string ActionClass { get; set; }
+
+    /// <summary>Whether the claim granted or denied authority.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("polarity")]
+    public required PermissionMessageAuthorizationPolarity Polarity { get; set; }
+
+    /// <summary>Deterministic identity of the record, derived from the turn and span offsets so re-extracting the same span mints nothing new.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("recordId")]
+    public required string RecordId { get; set; }
+
+    /// <summary>End byte offset of the authorizing span within the turn.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("spanEnd")]
+    public required long SpanEnd { get; set; }
+
+    /// <summary>Start byte offset of the authorizing span within the turn.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("spanStart")]
+    public required long SpanStart { get; set; }
+
+    /// <summary>Concrete named targets that appear verbatim inside the span.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("targetMembers")]
+    public string[]? TargetMembers { get; set; }
+
+    /// <summary>The task the permission is scoped to, when the human named one.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("task")]
+    public string? Task { get; set; }
+
+    /// <summary>The human turn the quoted span was read from.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("turnIndex")]
+    public required long TurnIndex { get; set; }
+
+    /// <summary>The trusted version discriminator, when one exists. Exact shell-command grants carry the byte-identical commands grounded in the human span; world-derived classes carry a file object, remote tip, or runner only when that state was captured safely. An opaque object mirroring the runtime's adjacently-tagged resolution.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("world")]
+    public JsonElement? World { get; set; }
+}
+
+/// <summary>Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationReadData
+{
+    /// <summary>The human turn that was read by the proposer.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("turnIndex")]
+    public required long TurnIndex { get; set; }
+}
+
+/// <summary>Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionMessageAuthorizationDegradedData
+{
+    /// <summary>The human turn that could not be represented safely.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("turnIndex")]
+    public required long TurnIndex { get; set; }
 }
 
 /// <summary>User input request notification with question and optional predefined choices.</summary>
@@ -8481,7 +8829,7 @@ public sealed partial class ToolExecutionCompleteResult
     [JsonPropertyName("contents")]
     public ToolExecutionCompleteContent[]? Contents { get; set; }
 
-    /// <summary>Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.</summary>
+    /// <summary>Detailed tool result for UI/timeline display, preserving complete content such as diffs for most tools. Successful skill invocations intentionally use the concise model-facing content here; the authoritative skill body is carried by the corresponding skill invocation event. Falls back to content when absent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("detailedContent")]
     public string? DetailedContent { get; set; }
@@ -8965,6 +9313,18 @@ public sealed partial class PermissionRequestShell : PermissionRequest
     [JsonPropertyName("requestSandboxPermissive")]
     public bool? RequestSandboxPermissive { get; set; }
 
+    /// <summary>Runtime-resolved canonical object each possiblePaths entry names, keyed by the requested spelling, used for authorization identity checks. Internal and experimental; clients should continue to display possiblePaths.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedPaths")]
+    public IDictionary<string, string>? ResolvedPaths { get; set; }
+
+    /// <summary>Runtime-resolved canonical working directory the command runs in, used for authorization identity checks. Internal and experimental; clients should not display it.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedWorkingDirectory")]
+    public string? ResolvedWorkingDirectory { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
@@ -9024,6 +9384,12 @@ public sealed partial class PermissionRequestWrite : PermissionRequest
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
 
+    /// <summary>Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedPath")]
+    public string? ResolvedPath { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
@@ -9064,6 +9430,12 @@ public sealed partial class PermissionRequestRead : PermissionRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestSandboxBypassReason")]
     public string? RequestSandboxBypassReason { get; set; }
+
+    /// <summary>Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedPath")]
+    public string? ResolvedPath { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -9592,6 +9964,12 @@ public sealed partial class PermissionPromptRequestWrite : PermissionPromptReque
     [JsonPropertyName("newFileContents")]
     public string? NewFileContents { get; set; }
 
+    /// <summary>Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedPath")]
+    public string? ResolvedPath { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
@@ -9624,6 +10002,12 @@ public sealed partial class PermissionPromptRequestRead : PermissionPromptReques
     /// <summary>Path of the file or directory being read.</summary>
     [JsonPropertyName("path")]
     public required string Path { get; set; }
+
+    /// <summary>Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedPath")]
+    public string? ResolvedPath { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -10654,6 +11038,11 @@ public sealed partial class McpServerMetadata
 /// <remarks>Nested data type for <c>McpServersLoadedServer</c>.</remarks>
 public sealed partial class McpServersLoadedServer
 {
+    /// <summary>Human-readable display name supplied by a managed server catalog.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
     /// <summary>Error message if the server failed to connect.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("error")]
@@ -10678,7 +11067,7 @@ public sealed partial class McpServersLoadedServer
     [JsonPropertyName("serverMetadata")]
     public McpServerMetadata? ServerMetadata { get; set; }
 
-    /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
+    /// <summary>Configuration source: user, workspace, plugin, builtin, or managed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("source")]
     public McpServerSource? Source { get; set; }
@@ -13854,6 +14243,143 @@ public readonly struct AbortReason : IEquatable<AbortReason>
     }
 }
 
+/// <summary>Configuration source: user, workspace, plugin, builtin, or managed.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpServerSource : IEquatable<McpServerSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpServerSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpServerSource"/>.</param>
+    [JsonConstructor]
+    public McpServerSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpServerSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Server configured in the user's global MCP configuration.</summary>
+    public static McpServerSource User { get; } = new("user");
+
+    /// <summary>Server configured by the current workspace.</summary>
+    public static McpServerSource Workspace { get; } = new("workspace");
+
+    /// <summary>Server contributed by an installed plugin.</summary>
+    public static McpServerSource Plugin { get; } = new("plugin");
+
+    /// <summary>Server bundled with the runtime.</summary>
+    public static McpServerSource Builtin { get; } = new("builtin");
+
+    /// <summary>Server supplied by a trusted host-managed catalog.</summary>
+    public static McpServerSource Managed { get; } = new("managed");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are equivalent.</summary>
+    public static bool operator ==(McpServerSource left, McpServerSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpServerSource left, McpServerSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpServerSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpServerSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpServerSource}"/> for serializing <see cref="McpServerSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpServerSource>
+    {
+        /// <inheritdoc />
+        public override McpServerSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpServerSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerSource));
+        }
+    }
+}
+
+/// <summary>Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server).</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpServerTransport : IEquatable<McpServerTransport>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpServerTransport"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpServerTransport"/>.</param>
+    [JsonConstructor]
+    public McpServerTransport(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpServerTransport"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Server communicates over stdio with a local child process.</summary>
+    public static McpServerTransport Stdio { get; } = new("stdio");
+
+    /// <summary>Server communicates over streamable HTTP.</summary>
+    public static McpServerTransport Http { get; } = new("http");
+
+    /// <summary>Server communicates over Server-Sent Events (deprecated).</summary>
+    public static McpServerTransport Sse { get; } = new("sse");
+
+    /// <summary>Server is backed by an in-memory runtime implementation.</summary>
+    public static McpServerTransport Memory { get; } = new("memory");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerTransport"/> instances are equivalent.</summary>
+    public static bool operator ==(McpServerTransport left, McpServerTransport right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerTransport"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpServerTransport left, McpServerTransport right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpServerTransport other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpServerTransport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpServerTransport}"/> for serializing <see cref="McpServerTransport"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpServerTransport>
+    {
+        /// <inheritdoc />
+        public override McpServerTransport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpServerTransport value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerTransport));
+        }
+    }
+}
+
 /// <summary>Allowed values for the `ToolExecutionStartToolDescriptionMetaUIVisibility` enumeration.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -14280,6 +14806,82 @@ public readonly struct SkillInvokedTrigger : IEquatable<SkillInvokedTrigger>
         public override void Write(Utf8JsonWriter writer, SkillInvokedTrigger value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillInvokedTrigger));
+        }
+    }
+}
+
+/// <summary>Authority or runtime mechanism responsible for sub-agent model selection.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SubagentModelSelectionSource : IEquatable<SubagentModelSelectionSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SubagentModelSelectionSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SubagentModelSelectionSource"/>.</param>
+    [JsonConstructor]
+    public SubagentModelSelectionSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SubagentModelSelectionSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Explicit model supplied by the parent agent on the task call and selected for dispatch.</summary>
+    public static SubagentModelSelectionSource ExplicitOverride { get; } = new("explicit_override");
+
+    /// <summary>Required model policy configured for the sub-agent.</summary>
+    public static SubagentModelSelectionSource ConfiguredRequired { get; } = new("configured_required");
+
+    /// <summary>Non-required model preference configured for the sub-agent.</summary>
+    public static SubagentModelSelectionSource ConfiguredPreference { get; } = new("configured_preference");
+
+    /// <summary>Complementary-model default selected for the sub-agent.</summary>
+    public static SubagentModelSelectionSource ComplementaryDefault { get; } = new("complementary_default");
+
+    /// <summary>Model inherited from the parent session.</summary>
+    public static SubagentModelSelectionSource SessionInheritance { get; } = new("session_inheritance");
+
+    /// <summary>Default model declared by the agent definition.</summary>
+    public static SubagentModelSelectionSource AgentDefinitionDefault { get; } = new("agent_definition_default");
+
+    /// <summary>Runtime policy, Auto mode, or an experiment selected the model.</summary>
+    public static SubagentModelSelectionSource RuntimePolicy { get; } = new("runtime_policy");
+
+    /// <summary>Returns a value indicating whether two <see cref="SubagentModelSelectionSource"/> instances are equivalent.</summary>
+    public static bool operator ==(SubagentModelSelectionSource left, SubagentModelSelectionSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SubagentModelSelectionSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(SubagentModelSelectionSource left, SubagentModelSelectionSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SubagentModelSelectionSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SubagentModelSelectionSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SubagentModelSelectionSource}"/> for serializing <see cref="SubagentModelSelectionSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SubagentModelSelectionSource>
+    {
+        /// <inheritdoc />
+        public override SubagentModelSelectionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SubagentModelSelectionSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SubagentModelSelectionSource));
         }
     }
 }
@@ -15110,6 +15712,138 @@ public readonly struct PermissionPromptRequestPathAccessKind : IEquatable<Permis
     }
 }
 
+/// <summary>Controlled reason or actor responsible for a permission response.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionDecisionSource : IEquatable<PermissionDecisionSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionDecisionSource"/>.</param>
+    [JsonConstructor]
+    public PermissionDecisionSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionDecisionSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The response followed the assisted-approval judge recommendation.</summary>
+    public static PermissionDecisionSource AssistedApproval { get; } = new("assisted_approval");
+
+    /// <summary>A human supplied the response through an interactive prompt.</summary>
+    public static PermissionDecisionSource HumanResponse { get; } = new("human_response");
+
+    /// <summary>The host applied a standing policy or override rather than a judge recommendation or human decision.</summary>
+    public static PermissionDecisionSource HostPolicy { get; } = new("host_policy");
+
+    /// <summary>The host denied the request because no interactive user response was available.</summary>
+    public static PermissionDecisionSource UnattendedFallback { get; } = new("unattended_fallback");
+
+    /// <summary>A live authorization record from an earlier human decision in this session contained the proposal, so it ran without another prompt. This is not a new human decision and never mints authority of its own.</summary>
+    public static PermissionDecisionSource AuthorizationCarryForward { get; } = new("authorization_carry_forward");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionDecisionSource left, PermissionDecisionSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionDecisionSource left, PermissionDecisionSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionDecisionSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionDecisionSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionSource}"/> for serializing <see cref="PermissionDecisionSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionDecisionSource>
+    {
+        /// <inheritdoc />
+        public override PermissionDecisionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionDecisionSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionSource));
+        }
+    }
+}
+
+/// <summary>Which direction a message-backed authorization claim moves authority in.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionMessageAuthorizationPolarity : IEquatable<PermissionMessageAuthorizationPolarity>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionMessageAuthorizationPolarity"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionMessageAuthorizationPolarity"/>.</param>
+    [JsonConstructor]
+    public PermissionMessageAuthorizationPolarity(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionMessageAuthorizationPolarity"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The human's words authorized an effect.</summary>
+    public static PermissionMessageAuthorizationPolarity Grant { get; } = new("grant");
+
+    /// <summary>The human's words refused an effect.</summary>
+    public static PermissionMessageAuthorizationPolarity Denial { get; } = new("denial");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionMessageAuthorizationPolarity"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionMessageAuthorizationPolarity left, PermissionMessageAuthorizationPolarity right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionMessageAuthorizationPolarity"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionMessageAuthorizationPolarity left, PermissionMessageAuthorizationPolarity right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionMessageAuthorizationPolarity other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionMessageAuthorizationPolarity other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionMessageAuthorizationPolarity}"/> for serializing <see cref="PermissionMessageAuthorizationPolarity"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionMessageAuthorizationPolarity>
+    {
+        /// <inheritdoc />
+        public override PermissionMessageAuthorizationPolarity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionMessageAuthorizationPolarity value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionMessageAuthorizationPolarity));
+        }
+    }
+}
+
 /// <summary>Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -15451,6 +16185,9 @@ public readonly struct McpHeadersRefreshCompletedOutcome : IEquatable<McpHeaders
 
     /// <summary>The host responded with no dynamic headers.</summary>
     public static McpHeadersRefreshCompletedOutcome None { get; } = new("none");
+
+    /// <summary>The host credential broker rejected or failed the refresh.</summary>
+    public static McpHeadersRefreshCompletedOutcome Error { get; } = new("error");
 
     /// <summary>No response arrived within the bounded window.</summary>
     public static McpHeadersRefreshCompletedOutcome Timeout { get; } = new("timeout");
@@ -16238,73 +16975,6 @@ public readonly struct AgentModelPolicy : IEquatable<AgentModelPolicy>
     }
 }
 
-/// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct McpServerSource : IEquatable<McpServerSource>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="McpServerSource"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="McpServerSource"/>.</param>
-    [JsonConstructor]
-    public McpServerSource(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="McpServerSource"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Server configured in the user's global MCP configuration.</summary>
-    public static McpServerSource User { get; } = new("user");
-
-    /// <summary>Server configured by the current workspace.</summary>
-    public static McpServerSource Workspace { get; } = new("workspace");
-
-    /// <summary>Server contributed by an installed plugin.</summary>
-    public static McpServerSource Plugin { get; } = new("plugin");
-
-    /// <summary>Server bundled with the runtime.</summary>
-    public static McpServerSource Builtin { get; } = new("builtin");
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are equivalent.</summary>
-    public static bool operator ==(McpServerSource left, McpServerSource right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are not equivalent.</summary>
-    public static bool operator !=(McpServerSource left, McpServerSource right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is McpServerSource other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(McpServerSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{McpServerSource}"/> for serializing <see cref="McpServerSource"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<McpServerSource>
-    {
-        /// <inheritdoc />
-        public override McpServerSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, McpServerSource value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerSource));
-        }
-    }
-}
-
 /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -16377,73 +17047,6 @@ public readonly struct McpServerStatus : IEquatable<McpServerStatus>
         public override void Write(Utf8JsonWriter writer, McpServerStatus value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerStatus));
-        }
-    }
-}
-
-/// <summary>Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server).</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct McpServerTransport : IEquatable<McpServerTransport>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="McpServerTransport"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="McpServerTransport"/>.</param>
-    [JsonConstructor]
-    public McpServerTransport(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="McpServerTransport"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Server communicates over stdio with a local child process.</summary>
-    public static McpServerTransport Stdio { get; } = new("stdio");
-
-    /// <summary>Server communicates over streamable HTTP.</summary>
-    public static McpServerTransport Http { get; } = new("http");
-
-    /// <summary>Server communicates over Server-Sent Events (deprecated).</summary>
-    public static McpServerTransport Sse { get; } = new("sse");
-
-    /// <summary>Server is backed by an in-memory runtime implementation.</summary>
-    public static McpServerTransport Memory { get; } = new("memory");
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerTransport"/> instances are equivalent.</summary>
-    public static bool operator ==(McpServerTransport left, McpServerTransport right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerTransport"/> instances are not equivalent.</summary>
-    public static bool operator !=(McpServerTransport left, McpServerTransport right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is McpServerTransport other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(McpServerTransport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{McpServerTransport}"/> for serializing <see cref="McpServerTransport"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<McpServerTransport>
-    {
-        /// <inheritdoc />
-        public override McpServerTransport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, McpServerTransport value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerTransport));
         }
     }
 }
@@ -16765,8 +17368,16 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
 [JsonSerializable(typeof(PermissionAssistedApproval))]
+[JsonSerializable(typeof(PermissionCarriedForwardData))]
+[JsonSerializable(typeof(PermissionCarriedForwardEvent))]
 [JsonSerializable(typeof(PermissionCompletedData))]
 [JsonSerializable(typeof(PermissionCompletedEvent))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationData))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationDegradedData))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationDegradedEvent))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationEvent))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationReadData))]
+[JsonSerializable(typeof(PermissionMessageAuthorizationReadEvent))]
 [JsonSerializable(typeof(PermissionPromptRequest))]
 [JsonSerializable(typeof(PermissionPromptRequestCommands))]
 [JsonSerializable(typeof(PermissionPromptRequestCustomTool))]
@@ -16952,8 +17563,14 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ShutdownModelMetricTokenDetail))]
 [JsonSerializable(typeof(ShutdownModelMetricUsage))]
 [JsonSerializable(typeof(ShutdownTokenDetail))]
+[JsonSerializable(typeof(SkillContextDeliveredData))]
+[JsonSerializable(typeof(SkillContextDeliveredEvent))]
+[JsonSerializable(typeof(SkillContextDeliveredRefData))]
+[JsonSerializable(typeof(SkillContextDeliveredRefEvent))]
 [JsonSerializable(typeof(SkillInvokedData))]
 [JsonSerializable(typeof(SkillInvokedEvent))]
+[JsonSerializable(typeof(SkillInvokedRefData))]
+[JsonSerializable(typeof(SkillInvokedRefEvent))]
 [JsonSerializable(typeof(SkillsLoadedSkill))]
 [JsonSerializable(typeof(SubagentCompletedData))]
 [JsonSerializable(typeof(SubagentCompletedEvent))]

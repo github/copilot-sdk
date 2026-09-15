@@ -5,7 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"runtime"
-	"time"
+	"sync"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
@@ -29,88 +29,87 @@ func RepoPath(elem ...string) string {
 	return filepath.Join(append([]string{repoRoot}, elem...)...)
 }
 
-// GetFinalAssistantMessage waits for and returns the final assistant message from a session turn.
-// If alreadyIdle is true, skip waiting for session.idle (useful for resumed sessions where the
-// idle event was ephemeral and not persisted in the event history).
-func GetFinalAssistantMessage(ctx context.Context, session *copilot.Session, alreadyIdle ...bool) (*copilot.SessionEvent, error) {
-	result := make(chan *copilot.SessionEvent, 1)
-	errCh := make(chan error, 1)
+type eventResult struct {
+	event *copilot.SessionEvent
+	err   error
+}
 
-	// Subscribe to future events
+// EventWaiter is a synchronously installed subscription. Call Close even if the
+// operation that should produce the event fails before Wait is called.
+type EventWaiter struct {
+	result      chan eventResult
+	once        sync.Once
+	unsubscribe func()
+}
+
+func (w *EventWaiter) complete(event *copilot.SessionEvent, err error) {
+	w.once.Do(func() { w.result <- eventResult{event: event, err: err} })
+}
+
+// Wait waits using only the caller's context, without imposing a default timeout.
+// Events received between subscription and Wait are retained.
+func (w *EventWaiter) Wait(ctx context.Context) (*copilot.SessionEvent, error) {
+	defer w.Close()
+	select {
+	case result := <-w.result:
+		return result.event, result.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// Close removes the subscription and is safe to call more than once.
+func (w *EventWaiter) Close() {
+	w.unsubscribe()
+}
+
+// SubscribeToFinalAssistantMessage subscribes before returning. Call it before
+// Send, releasing a blocked handler, or any other operation that can finish a
+// turn. Unlike durable assistant messages, session.idle is ephemeral: GetEvents
+// cannot recover a missed completion. A successful wait always includes a message.
+func SubscribeToFinalAssistantMessage(session *copilot.Session) *EventWaiter {
+	w := &EventWaiter{result: make(chan eventResult, 1)}
 	var finalAssistantMessage *copilot.SessionEvent
-	unsubscribe := session.On(func(event copilot.SessionEvent) {
+	w.unsubscribe = session.On(func(event copilot.SessionEvent) {
 		switch d := event.Data.(type) {
 		case *copilot.AssistantMessageData:
 			finalAssistantMessage = &event
 		case *copilot.SessionIdleData:
-			if finalAssistantMessage != nil {
-				result <- finalAssistantMessage
+			if finalAssistantMessage == nil {
+				w.complete(nil, errors.New("session became idle without an assistant message"))
+			} else {
+				w.complete(finalAssistantMessage, nil)
 			}
 		case *copilot.SessionErrorData:
-			errCh <- errors.New(d.Message)
+			w.complete(nil, errors.New(d.Message))
 		}
 	})
-	defer unsubscribe()
-
-	// Also check existing messages in case the response already arrived
-	isAlreadyIdle := len(alreadyIdle) > 0 && alreadyIdle[0]
-	go func() {
-		existing, err := getExistingFinalResponse(ctx, session, isAlreadyIdle)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		if existing != nil {
-			result <- existing
-		}
-	}()
-
-	select {
-	case msg := <-result:
-		return msg, nil
-	case err := <-errCh:
-		return nil, err
-	case <-ctx.Done():
-		return nil, errors.New("timeout waiting for assistant message")
-	}
+	return w
 }
 
-// GetNextEventOfType waits for and returns the next event of the specified type from a session.
-func GetNextEventOfType(session *copilot.Session, eventType copilot.SessionEventType, timeout time.Duration) (*copilot.SessionEvent, error) {
-	result := make(chan *copilot.SessionEvent, 1)
-	errCh := make(chan error, 1)
-
-	unsubscribe := session.On(func(event copilot.SessionEvent) {
+// SubscribeToEvent subscribes before returning, so the triggering operation can
+// run before Wait without losing events. Call Close if the operation fails.
+func SubscribeToEvent(session *copilot.Session, eventType copilot.SessionEventType) *EventWaiter {
+	w := &EventWaiter{result: make(chan eventResult, 1)}
+	w.unsubscribe = session.On(func(event copilot.SessionEvent) {
 		switch event.Type() {
 		case eventType:
-			select {
-			case result <- &event:
-			default:
-			}
+			w.complete(&event, nil)
 		case copilot.SessionEventTypeSessionError:
 			msg := "session error"
 			if d, ok := event.Data.(*copilot.SessionErrorData); ok {
 				msg = d.Message
 			}
-			select {
-			case errCh <- errors.New(msg):
-			default:
-			}
+			w.complete(nil, errors.New(msg))
 		}
 	})
-	defer unsubscribe()
-
-	select {
-	case evt := <-result:
-		return evt, nil
-	case err := <-errCh:
-		return nil, err
-	case <-time.After(timeout):
-		return nil, errors.New("timeout waiting for event: " + string(eventType))
-	}
+	return w
 }
 
-func getExistingFinalResponse(ctx context.Context, session *copilot.Session, alreadyIdle bool) (*copilot.SessionEvent, error) {
+// GetFinalAssistantMessageFromHistory reads a turn whose completion has already
+// been observed independently, including after resuming an idle session. It does
+// not wait for completion and must not be used as a substitute for a live waiter.
+func GetFinalAssistantMessageFromHistory(ctx context.Context, session *copilot.Session) (*copilot.SessionEvent, error) {
 	messages, err := session.GetEvents(ctx)
 	if err != nil {
 		return nil, err
@@ -143,27 +142,11 @@ func getExistingFinalResponse(ctx context.Context, session *copilot.Session, alr
 		}
 	}
 
-	// Find session.idle and get last assistant message before it
-	sessionIdleIndex := -1
-	if alreadyIdle {
-		sessionIdleIndex = len(currentTurnMessages)
-	} else {
-		for i, msg := range currentTurnMessages {
-			if msg.Type() == "session.idle" {
-				sessionIdleIndex = i
-				break
-			}
+	for i := len(currentTurnMessages) - 1; i >= 0; i-- {
+		if currentTurnMessages[i].Type() == "assistant.message" {
+			return &currentTurnMessages[i], nil
 		}
 	}
 
-	if sessionIdleIndex != -1 {
-		// Find last assistant.message before session.idle
-		for i := sessionIdleIndex - 1; i >= 0; i-- {
-			if currentTurnMessages[i].Type() == "assistant.message" {
-				return &currentTurnMessages[i], nil
-			}
-		}
-	}
-
-	return nil, nil
+	return nil, errors.New("no assistant message in the completed turn")
 }

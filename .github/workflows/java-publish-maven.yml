@@ -775,7 +775,9 @@ jobs:
   deploy-site:
     name: Deploy Documentation Site
     needs: [preflight, deploy-maven]
-    if: github.ref == 'refs/heads/main' && needs.deploy-maven.outputs.published == 'true'
+    # Disabled while JAVA_RELEASE_GITHUB_TOKEN fails authentication against
+    # github/copilot-sdk-java.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - name: Trigger site deployment on standalone repo

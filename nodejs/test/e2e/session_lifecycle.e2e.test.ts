@@ -85,7 +85,7 @@ describe("Session Lifecycle", async () => {
         const messages = await session.getEvents();
         expect(messages.length).toBeGreaterThan(0);
 
-        // Should have at least session.start, user.message, assistant.message, session.idle
+        // History contains durable messages, not the ephemeral session.idle event.
         const types = messages.map((m: SessionEvent) => m.type);
         expect(types).toContain("session.start");
         expect(types).toContain("user.message");
