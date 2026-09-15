@@ -1165,19 +1165,7 @@ if let Some(path) = install_bundled_runtime() {
 ```
 
 This extracts `copilot-runtime` together with adjacent `runtime.node`, then
-returns the wrapper path. Runtime installation streams archive entries and
-compares existing files in bounded chunks, without buffering whole native
-images. A valid warm cache requires only read access. Missing or corrupt files
-are staged in uniquely created sibling files, with archive permissions
-preserved, then atomically replaced after archive validation. Replacement is
-atomic per file, not across the entire bundle.
-Names inside bundled archives must be portable ASCII paths and cannot differ
-only by case or path separators. This restriction does not apply to the
-caller-selected installation directory.
-
-The [`runtime_install` example](examples/runtime_install.rs) exercises the real
-bundled runtime without starting a client or contacting a model. Run it with
-an isolated `HOME` to keep its installation cache separate.
+returns the wrapper path.
 
 ### Download cache (build-time, embed mode)
 
