@@ -52,13 +52,13 @@ class SessionAutoTierSwitchTest {
             var session = new CopilotSession("sess-2", sockets.client());
             var stub = sockets.stubServer();
 
-            session.setModel(new SetModelOptions().setModel("auto").setAutoTier(AutoTier.INTELLIGENCE)
-                    .setReasoningEffort("high"));
+            session.setModel(
+                    new SetModelOptions().setModel("auto").setAutoTier(AutoTier.FAST).setReasoningEffort("high"));
 
             var sent = stub.readOneMessage();
             assertEquals("session.model.switchTo", sent.get("method").asText());
             var params = sent.get("params");
-            assertEquals("intelligence", params.get("autoTier").asText());
+            assertEquals("fast", params.get("autoTier").asText());
             assertEquals("high", params.get("reasoningEffort").asText());
             assertEquals("sess-2", params.get("sessionId").asText());
         }
@@ -108,12 +108,12 @@ class SessionAutoTierSwitchTest {
             var session = new CopilotSession("sess-6", sockets.client());
             var stub = sockets.stubServer();
 
-            session.setAutoTier(AutoTier.EFFICIENCY);
+            session.setAutoTier(AutoTier.FAST);
 
             var sent = stub.readOneMessage();
             assertEquals("session.model.switchAutoTier", sent.get("method").asText());
             var params = sent.get("params");
-            assertEquals("efficiency", params.get("autoTier").asText());
+            assertEquals("fast", params.get("autoTier").asText());
             assertEquals("sess-6", params.get("sessionId").asText());
         }
     }
@@ -141,7 +141,7 @@ class SessionAutoTierSwitchTest {
                 {
                   "status": "pending",
                   "effectiveAutoTier": "balance",
-                  "pendingAutoTier": "intelligence",
+                  "pendingAutoTier": "fast",
                   "activatingAutoTier": null,
                   "supersededAutoTier": "efficiency"
                 }
@@ -151,7 +151,7 @@ class SessionAutoTierSwitchTest {
 
         assertEquals(ModelSwitchAutoTierStatus.PENDING, result.status());
         assertEquals(com.github.copilot.generated.rpc.AutoTier.BALANCE, result.effectiveAutoTier());
-        assertEquals(com.github.copilot.generated.rpc.AutoTier.INTELLIGENCE, result.pendingAutoTier());
+        assertEquals(com.github.copilot.generated.rpc.AutoTier.FAST, result.pendingAutoTier());
         assertNull(result.activatingAutoTier());
         assertEquals(com.github.copilot.generated.rpc.AutoTier.EFFICIENCY, result.supersededAutoTier());
     }

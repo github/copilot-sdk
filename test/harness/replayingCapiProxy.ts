@@ -165,6 +165,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         workDir,
         testInfo,
         backend: "capi",
+        autoResponseIndex: 0,
         toolResultNormalizers: [...this.defaultToolResultNormalizers],
       };
     }
@@ -199,6 +200,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
       workDir: config.workDir,
       testInfo: config.testInfo,
       backend: parseReplayBackend(config.backend),
+      autoResponseIndex: 0,
       toolResultNormalizers: [...this.defaultToolResultNormalizers],
     };
 
@@ -429,6 +431,29 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.onData(Buffer.from(body));
           options.onResponseEnd();
           return;
+        }
+
+        // Deterministic Auto-tier fixture responses for CAPI's `/auto`
+        // routing endpoint. Consumed one per call in fixture order so
+        // Auto-tier lifecycle scenarios (cold resume, successful
+        // activation, failed activation) can control what model `/auto`
+        // selects and, via `statusCode`, simulate an `/auto` failure.
+        if (
+          options.requestOptions.path === "/auto" &&
+          options.requestOptions.method === "POST"
+        ) {
+          const response =
+            state.storedData?.autoResponses?.[state.autoResponseIndex];
+          if (response) {
+            state.autoResponseIndex++;
+            options.onResponseStart(response.statusCode ?? 200, {
+              "content-type": "application/json",
+              ...commonResponseHeaders,
+            });
+            options.onData(Buffer.from(JSON.stringify(response.body)));
+            options.onResponseEnd();
+            return;
+          }
         }
 
         // Keep GitHub MCP tests hermetic while still capturing the request at
@@ -697,6 +722,9 @@ async function writeCapturesToDisk(
           .filter((model): model is string => model !== undefined),
       ]),
     ];
+  }
+  if (state.storedData?.autoResponses?.length) {
+    data.autoResponses = state.storedData.autoResponses;
   }
   if (data.conversations.length > 0) {
     let yamlText = yaml.stringify(data, { lineWidth: 120 });
@@ -2093,6 +2121,7 @@ type ReplayingCapiProxyState = {
   testInfo?: { file: string; line?: number };
   backend: ReplayBackend;
   storedData?: NormalizedData | undefined;
+  autoResponseIndex: number;
   toolResultNormalizers: ToolResultNormalizer[];
 };
 
@@ -2130,6 +2159,35 @@ export interface NormalizedData {
   models: string[];
   errors?: NormalizedErrorResponse[];
   conversations: NormalizedConversation[];
+  /**
+   * Ordered fixture responses for CAPI's `POST /auto` routing endpoint,
+   * consumed one per call in array order. Used by deterministic Auto-tier
+   * lifecycle scenarios (cold resume, successful activation, failed
+   * activation) that need to control what model `/auto` selects without
+   * depending on live, non-deterministic Auto routing.
+   */
+  autoResponses?: AutoResponseStub[];
+}
+
+/**
+ * A single deterministic `/auto` fixture response. `statusCode` defaults to
+ * 200; a non-2xx value (e.g. 500) simulates an `/auto` request failure so
+ * tests can exercise failed Auto-tier activation without a real routing
+ * error.
+ */
+export interface AutoResponseStub {
+  statusCode?: number;
+  body: {
+    session_token: string;
+    selected_model: {
+      id: string;
+      name?: string;
+      capabilities?: {
+        supports: Record<string, unknown>;
+        limits: Record<string, unknown>;
+      };
+    };
+  };
 }
 
 function sortJsonKeys(obj: unknown): unknown {

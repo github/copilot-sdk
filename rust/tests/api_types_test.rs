@@ -22,6 +22,7 @@ fn session_events_deserialize_auto_tier() {
             (Some(AutoTier::Efficiency), Some("efficiency")),
             (Some(AutoTier::Balance), Some("balance")),
             (Some(AutoTier::Intelligence), Some("intelligence")),
+            (Some(AutoTier::Fast), Some("fast")),
             (None, None),
         ] {
             let mut wire = serde_json::json!({
@@ -279,6 +280,7 @@ fn switch_auto_tier_request_serializes_each_tier() {
         (AutoTier::Efficiency, "efficiency"),
         (AutoTier::Balance, "balance"),
         (AutoTier::Intelligence, "intelligence"),
+        (AutoTier::Fast, "fast"),
     ] {
         let request = ModelSwitchAutoTierRequest {
             auto_tier: Some(tier),
@@ -294,16 +296,17 @@ fn switch_auto_tier_result_deserializes_full_snapshot() {
     let result: ModelSwitchAutoTierResult = serde_json::from_value(serde_json::json!({
         "status": "pending",
         "effectiveAutoTier": "balance",
-        "pendingAutoTier": "intelligence",
+        "pendingAutoTier": "fast",
         "activatingAutoTier": null,
-        "supersededAutoTier": null
+        "supersededAutoTier": "efficiency"
     }))
     .unwrap();
 
     assert_eq!(result.status, ModelSwitchAutoTierStatus::Pending);
     assert_eq!(result.effective_auto_tier, Some(AutoTier::Balance));
-    assert_eq!(result.pending_auto_tier, Some(AutoTier::Intelligence));
+    assert_eq!(result.pending_auto_tier, Some(AutoTier::Fast));
     assert_eq!(result.activating_auto_tier, None);
+    assert_eq!(result.superseded_auto_tier, Some(AutoTier::Efficiency));
 }
 
 #[test]
