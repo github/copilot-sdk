@@ -183,6 +183,7 @@ public class AutoTierE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Commit_Fast_Auto_Tier_After_Successful_Turn()
     {
         await using var client = Ctx.CreateClient();
@@ -228,6 +229,7 @@ public class AutoTierE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Preserve_Effective_Tier_When_Fast_Activation_Fails()
     {
         string sessionId;

@@ -208,9 +208,7 @@ class TestAutoTier:
                 fast_committed |= event.data.auto_tier == AutoTier.FAST
 
         unsubscribe = session.on(on_event)
-        failure_task = get_next_event_of_type(
-            session, "session.auto_tier_switch_failed"
-        )
+        failure_task = get_next_event_of_type(session, "session.auto_tier_switch_failed")
 
         staged = await session.set_auto_tier("fast")
         assert staged.status == ModelSwitchAutoTierStatus.PENDING
