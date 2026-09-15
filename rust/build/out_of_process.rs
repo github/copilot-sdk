@@ -553,8 +553,8 @@ fn cached_download(
     data
 }
 
-/// Maximum number of HTTP attempts (one initial + this many retries on transient errors).
-const MAX_RETRIES: u32 = 3;
+/// Maximum retries after the initial HTTP attempt for transient errors.
+const MAX_RETRIES: u32 = 5;
 
 /// Download `url` with bounded retries on transient network errors. Backoff is
 /// exponential starting at 1s. 4xx responses fail fast; 5xx and connect/read
