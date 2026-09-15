@@ -1811,7 +1811,14 @@ func (s *Session) executeMCPHeadersRefreshAndRespond(
 	handler MCPHeadersRefreshHandler,
 ) {
 	var wireResult rpc.MCPHeadersHandlePendingHeadersRefreshRequest
-	result, err := handler(request, MCPHeadersRefreshInvocation{SessionID: s.SessionID})
+	result, err := func() (result *MCPHeadersRefreshResult, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("MCP headers refresh handler panic: %v", r)
+			}
+		}()
+		return handler(request, MCPHeadersRefreshInvocation{SessionID: s.SessionID})
+	}()
 	switch {
 	case err != nil:
 		log.Printf(

@@ -583,6 +583,7 @@ type MCPHeadersRefreshInvocation struct {
 
 // MCPHeadersRefreshHandler supplies short-lived HTTP headers for managed MCP
 // servers. Returning an error sends an explicit broker error to the runtime.
+// Handler panics are recovered and also sent as explicit broker errors.
 type MCPHeadersRefreshHandler func(request MCPHeadersRefreshRequest, invocation MCPHeadersRefreshInvocation) (*MCPHeadersRefreshResult, error)
 
 // UserInputRequest represents a request for user input from the agent

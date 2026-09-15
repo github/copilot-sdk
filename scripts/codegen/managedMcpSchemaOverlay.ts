@@ -57,39 +57,42 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function installNode(
-  parent: SchemaNode,
-  key: string,
-  desired: SchemaNode,
-  isKnownLegacy: (current: unknown) => boolean,
-  allowMissing: boolean,
-): void {
-  const current = parent[key];
-  if (current === undefined) {
-    if (!allowMissing) {
-      throw new Error(
-        `Managed MCP schema overlay expected an upstream node at ${key}. ` +
-          "Update or remove scripts/codegen/managed-mcp-schema-overlay.json.",
-      );
-    }
-    parent[key] = clone(desired);
+interface ContractNode {
+  parent: SchemaNode;
+  key: string;
+  desired: SchemaNode;
+  legacy?: SchemaNode;
+}
+
+function installContract(nodes: ContractNode[]): void {
+  if (
+    nodes.every(
+      ({ parent, key, desired }) =>
+        stableStringify(parent[key]) === stableStringify(desired),
+    )
+  ) {
     return;
   }
-  if (stableStringify(current) === stableStringify(desired)) {
-    parent[key] = clone(desired);
-    return;
-  }
-  if (!isKnownLegacy(current)) {
+  if (
+    !nodes.every(
+      ({ parent, key, legacy }) =>
+        stableStringify(parent[key]) === stableStringify(legacy),
+    )
+  ) {
+    const missing = nodes.find(
+      ({ parent, key, legacy }) =>
+        parent[key] === undefined && legacy !== undefined,
+    );
     throw new Error(
-      `Managed MCP schema overlay conflicts with an unknown upstream shape at ${key}. ` +
+      (missing
+        ? `Managed MCP schema overlay expected an upstream node at ${missing.key}. `
+        : "Managed MCP schema overlay conflicts with an unknown upstream shape or partial contract. ") +
         "Update or remove scripts/codegen/managed-mcp-schema-overlay.json.",
     );
   }
-  parent[key] = clone(desired);
-}
-
-function matches(expected: unknown): (current: unknown) => boolean {
-  return (current) => stableStringify(current) === stableStringify(expected);
+  for (const { parent, key, desired } of nodes) {
+    parent[key] = clone(desired);
+  }
 }
 
 function requireDefinitions(schema: SchemaNode): SchemaNode {
@@ -128,68 +131,62 @@ function applyApiOverlay(schema: SchemaNode): void {
   const definitions = requireDefinitions(schema);
   const api = overlay["api.schema.json"];
   const legacy = overlay.legacy["api.schema.json"];
-  installNode(
-    definitions,
-    "ManagedMcpServerConfig",
-    api.ManagedMcpServerConfig,
-    () => false,
-    true,
-  );
-  installNode(
-    definitions,
-    "McpHeadersHandlePendingHeadersRefreshRequest",
-    api.McpHeadersHandlePendingHeadersRefreshRequest,
-    matches(legacy.McpHeadersHandlePendingHeadersRefreshRequest),
-    false,
-  );
-  installNode(
-    definitions,
-    "McpServerSource",
-    api.McpServerSource,
-    matches(legacy.McpServerSource),
-    false,
-  );
-  installNode(
-    requireProperties(definitions, "SessionOpenOptions"),
-    "managedMcpServers",
-    api.managedMcpServers,
-    () => false,
-    true,
-  );
-  installNode(
-    requireProperties(definitions, "McpServer"),
-    "displayName",
-    api.mcpServerDisplayName,
-    () => false,
-    true,
-  );
+  installContract([
+    {
+      parent: definitions,
+      key: "ManagedMcpServerConfig",
+      desired: api.ManagedMcpServerConfig,
+    },
+    {
+      parent: definitions,
+      key: "McpHeadersHandlePendingHeadersRefreshRequest",
+      desired: api.McpHeadersHandlePendingHeadersRefreshRequest,
+      legacy: legacy.McpHeadersHandlePendingHeadersRefreshRequest,
+    },
+    {
+      parent: definitions,
+      key: "McpServerSource",
+      desired: api.McpServerSource,
+      legacy: legacy.McpServerSource,
+    },
+    {
+      parent: requireProperties(definitions, "SessionOpenOptions"),
+      key: "managedMcpServers",
+      desired: api.managedMcpServers,
+    },
+    {
+      parent: requireProperties(definitions, "McpServer"),
+      key: "displayName",
+      desired: api.mcpServerDisplayName,
+    },
+  ]);
 }
 
 function applySessionEventsOverlay(schema: SchemaNode): void {
   const definitions = requireDefinitions(schema);
   const events = overlay["session-events.schema.json"];
   const legacy = overlay.legacy["session-events.schema.json"];
-  installNode(
-    definitions,
-    "McpServerSource",
-    events.McpServerSource,
-    matches(legacy.McpServerSource),
-    false,
-  );
-  installNode(
-    requireProperties(definitions, "McpServersLoadedServer"),
-    "displayName",
-    events.mcpServersLoadedDisplayName,
-    () => false,
-    true,
-  );
+  installContract([
+    {
+      parent: definitions,
+      key: "McpServerSource",
+      desired: events.McpServerSource,
+      legacy: legacy.McpServerSource,
+    },
+    {
+      parent: requireProperties(definitions, "McpServersLoadedServer"),
+      key: "displayName",
+      desired: events.mcpServersLoadedDisplayName,
+    },
+  ]);
 }
 
 /**
  * Applies the additive managed MCP contract from copilot-agent-runtime#17210.
  *
  * Remove this overlay after the pinned @github/copilot package publishes the
- * same schema. Unknown upstream shapes fail instead of being silently replaced.
+ * same schema. Only complete legacy or target contracts are accepted; validation
+ * happens before mutation so unknown or partially published shapes fail closed.
  */
 export function applyManagedMcpSchemaOverlay<T>(
   schema: T,

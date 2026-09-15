@@ -9,6 +9,7 @@ import {
     findSharedSchemaDefinitions,
     getApiSchemaPath,
     getEnumValueDescriptions,
+    getSessionEventsSchemaPath,
     inlineExternalSchemaDefinitions,
     isIntegerSchemaBoundedToInt32,
     rewriteSharedDefinitionReferences,
@@ -72,7 +73,7 @@ describe("shared schema definition codegen utilities", () => {
             };
         }
 
-        it("adds the runtime contract to the known pre-publication API shape", async () => {
+        it("accepts the pinned API schema", async () => {
             const schema = await loadPinnedApiSchema();
 
             applyManagedMcpSchemaOverlay(schema, "api.schema.json");
@@ -91,16 +92,31 @@ describe("shared schema definition codegen utilities", () => {
             ).toHaveLength(3);
         });
 
+        it("accepts the pinned session-event schema", async () => {
+            const schema = JSON.parse(
+                await readFile(await getSessionEventsSchemaPath(), "utf8")
+            ) as { definitions: Record<string, JSONSchema7> };
+
+            applyManagedMcpSchemaOverlay(schema, "session-events.schema.json");
+
+            expect(schema.definitions.McpServerSource.enum).toContain("managed");
+            expect(schema.definitions.McpServersLoadedServer.properties).toHaveProperty(
+                "displayName"
+            );
+        });
+
         it("rejects an unknown upstream shape instead of masking it", async () => {
             const schema = await loadPinnedApiSchema();
             const refresh = schema.definitions
                 .McpHeadersHandlePendingHeadersRefreshRequest as JSONSchema7;
             const headersVariant = refresh.anyOf?.[0] as JSONSchema7;
             headersVariant.required = [...(headersVariant.required ?? []), "futureField"];
+            const before = structuredClone(schema);
 
             expect(() => applyManagedMcpSchemaOverlay(schema, "api.schema.json")).toThrow(
                 "unknown upstream shape"
             );
+            expect(schema).toEqual(before);
         });
 
         it("rejects a missing legacy node instead of recreating it", async () => {
@@ -111,6 +127,122 @@ describe("shared schema definition codegen utilities", () => {
                 "expected an upstream node"
             );
         });
+
+        const contracts = [
+            {
+                fileName: "api.schema.json",
+                nodes: [
+                    { definition: "ManagedMcpServerConfig", overlayKey: "ManagedMcpServerConfig" },
+                    {
+                        definition: "McpHeadersHandlePendingHeadersRefreshRequest",
+                        overlayKey: "McpHeadersHandlePendingHeadersRefreshRequest",
+                    },
+                    { definition: "McpServerSource", overlayKey: "McpServerSource" },
+                    {
+                        definition: "SessionOpenOptions",
+                        property: "managedMcpServers",
+                        overlayKey: "managedMcpServers",
+                    },
+                    {
+                        definition: "McpServer",
+                        property: "displayName",
+                        overlayKey: "mcpServerDisplayName",
+                    },
+                ],
+            },
+            {
+                fileName: "session-events.schema.json",
+                nodes: [
+                    { definition: "McpServerSource", overlayKey: "McpServerSource" },
+                    {
+                        definition: "McpServersLoadedServer",
+                        property: "displayName",
+                        overlayKey: "mcpServersLoadedDisplayName",
+                    },
+                ],
+            },
+        ];
+
+        for (const { fileName, nodes } of contracts) {
+            async function fixture(targetMask: number) {
+                const overlay = JSON.parse(
+                    await readFile(
+                        new URL(
+                            "../../scripts/codegen/managed-mcp-schema-overlay.json",
+                            import.meta.url
+                        ),
+                        "utf8"
+                    )
+                ) as Record<string, Record<string, JSONSchema7>> & {
+                    legacy: Record<string, Record<string, JSONSchema7>>;
+                };
+                const schema: { definitions: Record<string, JSONSchema7> } = {
+                    definitions: { Unrelated: { type: "string" } },
+                };
+                for (const [index, { definition, property, overlayKey }] of nodes.entries()) {
+                    const parent = property
+                        ? (schema.definitions[definition] = { properties: {} }).properties!
+                        : schema.definitions;
+                    const value =
+                        targetMask & (1 << index)
+                            ? overlay[fileName][overlayKey]
+                            : overlay.legacy[fileName][overlayKey];
+                    if (value !== undefined) {
+                        parent[property ?? definition] = value;
+                    }
+                }
+                return schema;
+            }
+
+            const targetMask = (1 << nodes.length) - 1;
+
+            it(`upgrades the complete legacy ${fileName} contract and is idempotent`, async () => {
+                const schema = await fixture(0);
+                const target = await fixture(targetMask);
+
+                expect(applyManagedMcpSchemaOverlay(schema, fileName)).toEqual(target);
+                expect(applyManagedMcpSchemaOverlay(schema, fileName)).toEqual(target);
+            });
+
+            it(`accepts the complete upstream ${fileName} target without mutation`, async () => {
+                const schema = await fixture(targetMask);
+                const before = structuredClone(schema);
+
+                expect(applyManagedMcpSchemaOverlay(schema, fileName)).toBe(schema);
+                expect(schema).toEqual(before);
+            });
+
+            it.each(Array.from({ length: targetMask - 1 }, (_, index) => index + 1))(
+                `rejects partial ${fileName} contract %i without mutation`,
+                async (mask) => {
+                    const schema = await fixture(mask);
+                    const before = structuredClone(schema);
+
+                    expect(() => applyManagedMcpSchemaOverlay(schema, fileName)).toThrow(
+                        "unknown upstream shape or partial contract"
+                    );
+                    expect(schema).toEqual(before);
+                }
+            );
+
+            it.each(nodes)(
+                `rejects missing ${fileName} target node $overlayKey without mutation`,
+                async ({ definition, property }) => {
+                    const schema = await fixture(targetMask);
+                    if (property) {
+                        delete schema.definitions[definition].properties![property];
+                    } else {
+                        delete schema.definitions[definition];
+                    }
+                    const before = structuredClone(schema);
+
+                    expect(() => applyManagedMcpSchemaOverlay(schema, fileName)).toThrow(
+                        "Managed MCP schema overlay"
+                    );
+                    expect(schema).toEqual(before);
+                }
+            );
+        }
     });
 
     it("extracts non-empty enum value descriptions from schema extensions", () => {
