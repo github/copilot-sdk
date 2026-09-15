@@ -10,7 +10,7 @@ This document covers secrets management for the github/copilot-sdk repository. I
 These secrets are used by the per-language SDK test workflows and the canary workflow.
 
 * **`COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY`**: HMAC key used to authenticate with the Copilot Developer CLI integration endpoint during tests. Injected as `COPILOT_HMAC_KEY` in test environments.
-  * Workflows: `nodejs-sdk-tests.yml`, `python-sdk-tests.yml`, `go-sdk-tests.yml`, `dotnet-sdk-tests.yml`, `rust-sdk-tests.yml`, `sdk-canary.yml`
+  * Workflows: `nodejs-sdk-tests.yml`, `python-sdk-tests.yml`, `go-sdk-tests.yml`, `dotnet-sdk-tests.yml`, `rust-sdk-tests.yml`, `publish.yml`
 
 ## Agentic workflow secrets
 
@@ -58,6 +58,8 @@ These secrets support Java SDK Maven Central publishing, snapshot publishing, an
 ## Secrets not managed in this repository
 
 * **`GITHUB_TOKEN`**: Automatically provided by GitHub Actions. No manual management required.
+  The runtime-driven Node SDK workflow grants it `packages: read` only while acquiring
+  private runtime packages from GitHub Packages.
 
 ## Further reading
 
