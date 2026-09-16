@@ -531,19 +531,20 @@ fn existing_runtime_file<R: Read>(
     let matches = metadata
         .as_ref()
         .is_some_and(|metadata| metadata.len() == size);
+    // Immutable caches may strip write bits without invalidating their contents.
     #[cfg(unix)]
     let mode = entry
         .header()
         .mode()
         .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?
-        & 0o777;
+        & 0o555;
     #[cfg(unix)]
     let matches = {
         use std::os::unix::fs::PermissionsExt;
         matches
             && metadata
                 .as_ref()
-                .is_some_and(|metadata| metadata.permissions().mode() & 0o777 == mode)
+                .is_some_and(|metadata| metadata.permissions().mode() & 0o555 == mode)
     };
     if matches {
         match fs::File::open(target) {
@@ -1439,12 +1440,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let archive = runtime_fixture(&[]);
         let wrapper = install_runtime(dir.path(), &archive).unwrap();
-        fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o644)).unwrap();
-        install_runtime(dir.path(), &archive).unwrap();
-        assert_eq!(
-            fs::metadata(wrapper).unwrap().permissions().mode() & 0o777,
-            0o755
-        );
+        for mode in [0o644, 0o655, 0o745, 0o754] {
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(mode)).unwrap();
+            install_runtime(dir.path(), &archive).unwrap();
+            assert_eq!(
+                fs::metadata(&wrapper).unwrap().permissions().mode() & 0o777,
+                0o755
+            );
+        }
         assert_no_runtime_temps(dir.path());
     }
 
@@ -1715,6 +1718,20 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let archive = runtime_fixture(&[("nested/asset", b"asset", 0o644)]);
         install_runtime(dir.path(), &archive).unwrap();
+        let files = [
+            RUNTIME_BINARY_NAME,
+            RUNTIME_NODE_NAME,
+            "nested/asset",
+            #[cfg(feature = "bundled-in-process")]
+            RUNTIME_LIBRARY_NAME,
+        ];
+        let mut read_only_files = Vec::new();
+        for name in files {
+            let path = dir.path().join(name);
+            let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o555;
+            fs::set_permissions(&path, fs::Permissions::from_mode(mode)).unwrap();
+            read_only_files.push((path, mode));
+        }
         fs::set_permissions(dir.path().join("nested"), fs::Permissions::from_mode(0o555)).unwrap();
         fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o555)).unwrap();
         let write_denied = fs::File::create(dir.path().join("write-probe")).is_err();
@@ -1725,6 +1742,12 @@ mod tests {
         if !write_denied {
             eprintln!("read-only permission enforcement unavailable (e.g. privileged user)");
             fs::remove_file(dir.path().join("write-probe")).unwrap();
+        }
+        for (path, mode) in read_only_files {
+            assert_eq!(
+                fs::metadata(path).unwrap().permissions().mode() & 0o777,
+                mode
+            );
         }
         assert_eq!(fs::read(dir.path().join("nested/asset")).unwrap(), b"asset");
         assert_no_runtime_temps(dir.path());
