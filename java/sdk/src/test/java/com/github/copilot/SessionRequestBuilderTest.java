@@ -242,6 +242,21 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    void testBuildCreateRequestForwardsMcpServerInstructionPolicy() throws Exception {
+        for (boolean value : List.of(true, false)) {
+            var request = SessionRequestBuilder
+                    .buildCreateRequest(new SessionConfig().setAllowAllMcpServerInstructions(value));
+            assertEquals(value, request.getAllowAllMcpServerInstructions());
+            assertTrue(JsonRpcClient.getObjectMapper().writeValueAsString(request)
+                    .contains("\"allowAllMcpServerInstructions\":" + value));
+        }
+        var omitted = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
+        assertNull(omitted.getAllowAllMcpServerInstructions());
+        assertFalse(JsonRpcClient.getObjectMapper().writeValueAsString(omitted)
+                .contains("allowAllMcpServerInstructions"));
+    }
+
+    @Test
     void testBuildCreateRequestSetsMemory() {
         var memory = new MemoryConfiguration().setEnabled(true);
         var config = new SessionConfig().setMemory(memory);
@@ -536,6 +551,21 @@ public class SessionRequestBuilderTest {
         assertEquals(largeOutput, request.getLargeOutput());
         assertTrue(JsonRpcClient.getObjectMapper().writeValueAsString(request)
                 .contains("\"disabledMcpServers\":[\"local-files-r\"]"));
+    }
+
+    @Test
+    void testBuildResumeRequestForwardsMcpServerInstructionPolicy() throws Exception {
+        for (boolean value : List.of(true, false)) {
+            var request = SessionRequestBuilder.buildResumeRequest("sid-policy",
+                    new ResumeSessionConfig().setAllowAllMcpServerInstructions(value));
+            assertEquals(value, request.getAllowAllMcpServerInstructions());
+            assertTrue(JsonRpcClient.getObjectMapper().writeValueAsString(request)
+                    .contains("\"allowAllMcpServerInstructions\":" + value));
+        }
+        var omitted = SessionRequestBuilder.buildResumeRequest("sid-policy", new ResumeSessionConfig());
+        assertNull(omitted.getAllowAllMcpServerInstructions());
+        assertFalse(JsonRpcClient.getObjectMapper().writeValueAsString(omitted)
+                .contains("allowAllMcpServerInstructions"));
     }
 
     @Test

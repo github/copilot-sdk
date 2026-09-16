@@ -1970,6 +1970,43 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_AllowAllMCPServerInstructions(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value *bool
+		want  any
+	}{
+		{name: "true", value: Bool(true), want: true},
+		{name: "false", value: Bool(false), want: false},
+		{name: "omitted", value: nil, want: nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			requests := []any{
+				createSessionRequest{AllowAllMCPServerInstructions: tc.value},
+				resumeSessionRequest{SessionID: "s1", AllowAllMCPServerInstructions: tc.value},
+			}
+			for _, request := range requests {
+				data, err := json.Marshal(request)
+				if err != nil {
+					t.Fatalf("Failed to marshal: %v", err)
+				}
+				var payload map[string]any
+				if err := json.Unmarshal(data, &payload); err != nil {
+					t.Fatalf("Failed to unmarshal: %v", err)
+				}
+				got, present := payload["allowAllMcpServerInstructions"]
+				if tc.value == nil {
+					if present {
+						t.Fatalf("Expected policy to be omitted, got %v", got)
+					}
+				} else if !present || got != tc.want {
+					t.Fatalf("Expected policy %v, got %v", tc.want, got)
+				}
+			}
+		})
+	}
+}
+
 func TestSessionRequests_Memory(t *testing.T) {
 	t.Run("create includes memory in JSON when enabled", func(t *testing.T) {
 		req := createSessionRequest{Memory: &MemoryConfiguration{Enabled: true}}

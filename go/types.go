@@ -1490,6 +1490,11 @@ type SessionConfig struct {
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
 	// MCPServers configures MCP servers for the session
 	MCPServers map[string]MCPServerConfig
+	// AllowAllMCPServerInstructions controls whether instructions from every
+	// configured MCP server are included in the system prompt. Enabling this
+	// broadens the default trust boundary; only use it with trusted servers.
+	// Nil leaves the runtime default unchanged.
+	AllowAllMCPServerInstructions *bool
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
@@ -2053,6 +2058,11 @@ type ResumeSessionConfig struct {
 	IncludeSubAgentStreamingEvents *bool
 	// MCPServers configures MCP servers for the session
 	MCPServers map[string]MCPServerConfig
+	// AllowAllMCPServerInstructions controls whether instructions from every
+	// configured MCP server are included in the system prompt. Enabling this
+	// broadens the default trust boundary; only use it with trusted servers.
+	// Nil leaves the runtime default unchanged.
+	AllowAllMCPServerInstructions *bool
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
@@ -2650,6 +2660,7 @@ type createSessionRequest struct {
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
 	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
+	AllowAllMCPServerInstructions      *bool                                  `json:"allowAllMcpServerInstructions,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
@@ -2762,6 +2773,7 @@ type resumeSessionRequest struct {
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
 	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
+	AllowAllMCPServerInstructions      *bool                                  `json:"allowAllMcpServerInstructions,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
