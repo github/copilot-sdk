@@ -889,7 +889,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   runtime-package:
-    name: Build and verify runtime release
+    name: Build SDK packages
     needs: [validate-dispatch, runtime-plan, runtime-acquire, runtime-test]
     if: |
       always() &&
@@ -966,7 +966,7 @@ jobs:
           retention-days: 30
 
   runtime-publish-internal:
-    name: Publish runtime release internally
+    name: Publish SDK internally
     if: |
       always() &&
       !cancelled() &&
@@ -1045,7 +1045,7 @@ jobs:
           ' "$SDK_VERSION"
 
   runtime-publish-public:
-    name: Publish runtime release publicly
+    name: Publish SDK publicly
     if: |
       always() &&
       !cancelled() &&
