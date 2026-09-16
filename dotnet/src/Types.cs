@@ -1317,45 +1317,56 @@ public sealed class McpAuthResult
     public static McpAuthResult Cancel() => new() { Cancelled = true };
 }
 
-/// <summary>Context for a managed MCP dynamic-headers refresh callback.</summary>
+/// <summary>
+/// Context for refreshing client-to-Copilot Connectors service authorization
+/// headers for a connected MCP endpoint.
+/// </summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpHeadersRefreshContext
 {
     /// <summary>Identifier of the session that requested refreshed headers.</summary>
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Human-readable managed catalog display name.</summary>
-    public string ServerName { get; set; } = string.Empty;
+    /// <summary>
+    /// Stable server key matching the key in <see cref="SessionConfigBase.ConnectorMcpServers"/>.
+    /// </summary>
+    public string ServerKey { get; set; } = string.Empty;
 
-    /// <summary>Hosted MCP streamable HTTP endpoint.</summary>
+    /// <summary>Exact Copilot Connectors service MCP endpoint advertised for this server key.</summary>
     public string ServerUrl { get; set; } = string.Empty;
 
     /// <summary>Why the runtime invalidated or requested dynamic headers.</summary>
     public McpHeadersRefreshRequiredReason Reason { get; set; }
 }
 
-/// <summary>Dynamic headers and their optional credential-bounded cache lifetime.</summary>
+/// <summary>Copilot Connectors service authorization headers and their optional cache lifetime.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpHeadersRefreshResult
 {
-    /// <summary>HTTP headers to overlay on requests to the managed MCP server.</summary>
+    /// <summary>
+    /// Short-lived HTTP headers authorizing this client to call the exact Copilot
+    /// Connectors service MCP endpoint. These are not downstream provider tokens.
+    /// </summary>
     public required IDictionary<string, string> Headers { get; set; }
 
-    /// <summary>Optional lifetime in milliseconds for the returned credentials.</summary>
+    /// <summary>Optional remaining lifetime in milliseconds for the returned service authorization.</summary>
     public long? TtlMs { get; set; }
 }
 
 /// <summary>
-/// Non-secret hosted MCP server configuration supplied by a trusted managed catalog.
-/// Credentials are provided only through <see cref="SessionConfigBase.OnMcpHeadersRefresh"/>.
+/// Non-secret MCP endpoint configuration for a connected Copilot Connector
+/// supplied from the service catalog.
+/// Client authorization to call the endpoint is supplied only through
+/// <see cref="SessionConfigBase.OnMcpHeadersRefresh"/>. The Copilot Connectors
+/// service owns downstream provider tokens such as Outlook or Slack tokens.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class ManagedMcpServerConfig
+public sealed class ConnectorMcpServerConfig
 {
-    /// <summary>Human-readable catalog display name.</summary>
+    /// <summary>Human-readable Connector display name, distinct from the stable server identity.</summary>
     public required string DisplayName { get; set; }
 
-    /// <summary>Hosted MCP streamable HTTP endpoint.</summary>
+    /// <summary>Copilot Connector remote MCP streamable HTTP endpoint.</summary>
     public required string Url { get; set; }
 
     /// <summary>Tools to include. The runtime includes all tools when omitted.</summary>
@@ -1364,8 +1375,11 @@ public sealed class ManagedMcpServerConfig
     /// <summary>Timeout in milliseconds for tool discovery and tool calls.</summary>
     public long? Timeout { get; set; }
 
-    /// <summary>Maximum dynamic-header cache lifetime in milliseconds.</summary>
-    public long? HeadersRefreshTtlMs { get; set; }
+    /// <summary>
+    /// Maximum time in milliseconds that the runtime may reuse the
+    /// client-to-Copilot Connectors service authorization.
+    /// </summary>
+    public long? AuthorizationCacheTtlMs { get; set; }
 }
 
 // ============================================================================
@@ -3377,8 +3391,10 @@ public abstract class SessionConfigBase
                 ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
                 : new Dictionary<string, McpServerConfig>(other.McpServers))
             : null;
-        ManagedMcpServers = other.ManagedMcpServers is not null
-            ? new Dictionary<string, ManagedMcpServerConfig>(other.ManagedMcpServers)
+        ConnectorMcpServers = other.ConnectorMcpServers is not null
+            ? (other.ConnectorMcpServers is Dictionary<string, ConnectorMcpServerConfig> connectorDict
+                ? new Dictionary<string, ConnectorMcpServerConfig>(connectorDict, connectorDict.Comparer)
+                : new Dictionary<string, ConnectorMcpServerConfig>(other.ConnectorMcpServers))
             : null;
         McpOAuthTokenStorage = other.McpOAuthTokenStorage;
         AuthClientIdMetadataUrl = other.AuthClientIdMetadataUrl;
@@ -3772,11 +3788,12 @@ public abstract class SessionConfigBase
     public IDictionary<string, McpServerConfig>? McpServers { get; set; }
 
     /// <summary>
-    /// Non-secret hosted MCP servers injected from a trusted managed catalog.
-    /// Keys are stable managed identities. Re-supply this map on cold resume.
+    /// Connected Copilot Connector MCP endpoints supplied from the service catalog.
+    /// Keys are reported through <see cref="McpHeadersRefreshContext.ServerKey"/> when headers need refreshing.
+    /// Re-supply the connected set on cold resume.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
-    public IDictionary<string, ManagedMcpServerConfig>? ManagedMcpServers { get; set; }
+    public IDictionary<string, ConnectorMcpServerConfig>? ConnectorMcpServers { get; set; }
 
     /// <summary>
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -4023,9 +4040,13 @@ public abstract class SessionConfigBase
     public Func<McpAuthContext, Task<McpAuthResult?>>? OnMcpAuthRequest { get; set; }
 
     /// <summary>
-    /// Supplies short-lived HTTP headers for managed MCP servers. Returning
-    /// <see langword="null"/> reports no headers; exceptions are sent to the
-    /// runtime as explicit credential-broker errors.
+    /// Supplies short-lived headers authorizing this client to call the exact
+    /// Copilot Connectors service MCP endpoint configured through
+    /// <see cref="ConnectorMcpServers"/>. This is normally the selected account's
+    /// GitHub bearer authorization. The SDK host does not supply downstream provider
+    /// tokens for Outlook, Slack, or other connected services; the Copilot Connectors
+    /// service owns those tokens. Returning <see langword="null"/> reports no headers;
+    /// exceptions are sent to the runtime as explicit refresh errors.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore]

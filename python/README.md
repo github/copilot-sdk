@@ -313,6 +313,8 @@ These are passed as keyword arguments to `create_session()`:
 - `system_message` (SystemMessageConfig): System message configuration
 - `streaming` (bool): Enable streaming delta events
 - `provider` (ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
+- `connector_mcp_servers` (dict[str, ConnectorMCPServerConfig]): Connected Copilot Connector MCP endpoints advertised by the Connector service. Re-supply on cold resume.
+- `on_mcp_headers_refresh` (callable): Supplies short-lived headers for Connector MCP endpoints. Register this even when the initial connected set is empty if the host supports connecting a Connector during the session.
 - `infinite_sessions` (InfiniteSessionConfig): Automatic context compaction configuration
 - `working_directory` (str | None): Working directory for the session (default: runtime process working directory).
 - `enable_session_store` (bool): Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
@@ -337,6 +339,19 @@ session = await client.create_session(github_token_provider=provide_github_token
 Initial acquisition runs during session creation or resume. Cancellation, provider errors, and invalid token responses reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation; there is no background refresh timer.
 
 - `available_tools` / `excluded_tools` / `default_agent.excluded_tools` / custom-agent `tools`: MCP tools registered from `mcp_servers` are exposed to the runtime as `<server-key>-<tool-name>`. For `available_tools` and `excluded_tools`, prefer `ToolSet().add_mcp("<server-key>-<tool-name>")` or the raw `mcp:<server-key>-<tool-name>` form. For custom-agent `tools` and `default_agent.excluded_tools`, use `<server-key>-<tool-name>` directly.
+
+**Connector session integration (experimental):**
+
+Use `session.rpc.mcp.list()`, `enable()`, `disable()`, and `list_tools()` with
+the same stable server keys to build Connector status and management UI.
+Subscribe to the MCP loaded, removed, reconnect, and status-change session
+events for live updates.
+
+The current public runtime contract cannot replace the authoritative Connector
+set on a running session. After a service Connect, Reconnect, or Disconnect,
+create or cold-resume a session with the updated `connector_mcp_servers` map.
+Generic MCP `stop_server()` is temporary and an MCP reload can restore the
+originally configured server.
 
 **Session Lifecycle Methods:**
 

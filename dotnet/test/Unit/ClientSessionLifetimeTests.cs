@@ -1217,6 +1217,49 @@ public sealed class ClientSessionLifetimeTests
         Assert.Equal("cancelled", request.Params.GetProperty("result").GetProperty("kind").GetString());
     }
 
+    [Fact]
+    public async Task ConnectorMcpServers_Map_To_Managed_Wire_Field_On_Create_And_Resume()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var connectorMcpServers = new Dictionary<string, ConnectorMcpServerConfig>
+        {
+            ["github"] = new()
+            {
+                DisplayName = "GitHub",
+                Url = "https://example.com/mcp",
+                Tools = ["issues"],
+                Timeout = 30_000,
+                AuthorizationCacheTtlMs = 60_000
+            }
+        };
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            ConnectorMcpServers = connectorMcpServers
+        });
+        AssertConnectorMcpServers(Assert.Single(server.Requests, request => request.Method == "session.create"));
+
+        server.ClearRequests();
+        await using var resumed = await client.ResumeSessionAsync("connector-resume", new ResumeSessionConfig
+        {
+            ConnectorMcpServers = connectorMcpServers
+        });
+        AssertConnectorMcpServers(Assert.Single(server.Requests, request => request.Method == "session.resume"));
+
+        static void AssertConnectorMcpServers(RpcRequestRecord request)
+        {
+            var root = request.Params;
+            var serverConfig = root.GetProperty("managedMcpServers").GetProperty("github");
+            Assert.Equal("GitHub", serverConfig.GetProperty("displayName").GetString());
+            Assert.Equal("https://example.com/mcp", serverConfig.GetProperty("url").GetString());
+            Assert.Equal("issues", serverConfig.GetProperty("tools")[0].GetString());
+            Assert.Equal(30_000, serverConfig.GetProperty("timeout").GetInt64());
+            Assert.Equal(60_000, serverConfig.GetProperty("headersRefreshTtlMs").GetInt64());
+            Assert.False(root.TryGetProperty("connectorMcpServers", out _));
+        }
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData(5000L)]
@@ -1227,18 +1270,18 @@ public sealed class ClientSessionLifetimeTests
         await using var session = await client.CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            ManagedMcpServers = new Dictionary<string, ManagedMcpServerConfig>
+            ConnectorMcpServers = new Dictionary<string, ConnectorMcpServerConfig>
             {
                 ["github"] = new()
                 {
                     DisplayName = "GitHub",
                     Url = "https://example.com/mcp",
-                    HeadersRefreshTtlMs = 60_000
+                    AuthorizationCacheTtlMs = 60_000
                 }
             },
             OnMcpHeadersRefresh = context =>
             {
-                Assert.Equal("managed-session-name", context.ServerName);
+                Assert.Equal("github", context.ServerKey);
                 Assert.Equal("https://example.com/mcp", context.ServerUrl);
                 Assert.Equal(McpHeadersRefreshRequiredReason.Startup, context.Reason);
                 return Task.FromResult<McpHeadersRefreshResult?>(new()
@@ -1254,7 +1297,7 @@ public sealed class ClientSessionLifetimeTests
             Data = new McpHeadersRefreshRequiredData
             {
                 RequestId = "mcp-refresh-1",
-                ServerName = "managed-session-name",
+                ServerName = "github",
                 ServerUrl = "https://example.com/mcp",
                 Reason = McpHeadersRefreshRequiredReason.Startup
             }
@@ -1277,7 +1320,7 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
-    public async Task McpHeadersRefresh_Handler_Exception_Sends_Explicit_Broker_Error()
+    public async Task McpHeadersRefresh_Handler_Exception_Sends_Explicit_Refresh_Error()
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
@@ -1292,20 +1335,21 @@ public sealed class ClientSessionLifetimeTests
             Data = new McpHeadersRefreshRequiredData
             {
                 RequestId = "mcp-refresh-error",
-                ServerName = "GitHub",
+                ServerName = "github",
                 ServerUrl = "https://example.com/mcp",
                 Reason = McpHeadersRefreshRequiredReason.AuthFailed
             }
         });
 
         var request = await WaitForRequestAsync(server, "session.mcp.headers.handlePendingHeadersRefreshRequest");
+        Assert.Equal("mcp-refresh-error", request.Params.GetProperty("requestId").GetString());
         var result = request.Params.GetProperty("result");
         Assert.Equal("error", result.GetProperty("kind").GetString());
         Assert.Equal("credential revoked", result.GetProperty("message").GetString());
     }
 
     [Fact]
-    public async Task McpHeadersRefresh_Handler_Cancellation_Sends_Explicit_Broker_Error()
+    public async Task McpHeadersRefresh_Handler_Cancellation_Sends_Explicit_Refresh_Error()
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
@@ -1320,13 +1364,14 @@ public sealed class ClientSessionLifetimeTests
             Data = new McpHeadersRefreshRequiredData
             {
                 RequestId = "mcp-refresh-cancelled",
-                ServerName = "GitHub",
+                ServerName = "github",
                 ServerUrl = "https://example.com/mcp",
                 Reason = McpHeadersRefreshRequiredReason.AuthFailed
             }
         });
 
         var request = await WaitForRequestAsync(server, "session.mcp.headers.handlePendingHeadersRefreshRequest");
+        Assert.Equal("mcp-refresh-cancelled", request.Params.GetProperty("requestId").GetString());
         var result = request.Params.GetProperty("result");
         Assert.Equal("error", result.GetProperty("kind").GetString());
         Assert.False(string.IsNullOrWhiteSpace(result.GetProperty("message").GetString()));

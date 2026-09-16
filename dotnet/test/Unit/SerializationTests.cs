@@ -97,10 +97,10 @@ public class SerializationTests
     }
 
     [Fact]
-    public void SessionRequests_Serialize_ManagedMcpServers_On_Create_And_Resume()
+    public void SessionRequests_Serialize_ConnectorMcpServers_Using_Managed_Wire_Field()
     {
         var options = GetSerializerOptions();
-        var managed = new Dictionary<string, ManagedMcpServerConfig>
+        var connectorServers = new Dictionary<string, ConnectorMcpServerConfig>
         {
             ["github"] = new()
             {
@@ -108,9 +108,15 @@ public class SerializationTests
                 Url = "https://example.com/mcp",
                 Tools = ["issues"],
                 Timeout = 30_000,
-                HeadersRefreshTtlMs = 60_000
+                AuthorizationCacheTtlMs = 60_000
             }
         };
+        var mapper = typeof(CopilotClient).GetMethod(
+            "ToManagedMcpServers",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.NotNull(mapper);
+        var managed = mapper!.Invoke(null, [connectorServers]);
+        Assert.NotNull(managed);
 
         foreach (var requestName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
         {
@@ -127,7 +133,10 @@ public class SerializationTests
 
             Assert.Equal("GitHub", server.GetProperty("displayName").GetString());
             Assert.Equal("https://example.com/mcp", server.GetProperty("url").GetString());
+            Assert.Equal("issues", server.GetProperty("tools")[0].GetString());
+            Assert.Equal(30_000, server.GetProperty("timeout").GetInt64());
             Assert.Equal(60_000, server.GetProperty("headersRefreshTtlMs").GetInt64());
+            Assert.False(document.RootElement.TryGetProperty("connectorMcpServers", out _));
         }
     }
 

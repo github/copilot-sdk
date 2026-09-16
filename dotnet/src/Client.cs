@@ -1251,7 +1251,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
-                config.ManagedMcpServers,
+                ToManagedMcpServers(config.ConnectorMcpServers),
                 config.McpOAuthTokenStorage,
                 config.AuthClientIdMetadataUrl,
                 "direct",
@@ -1509,7 +1509,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
-                config.ManagedMcpServers,
+                ToManagedMcpServers(config.ConnectorMcpServers),
                 config.McpOAuthTokenStorage,
                 config.AuthClientIdMetadataUrl,
                 "direct",
@@ -3016,7 +3016,39 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
     }
 
+    private static Dictionary<string, ManagedMcpServerConfig>? ToManagedMcpServers(
+        IDictionary<string, ConnectorMcpServerConfig>? connectorMcpServers)
+    {
+        if (connectorMcpServers is null)
+        {
+            return null;
+        }
+
+        var managedMcpServers = connectorMcpServers is Dictionary<string, ConnectorMcpServerConfig> dictionary
+            ? new Dictionary<string, ManagedMcpServerConfig>(dictionary.Comparer)
+            : new Dictionary<string, ManagedMcpServerConfig>();
+
+        foreach (var (name, config) in connectorMcpServers)
+        {
+            managedMcpServers.Add(name, new ManagedMcpServerConfig(
+                config.DisplayName,
+                config.Url,
+                config.Tools,
+                config.Timeout,
+                config.AuthorizationCacheTtlMs));
+        }
+
+        return managedMcpServers;
+    }
+
     // Request/Response types for RPC
+    internal sealed record ManagedMcpServerConfig(
+        string DisplayName,
+        string Url,
+        IList<string>? Tools,
+        long? Timeout,
+        long? HeadersRefreshTtlMs);
+
     internal record CreateSessionRequest(
         string? Model,
         string? SessionId,

@@ -458,7 +458,7 @@ impl Session {
     /// The hand-authored helpers on [`Session`] delegate to this namespace
     /// and remain the recommended entry point for everyday use; reach for
     /// `rpc()` when you want a method without a hand-written wrapper.
-    pub fn rpc(&self) -> crate::generated::rpc::SessionRpc<'_> {
+    pub fn rpc(&self) -> crate::rpc::SessionRpc<'_> {
         crate::generated::rpc::SessionRpc { session: self }
     }
 
@@ -2954,7 +2954,7 @@ async fn handle_notification(
                 };
             let request_id = data.request_id;
             let request = McpHeadersRefreshRequest {
-                server_name: data.server_name,
+                server_key: data.server_name,
                 server_url: data.server_url,
                 reason: data.reason,
             };

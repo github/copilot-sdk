@@ -555,22 +555,22 @@ McpAuthHandler = Callable[
 
 
 class McpHeadersRefreshRequest(TypedDict):
-    """Managed MCP server whose short-lived HTTP headers need refreshing."""
+    """Connector MCP server whose short-lived HTTP headers need refreshing."""
 
-    server_name: str
+    server_key: str  # Stable key from connector_mcp_servers.
     server_url: str
     reason: Literal["startup", "ttl-expired", "auth-failed"]
 
 
 class McpHeadersRefreshResult(TypedDict):
-    """Dynamic headers and their optional credential-bounded cache lifetime."""
+    """Connector service authorization headers and their optional cache lifetime."""
 
     headers: dict[str, str]
     ttl_ms: NotRequired[int]
 
 
 class McpHeadersRefreshContext(TypedDict):
-    """Context for a managed MCP headers refresh handler invocation."""
+    """Context for a catalog MCP headers refresh handler invocation."""
 
     session_id: str
 
@@ -1255,14 +1255,34 @@ class MCPHTTPServerConfig(TypedDict, total=False):
 MCPServerConfig = MCPStdioServerConfig | MCPHTTPServerConfig
 
 
-class ManagedMCPServerConfig(TypedDict, total=False):
-    """Non-secret hosted MCP server from a trusted managed catalog."""
+class ConnectorMCPServerConfig(TypedDict, total=False):
+    """Non-secret hosted MCP endpoint advertised for a connected Connector."""
 
     display_name: Required[str]
     url: Required[str]
     tools: list[str]
     timeout: int
-    headers_refresh_ttl_ms: int
+    authorization_cache_ttl_ms: int
+
+
+def _connector_mcp_servers_to_wire(
+    servers: dict[str, ConnectorMCPServerConfig],
+) -> dict[str, Any]:
+    """Convert Connector MCP configuration keys to the JSON-RPC wire casing."""
+    wire: dict[str, Any] = {}
+    for name, config in servers.items():
+        server: dict[str, Any] = {
+            "displayName": config["display_name"],
+            "url": config["url"],
+        }
+        if "tools" in config:
+            server["tools"] = config["tools"]
+        if "timeout" in config:
+            server["timeout"] = config["timeout"]
+        if "authorization_cache_ttl_ms" in config:
+            server["headersRefreshTtlMs"] = config["authorization_cache_ttl_ms"]
+        wire[name] = server
+    return wire
 
 
 class GitHubMcpToolConfig(TypedDict, total=False):
@@ -2185,7 +2205,7 @@ class CopilotSession:
                     self._execute_mcp_headers_refresh_and_respond(
                         data.request_id,
                         {
-                            "server_name": data.server_name,
+                            "server_key": data.server_name,
                             "server_url": data.server_url,
                             "reason": data.reason.value,
                         },
@@ -2506,7 +2526,7 @@ class CopilotSession:
         request: McpHeadersRefreshRequest,
         handler: McpHeadersRefreshHandler,
     ) -> None:
-        """Execute a managed MCP headers refresh handler and respond via RPC."""
+        """Execute an MCP headers refresh handler and respond via RPC."""
         try:
             maybe_result = handler(request, {"session_id": self.session_id})
             if inspect.isawaitable(maybe_result):
@@ -2534,7 +2554,7 @@ class CopilotSession:
             message = str(exc) or "MCP headers refresh cancelled"
             logger.warning(
                 "MCP headers refresh cancelled for %r: %s",
-                request["server_name"],
+                request["server_key"],
                 message,
             )
             rpc_result = MCPHeadersHandlePendingHeadersRefreshRequest(
@@ -2544,7 +2564,7 @@ class CopilotSession:
         except Exception as exc:
             logger.warning(
                 "MCP headers refresh failed for %r: %s",
-                request["server_name"],
+                request["server_key"],
                 exc,
             )
             rpc_result = MCPHeadersHandlePendingHeadersRefreshRequest(
@@ -2754,7 +2774,7 @@ class CopilotSession:
     def _register_mcp_headers_refresh_handler(
         self, handler: McpHeadersRefreshHandler | None
     ) -> None:
-        """Register the managed MCP dynamic-headers handler for this session."""
+        """Register the MCP dynamic-headers handler for this session."""
         with self._mcp_headers_refresh_handler_lock:
             self._mcp_headers_refresh_handler = handler
 

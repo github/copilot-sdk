@@ -254,7 +254,7 @@ impl McpHeadersRefreshHandler for TestMcpHeadersHandler {
         self.calls
             .send((session_id, request_id, request.clone()))
             .unwrap();
-        match request.server_name.as_str() {
+        match request.server_key.as_str() {
             "ttl-absent" => Ok(McpHeadersRefreshResult::Headers {
                 headers: HashMap::from([(
                     "Authorization".to_string(),
@@ -1272,14 +1272,14 @@ async fn resume_session_registers_mcp_auth_interest_only_with_handler() {
 }
 
 #[tokio::test]
-async fn managed_mcp_headers_handler_dispatches_all_results() {
+async fn mcp_headers_handler_dispatches_all_results() {
     let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel();
     let handler = Arc::new(TestMcpHeadersHandler { calls: calls_tx });
     let (client, server_read, server_write) = make_client();
     let mut server = FakeServer {
         read: server_read,
         write: server_write,
-        session_id: "managed-mcp-session".to_string(),
+        session_id: "mcp-headers-session".to_string(),
     };
     let create_handle = tokio::spawn({
         let client = client.clone();
@@ -1287,7 +1287,7 @@ async fn managed_mcp_headers_handler_dispatches_all_results() {
             client
                 .create_session(
                     SessionConfig::default()
-                        .with_session_id("managed-mcp-session")
+                        .with_session_id("mcp-headers-session")
                         .with_mcp_headers_handler(handler),
                 )
                 .await
@@ -1315,7 +1315,7 @@ async fn managed_mcp_headers_handler_dispatches_all_results() {
     );
     assert_eq!(
         response_request["params"]["sessionId"],
-        "managed-mcp-session"
+        "mcp-headers-session"
     );
     assert_eq!(
         response_request["params"]["requestId"],
@@ -1329,9 +1329,9 @@ async fn managed_mcp_headers_handler_dispatches_all_results() {
     );
     let (received_session_id, received_request_id, received_request) =
         timeout(TIMEOUT, calls_rx.recv()).await.unwrap().unwrap();
-    assert_eq!(received_session_id.as_str(), "managed-mcp-session");
+    assert_eq!(received_session_id.as_str(), "mcp-headers-session");
     assert_eq!(received_request_id, "headers-before-create");
-    assert_eq!(received_request.server_name, "ttl-absent");
+    assert_eq!(received_request.server_key, "ttl-absent");
     assert_eq!(
         received_request.server_url,
         "https://ttl-absent.example.test/mcp"
@@ -1348,7 +1348,7 @@ async fn managed_mcp_headers_handler_dispatches_all_results() {
         .respond(
             &create_request,
             serde_json::json!({
-                "sessionId": "managed-mcp-session",
+                "sessionId": "mcp-headers-session",
                 "workspacePath": "/workspace"
             }),
         )
@@ -1404,17 +1404,17 @@ async fn managed_mcp_headers_handler_dispatches_all_results() {
         ),
     ];
 
-    for (index, (server_name, reason, expected_reason, expected_result)) in
+    for (index, (server_identity, reason, expected_reason, expected_result)) in
         cases.into_iter().enumerate()
     {
         let request_id = format!("headers-{index}");
-        let server_url = format!("https://{server_name}.example.test/mcp");
+        let server_url = format!("https://{server_identity}.example.test/mcp");
         server
             .send_event(
                 "mcp.headers_refresh_required",
                 serde_json::json!({
                     "requestId": request_id,
-                    "serverName": server_name,
+                    "serverName": server_identity,
                     "serverUrl": server_url,
                     "reason": reason
                 }),
@@ -1431,9 +1431,9 @@ async fn managed_mcp_headers_handler_dispatches_all_results() {
 
         let (received_session_id, received_request_id, received_request) =
             timeout(TIMEOUT, calls_rx.recv()).await.unwrap().unwrap();
-        assert_eq!(received_session_id.as_str(), "managed-mcp-session");
+        assert_eq!(received_session_id.as_str(), "mcp-headers-session");
         assert_eq!(received_request_id, request_id);
-        assert_eq!(received_request.server_name, server_name);
+        assert_eq!(received_request.server_key, server_identity);
         assert_eq!(received_request.server_url, server_url);
         assert_eq!(received_request.reason, expected_reason);
 
@@ -1444,14 +1444,14 @@ async fn managed_mcp_headers_handler_dispatches_all_results() {
 }
 
 #[tokio::test]
-async fn managed_mcp_interest_failure_cleans_up_session_dispatch() {
+async fn mcp_headers_interest_failure_cleans_up_session_dispatch() {
     let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel();
     let handler = Arc::new(TestMcpHeadersHandler { calls: calls_tx });
     let (client, server_read, server_write) = make_client();
     let mut server = FakeServer {
         read: server_read,
         write: server_write,
-        session_id: "managed-mcp-interest-failure".to_string(),
+        session_id: "mcp-headers-interest-failure".to_string(),
     };
     let create_handle = tokio::spawn({
         let client = client.clone();
@@ -1459,7 +1459,7 @@ async fn managed_mcp_interest_failure_cleans_up_session_dispatch() {
             client
                 .create_session(
                     SessionConfig::default()
-                        .with_session_id("managed-mcp-interest-failure")
+                        .with_session_id("mcp-headers-interest-failure")
                         .with_mcp_headers_handler(handler),
                 )
                 .await
@@ -1471,7 +1471,7 @@ async fn managed_mcp_interest_failure_cleans_up_session_dispatch() {
         .respond(
             &create_request,
             serde_json::json!({
-                "sessionId": "managed-mcp-interest-failure",
+                "sessionId": "mcp-headers-interest-failure",
                 "workspacePath": "/workspace"
             }),
         )
@@ -1507,6 +1507,185 @@ async fn managed_mcp_interest_failure_cleans_up_session_dispatch() {
         )
         .await;
     assert!(timeout(TIMEOUT, calls_rx.recv()).await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn public_mcp_list_toggle_tools_and_status_events_are_reachable() {
+    use github_copilot_sdk::rpc::{McpDisableRequest, McpEnableRequest, McpListToolsRequest};
+    use github_copilot_sdk::session_events::{
+        McpServerSource, McpServerStatus, SessionEventType, SessionMcpServerNeedsReconnectData,
+        SessionMcpServerRemovedData, SessionMcpServerStatusChangedData,
+        SessionMcpServersLoadedData,
+    };
+
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let _: github_copilot_sdk::rpc::SessionRpc<'_> = session.rpc();
+
+    let list = tokio::spawn({
+        let session = session.clone();
+        async move { session.rpc().mcp().list().await.unwrap() }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.mcp.list");
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    server
+        .respond(
+            &request,
+            serde_json::json!({
+                "servers": [{
+                    "displayName": "Calendar",
+                    "name": "calendar",
+                    "source": "managed",
+                    "status": "connected"
+                }]
+            }),
+        )
+        .await;
+    let list = timeout(TIMEOUT, list).await.unwrap().unwrap();
+    assert_eq!(list.servers.len(), 1);
+    assert_eq!(list.servers[0].name, "calendar");
+    assert_eq!(list.servers[0].display_name.as_deref(), Some("Calendar"));
+    assert_eq!(list.servers[0].source, Some(McpServerSource::Managed));
+    assert_eq!(list.servers[0].status, McpServerStatus::Connected);
+
+    let enable = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .rpc()
+                .mcp()
+                .enable(McpEnableRequest {
+                    server_name: "calendar".to_string(),
+                })
+                .await
+                .unwrap();
+        }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.mcp.enable");
+    assert_eq!(request["params"]["serverName"], "calendar");
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, enable).await.unwrap().unwrap();
+
+    let disable = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .rpc()
+                .mcp()
+                .disable(McpDisableRequest {
+                    server_name: "calendar".to_string(),
+                })
+                .await
+                .unwrap();
+        }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.mcp.disable");
+    assert_eq!(request["params"]["serverName"], "calendar");
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, disable).await.unwrap().unwrap();
+
+    let list_tools = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .rpc()
+                .mcp()
+                .list_tools(McpListToolsRequest {
+                    server_name: "calendar".to_string(),
+                })
+                .await
+                .unwrap()
+        }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.mcp.listTools");
+    assert_eq!(request["params"]["serverName"], "calendar");
+    server
+        .respond(
+            &request,
+            serde_json::json!({
+                "tools": [{
+                    "name": "events",
+                    "description": "List calendar events"
+                }]
+            }),
+        )
+        .await;
+    let tools = timeout(TIMEOUT, list_tools).await.unwrap().unwrap();
+    assert_eq!(tools.tools.len(), 1);
+    assert_eq!(tools.tools[0].name, "events");
+
+    let mut events = session.subscribe();
+    server
+        .send_event(
+            "session.mcp_servers_loaded",
+            serde_json::json!({
+                "servers": [{
+                    "displayName": "Calendar",
+                    "name": "calendar",
+                    "source": "managed",
+                    "status": "connected"
+                }]
+            }),
+        )
+        .await;
+    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+    assert_eq!(
+        event.parsed_type(),
+        SessionEventType::SessionMcpServersLoaded
+    );
+    let loaded: SessionMcpServersLoadedData = event.typed_data().unwrap();
+    assert_eq!(loaded.servers[0].name, "calendar");
+    assert_eq!(loaded.servers[0].status, McpServerStatus::Connected);
+
+    server
+        .send_event(
+            "session.mcp_server_status_changed",
+            serde_json::json!({
+                "serverName": "calendar",
+                "status": "needs-auth"
+            }),
+        )
+        .await;
+    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+    assert_eq!(
+        event.parsed_type(),
+        SessionEventType::SessionMcpServerStatusChanged
+    );
+    let changed: SessionMcpServerStatusChangedData = event.typed_data().unwrap();
+    assert_eq!(changed.server_name, "calendar");
+    assert_eq!(changed.status, McpServerStatus::NeedsAuth);
+
+    server
+        .send_event(
+            "session.mcp_server_needs_reconnect",
+            serde_json::json!({ "serverName": "calendar" }),
+        )
+        .await;
+    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+    assert_eq!(
+        event.parsed_type(),
+        SessionEventType::SessionMcpServerNeedsReconnect
+    );
+    let reconnect: SessionMcpServerNeedsReconnectData = event.typed_data().unwrap();
+    assert_eq!(reconnect.server_name, "calendar");
+
+    server
+        .send_event(
+            "session.mcp_server_removed",
+            serde_json::json!({ "serverName": "calendar" }),
+        )
+        .await;
+    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+    assert_eq!(
+        event.parsed_type(),
+        SessionEventType::SessionMcpServerRemoved
+    );
+    let removed: SessionMcpServerRemovedData = event.typed_data().unwrap();
+    assert_eq!(removed.server_name, "calendar");
 }
 
 async fn server_respond_create(

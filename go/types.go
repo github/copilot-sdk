@@ -555,35 +555,78 @@ type MCPAuthInvocation struct {
 // MCPAuthHandler handles MCP OAuth requests from the runtime.
 type MCPAuthHandler func(request MCPAuthRequest, invocation MCPAuthInvocation) (*MCPAuthResult, error)
 
-// ManagedMCPServerConfig is a non-secret hosted MCP server from a trusted
-// managed catalog. Credentials are supplied only through [MCPHeadersRefreshHandler].
+// ConnectorMCPServerConfig describes a connected Copilot Connector MCP
+// endpoint supplied from the service catalog. The containing map key is the
+// stable Connector server key. Short-lived client authorization for the exact
+// service-advertised endpoint is supplied only through
+// [MCPHeadersRefreshHandler]; this configuration never contains Outlook,
+// Slack, or other downstream service tokens.
 //
-// Experimental: ManagedMCPServerConfig is part of an experimental API and may change.
-type ManagedMCPServerConfig = rpc.ManagedMCPServerConfig
+// Experimental: ConnectorMCPServerConfig is part of an experimental API and may change.
+type ConnectorMCPServerConfig struct {
+	// DisplayName is the human-readable Connector display name.
+	DisplayName string `json:"displayName"`
+	// AuthorizationCacheTTLMS is the maximum time, in milliseconds, that the
+	// runtime may reuse Connector service authorization.
+	AuthorizationCacheTTLMS *int64 `json:"authorizationCacheTtlMs,omitempty"`
+	// Timeout is the timeout in milliseconds for tool discovery and tool calls.
+	Timeout *int64 `json:"timeout,omitempty"`
+	// Tools lists the tools to include. When omitted, all tools are included.
+	Tools []string `json:"tools,omitzero"`
+	// URL is the hosted MCP streamable HTTP endpoint.
+	URL string `json:"url"`
+}
 
-// MCPHeadersRefreshRequest identifies a managed MCP server whose short-lived
-// HTTP headers need refreshing.
+func connectorMCPServersToWire(servers map[string]ConnectorMCPServerConfig) map[string]rpc.ManagedMCPServerConfig {
+	if servers == nil {
+		return nil
+	}
+	wire := make(map[string]rpc.ManagedMCPServerConfig, len(servers))
+	for identity, server := range servers {
+		wire[identity] = rpc.ManagedMCPServerConfig{
+			DisplayName:         server.DisplayName,
+			HeadersRefreshTtlMs: server.AuthorizationCacheTTLMS,
+			Timeout:             server.Timeout,
+			Tools:               server.Tools,
+			URL:                 server.URL,
+		}
+	}
+	return wire
+}
+
+// MCPHeadersRefreshRequest identifies the exact connected Copilot Connector MCP
+// endpoint whose short-lived client authorization headers need refreshing.
 type MCPHeadersRefreshRequest struct {
-	ServerName string
-	ServerURL  string
-	Reason     MCPHeadersRefreshRequiredReason
+	// ServerKey is the stable server identity used as the ConnectorMCPServers map key.
+	ServerKey string
+	// ServerURL is the hosted MCP streamable HTTP endpoint.
+	ServerURL string
+	// Reason describes why the runtime requested refreshed service authorization.
+	Reason MCPHeadersRefreshRequiredReason
 }
 
-// MCPHeadersRefreshResult contains dynamic headers and their optional
-// credential-bounded cache lifetime. A nil result means no headers are available.
+// MCPHeadersRefreshResult contains dynamic service-authorization headers and
+// their optional cache lifetime. A nil result means no headers are available.
 type MCPHeadersRefreshResult struct {
+	// Headers contains client-to-Copilot-Connectors service authorization headers.
 	Headers map[string]string
-	TTLMS   *int64
+	// TTLMS is the remaining authorization lifetime in milliseconds.
+	TTLMS *int64
 }
 
-// MCPHeadersRefreshInvocation provides context for a managed MCP headers refresh.
+// MCPHeadersRefreshInvocation provides context for a Copilot Connector service
+// authorization refresh.
 type MCPHeadersRefreshInvocation struct {
 	SessionID string
 }
 
-// MCPHeadersRefreshHandler supplies short-lived HTTP headers for managed MCP
-// servers. Returning an error sends an explicit broker error to the runtime.
-// Handler panics are recovered and also sent as explicit broker errors.
+// MCPHeadersRefreshHandler supplies short-lived authorization from the SDK
+// client to the Copilot Connectors service for the exact endpoint in the
+// request, normally using the selected account's GitHub bearer token. It does
+// not supply Outlook, Slack, or other downstream service tokens; the Connector
+// service owns and applies those tokens. Returning an error sends an explicit
+// refresh error to the runtime. Handler panics are recovered and also sent as
+// explicit refresh errors.
 type MCPHeadersRefreshHandler func(request MCPHeadersRefreshRequest, invocation MCPHeadersRefreshInvocation) (*MCPHeadersRefreshResult, error)
 
 // UserInputRequest represents a request for user input from the agent
@@ -1433,7 +1476,9 @@ type SessionConfig struct {
 	// When provided, the SDK can satisfy MCP server OAuth requests with host-provided
 	// token data or cancellation.
 	OnMCPAuthRequest MCPAuthHandler
-	// OnMCPHeadersRefresh supplies short-lived HTTP headers for ManagedMCPServers.
+	// OnMCPHeadersRefresh supplies short-lived client-to-Copilot-Connectors
+	// service authorization when an endpoint in ConnectorMCPServers requests
+	// dynamic-header refresh. It does not supply downstream service tokens.
 	OnMCPHeadersRefresh MCPHeadersRefreshHandler
 	// GitHubTokenProvider acquires session-scoped GitHub tokens on demand. It
 	// cannot be combined with GitHubToken.
@@ -1523,9 +1568,10 @@ type SessionConfig struct {
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
 	// MCPServers configures MCP servers for the session
 	MCPServers map[string]MCPServerConfig
-	// ManagedMCPServers contains non-secret hosted MCP servers keyed by stable
-	// managed identity. Re-supply this map when cold-resuming a session.
-	ManagedMCPServers map[string]ManagedMCPServerConfig
+	// ConnectorMCPServers contains connected Copilot Connector MCP endpoints
+	// supplied from the service catalog. Keys are stable Connector server keys.
+	// Re-supply this map when cold-resuming a session.
+	ConnectorMCPServers map[string]ConnectorMCPServerConfig
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
@@ -2028,7 +2074,9 @@ type ResumeSessionConfig struct {
 	// OnMCPAuthRequest is an optional handler for MCP OAuth requests from MCP servers.
 	// See SessionConfig.OnMCPAuthRequest.
 	OnMCPAuthRequest MCPAuthHandler
-	// OnMCPHeadersRefresh supplies short-lived HTTP headers for ManagedMCPServers.
+	// OnMCPHeadersRefresh handles client-to-Copilot-Connectors service
+	// authorization refresh requests, not downstream service authentication.
+	// See [SessionConfig.OnMCPHeadersRefresh].
 	OnMCPHeadersRefresh MCPHeadersRefreshHandler
 	// OnUserInputRequest handles legacy question-and-answer requests from the agent
 	// and enables the legacy ask_user tool.
@@ -2091,9 +2139,10 @@ type ResumeSessionConfig struct {
 	IncludeSubAgentStreamingEvents *bool
 	// MCPServers configures MCP servers for the session
 	MCPServers map[string]MCPServerConfig
-	// ManagedMCPServers contains non-secret hosted MCP servers keyed by stable
-	// managed identity. Re-supply this map when cold-resuming a session.
-	ManagedMCPServers map[string]ManagedMCPServerConfig
+	// ConnectorMCPServers re-supplies connected Copilot Connector MCP endpoints
+	// from the service catalog after an app restart. Keys are stable Connector
+	// server keys.
+	ConnectorMCPServers map[string]ConnectorMCPServerConfig
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
@@ -2691,7 +2740,7 @@ type createSessionRequest struct {
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
 	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
-	ManagedMCPServers                  map[string]ManagedMCPServerConfig      `json:"managedMcpServers,omitempty"`
+	ManagedMCPServers                  map[string]rpc.ManagedMCPServerConfig  `json:"managedMcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
@@ -2804,7 +2853,7 @@ type resumeSessionRequest struct {
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
 	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
-	ManagedMCPServers                  map[string]ManagedMCPServerConfig      `json:"managedMcpServers,omitempty"`
+	ManagedMCPServers                  map[string]rpc.ManagedMCPServerConfig  `json:"managedMcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`

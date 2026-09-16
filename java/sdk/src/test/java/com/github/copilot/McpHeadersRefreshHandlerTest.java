@@ -68,7 +68,7 @@ class McpHeadersRefreshHandlerTest {
     @Test
     void createHandlerDispatchesHeadersWithoutTtl() {
         McpHeadersRefreshHandler handler = (request, invocation) -> {
-            assertEquals("managed-server", request.serverName());
+            assertEquals("connector-server-key", request.serverKey());
             assertEquals("https://mcp.example.com", request.serverUrl());
             assertEquals(McpHeadersRefreshRequiredReason.STARTUP, request.reason());
             assertEquals("session-1", invocation.getSessionId());
@@ -156,7 +156,7 @@ class McpHeadersRefreshHandlerTest {
     private JsonNode dispatchAndCapture(CopilotSession session, JsonRpcClient rpc) {
         var event = new McpHeadersRefreshRequiredEvent();
         event.setData(new McpHeadersRefreshRequiredEvent.McpHeadersRefreshRequiredEventData("headers-request",
-                "managed-server", "https://mcp.example.com", McpHeadersRefreshRequiredReason.STARTUP));
+                "connector-server-key", "https://mcp.example.com", McpHeadersRefreshRequiredReason.STARTUP));
 
         session.dispatchEvent(event);
 

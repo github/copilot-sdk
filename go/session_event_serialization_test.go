@@ -14,6 +14,79 @@ var _ SessionEventData = (*rpc.UserMessageData)(nil)
 var _ rpc.EmbeddedTextResourceContents = EmbeddedTextResourceContents{}
 var _ EmbeddedTextResourceContents = rpc.EmbeddedTextResourceContents{}
 
+func TestConnectorMCPStatusEventsUsePublicSessionEventTypes(t *testing.T) {
+	tests := []struct {
+		eventType string
+		data      map[string]any
+		assert    func(*testing.T, SessionEventData)
+	}{
+		{
+			eventType: "session.mcp_servers_loaded",
+			data: map[string]any{
+				"servers": []any{
+					map[string]any{"name": "calendar", "status": "connected"},
+				},
+			},
+			assert: func(t *testing.T, data SessionEventData) {
+				loaded, ok := data.(*SessionMCPServersLoadedData)
+				if !ok || len(loaded.Servers) != 1 || loaded.Servers[0].Name != "calendar" {
+					t.Fatalf("unexpected loaded event data: %#v", data)
+				}
+			},
+		},
+		{
+			eventType: "session.mcp_server_status_changed",
+			data:      map[string]any{"serverName": "calendar", "status": "connected"},
+			assert: func(t *testing.T, data SessionEventData) {
+				status, ok := data.(*SessionMCPServerStatusChangedData)
+				if !ok || status.ServerName != "calendar" || status.Status != MCPServerStatusConnected {
+					t.Fatalf("unexpected status event data: %#v", data)
+				}
+			},
+		},
+		{
+			eventType: "session.mcp_server_needs_reconnect",
+			data:      map[string]any{"serverName": "calendar"},
+			assert: func(t *testing.T, data SessionEventData) {
+				reconnect, ok := data.(*SessionMCPServerNeedsReconnectData)
+				if !ok || reconnect.ServerName != "calendar" {
+					t.Fatalf("unexpected reconnect event data: %#v", data)
+				}
+			},
+		},
+		{
+			eventType: "session.mcp_server_removed",
+			data:      map[string]any{"serverName": "calendar"},
+			assert: func(t *testing.T, data SessionEventData) {
+				removed, ok := data.(*SessionMCPServerRemovedData)
+				if !ok || removed.ServerName != "calendar" {
+					t.Fatalf("unexpected removed event data: %#v", data)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.eventType, func(t *testing.T) {
+			wire, err := json.Marshal(map[string]any{
+				"id":        "00000000-0000-0000-0000-000000000001",
+				"timestamp": "2026-09-16T00:00:00Z",
+				"parentId":  nil,
+				"type":      tt.eventType,
+				"data":      tt.data,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var event SessionEvent
+			if err := json.Unmarshal(wire, &event); err != nil {
+				t.Fatal(err)
+			}
+			tt.assert(t, event.Data)
+		})
+	}
+}
+
 func TestSessionEventAutoTier(t *testing.T) {
 	for _, eventType := range []string{"session.start", "session.resume"} {
 		for _, tier := range []AutoTier{"", AutoTierEfficiency, AutoTierBalance, AutoTierIntelligence} {

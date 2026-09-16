@@ -752,7 +752,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                             new McpHeadersRefreshContext
                             {
                                 SessionId = SessionId,
-                                ServerName = data.ServerName,
+                                ServerKey = data.ServerName,
                                 ServerUrl = data.ServerUrl,
                                 Reason = data.Reason
                             },

@@ -1089,7 +1089,7 @@ export class CopilotSession {
                 return;
             }
             void this._executeMcpHeadersRefreshAndRespond(requestId, {
-                serverName,
+                serverKey: serverName,
                 serverUrl,
                 reason,
             });
@@ -1349,7 +1349,7 @@ export class CopilotSession {
     }
 
     /**
-     * Executes a managed MCP headers refresh handler and sends the result via RPC.
+     * Executes an MCP headers refresh handler and sends the result via RPC.
      * @internal
      */
     private async _executeMcpHeadersRefreshAndRespond(
@@ -1374,7 +1374,7 @@ export class CopilotSession {
             }
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            console.warn(`MCP headers refresh failed for '${request.serverName}': ${message}`);
+            console.warn(`MCP headers refresh failed for '${request.serverKey}': ${message}`);
             result = { kind: "error", message };
         }
 

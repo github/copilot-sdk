@@ -113,7 +113,7 @@ export type {
     MCPStdioServerConfig,
     MCPHTTPServerConfig,
     MCPServerConfig,
-    ManagedMcpServerConfig,
+    ConnectorMcpServerConfig,
     McpHeadersRefreshHandler,
     McpHeadersRefreshRequest,
     McpHeadersRefreshResult,

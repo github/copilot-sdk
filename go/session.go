@@ -1549,9 +1549,9 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		s.executeMCPHeadersRefreshAndRespond(
 			d.RequestID,
 			MCPHeadersRefreshRequest{
-				ServerName: d.ServerName,
-				ServerURL:  d.ServerURL,
-				Reason:     d.Reason,
+				ServerKey: d.ServerName,
+				ServerURL: d.ServerURL,
+				Reason:    d.Reason,
 			},
 			handler,
 		)
@@ -1822,9 +1822,9 @@ func (s *Session) executeMCPHeadersRefreshAndRespond(
 	switch {
 	case err != nil:
 		log.Printf(
-			"MCP headers refresh failed: session_id=%s server_name=%s error=%v",
+			"MCP headers refresh failed: session_id=%s server_key=%s error=%v",
 			s.SessionID,
-			request.ServerName,
+			request.ServerKey,
 			err,
 		)
 		wireResult = rpc.MCPHeadersHandlePendingHeadersRefreshRequestError{Message: err.Error()}

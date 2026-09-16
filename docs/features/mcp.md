@@ -24,39 +24,75 @@ The SDK supports two MCP transport families:
 | **Local/Stdio** | Runs as a subprocess, communicates via stdin/stdout | Local tools, file access, custom scripts |
 | **HTTP/SSE** | Remote server accessed via HTTP | Shared services, cloud-hosted tools |
 
-Transport and configuration origin are separate concepts. A managed MCP server
-uses the HTTP transport, but its configuration comes from a trusted host catalog
-instead of user or workspace configuration. Session status and loaded-server
-events report this distinction with `source: "managed"` and include the catalog
-display name.
+Transport and configuration origin are separate concepts. A Connector MCP
+endpoint uses the HTTP transport, but its configuration comes from the
+Copilot Connectors service rather than user or workspace settings.
 
-## Managed MCP servers
+## Integrating Copilot Connectors
 
-Managed MCP lets a trusted SDK host inject a catalog of non-secret hosted
-servers for one session. The runtime keeps this catalog separate from
-`mcpServers`, so existing local stdio, HTTP, SSE, and OAuth behavior remains
-unchanged.
+People use Copilot Connectors by choosing a Connector in the host application,
+completing consent when required, and then using its tools. They do not enter an
+MCP endpoint, configure authorization, or manage the underlying MCP server.
 
-The host supplies each server under a stable managed identity:
+An SDK-based host implements that experience:
+
+1. Retrieve the supported Connector catalog for the selected account.
+1. Present Connector metadata and connection status, and perform Connect,
+   Reconnect, or Disconnect through the Connector service.
+1. Consume each service-advertised MCP URL without constructing or rewriting it.
+1. Supply connected Connector endpoints to the session through
+   `connectorMcpServers`.
+1. Authorize calls to those endpoints for the same selected GitHub account
+   through `onMcpHeadersRefresh`.
+
+The SDK API described here is the session bridge for connected Connectors. It
+does not fetch the catalog, render Connector UI, perform consent, or manage
+service connections. Existing local stdio, HTTP, SSE, and OAuth MCP behavior
+remains unchanged.
+
+The integration boundary is:
+
+| Responsibility | Owner |
+| --- | --- |
+| List available Connectors and connection state | Connector service and host application |
+| Connect, Reconnect, Disconnect, browser consent, and polling | Connector service and host application |
+| Select and pin the active account | Host application |
+| Load connected Connector endpoints and supply service authorization | Copilot SDK |
+| List server state and tools, enable or disable per session, and receive status events | Copilot SDK |
+| Apply MCP policy, cache authorization, and retry once after a 401 | Connected Copilot runtime |
+
+> [!NOTE]
+> Connector session integration is experimental and only takes effect when
+> enabled by the connected runtime. The host must re-supply the effective
+> connected set on cold resume.
+
+The host supplies each connected endpoint under a stable Connector server key:
 
 <!-- docs-validate: skip -->
 
 ```typescript
 const session = await client.createSession({
-    managedMcpServers: {
-        "github-enterprise": {
-            displayName: "GitHub Enterprise",
-            url: "https://mcp.example.com/",
-            tools: ["issues", "pull_requests"],
+    connectorMcpServers: {
+        [connector.serverKey]: {
+            displayName: connector.displayName,
+            url: connector.advertisedMcpUrl,
+            tools: connector.tools,
             timeout: 30_000,
-            headersRefreshTtlMs: 60_000,
+            authorizationCacheTtlMs: 60_000,
         },
     },
-    onMcpHeadersRefresh: async ({ serverName, serverUrl, reason }) => {
-        const credential = await broker.getCredential({ serverName, serverUrl, reason });
+    onMcpHeadersRefresh: async ({ serverKey, serverUrl, reason }) => {
+        const authorization = await getConnectorAuthorization({
+            account: selectedAccount,
+            serverKey,
+            serverUrl,
+            reason,
+        });
         return {
-            headers: { Authorization: credential.authorizationHeader },
-            ttlMs: credential.expiresInMs,
+            headers: {
+                Authorization: ["Bearer", authorization.accessToken].join(" "),
+            },
+            ttlMs: authorization.expiresInMs,
         };
     },
 });
@@ -64,36 +100,58 @@ const session = await client.createSession({
 
 The corresponding configuration and callback names are:
 
-| SDK | Managed servers | Header refresh callback |
+| SDK | Connector MCP servers | Header refresh callback |
 | --- | --- | --- |
-| Node.js | `managedMcpServers` | `onMcpHeadersRefresh` |
-| Python | `managed_mcp_servers` | `on_mcp_headers_refresh` |
-| Go | `ManagedMCPServers` | `OnMCPHeadersRefresh` |
-| .NET | `ManagedMcpServers` | `OnMcpHeadersRefresh` |
-| Java | `setManagedMcpServers(...)` | `setOnMcpHeadersRefresh(...)` |
-| Rust | `with_managed_mcp_servers(...)` | `with_mcp_headers_handler(...)` |
+| Node.js | `connectorMcpServers` | `onMcpHeadersRefresh` |
+| Python | `connector_mcp_servers` | `on_mcp_headers_refresh` |
+| Go | `ConnectorMCPServers` | `OnMCPHeadersRefresh` |
+| .NET | `ConnectorMcpServers` | `OnMcpHeadersRefresh` |
+| Java | `setConnectorMcpServers(...)` | `setOnMcpHeadersRefresh(...)` |
+| Rust | `with_connector_mcp_servers(...)` | `with_mcp_headers_handler(...)` |
+
+The typed session MCP API supplies UI hooks for already loaded Connectors: list
+server status and tools, enable or disable a server for the current session, and
+subscribe to MCP loaded and status-change events. Connect, Reconnect,
+Disconnect, browser consent, and catalog polling remain operations against the
+Connector service.
+
+> [!WARNING]
+> The current public runtime contract cannot replace the authoritative
+> Connector set on a running session. After a Connect, Reconnect, or Disconnect,
+> create or cold-resume a session with the updated `connectorMcpServers` map.
+> Do not treat the generic MCP `stopServer` operation as Connector Disconnect:
+> an MCP reload can restore a server from the session's original configuration.
 
 ### Host responsibilities
 
-Managed MCP hosts must enforce these boundaries:
+SDK hosts must enforce these boundaries:
 
 * **Trusted catalog injection**: Only inject server identities, display metadata,
   endpoints, and tool policy from a trusted catalog. Do not treat model output
   or untrusted content as catalog configuration.
-* **Memory-only credentials**: Keep access tokens and derived authorization
-  headers in memory. Do not place credentials in `managedMcpServers`, session
-  history, workspace state, or persistent MCP OAuth storage.
-* **Expiry and revocation**: Set `ttlMs` to the remaining credential lifetime.
-  The runtime clamps it to `headersRefreshTtlMs`. Throw from the callback when
-  the broker denies access, fails, or reports revocation; the SDK forwards an
-  explicit broker error without converting it to a successful empty response.
-* **Cold resume**: Re-supply both the managed catalog and the header refresh
-  callback when cold-resuming a session. Managed configuration and credentials
-  are not recovered from persisted session state.
+* **Connector service authorization**: Supply the selected account's
+  short-lived GitHub authorization only to the exact endpoint advertised by the
+  Connector service. The Connector service, not the SDK host, owns downstream
+  provider credentials such as Microsoft or Slack tokens.
+* **Memory-only authorization**: Keep access tokens and derived authorization
+  headers in memory. Do not place them in `connectorMcpServers`, session history,
+  workspace state, or persistent MCP OAuth storage.
+* **Account binding**: Fetch the catalog and authorization for the same
+  authenticated account. Invalidate cached authorization before switching
+  accounts so one account's access cannot be reused by another.
+* **Expiry and revocation**: Set `ttlMs` to the remaining authorization lifetime.
+  The runtime clamps it to `authorizationCacheTtlMs`. Throw from the callback
+  when Connector authorization is denied, fails, or is revoked; the SDK
+  forwards an explicit error without converting it to a successful empty
+  response.
+* **Cold resume**: Re-supply both the connected Connector endpoints and the
+  header refresh callback when cold-resuming a session. Connector configuration
+  and authorization are not recovered from persisted session state.
 
 Returning no result from the callback reports that no dynamic headers are
-available. Existing static `headers`, arbitrary HTTP servers, and MCP OAuth
-handlers continue to use their current behavior.
+available for the Connector endpoint. Existing static `headers`, arbitrary HTTP
+servers configured through `mcpServers`, and MCP OAuth handlers continue to use
+their current behavior.
 
 ## Configuration
 

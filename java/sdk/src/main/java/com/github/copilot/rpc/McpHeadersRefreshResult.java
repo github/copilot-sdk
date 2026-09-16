@@ -7,12 +7,14 @@ package com.github.copilot.rpc;
 import java.util.Map;
 
 /**
- * Dynamic headers returned for a host-managed MCP server.
+ * Short-lived client-to-Copilot-Connectors service authorization headers
+ * returned for a connected Connector MCP endpoint.
  *
  * @param headers
- *            headers to use, or {@code null} for no result
+ *            headers that authorize the client-to-service request, or
+ *            {@code null} for no result
  * @param ttlMs
- *            optional cache lifetime in milliseconds
+ *            optional remaining authorization lifetime in milliseconds
  * @since 1.0.0
  */
 public record McpHeadersRefreshResult(Map<String, String> headers, Long ttlMs) {
@@ -28,7 +30,7 @@ public record McpHeadersRefreshResult(Map<String, String> headers, Long ttlMs) {
      * Creates a result with headers and no handler-specific cache lifetime.
      *
      * @param headers
-     *            headers to use
+     *            headers that authorize the client-to-service request
      * @return a headers result
      */
     public static McpHeadersRefreshResult withHeaders(Map<String, String> headers) {
@@ -36,12 +38,12 @@ public record McpHeadersRefreshResult(Map<String, String> headers, Long ttlMs) {
     }
 
     /**
-     * Creates a result with headers and a cache lifetime.
+     * Creates a result with headers and the remaining authorization lifetime.
      *
      * @param headers
-     *            headers to use
+     *            headers that authorize the client-to-service request
      * @param ttlMs
-     *            cache lifetime in milliseconds
+     *            remaining authorization lifetime in milliseconds
      * @return a headers result
      */
     public static McpHeadersRefreshResult withHeaders(Map<String, String> headers, long ttlMs) {

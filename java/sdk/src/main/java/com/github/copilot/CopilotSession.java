@@ -402,6 +402,16 @@ public final class CopilotSession implements AutoCloseable {
      * <pre>{@code
      * var agents = session.getRpc().agent.list().get();
      * }</pre>
+     * <p>
+     * For MCP servers already configured on the session, the public {@code mcp}
+     * namespace supports listing server status and tools, enabling or disabling
+     * servers. The generated parameter field named {@code serverName} takes the
+     * stable configuration map key. Status changes are available through
+     * {@link #on(Class, Consumer)} with
+     * {@link com.github.copilot.generated.SessionMcpServersLoadedEvent},
+     * {@link com.github.copilot.generated.SessionMcpServerStatusChangedEvent},
+     * {@link com.github.copilot.generated.SessionMcpServerRemovedEvent}, and
+     * {@link com.github.copilot.generated.SessionMcpServerNeedsReconnectEvent}.
      *
      * @return the session-scoped typed RPC client (never {@code null})
      * @throws IllegalStateException
@@ -2649,7 +2659,7 @@ public final class CopilotSession implements AutoCloseable {
         }
     }
 
-    // ===== Internal response types for agent API =====
+    // ===== Internal wire types =====
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record SessionDetachResponse(@JsonProperty("success") boolean success, @JsonProperty("error") String error) {

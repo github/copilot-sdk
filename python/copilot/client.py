@@ -95,6 +95,7 @@ from .session import (
     AutoTier,
     BearerTokenProvider,
     CommandDefinition,
+    ConnectorMCPServerConfig,
     ContextTier,
     CopilotSession,
     CreateSessionFsHandler,
@@ -105,7 +106,6 @@ from .session import (
     GitHubMcpToolConfig,
     InfiniteSessionConfig,
     LargeToolOutputConfig,
-    ManagedMCPServerConfig,
     McpAuthHandler,
     McpHeadersRefreshHandler,
     MCPServerConfig,
@@ -124,6 +124,7 @@ from .session import (
     ToolSearchConfig,
     UserInputHandler,
     _capabilities_to_dict,
+    _connector_mcp_servers_to_wire,
     _PermissionHandlerFn,
 )
 from .session_fs_provider import SessionFsProvider, create_session_fs_adapter
@@ -437,26 +438,6 @@ def _mcp_servers_to_wire(
             config = {**config, "cwd": config["working_directory"]}
             del config["working_directory"]
         wire[name] = config
-    return wire
-
-
-def _managed_mcp_servers_to_wire(
-    servers: dict[str, ManagedMCPServerConfig],
-) -> dict[str, Any]:
-    """Convert managed MCP configuration keys to the JSON-RPC wire casing."""
-    wire: dict[str, Any] = {}
-    for name, config in servers.items():
-        server: dict[str, Any] = {
-            "displayName": config["display_name"],
-            "url": config["url"],
-        }
-        if "tools" in config:
-            server["tools"] = config["tools"]
-        if "timeout" in config:
-            server["timeout"] = config["timeout"]
-        if "headers_refresh_ttl_ms" in config:
-            server["headersRefreshTtlMs"] = config["headers_refresh_ttl_ms"]
-        wire[name] = server
     return wire
 
 
@@ -2315,7 +2296,7 @@ class CopilotClient:
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
-        managed_mcp_servers: dict[str, ManagedMCPServerConfig] | None = None,
+        connector_mcp_servers: dict[str, ConnectorMCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
         auth_client_id_metadata_url: str | None = None,
         embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
@@ -2449,12 +2430,13 @@ class CopilotClient:
                 ``agentId`` set). When False, only non-streaming sub-agent events and
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
-            managed_mcp_servers: Non-secret hosted MCP servers from a trusted
-                managed catalog, keyed by stable managed identity. Re-supply on
-                cold resume.
-            on_mcp_headers_refresh: Supplies short-lived HTTP headers for managed
-                MCP servers. Exceptions are reported to the runtime as explicit
-                credential-broker errors.
+            connector_mcp_servers: Non-secret hosted MCP endpoints advertised
+                for connected Copilot Connectors, keyed by stable server identity.
+                Re-supply on cold resume.
+            on_mcp_headers_refresh: Supplies short-lived HTTP headers for
+                Connector MCP endpoints. These authorize the selected GitHub
+                account to the Connector service; the service owns downstream
+                provider credentials. Exceptions are explicit runtime errors.
             mcp_oauth_token_storage: Controls how MCP OAuth tokens are stored.
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
@@ -2765,8 +2747,8 @@ class CopilotClient:
         # Add MCP servers configuration if provided
         if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
-        if managed_mcp_servers is not None:
-            payload["managedMcpServers"] = _managed_mcp_servers_to_wire(managed_mcp_servers)
+        if connector_mcp_servers is not None:
+            payload["managedMcpServers"] = _connector_mcp_servers_to_wire(connector_mcp_servers)
         # Mode "empty" defaults MCP OAuth token storage to in-memory; caller wins.
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:
@@ -3119,7 +3101,7 @@ class CopilotClient:
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
-        managed_mcp_servers: dict[str, ManagedMCPServerConfig] | None = None,
+        connector_mcp_servers: dict[str, ConnectorMCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
         auth_client_id_metadata_url: str | None = None,
         embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
@@ -3256,10 +3238,11 @@ class CopilotClient:
                 ``agentId`` set). When False, only non-streaming sub-agent events and
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
-            managed_mcp_servers: Non-secret hosted MCP servers from a trusted
-                managed catalog. Re-supply them on cold resume.
-            on_mcp_headers_refresh: Supplies short-lived HTTP headers for managed
-                MCP servers.
+            connector_mcp_servers: Non-secret hosted MCP endpoints advertised
+                for connected Copilot Connectors. Re-supply them on cold resume.
+            on_mcp_headers_refresh: Supplies short-lived HTTP headers for
+                Connector MCP endpoints. The Connector service owns downstream
+                provider credentials.
             mcp_oauth_token_storage: Controls how MCP OAuth tokens are stored.
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
@@ -3565,8 +3548,8 @@ class CopilotClient:
         # TODO: disable_resume is not a keyword arg yet; keeping for future use
         if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
-        if managed_mcp_servers is not None:
-            payload["managedMcpServers"] = _managed_mcp_servers_to_wire(managed_mcp_servers)
+        if connector_mcp_servers is not None:
+            payload["managedMcpServers"] = _connector_mcp_servers_to_wire(connector_mcp_servers)
         # Mode "empty" defaults MCP OAuth token storage to in-memory; caller wins.
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:

@@ -26,7 +26,6 @@ import type {
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
-    ManagedMcpServerConfig,
     ModelBillingTokenPrices,
     OpenCanvasInstance,
     RemoteSessionMode,
@@ -35,7 +34,19 @@ import type {
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
-export type { ManagedMcpServerConfig } from "./generated/rpc.js";
+/** Non-secret hosted MCP endpoint advertised for a connected Copilot Connector. */
+export interface ConnectorMcpServerConfig {
+    /** Human-readable Connector name. */
+    displayName: string;
+    /** Service-advertised MCP endpoint. */
+    url: string;
+    /** Tools to expose. Defaults to all tools when omitted. */
+    tools?: string[];
+    /** Timeout in milliseconds for discovery and tool calls. */
+    timeout?: number;
+    /** Maximum time the runtime may reuse Connector service authorization. */
+    authorizationCacheTtlMs?: number;
+}
 export type {
     GitHubTokenAcquireReason,
     GitHubTokenAcquireResult,
@@ -2083,28 +2094,28 @@ export type McpAuthHandler = (
     | undefined
     | Promise<McpAuthResult | McpAuthToken | null | undefined>;
 
-/** MCP server whose short-lived HTTP headers must be refreshed by the host. */
+/** Connector MCP server whose short-lived HTTP headers must be refreshed. */
 export interface McpHeadersRefreshRequest {
-    /** Human-readable managed catalog display name. */
-    serverName: string;
+    /** Stable server identity used as the connectorMcpServers map key. */
+    serverKey: string;
     /** Hosted MCP streamable HTTP endpoint. */
     serverUrl: string;
     /** Why the runtime invalidated or requested dynamic headers. */
     reason: McpHeadersRefreshRequiredReason;
 }
 
-/** Dynamic headers and their optional credential-bounded cache lifetime. */
+/** Connector service authorization headers and their optional cache lifetime. */
 export interface McpHeadersRefreshResult {
     headers: Record<string, string>;
     ttlMs?: number;
 }
 
 /**
- * Callback invoked when a managed MCP server needs fresh HTTP headers.
+ * Callback invoked when a Connector MCP server needs fresh HTTP headers.
  *
  * Return a bare header map or a structured result with `ttlMs`. Returning
  * `undefined` reports that no headers are available. Throwing reports an
- * explicit credential-broker error to the runtime.
+ * explicit Connector authorization error to the runtime.
  */
 export type McpHeadersRefreshHandler = (
     request: McpHeadersRefreshRequest,
@@ -2657,7 +2668,7 @@ export interface SessionConfigBase {
     onMcpAuthRequest?: McpAuthHandler;
 
     /**
-     * Supplies short-lived HTTP headers for managed MCP servers.
+     * Supplies short-lived HTTP headers for Connector MCP servers.
      * Re-register this handler when cold-resuming a session.
      */
     onMcpHeadersRefresh?: McpHeadersRefreshHandler;
@@ -2794,13 +2805,13 @@ export interface SessionConfigBase {
     mcpServers?: Record<string, MCPServerConfig>;
 
     /**
-     * Non-secret hosted MCP servers injected from a trusted managed catalog.
-     * Keys are stable managed identities. Credentials must be supplied through
-     * {@link onMcpHeadersRefresh}, never stored in this configuration.
+     * Non-secret hosted MCP endpoints advertised for connected Copilot Connectors.
+     * Keys are stable Connector server identities. Service authorization must be
+     * supplied through {@link onMcpHeadersRefresh}, never stored in this configuration.
      *
      * @experimental
      */
-    managedMcpServers?: Record<string, ManagedMcpServerConfig>;
+    connectorMcpServers?: Record<string, ConnectorMcpServerConfig>;
 
     /**
      * Custom agent configurations for the session.

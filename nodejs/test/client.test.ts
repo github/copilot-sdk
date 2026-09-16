@@ -375,7 +375,7 @@ describe("CopilotClient", () => {
                 ttlMs: 5_000,
             },
         },
-    ])("responds to managed MCP header refresh with $name", async ({ response, expected }) => {
+    ])("responds to remote MCP header refresh with $name", async ({ response, expected }) => {
         const sendRequest = vi.fn(async () => ({ success: true }));
         const session = new CopilotSession(
             "session-1",
@@ -386,7 +386,7 @@ describe("CopilotClient", () => {
         );
 
         await (session as any)._executeMcpHeadersRefreshAndRespond("refresh-request", {
-            serverName: "Managed GitHub",
+            serverKey: "github",
             serverUrl: "https://example.com/mcp",
             reason: "startup",
         });
@@ -401,7 +401,7 @@ describe("CopilotClient", () => {
         );
     });
 
-    it("reports no managed MCP headers when the handler returns undefined", async () => {
+    it("reports no dynamic MCP headers when the handler returns undefined", async () => {
         const sendRequest = vi.fn(async () => ({ success: true }));
         const session = new CopilotSession(
             "session-1",
@@ -412,7 +412,7 @@ describe("CopilotClient", () => {
         );
 
         await (session as any)._executeMcpHeadersRefreshAndRespond("refresh-request", {
-            serverName: "Managed GitHub",
+            serverKey: "github",
             serverUrl: "https://example.com/mcp",
             reason: "ttl-expired",
         });
@@ -427,7 +427,7 @@ describe("CopilotClient", () => {
         );
     });
 
-    it("propagates managed MCP credential broker failures explicitly", async () => {
+    it("propagates MCP credential broker failures explicitly", async () => {
         const sendRequest = vi.fn(async () => ({ success: true }));
         const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
         const session = new CopilotSession(
@@ -443,7 +443,7 @@ describe("CopilotClient", () => {
         );
 
         await (session as any)._executeMcpHeadersRefreshAndRespond("refresh-request", {
-            serverName: "Managed GitHub",
+            serverKey: "github",
             serverUrl: "https://example.com/mcp",
             reason: "auth-failed",
         });
@@ -459,7 +459,7 @@ describe("CopilotClient", () => {
         warning.mockRestore();
     });
 
-    it("forwards managed MCP servers and refresh interest on create and resume", async () => {
+    it("maps Connector MCP servers to the internal wire contract on create and resume", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => stopClient(client));
@@ -475,29 +475,37 @@ describe("CopilotClient", () => {
                 }
                 throw new Error(`Unexpected method: ${method}`);
             });
-        const managedMcpServers = {
+        const connectorMcpServers = {
             github: {
                 displayName: "GitHub",
                 url: "https://api.example.com/mcp",
                 tools: ["issues"],
                 timeout: 30_000,
-                headersRefreshTtlMs: 60_000,
+                authorizationCacheTtlMs: 60_000,
             },
         };
         const onMcpHeadersRefresh = () => ({ Authorization: "Bearer short-lived" });
 
         const session = await client.createSession({
-            managedMcpServers,
+            connectorMcpServers,
             onMcpHeadersRefresh,
         });
         await client.resumeSession(session.sessionId, {
-            managedMcpServers,
+            connectorMcpServers,
             onMcpHeadersRefresh,
         });
 
         for (const method of ["session.create", "session.resume"]) {
             expect(spy.mock.calls.find(([called]) => called === method)![1]).toMatchObject({
-                managedMcpServers,
+                managedMcpServers: {
+                    github: {
+                        displayName: "GitHub",
+                        url: "https://api.example.com/mcp",
+                        tools: ["issues"],
+                        timeout: 30_000,
+                        headersRefreshTtlMs: 60_000,
+                    },
+                },
             });
         }
         expect(spy).toHaveBeenCalledTimes(4);

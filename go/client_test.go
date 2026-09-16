@@ -2711,17 +2711,19 @@ func TestClient_MCPAuthInterestRegistration(t *testing.T) {
 	})
 }
 
-func TestClient_ManagedMCPCreateAndResume(t *testing.T) {
+func TestClient_ConnectorMCPServersMapToInternalWireOnCreateAndResume(t *testing.T) {
 	client, requests, cleanup := newInMemoryClient(t)
 	defer cleanup()
 
 	ttl := int64(60_000)
-	managed := map[string]ManagedMCPServerConfig{
+	timeout := int64(30_000)
+	connectors := map[string]ConnectorMCPServerConfig{
 		"github": {
-			DisplayName:         "GitHub",
-			URL:                 "https://example.com/mcp",
-			Tools:               []string{"issues"},
-			HeadersRefreshTtlMs: &ttl,
+			DisplayName:             "GitHub",
+			URL:                     "https://example.com/mcp",
+			Tools:                   []string{"issues"},
+			Timeout:                 &timeout,
+			AuthorizationCacheTTLMS: &ttl,
 		},
 	}
 	handler := func(MCPHeadersRefreshRequest, MCPHeadersRefreshInvocation) (*MCPHeadersRefreshResult, error) {
@@ -2729,7 +2731,7 @@ func TestClient_ManagedMCPCreateAndResume(t *testing.T) {
 	}
 
 	session, err := client.CreateSession(t.Context(), &SessionConfig{
-		ManagedMCPServers:   managed,
+		ConnectorMCPServers: connectors,
 		OnMCPHeadersRefresh: handler,
 	})
 	if err != nil {
@@ -2741,21 +2743,28 @@ func TestClient_ManagedMCPCreateAndResume(t *testing.T) {
 	if !ok {
 		t.Fatal("missing session.create request")
 	}
-	managedWire, ok := create.Params["managedMcpServers"].(map[string]any)
-	if !ok {
-		t.Fatalf("unexpected managedMcpServers: %#v", create.Params["managedMcpServers"])
+	expectedWire := map[string]any{
+		"github": map[string]any{
+			"displayName":         "GitHub",
+			"headersRefreshTtlMs": float64(60_000),
+			"timeout":             float64(30_000),
+			"tools":               []any{"issues"},
+			"url":                 "https://example.com/mcp",
+		},
 	}
-	github, ok := managedWire["github"].(map[string]any)
-	if !ok || github["displayName"] != "GitHub" || github["headersRefreshTtlMs"] != float64(60_000) {
-		t.Fatalf("unexpected managed server payload: %#v", managedWire)
+	if got := create.Params["managedMcpServers"]; !reflect.DeepEqual(got, expectedWire) {
+		t.Fatalf("unexpected managedMcpServers wire payload: %#v", got)
+	}
+	if _, ok := create.Params["catalogMcpServers"]; ok {
+		t.Fatalf("catalogMcpServers must not appear on the wire: %#v", create.Params)
 	}
 	if !hasEventInterest(requests.snapshot(), "mcp.headers_refresh_required") {
-		t.Fatal("missing managed MCP headers refresh interest on create")
+		t.Fatal("missing MCP headers refresh interest on create")
 	}
 
 	requests.clear()
 	resumed, err := client.ResumeSession(t.Context(), session.SessionID, &ResumeSessionConfig{
-		ManagedMCPServers:   managed,
+		ConnectorMCPServers: connectors,
 		OnMCPHeadersRefresh: handler,
 	})
 	if err != nil {
@@ -2764,11 +2773,17 @@ func TestClient_ManagedMCPCreateAndResume(t *testing.T) {
 	defer resumed.Disconnect()
 
 	resume, ok := findRequest(requests.snapshot(), "session.resume")
-	if !ok || resume.Params["managedMcpServers"] == nil {
-		t.Fatalf("managed MCP servers missing from resume: %#v", resume.Params)
+	if !ok {
+		t.Fatal("missing session.resume request")
+	}
+	if got := resume.Params["managedMcpServers"]; !reflect.DeepEqual(got, expectedWire) {
+		t.Fatalf("unexpected managedMcpServers wire payload on resume: %#v", got)
+	}
+	if _, ok := resume.Params["catalogMcpServers"]; ok {
+		t.Fatalf("catalogMcpServers must not appear on the wire: %#v", resume.Params)
 	}
 	if !hasEventInterest(requests.snapshot(), "mcp.headers_refresh_required") {
-		t.Fatal("missing managed MCP headers refresh interest on resume")
+		t.Fatal("missing MCP headers refresh interest on resume")
 	}
 }
 
@@ -3046,6 +3061,12 @@ func serveInMemoryRuntime(t *testing.T, stdinR *io.PipeReader, stdoutW *io.PipeW
 			result = map[string]any{"sessionId": sessionID, "workspacePath": nil}
 		case "session.eventLog.registerInterest":
 			result = map[string]any{"id": "interest-1"}
+		case "session.mcp.list":
+			result = map[string]any{"servers": []any{}}
+		case "session.mcp.enable", "session.mcp.disable":
+			result = map[string]any{}
+		case "session.mcp.listTools":
+			result = map[string]any{"tools": []any{}}
 		case "session.options.update":
 			result = map[string]any{"success": true}
 		case "session.skills.reload":

@@ -178,7 +178,7 @@ class McpAuthInterestRegistrationTest {
     }
 
     @Test
-    void createAndResumeRegisterManagedMcpHeadersRefreshInterest() throws Exception {
+    void createAndResumeRegisterMcpHeadersRefreshInterest() throws Exception {
         try (var server = new RecordingRuntime();
                 var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()))) {
             try (var session = client
@@ -199,7 +199,7 @@ class McpAuthInterestRegistrationTest {
 
             server.clearRequests();
 
-            try (var session = client.resumeSession("managed-session",
+            try (var session = client.resumeSession("connector-session",
                     new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setOnMcpHeadersRefresh((request, invocation) -> java.util.concurrent.CompletableFuture
                                     .completedFuture(McpHeadersRefreshResult.none())))

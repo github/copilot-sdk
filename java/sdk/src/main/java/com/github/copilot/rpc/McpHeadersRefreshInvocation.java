@@ -5,7 +5,7 @@
 package com.github.copilot.rpc;
 
 /**
- * Context for a managed MCP dynamic-header refresh invocation.
+ * Context for a Copilot Connector MCP dynamic-header refresh invocation.
  *
  * @since 1.0.0
  */

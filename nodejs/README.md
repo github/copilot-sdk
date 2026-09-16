@@ -156,6 +156,8 @@ Create a new conversation session.
 - `enableSessionStore?: boolean` - Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
 - `gitHubTokenProvider?: GitHubTokenProvider` - Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `gitHubToken`.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
+- `connectorMcpServers?: Record<string, ConnectorMcpServerConfig>` - Connected Copilot Connector MCP endpoints advertised by the Connector service. Re-supply on cold resume.
+- `onMcpHeadersRefresh?: McpHeadersRefreshHandler` - Supplies short-lived headers for Connector MCP endpoints. Register this even when the initial connected set is empty if the host supports connecting a Connector during the session.
 - `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `approveAll` approves requests when managed settings are disabled and throws when `enableManagedSettings` is true. Custom handlers can inspect `managedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `onUserInputRequest?: UserInputHandler` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `askUserVariant?: "legacy" | "elicitation"` - Selects the model-facing `ask_user` tool shape when creating or cold-resuming a session. Defaults to `"legacy"`; use `"elicitation"` with `onElicitationRequest`.
@@ -368,6 +370,17 @@ Abort the currently processing message in this session.
 ##### `getEvents(): Promise<SessionEvent[]>`
 
 Get all events/messages from this session.
+
+Use `session.rpc.mcp.list()`, `enable()`, `disable()`, and `listTools()` with the
+same stable server keys to build Connector status and management UI. Subscribe
+to the MCP loaded, removed, reconnect, and status-change session events for live
+updates.
+
+The current public runtime contract cannot replace the authoritative Connector
+set on a running session. After a service Connect, Reconnect, or Disconnect,
+create or cold-resume a session with the updated `connectorMcpServers` map.
+Generic MCP `stopServer()` is temporary and an MCP reload can restore the
+originally configured server.
 
 ##### `disconnect(): Promise<void>`
 

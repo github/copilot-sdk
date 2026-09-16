@@ -328,7 +328,7 @@ func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
 	}
 }
 
-func TestSession_MCPHeadersRefreshResponses(t *testing.T) {
+func TestSession_MCPHeadersRefreshHandlerResponses(t *testing.T) {
 	ttl := int64(5_000)
 	tests := []struct {
 		name     string
@@ -361,7 +361,7 @@ func TestSession_MCPHeadersRefreshResponses(t *testing.T) {
 			expected: map[string]any{"kind": "none"},
 		},
 		{
-			name:     "broker error",
+			name:     "handler error",
 			err:      errors.New("credential revoked"),
 			expected: map[string]any{"kind": "error", "message": "credential revoked"},
 		},
@@ -424,7 +424,9 @@ func TestSession_MCPHeadersRefreshResponses(t *testing.T) {
 			}
 			session.registerMCPHeadersRefreshHandler(
 				func(request MCPHeadersRefreshRequest, invocation MCPHeadersRefreshInvocation) (*MCPHeadersRefreshResult, error) {
-					if request.ServerName != "GitHub" || request.Reason != MCPHeadersRefreshRequiredReasonStartup {
+					if request.ServerKey != "connector-key" ||
+						request.ServerURL != "https://example.com/mcp" ||
+						request.Reason != MCPHeadersRefreshRequiredReasonStartup {
 						t.Fatalf("unexpected request: %#v", request)
 					}
 					if invocation.SessionID != "session-1" {
@@ -436,7 +438,7 @@ func TestSession_MCPHeadersRefreshResponses(t *testing.T) {
 			session.handleBroadcastEvent(SessionEvent{
 				Data: &MCPHeadersRefreshRequiredData{
 					RequestID:  "refresh-1",
-					ServerName: "GitHub",
+					ServerName: "connector-key",
 					ServerURL:  "https://example.com/mcp",
 					Reason:     MCPHeadersRefreshRequiredReasonStartup,
 				},
@@ -459,7 +461,7 @@ func TestSession_MCPHeadersRefreshResponses(t *testing.T) {
 	}
 }
 
-func TestSession_MCPHeadersRefreshPanicDoesNotStopDispatch(t *testing.T) {
+func TestSession_MCPHeadersRefreshHandlerPanicDoesNotStopDispatch(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 	defer stdinR.Close()
@@ -519,20 +521,20 @@ func TestSession_MCPHeadersRefreshPanicDoesNotStopDispatch(t *testing.T) {
 	session.registerMCPHeadersRefreshHandler(
 		func(MCPHeadersRefreshRequest, MCPHeadersRefreshInvocation) (*MCPHeadersRefreshResult, error) {
 			if calls.Add(1) == 1 {
-				panic("credential broker crashed")
+				panic("header provider crashed")
 			}
 			return &MCPHeadersRefreshResult{Headers: map[string]string{"Authorization": "refreshed"}}, nil
 		},
 	)
 
 	for i, expected := range []map[string]any{
-		{"kind": "error", "message": "MCP headers refresh handler panic: credential broker crashed"},
+		{"kind": "error", "message": "MCP headers refresh handler panic: header provider crashed"},
 		{"kind": "headers", "headers": map[string]any{"Authorization": "refreshed"}},
 	} {
 		requestID := fmt.Sprintf("refresh-%d", i)
 		session.dispatchEvent(SessionEvent{Data: &MCPHeadersRefreshRequiredData{
 			RequestID:  requestID,
-			ServerName: "GitHub",
+			ServerName: "github",
 			ServerURL:  "https://example.com/mcp",
 			Reason:     MCPHeadersRefreshRequiredReasonStartup,
 		}})
@@ -553,6 +555,90 @@ func TestSession_MCPHeadersRefreshPanicDoesNotStopDispatch(t *testing.T) {
 	}
 	if got := calls.Load(); got != 2 {
 		t.Fatalf("expected two callback invocations, got %d", got)
+	}
+}
+
+func TestSession_PublicMCPRPCIsAvailable(t *testing.T) {
+	client, requests, cleanup := newInMemoryClient(t)
+	defer cleanup()
+	session, err := client.CreateSession(t.Context(), &SessionConfig{})
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	defer session.Disconnect()
+	if session.RPC == nil || session.RPC.MCP == nil {
+		t.Fatal("created session does not expose the typed MCP RPC API")
+	}
+	requests.clear()
+
+	list, err := session.RPC.MCP.List(t.Context())
+	if err != nil {
+		t.Fatalf("MCP.List failed: %v", err)
+	}
+	if len(list.Servers) != 0 {
+		t.Fatalf("unexpected MCP list: %#v", list)
+	}
+	if _, err := session.RPC.MCP.Enable(
+		t.Context(),
+		&rpc.MCPEnableRequest{ServerName: "calendar"},
+	); err != nil {
+		t.Fatalf("MCP.Enable failed: %v", err)
+	}
+	if _, err := session.RPC.MCP.Disable(
+		t.Context(),
+		&rpc.MCPDisableRequest{ServerName: "calendar"},
+	); err != nil {
+		t.Fatalf("MCP.Disable failed: %v", err)
+	}
+	tools, err := session.RPC.MCP.ListTools(
+		t.Context(),
+		&rpc.MCPListToolsRequest{ServerName: "calendar"},
+	)
+	if err != nil {
+		t.Fatalf("MCP.ListTools failed: %v", err)
+	}
+	if len(tools.Tools) != 0 {
+		t.Fatalf("unexpected MCP tools: %#v", tools)
+	}
+
+	snapshot := requests.snapshot()
+	expected := []struct {
+		method string
+		params map[string]any
+	}{
+		{
+			method: "session.mcp.list",
+			params: map[string]any{"sessionId": session.SessionID},
+		},
+		{
+			method: "session.mcp.enable",
+			params: map[string]any{
+				"sessionId":  session.SessionID,
+				"serverName": "calendar",
+			},
+		},
+		{
+			method: "session.mcp.disable",
+			params: map[string]any{
+				"sessionId":  session.SessionID,
+				"serverName": "calendar",
+			},
+		},
+		{
+			method: "session.mcp.listTools",
+			params: map[string]any{
+				"sessionId":  session.SessionID,
+				"serverName": "calendar",
+			},
+		},
+	}
+	if len(snapshot) != len(expected) {
+		t.Fatalf("unexpected requests: %#v", snapshot)
+	}
+	for i, want := range expected {
+		if snapshot[i].Method != want.method || !mapsEqual(snapshot[i].Params, want.params) {
+			t.Fatalf("request %d = %#v, want %s %#v", i, snapshot[i], want.method, want.params)
+		}
 	}
 }
 

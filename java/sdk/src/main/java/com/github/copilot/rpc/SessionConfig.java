@@ -16,7 +16,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
-import com.github.copilot.generated.rpc.ManagedMcpServerConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -76,7 +75,7 @@ public class SessionConfig {
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
-    private Map<String, ManagedMcpServerConfig> managedMcpServers;
+    private Map<String, ConnectorMcpServerConfig> connectorMcpServers;
     private String mcpOAuthTokenStorage;
     private String authClientIdMetadataUrl;
     private List<CustomAgentConfig> customAgents;
@@ -913,7 +912,12 @@ public class SessionConfig {
     }
 
     /**
-     * Gets the managed MCP dynamic-header refresh handler.
+     * Gets the dynamic-header refresh handler for connected Copilot Connector MCP
+     * endpoints.
+     * <p>
+     * The handler supplies short-lived client-to-Copilot-Connectors service
+     * authorization, not downstream provider credentials. The Connector service
+     * owns downstream provider tokens.
      *
      * @return the handler, or {@code null} if not set
      */
@@ -923,7 +927,12 @@ public class SessionConfig {
     }
 
     /**
-     * Sets the managed MCP dynamic-header refresh handler.
+     * Sets the dynamic-header refresh handler for connected Copilot Connector MCP
+     * endpoints.
+     * <p>
+     * The handler supplies short-lived client-to-Copilot-Connectors service
+     * authorization, not downstream provider credentials. The Connector service
+     * owns downstream provider tokens.
      *
      * @param onMcpHeadersRefresh
      *            the handler
@@ -1076,25 +1085,29 @@ public class SessionConfig {
     }
 
     /**
-     * Gets host-managed HTTP MCP server configurations.
+     * Gets connected Copilot Connector MCP endpoint configurations supplied from
+     * the service catalog.
      *
-     * @return the managed MCP servers map
+     * @return the Connector MCP servers map
      */
     @CopilotExperimental
-    public Map<String, ManagedMcpServerConfig> getManagedMcpServers() {
-        return managedMcpServers == null ? null : Collections.unmodifiableMap(managedMcpServers);
+    public Map<String, ConnectorMcpServerConfig> getConnectorMcpServers() {
+        return connectorMcpServers == null ? null : Collections.unmodifiableMap(connectorMcpServers);
     }
 
     /**
-     * Sets host-managed HTTP MCP server configurations.
+     * Sets connected Copilot Connector MCP endpoint configurations supplied from
+     * the service catalog.
      *
-     * @param managedMcpServers
-     *            non-secret server configurations keyed by stable managed identity
+     * @param connectorMcpServers
+     *            non-secret Connector endpoint configurations keyed by stable
+     *            server key; each key is reported as
+     *            {@link McpHeadersRefreshRequest#serverKey()}
      * @return this config instance for method chaining
      */
     @CopilotExperimental
-    public SessionConfig setManagedMcpServers(Map<String, ManagedMcpServerConfig> managedMcpServers) {
-        this.managedMcpServers = managedMcpServers;
+    public SessionConfig setConnectorMcpServers(Map<String, ConnectorMcpServerConfig> connectorMcpServers) {
+        this.connectorMcpServers = connectorMcpServers;
         return this;
     }
 
@@ -2320,8 +2333,8 @@ public class SessionConfig {
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
-        copy.managedMcpServers = this.managedMcpServers != null
-                ? new java.util.HashMap<>(this.managedMcpServers)
+        copy.connectorMcpServers = this.connectorMcpServers != null
+                ? new java.util.HashMap<>(this.connectorMcpServers)
                 : null;
         copy.mcpOAuthTokenStorage = this.mcpOAuthTokenStorage;
         copy.authClientIdMetadataUrl = this.authClientIdMetadataUrl;

@@ -36,6 +36,7 @@ import type {
     GitHubTelemetryNotification,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
+    ManagedMcpServerConfig as WireManagedMcpServerConfig,
     OpenCanvasInstance,
     SessionUpdateOptionsParams,
     TaskKind,
@@ -56,6 +57,7 @@ import type {
     CopilotClientInfo,
     CopilotClientMode,
     CopilotClientOptions,
+    ConnectorMcpServerConfig,
     CustomAgentConfig,
     ExitPlanModeRequest,
     ExitPlanModeResult,
@@ -245,6 +247,26 @@ function toWireMcpServers(
             }
             return [name, server];
         })
+    );
+}
+
+function toWireConnectorMcpServers(
+    servers: Record<string, ConnectorMcpServerConfig> | undefined
+): Record<string, WireManagedMcpServerConfig> | undefined {
+    if (servers === undefined) {
+        return undefined;
+    }
+    return Object.fromEntries(
+        Object.entries(servers).map(([serverKey, server]) => [
+            serverKey,
+            {
+                displayName: server.displayName,
+                url: server.url,
+                tools: server.tools,
+                timeout: server.timeout,
+                headersRefreshTtlMs: server.authorizationCacheTtlMs,
+            },
+        ])
     );
 }
 
@@ -1706,7 +1728,7 @@ export class CopilotClient {
                     ? { enableGitHubTelemetryForwarding: true }
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
-                managedMcpServers: config.managedMcpServers,
+                managedMcpServers: toWireConnectorMcpServers(config.connectorMcpServers),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",
@@ -1996,7 +2018,7 @@ export class CopilotClient {
                     ? { enableGitHubTelemetryForwarding: true }
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
-                managedMcpServers: config.managedMcpServers,
+                managedMcpServers: toWireConnectorMcpServers(config.connectorMcpServers),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",

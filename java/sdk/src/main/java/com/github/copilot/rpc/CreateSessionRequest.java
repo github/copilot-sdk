@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -598,16 +599,28 @@ public final class CreateSessionRequest {
         this.mcpServers = mcpServers;
     }
 
-    /** Gets managed MCP servers. @return the managed servers map */
-    public Map<String, ManagedMcpServerConfig> getManagedMcpServers() {
-        return managedMcpServers == null ? null : Collections.unmodifiableMap(managedMcpServers);
+    /**
+     * Gets connected Copilot Connector MCP endpoint configurations supplied from
+     * the service catalog.
+     *
+     * @return the Connector MCP servers map
+     */
+    @JsonIgnore
+    public Map<String, ConnectorMcpServerConfig> getConnectorMcpServers() {
+        var servers = ConnectorMcpServerConfig.fromWire(managedMcpServers);
+        return servers == null ? null : Collections.unmodifiableMap(servers);
     }
 
     /**
-     * Sets managed MCP servers. @param managedMcpServers the managed servers map
+     * Sets connected Copilot Connector MCP endpoint configurations supplied from
+     * the service catalog.
+     *
+     * @param connectorMcpServers
+     *            the Connector MCP servers map
      */
-    public void setManagedMcpServers(Map<String, ManagedMcpServerConfig> managedMcpServers) {
-        this.managedMcpServers = managedMcpServers;
+    @JsonIgnore
+    public void setConnectorMcpServers(Map<String, ConnectorMcpServerConfig> connectorMcpServers) {
+        this.managedMcpServers = ConnectorMcpServerConfig.toWire(connectorMcpServers);
     }
 
     /** Gets MCP OAuth token storage mode. @return the storage mode */

@@ -7,15 +7,16 @@ package com.github.copilot.rpc;
 import com.github.copilot.generated.McpHeadersRefreshRequiredReason;
 
 /**
- * Request to refresh dynamic headers for a host-managed MCP server.
+ * Request to refresh short-lived client-to-Copilot-Connectors service
+ * authorization headers for a connected Connector MCP endpoint.
  *
- * @param serverName
- *            display name of the managed MCP server
+ * @param serverKey
+ *            stable server key used in the Connector MCP server map
  * @param serverUrl
- *            URL of the managed MCP server
+ *            exact service-advertised Connector MCP endpoint URL
  * @param reason
  *            reason the headers must be refreshed
  * @since 1.0.0
  */
-public record McpHeadersRefreshRequest(String serverName, String serverUrl, McpHeadersRefreshRequiredReason reason) {
+public record McpHeadersRefreshRequest(String serverKey, String serverUrl, McpHeadersRefreshRequiredReason reason) {
 }

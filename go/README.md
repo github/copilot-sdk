@@ -278,6 +278,43 @@ Initial acquisition runs during session creation or resume. Cancellation, provid
 - `UI() *SessionUI` - Interactive UI API for elicitation dialogs
 - `Capabilities() SessionCapabilities` - Host capabilities (e.g. elicitation support)
 
+#### Connector MCP session controls (Experimental)
+
+Supply connected Copilot Connector MCP endpoints from the service catalog
+through `SessionConfig.ConnectorMCPServers` when creating a session, or through
+`ResumeSessionConfig.ConnectorMCPServers` when cold-resuming one.
+
+`OnMCPHeadersRefresh` supplies short-lived authorization from the SDK client to
+the Copilot Connectors service for the exact service-advertised MCP endpoint,
+normally using the selected account's GitHub bearer token. It does not supply
+Outlook, Slack, or other downstream service tokens; the Connector service owns
+and applies those tokens.
+
+`ConnectorMCPServerConfig.AuthorizationCacheTTLMS` sets the maximum time the
+runtime may reuse Connector service authorization. `MCPHeadersRefreshResult.TTLMS`
+reports the remaining authorization lifetime for a particular refresh.
+
+Correct same-session Connect and Disconnect reconciliation is not available
+through the current public runtime contract. Until the runtime promotes its
+authoritative replacement/removal operations, create a session or cold-resume
+one with the new `ConnectorMCPServers` set.
+
+The public typed `session.RPC.MCP` API can inspect and control the current
+runtime state, but these operations do not replace the authoritative Connector
+set:
+
+| Capability | Go API |
+| --- | --- |
+| List servers and connection status | `session.RPC.MCP.List(ctx)` |
+| Enable or disable a server | `session.RPC.MCP.Enable(ctx, &rpc.MCPEnableRequest{ServerName: key})` / `Disable` |
+| List connected-server tools | `session.RPC.MCP.ListTools(ctx, &rpc.MCPListToolsRequest{ServerName: key})` |
+| Observe status changes | `session.On(...)` with `SessionMCPServersLoadedData`, `SessionMCPServerStatusChangedData`, `SessionMCPServerNeedsReconnectData`, and `SessionMCPServerRemovedData` |
+
+The generated request fields named `ServerName` carry the stable Connector
+server key, not the display name or Connector service ID. The host application
+remains responsible for Connector service catalog and consent HTTP calls and
+for all browser or UI flows.
+
 #### Message source
 
 Set `MessageOptions.Source` to `copilot.MessageSourceAgent(id)` for messages from

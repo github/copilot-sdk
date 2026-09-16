@@ -2,7 +2,7 @@
 //!
 //! Each callback the CLI may dispatch (permission requests, elicitation
 //! prompts, user-input questions, exit-plan-mode prompts,
-//! auto-mode-switch prompts, MCP credential requests) has its own focused trait with a single
+//! auto-mode-switch prompts, MCP authorization requests) has its own focused trait with a single
 //! `handle` method.
 //!
 //! Handlers are **optional**: install only the ones the application cares
@@ -240,7 +240,7 @@ pub trait ElicitationHandler: Send + Sync + 'static {
 pub struct McpAuthRequest {
     /// Identifier for the pending MCP OAuth request.
     pub request_id: RequestId,
-    /// Display name of the MCP server that requires OAuth.
+    /// Stable server identity used as the configuration map key.
     pub server_name: String,
     /// URL of the MCP server that requires OAuth.
     pub server_url: String,
@@ -304,11 +304,15 @@ pub trait McpAuthHandler: Send + Sync + 'static {
     ) -> McpAuthResult;
 }
 
-/// Dynamic-header request for a host-managed MCP server.
+/// Dynamic-header request for a connected Copilot Connector MCP endpoint.
+///
+/// These headers authorize the client-to-Copilot-Connectors service request.
+/// The Connector service owns downstream provider tokens.
 #[derive(Debug, Clone)]
 pub struct McpHeadersRefreshRequest {
-    /// Display name of the MCP server that requires headers.
-    pub server_name: String,
+    /// Stable Connector server key used in the configuration map, not the
+    /// human-readable display name or Connector service ID.
+    pub server_key: String,
     /// URL of the MCP server that requires headers.
     pub server_url: String,
     /// Why the runtime is requesting fresh headers.
@@ -318,14 +322,14 @@ pub struct McpHeadersRefreshRequest {
 /// Result returned by an [`McpHeadersRefreshHandler`].
 #[derive(Debug, Clone)]
 pub enum McpHeadersRefreshResult {
-    /// Supplies dynamic HTTP headers for the managed MCP server.
+    /// Supplies short-lived Copilot Connectors service authorization headers.
     Headers {
-        /// Headers to overlay onto MCP requests.
+        /// Headers to overlay onto the client-to-Copilot-Connectors request.
         headers: HashMap<String, String>,
-        /// Optional lifetime in milliseconds for the returned headers.
+        /// Remaining Connector service authorization lifetime in milliseconds.
         ttl_ms: Option<i64>,
     },
-    /// Indicates that no dynamic headers are available.
+    /// Indicates that no service authorization headers are available.
     None,
 }
 
@@ -361,10 +365,14 @@ pub(crate) fn mcp_headers_error_result(
     )
 }
 
-/// Handler for dynamic headers requested by host-managed MCP servers.
+/// Handler for short-lived Copilot Connectors service authorization.
+///
+/// Hosts normally return the selected account's GitHub bearer authorization.
+/// They do not supply Outlook, Slack, or other downstream provider tokens;
+/// those remain owned by the Connector service.
 #[async_trait]
 pub trait McpHeadersRefreshHandler: Send + Sync + 'static {
-    /// Resolve a managed MCP headers refresh request.
+    /// Resolve a Copilot Connectors service authorization refresh request.
     async fn handle(
         &self,
         session_id: SessionId,

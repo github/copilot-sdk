@@ -17,10 +17,10 @@ import pytest
 from copilot import (
     CanvasProviderIdentity,
     CapiSessionOptions,
+    ConnectorMCPServerConfig,
     CopilotClient,
     DisableBypassPermissionsModes,
     ExtensionInfo,
-    ManagedMCPServerConfig,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
     ModelSwitchAutoTierStatus,
@@ -696,7 +696,7 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_managed_mcp_headers_refresh_dispatches_ttl_and_broker_errors(self):
+    async def test_mcp_headers_refresh_dispatches_ttl_and_broker_errors(self):
         transport = Mock()
         transport.request = AsyncMock(return_value={"success": True})
         session = CopilotSession("managed-session", transport)
@@ -711,7 +711,7 @@ class TestCreateSessionConfig:
 
         async def handle_refresh(request, context):
             assert request == {
-                "server_name": "GitHub",
+                "server_key": "github",
                 "server_url": "https://example.com/mcp",
                 "reason": "startup",
             }
@@ -722,7 +722,7 @@ class TestCreateSessionConfig:
         event = SessionEvent(
             data=McpHeadersRefreshRequiredData(
                 request_id="refresh-1",
-                server_name="GitHub",
+                server_name="github",
                 server_url="https://example.com/mcp",
                 reason=McpHeadersRefreshRequiredReason.STARTUP,
             ),
@@ -741,7 +741,7 @@ class TestCreateSessionConfig:
         await session._execute_mcp_headers_refresh_and_respond(
             "refresh-2",
             {
-                "server_name": "GitHub",
+                "server_key": "github",
                 "server_url": "https://example.com/mcp",
                 "reason": "startup",
             },
@@ -750,7 +750,7 @@ class TestCreateSessionConfig:
         await session._execute_mcp_headers_refresh_and_respond(
             "refresh-3",
             {
-                "server_name": "GitHub",
+                "server_key": "github",
                 "server_url": "https://example.com/mcp",
                 "reason": "startup",
             },
@@ -763,7 +763,7 @@ class TestCreateSessionConfig:
         await session._execute_mcp_headers_refresh_and_respond(
             "refresh-4",
             {
-                "server_name": "GitHub",
+                "server_key": "github",
                 "server_url": "https://example.com/mcp",
                 "reason": "auth-failed",
             },
@@ -772,7 +772,7 @@ class TestCreateSessionConfig:
         await session._execute_mcp_headers_refresh_and_respond(
             "refresh-5",
             {
-                "server_name": "GitHub",
+                "server_key": "github",
                 "server_url": "https://example.com/mcp",
                 "reason": "auth-failed",
             },
@@ -796,7 +796,7 @@ class TestCreateSessionConfig:
         ]
 
     @pytest.mark.asyncio
-    async def test_create_and_resume_forward_managed_mcp_servers(self):
+    async def test_create_and_resume_map_connector_mcp_servers_to_wire(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
         try:
@@ -815,23 +815,23 @@ class TestCreateSessionConfig:
                 return {}
 
             client._client.request = mock_request
-            managed: dict[str, ManagedMCPServerConfig] = {
+            connectors: dict[str, ConnectorMCPServerConfig] = {
                 "github": {
                     "display_name": "GitHub",
                     "url": "https://example.com/mcp",
                     "tools": ["issues"],
                     "timeout": 30_000,
-                    "headers_refresh_ttl_ms": 60_000,
+                    "authorization_cache_ttl_ms": 60_000,
                 }
             }
 
             session = await client.create_session(
-                managed_mcp_servers=managed,
+                connector_mcp_servers=connectors,
                 on_mcp_headers_refresh=lambda _request, _context: None,
             )
             await client.resume_session(
                 session.session_id,
-                managed_mcp_servers=managed,
+                connector_mcp_servers=connectors,
                 on_mcp_headers_refresh=lambda _request, _context: None,
             )
 
