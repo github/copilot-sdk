@@ -42,6 +42,10 @@ pub struct CanvasDeclaration {
     pub display_name: String,
     /// Short, single-sentence description shown to the agent in canvas catalogs.
     pub description: String,
+    /// Optional PNG path for the canvas icon. For extensions, the runtime resolves
+    /// relative paths relative to `extension.mjs`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
     /// JSON Schema for the `input` payload accepted by `canvas.open`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_schema: Option<Value>,
@@ -61,6 +65,7 @@ impl CanvasDeclaration {
             id: id.into(),
             display_name: display_name.into(),
             description: description.into(),
+            icon: None,
             input_schema: None,
             actions: None,
         }
@@ -69,6 +74,13 @@ impl CanvasDeclaration {
     /// Set the description surfaced in discovery and agent context.
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = description.into();
+        self
+    }
+
+    /// Set the optional PNG icon path. For extensions, relative paths are resolved
+    /// by the runtime relative to `extension.mjs`.
+    pub fn with_icon(mut self, icon: impl Into<String>) -> Self {
+        self.icon = Some(icon.into());
         self
     }
 }
@@ -201,11 +213,56 @@ mod tests {
     }
 
     #[test]
+    fn declaration_roundtrips_icon_path() {
+        let value = json!({
+            "id": "counter",
+            "displayName": "Counter",
+            "description": "Count things",
+            "icon": "icons/counter.png",
+        });
+        let decl: CanvasDeclaration = serde_json::from_value(value.clone()).unwrap();
+
+        assert_eq!(serde_json::to_value(decl).unwrap(), value);
+    }
+
+    #[test]
+    fn declaration_builder_preserves_icon_path() {
+        let decl = CanvasDeclaration::new("counter", "Counter", "Count things")
+            .with_icon("icons/counter.png");
+
+        assert_eq!(decl.icon.as_deref(), Some("icons/counter.png"));
+        assert_eq!(
+            serde_json::to_value(decl).unwrap()["icon"],
+            "icons/counter.png"
+        );
+    }
+
+    #[test]
+    fn declaration_omits_unspecified_icon() {
+        let value = json!({
+            "id": "counter",
+            "displayName": "Counter",
+            "description": "Count things",
+        });
+        let decl: CanvasDeclaration = serde_json::from_value(value.clone()).unwrap();
+
+        assert!(decl.icon.is_none());
+        assert!(CanvasDeclaration::default().icon.is_none());
+        assert_eq!(serde_json::to_value(decl).unwrap(), value);
+        assert_eq!(
+            serde_json::to_value(CanvasDeclaration::new("counter", "Counter", "Count things"))
+                .unwrap(),
+            value,
+        );
+    }
+
+    #[test]
     fn declaration_serializes_camel_case_and_skips_none() {
         let decl = CanvasDeclaration {
             id: "counter".to_string(),
             display_name: "Counter".to_string(),
             description: "Count things".to_string(),
+            icon: None,
             input_schema: None,
             actions: Some(vec![CanvasAction {
                 name: "increment".to_string(),
