@@ -710,6 +710,11 @@ fn extract_cli_binary(archive: &[u8]) -> Result<Vec<u8>, EmbeddedCliError> {
 
 #[cfg(all(has_bundled_cli, windows))]
 fn extract_cli_binary(archive: &[u8]) -> Result<Vec<u8>, EmbeddedCliError> {
+    extract_zip_binary(archive, CLI_BINARY_NAME)
+}
+
+#[cfg(all(has_bundled_cli, any(windows, test)))]
+fn extract_zip_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
     let reader = std::io::Cursor::new(archive);
     let mut zip = zip::ZipArchive::new(reader)
         .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
@@ -717,8 +722,7 @@ fn extract_cli_binary(archive: &[u8]) -> Result<Vec<u8>, EmbeddedCliError> {
         let mut entry = zip
             .by_index(index)
             .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
-        if entry.name() == CLI_BINARY_NAME || entry.name().ends_with(&format!("/{CLI_BINARY_NAME}"))
-        {
+        if entry.name() == binary_name || entry.name().ends_with(&format!("/{binary_name}")) {
             let mut bytes = Vec::with_capacity(entry.size() as usize);
             entry
                 .read_to_end(&mut bytes)
@@ -890,6 +894,57 @@ impl std::error::Error for EmbeddedCliError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(has_bundled_cli)]
+    fn zip_archive(path: &str, bytes: &[u8]) -> Vec<u8> {
+        let mut archive = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        archive.start_file(path, options).unwrap();
+        archive.write_all(bytes).unwrap();
+        archive.finish().unwrap().into_inner()
+    }
+
+    #[cfg(has_bundled_cli)]
+    #[test]
+    fn zip_cli_extraction_preserves_bytes_and_entry_selection() {
+        let bytes: Vec<u8> = (0..=255).cycle().take(65_537).collect();
+        for name in ["copilot.exe", "package/copilot.exe"] {
+            let archive = zip_archive(name, &bytes);
+            assert_eq!(extract_zip_binary(&archive, "copilot.exe").unwrap(), bytes);
+        }
+        let archive = zip_archive("not-the-cli", &bytes);
+        assert!(extract_zip_binary(&archive, "copilot.exe").is_err());
+    }
+
+    #[cfg(has_bundled_cli)]
+    #[test]
+    fn zip_cli_extraction_rejects_corrupt_deflate_and_checksum() {
+        let archive = zip_archive("copilot.exe", &[0xAB; 65_537]);
+        let mut zip = zip::ZipArchive::new(std::io::Cursor::new(&archive)).unwrap();
+        let payload_start = zip.by_index(0).unwrap().data_start() as usize;
+        let mut invalid_deflate = archive.clone();
+        // BTYPE=3 is reserved in DEFLATE, regardless of the chosen encoder.
+        invalid_deflate[payload_start] |= 0b110;
+
+        let central_directory = zip.central_directory_start() as usize;
+        let mut invalid_crc = archive.clone();
+        // The central directory file header stores CRC-32 at byte offset 16.
+        invalid_crc[central_directory + 16] ^= 0xFF;
+        let truncated = &archive[..archive.len() / 2];
+
+        for invalid in [
+            invalid_deflate.as_slice(),
+            invalid_crc.as_slice(),
+            truncated,
+        ] {
+            let error = extract_zip_binary(invalid, "copilot.exe").unwrap_err();
+            assert!(
+                std::error::Error::source(&error).is_some(),
+                "invalid ZIP must be an archive error, not a missing-file result"
+            );
+        }
+    }
 
     #[cfg(has_bundled_cli)]
     fn gzip_archive(path: &str, bytes: &[u8], mode: u32) -> Vec<u8> {

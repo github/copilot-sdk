@@ -69,7 +69,8 @@ reqwest = { version = "0.12", default-features = false, features = ["stream", "h
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "native-tls"] }
 
 [target.'cfg(windows)'.dependencies]
-zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+# Reuse the runtime flate2 backend instead of enabling zip's miniz_oxide default.
+zip = { version = "2", default-features = false, features = ["deflate-flate2", "flate2"], optional = true }
 windows-sys = { version = "0.61", default-features = false, features = [
     "Win32_Foundation",
     "Win32_System_Diagnostics_ToolHelp",
@@ -78,11 +79,13 @@ windows-sys = { version = "0.61", default-features = false, features = [
 ] }
 
 [dev-dependencies]
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
 rusqlite = { version = "0.35", features = ["bundled"] }
 schemars = "1"
 serial_test = "3"
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread"] }
+zip = { version = "2", default-features = false, features = ["deflate-flate2", "flate2"] }
 
 # Integration tests that call test-support-only Client methods (e.g.
 # `from_streams_with_connection_token`, `from_streams_with_trace_provider`)
