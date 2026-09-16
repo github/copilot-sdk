@@ -639,19 +639,17 @@ describe("Sessions", () => {
         await using session = await client.createSession({ onPermissionRequest: approveAll });
 
         let disposed = false;
-        const disposedPromise = new Promise<void>((resolve) => {
-            session.on((event) => {
-                if (event.type === "user.message") {
-                    // Call disconnect from within a handler — must not deadlock.
-                    session.disconnect().then(() => {
-                        disposed = true;
-                        resolve();
-                    });
-                }
-            });
+        let disposedPromise: Promise<void> | undefined;
+        session.on((event) => {
+            if (event.type === "session.idle") {
+                // Isolate handler reentrancy from active-turn cancellation.
+                disposedPromise = session.disconnect().then(() => {
+                    disposed = true;
+                });
+            }
         });
 
-        await session.send({ prompt: "What is 1+1?" });
+        await session.sendAndWait({ prompt: "What is 1+1?" });
 
         // If this times out, we deadlocked.
         await vi.waitFor(() => expect(disposed).toBe(true), { timeout: 10_000 });

@@ -330,6 +330,24 @@ pub enum SessionEventType {
     /// </div>
     #[serde(rename = "permission.messageAuthorizationDegraded")]
     PermissionMessageAuthorizationDegraded,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.assentDetected")]
+    PermissionAssentDetected,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.contextualAuthorization")]
+    PermissionContextualAuthorization,
     #[serde(rename = "user_input.requested")]
     UserInputRequested,
     #[serde(rename = "user_input.completed")]
@@ -826,6 +844,24 @@ pub enum SessionEventData {
     /// </div>
     #[serde(rename = "permission.messageAuthorizationDegraded")]
     PermissionMessageAuthorizationDegraded(PermissionMessageAuthorizationDegradedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.assentDetected")]
+    PermissionAssentDetected(PermissionAssentDetectedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.contextualAuthorization")]
+    PermissionContextualAuthorization(PermissionContextualAuthorizationData),
     #[serde(rename = "user_input.requested")]
     UserInputRequested(UserInputRequestedData),
     #[serde(rename = "user_input.completed")]
@@ -5991,7 +6027,7 @@ pub struct PermissionMessageAuthorizationData {
     pub world: Option<serde_json::Value>,
 }
 
-/// Session event "permission.messageAuthorizationRead". Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.
+/// Session event "permission.messageAuthorizationRead". Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.
 ///
 /// <div class="warning">
 ///
@@ -6002,6 +6038,16 @@ pub struct PermissionMessageAuthorizationData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionMessageAuthorizationReadData {
+    /// Whether this read activates ongoing message-backed extraction. False for a contextual-assent-only pass while auto-approval is off, so unrelated future messages remain outside extraction.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activates_extraction: Option<bool>,
     /// The human turn that was read by the proposer.
     ///
     /// <div class="warning">
@@ -6025,6 +6071,104 @@ pub struct PermissionMessageAuthorizationReadData {
 #[serde(rename_all = "camelCase")]
 pub struct PermissionMessageAuthorizationDegradedData {
     /// The human turn that could not be represented safely.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub turn_index: i64,
+}
+
+/// Session event "permission.assentDetected". Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionAssentDetectedData {
+    /// Permission request the likely assent may refer to. The runtime derives this from the preceding durable blocker; the human message and extraction model do not choose it.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub request_id: RequestId,
+    /// Human turn whose text triggered the deterministic assent recognizer.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub turn_index: i64,
+}
+
+/// Session event "permission.contextualAuthorization". Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionContextualAuthorizationData {
+    /// Whether the contextual human span granted or denied authority.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub polarity: PermissionMessageAuthorizationPolarity,
+    /// Deterministic identity of the contextual message grant.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub record_id: String,
+    /// Original blocked permission request selected by deterministic event ordering, never by the extraction model.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub request_id: RequestId,
+    /// End byte offset of the contextual decision span within the turn.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub span_end: i64,
+    /// Start byte offset of the contextual decision span within the turn.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub span_start: i64,
+    /// Human turn containing the contextual decision.
     ///
     /// <div class="warning">
     ///

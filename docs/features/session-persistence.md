@@ -257,7 +257,9 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 
 ### Auto tier persistence
 
-With `model: "auto"`, the optional `capi.autoTier` setting selects an Auto routing preference: `efficiency`, `balance`, or `intelligence`. In Python, use `capi={"auto_tier": "balance"}`. This requires Copilot CLI `1.0.82-1` or later with V2 Auto routing; V1 Auto requests are unchanged.
+With `model: "auto"`, the optional `capi.autoTier` setting selects an Auto routing preference: `efficiency`, `balance`, `intelligence`, or `fast`. In Python, use `capi={"auto_tier": "balance"}`. This setting applies to V2 Auto routing; V1 Auto requests are unchanged.
+
+`fast` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. The SDK does not decide Fast eligibility, inspect client identity, choose it as a default, or fall back to another tier when a runtime does not support it—an older runtime returns its native error unchanged.
 
 The runtime persists the selected tier, so applications do not need to resend it on every resume:
 
@@ -272,7 +274,7 @@ The `session.start` and `session.resume` events expose the selected tier in thei
 
 ### Changing the Auto tier during a session
 
-Call `setAutoTier` to change the routing preference on a live session without changing the selected model. Pass `null` (Python `None`, Go `nil`) to return to the provider's default Auto routing. This requires Copilot CLI `1.0.83-4` or later, which is newer than the `1.0.82-1` needed to select a tier when creating or resuming a session.
+Call `setAutoTier` to change the routing preference on a live session without changing the selected model. Pass `null` (Python `None`, Go `nil`) to return to the provider's default Auto routing.
 
 ```typescript
 const result = await session.setAutoTier("intelligence");

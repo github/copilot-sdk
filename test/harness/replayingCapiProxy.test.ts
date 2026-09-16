@@ -1698,5 +1698,55 @@ Always include PINEAPPLE_COCONUT_42.
         await proxy.stop();
       }
     });
+
+    test("returns cached Auto responses in order", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const autoResponses = [
+        {
+          body: {
+            session_token: "first-token",
+            selected_model: { id: "test-model" },
+          },
+        },
+        {
+          statusCode: 500,
+          body: {
+            session_token: "unused-token",
+            selected_model: { id: "unused-model" },
+          },
+        },
+      ];
+      await writeFile(
+        cachePath,
+        yaml.stringify({
+          models: ["test-model"],
+          autoResponses,
+          conversations: [],
+        } satisfies NormalizedData),
+      );
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const success = await makeRequest(proxyUrl, "/auto", {
+          body: { prompt: "first" },
+        });
+        expect(success.status).toBe(200);
+        expect(JSON.parse(success.body)).toEqual(autoResponses[0].body);
+
+        const failure = await makeRequest(proxyUrl, "/auto", {
+          body: { prompt: "second" },
+        });
+        expect(failure.status).toBe(500);
+        expect(JSON.parse(failure.body)).toEqual(autoResponses[1].body);
+      } finally {
+        await proxy.stop();
+      }
+    });
   });
 });

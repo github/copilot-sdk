@@ -2385,8 +2385,10 @@ class CopilotClient:
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
             capi: CAPI provider-scoped options. Set ``auto_tier`` to ``efficiency``,
-                ``balance``, or ``intelligence`` to select an Auto routing preference
-                on a runtime with Auto tier support. WebSocket transport is the
+                ``balance``, ``intelligence``, or ``fast`` to select an Auto routing
+                preference on a runtime with Auto tier support. ``fast`` is an
+                integrator-only latency preset, not a first-party GitHub Copilot
+                product preference. WebSocket transport is the
                 default for the CAPI Responses API whenever the model advertises
                 the ``ws:/responses`` endpoint. Set
                 ``enable_web_socket_responses=False`` to force the HTTP

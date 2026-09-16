@@ -192,10 +192,12 @@ type (
 	PermissionApproved                                             = rpc.PermissionApproved
 	PermissionApprovedForLocation                                  = rpc.PermissionApprovedForLocation
 	PermissionApprovedForSession                                   = rpc.PermissionApprovedForSession
+	PermissionAssentDetectedData                                   = rpc.PermissionAssentDetectedData
 	PermissionAssistedApproval                                     = rpc.PermissionAssistedApproval
 	PermissionCancelled                                            = rpc.PermissionCancelled
 	PermissionCarriedForwardData                                   = rpc.PermissionCarriedForwardData
 	PermissionCompletedData                                        = rpc.PermissionCompletedData
+	PermissionContextualAuthorizationData                          = rpc.PermissionContextualAuthorizationData
 	PermissionDeniedByContentExclusionPolicy                       = rpc.PermissionDeniedByContentExclusionPolicy
 	PermissionDeniedByPermissionRequestHook                        = rpc.PermissionDeniedByPermissionRequestHook
 	PermissionDeniedByRules                                        = rpc.PermissionDeniedByRules
@@ -785,8 +787,10 @@ const (
 	SessionEventTypeModelCallFinished                                  = rpc.SessionEventTypeModelCallFinished
 	SessionEventTypeModelCallStart                                     = rpc.SessionEventTypeModelCallStart
 	SessionEventTypePendingMessagesModified                            = rpc.SessionEventTypePendingMessagesModified
+	SessionEventTypePermissionAssentDetected                           = rpc.SessionEventTypePermissionAssentDetected
 	SessionEventTypePermissionCarriedForward                           = rpc.SessionEventTypePermissionCarriedForward
 	SessionEventTypePermissionCompleted                                = rpc.SessionEventTypePermissionCompleted
+	SessionEventTypePermissionContextualAuthorization                  = rpc.SessionEventTypePermissionContextualAuthorization
 	SessionEventTypePermissionMessageAuthorization                     = rpc.SessionEventTypePermissionMessageAuthorization
 	SessionEventTypePermissionMessageAuthorizationDegraded             = rpc.SessionEventTypePermissionMessageAuthorizationDegraded
 	SessionEventTypePermissionMessageAuthorizationRead                 = rpc.SessionEventTypePermissionMessageAuthorizationRead

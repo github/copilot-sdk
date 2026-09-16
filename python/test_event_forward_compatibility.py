@@ -40,7 +40,7 @@ class TestEventForwardCompatibility:
     """Test forward compatibility for unknown event types."""
 
     @pytest.mark.parametrize("event_type", ["session.start", "session.resume"])
-    @pytest.mark.parametrize("tier", ["efficiency", "balance", "intelligence", None])
+    @pytest.mark.parametrize("tier", ["efficiency", "balance", "intelligence", "fast", None])
     def test_auto_tier_lifecycle_events_round_trip(self, event_type, tier):
         timestamp = "2026-08-28T00:00:00Z"
         data = (
@@ -87,7 +87,7 @@ class TestEventForwardCompatibility:
                 "type": "session.auto_tier_switch_failed",
                 "data": {
                     "effectiveAutoTier": "balance",
-                    "requestedAutoTier": "intelligence",
+                    "requestedAutoTier": "fast",
                     "reason": reason,
                 },
             }
@@ -95,7 +95,7 @@ class TestEventForwardCompatibility:
         assert isinstance(event.data, SessionAutoTierSwitchFailedData)
         assert event.data.reason == AutoTierSwitchFailureReason(reason)
         assert event.data.effective_auto_tier == AutoTier.BALANCE
-        assert event.data.requested_auto_tier == AutoTier.INTELLIGENCE
+        assert event.data.requested_auto_tier == AutoTier.FAST
 
     def test_auto_tier_switch_failed_event_allows_null_requested_tier(self):
         # A null requested tier means the attempt to return to provider-default

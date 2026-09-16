@@ -1,0 +1,21 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly AUTO_TIER_FAST_COMMITTED.
+      - role: assistant
+        content: AUTO_TIER_FAST_COMMITTED
+autoResponses:
+  - body:
+      session_token: auto-tier-replay-token-1
+      selected_model:
+        id: claude-sonnet-5
+        name: Claude Sonnet 5
+        capabilities:
+          supports:
+            vision: false
+          limits:
+            max_context_window_tokens: 128000

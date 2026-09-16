@@ -31,8 +31,9 @@ class SessionAutoTierEventTest {
 
     @ParameterizedTest
     @CsvSource({"session.start,EFFICIENCY,efficiency", "session.start,BALANCE,balance",
-            "session.start,INTELLIGENCE,intelligence", "session.resume,EFFICIENCY,efficiency",
-            "session.resume,BALANCE,balance", "session.resume,INTELLIGENCE,intelligence"})
+            "session.start,INTELLIGENCE,intelligence", "session.start,FAST,fast",
+            "session.resume,EFFICIENCY,efficiency", "session.resume,BALANCE,balance",
+            "session.resume,INTELLIGENCE,intelligence", "session.resume,FAST,fast"})
     void canonicalAutoTierRoundTrips(String type, AutoTier tier, String value) throws Exception {
         String json = """
                 {"type":"%s","data":{"selectedModel":"auto","autoTier":"%s"}}
@@ -74,14 +75,14 @@ class SessionAutoTierEventTest {
             throws Exception {
         String json = """
                 {"type":"session.auto_tier_switch_failed","data":{"effectiveAutoTier":"balance",
-                "requestedAutoTier":"intelligence","reason":"%s"}}
+                "requestedAutoTier":"fast","reason":"%s"}}
                 """.formatted(value);
 
         var event = MAPPER.readValue(json, SessionEvent.class);
 
         var data = assertInstanceOf(SessionAutoTierSwitchFailedEvent.class, event).getData();
         assertEquals(AutoTier.BALANCE, data.effectiveAutoTier());
-        assertEquals(AutoTier.INTELLIGENCE, data.requestedAutoTier());
+        assertEquals(AutoTier.FAST, data.requestedAutoTier());
         assertEquals(reason, data.reason());
     }
 
