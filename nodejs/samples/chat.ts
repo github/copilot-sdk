@@ -4,15 +4,38 @@
 
 import { CopilotClient, approveAll } from "../src/index.js";
 import * as readline from "node:readline";
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { randomUUID } from "node:crypto";
+import { createWriteStream, type WriteStream } from "node:fs";
+import { mkdir } from "node:fs/promises";
+import { once } from "node:events";
+import { finished } from "node:stream/promises";
+import { parseArgs } from "node:util";
 
 export async function runChat(
     input: NodeJS.ReadableStream = process.stdin,
-    output: NodeJS.WritableStream = process.stdout
+    output: NodeJS.WritableStream = process.stdout,
+    eventsFile?: string
 ) {
+    const logPath = resolve(
+        eventsFile ??
+            join(
+                dirname(fileURLToPath(import.meta.url)),
+                "..",
+                "logs",
+                `chat-${new Date().toISOString().replaceAll(":", "-")}-${randomUUID()}.jsonl`
+            )
+    );
+    let eventLog: WriteStream | undefined;
+    let logFinished: Promise<void> | undefined;
+    let loggingFailed = false;
     const write = (text: string) => output.write(text);
     const logEvent = (source: string, event: unknown) => {
+        if (!eventLog) throw new Error("SDK event log is not open");
+        eventLog.write(
+            `${JSON.stringify({ receivedAt: new Date().toISOString(), source, event })}\n`
+        );
         write(`\n[${source}]\n${JSON.stringify(event, null, 2)}\n`);
     };
     const client = new CopilotClient({
@@ -30,8 +53,20 @@ export async function runChat(
     const errors: unknown[] = [];
 
     try {
+        await mkdir(dirname(logPath), { recursive: true });
+        eventLog = createWriteStream(logPath, { flags: "wx", mode: 0o600 });
+        logFinished = finished(eventLog, { cleanup: true }).catch((error: unknown) => {
+            loggingFailed = true;
+            errors.push(error);
+            write(
+                `\nSDK event log failed (${logPath}): ${error instanceof Error ? error.message : String(error)}\n`
+            );
+            rl.close();
+        });
+        await once(eventLog, "open");
+        write(`SDK event log: ${logPath}\n`);
         write(
-            "Full event payloads are printed, including potentially sensitive tool and telemetry data.\n"
+            "Full event payloads are printed and saved, including potentially sensitive tool and telemetry data.\n"
         );
         await client.start();
         const models = await client.listModels();
@@ -41,7 +76,7 @@ export async function runChat(
                 write(`  ${index + 1}. ${model.name} (${model.id})\n`);
             });
             write("You can also enter an unlisted model ID (for example, hydrafusion).\n");
-            while (true) {
+            while (!loggingFailed) {
                 const answer =
                     selection ??
                     (
@@ -57,6 +92,7 @@ export async function runChat(
                 if (!/^\d+$/.test(answer)) return answer;
                 write(`Unknown model: ${answer}. Choose a listed number or enter a model ID.\n`);
             }
+            return null;
         };
 
         let model = await pickModel();
@@ -72,7 +108,7 @@ export async function runChat(
         write(`\nChat with Copilot - model: ${model ?? "runtime default"}\n`);
         write("Commands: /model [number or ID], /exit. Ctrl+C also exits.\n");
 
-        while (true) {
+        while (!loggingFailed) {
             const message = await prompt("You: ");
             const command = message?.trim();
             if (message === undefined || command === "/exit") break;
@@ -95,7 +131,7 @@ export async function runChat(
             if (reply) write(`\nAssistant: ${reply.data.content}\n\n`);
         }
     } catch (error) {
-        errors.push(error);
+        if (!errors.includes(error)) errors.push(error);
     } finally {
         rl.close();
         try {
@@ -104,12 +140,32 @@ export async function runChat(
             errors.push(error);
         }
         unsubscribe();
+        eventLog?.end();
+        await logFinished;
         if (errors.length > 0) throw new AggregateError(errors, "Chat failed");
     }
 }
 
+async function main() {
+    const { values } = parseArgs({
+        options: {
+            "events-file": { type: "string" },
+            help: { type: "boolean", short: "h" },
+        },
+    });
+    if (values.help) {
+        console.log(
+            "Usage: npx tsx chat.ts [--events-file <new-file.jsonl>]\n" +
+                "Defaults to a unique file in nodejs\\logs. Existing files are never overwritten.\n" +
+                "Each line contains receivedAt, source, and the complete event payload."
+        );
+        return;
+    }
+    await runChat(process.stdin, process.stdout, values["events-file"]);
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-    runChat().catch((error) => {
+    main().catch((error) => {
         console.error(error);
         process.exitCode = 1;
     });

@@ -3,7 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PassThrough } from "node:stream";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { WriteStream } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
     CopilotClientOptions,
     SessionConfig,
@@ -61,7 +65,14 @@ const reply: SessionEvent = {
     data: { messageId: "message-1", content: "Answer from the assistant" },
 };
 
-async function runWithInput(text: string) {
+async function createLogPath() {
+    const directory = await mkdtemp(join(tmpdir(), "sdk-chat-log-"));
+    onTestFinished(() => rm(directory, { recursive: true, force: true }));
+    return join(directory, "events.jsonl");
+}
+
+async function runWithInput(text: string, eventsFile?: string) {
+    const logPath = eventsFile ?? (await createLogPath());
     const input = new PassThrough();
     const output = new PassThrough();
     let transcript = "";
@@ -69,7 +80,7 @@ async function runWithInput(text: string) {
     output.on("data", (chunk: string) => {
         transcript += chunk;
     });
-    const running = runChat(input, output);
+    const running = runChat(input, output, logPath);
     input.end(text);
     try {
         await running;
@@ -169,7 +180,7 @@ describe("chat sample", () => {
         expect(mocks.stop).toHaveBeenCalledOnce();
     });
 
-    it("prints complete early, tool, subagent delta, lifecycle, telemetry, and shutdown notifications", async () => {
+    it("prints and saves every early, tool, subagent delta, lifecycle, telemetry, and shutdown notification", async () => {
         const toolEvent: SessionEvent = {
             ...eventBase,
             type: "tool.execution_start",
@@ -179,7 +190,7 @@ describe("chat sample", () => {
                 arguments: {
                     nested: { one: { two: { three: { four: "deep-value" } } } },
                     items: Array.from({ length: 150 }, (_, index) => index),
-                    text: "x".repeat(12000),
+                    text: `${"x".repeat(12000)}\n"quoted text"\r\n`,
                 },
             },
         };
@@ -213,7 +224,8 @@ describe("chat sample", () => {
             return [];
         });
 
-        const transcript = await runWithInput("1\nhello\n/exit\n");
+        const logPath = await createLogPath();
+        const transcript = await runWithInput("1\nhello\n/exit\n", logPath);
         for (const event of [startEvent, toolEvent, delta, reply, lifecycle, telemetry]) {
             expect(transcript).toContain(JSON.stringify(event, null, 2));
         }
@@ -223,6 +235,65 @@ describe("chat sample", () => {
         expect(transcript.indexOf('"session.start"')).toBeLessThan(
             transcript.indexOf("Chat with Copilot")
         );
+        expect(transcript).toContain(`SDK event log: ${logPath}`);
+
+        const log = await readFile(logPath, "utf8");
+        expect(log.endsWith("\n")).toBe(true);
+        const records: Array<{ receivedAt: string; source: string; event: unknown }> = log
+            .trimEnd()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(records).toEqual(
+            [
+                ["sdk.lifecycle", lifecycle],
+                ["sdk.session", startEvent],
+                ["sdk.session", toolEvent],
+                ["sdk.session", delta],
+                ["sdk.session", reply],
+                ["sdk.telemetry", telemetry],
+            ].map(([source, event]) => ({
+                receivedAt: expect.any(String),
+                source,
+                event,
+            }))
+        );
+        for (const record of records) {
+            expect(Number.isNaN(Date.parse(record.receivedAt))).toBe(false);
+        }
+    });
+
+    it("creates parent directories for a custom log path", async () => {
+        const logPath = join(await createLogPath(), "nested", "chat.jsonl");
+        await runWithInput("1\n/exit\n", logPath);
+        const record = JSON.parse(await readFile(logPath, "utf8"));
+        expect(record).toMatchObject({ source: "sdk.session", event: startEvent });
+    });
+
+    it("refuses to overwrite an existing event log before starting the runtime", async () => {
+        const logPath = await createLogPath();
+        await writeFile(logPath, "existing log\n");
+        await expect(runWithInput("1\n/exit\n", logPath)).rejects.toMatchObject({
+            message: "Chat failed",
+            errors: expect.arrayContaining([expect.objectContaining({ code: "EEXIST" })]),
+        });
+        expect(await readFile(logPath, "utf8")).toBe("existing log\n");
+        expect(mocks.start).not.toHaveBeenCalled();
+    });
+
+    it("reports a write failure rather than silently dropping events", async () => {
+        const diskError = new Error("disk full");
+        const write = vi
+            .spyOn(WriteStream.prototype, "_write")
+            .mockImplementation((_chunk, _encoding, callback) => callback(diskError));
+        try {
+            await expect(runWithInput("1\n/exit\n")).rejects.toMatchObject({
+                message: "Chat failed",
+                errors: [diskError],
+            });
+            expect(mocks.stop).toHaveBeenCalledOnce();
+        } finally {
+            write.mockRestore();
+        }
     });
 
     it("reports both a failed turn and cleanup errors", async () => {
@@ -231,10 +302,15 @@ describe("chat sample", () => {
         mocks.sendAndWait.mockRejectedValue(turnError);
         mocks.stop.mockResolvedValue([stopError]);
 
-        await expect(runWithInput("1\nhello\n")).rejects.toMatchObject({
+        const logPath = await createLogPath();
+        await expect(runWithInput("1\nhello\n", logPath)).rejects.toMatchObject({
             message: "Chat failed",
             errors: [turnError, stopError],
         });
         expect(mocks.unsubscribe).toHaveBeenCalledOnce();
+        expect(JSON.parse(await readFile(logPath, "utf8"))).toMatchObject({
+            source: "sdk.session",
+            event: startEvent,
+        });
     });
 });
