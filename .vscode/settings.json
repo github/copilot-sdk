@@ -5,6 +5,9 @@
   "files.insertFinalNewline": true,
   "editor.tabSize": 4,
   "editor.insertSpaces": true,
+  "terminal.integrated.env.windows": {
+    "COPILOT_CLI_PATH": "${workspaceFolder}\\..\\copilot-agent-runtime\\dist-cli\\prebuilds\\win32-x64\\copilot-runtime.exe"
+  },
   "[typescript][javascript][typescriptreact]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.codeActionsOnSave": {

@@ -11,6 +11,11 @@
       "env": {
         "COPILOT_CLI_PATH": "${workspaceFolder}/../copilot-agent-runtime/dist-cli/index.js"
       },
+      "windows": {
+        "env": {
+          "COPILOT_CLI_PATH": "${workspaceFolder}\\..\\copilot-agent-runtime\\dist-cli\\prebuilds\\win32-x64\\copilot-runtime.exe"
+        }
+      },
       "console": "integratedTerminal",
       "autoAttachChildProcesses": true,
       "sourceMaps": true,

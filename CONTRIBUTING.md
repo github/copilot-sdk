@@ -58,6 +58,32 @@ Setup, build, and test instructions are maintained with each SDK:
 - [Rust](rust/README.md#development)
 - [Java](java/README.md#development-setup)
 
+### Using a sibling runtime checkout on Windows
+
+With `copilot-agent-runtime` next to this repository, activate its local native runtime from PowerShell at the SDK repository root:
+
+```powershell
+.\scripts\use-local-runtime.ps1
+```
+
+This sets `COPILOT_CLI_PATH` for that terminal and its child processes, without changing your global environment or authentication. It targets `dist-cli\prebuilds\win32-x64\copilot-runtime.exe` on Windows x64 and the adjacent `runtime.node` for in-process connections. Explicit connection paths and custom environment maps can override this selection. New VS Code terminals in this workspace and the chat debugger are also configured for this Windows x64 build; reopen existing terminals to pick up the setting.
+
+To rebuild both the runtime and the Node.js SDK before running a scenario:
+
+```powershell
+.\scripts\use-local-runtime.ps1 -Build
+cd nodejs
+npx tsx .\samples\chat.ts
+```
+
+Install dependencies first if needed: `pnpm install` in the runtime checkout, `npm ci` in `nodejs`, and `npm ci` in `nodejs\samples`. The samples' `file:..` dependency uses this SDK checkout, not a published SDK.
+
+For faster iteration, run `pnpm run build:watch` in the runtime checkout in a separate terminal. It rebuilds both TypeScript and Rust changes. Wait for a successful build before restarting your scenario. **Stop SDK processes before rebuilding on Windows**, because a loaded native library can prevent the build from replacing it.
+
+After SDK changes, run `npm run build` in `nodejs` to refresh package imports. For build-free TypeScript experiments, put a scenario in `nodejs\samples`, import from `../src/index.js` instead of `@github/copilot-sdk`, and run it with `npx tsx`; SDK source edits then take effect on the next run. Other language SDKs use the same runtime override when launched from the activated terminal, with their usual local-source build or install commands.
+
+Inspect `$env:COPILOT_CLI_PATH` to confirm the selected runtime. To stop using the override in a terminal, run `Remove-Item Env:COPILOT_CLI_PATH`; remove the workspace setting as well to disable it for future VS Code terminals.
+
 ## Submitting a Pull Request
 
 1. Fork and clone the repository
