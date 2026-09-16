@@ -1425,8 +1425,7 @@ impl ProviderConfig {
 #[non_exhaustive]
 pub struct CapiSessionOptions {
     /// Routing tier, meaningful only with model `auto` (Auto mode V2).
-    /// Requires a runtime version that supports `capi.autoTier`. Fast
-    /// requires Copilot CLI 1.0.84-0 or later.
+    /// Requires a runtime version that supports `capi.autoTier`.
     ///
     /// When omitted, the runtime chooses its default on create and restores
     /// the last committed tier on cold resume. On resident resume, a different

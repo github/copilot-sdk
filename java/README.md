@@ -371,8 +371,7 @@ For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-d
 Use `CapiSessionOptions.setAutoTier(...)` to select `AutoTier.EFFICIENCY`,
 `AutoTier.BALANCE`, `AutoTier.INTELLIGENCE`, or `AutoTier.FAST`. This option is
 meaningful only with model `auto` (Auto mode V2).
-It requires a runtime version that supports `capi.autoTier`; `AutoTier.FAST`
-additionally requires Copilot CLI `1.0.84-0` or later.
+It requires a runtime version that supports `capi.autoTier`.
 `AutoTier.FAST` is an integrator-only latency preset, not a first-party GitHub
 Copilot product preference — the SDK does not decide Fast eligibility or apply
 it implicitly.

@@ -306,7 +306,7 @@ finally:
 These are passed as keyword arguments to `create_session()`:
 
 - `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `capi` (CapiSessionOptions): Copilot API options. With `model="auto"`, set `auto_tier` to `"efficiency"`, `"balance"`, `"intelligence"`, or `"fast"` to choose a routing preference. `"fast"` is an integrator-only latency preset, not a first-party GitHub Copilot product preference, and requires Copilot CLI `1.0.84-0` or later. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
+- `capi` (CapiSessionOptions): Copilot API options. With `model="auto"`, set `auto_tier` to `"efficiency"`, `"balance"`, `"intelligence"`, or `"fast"` to choose a routing preference. `"fast"` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
 - `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh", "max"). Use `list_models()` to check which models support this option.
 - `session_id` (str): Custom session ID
 - `tools` (list): Custom tools exposed to the CLI. Tools with `handler=None` are declaration-only and must be resolved via pending tool-call RPCs.

@@ -9,7 +9,7 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ### Feature: complete Fast Auto tier support
 
-All six SDKs now expose the canonical `fast` Auto routing tier across session creation, cold resume, resident switching, authoritative state reads, and terminal lifecycle events. Fast is an integrator-only latency preset and requires Copilot CLI `1.0.84-0` or later.
+All six SDKs now expose the canonical `fast` Auto routing tier across session creation, cold resume, resident switching, authoritative state reads, and terminal lifecycle events. Fast is an integrator-only latency preset.
 
 The SDKs preserve the runtime's behavior: omitted tiers use the runtime default or persisted value, explicit resume tiers override persisted state, resident switches remain pending until a successful Auto turn commits them, and failed activation leaves the incumbent effective tier unchanged. SDKs do not decide Fast eligibility, downgrade unsupported requests, or hide errors from externally supplied older runtimes.
 

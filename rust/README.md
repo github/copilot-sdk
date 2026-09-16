@@ -367,8 +367,7 @@ next credential-consuming operation; there is no background refresh timer.
 Use `CapiSessionOptions::with_auto_tier` to select `AutoTier::Efficiency`,
 `AutoTier::Balance`, `AutoTier::Intelligence`, or `AutoTier::Fast`. This option
 is meaningful only with model `auto` (Auto mode V2).
-It requires a runtime version that supports `capi.autoTier`; `AutoTier::Fast`
-additionally requires Copilot CLI `1.0.84-0` or later.
+It requires a runtime version that supports `capi.autoTier`.
 `AutoTier::Fast` is an integrator-only latency preset, not a first-party
 GitHub Copilot product preference — the SDK does not decide Fast eligibility
 or apply it implicitly.

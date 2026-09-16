@@ -151,7 +151,7 @@ Create a new conversation session.
 
 - `sessionId?: string` - Custom session ID.
 - `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `capi?: CapiSessionOptions` - Copilot API options. With `model: "auto"`, set `autoTier` to `"efficiency"`, `"balance"`, `"intelligence"`, or `"fast"` to choose a routing preference. `"fast"` is an integrator-only latency preset, not a first-party GitHub Copilot product preference, and requires Copilot CLI `1.0.84-0` or later. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
+- `capi?: CapiSessionOptions` - Copilot API options. With `model: "auto"`, set `autoTier` to `"efficiency"`, `"balance"`, `"intelligence"`, or `"fast"` to choose a routing preference. `"fast"` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
 - `reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
 - `tools?: Tool[]` - Custom tools exposed to the CLI. Tools without `handler` are declaration-only and must be resolved via pending tool-call RPCs.
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)

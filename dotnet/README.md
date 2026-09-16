@@ -317,7 +317,7 @@ await session2.DisposeAsync();
 
 ## Auto routing tiers
 
-The canonical values are `AutoTier.Efficiency`, `AutoTier.Balance`, `AutoTier.Intelligence`, and `AutoTier.Fast`, which send `efficiency`, `balance`, `intelligence`, and `fast` on the wire. Fast is an integrator-only latency preset, not a fourth first-party GitHub Copilot preference, and requires Copilot CLI `1.0.84-0` or later. The SDK forwards the requested value without deciding eligibility or inspecting client identity. An externally supplied older runtime returns its native runtime or JSON-RPC error; the SDK does not downgrade or silently ignore the request.
+The canonical values are `AutoTier.Efficiency`, `AutoTier.Balance`, `AutoTier.Intelligence`, and `AutoTier.Fast`, which send `efficiency`, `balance`, `intelligence`, and `fast` on the wire. Fast is an integrator-only latency preset, not a fourth first-party GitHub Copilot preference. The SDK forwards the requested value without deciding eligibility or inspecting client identity. An externally supplied older runtime returns its native runtime or JSON-RPC error; the SDK does not downgrade or silently ignore the request.
 
 Omitting the tier on create uses the runtime default rather than Balance. A cold resume restores the persisted tier unless the resume request supplies an explicit override.
 

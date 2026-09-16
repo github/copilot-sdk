@@ -25,7 +25,7 @@ public enum AutoTier {
 
     /**
      * Integrator-only preset that optimizes for latency. Not a first-party GitHub
-     * Copilot product preference; requires Copilot CLI 1.0.84-0 or later.
+     * Copilot product preference.
      */
     FAST("fast");
 
