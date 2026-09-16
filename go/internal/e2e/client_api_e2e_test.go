@@ -62,9 +62,9 @@ func TestClientAPIE2E(t *testing.T) {
 	})
 
 	t.Run("should get null last session id before any sessions exist", func(t *testing.T) {
-		// Use a fresh client with isolated COPILOT_HOME so other subtests don't pollute state.
-		freshCtx := testharness.NewTestContext(t)
-		freshClient := freshCtx.NewClient()
+		freshClient := ctx.NewClient(func(options *copilot.ClientOptions) {
+			options.BaseDirectory = t.TempDir()
+		})
 		t.Cleanup(func() { freshClient.ForceStop() })
 
 		if err := freshClient.Start(t.Context()); err != nil {

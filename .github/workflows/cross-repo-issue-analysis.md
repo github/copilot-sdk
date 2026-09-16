@@ -33,6 +33,7 @@ tools:
     - "tail:*"
     - "wc:*"
     - "ls:*"
+    - "jq:*"
 safe-outputs:
   github-token: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
   allowed-github-references: ["repo", "github/copilot-agent-runtime"]

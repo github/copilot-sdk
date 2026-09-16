@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from copilot._jsonrpc import JsonRpcClient
+from copilot.client import CopilotClient
 
 _TIMEOUT_DIAGNOSTICS = pytest.StashKey[tuple[str, Path | None]]()
 
@@ -43,7 +44,7 @@ def pytest_timeout_set_timer(item, settings):
     signal.signal(signal.SIGALRM, capture_timeout)
 
 
-def _dump_awaitable(awaitable, output, seen=None):
+def _dump_awaitable(awaitable, output, seen=None, clients=None):
     if seen is None:
         seen = set()
     while awaitable is not None and id(awaitable) not in seen:
@@ -62,6 +63,10 @@ def _dump_awaitable(awaitable, output, seen=None):
         if frame is not None:
             code = frame.f_code
             print(f"  {code.co_filename}:{frame.f_lineno} in {code.co_qualname}", file=output)
+            if clients is not None:
+                for value in frame.f_locals.values():
+                    if isinstance(value, CopilotClient):
+                        clients[id(value)] = value
             # Do not dump arbitrary locals, RPC payloads, prompts, tokens, or results.
             if code is JsonRpcClient.request.__code__:
                 values = frame.f_locals
@@ -85,11 +90,14 @@ def _dump_awaitable(awaitable, output, seen=None):
             if type(awaitable).__name__ in ("async_generator_asend", "async_generator_athrow"):
                 for referent in gc.get_referents(awaitable):
                     if inspect.isasyncgen(referent):
-                        _dump_awaitable(referent, output, seen)
+                        _dump_awaitable(referent, output, seen, clients)
         awaitable = next_awaitable
 
 
 def _dump_client(client, output):
+    process = getattr(client, "_cli_process", None)
+    if isinstance(process, subprocess.Popen):
+        print(f"CLI pid={process.pid} returncode={process.returncode}", file=output)
     rpc = client._client
     if rpc is not None:
         reader = rpc._read_thread
@@ -126,10 +134,23 @@ def _dump_client(client, output):
         )
 
 
-def _sample_native_threads(path: Path, output):
+def _native_process_ids(clients):
+    process_ids = set()
+    for client in clients:
+        process = getattr(client, "_cli_process", None)
+        if isinstance(process, subprocess.Popen) and process.poll() is None:
+            process_ids.add(process.pid)
+        if getattr(client, "_ffi_host", None) is not None:
+            process_ids.add(os.getpid())
+    return process_ids
+
+
+def _sample_native_threads(path: Path, output, process_id=None):
+    if process_id is None:
+        process_id = os.getpid()
     try:
         result = subprocess.run(
-            ["sample", str(os.getpid()), "1", "-file", str(path)],
+            ["sample", str(process_id), "1", "-file", str(path)],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -147,11 +168,13 @@ def _collect_timeout_diagnostics(item):
     output = io.StringIO()
     print(f"Test: {item.nodeid}\nPID: {os.getpid()}", file=output)
     client = None
+    clients = {}
     try:
         context = item.funcargs.get("ctx")
         client = getattr(context, "_client", None)
         loops = set()
         if client is not None:
+            clients[id(client)] = client
             _dump_client(client, output)
             if client._client is not None and client._client._loop is not None:
                 loops.add(client._client._loop)
@@ -165,7 +188,10 @@ def _collect_timeout_diagnostics(item):
                     f"Task {task.get_name()} done={task.done()} cancelling={task.cancelling()}",
                     file=output,
                 )
-                _dump_awaitable(task.get_coro(), output)
+                _dump_awaitable(task.get_coro(), output, clients=clients)
+        for pending_client in clients.values():
+            if pending_client is not client:
+                _dump_client(pending_client, output)
         names = {thread.ident: thread.name for thread in threading.enumerate()}
         for ident, frame in sys._current_frames().items():
             print(f"Thread {ident} ({names.get(ident, 'native')})", file=output)
@@ -180,8 +206,11 @@ def _collect_timeout_diagnostics(item):
         stem = f"{os.getpid()}-{uuid.uuid4().hex}"
         path = directory / f"{stem}.txt"
         path.write_text(output.getvalue(), encoding="utf-8")
-        if sys.platform == "darwin" and getattr(client, "_ffi_host", None) is not None:
-            _sample_native_threads(directory / f"{stem}.sample.txt", output)
+        if sys.platform == "darwin":
+            for process_id in sorted(_native_process_ids(clients.values())):
+                _sample_native_threads(
+                    directory / f"{stem}-{process_id}.sample.txt", output, process_id
+                )
         print(f"Diagnostics saved to {path}", file=output)
         path.write_text(output.getvalue(), encoding="utf-8")
     except Exception as exc:

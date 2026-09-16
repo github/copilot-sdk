@@ -12,6 +12,9 @@ import (
 // Tests server-scoped MCP configuration management via MCP.Config.* RPCs.
 func TestRPCMCPConfigE2E(t *testing.T) {
 	t.Run("should call server MCP config rpcs", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient()
 		t.Cleanup(func() { client.ForceStop() })
@@ -105,6 +108,9 @@ func TestRPCMCPConfigE2E(t *testing.T) {
 	})
 
 	t.Run("should round trip http MCP oauth config rpc", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient()
 		t.Cleanup(func() { client.ForceStop() })
