@@ -21,10 +21,10 @@
 //! header); anything that looks truncated or quarantined is re-extracted, and
 //! the whole publish is retried before surfacing a clear, actionable error.
 //!
-//! Runtime assets are hashed with bounded buffers against a manifest generated
-//! into the consumer binary at build time. A valid warm cache needs only read
-//! access and never decompresses the archive. Changed files are extracted in
-//! one streaming pass and published after manifest and gzip validation.
+//! Runtime assets are compared and extracted with bounded buffers rather than
+//! whole-file allocations. Matching files need only read access and retain
+//! their installed permissions. Changed files are staged beside their targets
+//! and published after archive validation, including the gzip trailer.
 //! Installation is atomic per file, not across the entire runtime bundle.
 
 // The atomic-publish + verify helpers (and their unit tests) are pure
@@ -33,7 +33,7 @@
 // the standard `cargo test --no-default-features` job has `has_bundled_cli`
 // off but still needs to exercise them.
 #[cfg(has_bundled_cli)]
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 #[cfg(any(has_bundled_cli, test))]
 use std::fs;
 #[cfg(has_bundled_cli)]
@@ -45,8 +45,6 @@ use std::sync::OnceLock;
 #[cfg(any(has_bundled_cli, test))]
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[cfg(has_bundled_cli)]
-use sha2::{Digest, Sha256};
 #[cfg(has_bundled_cli)]
 use tracing::{info, warn};
 
@@ -173,7 +171,7 @@ pub(crate) fn runtime_path() -> Option<PathBuf> {
             #[cfg(has_bundled_cli)]
             {
                 let dir = default_install_dir(CLI_VERSION);
-                match install_runtime(&dir, build_time::RUNTIME_ARCHIVE, build_time::RUNTIME_FILES) {
+                match install_runtime(&dir, build_time::RUNTIME_ARCHIVE) {
                     Ok(path) => {
                         info!(path = %path.display(), version = CLI_VERSION, "embedded runtime installed");
                         return Some(path);
@@ -201,11 +199,7 @@ pub(crate) fn install_runtime_at(extract_dir: &Path) -> Option<PathBuf> {
                 return None;
             }
         };
-        match install_runtime(
-            &install_dir,
-            build_time::RUNTIME_ARCHIVE,
-            build_time::RUNTIME_FILES,
-        ) {
+        match install_runtime(&install_dir, build_time::RUNTIME_ARCHIVE) {
             Ok(path) => {
                 info!(path = %path.display(), version = CLI_VERSION, "embedded runtime installed");
                 return Some(path);
@@ -287,20 +281,7 @@ const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.dylib";
 const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.so";
 
 #[cfg(has_bundled_cli)]
-#[derive(Clone, Debug)]
-struct RuntimeFile {
-    path: std::borrow::Cow<'static, str>,
-    size: u64,
-    mode: u32,
-    sha256: [u8; 32],
-}
-
-#[cfg(has_bundled_cli)]
-fn install_runtime(
-    install_dir: &Path,
-    archive: impl Read,
-    files: &[RuntimeFile],
-) -> Result<PathBuf, EmbeddedCliError> {
+fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
     fs::create_dir_all(install_dir)
         .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, e))?;
     let root = fs::canonicalize(install_dir)
@@ -309,49 +290,8 @@ fn install_runtime(
     #[cfg(feature = "bundled-in-process")]
     required.push(RUNTIME_LIBRARY_NAME);
     let mut seen = HashSet::new();
-    let mut assets = HashMap::new();
-    let mut needs_install = false;
-    for asset in files {
-        let path = runtime_asset_path(Path::new(asset.path.as_ref()))?;
-        if !seen.insert(path.as_os_str().to_ascii_lowercase()) {
-            return Err(EmbeddedCliError::with_message(
-                EmbeddedCliErrorKind::Archive,
-                format!("duplicate embedded runtime asset path: {}", path.display()),
-            ));
-        }
-        if !selected_runtime_asset(&path) {
-            continue;
-        }
-        if let Some(index) = required.iter().position(|name| path == Path::new(name)) {
-            if asset.size == 0 {
-                return Err(EmbeddedCliError::with_message(
-                    EmbeddedCliErrorKind::Verification,
-                    format!("embedded runtime artifact is empty: {}", path.display()),
-                ));
-            }
-            required.remove(index);
-        }
-        let target = root.join(&path);
-        let parent = target.parent().ok_or_else(|| {
-            EmbeddedCliError::with_message(
-                EmbeddedCliErrorKind::Archive,
-                format!("embedded runtime asset has no parent: {}", path.display()),
-            )
-        })?;
-        check_runtime_asset_parent(&root, parent, false)?;
-        let valid = runtime_file_is_valid(asset, &target)?;
-        needs_install |= !valid;
-        assets.insert(path, (asset, valid));
-    }
-    if !required.is_empty() {
-        return Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into());
-    }
-    if !needs_install {
-        return Ok(install_dir.join(RUNTIME_BINARY_NAME));
-    }
-
+    let mut changed = HashSet::new();
     let mut pending = Vec::new();
-    seen.clear();
     let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(archive));
     for entry in tar
         .entries()
@@ -375,52 +315,64 @@ fn install_runtime(
         if !selected_runtime_asset(&path) {
             continue;
         }
-        let (asset, valid) = assets.remove(&path).ok_or_else(|| {
-            EmbeddedCliError::with_message(
-                EmbeddedCliErrorKind::Verification,
-                format!(
-                    "runtime archive entry is absent from manifest: {}",
-                    path.display()
-                ),
-            )
-        })?;
-        let mode = entry
-            .header()
-            .mode()
-            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?
-            & 0o777;
-        if entry.size() != asset.size || mode != asset.mode {
-            return Err(EmbeddedCliError::with_message(
-                EmbeddedCliErrorKind::Verification,
-                format!(
-                    "runtime archive metadata differs from manifest: {}",
-                    path.display()
-                ),
-            ));
-        }
-        if valid {
-            let digest = hash_runtime_file(&mut entry, asset.size)
-                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
-            if digest != asset.sha256 {
+        if let Some(index) = required.iter().position(|name| path == Path::new(name)) {
+            if entry.size() == 0 {
                 return Err(EmbeddedCliError::with_message(
                     EmbeddedCliErrorKind::Verification,
-                    format!(
-                        "runtime archive content differs from manifest: {}",
-                        asset.path
-                    ),
+                    format!("embedded runtime artifact is empty: {}", path.display()),
                 ));
             }
-        } else {
-            let target = root.join(&path);
-            check_runtime_asset_parent(&root, target.parent().expect("checked asset path"), true)?;
-            pending.push(stage_runtime_entry(&mut entry, &target, asset)?);
+            required.remove(index);
+        }
+        let target = root.join(&path);
+        let parent = target.parent().ok_or_else(|| {
+            EmbeddedCliError::with_message(
+                EmbeddedCliErrorKind::Archive,
+                format!("embedded runtime asset has no parent: {}", path.display()),
+            )
+        })?;
+        check_runtime_asset_parent(&root, parent, false)?;
+        match existing_runtime_file(&target, entry.size())? {
+            Some(mut installed) => {
+                if !runtime_entry_matches(&mut entry, &mut installed)? {
+                    changed.insert(path);
+                }
+            }
+            None => {
+                check_runtime_asset_parent(&root, parent, true)?;
+                pending.push(stage_runtime_entry(&mut entry, &target)?);
+            }
         }
     }
     // TAR's end marker can precede gzip's CRC and size trailer.
     std::io::copy(&mut tar.into_inner(), &mut std::io::sink())
         .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
-    if !assets.is_empty() {
+    if !required.is_empty() {
         return Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into());
+    }
+    // Recover bytes consumed by failed comparisons without retaining their
+    // prefixes in memory. Cold installs and valid warm caches need one pass.
+    if !changed.is_empty() {
+        let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(archive));
+        for entry in tar
+            .entries()
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?
+        {
+            let mut entry =
+                entry.map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+            if !entry.header().entry_type().is_file() {
+                continue;
+            }
+            let path = entry
+                .path()
+                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+            let path = runtime_asset_path(&path)?;
+            if changed.contains(&path) {
+                pending.push(stage_runtime_entry(&mut entry, &root.join(path))?);
+            }
+        }
+        std::io::copy(&mut tar.into_inner(), &mut std::io::sink())
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
     }
     for staged in pending {
         publish(&staged.temporary, &staged.target)?;
@@ -557,7 +509,7 @@ impl Drop for StagedRuntimeFile {
 }
 
 #[cfg(has_bundled_cli)]
-fn runtime_file_is_valid(asset: &RuntimeFile, target: &Path) -> Result<bool, EmbeddedCliError> {
+fn existing_runtime_file(target: &Path, size: u64) -> Result<Option<fs::File>, EmbeddedCliError> {
     let metadata = match fs::symlink_metadata(target) {
         Ok(metadata) if metadata.is_file() => Some(metadata),
         Ok(_) => {
@@ -571,62 +523,54 @@ fn runtime_file_is_valid(asset: &RuntimeFile, target: &Path) -> Result<bool, Emb
     };
     let matches = metadata
         .as_ref()
-        .is_some_and(|metadata| metadata.len() == asset.size);
+        .is_some_and(|metadata| metadata.len() == size);
     if matches {
-        #[cfg(unix)]
-        if asset.mode & 0o111 != 0 {
-            use rustix::fs::{Access, AtFlags, CWD, accessat};
-
-            // Check this process's effective credentials, not every class of
-            // permission bits: owner-only immutable caches are valid too.
-            if let Err(error) = accessat(CWD, target, Access::EXEC_OK, AtFlags::EACCESS) {
-                tracing::debug!(path = %target.display(), %error,
-                    "existing runtime asset is not executable; repairing");
-                return Ok(false);
-            }
-        }
         match fs::File::open(target) {
-            Ok(mut file) => match hash_runtime_file(&mut file, asset.size) {
-                Ok(digest) => return Ok(digest == asset.sha256),
-                Err(e) => {
-                    tracing::debug!(path = %target.display(), error = %e,
-                        "existing runtime asset cannot be verified; repairing");
-                }
-            },
+            Ok(file) => return Ok(Some(file)),
             Err(e) => {
                 tracing::debug!(path = %target.display(), error = %e,
                     "existing runtime asset cannot be read; repairing");
             }
         }
     }
-    Ok(false)
+    Ok(None)
 }
 
 #[cfg(has_bundled_cli)]
-fn hash_runtime_file(reader: &mut impl Read, size: u64) -> std::io::Result<[u8; 32]> {
+fn runtime_entry_matches<R: Read>(
+    entry: &mut tar::Entry<'_, R>,
+    installed: &mut fs::File,
+) -> Result<bool, EmbeddedCliError> {
     let mut buffer = [0u8; 64 * 1024];
-    let mut hash = Sha256::new();
-    let mut remaining = size;
+    let mut on_disk = [0u8; 64 * 1024];
+    let mut remaining = entry.size();
     while remaining > 0 {
         let length = remaining.min(buffer.len() as u64) as usize;
-        reader.read_exact(&mut buffer[..length])?;
+        entry
+            .read_exact(&mut buffer[..length])
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
         remaining -= length as u64;
-        hash.update(&buffer[..length]);
+        if let Err(error) = installed.read_exact(&mut on_disk[..length]) {
+            tracing::debug!(%error, "existing runtime asset cannot be read; repairing");
+            return Ok(false);
+        }
+        if on_disk[..length] != buffer[..length] {
+            return Ok(false);
+        }
     }
-    if reader.read(&mut buffer[..1])? != 0 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "runtime file exceeds manifest size",
-        ));
+    match installed.read(&mut on_disk[..1]) {
+        Ok(read) => Ok(read == 0),
+        Err(error) => {
+            tracing::debug!(%error, "existing runtime asset cannot be read; repairing");
+            Ok(false)
+        }
     }
-    Ok(hash.finalize().into())
 }
 
 #[cfg(has_bundled_cli)]
 fn stage_runtime_entry<R: Read>(
     entry: &mut tar::Entry<'_, R>,
     target: &Path,
-    asset: &RuntimeFile,
 ) -> Result<StagedRuntimeFile, EmbeddedCliError> {
     let parent = target.parent().expect("runtime asset has a checked parent");
     let (temporary, mut file) = create_temp_file(parent)?;
@@ -634,7 +578,7 @@ fn stage_runtime_entry<R: Read>(
         temporary,
         target: target.to_path_buf(),
     };
-    let result = write_runtime_entry(entry, &mut file, asset);
+    let result = write_runtime_entry(entry, &mut file);
     // Close handles before cleanup or replacement, including on Windows.
     drop(file);
     result?;
@@ -645,35 +589,25 @@ fn stage_runtime_entry<R: Read>(
 fn write_runtime_entry<R: Read>(
     entry: &mut tar::Entry<'_, R>,
     file: &mut fs::File,
-    asset: &RuntimeFile,
 ) -> Result<(), EmbeddedCliError> {
-    let mut buffer = [0u8; 64 * 1024];
-    let mut remaining = asset.size;
-    let mut hash = Sha256::new();
-    while remaining > 0 {
-        let length = remaining.min(buffer.len() as u64) as usize;
-        entry
-            .read_exact(&mut buffer[..length])
-            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
-        remaining -= length as u64;
-        file.write_all(&buffer[..length])
-            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
-        hash.update(&buffer[..length]);
-    }
-    let digest: [u8; 32] = hash.finalize().into();
-    if digest != asset.sha256 {
+    let size = entry.size();
+    let written = std::io::copy(&mut (&mut *entry).take(size), &mut *file)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
+    if written != size {
         return Err(EmbeddedCliError::with_message(
             EmbeddedCliErrorKind::Verification,
-            format!(
-                "runtime archive content differs from manifest: {}",
-                asset.path
-            ),
+            format!("runtime entry size mismatch: read {written} bytes, expected {size}"),
         ));
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        file.set_permissions(fs::Permissions::from_mode(asset.mode))
+        let mode = entry
+            .header()
+            .mode()
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?
+            & 0o777;
+        file.set_permissions(fs::Permissions::from_mode(mode))
             .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
     }
     file.sync_all()
@@ -1348,12 +1282,7 @@ mod tests {
         fs::write(dir.path().join(RUNTIME_NODE_NAME), b"stale runtime").expect("seed runtime");
         fs::write(dir.path().join(RUNTIME_BINARY_NAME), b"stale wrapper").expect("seed wrapper");
 
-        super::install_runtime(
-            dir.path(),
-            build_time::RUNTIME_ARCHIVE,
-            build_time::RUNTIME_FILES,
-        )
-        .expect("install runtime");
+        install_runtime(dir.path(), build_time::RUNTIME_ARCHIVE).expect("install runtime");
 
         assert_eq!(
             fs::read(dir.path().join(RUNTIME_NODE_NAME)).expect("read runtime"),
@@ -1387,19 +1316,7 @@ mod tests {
     }
 
     #[cfg(has_bundled_cli)]
-    #[derive(Clone)]
-    struct RuntimeFixture {
-        archive: Vec<u8>,
-        files: Vec<RuntimeFile>,
-    }
-
-    #[cfg(has_bundled_cli)]
-    fn install_runtime(dir: &Path, fixture: &RuntimeFixture) -> Result<PathBuf, EmbeddedCliError> {
-        super::install_runtime(dir, fixture.archive.as_slice(), &fixture.files)
-    }
-
-    #[cfg(has_bundled_cli)]
-    fn runtime_fixture(extra: &[(&str, &[u8], u32)]) -> RuntimeFixture {
+    fn runtime_fixture(extra: &[(&str, &[u8], u32)]) -> Vec<u8> {
         let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
         let mut archive = tar::Builder::new(encoder);
         let mut entries = vec![
@@ -1409,7 +1326,6 @@ mod tests {
         #[cfg(feature = "bundled-in-process")]
         entries.push((RUNTIME_LIBRARY_NAME, b"library".as_slice(), 0o644));
         entries.extend_from_slice(extra);
-        let mut files = Vec::new();
         for (name, bytes, mode) in entries {
             let mut header = tar::Header::new_gnu();
             // Raw names also let the installer see traversal fixtures which
@@ -1419,174 +1335,8 @@ mod tests {
             header.set_mode(mode);
             header.set_cksum();
             archive.append(&header, bytes).expect("append fixture");
-            files.push(RuntimeFile {
-                path: name.to_owned().into(),
-                size: bytes.len() as u64,
-                mode,
-                sha256: Sha256::digest(bytes).into(),
-            });
         }
-        RuntimeFixture {
-            archive: archive.into_inner().unwrap().finish().unwrap(),
-            files,
-        }
-    }
-
-    #[cfg(has_bundled_cli)]
-    #[test]
-    fn generated_manifest_matches_every_embedded_runtime_file() {
-        let mut archive =
-            tar::Archive::new(flate2::read::GzDecoder::new(build_time::RUNTIME_ARCHIVE));
-        let mut manifest: HashMap<_, _> = build_time::RUNTIME_FILES
-            .iter()
-            .map(|file| {
-                (
-                    runtime_asset_path(Path::new(file.path.as_ref())).unwrap(),
-                    file,
-                )
-            })
-            .collect();
-        assert_eq!(manifest.len(), build_time::RUNTIME_FILES.len());
-        assert!(manifest.contains_key(Path::new(RUNTIME_NODE_NAME)));
-        assert!(manifest.contains_key(Path::new(RUNTIME_BINARY_NAME)));
-        #[cfg(feature = "bundled-in-process")]
-        assert!(manifest.contains_key(Path::new(RUNTIME_LIBRARY_NAME)));
-        for entry in archive.entries().unwrap() {
-            let mut entry = entry.unwrap();
-            assert!(entry.header().entry_type().is_file());
-            let path = runtime_asset_path(&entry.path().unwrap()).unwrap();
-            let file = manifest.remove(&path).expect("manifest entry");
-            assert_eq!(entry.size(), file.size);
-            assert_eq!(entry.header().mode().unwrap() & 0o777, file.mode);
-            assert_eq!(
-                hash_runtime_file(&mut entry, file.size).unwrap(),
-                file.sha256
-            );
-        }
-        assert!(manifest.is_empty());
-        std::io::copy(&mut archive.into_inner(), &mut std::io::sink()).unwrap();
-    }
-
-    #[cfg(has_bundled_cli)]
-    struct UnreadableArchive;
-
-    #[cfg(has_bundled_cli)]
-    impl Read for UnreadableArchive {
-        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
-            panic!("valid warm installation must not read or decompress the archive")
-        }
-    }
-
-    #[cfg(has_bundled_cli)]
-    #[test]
-    fn warm_runtime_verifies_all_files_without_reading_archive() {
-        let dir = tempfile::tempdir().unwrap();
-        let fixture = runtime_fixture(&[("nested/asset", &[0xAB; 65_537], 0o644)]);
-        install_runtime(dir.path(), &fixture).unwrap();
-        let path = super::install_runtime(dir.path(), UnreadableArchive, &fixture.files).unwrap();
-        assert_eq!(path, dir.path().join(RUNTIME_BINARY_NAME));
-        assert_no_runtime_temps(dir.path());
-
-        let mut changed_manifest = fixture.files.clone();
-        changed_manifest[0].sha256[0] ^= 1;
-        // Same size and mode are insufficient: the hash must come from the
-        // trusted manifest, not any mutable cache-side metadata.
-        assert!(
-            super::install_runtime(dir.path(), b"invalid archive".as_slice(), &changed_manifest)
-                .is_err()
-        );
-    }
-
-    #[cfg(has_bundled_cli)]
-    #[test]
-    fn cold_and_repair_consume_one_forward_only_archive() {
-        struct Counted<'a> {
-            bytes: &'a [u8],
-            consumed: usize,
-        }
-        impl Read for Counted<'_> {
-            fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
-                let count = self.bytes.read(buffer)?;
-                self.consumed += count;
-                Ok(count)
-            }
-        }
-        let dir = tempfile::tempdir().unwrap();
-        let bytes = vec![0xAB; 65_537];
-        let fixture = runtime_fixture(&[("nested/asset", &bytes, 0o644)]);
-        for corruption in [None, Some(b"changed".as_slice()), Some(b"run"), Some(b"")] {
-            if let Some(corruption) = corruption {
-                fs::write(dir.path().join(RUNTIME_NODE_NAME), corruption).unwrap();
-            }
-            let mut reader = Counted {
-                bytes: &fixture.archive,
-                consumed: 0,
-            };
-            super::install_runtime(dir.path(), &mut reader, &fixture.files).unwrap();
-            assert_eq!(reader.consumed, fixture.archive.len());
-            assert_eq!(
-                fs::read(dir.path().join(RUNTIME_NODE_NAME)).unwrap(),
-                b"runtime"
-            );
-            assert_eq!(fs::read(dir.path().join("nested/asset")).unwrap(), bytes);
-            assert_no_runtime_temps(dir.path());
-        }
-    }
-
-    #[cfg(has_bundled_cli)]
-    #[test]
-    fn manifest_mismatches_never_publish_staged_files() {
-        let fixture = runtime_fixture(&[("nested/asset", b"trusted", 0o644)]);
-        let wrong_content = runtime_fixture(&[("nested/asset", b"corrupt", 0o644)]);
-        let wrong_size = runtime_fixture(&[("nested/asset", b"short", 0o644)]);
-        let wrong_mode = runtime_fixture(&[("nested/asset", b"trusted", 0o755)]);
-        let extra = runtime_fixture(&[
-            ("nested/asset", b"trusted", 0o644),
-            ("extra", b"bad", 0o644),
-        ]);
-        let duplicate = runtime_fixture(&[
-            ("nested/asset", b"trusted", 0o644),
-            ("./NESTED/ASSET", b"bad", 0o644),
-        ]);
-        let missing = runtime_fixture(&[]);
-        for other in [
-            wrong_content,
-            wrong_size,
-            wrong_mode,
-            extra,
-            duplicate,
-            missing,
-        ] {
-            let dir = tempfile::tempdir().unwrap();
-            assert!(
-                super::install_runtime(dir.path(), other.archive.as_slice(), &fixture.files)
-                    .is_err()
-            );
-            assert!(!dir.path().join(RUNTIME_BINARY_NAME).exists());
-            assert!(!dir.path().join("nested/asset").exists());
-            assert_no_runtime_temps(dir.path());
-        }
-    }
-
-    #[cfg(has_bundled_cli)]
-    #[test]
-    fn repair_verifies_archive_entries_even_when_cached_files_are_valid() {
-        let dir = tempfile::tempdir().unwrap();
-        let fixture = runtime_fixture(&[("nested/asset", b"trusted", 0o644)]);
-        install_runtime(dir.path(), &fixture).unwrap();
-        fs::remove_file(dir.path().join(RUNTIME_NODE_NAME)).unwrap();
-        let mismatched = runtime_fixture(&[("nested/asset", b"corrupt", 0o644)]);
-
-        assert!(
-            super::install_runtime(dir.path(), mismatched.archive.as_slice(), &fixture.files)
-                .is_err()
-        );
-        assert!(!dir.path().join(RUNTIME_NODE_NAME).exists());
-        assert_eq!(
-            fs::read(dir.path().join("nested/asset")).unwrap(),
-            b"trusted"
-        );
-        assert_no_runtime_temps(dir.path());
+        archive.into_inner().unwrap().finish().unwrap()
     }
 
     #[cfg(has_bundled_cli)]
@@ -1604,10 +1354,7 @@ mod tests {
             .unwrap()
             .set_times(fs::FileTimes::new().set_modified(original.modified().unwrap()))
             .unwrap();
-        assert!(
-            super::install_runtime(dir.path(), b"invalid archive".as_slice(), &fixture.files)
-                .is_err()
-        );
+        assert!(install_runtime(dir.path(), b"invalid archive").is_err());
         assert_eq!(fs::read(&runtime).unwrap(), b"corrupt");
         install_runtime(dir.path(), &fixture).unwrap();
         assert_eq!(fs::read(&runtime).unwrap(), b"runtime");
@@ -1682,36 +1429,34 @@ mod tests {
         }
     }
 
-    #[cfg(all(has_bundled_cli, unix))]
+    #[cfg(has_bundled_cli)]
     #[test]
-    fn runtime_repairs_missing_execute_permission() {
-        use std::os::unix::fs::PermissionsExt;
-
+    fn runtime_repairs_corruption_across_comparison_chunks() {
         let dir = tempfile::tempdir().unwrap();
-        let archive = runtime_fixture(&[]);
-        let wrapper = install_runtime(dir.path(), &archive).unwrap();
-        for mode in [0o644, 0o400] {
-            fs::set_permissions(&wrapper, fs::Permissions::from_mode(mode)).unwrap();
+        let bytes = vec![0xAB; 3 * 64 * 1024 + 17];
+        let archive = runtime_fixture(&[("nested/asset", &bytes, 0o644)]);
+        install_runtime(dir.path(), &archive).unwrap();
+        for offset in [0, bytes.len() / 2, bytes.len() - 1] {
+            let mut corrupt = bytes.clone();
+            corrupt[offset] ^= 1;
+            fs::write(dir.path().join("nested/asset"), &corrupt).unwrap();
             install_runtime(dir.path(), &archive).unwrap();
-            assert_eq!(
-                fs::metadata(&wrapper).unwrap().permissions().mode() & 0o777,
-                0o755
-            );
+            assert_eq!(fs::read(dir.path().join("nested/asset")).unwrap(), bytes);
+            assert_no_runtime_temps(dir.path());
         }
-        assert_no_runtime_temps(dir.path());
     }
 
     #[cfg(all(has_bundled_cli, unix))]
     #[test]
-    fn runtime_reuses_executable_modes_without_group_or_other_access() {
+    fn runtime_reuse_preserves_caller_selected_permissions() {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = tempfile::tempdir().unwrap();
         let fixture = runtime_fixture(&[]);
         let wrapper = install_runtime(dir.path(), &fixture).unwrap();
-        for mode in [0o745, 0o754, 0o700, 0o500] {
+        for mode in [0o745, 0o754, 0o700, 0o500, 0o400] {
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(mode)).unwrap();
-            super::install_runtime(dir.path(), UnreadableArchive, &fixture.files).unwrap();
+            install_runtime(dir.path(), &fixture).unwrap();
             assert_eq!(
                 fs::metadata(&wrapper).unwrap().permissions().mode() & 0o777,
                 mode
@@ -1726,15 +1471,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let valid = runtime_fixture(&[("nested/asset", b"asset", 0o644)]);
         let mut invalid_crc = valid.clone();
-        let crc = invalid_crc.archive.len() - 8;
-        invalid_crc.archive[crc] ^= 0xFF;
+        let crc = invalid_crc.len() - 8;
+        invalid_crc[crc] ^= 0xFF;
         let mut invalid_length = valid.clone();
-        let length = invalid_length.archive.len() - 4;
-        invalid_length.archive[length] ^= 0xFF;
+        let length = invalid_length.len() - 4;
+        invalid_length[length] ^= 0xFF;
         let mut truncated_trailer = valid.clone();
-        truncated_trailer.archive.truncate(valid.archive.len() - 1);
+        truncated_trailer.truncate(valid.len() - 1);
         let mut truncated_body = valid.clone();
-        truncated_body.archive.truncate(valid.archive.len() / 2);
+        truncated_body.truncate(valid.len() / 2);
         for archive in [
             invalid_crc,
             invalid_length,
@@ -1763,14 +1508,7 @@ mod tests {
         let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
         encoder.write_all(header.as_bytes()).unwrap();
         encoder.write_all(b"short").unwrap();
-        let mut archive = runtime_fixture(&[]);
-        archive.archive = encoder.finish().unwrap();
-        archive
-            .files
-            .iter_mut()
-            .find(|file| file.path == RUNTIME_NODE_NAME)
-            .unwrap()
-            .size = 128 * 1024;
+        let archive = encoder.finish().unwrap();
 
         assert!(install_runtime(dir.path(), &archive).is_err());
         assert!(!dir.path().join(RUNTIME_NODE_NAME).exists());
@@ -1790,10 +1528,7 @@ mod tests {
         archive
             .append_data(&mut header, RUNTIME_BINARY_NAME, b"wrapper".as_slice())
             .unwrap();
-        let archive = RuntimeFixture {
-            archive: archive.into_inner().unwrap().finish().unwrap(),
-            files: runtime_fixture(&[]).files,
-        };
+        let archive = archive.into_inner().unwrap().finish().unwrap();
 
         assert!(install_runtime(dir.path(), &archive).is_err());
         assert!(!dir.path().join(RUNTIME_BINARY_NAME).exists());
@@ -1994,17 +1729,23 @@ mod tests {
     #[cfg(all(has_bundled_cli, unix))]
     #[test]
     fn warm_runtime_install_needs_no_writable_cache() {
-        assert_read_only_runtime_cache(0o555);
+        assert_read_only_runtime_cache(0o555, false);
     }
 
     #[cfg(all(has_bundled_cli, unix))]
     #[test]
     fn warm_runtime_reuses_owner_only_immutable_cache() {
-        assert_read_only_runtime_cache(0o500);
+        assert_read_only_runtime_cache(0o500, false);
     }
 
     #[cfg(all(has_bundled_cli, unix))]
-    fn assert_read_only_runtime_cache(permission_mask: u32) {
+    #[test]
+    fn warm_runtime_reuses_nonexecutable_native_library() {
+        assert_read_only_runtime_cache(0o555, true);
+    }
+
+    #[cfg(all(has_bundled_cli, unix))]
+    fn assert_read_only_runtime_cache(permission_mask: u32, readonly_native_library: bool) {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = tempfile::tempdir().unwrap();
@@ -2020,7 +1761,10 @@ mod tests {
         let mut read_only_files = Vec::new();
         for name in files {
             let path = dir.path().join(name);
-            let mode = fs::metadata(&path).unwrap().permissions().mode() & permission_mask;
+            let mut mode = fs::metadata(&path).unwrap().permissions().mode() & permission_mask;
+            if readonly_native_library && name == RUNTIME_NODE_NAME {
+                mode &= !0o111;
+            }
             fs::set_permissions(&path, fs::Permissions::from_mode(mode)).unwrap();
             read_only_files.push((path, mode));
         }

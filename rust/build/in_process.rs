@@ -201,7 +201,7 @@ fn emit_embedded(
     platform: Platform,
     include_runtime: bool,
 ) {
-    let (runtime_archive, runtime_files) =
+    let runtime_archive =
         build_embedded_runtime_archive(runtime_package, platform, include_runtime);
     std::fs::write(out.join("copilot_cli.archive"), cli_archive)
         .expect("failed to write copilot_cli.archive");
@@ -213,8 +213,6 @@ fn emit_embedded(
 pub(super) static CLI_ARCHIVE: &[u8] = include_bytes!("copilot_cli.archive");
 pub(super) static RUNTIME_ARCHIVE: &[u8] = include_bytes!("copilot_runtime.archive");
 pub(super) const CLI_BINARY_SIZE: u64 = {cli_binary_size};
-pub(super) static RUNTIME_FILES: &[super::RuntimeFile] = &[
-{runtime_files}];
 "#
     );
 
@@ -225,13 +223,12 @@ fn build_embedded_runtime_archive(
     package: &[u8],
     platform: Platform,
     include_runtime: bool,
-) -> (Vec<u8>, String) {
+) -> Vec<u8> {
     let encoder = flate2::GzBuilder::new()
         .mtime(0)
         .write(Vec::new(), flate2::Compression::default());
     let mut archive = tar::Builder::new(encoder);
-    let mut files = String::new();
-    let runtime = append_hostless_runtime_tree(&mut archive, package, platform, &mut files);
+    let runtime = append_hostless_runtime_tree(&mut archive, package, platform);
     if include_runtime {
         append_archive_file(
             &mut archive,
@@ -239,22 +236,19 @@ fn build_embedded_runtime_archive(
             &runtime,
             0o644,
         );
-        append_runtime_manifest(&mut files, platform.runtime_library_name(), &runtime, 0o644);
     }
     let encoder = archive
         .into_inner()
         .expect("failed to finish minimal embedded CLI archive");
-    let archive = encoder
+    encoder
         .finish()
-        .expect("failed to compress minimal embedded CLI archive");
-    (archive, files)
+        .expect("failed to compress minimal embedded CLI archive")
 }
 
 fn append_hostless_runtime_tree<W: Write>(
     archive: &mut tar::Builder<W>,
     package: &[u8],
     platform: Platform,
-    files: &mut String,
 ) -> Vec<u8> {
     let decoder = flate2::read::GzDecoder::new(package);
     let mut source = tar::Archive::new(decoder);
@@ -290,14 +284,6 @@ fn append_hostless_runtime_tree<W: Write>(
             &bytes,
             mode,
         );
-        append_runtime_manifest(
-            files,
-            destination
-                .to_str()
-                .expect("npm package paths are valid UTF-8"),
-            &bytes,
-            mode,
-        );
     }
     runtime.unwrap_or_else(|| {
         panic!(
@@ -305,19 +291,6 @@ fn append_hostless_runtime_tree<W: Write>(
             platform.package_name
         )
     })
-}
-
-fn append_runtime_manifest(files: &mut String, path: &str, bytes: &[u8], mode: u32) {
-    use std::fmt::Write as _;
-
-    let sha256: [u8; 32] = sha2::Sha256::digest(bytes).into();
-    writeln!(
-        files,
-        "    super::RuntimeFile {{ path: std::borrow::Cow::Borrowed({path:?}), size: {}, mode: {}, sha256: {sha256:?} }},",
-        bytes.len(),
-        mode & 0o777,
-    )
-    .expect("write runtime manifest");
 }
 
 fn hostless_runtime_path(source: &str, platform: Platform) -> Option<PathBuf> {
@@ -993,10 +966,5 @@ fn archive_zip_entry_size(zip_bytes: &[u8], binary_name: &str) -> Option<u64> {
 fn verify_hash(data: &[u8], expected: &str) -> bool {
     let mut hasher = sha2::Sha256::new();
     hasher.update(data);
-    let actual: String = hasher
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
-    actual == expected
+    format!("{:x}", hasher.finalize()) == expected
 }

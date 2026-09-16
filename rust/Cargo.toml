@@ -29,7 +29,7 @@ name = "github_copilot_sdk"
 
 [features]
 default = ["bundled-cli"]
-bundled-cli = ["dep:tar", "dep:flate2", "dep:zip", "dep:sha2", "dep:rustix"]
+bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
 bundled-in-process = ["bundled-cli", "dep:libloading"]
 derive = ["dep:schemars"]
 test-support = []
@@ -59,7 +59,6 @@ getrandom = "0.2"
 uuid = { version = "1", default-features = false, features = ["v4"] }
 flate2 = { version = "1", optional = true }
 tar = { version = "0.4", optional = true }
-sha2 = { version = "0.11", default-features = false, optional = true }
 # LLM inference callback transport: idiomatic HTTP/WebSocket forwarding for the
 # `CopilotRequestHandler`, plus base64/byte/stream plumbing for the chunk protocol.
 base64 = "0.22"
@@ -68,9 +67,6 @@ http = "1"
 futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["stream", "http2", "default-tls"] }
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "native-tls"] }
-
-[target.'cfg(unix)'.dependencies]
-rustix = { version = "1", features = ["fs"], optional = true }
 
 [target.'cfg(windows)'.dependencies]
 zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
@@ -129,7 +125,7 @@ required-features = ["test-support"]
 dirs = "5"
 flate2 = "1"
 serde_json = "1"
-sha2 = { version = "0.11", default-features = false }
+sha2 = "0.10"
 tar = "0.4"
 ureq = { version = "2", default-features = false, features = ["native-tls"] }
 native-tls = "0.2"
