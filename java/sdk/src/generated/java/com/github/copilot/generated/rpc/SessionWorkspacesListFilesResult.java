@@ -25,7 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionWorkspacesListFilesResult(
-    /** Relative file paths in the workspace files directory */
+    /** Slash-separated relative file paths in the workspace files directory */
     @JsonProperty("files") List<String> files
 ) {
 }

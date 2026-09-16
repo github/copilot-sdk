@@ -11847,6 +11847,129 @@ impl<'a> SessionRpcWorkspaces<'a> {
         Ok(())
     }
 
+    /// Returns metadata for a file or directory in the session workspace files directory.
+    ///
+    /// Wire method: `session.workspaces.statFile`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Relative path of the workspace file or directory to inspect.
+    ///
+    /// # Returns
+    ///
+    /// Filesystem metadata for a path in the session workspace files directory.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn stat_file(
+        &self,
+        params: WorkspacesStatFileRequest,
+    ) -> Result<WorkspacesStatFileResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_WORKSPACES_STATFILE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Creates a directory in the session workspace files directory.
+    ///
+    /// Wire method: `session.workspaces.createDirectory`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Directory to create within the session workspace files directory.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn create_directory(
+        &self,
+        params: WorkspacesCreateDirectoryRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_CREATEDIRECTORY,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Removes a file or directory from the session workspace files directory.
+    ///
+    /// Wire method: `session.workspaces.removePath`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - File or directory to remove from the session workspace files directory.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn remove_path(&self, params: WorkspacesRemovePathRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_REMOVEPATH,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Renames a file or directory within the session workspace files directory.
+    ///
+    /// Wire method: `session.workspaces.renamePath`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Source and destination paths for a rename within the session workspace files directory.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn rename_path(&self, params: WorkspacesRenamePathRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_RENAMEPATH,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
     /// Lists workspace checkpoints in chronological order.
     ///
     /// Wire method: `session.workspaces.listCheckpoints`.

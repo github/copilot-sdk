@@ -21,7 +21,9 @@ public enum AdaptiveThinkingSupport {
     /** The {@code optional} variant. */
     OPTIONAL("optional"),
     /** The {@code required} variant. */
-    REQUIRED("required");
+    REQUIRED("required"),
+    /** The {@code adaptive_only} variant. */
+    ADAPTIVE_ONLY("adaptive_only");
 
     private final String value;
     AdaptiveThinkingSupport(String value) { this.value = value; }

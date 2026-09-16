@@ -21,6 +21,10 @@ release's `SHA256SUMS.txt`.
 
 `npm run pack:release` builds the main package and all platform packages. Set
 `COPILOT_CLI_DOWNLOAD_BASE_URL` to use a release mirror while packaging.
+Release workflows instead set `COPILOT_SDK_RUNTIME_PACKAGE_DIR` to a directory
+containing validated runtime npm package roots named for all eight platforms.
+This keeps `COPILOT_CLI_USE_NPM_PACKAGE` false and embeds those runtime files in
+the self-contained SDK platform packages.
 
 ## Installation
 

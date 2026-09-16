@@ -116,7 +116,7 @@ fn extracted_binary_present_at_conventional_path() {
     let path = dirs::cache_dir()
         .expect("platform cache dir")
         .join("github-copilot-sdk")
-        .join("cli")
+        .join("runtime")
         .join(sanitized)
         .join(binary);
     assert!(

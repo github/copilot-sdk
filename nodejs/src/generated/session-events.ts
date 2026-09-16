@@ -6495,6 +6495,12 @@ export interface ToolExecutionCompleteData {
    */
   sandboxed?: boolean;
   /**
+   * Experimental shell completion facts captured before the persisted result contents are stripped.
+   *
+   * @experimental
+   */
+  shellExecution?: ToolExecutionCompleteShellExecution;
+  /**
    * Whether the tool execution completed successfully
    */
   success: boolean;
@@ -6963,6 +6969,16 @@ export interface ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation {}
  * Marker object for microphone permission on an MCP Apps UI resource.
  */
 export interface ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone {}
+/**
+ * Experimental shell completion facts retained independently of the full tool result.
+ */
+/** @experimental */
+export interface ToolExecutionCompleteShellExecution {
+  /**
+   * Process exit code reported by the shell driver.
+   */
+  exitCode: number;
+}
 /**
  * Tool definition metadata, present for MCP tools with MCP Apps support
  */

@@ -2911,6 +2911,9 @@ type ToolExecutionCompleteData struct {
 	Rte *bool `json:"rte,omitempty"`
 	// Whether this tool execution ran inside a sandbox container
 	Sandboxed *bool `json:"sandboxed,omitempty"`
+	// Experimental shell completion facts captured before the persisted result contents are stripped.
+	// Experimental: ShellExecution is part of an experimental API and may change or be removed.
+	ShellExecution *ToolExecutionCompleteShellExecution `json:"shellExecution,omitempty"`
 	// Whether the tool execution completed successfully
 	Success bool `json:"success"`
 	// Unique identifier for the completed tool call
@@ -5140,6 +5143,13 @@ type ToolExecutionCompleteResult struct {
 	StructuredContent any `json:"structuredContent,omitempty"`
 	// MCP Apps UI resource content for rendering in a sandboxed iframe
 	UIResource *ToolExecutionCompleteUIResource `json:"uiResource,omitempty"`
+}
+
+// Experimental shell completion facts retained independently of the full tool result.
+// Experimental: ToolExecutionCompleteShellExecution is part of an experimental API and may change or be removed.
+type ToolExecutionCompleteShellExecution struct {
+	// Process exit code reported by the shell driver.
+	ExitCode int64 `json:"exitCode"`
 }
 
 // Tool definition metadata, present for MCP tools with MCP Apps support

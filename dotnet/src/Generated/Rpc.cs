@@ -356,7 +356,7 @@ public sealed class ModelCapabilitiesLimits
 [Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesSupports
 {
-    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).</summary>
+    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos).</summary>
     [JsonPropertyName("adaptive_thinking")]
     public AdaptiveThinkingSupport? AdaptiveThinking { get; set; }
 
@@ -5926,6 +5926,10 @@ internal sealed class SessionCancelAllBackgroundAgentsRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ShutdownRequest
 {
+    /// <summary>Dispatch deferred sessionEnd hooks in the background with their full per-hook timeoutSec instead of awaiting them under the short shared shutdown budget. Set this when the host process keeps running after the session closes (for example the CLI's /clear), so a slow hook neither blocks the close nor is aborted. Hooks still detached when the process later exits are terminated with it. Defaults to false.</summary>
+    [JsonPropertyName("detachSessionEndHooks")]
+    public bool? DetachSessionEndHooks { get; set; }
+
     /// <summary>Optional human-readable reason. Typically the message of the error that triggered shutdown when type is 'error'.</summary>
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
@@ -8111,7 +8115,7 @@ public sealed class ModelCapabilitiesOverrideLimits
 [Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverrideSupports
 {
-    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).</summary>
+    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos).</summary>
     [JsonPropertyName("adaptive_thinking")]
     public AdaptiveThinkingSupport? AdaptiveThinking { get; set; }
 
@@ -8860,7 +8864,7 @@ internal sealed class WorkspacesEnsureRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesListFilesResult
 {
-    /// <summary>Relative file paths in the workspace files directory.</summary>
+    /// <summary>Slash-separated relative file paths in the workspace files directory.</summary>
     [JsonPropertyName("files")]
     public IList<string> Files { get => field ??= []; set; }
 }
@@ -8887,7 +8891,7 @@ public sealed class WorkspacesReadFileResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class WorkspacesReadFileRequest
 {
-    /// <summary>Relative path within the workspace files directory.</summary>
+    /// <summary>Slash-separated relative path within the workspace files directory.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 
@@ -8904,13 +8908,106 @@ internal sealed class WorkspacesCreateFileRequest
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
 
-    /// <summary>Relative path within the workspace files directory.</summary>
+    /// <summary>Slash-separated relative path within the workspace files directory.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Filesystem metadata for a path in the session workspace files directory.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class WorkspacesStatFileResult
+{
+    /// <summary>Creation time in Unix epoch milliseconds.</summary>
+    [JsonPropertyName("birthtimeMs")]
+    public double BirthtimeMs { get; set; }
+
+    /// <summary>Whether the path identifies a directory.</summary>
+    [JsonPropertyName("isDirectory")]
+    public bool IsDirectory { get; set; }
+
+    /// <summary>Whether the path identifies a regular file.</summary>
+    [JsonPropertyName("isFile")]
+    public bool IsFile { get; set; }
+
+    /// <summary>Last modification time in Unix epoch milliseconds.</summary>
+    [JsonPropertyName("mtimeMs")]
+    public double MtimeMs { get; set; }
+
+    /// <summary>Size in bytes.</summary>
+    [JsonPropertyName("size")]
+    public double Size { get; set; }
+}
+
+/// <summary>Relative path of the workspace file or directory to inspect.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class WorkspacesStatFileRequest
+{
+    /// <summary>Slash-separated relative path within the workspace files directory.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Directory to create within the session workspace files directory.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class WorkspacesCreateDirectoryRequest
+{
+    /// <summary>Slash-separated relative path within the workspace files directory.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Whether to create missing parent directories. Defaults to false.</summary>
+    [JsonPropertyName("recursive")]
+    public bool? Recursive { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>File or directory to remove from the session workspace files directory.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class WorkspacesRemovePathRequest
+{
+    /// <summary>Whether a missing path should be treated as success. Defaults to false.</summary>
+    [JsonPropertyName("force")]
+    public bool? Force { get; set; }
+
+    /// <summary>Slash-separated relative path within the workspace files directory.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Whether to remove directory contents recursively. Defaults to false.</summary>
+    [JsonPropertyName("recursive")]
+    public bool? Recursive { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Source and destination paths for a rename within the session workspace files directory.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class WorkspacesRenamePathRequest
+{
+    /// <summary>Slash-separated destination path relative to the workspace files directory.</summary>
+    [JsonPropertyName("destination")]
+    public string Destination { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Slash-separated source path relative to the workspace files directory.</summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
 }
 
 /// <summary>Workspace checkpoint metadata with assigned number, human-readable title, and checkpoint filename.</summary>
@@ -20905,8 +21002,11 @@ public readonly struct AdaptiveThinkingSupport : IEquatable<AdaptiveThinkingSupp
     /// <summary>The model accepts adaptive thinking but also accepts thinking.type='enabled'.</summary>
     public static AdaptiveThinkingSupport Optional { get; } = new("optional");
 
-    /// <summary>The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).</summary>
+    /// <summary>The model defaults to adaptive thinking and rejects thinking.type='enabled' with HTTP 400, but still accepts thinking.type='disabled' (e.g. opus-4.7/4.8/5, sonnet-5).</summary>
     public static AdaptiveThinkingSupport Required { get; } = new("required");
+
+    /// <summary>The model accepts only thinking.type='adaptive'; 'enabled', 'disabled', and an omitted thinking block all fail with HTTP 400 (e.g. fable, mythos).</summary>
+    public static AdaptiveThinkingSupport AdaptiveOnly { get; } = new("adaptive_only");
 
     /// <summary>Returns a value indicating whether two <see cref="AdaptiveThinkingSupport"/> instances are equivalent.</summary>
     public static bool operator ==(AdaptiveThinkingSupport left, AdaptiveThinkingSupport right) => left.Equals(right);
@@ -30928,6 +31028,9 @@ public readonly struct PermissionModeSource : IEquatable<PermissionModeSource>
     /// <summary>The mode was set at startup by the `defaultPermissionMode` user setting.</summary>
     public static PermissionModeSource UserSetting { get; } = new("user_setting");
 
+    /// <summary>The mode was set at startup by authenticated organization targeting.</summary>
+    public static PermissionModeSource OrganizationTargeting { get; } = new("organization_targeting");
+
     /// <summary>The mode was set through an RPC caller.</summary>
     public static PermissionModeSource Rpc { get; } = new("rpc");
 
@@ -34686,13 +34789,14 @@ public sealed class SessionRpc
     /// <summary>Shuts down the session and persists its final state. Awaits any deferred sessionEnd hooks before resolving so user-supplied hook scripts complete before the runtime tears down.</summary>
     /// <param name="type">Why the session is being shut down. Defaults to "routine" when omitted.</param>
     /// <param name="reason">Optional human-readable reason. Typically the message of the error that triggered shutdown when type is 'error'.</param>
+    /// <param name="detachSessionEndHooks">Dispatch deferred sessionEnd hooks in the background with their full per-hook timeoutSec instead of awaiting them under the short shared shutdown budget. Set this when the host process keeps running after the session closes (for example the CLI's /clear), so a slow hook neither blocks the close nor is aborted. Hooks still detached when the process later exits are terminated with it. Defaults to false.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     [Experimental(Diagnostics.Experimental)]
-    public async Task ShutdownAsync(ShutdownType? type = null, string? reason = null, CancellationToken cancellationToken = default)
+    public async Task ShutdownAsync(ShutdownType? type = null, string? reason = null, bool? detachSessionEndHooks = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new ShutdownRequest { SessionId = _session.SessionId, Type = type, Reason = reason };
+        var request = new ShutdownRequest { SessionId = _session.SessionId, Type = type, Reason = reason, DetachSessionEndHooks = detachSessionEndHooks };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.shutdown", [request], cancellationToken);
     }
 
@@ -35662,7 +35766,7 @@ public sealed class WorkspacesApi
     }
 
     /// <summary>Reads a file from the session workspace files directory.</summary>
-    /// <param name="path">Relative path within the workspace files directory.</param>
+    /// <param name="path">Slash-separated relative path within the workspace files directory.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Contents of the requested workspace file as a UTF-8 string.</returns>
     public async Task<WorkspacesReadFileResult> ReadFileAsync(string path, CancellationToken cancellationToken = default)
@@ -35675,7 +35779,7 @@ public sealed class WorkspacesApi
     }
 
     /// <summary>Creates or overwrites a file in the session workspace files directory.</summary>
-    /// <param name="path">Relative path within the workspace files directory.</param>
+    /// <param name="path">Slash-separated relative path within the workspace files directory.</param>
     /// <param name="content">File content to write as a UTF-8 string.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task CreateFileAsync(string path, string content, CancellationToken cancellationToken = default)
@@ -35686,6 +35790,60 @@ public sealed class WorkspacesApi
 
         var request = new WorkspacesCreateFileRequest { SessionId = _session.SessionId, Path = path, Content = content };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.workspaces.createFile", [request], cancellationToken);
+    }
+
+    /// <summary>Returns metadata for a file or directory in the session workspace files directory.</summary>
+    /// <param name="path">Slash-separated relative path within the workspace files directory.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Filesystem metadata for a path in the session workspace files directory.</returns>
+    public async Task<WorkspacesStatFileResult> StatFileAsync(string path, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        _session.ThrowIfDisposed();
+
+        var request = new WorkspacesStatFileRequest { SessionId = _session.SessionId, Path = path };
+        return await CopilotClient.InvokeRpcAsync<WorkspacesStatFileResult>(_session.Rpc, "session.workspaces.statFile", [request], cancellationToken);
+    }
+
+    /// <summary>Creates a directory in the session workspace files directory.</summary>
+    /// <param name="path">Slash-separated relative path within the workspace files directory.</param>
+    /// <param name="recursive">Whether to create missing parent directories. Defaults to false.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task CreateDirectoryAsync(string path, bool? recursive = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        _session.ThrowIfDisposed();
+
+        var request = new WorkspacesCreateDirectoryRequest { SessionId = _session.SessionId, Path = path, Recursive = recursive };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.workspaces.createDirectory", [request], cancellationToken);
+    }
+
+    /// <summary>Removes a file or directory from the session workspace files directory.</summary>
+    /// <param name="path">Slash-separated relative path within the workspace files directory.</param>
+    /// <param name="recursive">Whether to remove directory contents recursively. Defaults to false.</param>
+    /// <param name="force">Whether a missing path should be treated as success. Defaults to false.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task RemovePathAsync(string path, bool? recursive = null, bool? force = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        _session.ThrowIfDisposed();
+
+        var request = new WorkspacesRemovePathRequest { SessionId = _session.SessionId, Path = path, Recursive = recursive, Force = force };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.workspaces.removePath", [request], cancellationToken);
+    }
+
+    /// <summary>Renames a file or directory within the session workspace files directory.</summary>
+    /// <param name="source">Slash-separated source path relative to the workspace files directory.</param>
+    /// <param name="destination">Slash-separated destination path relative to the workspace files directory.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task RenamePathAsync(string source, string destination, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+        _session.ThrowIfDisposed();
+
+        var request = new WorkspacesRenamePathRequest { SessionId = _session.SessionId, Source = source, Destination = destination };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.workspaces.renamePath", [request], cancellationToken);
     }
 
     /// <summary>Lists workspace checkpoints in chronological order.</summary>
@@ -39544,6 +39702,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteError), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteError")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteEvent), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteResult), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteResult")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteShellExecution), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteShellExecution")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteToolDescription), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteToolDescription")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteToolDescriptionMeta), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteToolDescriptionMeta")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteToolDescriptionMetaUI), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteToolDescriptionMetaUI")]
@@ -40509,6 +40668,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(WorkspacesAddSummaryResultWorkspace))]
 [JsonSerializable(typeof(WorkspacesAutopilotObjectiveExistsResult))]
 [JsonSerializable(typeof(WorkspacesCheckpoints))]
+[JsonSerializable(typeof(WorkspacesCreateDirectoryRequest))]
 [JsonSerializable(typeof(WorkspacesCreateFileRequest))]
 [JsonSerializable(typeof(WorkspacesDeleteAutopilotObjectiveResult))]
 [JsonSerializable(typeof(WorkspacesDiffRequest))]
@@ -40522,9 +40682,13 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(WorkspacesReadCheckpointResult))]
 [JsonSerializable(typeof(WorkspacesReadFileRequest))]
 [JsonSerializable(typeof(WorkspacesReadFileResult))]
+[JsonSerializable(typeof(WorkspacesRemovePathRequest))]
+[JsonSerializable(typeof(WorkspacesRenamePathRequest))]
 [JsonSerializable(typeof(WorkspacesSaveLargePasteRequest))]
 [JsonSerializable(typeof(WorkspacesSaveLargePasteResult))]
 [JsonSerializable(typeof(WorkspacesSaveLargePasteResultSaved))]
+[JsonSerializable(typeof(WorkspacesStatFileRequest))]
+[JsonSerializable(typeof(WorkspacesStatFileResult))]
 [JsonSerializable(typeof(WorkspacesTruncateSummariesRequest))]
 [JsonSerializable(typeof(WorkspacesUpdateMetadataRequest))]
 [JsonSerializable(typeof(WorkspacesWriteAutopilotObjectiveRequest))]

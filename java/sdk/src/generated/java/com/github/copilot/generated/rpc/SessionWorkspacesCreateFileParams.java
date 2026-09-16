@@ -26,7 +26,7 @@ import javax.annotation.processing.Generated;
 public record SessionWorkspacesCreateFileParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Relative path within the workspace files directory */
+    /** Slash-separated relative path within the workspace files directory */
     @JsonProperty("path") String path,
     /** File content to write as a UTF-8 string */
     @JsonProperty("content") String content

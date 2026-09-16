@@ -337,6 +337,14 @@ pub mod rpc_methods {
     pub const SESSION_WORKSPACES_READFILE: &str = "session.workspaces.readFile";
     /// `session.workspaces.createFile`
     pub const SESSION_WORKSPACES_CREATEFILE: &str = "session.workspaces.createFile";
+    /// `session.workspaces.statFile`
+    pub const SESSION_WORKSPACES_STATFILE: &str = "session.workspaces.statFile";
+    /// `session.workspaces.createDirectory`
+    pub const SESSION_WORKSPACES_CREATEDIRECTORY: &str = "session.workspaces.createDirectory";
+    /// `session.workspaces.removePath`
+    pub const SESSION_WORKSPACES_REMOVEPATH: &str = "session.workspaces.removePath";
+    /// `session.workspaces.renamePath`
+    pub const SESSION_WORKSPACES_RENAMEPATH: &str = "session.workspaces.renamePath";
     /// `session.workspaces.listCheckpoints`
     pub const SESSION_WORKSPACES_LISTCHECKPOINTS: &str = "session.workspaces.listCheckpoints";
     /// `session.workspaces.readCheckpoint`
@@ -10705,7 +10713,7 @@ pub struct ModelCapabilitiesLimits {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilitiesSupports {
-    /// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+    /// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos).
     #[serde(rename = "adaptive_thinking", skip_serializing_if = "Option::is_none")]
     pub adaptive_thinking: Option<AdaptiveThinkingSupport>,
     /// Whether this model supports reasoning effort configuration
@@ -10945,7 +10953,7 @@ pub struct ModelCapabilitiesOverrideLimits {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilitiesOverrideSupports {
-    /// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+    /// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos).
     #[serde(rename = "adaptive_thinking", skip_serializing_if = "Option::is_none")]
     pub adaptive_thinking: Option<AdaptiveThinkingSupport>,
     /// Whether this model supports reasoning effort configuration
@@ -19457,6 +19465,9 @@ pub struct ShellKillResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownRequest {
+    /// Dispatch deferred sessionEnd hooks in the background with their full per-hook timeoutSec instead of awaiting them under the short shared shutdown budget. Set this when the host process keeps running after the session closes (for example the CLI's /clear), so a slow hook neither blocks the close nor is aborted. Hooks still detached when the process later exits are terminated with it. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detach_session_end_hooks: Option<bool>,
     /// Optional human-readable reason. Typically the message of the error that triggered shutdown when type is 'error'.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -22324,6 +22335,24 @@ pub struct WorkspacesCheckpoints {
     pub title: String,
 }
 
+/// Directory to create within the session workspace files directory.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacesCreateDirectoryRequest {
+    /// Slash-separated relative path within the workspace files directory
+    pub path: String,
+    /// Whether to create missing parent directories. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recursive: Option<bool>,
+}
+
 /// Relative path and UTF-8 content for the workspace file to create or overwrite.
 ///
 /// <div class="warning">
@@ -22337,7 +22366,7 @@ pub struct WorkspacesCheckpoints {
 pub struct WorkspacesCreateFileRequest {
     /// File content to write as a UTF-8 string
     pub content: String,
-    /// Relative path within the workspace files directory
+    /// Slash-separated relative path within the workspace files directory
     pub path: String,
 }
 
@@ -22492,7 +22521,7 @@ pub struct WorkspacesListCheckpointsResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacesListFilesResult {
-    /// Relative file paths in the workspace files directory
+    /// Slash-separated relative file paths in the workspace files directory
     pub files: Vec<String>,
 }
 
@@ -22552,7 +22581,7 @@ pub struct WorkspacesReadCheckpointResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacesReadFileRequest {
-    /// Relative path within the workspace files directory
+    /// Slash-separated relative path within the workspace files directory
     pub path: String,
 }
 
@@ -22569,6 +22598,44 @@ pub struct WorkspacesReadFileRequest {
 pub struct WorkspacesReadFileResult {
     /// File content as a UTF-8 string
     pub content: String,
+}
+
+/// File or directory to remove from the session workspace files directory.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacesRemovePathRequest {
+    /// Whether a missing path should be treated as success. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub force: Option<bool>,
+    /// Slash-separated relative path within the workspace files directory
+    pub path: String,
+    /// Whether to remove directory contents recursively. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recursive: Option<bool>,
+}
+
+/// Source and destination paths for a rename within the session workspace files directory.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacesRenamePathRequest {
+    /// Slash-separated destination path relative to the workspace files directory
+    pub destination: String,
+    /// Slash-separated source path relative to the workspace files directory
+    pub source: String,
 }
 
 /// Pasted content to save as a UTF-8 file in the session workspace.
@@ -22610,6 +22677,44 @@ pub struct WorkspacesSaveLargePasteResultSaved {
 pub struct WorkspacesSaveLargePasteResult {
     /// Saved-paste descriptor, or null when the workspace is unavailable (e.g. CCA runtime, non-infinite sessions, remote sessions)
     pub saved: Option<WorkspacesSaveLargePasteResultSaved>,
+}
+
+/// Relative path of the workspace file or directory to inspect.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacesStatFileRequest {
+    /// Slash-separated relative path within the workspace files directory
+    pub path: String,
+}
+
+/// Filesystem metadata for a path in the session workspace files directory.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacesStatFileResult {
+    /// Creation time in Unix epoch milliseconds
+    pub birthtime_ms: f64,
+    /// Whether the path identifies a directory
+    pub is_directory: bool,
+    /// Whether the path identifies a regular file
+    pub is_file: bool,
+    /// Last modification time in Unix epoch milliseconds
+    pub mtime_ms: f64,
+    /// Size in bytes
+    pub size: f64,
 }
 
 /// Rollback point for local workspace summaries.
@@ -24842,7 +24947,7 @@ pub struct SessionWorkspacesListFilesParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionWorkspacesListFilesResult {
-    /// Relative file paths in the workspace files directory
+    /// Slash-separated relative file paths in the workspace files directory
     pub files: Vec<String>,
 }
 
@@ -24859,6 +24964,29 @@ pub struct SessionWorkspacesListFilesResult {
 pub struct SessionWorkspacesReadFileResult {
     /// File content as a UTF-8 string
     pub content: String,
+}
+
+/// Filesystem metadata for a path in the session workspace files directory.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionWorkspacesStatFileResult {
+    /// Creation time in Unix epoch milliseconds
+    pub birthtime_ms: f64,
+    /// Whether the path identifies a directory
+    pub is_directory: bool,
+    /// Whether the path identifies a regular file
+    pub is_file: bool,
+    /// Last modification time in Unix epoch milliseconds
+    pub mtime_ms: f64,
+    /// Size in bytes
+    pub size: f64,
 }
 
 /// Identifies the target session.
@@ -28985,9 +29113,12 @@ pub enum AdaptiveThinkingSupport {
     /// The model accepts adaptive thinking but also accepts thinking.type='enabled'
     #[serde(rename = "optional")]
     Optional,
-    /// The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8)
+    /// The model defaults to adaptive thinking and rejects thinking.type='enabled' with HTTP 400, but still accepts thinking.type='disabled' (e.g. opus-4.7/4.8/5, sonnet-5)
     #[serde(rename = "required")]
     Required,
+    /// The model accepts only thinking.type='adaptive'; 'enabled', 'disabled', and an omitted thinking block all fail with HTTP 400 (e.g. fable, mythos)
+    #[serde(rename = "adaptive_only")]
+    AdaptiveOnly,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -33745,6 +33876,9 @@ pub enum PermissionModeSource {
     /// The mode was set at startup by the `defaultPermissionMode` user setting.
     #[serde(rename = "user_setting")]
     UserSetting,
+    /// The mode was set at startup by authenticated organization targeting.
+    #[serde(rename = "organization_targeting")]
+    OrganizationTargeting,
     /// The mode was set through an RPC caller.
     #[serde(rename = "rpc")]
     Rpc,
