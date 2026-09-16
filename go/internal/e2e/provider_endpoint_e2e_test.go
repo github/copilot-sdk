@@ -20,7 +20,9 @@ func TestProviderEndpointE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 
 	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Env = append(opts.Env, "COPILOT_ALLOW_GET_PROVIDER_ENDPOINT=true")
+		conn := opts.Connection.(copilot.StdioConnection)
+		conn.Env = append(conn.Env, "COPILOT_ALLOW_GET_PROVIDER_ENDPOINT=true")
+		opts.Connection = conn
 	})
 	t.Cleanup(func() { client.ForceStop() })
 

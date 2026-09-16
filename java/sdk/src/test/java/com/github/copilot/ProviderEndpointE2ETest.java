@@ -20,6 +20,7 @@ import com.github.copilot.generated.rpc.SessionProviderGetEndpointResult;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ProviderConfig;
+import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.SessionConfig;
 
 /**
@@ -48,7 +49,8 @@ public class ProviderEndpointE2ETest {
     private CopilotClient createProviderEndpointClient() {
         Map<String, String> env = new HashMap<>(ctx.getEnvironment());
         env.put("COPILOT_ALLOW_GET_PROVIDER_ENDPOINT", "true");
-        return ctx.createClient(new CopilotClientOptions().setEnvironment(env));
+        return ctx.createClient(
+                new CopilotClientOptions().setConnection(RuntimeConnection.forStdio().setEnvironment(env)));
     }
 
     @Test

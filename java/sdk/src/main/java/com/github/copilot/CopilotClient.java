@@ -235,7 +235,7 @@ public final class CopilotClient implements AutoCloseable {
         this.executor = executorProvider.get();
         this.executorCanBeShutdown = executorProvider.canBeShutdown();
 
-        this.serverManager = new CliServerManager(this.options);
+        this.serverManager = new CliServerManager(this.options, this.runtimeConnection);
         this.serverManager.setConnectionToken(this.effectiveConnectionToken);
     }
 
@@ -398,22 +398,20 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     /**
-     * Rejects per-process options that the in-process transport cannot honor. These
-     * options are lowered onto a child process, but the in-process runtime runs
-     * inside the shared host process, whose single environment and working
-     * directory cannot carry per-client values.
+     * Rejects per-process options that the in-process transport cannot honor.
+     * Process-scoped settings such as {@code workingDirectory} and
+     * {@code environment} live on the out-of-process connection types instead, so
+     * they are structurally unavailable here. The in-process runtime still runs
+     * inside the shared host process, so the remaining per-client process settings
+     * below cannot be honored either.
      */
     private static void validateEnvironmentOptions(CopilotClientOptions options, RuntimeConnection connection) {
         if (!(connection instanceof InProcessRuntimeConnection)) {
             return;
         }
 
-        rejectInProcessOption("Environment", options.getEnvironment() != null && !options.getEnvironment().isEmpty(),
-                "set the variables on the host process environment instead");
         rejectInProcessOption("Telemetry", options.getTelemetry() != null,
                 "configure telemetry through the host process environment instead");
-        rejectInProcessOption("Cwd", options.getCwd() != null,
-                "set the process working directory before creating the client instead");
         rejectInProcessOption("CliArgs", options.getCliArgs() != null && options.getCliArgs().length > 0,
                 "use the typed client options instead");
     }

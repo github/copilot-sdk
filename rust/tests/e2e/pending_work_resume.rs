@@ -9,8 +9,8 @@ use github_copilot_sdk::session_events::{
 };
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
-    Client, Error, RequestId, ResumeSessionConfig, SessionConfig, SessionId, Tool, ToolInvocation,
-    ToolResult, Transport,
+    Client, Error, OutOfProcessOptions, RequestId, ResumeSessionConfig, SessionConfig, SessionId,
+    Tool, ToolInvocation, ToolResult, Transport,
 };
 use serde_json::json;
 use tokio::sync::{Mutex, mpsc, oneshot};
@@ -269,6 +269,7 @@ async fn start_tcp_server(ctx: &E2eContext, port: u16) -> Client {
     Client::start(ctx.client_options_with_transport(Transport::Tcp {
         port,
         connection_token: Some(SHARED_TOKEN.to_string()),
+        process: OutOfProcessOptions::default(),
     }))
     .await
     .expect("start TCP server client")

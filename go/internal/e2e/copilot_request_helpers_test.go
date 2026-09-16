@@ -282,7 +282,9 @@ func newCopilotRequestClient(ctx *testharness.TestContext, handler *copilot.Copi
 	return ctx.NewClient(func(o *copilot.ClientOptions) {
 		o.RequestHandler = handler
 		if len(extraEnv) > 0 {
-			o.Env = append(o.Env, extraEnv...)
+			conn := o.Connection.(copilot.StdioConnection)
+			conn.Env = append(conn.Env, extraEnv...)
+			o.Connection = conn
 		}
 	})
 }

@@ -91,10 +91,8 @@ new CopilotClient(CopilotClientOptions? options = null)
 
 - `Connection` - How to connect to the Copilot runtime. Defaults to `null` (equivalent to `RuntimeConnection.ForStdio()` with the bundled runtime). See "RuntimeConnection" below.
 - `LogLevel` - Runtime log level. Accepts well-known values `CopilotLogLevel.None`, `Error`, `Warning`, `Info`, `Debug`, `All`. Defaults to null (the runtime's own default).
-- `WorkingDirectory` - Working directory for the runtime process. When not set, the spawned runtime inherits the calling application's current working directory.
 - `BaseDirectory` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime process. When not set, the runtime defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when connecting via `RuntimeConnection.ForUri(...)`.
 - `EnableRemoteSessions` - Enables remote-session features.
-- `Environment` - Environment variables to pass to the runtime process.
 - `Logger` - `ILogger` instance for SDK logging.
 - `GitHubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
 - `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `RuntimeConnection.ForUri(...)`.
@@ -107,6 +105,26 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `RuntimeConnection.ForStdio(path?, args?)` — spawns the runtime as a child process and communicates over stdio. This is the default when `Connection` is null.
 - `RuntimeConnection.ForTcp(port = 0, connectionToken?, path?, args?)` — spawns the runtime as a child process listening on a TCP port. `port = 0` auto-allocates; if a non-zero port is already in use, startup fails (no fallback). Use `CopilotClient.RuntimePort` after `StartAsync` to read the assigned port. `connectionToken` is required if other clients will connect via `RuntimeConnection.ForUri(...)`.
 - `RuntimeConnection.ForUri(url, connectionToken?)` — connects to an already-running runtime at `url` (e.g., `"localhost:8080"`). Does not spawn a process.
+
+`StdioRuntimeConnection` and `TcpRuntimeConnection` both inherit from `OutOfProcessRuntimeConnection`, which carries process-scoped launch settings for SDK-managed runtime processes:
+
+- `Path` - Path to the runtime executable. When not set, the bundled runtime is used.
+- `Args` - Extra command-line arguments to pass to the runtime process.
+- `WorkingDirectory` - Working directory for the runtime process. When not set, the spawned runtime inherits the calling application's current working directory.
+- `Environment` - Environment variables to pass to the runtime process, replacing the inherited environment.
+
+These settings live on the out-of-process connection instead of `CopilotClientOptions` because they do not apply to `RuntimeConnection.ForInProcess()` and do not affect `RuntimeConnection.ForUri(...)`.
+
+```csharp
+var client = new CopilotClient(new CopilotClientOptions
+{
+    Connection = RuntimeConnection.ForStdio(path: "/usr/local/bin/copilot")
+    {
+        WorkingDirectory = "/srv/app",
+        Environment = new Dictionary<string, string> { ["KEY"] = "value" },
+    },
+});
+```
 
 Managed stdio and TCP connections use the bundled `copilot-runtime[.exe]` and
 adjacent `runtime.node` by default. An explicit connection path or

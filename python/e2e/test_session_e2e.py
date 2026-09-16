@@ -261,9 +261,11 @@ class TestSessions:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         new_client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
+            connection=RuntimeConnection.for_stdio(
+                path=ctx.cli_path,
+                working_directory=ctx.work_dir,
+                env=ctx.get_env(),
+            ),
             github_token=github_token,
         )
 
@@ -302,9 +304,11 @@ class TestSessions:
 
         github_token = DEFAULT_GITHUB_TOKEN if os.environ.get("GITHUB_ACTIONS") == "true" else None
         new_client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
+            connection=RuntimeConnection.for_stdio(
+                path=ctx.cli_path,
+                working_directory=ctx.work_dir,
+                env=ctx.get_env(),
+            ),
             github_token=github_token,
         )
 
@@ -326,9 +330,11 @@ class TestSessions:
         github_token = DEFAULT_GITHUB_TOKEN if os.environ.get("GITHUB_ACTIONS") == "true" else None
 
         client1 = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
+            connection=RuntimeConnection.for_stdio(
+                path=ctx.cli_path,
+                working_directory=ctx.work_dir,
+                env=ctx.get_env(),
+            ),
             github_token=github_token,
         )
         try:
@@ -350,9 +356,11 @@ class TestSessions:
             await client1.force_stop()
 
         client2 = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
+            connection=RuntimeConnection.for_stdio(
+                path=ctx.cli_path,
+                working_directory=ctx.work_dir,
+                env=ctx.get_env(),
+            ),
             github_token=github_token,
         )
         try:

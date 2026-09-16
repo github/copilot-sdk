@@ -470,7 +470,12 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 			if scenario.disconnectOriginalClient {
 				lockObserver := ctx.NewClient(func(opts *copilot.ClientOptions) {
 					stdio := opts.Connection.(copilot.StdioConnection)
-					opts.Connection = copilot.TCPConnection{Path: stdio.Path}
+					opts.Connection = copilot.TCPConnection{
+						Path:             stdio.Path,
+						Args:             append([]string{}, stdio.Args...),
+						WorkingDirectory: stdio.WorkingDirectory,
+						Env:              append([]string{}, stdio.Env...),
+					}
 				})
 				t.Cleanup(func() { lockObserver.ForceStop() })
 				if err := lockObserver.Start(t.Context()); err != nil {
@@ -694,7 +699,14 @@ const sharedTCPToken = "tcp-shared-test-token"
 func startTCPServer(t *testing.T, ctx *testharness.TestContext) (*copilot.Client, string) {
 	t.Helper()
 	server := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Connection = copilot.TCPConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTCPToken}
+		stdio := opts.Connection.(copilot.StdioConnection)
+		opts.Connection = copilot.TCPConnection{
+			Path:             stdio.Path,
+			Args:             append([]string{}, stdio.Args...),
+			WorkingDirectory: stdio.WorkingDirectory,
+			Env:              append([]string{}, stdio.Env...),
+			ConnectionToken:  sharedTCPToken,
+		}
 	})
 	t.Cleanup(func() { server.ForceStop() })
 	// Trigger connection so we can read the port. CreateSession+Disconnect is the

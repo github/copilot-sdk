@@ -246,9 +246,11 @@ def _create_sqlite_handler(sqlite_calls: list[dict]):
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def sqlite_client(ctx: E2ETestContext):
     client = CopilotClient(
-        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-        working_directory=ctx.work_dir,
-        env=ctx.get_env(),
+        connection=RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+        ),
         github_token=DEFAULT_GITHUB_TOKEN,
         session_fs=SESSION_FS_CONFIG,
     )

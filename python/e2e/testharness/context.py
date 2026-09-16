@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from copilot import CopilotClient, RuntimeConnection
+from copilot import CopilotClient, OutOfProcessRuntimeConnection, RuntimeConnection
 
 from .proxy import CapiProxy
 
@@ -87,7 +87,7 @@ class E2ETestContext:
         Args:
             cli_args: Optional extra CLI arguments passed to the CLI process.
         """
-        self.cli_path = get_cli_path_for_tests()
+        self.cli_path = CLI_PATH
 
         self.home_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-test-config-"))
         self.work_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-test-work-"))
@@ -127,9 +127,9 @@ class E2ETestContext:
                 connection=RuntimeConnection.for_stdio(
                     path=self.cli_path,
                     args=tuple(cli_args or []),
+                    working_directory=self.work_dir,
+                    env=self.get_env(),
                 ),
-                working_directory=self.work_dir,
-                env=self.get_env(),
                 github_token=DEFAULT_GITHUB_TOKEN,
             )
 
@@ -171,10 +171,11 @@ class E2ETestContext:
             self._restore_env.append((key, os.environ.get(key)))
             os.environ[key] = value
         else:
-            options = self.client._options
-            if options.env is None:
-                options.env = {}
-            options.env[key] = value
+            connection = self.client._connection
+            assert isinstance(connection, OutOfProcessRuntimeConnection)
+            if connection.env is None:
+                connection.env = {}
+            connection.env[key] = value
 
     def _restore_inprocess_environment(self) -> None:
         """Undo the in-process environment mirror and cwd change from setup."""

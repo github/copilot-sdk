@@ -106,9 +106,11 @@ def _make_authed_client(
     env = ctx.get_env()
     env["COPILOT_DEBUG_GITHUB_API_URL"] = ctx.proxy_url
     return CopilotClient(
-        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-        working_directory=ctx.work_dir,
-        env=env,
+        connection=RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=env,
+        ),
         github_token=token,
         request_handler=request_handler,
     )
@@ -129,9 +131,11 @@ def _make_client_with_env(ctx: E2ETestContext, env_overrides: dict[str, str]) ->
     env = ctx.get_env()
     env.update(env_overrides)
     return CopilotClient(
-        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-        working_directory=ctx.work_dir,
-        env=env,
+        connection=RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=env,
+        ),
         github_token="fake-token-for-e2e-tests",
     )
 

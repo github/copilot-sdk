@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.generated.rpc.SessionGitHubAuthGetStatusResult;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.SessionConfig;
 
 /**
@@ -50,7 +51,8 @@ public class PerSessionAuthTest {
     private CopilotClient createAuthTestClient() {
         Map<String, String> env = new HashMap<>(ctx.getEnvironment());
         env.put("COPILOT_DEBUG_GITHUB_API_URL", ctx.getProxyUrl());
-        return ctx.createClient(new CopilotClientOptions().setEnvironment(env));
+        return ctx.createClient(
+                new CopilotClientOptions().setConnection(RuntimeConnection.forStdio().setEnvironment(env)));
     }
 
     private void setupCopilotUsers() throws Exception {
@@ -123,8 +125,10 @@ public class PerSessionAuthTest {
 
         // Build the client directly (not via ctx.createClient) so the context's
         // default GitHub token is not auto-injected and useLoggedInUser is disabled.
-        CopilotClientOptions options = new CopilotClientOptions().setCliPath(ctx.getCliPath())
-                .setCwd(ctx.getWorkDir().toString()).setEnvironment(env).setUseLoggedInUser(false);
+        CopilotClientOptions options = new CopilotClientOptions()
+                .setConnection(RuntimeConnection.forStdio(ctx.getCliPath())
+                        .setWorkingDirectory(ctx.getWorkDir().toString()).setEnvironment(env))
+                .setUseLoggedInUser(false);
 
         try (CopilotClient client = new CopilotClient(options)) {
             CopilotSession session = client

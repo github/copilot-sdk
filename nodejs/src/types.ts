@@ -155,55 +155,55 @@ export type RuntimeConnection =
     | UriRuntimeConnection;
 
 /**
- * Shared shape for the transports that spawn a runtime **child process**
+ * Shared shape for the transports that spawn an **out-of-process** runtime
  * ({@link StdioRuntimeConnection} and {@link TcpRuntimeConnection}).
  */
-export interface ChildProcessRuntimeConnection {
+export interface OutOfProcessRuntimeConnection {
     /** Path to the runtime executable. When omitted, the bundled runtime is used. */
     readonly path?: string;
     /** Extra command-line arguments to pass to the runtime process. */
     readonly args?: readonly string[];
     /**
-     * Environment variables for the spawned runtime child process, replacing the
-     * inherited environment. Cannot be combined with
-     * {@link CopilotClientOptions.env}; setting both throws when the client is
-     * constructed. When omitted, the client-level env (or `process.env`) is used.
+     * Working directory for the spawned runtime process. When omitted, inherits
+     * the current process working directory.
+     */
+    readonly workingDirectory?: string;
+    /**
+     * Environment variables for the spawned runtime process, replacing the
+     * inherited environment. When omitted, inherits `process.env`.
      */
     readonly env?: Record<string, string>;
 }
 
 /**
- * Spawns a runtime child process and communicates over its stdin/stdout.
+ * Spawns an out-of-process runtime and communicates over its stdin/stdout.
  * This is the default if no {@link CopilotClientOptions.connection} is set.
  */
-export interface StdioRuntimeConnection extends ChildProcessRuntimeConnection {
+export interface StdioRuntimeConnection extends OutOfProcessRuntimeConnection {
     readonly kind: "stdio";
 }
 
 /**
  * Hosts the runtime in-process by loading the native runtime library and speaking
- * JSON-RPC over its C ABI (FFI), instead of spawning a runtime child process. The
+ * JSON-RPC over its C ABI (FFI), instead of spawning the runtime out-of-process. The
  * native host spawns the CLI worker itself. Construct via
  * {@link RuntimeConnection.forInProcess}.
  *
  * @experimental The in-process (FFI) transport is experimental and its behavior may
- * change. Per-client options that are lowered to environment variables — including
- * {@link CopilotClientOptions.env}, {@link CopilotClientOptions.telemetry},
- * {@link CopilotClientOptions.gitHubToken}, and
- * {@link CopilotClientOptions.baseDirectory} — are **not** honored with this
- * transport, because the native runtime loads into the shared host process and its
- * worker inherits that process's ambient environment. To configure the in-process
- * runtime, set the corresponding environment variables on the host process before
- * constructing the client. See https://github.com/github/copilot-sdk/issues/1934.
+ * change. Client-wide {@link CopilotClientOptions.telemetry} is **not** honored with
+ * this transport, because it lowers to environment variables read by native runtime
+ * code running in the shared host process. Process-scoped launch settings such as
+ * working directory and environment live on {@link OutOfProcessRuntimeConnection},
+ * which this transport does not use.
  */
 export interface InProcessRuntimeConnection {
     readonly kind: "inprocess";
 }
 
 /**
- * Spawns a runtime child process that listens on a TCP socket and connects to it.
+ * Spawns an out-of-process runtime that listens on a TCP socket and connects to it.
  */
-export interface TcpRuntimeConnection extends ChildProcessRuntimeConnection {
+export interface TcpRuntimeConnection extends OutOfProcessRuntimeConnection {
     readonly kind: "tcp";
     /**
      * TCP port to listen on. `0` (the default) auto-allocates a free port.
@@ -236,16 +236,27 @@ export interface UriRuntimeConnection {
 /** Factory functions for constructing {@link RuntimeConnection} instances. */
 export const RuntimeConnection = {
     /**
-     * Spawn a runtime child process and communicate over its stdin/stdout.
+     * Spawn an out-of-process runtime and communicate over its stdin/stdout.
      * This is the default if no {@link CopilotClientOptions.connection} is set.
      */
     forStdio(
-        opts: { path?: string; args?: readonly string[]; env?: Record<string, string> } = {}
+        opts: {
+            path?: string;
+            args?: readonly string[];
+            workingDirectory?: string;
+            env?: Record<string, string>;
+        } = {}
     ): StdioRuntimeConnection {
-        return { kind: "stdio", path: opts.path, args: opts.args, env: opts.env };
+        return {
+            kind: "stdio",
+            path: opts.path,
+            args: opts.args,
+            workingDirectory: opts.workingDirectory,
+            env: opts.env,
+        };
     },
     /**
-     * Spawn a runtime child process that listens on a TCP socket and connect to it.
+     * Spawn an out-of-process runtime that listens on a TCP socket and connect to it.
      */
     forTcp(
         opts: {
@@ -253,6 +264,7 @@ export const RuntimeConnection = {
             connectionToken?: string;
             path?: string;
             args?: readonly string[];
+            workingDirectory?: string;
             env?: Record<string, string>;
         } = {}
     ): TcpRuntimeConnection {
@@ -262,6 +274,7 @@ export const RuntimeConnection = {
             connectionToken: opts.connectionToken,
             path: opts.path,
             args: opts.args,
+            workingDirectory: opts.workingDirectory,
             env: opts.env,
         };
     },
@@ -275,11 +288,11 @@ export const RuntimeConnection = {
     /**
      * Host the runtime in-process over the native runtime library's C ABI (FFI).
      *
-     * @experimental Per-client options lowered to environment variables (`env`,
-     * `telemetry`, `gitHubToken`, `baseDirectory`) are **not** honored in-process;
-     * the worker inherits the host process's ambient environment. Set the
-     * corresponding environment variables on the host process instead. See
-     * https://github.com/github/copilot-sdk/issues/1934.
+     * @experimental Client-wide `telemetry` is **not** honored in-process because
+     * it lowers to environment variables read by native runtime code running in
+     * the shared host process. Process-scoped launch settings belong on
+     * `RuntimeConnection.forStdio(...)` / `RuntimeConnection.forTcp(...)`, not
+     * on the in-process transport.
      */
     forInProcess(): InProcessRuntimeConnection {
         return { kind: "inprocess" };
@@ -365,12 +378,6 @@ export interface CopilotClientOptions {
     mode?: CopilotClientMode;
 
     /**
-     * Working directory for the runtime process.
-     * If not set, inherits the current process's working directory.
-     */
-    workingDirectory?: string;
-
-    /**
      * Base directory for Copilot data (session state, config, etc.).
      * Sets the COPILOT_HOME environment variable on the spawned runtime.
      * When not set, the runtime defaults to ~/.copilot.
@@ -390,11 +397,6 @@ export interface CopilotClientOptions {
      * own default (currently `"info"`).
      */
     logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all";
-
-    /**
-     * Environment variables to pass to the runtime process. If not set, inherits process.env.
-     */
-    env?: Record<string, string | undefined>;
 
     /**
      * GitHub token to use for authentication.

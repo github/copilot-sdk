@@ -16,8 +16,8 @@ use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::session::Session;
 use github_copilot_sdk::subscription::{EventSubscription, LifecycleSubscription};
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, CopilotRequestHandler, SessionConfig, SessionEvent,
-    SessionId, SessionLifecycleEvent, Transport,
+    CliProgram, Client, ClientOptions, CopilotRequestHandler, OutOfProcessOptions, SessionConfig,
+    SessionEvent, SessionId, SessionLifecycleEvent, Transport,
 };
 use serde_json::json;
 use tokio::sync::{Mutex, Semaphore};
@@ -497,7 +497,33 @@ impl E2eContext {
         client_options_for_cli(&self.cli_path, self.work_dir.path(), self.environment())
     }
 
+    /// The out-of-process configuration (program/cwd/env) this context's
+    /// tests should use, matching what [`Self::client_options`] wires onto
+    /// [`Transport::Stdio`]. Callers overriding the transport (e.g. to
+    /// [`Transport::Tcp`]) must thread this through so the spawned CLI still
+    /// gets the right binary/cwd/env — see [`Self::client_options_with_transport`].
+    fn out_of_process_options(&self) -> OutOfProcessOptions {
+        if is_inprocess_default() {
+            return OutOfProcessOptions::default();
+        }
+        out_of_process_options_for_cli(&self.cli_path, self.work_dir.path(), self.environment())
+    }
+
     pub fn client_options_with_transport(&self, transport: Transport) -> ClientOptions {
+        let process = self.out_of_process_options();
+        let transport = match transport {
+            Transport::Stdio(_) => Transport::Stdio(process),
+            Transport::Tcp {
+                port,
+                connection_token,
+                ..
+            } => Transport::Tcp {
+                port,
+                connection_token,
+                process,
+            },
+            other => other,
+        };
         self.client_options().with_transport(transport)
     }
 
@@ -544,6 +570,7 @@ impl E2eContext {
         Client::start(self.client_options_with_transport(Transport::Tcp {
             port,
             connection_token: Some(token.to_string()),
+            process: OutOfProcessOptions::default(),
         }))
         .await
         .expect("start TCP E2E client")
@@ -1214,18 +1241,14 @@ fn cli_path(repo_root: &Path) -> std::io::Result<PathBuf> {
 }
 
 #[allow(deprecated)]
-fn client_options_for_cli(
+fn out_of_process_options_for_cli(
     cli_path: &Path,
     cwd: &Path,
     env: Vec<(OsString, OsString)>,
-) -> ClientOptions {
-    if is_inprocess_default() {
-        return ClientOptions::new();
-    }
-    let options = ClientOptions::new()
-        .with_cwd(cwd)
-        .with_env(env)
-        .with_use_logged_in_user(false);
+) -> OutOfProcessOptions {
+    let options = OutOfProcessOptions::new()
+        .with_working_directory(cwd)
+        .with_env(env);
     if cli_path
         .extension()
         .and_then(|extension| extension.to_str())
@@ -1237,6 +1260,21 @@ fn client_options_for_cli(
     } else {
         options.with_program(CliProgram::Path(cli_path.to_path_buf()))
     }
+}
+
+#[allow(deprecated)]
+fn client_options_for_cli(
+    cli_path: &Path,
+    cwd: &Path,
+    env: Vec<(OsString, OsString)>,
+) -> ClientOptions {
+    if is_inprocess_default() {
+        return ClientOptions::new();
+    }
+    let process = out_of_process_options_for_cli(cli_path, cwd, env);
+    ClientOptions::new()
+        .with_transport(Transport::Stdio(process))
+        .with_use_logged_in_user(false)
 }
 
 fn canonical_temp_path(path: &Path) -> PathBuf {

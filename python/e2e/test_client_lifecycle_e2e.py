@@ -59,9 +59,11 @@ def _make_isolated_client(ctx: E2ETestContext) -> CopilotClient:
         "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
     )
     return CopilotClient(
-        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-        working_directory=ctx.work_dir,
-        env=ctx.get_env(),
+        connection=RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+        ),
         github_token=github_token,
     )
 

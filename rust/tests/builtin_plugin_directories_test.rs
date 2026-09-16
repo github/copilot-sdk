@@ -2,7 +2,9 @@
 
 use std::path::PathBuf;
 
-use github_copilot_sdk::{CliProgram, Client, ClientOptions, ErrorKind, Transport};
+use github_copilot_sdk::{
+    CliProgram, Client, ClientOptions, ErrorKind, OutOfProcessOptions, Transport,
+};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpListener;
 
@@ -73,13 +75,11 @@ async fn run_start(paths: Option<Vec<PathBuf>>) -> Vec<serde_json::Value> {
         requests
     });
 
-    let mut options = ClientOptions::new()
-        .with_program(CliProgram::Path(std::env::current_exe().unwrap()))
-        .with_transport(Transport::External {
-            host: address.ip().to_string(),
-            port: address.port(),
-            connection_token: None,
-        });
+    let mut options = ClientOptions::new().with_transport(Transport::External {
+        host: address.ip().to_string(),
+        port: address.port(),
+        connection_token: None,
+    });
     if let Some(paths) = paths {
         options = options.with_builtin_plugin_directories(paths);
     }
@@ -122,7 +122,10 @@ async fn configured_directories_call_rpc_once_before_start_completes() {
 #[tokio::test]
 async fn relative_directory_is_rejected() {
     let options = ClientOptions::new()
-        .with_program(CliProgram::Path(std::env::current_exe().unwrap()))
+        .with_transport(Transport::Stdio(
+            OutOfProcessOptions::new()
+                .with_program(CliProgram::Path(std::env::current_exe().unwrap())),
+        ))
         .with_builtin_plugin_directories(["plugins/core"]);
 
     let error = match Client::start(options).await {

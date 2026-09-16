@@ -46,9 +46,12 @@ class ConnectionTokenContext:
         )
 
         self._client = CopilotClient(
-            connection=RuntimeConnection.for_tcp(path=self.cli_path, connection_token=self.token),
-            working_directory=self.work_dir,
-            env=self.get_env(),
+            connection=RuntimeConnection.for_tcp(
+                path=self.cli_path,
+                connection_token=self.token,
+                working_directory=self.work_dir,
+                env=self.get_env(),
+            ),
             github_token=github_token,
         )
 

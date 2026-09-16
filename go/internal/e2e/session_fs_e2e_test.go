@@ -139,7 +139,13 @@ func TestSessionFSE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TCPConnection{Path: ctx.CLIPath}
+			stdio := opts.Connection.(copilot.StdioConnection)
+			opts.Connection = copilot.TCPConnection{
+				Path:             stdio.Path,
+				Args:             append([]string{}, stdio.Args...),
+				WorkingDirectory: stdio.WorkingDirectory,
+				Env:              append([]string{}, stdio.Env...),
+			}
 		})
 		t.Cleanup(func() { client1.ForceStop() })
 
@@ -157,7 +163,6 @@ func TestSessionFSE2E(t *testing.T) {
 		client2 := copilot.NewClient(&copilot.ClientOptions{
 			Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", runtimePort)},
 			LogLevel:   "error",
-			Env:        ctx.Env(),
 			SessionFS:  sessionFSConfig,
 		})
 		t.Cleanup(func() { client2.ForceStop() })
