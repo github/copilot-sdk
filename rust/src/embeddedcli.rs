@@ -572,18 +572,19 @@ fn runtime_file_is_valid(asset: &RuntimeFile, target: &Path) -> Result<bool, Emb
     let matches = metadata
         .as_ref()
         .is_some_and(|metadata| metadata.len() == asset.size);
-    // Immutable caches may strip write bits without invalidating their contents.
-    #[cfg(unix)]
-    let mode = asset.mode & 0o555;
-    #[cfg(unix)]
-    let matches = {
-        use std::os::unix::fs::PermissionsExt;
-        matches
-            && metadata
-                .as_ref()
-                .is_some_and(|metadata| metadata.permissions().mode() & 0o555 == mode)
-    };
     if matches {
+        #[cfg(unix)]
+        if asset.mode & 0o111 != 0 {
+            use rustix::fs::{Access, AtFlags, CWD, accessat};
+
+            // Check this process's effective credentials, not every class of
+            // permission bits: owner-only immutable caches are valid too.
+            if let Err(error) = accessat(CWD, target, Access::EXEC_OK, AtFlags::EACCESS) {
+                tracing::debug!(path = %target.display(), %error,
+                    "existing runtime asset is not executable; repairing");
+                return Ok(false);
+            }
+        }
         match fs::File::open(target) {
             Ok(mut file) => match hash_runtime_file(&mut file, asset.size) {
                 Ok(digest) => return Ok(digest == asset.sha256),
@@ -1689,12 +1690,31 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let archive = runtime_fixture(&[]);
         let wrapper = install_runtime(dir.path(), &archive).unwrap();
-        for mode in [0o644, 0o655, 0o745, 0o754] {
+        for mode in [0o644, 0o400] {
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(mode)).unwrap();
             install_runtime(dir.path(), &archive).unwrap();
             assert_eq!(
                 fs::metadata(&wrapper).unwrap().permissions().mode() & 0o777,
                 0o755
+            );
+        }
+        assert_no_runtime_temps(dir.path());
+    }
+
+    #[cfg(all(has_bundled_cli, unix))]
+    #[test]
+    fn runtime_reuses_executable_modes_without_group_or_other_access() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let fixture = runtime_fixture(&[]);
+        let wrapper = install_runtime(dir.path(), &fixture).unwrap();
+        for mode in [0o745, 0o754, 0o700, 0o500] {
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(mode)).unwrap();
+            super::install_runtime(dir.path(), UnreadableArchive, &fixture.files).unwrap();
+            assert_eq!(
+                fs::metadata(&wrapper).unwrap().permissions().mode() & 0o777,
+                mode
             );
         }
         assert_no_runtime_temps(dir.path());
@@ -1974,6 +1994,17 @@ mod tests {
     #[cfg(all(has_bundled_cli, unix))]
     #[test]
     fn warm_runtime_install_needs_no_writable_cache() {
+        assert_read_only_runtime_cache(0o555);
+    }
+
+    #[cfg(all(has_bundled_cli, unix))]
+    #[test]
+    fn warm_runtime_reuses_owner_only_immutable_cache() {
+        assert_read_only_runtime_cache(0o500);
+    }
+
+    #[cfg(all(has_bundled_cli, unix))]
+    fn assert_read_only_runtime_cache(permission_mask: u32) {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = tempfile::tempdir().unwrap();
@@ -1989,12 +2020,16 @@ mod tests {
         let mut read_only_files = Vec::new();
         for name in files {
             let path = dir.path().join(name);
-            let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o555;
+            let mode = fs::metadata(&path).unwrap().permissions().mode() & permission_mask;
             fs::set_permissions(&path, fs::Permissions::from_mode(mode)).unwrap();
             read_only_files.push((path, mode));
         }
-        fs::set_permissions(dir.path().join("nested"), fs::Permissions::from_mode(0o555)).unwrap();
-        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o555)).unwrap();
+        fs::set_permissions(
+            dir.path().join("nested"),
+            fs::Permissions::from_mode(permission_mask),
+        )
+        .unwrap();
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(permission_mask)).unwrap();
         let write_denied = fs::File::create(dir.path().join("write-probe")).is_err();
         let result = install_runtime(dir.path(), &archive);
         fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).unwrap();

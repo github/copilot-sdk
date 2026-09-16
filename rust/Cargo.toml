@@ -29,7 +29,7 @@ name = "github_copilot_sdk"
 
 [features]
 default = ["bundled-cli"]
-bundled-cli = ["dep:tar", "dep:flate2", "dep:zip", "dep:sha2"]
+bundled-cli = ["dep:tar", "dep:flate2", "dep:zip", "dep:sha2", "dep:rustix"]
 bundled-in-process = ["bundled-cli", "dep:libloading"]
 derive = ["dep:schemars"]
 test-support = []
@@ -68,6 +68,9 @@ http = "1"
 futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["stream", "http2", "default-tls"] }
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "native-tls"] }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", features = ["fs"], optional = true }
 
 [target.'cfg(windows)'.dependencies]
 zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
