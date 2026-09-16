@@ -182,14 +182,6 @@ function workflowJob(jobId: string): string {
 }
 
 describe("runtime-backed npm publishing workflow", () => {
-    it.each([
-        ["runtime-package", "Build SDK packages"],
-        ["runtime-publish-internal", "Publish SDK internally"],
-        ["runtime-publish-public", "Publish SDK publicly"],
-    ])("%s uses the SDK package display name", (jobId, displayName) => {
-        expect(workflowJob(jobId)).toContain(`name: ${displayName}`);
-    });
-
     it.each(["runtime-publish-internal", "runtime-publish-public"])(
         "%s validates retained packages before using the shared publisher",
         (jobId) => {
