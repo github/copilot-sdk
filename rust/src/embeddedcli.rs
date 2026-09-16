@@ -23,8 +23,9 @@
 //!
 //! Runtime assets are compared and extracted with bounded buffers rather than
 //! whole-file allocations. Matching files need only read access and retain
-//! their installed permissions. Changed files are staged beside their targets
-//! and published after archive validation, including the gzip trailer.
+//! their installed permissions, provided the wrapper remains executable by
+//! the current process. Changed files are staged beside their targets and
+//! published after archive validation, including the gzip trailer.
 //! Installation is atomic per file, not across the entire runtime bundle.
 
 // The atomic-publish + verify helpers (and their unit tests) are pure
@@ -334,7 +335,12 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
         check_runtime_asset_parent(&root, parent, false)?;
         match existing_runtime_file(&target, entry.size())? {
             Some(mut installed) => {
-                if !runtime_entry_matches(&mut entry, &mut installed)? {
+                let matches = runtime_entry_matches(&mut entry, &mut installed)?;
+                #[cfg(unix)]
+                let matches = matches
+                    && (path != Path::new(RUNTIME_BINARY_NAME)
+                        || check_runtime_wrapper_execute_access(&target).is_ok());
+                if !matches {
                     changed.insert(path);
                 }
             }
@@ -377,7 +383,43 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
     for staged in pending {
         publish(&staged.temporary, &staged.target)?;
     }
+    #[cfg(unix)]
+    check_runtime_wrapper_execute_access(&root.join(RUNTIME_BINARY_NAME))
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Verification, e))?;
     Ok(install_dir.join(RUNTIME_BINARY_NAME))
+}
+
+#[cfg(all(has_bundled_cli, unix))]
+fn check_runtime_wrapper_execute_access(path: &Path) -> std::io::Result<()> {
+    use std::ffi::{CString, c_char, c_int};
+    use std::os::unix::ffi::OsStrExt;
+
+    // std has no effective-credentials access check. Bind the POSIX libc API,
+    // not a raw syscall: libc handles Linux kernel differences (glibc/musl).
+    // These <fcntl.h>/<unistd.h> constants are shared by each OS's supported
+    // x86_64 and aarch64 targets; macOS uses different AT_* values than Linux.
+    #[cfg(target_os = "linux")]
+    const AT_FDCWD: c_int = -100;
+    #[cfg(target_os = "macos")]
+    const AT_FDCWD: c_int = -2;
+    #[cfg(target_os = "linux")]
+    const AT_EACCESS: c_int = 0x200;
+    #[cfg(target_os = "macos")]
+    const AT_EACCESS: c_int = 0x10;
+    const X_OK: c_int = 1;
+    unsafe extern "C" {
+        fn faccessat(dirfd: c_int, path: *const c_char, mode: c_int, flags: c_int) -> c_int;
+    }
+
+    let path = CString::new(path.as_os_str().as_bytes())
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+    // SAFETY: path is NUL-terminated and lives through the call. faccessat
+    // only reads it and uses the platform's C integer ABI and flag values.
+    if unsafe { faccessat(AT_FDCWD, path.as_ptr(), X_OK, AT_EACCESS) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
 }
 
 #[cfg(has_bundled_cli)]
@@ -1448,18 +1490,72 @@ mod tests {
 
     #[cfg(all(has_bundled_cli, unix))]
     #[test]
-    fn runtime_reuse_preserves_caller_selected_permissions() {
+    fn runtime_reuse_preserves_executable_caller_selected_permissions() {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = tempfile::tempdir().unwrap();
         let fixture = runtime_fixture(&[]);
         let wrapper = install_runtime(dir.path(), &fixture).unwrap();
-        for mode in [0o745, 0o754, 0o700, 0o500, 0o400] {
+        for mode in [0o745, 0o754, 0o700, 0o500] {
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(mode)).unwrap();
             install_runtime(dir.path(), &fixture).unwrap();
             assert_eq!(
                 fs::metadata(&wrapper).unwrap().permissions().mode() & 0o777,
                 mode
+            );
+        }
+        assert_no_runtime_temps(dir.path());
+    }
+
+    #[cfg(all(has_bundled_cli, unix))]
+    #[test]
+    fn runtime_repairs_nonexecutable_wrapper() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let archive = runtime_fixture(&[]);
+        let wrapper = install_runtime(dir.path(), &archive).unwrap();
+        for mode in [0o400, 0o600] {
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(mode)).unwrap();
+            install_runtime(dir.path(), &archive).unwrap();
+            assert_eq!(
+                fs::metadata(&wrapper).unwrap().permissions().mode() & 0o777,
+                0o755
+            );
+            assert_eq!(fs::read(&wrapper).unwrap(), b"wrapper");
+            assert_no_runtime_temps(dir.path());
+        }
+    }
+
+    #[cfg(all(has_bundled_cli, unix))]
+    #[test]
+    fn runtime_rejects_nonexecutable_wrapper_in_readonly_cache() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let archive = runtime_fixture(&[]);
+        let wrapper = install_runtime(dir.path(), &archive).unwrap();
+        fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o400)).unwrap();
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o555)).unwrap();
+        let write_denied = fs::File::create(dir.path().join("write-probe")).is_err();
+        let result = install_runtime(dir.path(), &archive);
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
+        if write_denied {
+            assert!(
+                result.is_err(),
+                "returned a nonexecutable wrapper: {result:?}"
+            );
+            assert_eq!(
+                fs::metadata(&wrapper).unwrap().permissions().mode() & 0o777,
+                0o400
+            );
+        } else {
+            eprintln!("read-only permission enforcement unavailable (e.g. privileged user)");
+            fs::remove_file(dir.path().join("write-probe")).unwrap();
+            result.unwrap();
+            assert_eq!(
+                fs::metadata(&wrapper).unwrap().permissions().mode() & 0o777,
+                0o755
             );
         }
         assert_no_runtime_temps(dir.path());
@@ -1742,6 +1838,7 @@ mod tests {
     #[test]
     fn warm_runtime_reuses_nonexecutable_native_library() {
         assert_read_only_runtime_cache(0o555, true);
+        assert_read_only_runtime_cache(0o500, true);
     }
 
     #[cfg(all(has_bundled_cli, unix))]
@@ -1762,7 +1859,7 @@ mod tests {
         for name in files {
             let path = dir.path().join(name);
             let mut mode = fs::metadata(&path).unwrap().permissions().mode() & permission_mask;
-            if readonly_native_library && name == RUNTIME_NODE_NAME {
+            if readonly_native_library && name != RUNTIME_BINARY_NAME {
                 mode &= !0o111;
             }
             fs::set_permissions(&path, fs::Permissions::from_mode(mode)).unwrap();
