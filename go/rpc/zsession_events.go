@@ -118,10 +118,16 @@ const (
 	SessionEventTypeModelCallFinished          SessionEventType = "model.call_finished"
 	SessionEventTypeModelCallStart             SessionEventType = "model.call_start"
 	SessionEventTypePendingMessagesModified    SessionEventType = "pending_messages.modified"
+	// Experimental: SessionEventTypePermissionAssentDetected identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypePermissionAssentDetected SessionEventType = "permission.assentDetected"
 	// Experimental: SessionEventTypePermissionCarriedForward identifies an experimental event
 	// that may change or be removed.
 	SessionEventTypePermissionCarriedForward SessionEventType = "permission.carriedForward"
 	SessionEventTypePermissionCompleted      SessionEventType = "permission.completed"
+	// Experimental: SessionEventTypePermissionContextualAuthorization identifies an
+	// experimental event that may change or be removed.
+	SessionEventTypePermissionContextualAuthorization SessionEventType = "permission.contextualAuthorization"
 	// Experimental: SessionEventTypePermissionMessageAuthorization identifies an experimental
 	// event that may change or be removed.
 	SessionEventTypePermissionMessageAuthorization SessionEventType = "permission.messageAuthorization"
@@ -1363,6 +1369,34 @@ type ModelCallFinishedData struct {
 func (*ModelCallFinishedData) sessionEventData()      {}
 func (*ModelCallFinishedData) Type() SessionEventType { return SessionEventTypeModelCallFinished }
 
+// Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.
+// Experimental: PermissionContextualAuthorizationData is part of an experimental API and may change or be removed.
+type PermissionContextualAuthorizationData struct {
+	// Whether the contextual human span granted or denied authority.
+	// Experimental: Polarity is part of an experimental API and may change or be removed.
+	Polarity PermissionMessageAuthorizationPolarity `json:"polarity"`
+	// Deterministic identity of the contextual message grant.
+	// Experimental: RecordID is part of an experimental API and may change or be removed.
+	RecordID string `json:"recordId"`
+	// Original blocked permission request selected by deterministic event ordering, never by the extraction model.
+	// Experimental: RequestID is part of an experimental API and may change or be removed.
+	RequestID string `json:"requestId"`
+	// End byte offset of the contextual decision span within the turn.
+	// Experimental: SpanEnd is part of an experimental API and may change or be removed.
+	SpanEnd int64 `json:"spanEnd"`
+	// Start byte offset of the contextual decision span within the turn.
+	// Experimental: SpanStart is part of an experimental API and may change or be removed.
+	SpanStart int64 `json:"spanStart"`
+	// Human turn containing the contextual decision.
+	// Experimental: TurnIndex is part of an experimental API and may change or be removed.
+	TurnIndex int64 `json:"turnIndex"`
+}
+
+func (*PermissionContextualAuthorizationData) sessionEventData() {}
+func (*PermissionContextualAuthorizationData) Type() SessionEventType {
+	return SessionEventTypePermissionContextualAuthorization
+}
+
 // Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.
 // Experimental: PermissionMessageAuthorizationData is part of an experimental API and may change or be removed.
 type PermissionMessageAuthorizationData struct {
@@ -2257,6 +2291,22 @@ func (*SessionModeNoticeDeliveredData) Type() SessionEventType {
 	return SessionEventTypeSessionModeNoticeDelivered
 }
 
+// Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.
+// Experimental: PermissionAssentDetectedData is part of an experimental API and may change or be removed.
+type PermissionAssentDetectedData struct {
+	// Permission request the likely assent may refer to. The runtime derives this from the preceding durable blocker; the human message and extraction model do not choose it.
+	// Experimental: RequestID is part of an experimental API and may change or be removed.
+	RequestID string `json:"requestId"`
+	// Human turn whose text triggered the deterministic assent recognizer.
+	// Experimental: TurnIndex is part of an experimental API and may change or be removed.
+	TurnIndex int64 `json:"turnIndex"`
+}
+
+func (*PermissionAssentDetectedData) sessionEventData() {}
+func (*PermissionAssentDetectedData) Type() SessionEventType {
+	return SessionEventTypePermissionAssentDetected
+}
+
 // Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.
 // Experimental: PermissionMessageAuthorizationDegradedData is part of an experimental API and may change or be removed.
 type PermissionMessageAuthorizationDegradedData struct {
@@ -2270,9 +2320,12 @@ func (*PermissionMessageAuthorizationDegradedData) Type() SessionEventType {
 	return SessionEventTypePermissionMessageAuthorizationDegraded
 }
 
-// Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.
+// Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.
 // Experimental: PermissionMessageAuthorizationReadData is part of an experimental API and may change or be removed.
 type PermissionMessageAuthorizationReadData struct {
+	// Whether this read activates ongoing message-backed extraction. False for a contextual-assent-only pass while auto-approval is off, so unrelated future messages remain outside extraction.
+	// Experimental: ActivatesExtraction is part of an experimental API and may change or be removed.
+	ActivatesExtraction *bool `json:"activatesExtraction,omitempty"`
 	// The human turn that was read by the proposer.
 	// Experimental: TurnIndex is part of an experimental API and may change or be removed.
 	TurnIndex int64 `json:"turnIndex"`
