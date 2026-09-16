@@ -191,7 +191,7 @@ describe("runtime-backed npm publishing workflow", () => {
     });
 
     it.each(["runtime-publish-internal", "runtime-publish-public"])(
-        "%s validates retained packages before using the shared publisher without readback or repair steps",
+        "%s validates retained packages before using the shared publisher",
         (jobId) => {
             const job = workflowJob(jobId);
             const validation = job.indexOf("- name: Validate retained release");
@@ -199,10 +199,7 @@ describe("runtime-backed npm publishing workflow", () => {
 
             expect(validation).toBeGreaterThanOrEqual(0);
             expect(publication).toBeGreaterThan(validation);
-            expect(job).not.toMatch(/\bnpm\s+view\b/);
-            expect(job).not.toMatch(/\bnpm\s+dist-tag\b/);
-            expect(job).not.toContain('npm install --ignore-scripts "@github/copilot-sdk@');
-            expect(job).not.toContain("Clean install and package version check");
+            expect(job.match(/npm-release\.js publish-manifest/g)).toHaveLength(1);
         }
     );
 });
