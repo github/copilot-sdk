@@ -75,8 +75,10 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(ModelCallFinishedEvent), "model.call_finished")]
 [JsonDerivedType(typeof(ModelCallStartEvent), "model.call_start")]
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
+[JsonDerivedType(typeof(PermissionAssentDetectedEvent), "permission.assentDetected")]
 [JsonDerivedType(typeof(PermissionCarriedForwardEvent), "permission.carriedForward")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
+[JsonDerivedType(typeof(PermissionContextualAuthorizationEvent), "permission.contextualAuthorization")]
 [JsonDerivedType(typeof(PermissionMessageAuthorizationEvent), "permission.messageAuthorization")]
 [JsonDerivedType(typeof(PermissionMessageAuthorizationDegradedEvent), "permission.messageAuthorizationDegraded")]
 [JsonDerivedType(typeof(PermissionMessageAuthorizationReadEvent), "permission.messageAuthorizationRead")]
@@ -1410,7 +1412,7 @@ public sealed partial class PermissionMessageAuthorizationEvent : SessionEvent
     public required PermissionMessageAuthorizationData Data { get; set; }
 }
 
-/// <summary>Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.</summary>
+/// <summary>Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.</summary>
 /// <remarks>Represents the <c>permission.messageAuthorizationRead</c> event.</remarks>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class PermissionMessageAuthorizationReadEvent : SessionEvent
@@ -1436,6 +1438,34 @@ public sealed partial class PermissionMessageAuthorizationDegradedEvent : Sessio
     /// <summary>The <c>permission.messageAuthorizationDegraded</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required PermissionMessageAuthorizationDegradedData Data { get; set; }
+}
+
+/// <summary>Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.</summary>
+/// <remarks>Represents the <c>permission.assentDetected</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionAssentDetectedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "permission.assentDetected";
+
+    /// <summary>The <c>permission.assentDetected</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required PermissionAssentDetectedData Data { get; set; }
+}
+
+/// <summary>Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.</summary>
+/// <remarks>Represents the <c>permission.contextualAuthorization</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionContextualAuthorizationEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "permission.contextualAuthorization";
+
+    /// <summary>The <c>permission.contextualAuthorization</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required PermissionContextualAuthorizationData Data { get; set; }
 }
 
 /// <summary>User input request notification with question and optional predefined choices.</summary>
@@ -5533,10 +5563,16 @@ public sealed partial class PermissionMessageAuthorizationData
     public JsonElement? World { get; set; }
 }
 
-/// <summary>Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.</summary>
+/// <summary>Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class PermissionMessageAuthorizationReadData
 {
+    /// <summary>Whether this read activates ongoing message-backed extraction. False for a contextual-assent-only pass while auto-approval is off, so unrelated future messages remain outside extraction.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("activatesExtraction")]
+    public bool? ActivatesExtraction { get; set; }
+
     /// <summary>The human turn that was read by the proposer.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonPropertyName("turnIndex")]
@@ -5548,6 +5584,56 @@ public sealed partial class PermissionMessageAuthorizationReadData
 public sealed partial class PermissionMessageAuthorizationDegradedData
 {
     /// <summary>The human turn that could not be represented safely.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("turnIndex")]
+    public required long TurnIndex { get; set; }
+}
+
+/// <summary>Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionAssentDetectedData
+{
+    /// <summary>Permission request the likely assent may refer to. The runtime derives this from the preceding durable blocker; the human message and extraction model do not choose it.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>Human turn whose text triggered the deterministic assent recognizer.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("turnIndex")]
+    public required long TurnIndex { get; set; }
+}
+
+/// <summary>Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionContextualAuthorizationData
+{
+    /// <summary>Whether the contextual human span granted or denied authority.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("polarity")]
+    public required PermissionMessageAuthorizationPolarity Polarity { get; set; }
+
+    /// <summary>Deterministic identity of the contextual message grant.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("recordId")]
+    public required string RecordId { get; set; }
+
+    /// <summary>Original blocked permission request selected by deterministic event ordering, never by the extraction model.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>End byte offset of the contextual decision span within the turn.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("spanEnd")]
+    public required long SpanEnd { get; set; }
+
+    /// <summary>Start byte offset of the contextual decision span within the turn.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("spanStart")]
+    public required long SpanStart { get; set; }
+
+    /// <summary>Human turn containing the contextual decision.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonPropertyName("turnIndex")]
     public required long TurnIndex { get; set; }
@@ -17383,11 +17469,15 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(OmittedBinaryResult))]
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
+[JsonSerializable(typeof(PermissionAssentDetectedData))]
+[JsonSerializable(typeof(PermissionAssentDetectedEvent))]
 [JsonSerializable(typeof(PermissionAssistedApproval))]
 [JsonSerializable(typeof(PermissionCarriedForwardData))]
 [JsonSerializable(typeof(PermissionCarriedForwardEvent))]
 [JsonSerializable(typeof(PermissionCompletedData))]
 [JsonSerializable(typeof(PermissionCompletedEvent))]
+[JsonSerializable(typeof(PermissionContextualAuthorizationData))]
+[JsonSerializable(typeof(PermissionContextualAuthorizationEvent))]
 [JsonSerializable(typeof(PermissionMessageAuthorizationData))]
 [JsonSerializable(typeof(PermissionMessageAuthorizationDegradedData))]
 [JsonSerializable(typeof(PermissionMessageAuthorizationDegradedEvent))]

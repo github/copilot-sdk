@@ -95,6 +95,8 @@ export type SessionEvent =
   | PermissionMessageAuthorizationEvent
   | PermissionMessageAuthorizationReadEvent
   | PermissionMessageAuthorizationDegradedEvent
+  | PermissionAssentDetectedEvent
+  | PermissionContextualAuthorizationEvent
   | UserInputRequestedEvent
   | UserInputCompletedEvent
   | ElicitationRequestedEvent
@@ -9633,7 +9635,7 @@ export interface PermissionMessageAuthorizationData {
   world?: JsonValue;
 }
 /**
- * Session event "permission.messageAuthorizationRead". Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.
+ * Session event "permission.messageAuthorizationRead". Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.
  */
 /** @experimental */
 export interface PermissionMessageAuthorizationReadEvent {
@@ -9664,10 +9666,16 @@ export interface PermissionMessageAuthorizationReadEvent {
   type: "permission.messageAuthorizationRead";
 }
 /**
- * Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.
+ * Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.
  */
 /** @experimental */
 export interface PermissionMessageAuthorizationReadData {
+  /**
+   * Whether this read activates ongoing message-backed extraction. False for a contextual-assent-only pass while auto-approval is off, so unrelated future messages remain outside extraction.
+   *
+   * @experimental
+   */
+  activatesExtraction?: boolean;
   /**
    * The human turn that was read by the proposer.
    *
@@ -9713,6 +9721,128 @@ export interface PermissionMessageAuthorizationDegradedEvent {
 export interface PermissionMessageAuthorizationDegradedData {
   /**
    * The human turn that could not be represented safely.
+   *
+   * @experimental
+   */
+  turnIndex: number;
+}
+/**
+ * Session event "permission.assentDetected". Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.
+ */
+/** @experimental */
+export interface PermissionAssentDetectedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: PermissionAssentDetectedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "permission.assentDetected".
+   */
+  type: "permission.assentDetected";
+}
+/**
+ * Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.
+ */
+/** @experimental */
+export interface PermissionAssentDetectedData {
+  /**
+   * Permission request the likely assent may refer to. The runtime derives this from the preceding durable blocker; the human message and extraction model do not choose it.
+   *
+   * @experimental
+   */
+  requestId: string;
+  /**
+   * Human turn whose text triggered the deterministic assent recognizer.
+   *
+   * @experimental
+   */
+  turnIndex: number;
+}
+/**
+ * Session event "permission.contextualAuthorization". Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.
+ */
+/** @experimental */
+export interface PermissionContextualAuthorizationEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: PermissionContextualAuthorizationData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "permission.contextualAuthorization".
+   */
+  type: "permission.contextualAuthorization";
+}
+/**
+ * Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.
+ */
+/** @experimental */
+export interface PermissionContextualAuthorizationData {
+  /**
+   * Whether the contextual human span granted or denied authority.
+   *
+   * @experimental
+   */
+  polarity: PermissionMessageAuthorizationPolarity;
+  /**
+   * Deterministic identity of the contextual message grant.
+   *
+   * @experimental
+   */
+  recordId: string;
+  /**
+   * Original blocked permission request selected by deterministic event ordering, never by the extraction model.
+   *
+   * @experimental
+   */
+  requestId: string;
+  /**
+   * End byte offset of the contextual decision span within the turn.
+   *
+   * @experimental
+   */
+  spanEnd: number;
+  /**
+   * Start byte offset of the contextual decision span within the turn.
+   *
+   * @experimental
+   */
+  spanStart: number;
+  /**
+   * Human turn containing the contextual decision.
    *
    * @experimental
    */

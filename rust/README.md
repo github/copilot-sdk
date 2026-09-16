@@ -441,9 +441,12 @@ next credential-consuming operation; there is no background refresh timer.
 ### Auto routing tiers
 
 Use `CapiSessionOptions::with_auto_tier` to select `AutoTier::Efficiency`,
-`AutoTier::Balance`, or `AutoTier::Intelligence`. This option is meaningful only
-with model `auto` (Auto mode V2).
+`AutoTier::Balance`, `AutoTier::Intelligence`, or `AutoTier::Fast`. This option
+is meaningful only with model `auto` (Auto mode V2).
 It requires a runtime version that supports `capi.autoTier`.
+`AutoTier::Fast` is an integrator-only latency preset, not a first-party
+GitHub Copilot product preference — the SDK does not decide Fast eligibility
+or apply it implicitly.
 
 ```rust
 use github_copilot_sdk::{AutoTier, CapiSessionOptions, SessionConfig};
@@ -464,7 +467,7 @@ resume succeeds; it cannot change a turn that is already in flight. The SDK does
 
 Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
 
-Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. A failed activation leaves the incumbent effective tier unchanged. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
 
 ```rust,ignore
 use github_copilot_sdk::{AutoTier, ModelSwitchAutoTierStatus};
@@ -1158,15 +1161,19 @@ github-copilot-sdk = { version = "1", default-features = false }
      managed runtime artifacts directly into the platform cache using staging
      files and atomic renames.
 
-3. **Runtime:** in both modes the artifacts share one versioned directory:
+3. **Runtime:** embedded CLI artifacts and build-time-extracted hostless runtime
+   artifacts use separate versioned namespaces:
 
-   | OS | Path |
-   |----|------|
-   | macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/` |
-   | Linux | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/cli/<version>/` |
-   | Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\` |
+   | OS | `bundled-cli` on | `bundled-cli` off |
+   |----|------------------|-------------------|
+   | macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/` | `~/Library/Caches/github-copilot-sdk/runtime/<version>/` |
+   | Linux | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/cli/<version>/` | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/runtime/<version>/` |
+   | Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\` | `%LOCALAPPDATA%\github-copilot-sdk\runtime\<version>\` |
 
-   Old version directories accumulate in siblings; clean them up at your leisure.
+   Separating these namespaces prevents stale hostless-runtime cleanup during a
+   non-bundled build from deleting a same-version bundled CLI used by another
+   application. Old version directories accumulate in siblings; clean them up
+   at your leisure.
 
 ### Overriding the extraction location
 

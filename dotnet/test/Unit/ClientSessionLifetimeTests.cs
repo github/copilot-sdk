@@ -471,9 +471,11 @@ public sealed class ClientSessionLifetimeTests
         { AutoTier.Efficiency, "efficiency", null },
         { AutoTier.Balance, "balance", null },
         { AutoTier.Intelligence, "intelligence", null },
+        { AutoTier.Fast, "fast", null },
         { AutoTier.Efficiency, "efficiency", false },
         { AutoTier.Balance, "balance", false },
         { AutoTier.Intelligence, "intelligence", false },
+        { AutoTier.Fast, "fast", false },
     };
 
     [Theory]
@@ -517,6 +519,7 @@ public sealed class ClientSessionLifetimeTests
     [InlineData("efficiency")]
     [InlineData("balance")]
     [InlineData("intelligence")]
+    [InlineData("fast")]
     public async Task SetModelAsync_Serializes_AutoTier(string expectedTier)
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -593,10 +596,10 @@ public sealed class ClientSessionLifetimeTests
             OnPermissionRequest = PermissionHandler.ApproveAll
         });
 
-        var result = await session.SetAutoTierAsync(AutoTier.Intelligence);
+        var result = await session.SetAutoTierAsync(AutoTier.Fast);
 
         var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchAutoTier");
-        Assert.Equal("intelligence", request.Params.GetProperty("autoTier").GetString());
+        Assert.Equal("fast", request.Params.GetProperty("autoTier").GetString());
         Assert.Equal(ModelSwitchAutoTierStatus.Pending, result.Status);
         Assert.Equal(AutoTier.Balance, result.EffectiveAutoTier);
     }

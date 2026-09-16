@@ -235,6 +235,10 @@ class SessionEventType(Enum):
     PERMISSION_MESSAGE_AUTHORIZATION_READ = "permission.messageAuthorizationRead"
     # Experimental: this event is part of an experimental API and may change or be removed.
     PERMISSION_MESSAGE_AUTHORIZATION_DEGRADED = "permission.messageAuthorizationDegraded"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    PERMISSION_ASSENT_DETECTED = "permission.assentDetected"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    PERMISSION_CONTEXTUAL_AUTHORIZATION = "permission.contextualAuthorization"
     USER_INPUT_REQUESTED = "user_input.requested"
     USER_INPUT_COMPLETED = "user_input.completed"
     ELICITATION_REQUESTED = "elicitation.requested"
@@ -1464,6 +1468,32 @@ class OmittedBinaryResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class PermissionAssentDetectedData:
+    "Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation."
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    request_id: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    turn_index: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionAssentDetectedData":
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        turn_index = from_int(obj.get("turnIndex"))
+        return PermissionAssentDetectedData(
+            request_id=request_id,
+            turn_index=turn_index,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        result["turnIndex"] = to_int(self.turn_index)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class PermissionAssistedApproval:
     "Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request."
     recommendation: AssistedApprovalRecommendation
@@ -1530,6 +1560,52 @@ class PermissionCarriedForwardData:
         result["recordId"] = from_str(self.record_id)
         result["requestId"] = from_str(self.request_id)
         result["toolCallId"] = from_str(self.tool_call_id)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionContextualAuthorizationData:
+    "Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify."
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    polarity: PermissionMessageAuthorizationPolarity
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    record_id: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    request_id: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    span_end: int
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    span_start: int
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    turn_index: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionContextualAuthorizationData":
+        assert isinstance(obj, dict)
+        polarity = parse_enum(PermissionMessageAuthorizationPolarity, obj.get("polarity"))
+        record_id = from_str(obj.get("recordId"))
+        request_id = from_str(obj.get("requestId"))
+        span_end = from_int(obj.get("spanEnd"))
+        span_start = from_int(obj.get("spanStart"))
+        turn_index = from_int(obj.get("turnIndex"))
+        return PermissionContextualAuthorizationData(
+            polarity=polarity,
+            record_id=record_id,
+            request_id=request_id,
+            span_end=span_end,
+            span_start=span_start,
+            turn_index=turn_index,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["polarity"] = to_enum(PermissionMessageAuthorizationPolarity, self.polarity)
+        result["recordId"] = from_str(self.record_id)
+        result["requestId"] = from_str(self.request_id)
+        result["spanEnd"] = to_int(self.span_end)
+        result["spanStart"] = to_int(self.span_start)
+        result["turnIndex"] = to_int(self.turn_index)
         return result
 
 
@@ -1621,21 +1697,27 @@ class PermissionMessageAuthorizationDegradedData:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionMessageAuthorizationReadData:
-    "Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism."
+    "Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction."
     # Experimental: this field is part of an experimental API and may change or be removed.
     turn_index: int
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    activates_extraction: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionMessageAuthorizationReadData":
         assert isinstance(obj, dict)
         turn_index = from_int(obj.get("turnIndex"))
+        activates_extraction = from_union([from_none, from_bool], obj.get("activatesExtraction"))
         return PermissionMessageAuthorizationReadData(
             turn_index=turn_index,
+            activates_extraction=activates_extraction,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["turnIndex"] = to_int(self.turn_index)
+        if self.activates_extraction is not None:
+            result["activatesExtraction"] = from_union([from_none, from_bool], self.activates_extraction)
         return result
 
 
@@ -13381,7 +13463,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -13500,6 +13582,8 @@ class SessionEvent:
             case SessionEventType.PERMISSION_MESSAGE_AUTHORIZATION: data = PermissionMessageAuthorizationData.from_dict(data_obj)
             case SessionEventType.PERMISSION_MESSAGE_AUTHORIZATION_READ: data = PermissionMessageAuthorizationReadData.from_dict(data_obj)
             case SessionEventType.PERMISSION_MESSAGE_AUTHORIZATION_DEGRADED: data = PermissionMessageAuthorizationDegradedData.from_dict(data_obj)
+            case SessionEventType.PERMISSION_ASSENT_DETECTED: data = PermissionAssentDetectedData.from_dict(data_obj)
+            case SessionEventType.PERMISSION_CONTEXTUAL_AUTHORIZATION: data = PermissionContextualAuthorizationData.from_dict(data_obj)
             case SessionEventType.USER_INPUT_REQUESTED: data = UserInputRequestedData.from_dict(data_obj)
             case SessionEventType.USER_INPUT_COMPLETED: data = UserInputCompletedData.from_dict(data_obj)
             case SessionEventType.ELICITATION_REQUESTED: data = ElicitationRequestedData.from_dict(data_obj)
@@ -13769,10 +13853,12 @@ __all__ = [
     "PermissionApproved",
     "PermissionApprovedForLocation",
     "PermissionApprovedForSession",
+    "PermissionAssentDetectedData",
     "PermissionAssistedApproval",
     "PermissionCancelled",
     "PermissionCarriedForwardData",
     "PermissionCompletedData",
+    "PermissionContextualAuthorizationData",
     "PermissionDecisionSource",
     "PermissionDeniedByContentExclusionPolicy",
     "PermissionDeniedByPermissionRequestHook",

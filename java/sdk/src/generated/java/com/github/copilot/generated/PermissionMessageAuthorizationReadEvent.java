@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "permission.messageAuthorizationRead". Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Persisted purely to avoid wasted model calls across resume; it is never a correctness mechanism.
+ * Session event "permission.messageAuthorizationRead". Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -35,7 +35,9 @@ public final class PermissionMessageAuthorizationReadEvent extends SessionEvent 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PermissionMessageAuthorizationReadEventData(
         /** The human turn that was read by the proposer. */
-        @JsonProperty("turnIndex") Long turnIndex
+        @JsonProperty("turnIndex") Long turnIndex,
+        /** Whether this read activates ongoing message-backed extraction. False for a contextual-assent-only pass while auto-approval is off, so unrelated future messages remain outside extraction. */
+        @JsonProperty("activatesExtraction") Boolean activatesExtraction
     ) {
     }
 }

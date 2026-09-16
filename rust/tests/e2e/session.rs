@@ -5,6 +5,7 @@ use std::time::Duration;
 use github_copilot_sdk::handler::{
     ApproveAllHandler, McpAuthHandler, McpAuthRequest, McpAuthResult,
 };
+use github_copilot_sdk::rpc::ModelSetAllowedModelsRequest;
 use github_copilot_sdk::session_events::{
     SessionErrorData, SessionEventType, SessionInfoData, SessionModelChangeData, SessionResumeData,
     SessionStartData, SessionWarningData, UserMessageData,
@@ -1060,6 +1061,72 @@ async fn should_set_model_on_existing_session() {
                     .typed_data::<SessionModelChangeData>()
                     .expect("session.model_change data");
                 assert_eq!(data.new_model, "gpt-4.1");
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_replace_and_clear_the_host_model_allowlist_on_a_live_session() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_replace_and_clear_the_host_model_allowlist_on_a_live_session",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+
+                // Replacing the allowlist with a real, resolvable model ID
+                // succeeds and echoes back the applied/effective policy.
+                let replaced = session
+                    .rpc()
+                    .model()
+                    .set_allowed_models(ModelSetAllowedModelsRequest {
+                        allowed_models: Some(vec!["gpt-4.1".to_string()]),
+                    })
+                    .await
+                    .expect("set allowed models");
+                assert_eq!(
+                    replaced.allowed_models.as_deref(),
+                    Some(&["gpt-4.1".to_string()][..])
+                );
+                assert_eq!(
+                    replaced.effective_allowed_models.as_deref(),
+                    Some(&["gpt-4.1".to_string()][..])
+                );
+
+                // The runtime rejects an explicit empty allowlist rather than
+                // silently disallowing every model.
+                let empty_err = session
+                    .rpc()
+                    .model()
+                    .set_allowed_models(ModelSetAllowedModelsRequest {
+                        allowed_models: Some(vec![]),
+                    })
+                    .await
+                    .expect_err("empty allowlist should be rejected");
+                assert!(
+                    matches!(empty_err.kind(), github_copilot_sdk::ErrorKind::Rpc { .. }),
+                    "expected an RPC error for an empty allowlist, got {empty_err:?}"
+                );
+
+                // Omitting the field clears the host restriction.
+                let cleared = session
+                    .rpc()
+                    .model()
+                    .set_allowed_models(ModelSetAllowedModelsRequest::default())
+                    .await
+                    .expect("clear allowed models");
+                assert_eq!(cleared.allowed_models, None);
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");

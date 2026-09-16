@@ -183,6 +183,8 @@ class TestCustomAgents:
         )
         session_id = session1.session_id
         await session1.send_and_wait("What is 1+1?")
+        # End the first attachment before testing resume-time reconfiguration.
+        await session1.disconnect()
 
         # Resume with custom agents
         custom_agents: list[CustomAgentConfig] = [

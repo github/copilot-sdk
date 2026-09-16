@@ -123,14 +123,14 @@ func TestSession_SetModelOmitsContextTierWhenUnset(t *testing.T) {
 }
 
 func TestSession_SetModelForwardsAutoTier(t *testing.T) {
-	tier := AutoTierIntelligence
+	tier := AutoTierFast
 	params := captureSetModelRequestForModel(t, "auto", &SetModelOptions{AutoTier: &tier})
 
 	if params["modelId"] != "auto" {
 		t.Fatalf("expected modelId auto, got %v", params["modelId"])
 	}
-	if params["autoTier"] != "intelligence" {
-		t.Fatalf("expected autoTier intelligence, got %v", params["autoTier"])
+	if params["autoTier"] != "fast" {
+		t.Fatalf("expected autoTier fast, got %v", params["autoTier"])
 	}
 }
 
@@ -162,14 +162,14 @@ func TestSession_SetModelRejectsConflictingAutoTierOptions(t *testing.T) {
 }
 
 func TestSession_SetAutoTierForwardsTier(t *testing.T) {
-	tier := AutoTierEfficiency
+	tier := AutoTierFast
 	params := captureSetAutoTierRequest(t, &tier)
 
 	if params["sessionId"] != "session-1" {
 		t.Fatalf("expected sessionId session-1, got %v", params["sessionId"])
 	}
-	if params["autoTier"] != "efficiency" {
-		t.Fatalf("expected autoTier efficiency, got %v", params["autoTier"])
+	if params["autoTier"] != "fast" {
+		t.Fatalf("expected autoTier fast, got %v", params["autoTier"])
 	}
 }
 

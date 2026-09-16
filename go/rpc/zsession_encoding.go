@@ -341,6 +341,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypePermissionAssentDetected:
+		var d PermissionAssentDetectedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypePermissionCarriedForward:
 		var d PermissionCarriedForwardData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -349,6 +355,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypePermissionCompleted:
 		var d PermissionCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePermissionContextualAuthorization:
+		var d PermissionContextualAuthorizationData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
