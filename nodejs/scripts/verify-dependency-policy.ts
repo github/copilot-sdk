@@ -5,20 +5,24 @@ import {
     assertMinimumPublicationAge,
     loadNpmPublicationTimes,
     readProductionDependencyManifest,
+    readResolvedProductionDependencies,
     requiresPublicationCooldown,
 } from "./dependency-policy.js";
 
 async function main(): Promise<void> {
     const nodeRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
     const manifest = readProductionDependencyManifest(join(nodeRoot, "package.json"));
-    const dependencies = assertExactProductionDependencies(manifest);
-    const publicationTimes = await loadNpmPublicationTimes(dependencies);
-    assertMinimumPublicationAge(dependencies, publicationTimes);
-    const externalCount = dependencies.filter((dependency) =>
+    const directDependencies = assertExactProductionDependencies(manifest);
+    const resolvedDependencies = readResolvedProductionDependencies(
+        join(nodeRoot, "package-lock.json")
+    );
+    const publicationTimes = await loadNpmPublicationTimes(resolvedDependencies);
+    assertMinimumPublicationAge(resolvedDependencies, publicationTimes);
+    const externalCount = resolvedDependencies.filter((dependency) =>
         requiresPublicationCooldown(dependency.name)
     ).length;
     console.log(
-        `Verified ${dependencies.length} exact production dependencies; ${externalCount} meet the seven-day npm publication age requirement.`
+        `Verified ${directDependencies.length} exact direct production dependencies; ${externalCount} resolved production package versions meet the seven-day npm publication age requirement.`
     );
 }
 

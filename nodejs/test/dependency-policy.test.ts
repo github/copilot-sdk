@@ -4,13 +4,13 @@ import {
     assertMinimumPublicationAge,
     loadNpmPublicationTimes,
     MINIMUM_DEPENDENCY_AGE_MS,
+    parseResolvedProductionDependencies,
     type ProductionDependency,
     type RegistryRequest,
 } from "../scripts/dependency-policy.js";
 
 const dependency: ProductionDependency = {
     name: "koffi",
-    section: "dependencies",
     version: "3.2.1",
 };
 const publishedAt = "2026-09-04T07:39:01.277Z";
@@ -26,7 +26,6 @@ describe("production dependency policy", () => {
             dependency,
             {
                 name: "optional-package",
-                section: "optionalDependencies",
                 version: "1.0.0-beta.1",
             },
         ]);
@@ -61,7 +60,6 @@ describe("production dependency policy", () => {
                 [
                     {
                         name: "@github/copilot",
-                        section: "dependencies",
                         version: "1.0.0",
                     },
                 ],
@@ -104,5 +102,86 @@ describe("production dependency policy", () => {
         await expect(loadNpmPublicationTimes([dependency], request)).rejects.toThrow(
             "npm metadata request for koffi failed: 503 Service Unavailable"
         );
+    });
+
+    it("reads the complete resolved production graph from package-lock v3", () => {
+        expect(
+            parseResolvedProductionDependencies({
+                lockfileVersion: 3,
+                packages: {
+                    "": {
+                        dependencies: { koffi: "3.2.1" },
+                        devDependencies: { eslint: "^9.0.0" },
+                    },
+                    "node_modules/koffi": { version: "3.2.1" },
+                    "node_modules/@koromix/koffi-linux-x64": {
+                        version: "3.2.1",
+                        optional: true,
+                    },
+                    "node_modules/shared-optional": {
+                        version: "2.0.0",
+                        devOptional: true,
+                    },
+                    "node_modules/eslint": { version: "9.0.0", dev: true },
+                    "node_modules/dev-optional": {
+                        version: "1.0.0",
+                        dev: true,
+                        optional: true,
+                    },
+                    "node_modules/local-package": { link: true },
+                    "node_modules/bundled-package": {
+                        version: "1.0.0",
+                        inBundle: true,
+                    },
+                    "node_modules/parent/node_modules/nested": { version: "4.0.0" },
+                },
+            })
+        ).toEqual([
+            { name: "koffi", version: "3.2.1" },
+            {
+                name: "@koromix/koffi-linux-x64",
+                version: "3.2.1",
+            },
+            { name: "shared-optional", version: "2.0.0" },
+            { name: "nested", version: "4.0.0" },
+        ]);
+    });
+
+    it("keeps distinct resolved versions and removes duplicate package/version pairs", () => {
+        expect(
+            parseResolvedProductionDependencies({
+                lockfileVersion: 3,
+                packages: {
+                    "": {},
+                    "node_modules/example": { version: "1.0.0" },
+                    "node_modules/parent/node_modules/example": { version: "1.0.0" },
+                    "node_modules/other/node_modules/example": { version: "2.0.0" },
+                },
+            })
+        ).toEqual([
+            { name: "example", version: "1.0.0" },
+            { name: "example", version: "2.0.0" },
+        ]);
+    });
+
+    it("rejects unsupported production lockfile entries", () => {
+        expect(() =>
+            parseResolvedProductionDependencies({
+                lockfileVersion: 3,
+                packages: {
+                    "": {},
+                    "packages/example": { version: "1.0.0" },
+                },
+            })
+        ).toThrow("Unsupported production package-lock path 'packages/example'");
+        expect(() =>
+            parseResolvedProductionDependencies({
+                lockfileVersion: 3,
+                packages: {
+                    "": {},
+                    "node_modules/example": { version: "github:owner/example" },
+                },
+            })
+        ).toThrow("Resolved production dependency example must use an exact SemVer version");
     });
 });

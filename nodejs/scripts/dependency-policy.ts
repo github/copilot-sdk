@@ -13,7 +13,6 @@ export interface ProductionDependencyManifest {
 
 export interface ProductionDependency {
     name: string;
-    section: "dependencies" | "optionalDependencies";
     version: string;
 }
 
@@ -71,10 +70,46 @@ export function assertExactProductionDependencies(
                 version,
                 `${section}.${name} must use an exact SemVer version; found '${version}'`
             );
-            dependencies.push({ name, section, version });
+            dependencies.push({ name, version });
         }
     }
     return dependencies;
+}
+
+function packageNameFromLockfilePath(path: string): string | undefined {
+    return /(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/]+)$/.exec(path)?.[1];
+}
+
+export function parseResolvedProductionDependencies(lockfile: unknown): ProductionDependency[] {
+    assert(isRecord(lockfile), "package-lock.json must contain a JSON object");
+    assert.equal(lockfile.lockfileVersion, 3, "package-lock.json must use lockfileVersion 3");
+    assert(isRecord(lockfile.packages), "package-lock.json must contain a packages object");
+
+    const dependencies = new Map<string, ProductionDependency>();
+    for (const [path, value] of Object.entries(lockfile.packages)) {
+        if (path === "") {
+            continue;
+        }
+        assert(isRecord(value), `Package-lock entry '${path}' must be a JSON object`);
+        // npm marks dev=true only when a package is strictly dev-only. Optional and
+        // devOptional packages reachable from production dependencies remain included.
+        if (value.dev === true || value.link === true || value.inBundle === true) {
+            continue;
+        }
+        const name = packageNameFromLockfilePath(path);
+        assert(name, `Unsupported production package-lock path '${path}'`);
+        const version = value.version;
+        assert(
+            typeof version === "string" && semver.valid(version) === version,
+            `Resolved production dependency ${name} must use an exact SemVer version`
+        );
+        dependencies.set(`${name}@${version}`, { name, version });
+    }
+    return [...dependencies.values()];
+}
+
+export function readResolvedProductionDependencies(path: string): ProductionDependency[] {
+    return parseResolvedProductionDependencies(JSON.parse(readFileSync(path, "utf8")) as unknown);
 }
 
 export function requiresPublicationCooldown(dependencyName: string): boolean {
