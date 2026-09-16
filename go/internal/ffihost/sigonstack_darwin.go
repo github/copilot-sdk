@@ -26,15 +26,13 @@ const (
 )
 
 // rearmForeignSignalHandlers re-adds the SA_ONSTACK flag to any signal handler
-// installed by the native runtime (libnode/libuv, loaded via dlopen) that
-// omitted it. The Go runtime aborts with "non-Go code set up signal handler
-// without SA_ONSTACK flag" when such a signal (notably SIGCHLD, signal 20 on
-// Darwin) is delivered while a Go-managed child process is reaped. libuv
-// installs a SIGCHLD handler without SA_ONSTACK, which poisons every subsequent
-// os/exec child reaped by Go in the same process (enforced by the Go runtime on
-// both macOS and Linux; the Linux variant lives in sigonstack_linux.go).
+// installed by the native runtime that omitted it. Tokio's process-global
+// SIGCHLD registration through signal-hook-registry chains Go's handler but
+// replaces its flags without SA_ONSTACK. The Go runtime aborts with "non-Go code
+// set up signal handler without SA_ONSTACK flag" when SIGCHLD (signal 20 on
+// Darwin) is delivered while a Go-managed child process is reaped.
 //
-// We preserve each foreign handler and merely OR in SA_ONSTACK, so libuv's child
+// We preserve each foreign handler and merely OR in SA_ONSTACK, so Tokio's child
 // watching keeps working while the Go runtime stays happy. Handlers left at
 // SIG_DFL/SIG_IGN and Go's own handlers (which already carry SA_ONSTACK) are
 // untouched. Best-effort: any failure is silently ignored, since the worst case

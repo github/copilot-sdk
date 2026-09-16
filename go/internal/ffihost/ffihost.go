@@ -289,7 +289,7 @@ func (h *Host) Start() error {
 		h.serverID = 0
 		return fmt.Errorf("copilot_runtime_connection_open failed")
 	}
-	// Connection initialization may install libuv's SIGCHLD handler after
+	// Connection initialization may install Tokio's SIGCHLD handler after
 	// host startup, so repair it again before any child process can exit.
 	h.rearmForeignSignalHandlers()
 	return nil
@@ -372,7 +372,7 @@ func (h *Host) writeFrame(frame []byte) (int, error) {
 	if len(frame) == 0 {
 		return 0, nil
 	}
-	// A prior runtime request may have installed or restored libuv's SIGCHLD
+	// A prior runtime request may have installed or restored Tokio's SIGCHLD
 	// handler. Repair it before another request can stop a native child process.
 	h.rearmForeignSignalHandlers()
 	ok := h.lib.connectionWrite(connID, unsafe.Pointer(&frame[0]), uintptr(len(frame)))
