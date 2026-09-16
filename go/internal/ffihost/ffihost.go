@@ -207,6 +207,18 @@ type Host struct {
 	callbackToken uintptr
 }
 
+func (h *Host) rearmForeignSignalHandlers() {
+	if h.cliEntrypoint != "" {
+		rearmForeignSignalHandlers(h.lib.handle)
+	}
+}
+
+// PrepareForChildProcessWait repairs signal handlers that the embedded runtime
+// may have replaced before the Go process stops or waits for its own child.
+func PrepareForChildProcessWait() {
+	rearmForeignSignalHandlers(0)
+}
+
 // Create resolves the native library and prepares the host. environment and
 // args contain SDK-managed runtime options.
 func Create(runtimeEntrypoint, cliEntrypoint string, environment map[string]string, args []string) (*Host, error) {
@@ -260,10 +272,8 @@ func (h *Host) Start() error {
 		return fmt.Errorf("copilot_runtime_host_start failed (library %q)", h.libraryPath)
 	}
 
-	if h.cliEntrypoint != "" {
-		// A legacy embedded host may install a SIGCHLD handler without SA_ONSTACK.
-		rearmForeignSignalHandlers(h.lib.handle)
-	}
+	// An embedded host may install a SIGCHLD handler without SA_ONSTACK.
+	h.rearmForeignSignalHandlers()
 
 	callbackHandle := sharedOutboundCallback()
 	callbackToken := uintptr(nextOutboundToken.Add(1))
@@ -273,18 +283,15 @@ func (h *Host) Start() error {
 	if h.connectionID == 0 {
 		outboundTargets.Delete(callbackToken)
 		h.callbackToken = 0
+		h.rearmForeignSignalHandlers()
 		h.lib.hostShutdown(h.serverID)
-		if h.cliEntrypoint != "" {
-			rearmForeignSignalHandlers(h.lib.handle)
-		}
+		h.rearmForeignSignalHandlers()
 		h.serverID = 0
 		return fmt.Errorf("copilot_runtime_connection_open failed")
 	}
-	if h.cliEntrypoint != "" {
-		// Connection initialization may install libuv's SIGCHLD handler after
-		// host startup, so repair it again before any child process can exit.
-		rearmForeignSignalHandlers(h.lib.handle)
-	}
+	// Connection initialization may install libuv's SIGCHLD handler after
+	// host startup, so repair it again before any child process can exit.
+	h.rearmForeignSignalHandlers()
 	return nil
 }
 
@@ -365,6 +372,9 @@ func (h *Host) writeFrame(frame []byte) (int, error) {
 	if len(frame) == 0 {
 		return 0, nil
 	}
+	// A prior runtime request may have installed or restored libuv's SIGCHLD
+	// handler. Repair it before another request can stop a native child process.
+	h.rearmForeignSignalHandlers()
 	ok := h.lib.connectionWrite(connID, unsafe.Pointer(&frame[0]), uintptr(len(frame)))
 	runtime.KeepAlive(frame)
 	if !ok {
@@ -397,6 +407,7 @@ func (h *Host) tryFinalizeCleanupLocked() bool {
 	connID := h.connectionID
 
 	if connID != 0 {
+		h.rearmForeignSignalHandlers()
 		if !h.lib.connectionClose(connID) {
 			return false
 		}
@@ -408,17 +419,15 @@ func (h *Host) tryFinalizeCleanupLocked() bool {
 	if callbackToken != 0 {
 		outboundTargets.Delete(callbackToken)
 	}
-
 	serverID := h.serverID
 	if serverID != 0 {
+		h.rearmForeignSignalHandlers()
 		if !h.lib.hostShutdown(serverID) {
 			log.Printf("FfiRuntimeHost: host_shutdown did not recognize server %d", serverID)
 		}
 		h.serverID = 0
-		if h.cliEntrypoint != "" {
-			// A legacy host may restore its saved SIGCHLD action during shutdown.
-			rearmForeignSignalHandlers(h.lib.handle)
-		}
+		// A host may restore its saved SIGCHLD action during shutdown.
+		h.rearmForeignSignalHandlers()
 	}
 	return true
 }

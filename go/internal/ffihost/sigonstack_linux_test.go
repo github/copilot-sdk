@@ -38,7 +38,7 @@ func TestRearmForeignSignalHandlersAddsOnStack(t *testing.T) {
 	}
 }
 
-func TestHostStartRearmsSignalHandlersAfterConnectionOpen(t *testing.T) {
+func TestHostRearmsSignalHandlersAroundNativeOperations(t *testing.T) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGUSR1)
 	defer signal.Stop(signals)
@@ -63,8 +63,18 @@ func TestHostStartRearmsSignalHandlersAfterConnectionOpen(t *testing.T) {
 				}
 				return 2
 			},
-			connectionClose: func(uint32) bool { return true },
-			hostShutdown:    func(uint32) bool { return true },
+			connectionWrite: func(uint32, unsafe.Pointer, uintptr) bool {
+				assertSignalHandlerOnStack(t, "connection write")
+				return true
+			},
+			connectionClose: func(uint32) bool {
+				assertSignalHandlerOnStack(t, "connection close")
+				return true
+			},
+			hostShutdown: func(uint32) bool {
+				assertSignalHandlerOnStack(t, "host shutdown")
+				return true
+			},
 		},
 		recv: newReceiveBuffer(),
 	}
@@ -79,5 +89,30 @@ func TestHostStartRearmsSignalHandlersAfterConnectionOpen(t *testing.T) {
 	}
 	if rearmed.flags&linuxSaOnStack == 0 {
 		t.Fatal("SA_ONSTACK was not restored after connection initialization")
+	}
+
+	withoutOnStack := original
+	withoutOnStack.flags &^= linuxSaOnStack
+	if !linuxSetSigaction(int(syscall.SIGUSR1), &withoutOnStack) {
+		t.Fatal("failed to clear SA_ONSTACK before connection write")
+	}
+	if _, err := host.writeFrame([]byte("request")); err != nil {
+		t.Fatal(err)
+	}
+
+	if !linuxSetSigaction(int(syscall.SIGUSR1), &withoutOnStack) {
+		t.Fatal("failed to clear SA_ONSTACK before disposal")
+	}
+	host.Dispose()
+}
+
+func assertSignalHandlerOnStack(t *testing.T, operation string) {
+	t.Helper()
+	var action linuxSigaction
+	if !linuxGetSigaction(int(syscall.SIGUSR1), &action) {
+		t.Fatalf("failed to read SIGUSR1 action before %s", operation)
+	}
+	if action.flags&linuxSaOnStack == 0 {
+		t.Fatalf("SA_ONSTACK was not restored before %s", operation)
 	}
 }

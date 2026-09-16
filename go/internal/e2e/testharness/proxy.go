@@ -130,6 +130,8 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 		p.proxyURL = ""
 	}()
 
+	PrepareForProcessWait()
+
 	// Send stop request to the server
 	if p.proxyURL != "" {
 		stopURL := p.proxyURL + "/stop"
