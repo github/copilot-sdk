@@ -6022,25 +6022,11 @@ async fn create_session_pair_with_hooks(
 
 #[tokio::test]
 async fn hooks_invoke_dispatches_to_session_hooks() {
-    use github_copilot_sdk::hooks::{
-        HookEvent, HookOutput, HookResponseSent, PreToolUseOutput, SessionHooks,
-    };
+    use github_copilot_sdk::hooks::{HookEvent, HookOutput, PreToolUseOutput, SessionHooks};
 
-    struct PolicyHooks {
-        invoked: tokio::sync::mpsc::UnboundedSender<(SessionId, u64)>,
-        response_sent: tokio::sync::mpsc::UnboundedSender<HookResponseSent>,
-    }
+    struct PolicyHooks;
     #[async_trait]
     impl SessionHooks for PolicyHooks {
-        async fn on_hook_with_request_id(&self, event: HookEvent, request_id: u64) -> HookOutput {
-            if let HookEvent::PreToolUse { ctx, .. } = &event {
-                self.invoked
-                    .send((ctx.session_id.clone(), request_id))
-                    .unwrap();
-            }
-            self.on_hook(event).await
-        }
-
         async fn on_hook(&self, event: HookEvent) -> HookOutput {
             match event {
                 HookEvent::PreToolUse { input, .. } => {
@@ -6057,20 +6043,9 @@ async fn hooks_invoke_dispatches_to_session_hooks() {
                 _ => HookOutput::None,
             }
         }
-
-        async fn on_hook_response_sent(&self, response: HookResponseSent) {
-            self.response_sent.send(response).unwrap();
-        }
     }
 
-    let (response_sent_tx, mut response_sent_rx) =
-        tokio::sync::mpsc::unbounded_channel::<HookResponseSent>();
-    let (invoked_tx, mut invoked_rx) = tokio::sync::mpsc::unbounded_channel();
-    let (_session, mut server) = create_session_pair_with_hooks(Arc::new(PolicyHooks {
-        invoked: invoked_tx,
-        response_sent: response_sent_tx,
-    }))
-    .await;
+    let (_session, mut server) = create_session_pair_with_hooks(Arc::new(PolicyHooks)).await;
 
     // Send a hooks.invoke request for a denied tool
     server
@@ -6098,84 +6073,6 @@ async fn hooks_invoke_dispatches_to_session_hooks() {
         response["result"]["output"]["permissionDecisionReason"],
         "destructive"
     );
-    let response_sent = timeout(TIMEOUT, response_sent_rx.recv())
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(response_sent.request_id, 300);
-    assert_eq!(response_sent.hook_type, "preToolUse");
-    assert_eq!(response_sent.session_id.as_str(), server.session_id);
-    let invoked = timeout(TIMEOUT, invoked_rx.recv()).await.unwrap().unwrap();
-    assert_eq!(
-        invoked,
-        (response_sent.session_id, response_sent.request_id)
-    );
-}
-
-#[test]
-fn hooks_context_supports_legacy_literal_and_exhaustive_pattern() {
-    use github_copilot_sdk::hooks::HookContext;
-
-    let context = HookContext {
-        session_id: SessionId::from("legacy-session"),
-    };
-    let HookContext { session_id } = context;
-    assert_eq!(session_id.as_str(), "legacy-session");
-}
-
-#[tokio::test]
-async fn hooks_response_sent_is_not_called_when_write_fails() {
-    use github_copilot_sdk::hooks::{HookEvent, HookOutput, HookResponseSent, SessionHooks};
-
-    struct GatedHooks {
-        entered: Notify,
-        release: Notify,
-        response_sent: tokio::sync::mpsc::UnboundedSender<HookResponseSent>,
-    }
-
-    #[async_trait]
-    impl SessionHooks for GatedHooks {
-        async fn on_hook(&self, _event: HookEvent) -> HookOutput {
-            self.entered.notify_one();
-            self.release.notified().await;
-            HookOutput::None
-        }
-
-        async fn on_hook_response_sent(&self, response: HookResponseSent) {
-            self.response_sent.send(response).unwrap();
-        }
-    }
-
-    let (response_sent_tx, mut response_sent_rx) = tokio::sync::mpsc::unbounded_channel();
-    let hooks = Arc::new(GatedHooks {
-        entered: Notify::new(),
-        release: Notify::new(),
-        response_sent: response_sent_tx,
-    });
-    let (_session, mut server) = create_session_pair_with_hooks(hooks.clone()).await;
-    server
-        .send_request(
-            302,
-            "hooks.invoke",
-            serde_json::json!({
-                "sessionId": server.session_id,
-                "hookType": "sessionEnd",
-                "input": {
-                    "sessionId": server.session_id,
-                    "timestamp": 1234567890,
-                    "cwd": ".",
-                    "reason": "complete"
-                }
-            }),
-        )
-        .await;
-    timeout(TIMEOUT, hooks.entered.notified()).await.unwrap();
-    assert!(response_sent_rx.try_recv().is_err());
-
-    // Keep the inbound stream open, but force the response write to fail.
-    drop(server.read);
-    hooks.release.notify_one();
-    assert!(timeout(TIMEOUT, response_sent_rx.recv()).await.is_err());
 }
 
 #[tokio::test]

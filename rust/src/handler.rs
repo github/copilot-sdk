@@ -240,7 +240,7 @@ pub trait ElicitationHandler: Send + Sync + 'static {
 pub struct McpAuthRequest {
     /// Identifier for the pending MCP OAuth request.
     pub request_id: RequestId,
-    /// Stable server identity used as the configuration map key.
+    /// Display name of the MCP server that requires OAuth.
     pub server_name: String,
     /// URL of the MCP server that requires OAuth.
     pub server_url: String,

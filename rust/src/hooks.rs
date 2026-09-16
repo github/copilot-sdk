@@ -21,17 +21,6 @@ pub struct HookContext {
     pub session_id: SessionId,
 }
 
-/// Hook response that was successfully written back to the CLI.
-#[derive(Debug, Clone)]
-pub struct HookResponseSent {
-    /// The session this hook was triggered in.
-    pub session_id: SessionId,
-    /// JSON-RPC request ID for this hook invocation.
-    pub request_id: u64,
-    /// Runtime hook type, such as `userPromptSubmitted` or `preToolUse`.
-    pub hook_type: String,
-}
-
 /// Input for the `preToolUse` hook — received before a tool executes.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -523,18 +512,6 @@ impl HookOutput {
 /// sets automatically).
 #[async_trait]
 pub trait SessionHooks: Send + Sync + 'static {
-    /// Request-aware dispatch for correlating a hook invocation with
-    /// [`on_hook_response_sent`](Self::on_hook_response_sent).
-    ///
-    /// `request_id` is the JSON-RPC request ID also reported in
-    /// [`HookResponseSent::request_id`]. The default delegates to
-    /// [`on_hook`](Self::on_hook), preserving existing dispatch and per-hook
-    /// implementations. Override this method when correlation is needed,
-    /// and call `self.on_hook(event).await` to retain that dispatch.
-    async fn on_hook_with_request_id(&self, event: HookEvent, _request_id: u64) -> HookOutput {
-        self.on_hook(event).await
-    }
-
     /// Top-level dispatch. The default implementation fans out to the
     /// per-hook methods below; override this only if you want a single
     /// matching point across all hook types.
@@ -592,14 +569,6 @@ pub trait SessionHooks: Send + Sync + 'static {
                 .unwrap_or(HookOutput::None),
         }
     }
-
-    /// Called after a hook response is successfully written back to the CLI.
-    ///
-    /// This confirms transport delivery, not CLI processing. It is not called
-    /// when writing the response fails. Correlate it with
-    /// [`on_hook_with_request_id`](Self::on_hook_with_request_id) using the
-    /// response's session and request IDs.
-    async fn on_hook_response_sent(&self, _response: HookResponseSent) {}
 
     /// Called before a tool executes. Return `Some(output)` to approve/deny
     /// or modify the call, or `None` (default) to pass through unchanged.
@@ -711,20 +680,9 @@ pub trait SessionHooks: Send + Sync + 'static {
 /// Returns `Ok(Value)` shaped like `{ "output": ... }` on success.
 /// If no hook is registered ([`HookOutput::None`]), the output is an empty
 /// object: `{ "output": {} }`.
-#[cfg(test)]
-async fn dispatch_hook(
+pub(crate) async fn dispatch_hook(
     hooks: &dyn SessionHooks,
     session_id: &SessionId,
-    hook_type: &str,
-    raw_input: Value,
-) -> Result<Value, crate::Error> {
-    dispatch_hook_for_request(hooks, session_id, 0, hook_type, raw_input).await
-}
-
-pub(crate) async fn dispatch_hook_for_request(
-    hooks: &dyn SessionHooks,
-    session_id: &SessionId,
-    request_id: u64,
     hook_type: &str,
     raw_input: Value,
 ) -> Result<Value, crate::Error> {
@@ -784,7 +742,7 @@ pub(crate) async fn dispatch_hook_for_request(
     };
 
     let dispatch_start = Instant::now();
-    let output = hooks.on_hook_with_request_id(event, request_id).await;
+    let output = hooks.on_hook(event).await;
     tracing::debug!(
         elapsed_ms = dispatch_start.elapsed().as_millis(),
         session_id = %session_id,
