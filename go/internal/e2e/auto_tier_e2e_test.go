@@ -164,6 +164,9 @@ func TestAutoTierE2E(t *testing.T) {
 	})
 
 	t.Run("should restore and override fast auto tier on cold resume", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx, client := newAutoClient(t)
 		fastSession, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Model:               "auto",
@@ -287,6 +290,9 @@ func TestAutoTierE2E(t *testing.T) {
 	})
 
 	t.Run("should commit fast auto tier after successful turn", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		_, client := newAutoClient(t)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Model:               "auto",
@@ -358,6 +364,9 @@ func TestAutoTierE2E(t *testing.T) {
 	})
 
 	t.Run("should preserve effective tier when fast activation fails", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx, client := newAutoClient(t)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Model:               "auto",

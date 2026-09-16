@@ -280,6 +280,11 @@ func (h *Host) Start() error {
 		h.serverID = 0
 		return fmt.Errorf("copilot_runtime_connection_open failed")
 	}
+	if h.cliEntrypoint != "" {
+		// Connection initialization may install libuv's SIGCHLD handler after
+		// host startup, so repair it again before any child process can exit.
+		rearmForeignSignalHandlers(h.lib.handle)
+	}
 	return nil
 }
 
