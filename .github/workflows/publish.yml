@@ -1025,24 +1025,6 @@ jobs:
         run: |
           node nodejs/scripts/npm-release.js publish-manifest \
             dist/release-manifest.json dist "${{ inputs.dist-tag }}" "$FEED_URL" azure
-      - name: Clean install and package version check
-        env:
-          SDK_VERSION: ${{ needs.runtime-plan.outputs.sdk_version }}
-        run: |
-          VERIFY_ROOT="$RUNNER_TEMP/sdk-${{ inputs.dist-tag }}-verification"
-          mkdir -p "$VERIFY_ROOT"
-          cd "$VERIFY_ROOT"
-          npm init -y >/dev/null
-          printf '%s\n' "@github:registry=${FEED_URL}" >> "$HOME/.npmrc"
-          npm install --ignore-scripts "@github/copilot-sdk@${SDK_VERSION}"
-          node -e '
-            const expected = process.argv[1];
-            const umbrella = require("./node_modules/@github/copilot-sdk/package.json");
-            const platform = require("./node_modules/@github/copilot-sdk-linux-x64/package.json");
-            if (umbrella.version !== expected || platform.version !== expected) {
-              throw new Error(`Installed SDK package version mismatch: ${umbrella.version}/${platform.version}, expected ${expected}`);
-            }
-          ' "$SDK_VERSION"
 
   runtime-publish-public:
     name: Publish SDK publicly

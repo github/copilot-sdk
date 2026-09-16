@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { assertVersionAbsent, publishManifest, publishTarball } from "../scripts/npm-release.js";
 
@@ -87,6 +88,12 @@ describe("npm release publishing", () => {
             "npm error network timeout while parsing \"already contains file 'package.tgz' in package '@github/copilot-sdk/1.2.3'\"",
             "azure",
         ],
+        ["a public conflict from Azure", "npm error code EPUBLISHCONFLICT", "azure"],
+        [
+            "an Azure conflict from public npm",
+            "npm error 403 https://pkgs.dev.azure.com/example - The feed 'copilot-canary' already contains file 'package.tgz' in package '@github/copilot-sdk'.",
+            "public",
+        ],
         ["an unrelated npm failure", "npm error E500", "public"],
     ])("rejects %s", async (_name, error, mode) => {
         const runner = vi.fn().mockResolvedValue(result(1, "", error));
@@ -95,7 +102,7 @@ describe("npm release publishing", () => {
         ).rejects.toThrow("npm publish failed");
     });
 
-    it("validates all packages, publishes platforms before the umbrella, and tags last", async () => {
+    it("validates locally and publishes nine exact tarballs sequentially with the umbrella last", async () => {
         const directory = mkdtempSync(join(tmpdir(), "copilot-sdk-npm-release-"));
         mkdirSync(directory, { recursive: true });
         const packages = [
@@ -127,89 +134,75 @@ describe("npm release publishing", () => {
             JSON.stringify({ schemaVersion: 1, sdk: { version }, packages })
         );
         const calls: string[][] = [];
+        let activePublishes = 0;
+        let maxActivePublishes = 0;
         const runner = vi.fn(async (_command: string, args: string[]) => {
             calls.push(args);
-            if (args[0] === "view") {
-                return result(0, JSON.stringify(version));
-            }
+            activePublishes++;
+            maxActivePublishes = Math.max(maxActivePublishes, activePublishes);
+            await Promise.resolve();
+            activePublishes--;
             return result(0);
         });
 
         try {
             await publishManifest(manifestPath, directory, "unstable", registry, "public", runner);
-            const publishCalls = calls.filter((args) => args[0] === "publish");
-            expect(publishCalls).toHaveLength(9);
-            expect(publishCalls.at(-1)?.[1]).toContain("package-0.tgz");
-            expect(calls.filter((args) => args[0] === "dist-tag")).toHaveLength(0);
-            expect(calls.some((args) => args.includes("dist.integrity"))).toBe(false);
+            expect(calls).toHaveLength(9);
+            expect(calls.every((args) => args[0] === "publish")).toBe(true);
+            expect(calls.map((args) => args[1])).toEqual([
+                ...packages.slice(1).map(({ filename }) => resolve(directory, filename)),
+                resolve(directory, packages[0].filename),
+            ]);
+            expect(maxActivePublishes).toBe(1);
 
-            const staleTagRunner = vi.fn(async (_command: string, args: string[]) => {
-                const name = args[1].slice(0, args[1].lastIndexOf("@"));
-                const packed = packages.find((candidate) => candidate.name === name)!;
-                return result(
-                    0,
-                    JSON.stringify(args[2] === "version" ? "9.0.0-unstable.1" : packed.integrity)
-                );
-            });
+            writeFileSync(join(directory, packages[1].filename), "tampered");
+            runner.mockClear();
             await expect(
-                publishManifest(
-                    manifestPath,
-                    directory,
-                    "unstable",
-                    registry,
-                    "public",
-                    staleTagRunner
-                )
-            ).rejects.toThrow("refusing to rewind");
-            await expect(
-                publishManifest(
-                    manifestPath,
-                    directory,
-                    "unstable",
-                    registry,
-                    "azure",
-                    staleTagRunner
-                )
-            ).rejects.toThrow("refusing to rewind");
-            const azureConflictRunner = vi.fn(async (_command: string, args: string[]) =>
-                args[0] === "view"
-                    ? result(0, JSON.stringify(version))
-                    : result(
-                          1,
-                          "",
-                          "npm error 403 https://pkgs.dev.azure.com/example - The feed 'copilot-canary' already contains file 'package.tgz' in package '@github/copilot-sdk'."
-                      )
-            );
-            await expect(
-                publishManifest(
-                    manifestPath,
-                    directory,
-                    "unstable",
-                    registry,
-                    "azure",
-                    azureConflictRunner
-                )
-            ).resolves.toBeUndefined();
-            expect(
-                azureConflictRunner.mock.calls.some(([, args]) => args.includes("dist.integrity"))
-            ).toBe(false);
-            const missingTagRunner = vi.fn(async (_command: string, args: string[]) => {
-                return args[0] === "view"
-                    ? result(1, JSON.stringify({ error: { code: "E404" } }))
-                    : result(0);
-            });
-            await expect(
-                publishManifest(
-                    manifestPath,
-                    directory,
-                    "unstable",
-                    registry,
-                    "public",
-                    missingTagRunner
-                )
-            ).rejects.toThrow("Public trusted publishing cannot repair dist-tags");
+                publishManifest(manifestPath, directory, "unstable", registry, "public", runner)
+            ).rejects.toThrow(/Size mismatch|Integrity mismatch/);
+            expect(runner).not.toHaveBeenCalled();
         } finally {
             rmSync(directory, { recursive: true, force: true });
         }
     });
+});
+
+const workflow = readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), "../../.github/workflows/publish.yml"),
+    "utf8"
+).replaceAll("\r\n", "\n");
+
+function workflowJob(jobId: string): string {
+    const marker = `  ${jobId}:\n`;
+    const start = workflow.indexOf(marker);
+    if (start < 0) throw new Error(`Workflow job not found: ${jobId}`);
+    const rest = workflow.slice(start + marker.length);
+    const nextJob = rest.search(/^  [a-z0-9-]+:\n/m);
+    return nextJob < 0 ? rest : rest.slice(0, nextJob);
+}
+
+describe("runtime-backed npm publishing workflow", () => {
+    it.each([
+        ["runtime-package", "Build SDK packages"],
+        ["runtime-publish-internal", "Publish SDK internally"],
+        ["runtime-publish-public", "Publish SDK publicly"],
+    ])("%s uses the SDK package display name", (jobId, displayName) => {
+        expect(workflowJob(jobId)).toContain(`name: ${displayName}`);
+    });
+
+    it.each(["runtime-publish-internal", "runtime-publish-public"])(
+        "%s validates retained packages before using the shared publisher without readback or repair steps",
+        (jobId) => {
+            const job = workflowJob(jobId);
+            const validation = job.indexOf("- name: Validate retained release");
+            const publication = job.indexOf("npm-release.js publish-manifest");
+
+            expect(validation).toBeGreaterThanOrEqual(0);
+            expect(publication).toBeGreaterThan(validation);
+            expect(job).not.toMatch(/\bnpm\s+view\b/);
+            expect(job).not.toMatch(/\bnpm\s+dist-tag\b/);
+            expect(job).not.toContain('npm install --ignore-scripts "@github/copilot-sdk@');
+            expect(job).not.toContain("Clean install and package version check");
+        }
+    );
 });

@@ -78,7 +78,8 @@ export async function publishTarball(tarball, tag, registry, mode, runner = runC
     }
 
     const output = `${result.stdout}\n${result.stderr}`;
-    if (PUBLIC_CONFLICT.test(output) || (mode === "azure" && AZURE_CONFLICT.test(output))) {
+    const conflict = mode === "public" ? PUBLIC_CONFLICT : AZURE_CONFLICT;
+    if (conflict.test(output)) {
         const subject =
             identity?.name && identity?.version
                 ? `${identity.name}@${identity.version}`
@@ -117,41 +118,8 @@ export async function publishManifest(
             return left.name.localeCompare(right.name);
         });
 
-    const semver = await import("semver");
-    for (const packed of packages) {
-        const taggedVersion = await getRegistryVersion(packed.name, tag, registry, runner);
-        if (taggedVersion !== undefined && semver.gt(taggedVersion, packed.version)) {
-            throw new Error(
-                `${packed.name}@${tag} already points to newer version ${taggedVersion}; refusing to rewind it to ${packed.version}.`
-            );
-        }
-    }
     for (const packed of packages) {
         await publishTarball(packed.tarball, tag, registry, mode, runner, packed);
-    }
-    for (const packed of packages) {
-        const taggedVersion = await getRegistryVersion(packed.name, tag, registry, runner);
-        if (taggedVersion === packed.version) {
-            continue;
-        }
-        if (mode === "public") {
-            throw new Error(
-                `${packed.name}@${tag} resolves to ${taggedVersion ?? "no version"}, expected ${packed.version}. Public trusted publishing cannot repair dist-tags.`
-            );
-        }
-        if (taggedVersion !== undefined && semver.gt(taggedVersion, packed.version)) {
-            throw new Error(
-                `${packed.name}@${tag} advanced to newer version ${taggedVersion}; refusing to rewind it to ${packed.version}.`
-            );
-        }
-        const result = await runner(
-            "npm",
-            ["dist-tag", "add", `${packed.name}@${packed.version}`, tag, "--registry", registry],
-            { stream: true }
-        );
-        if (result.status !== 0) {
-            throw new Error(`Failed to set ${packed.name}@${packed.version} dist-tag ${tag}.`);
-        }
     }
 }
 
