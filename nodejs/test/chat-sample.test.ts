@@ -71,7 +71,7 @@ async function createLogPath() {
     return join(directory, "events.jsonl");
 }
 
-async function runWithInput(text: string, eventsFile?: string) {
+async function runWithInput(text: string, eventsFile?: string, enableHydraFusion = false) {
     const logPath = eventsFile ?? (await createLogPath());
     const input = new PassThrough();
     const output = new PassThrough();
@@ -80,7 +80,7 @@ async function runWithInput(text: string, eventsFile?: string) {
     output.on("data", (chunk: string) => {
         transcript += chunk;
     });
-    const running = runChat(input, output, logPath);
+    const running = runChat(input, output, logPath, enableHydraFusion);
     input.end(text);
     try {
         await running;
@@ -163,6 +163,89 @@ describe("chat sample", () => {
         expect(mocks.setModel).toHaveBeenCalledExactlyOnceWith("hydrafusion");
         expect(mocks.createSession).toHaveBeenCalledOnce();
         expect(mocks.sendAndWait).not.toHaveBeenCalled();
+    });
+
+    it("opts into Fusion in the child environment and session, without changing the host environment", async () => {
+        const originalEnv = { ...process.env };
+        await runWithInput("1\n/model hydrafusion\n/exit\n", undefined, true);
+
+        const env = mocks.construct.mock.calls[0][0].env;
+        expect(env?.HYDRAFUSION).toBe("true");
+        expect(env?.HYDRAFUSION_ROLLOUT).toBe("true");
+        expect(
+            Object.entries(originalEnv)
+                .filter(([key]) => key !== "HYDRAFUSION" && key !== "HYDRAFUSION_ROLLOUT")
+                .every(([key, value]) => env?.[key] === value)
+        ).toBe(true);
+        expect(mocks.createSession).toHaveBeenCalledWith(
+            expect.objectContaining({ enableExperimentalMode: true })
+        );
+        expect(mocks.setModel).toHaveBeenCalledExactlyOnceWith("hydrafusion");
+        expect(JSON.stringify(process.env) === JSON.stringify(originalEnv)).toBe(true);
+    });
+
+    it("does not override runtime feature gates without the development opt-in", async () => {
+        await runWithInput("1\n/exit\n");
+        expect(mocks.construct.mock.calls[0][0].env).toBeUndefined();
+        expect(mocks.createSession.mock.calls[0][0].enableExperimentalMode).toBeUndefined();
+    });
+
+    it("records a diagnostic when a requested Fusion turn only returns an ordinary reply", async () => {
+        const logPath = await createLogPath();
+        const transcript = await runWithInput("hydrafusion\nhello\n/exit\n", logPath);
+        expect(transcript).toContain("HydraFusion was requested but no session.fusion_completed");
+        expect(transcript).toContain("--enable-hydrafusion");
+        const records = (await readFile(logPath, "utf8"))
+            .trimEnd()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(records).toContainEqual(
+            expect.objectContaining({
+                source: "chat.diagnostic",
+                event: expect.objectContaining({ type: "fusion.not_executed" }),
+            })
+        );
+    });
+
+    it("requires a fresh Fusion completion for each turn and preserves its full payload", async () => {
+        const completed: SessionEvent = {
+            ...eventBase,
+            type: "session.fusion_completed",
+            data: {
+                fusionId: "fusion-1",
+                commitId: "commit-1",
+                syntheticModel: "hydrafusion",
+                turnId: "1",
+                pattern: "single",
+                outcome: "completed",
+                phaseCount: 1,
+                requestCount: 1,
+                finalSourceModel: "gpt-5.6-sol",
+                finalSourcePhaseId: "phase-1",
+                followUpModel: "gpt-5.6-sol",
+                degradedReason: null,
+                durationMs: 1,
+                inputTokens: 1,
+                outputTokens: 1,
+                cachedTokens: 0,
+                totalNanoAiu: 1,
+            },
+        };
+        mocks.sendAndWait.mockImplementationOnce(async () => {
+            const config: SessionConfig = mocks.createSession.mock.calls[0][0];
+            config.onEvent?.(completed);
+            return reply;
+        });
+        const logPath = await createLogPath();
+        await runWithInput("hydrafusion\nfirst\nsecond\n/exit\n", logPath, true);
+        const records = (await readFile(logPath, "utf8"))
+            .trimEnd()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(records).toContainEqual(
+            expect.objectContaining({ source: "sdk.session", event: completed })
+        );
+        expect(records.filter((record) => record.source === "chat.diagnostic")).toHaveLength(1);
     });
 
     it("keeps the runtime default on Enter and closes cleanly on EOF", async () => {

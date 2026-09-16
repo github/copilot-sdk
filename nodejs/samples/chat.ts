@@ -16,7 +16,8 @@ import { parseArgs } from "node:util";
 export async function runChat(
     input: NodeJS.ReadableStream = process.stdin,
     output: NodeJS.WritableStream = process.stdout,
-    eventsFile?: string
+    eventsFile?: string,
+    enableHydraFusion = false
 ) {
     const logPath = resolve(
         eventsFile ??
@@ -39,6 +40,10 @@ export async function runChat(
         write(`\n[${source}]\n${JSON.stringify(event, null, 2)}\n`);
     };
     const client = new CopilotClient({
+        // Session featureFlags alone do not reach every runtime admission gate.
+        env: enableHydraFusion
+            ? { ...process.env, HYDRAFUSION: "true", HYDRAFUSION_ROLLOUT: "true" }
+            : undefined,
         onGitHubTelemetry: (event) => logEvent("sdk.telemetry", event),
     });
     const unsubscribe = client.onLifecycle((event) => logEvent("sdk.lifecycle", event));
@@ -68,6 +73,11 @@ export async function runChat(
         write(
             "Full event payloads are printed and saved, including potentially sensitive tool and telemetry data.\n"
         );
+        if (enableHydraFusion) {
+            write(
+                "HydraFusion development opt-in: experimental mode and local rollout overrides enabled.\n"
+            );
+        }
         await client.start();
         const models = await client.listModels();
         const pickModel = async (current?: string, selection?: string) => {
@@ -97,12 +107,19 @@ export async function runChat(
 
         let model = await pickModel();
         if (model === null) return;
+        let fusionCompleted = false;
         const session = await client.createSession({
             model,
+            enableExperimentalMode: enableHydraFusion ? true : undefined,
             streaming: true,
             includeSubAgentStreamingEvents: true,
             onPermissionRequest: approveAll,
-            onEvent: (event) => logEvent("sdk.session", event),
+            onEvent: (event) => {
+                if (event.type === "session.fusion_completed" && !event.agentId) {
+                    fusionCompleted = true;
+                }
+                logEvent("sdk.session", event);
+            },
         });
 
         write(`\nChat with Copilot - model: ${model ?? "runtime default"}\n`);
@@ -127,7 +144,20 @@ export async function runChat(
                 continue;
             }
 
+            fusionCompleted = false;
             const reply = await session.sendAndWait({ prompt: message });
+            if (model === "hydrafusion" && !fusionCompleted) {
+                logEvent("chat.diagnostic", {
+                    type: "fusion.not_executed",
+                    requestedModel: model,
+                    message:
+                        "HydraFusion was requested but no session.fusion_completed event was received for this turn. " +
+                        "An assistant reply alone does not prove Fusion ran; the runtime may have selected a concrete fallback. " +
+                        (enableHydraFusion
+                            ? "Inspect model_resolution_info and session errors for admission or constituent availability failures."
+                            : "Restart with --enable-hydrafusion to enable the local development gates."),
+                });
+            }
             if (reply) write(`\nAssistant: ${reply.data.content}\n\n`);
         }
     } catch (error) {
@@ -150,18 +180,25 @@ async function main() {
     const { values } = parseArgs({
         options: {
             "events-file": { type: "string" },
+            "enable-hydrafusion": { type: "boolean" },
             help: { type: "boolean", short: "h" },
         },
     });
     if (values.help) {
         console.log(
-            "Usage: npx tsx chat.ts [--events-file <new-file.jsonl>]\n" +
+            "Usage: npx tsx chat.ts [--events-file <new-file.jsonl>] [--enable-hydrafusion]\n" +
                 "Defaults to a unique file in nodejs\\logs. Existing files are never overwritten.\n" +
-                "Each line contains receivedAt, source, and the complete event payload."
+                "Each line contains receivedAt, source, and the complete event payload.\n" +
+                "--enable-hydrafusion enables experimental mode and Fusion rollout overrides for the spawned runtime."
         );
         return;
     }
-    await runChat(process.stdin, process.stdout, values["events-file"]);
+    await runChat(
+        process.stdin,
+        process.stdout,
+        values["events-file"],
+        values["enable-hydrafusion"]
+    );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
