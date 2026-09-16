@@ -2,6 +2,7 @@ package testharness
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,21 +58,7 @@ type TestContext struct {
 
 	proxy *CapiProxy
 
-	// In-process transport state. When the inprocess CI matrix cell is active the
-	// worker inherits this process's ambient env and cwd (per-client env/working
-	// directory are rejected in-process), so the isolated test env/cwd are mirrored
-	// onto the real process and restored on Close.
-	inProcess  bool
-	restoreEnv []envRestore
-	restoreCwd string
-}
-
-// envRestore captures a single environment variable's prior value so the
-// in-process ambient mirror can be undone during teardown.
-type envRestore struct {
-	key  string
-	prev string
-	had  bool
+	inProcess bool
 }
 
 // isInProcessTransport reports whether the in-process (FFI) transport is selected
@@ -175,15 +162,7 @@ func NewTestContext(t *testing.T) *TestContext {
 		os.RemoveAll(workDir)
 		t.Fatalf("Failed to initialize proxy: %v", err)
 	}
-	if err := proxy.SetCopilotUserByToken(defaultGitHubToken, map[string]interface{}{
-		"login":        "e2e-test-user",
-		"copilot_plan": "individual_pro",
-		"endpoints": map[string]interface{}{
-			"api":       proxyURL,
-			"telemetry": "https://localhost:1/telemetry",
-		},
-		"analytics_tracking_id": "e2e-test-tracking-id",
-	}); err != nil {
+	if err := proxy.SetCopilotUserByToken(defaultGitHubToken, defaultCopilotUser(proxyURL)); err != nil {
 		if stopErr := proxy.StopWithOptions(true); stopErr != nil {
 			t.Logf("Failed to stop proxy after configuration error: %v", stopErr)
 		}
@@ -208,6 +187,18 @@ func NewTestContext(t *testing.T) *TestContext {
 	})
 
 	return ctx
+}
+
+func defaultCopilotUser(proxyURL string) map[string]interface{} {
+	return map[string]interface{}{
+		"login":        "e2e-test-user",
+		"copilot_plan": "individual_pro",
+		"endpoints": map[string]interface{}{
+			"api":       proxyURL,
+			"telemetry": "https://localhost:1/telemetry",
+		},
+		"analytics_tracking_id": "e2e-test-tracking-id",
+	}
 }
 
 // ConfigureForTest configures the proxy for a specific subtest.
@@ -274,7 +265,6 @@ func (c *TestContext) Close(testFailed bool) error {
 			return err
 		}
 	}
-	c.restoreInProcessEnvironment()
 	var proxyErr error
 	if c.proxy != nil {
 		if err := c.proxy.StopWithOptions(testFailed); err != nil {
@@ -290,20 +280,25 @@ func (c *TestContext) Close(testFailed bool) error {
 	return proxyErr
 }
 
-// applyInProcessEnvironment mirrors the isolated test environment onto the real
-// process for in-process hosting: the worker inherits this process's env and cwd
-// at spawn, so per-test redirects must live on os.Environ and the process cwd.
-// Auth flows via GH_TOKEN/GITHUB_TOKEN (the FFI argv omits the stdio auth-token
-// wiring); the ambient HMAC signing key is removed process-wide at package load
-// (see init) so host-side auth matches the replay snapshots. mergedEnv is the
-// effective per-client env (harness defaults plus any per-test additions); workDir
-// is the effective working directory. Values are restored in Close. Safe to call
-// more than once (restores unwind in reverse).
-func (c *TestContext) applyInProcessEnvironment(mergedEnv []string, workDir string) {
+var inProcessEnvironment struct {
+	sync.Mutex
+	initialized bool
+	values      map[string]string
+	workDir     string
+}
+
+// initializeInProcessEnvironment configures the fresh test worker before its
+// first native host starts. The environment and working directory are never
+// changed again because native threads may continue reading either after a host
+// is disposed.
+func (c *TestContext) initializeInProcessEnvironment(mergedEnv []string, workDir string) {
 	inprocessEnv := map[string]string{}
 	for _, kv := range mergedEnv {
 		if key, value, ok := strings.Cut(kv, "="); ok {
-			inprocessEnv[key] = value
+			key = normalizedEnvironmentKey(key)
+			if key != "" {
+				inprocessEnv[key] = value
+			}
 		}
 	}
 	// Auth flows via GH_TOKEN/GITHUB_TOKEN for the in-process host, overriding any
@@ -314,36 +309,35 @@ func (c *TestContext) applyInProcessEnvironment(mergedEnv []string, workDir stri
 	delete(inprocessEnv, "COPILOT_HMAC_KEY")
 	delete(inprocessEnv, "CAPI_HMAC_KEY")
 
+	inProcessEnvironment.Lock()
+	defer inProcessEnvironment.Unlock()
+	if inProcessEnvironment.initialized {
+		if !maps.Equal(inProcessEnvironment.values, inprocessEnv) || inProcessEnvironment.workDir != workDir {
+			panic("in-process E2E environment changed after native startup; run the test context in a fresh process")
+		}
+		return
+	}
+
 	for key, value := range inprocessEnv {
-		prev, had := os.LookupEnv(key)
-		c.restoreEnv = append(c.restoreEnv, envRestore{key: key, prev: prev, had: had})
-		os.Setenv(key, value)
+		if err := os.Setenv(key, value); err != nil {
+			panic(fmt.Errorf("set in-process E2E environment variable %s: %w", key, err))
+		}
 	}
 	if workDir != "" {
-		if c.restoreCwd == "" {
-			if cwd, err := os.Getwd(); err == nil {
-				c.restoreCwd = cwd
-			}
+		if err := os.Chdir(workDir); err != nil {
+			panic(fmt.Errorf("set in-process E2E working directory: %w", err))
 		}
-		os.Chdir(workDir)
 	}
+	inProcessEnvironment.initialized = true
+	inProcessEnvironment.values = maps.Clone(inprocessEnv)
+	inProcessEnvironment.workDir = workDir
 }
 
-// restoreInProcessEnvironment undoes applyInProcessEnvironment during teardown.
-func (c *TestContext) restoreInProcessEnvironment() {
-	for i := len(c.restoreEnv) - 1; i >= 0; i-- {
-		r := c.restoreEnv[i]
-		if r.had {
-			os.Setenv(r.key, r.prev)
-		} else {
-			os.Unsetenv(r.key)
-		}
+func normalizedEnvironmentKey(key string) string {
+	if runtime.GOOS == "windows" {
+		return strings.ToUpper(key)
 	}
-	c.restoreEnv = nil
-	if c.restoreCwd != "" {
-		os.Chdir(c.restoreCwd)
-		c.restoreCwd = ""
-	}
+	return key
 }
 
 // GetExchanges retrieves the captured HTTP exchanges from the proxy.
@@ -383,6 +377,11 @@ func (c *TestContext) WaitForExchanges(t *testing.T, minimumCount int) []ParsedH
 // SetCopilotUserByToken registers a per-token user configuration on the proxy.
 func (c *TestContext) SetCopilotUserByToken(token string, response map[string]interface{}) error {
 	return c.proxy.SetCopilotUserByToken(token, response)
+}
+
+// SetDefaultCopilotUserByToken registers the standard replay user for token.
+func (c *TestContext) SetDefaultCopilotUserByToken(token string) error {
+	return c.proxy.SetCopilotUserByToken(token, defaultCopilotUser(c.ProxyURL))
 }
 
 // Env returns environment variables configured for isolated testing.
@@ -436,7 +435,7 @@ func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.C
 	// transport (TCP/URI/custom stdio) or configure per-client telemetry are left on
 	// their transport, mirroring the Node/.NET harnesses.
 	if c.inProcess && c.shouldUseInProcess(options) {
-		c.applyInProcessEnvironment(options.Env, options.WorkingDirectory)
+		c.initializeInProcessEnvironment(options.Env, options.WorkingDirectory)
 		options.Connection = copilot.InProcessConnection{}
 		options.Env = nil
 		options.WorkingDirectory = ""

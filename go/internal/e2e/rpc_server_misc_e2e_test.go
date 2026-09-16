@@ -12,21 +12,27 @@ import (
 
 func TestRpcServerMisc(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
-	sharedClient := ctx.NewClient()
-	t.Cleanup(func() { sharedClient.ForceStop() })
 
 	t.Run("should_reload_user_settings", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
-		if err := sharedClient.Start(t.Context()); err != nil {
+		client := ctx.NewClient()
+		t.Cleanup(func() { client.ForceStop() })
+		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Start failed: %v", err)
 		}
 
-		if _, err := sharedClient.RPC.User.Settings().Reload(t.Context()); err != nil {
+		if _, err := client.RPC.User.Settings().Reload(t.Context()); err != nil {
 			t.Fatalf("User.Settings.Reload failed: %v", err)
 		}
 	})
 
 	t.Run("should_get_set_and_clear_user_settings", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		client := newStartedIsolatedPortedClient(t, ctx)
 		defer client.ForceStop()
@@ -102,6 +108,9 @@ func TestRpcServerMisc(t *testing.T) {
 	})
 
 	t.Run("should_login_list_getcurrentauth_and_logout_account", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		if err := ctx.SetCopilotUserByToken("go-account-token", map[string]interface{}{
 			"login":        "go-account-user",
@@ -190,6 +199,9 @@ func TestRpcServerMisc(t *testing.T) {
 	})
 
 	t.Run("should_report_agent_registry_spawn_gate_closed", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		client := newStartedIsolatedPortedClient(t, ctx)
 		defer client.ForceStop()
@@ -207,6 +219,9 @@ func TestRpcServerMisc(t *testing.T) {
 	})
 
 	t.Run("should_shut_down_owned_runtime", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		client := newStartedPortedClient(t, ctx)
 		defer client.ForceStop()
@@ -225,6 +240,9 @@ func TestRpcServerMisc(t *testing.T) {
 	})
 
 	t.Run("should_report_not_found_when_opening_session_without_context", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		client := newStartedIsolatedPortedClient(t, ctx)
 		defer client.ForceStop()
@@ -242,8 +260,13 @@ func TestRpcServerMisc(t *testing.T) {
 	})
 
 	t.Run("should_reject_send_attachments_from_non_extension_connection", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
-		session := createPortedSession(t, sharedClient, nil)
+		client := ctx.NewClient()
+		t.Cleanup(func() { client.ForceStop() })
+		session := createPortedSession(t, client, nil)
 		defer session.Disconnect()
 
 		_, err := session.RPC.Extensions.SendAttachmentsToMessage(t.Context(), &rpc.SendAttachmentsToMessageParams{Attachments: []rpc.PushAttachment{}})

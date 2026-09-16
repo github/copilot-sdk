@@ -293,9 +293,15 @@ func TestStreamingFidelityE2E(t *testing.T) {
 	})
 
 	t.Run("should emit streaming deltas with reasoning effort configured", func(t *testing.T) {
-		reasoningCtx := testharness.NewTestContext(t)
-		reasoningCtx.ConfigureForTest(t)
-		reasoningClient := reasoningCtx.NewClient()
+		const reasoningToken = "go-streaming-reasoning-token"
+		if err := ctx.SetDefaultCopilotUserByToken(reasoningToken); err != nil {
+			t.Fatalf("Failed to configure reasoning client user: %v", err)
+		}
+		ctx.ConfigureForTest(t)
+		reasoningClient := ctx.NewClient(func(options *copilot.ClientOptions) {
+			options.BaseDirectory = t.TempDir()
+			options.GitHubToken = reasoningToken
+		})
 		t.Cleanup(func() { reasoningClient.ForceStop() })
 
 		// Verifies that setting ReasoningEffort alongside Streaming=true does not break

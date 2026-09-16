@@ -62,6 +62,9 @@ func TestAutoTierE2E(t *testing.T) {
 	}
 
 	t.Run("should stage and reset auto tier preference", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		session := newAutoSession(t)
 		assertNoPending(t, session)
 
@@ -107,6 +110,9 @@ func TestAutoTierE2E(t *testing.T) {
 	})
 
 	t.Run("should preserve auto tier when set model omits it", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		session := newAutoSession(t)
 
 		if _, err := session.SetAutoTier(t.Context(), autoTier(copilot.AutoTierBalance)); err != nil {
