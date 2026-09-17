@@ -47,7 +47,7 @@ public record SessionOpenOptions(
     @JsonProperty("integrationId") String integrationId,
     /** ExP assignment ('flight') data injected by an SDK integrator, in the same JSON shape the Copilot CLI fetches from the experimentation service (CopilotExpAssignmentResponse). When supplied this is fed into the FeatureFlagService exactly like CLI-fetched assignments and ExP-backed flags wait for it. When absent the session does not block on ExP. */
     @JsonProperty("expAssignments") Object expAssignments,
-    /** Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap. */
+    /** Opt-in: self-fetch and enforce enterprise managed settings, including managed hook policies, at session bootstrap. */
     @JsonProperty("enableManagedSettings") Boolean enableManagedSettings,
     /** Permissions-only enterprise policy injected by the SDK host at session create or resume. Composes restrictively with self-fetched and device policy and is not persisted. */
     @JsonProperty("managedSettings") SessionManagedSettings managedSettings,
@@ -109,6 +109,8 @@ public record SessionOpenOptions(
     @JsonProperty("envValueMode") SessionOpenOptionsEnvValueMode envValueMode,
     /** MCP server names disabled for this session. Disabled servers are not started or authenticated on create or cold resume. */
     @JsonProperty("disabledMcpServers") List<String> disabledMcpServers,
+    /** Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed provenance is runtime-established from this separate field and credentials are supplied through dynamic-header refresh. */
+    @JsonProperty("managedMcpServers") Map<String, ManagedMcpServerConfig> managedMcpServers,
     /** Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers. */
     @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
     /** Additional directories to search for skills. */
@@ -127,6 +129,8 @@ public record SessionOpenOptions(
     @JsonProperty("customAgentsLocalOnly") Boolean customAgentsLocalOnly,
     /** Whether to skip custom instruction sources. */
     @JsonProperty("skipCustomInstructions") Boolean skipCustomInstructions,
+    /** Whether to invalidate cached custom-instruction discovery before constructing the session. Use when instruction files may have changed earlier in the same runtime process. */
+    @JsonProperty("refreshCustomInstructions") Boolean refreshCustomInstructions,
     /** Instruction source IDs disabled for this session. */
     @JsonProperty("disabledInstructionSources") List<String> disabledInstructionSources,
     /** Whether commit-message coauthor trailers are enabled. */

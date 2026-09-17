@@ -13,6 +13,8 @@ import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 /**
  * Coverage tests for generated RPC API classes that are not exercised in
  * {@link RpcWrappersTest}. Uses the same {@link StubCaller} pattern to verify
@@ -24,7 +26,7 @@ class GeneratedRpcApiCoverageTest {
     /** A simple stub {@link RpcCaller} that records every call made to it. */
     private static final class StubCaller implements RpcCaller {
 
-        record Call(String method, Object params) {
+        record Call(String method, Object params, Class<?> resultType) {
         }
 
         final List<Call> calls = new ArrayList<>();
@@ -33,7 +35,7 @@ class GeneratedRpcApiCoverageTest {
         @Override
         @SuppressWarnings("unchecked")
         public <T> CompletableFuture<T> invoke(String method, Object params, Class<T> resultType) {
-            calls.add(new Call(method, params));
+            calls.add(new Call(method, params, resultType));
             return CompletableFuture.completedFuture((T) nextResult);
         }
     }
@@ -105,6 +107,60 @@ class GeneratedRpcApiCoverageTest {
         assertSame(params, stub.calls.get(0).params());
     }
 
+    // ── SessionRpc.model ───────────────────────────────────────────────────
+
+    @Test
+    void sessionRpc_model_setAllowedModels_merges_sessionId_and_returns_result() {
+        var stub = new StubCaller();
+        var session = new SessionRpc(stub, "sess-model-policy");
+        var allowedModels = List.of("gpt-5", "azure/gpt-5");
+        var expectedResult = new SessionModelSetAllowedModelsResult(allowedModels, List.of("gpt-5"), "gpt-5", "gpt-5");
+        stub.nextResult = expectedResult;
+        var request = new SessionModelSetAllowedModelsParams("ignored-session", allowedModels);
+
+        assertSame(expectedResult, session.model.setAllowedModels(request).join());
+
+        assertEquals(1, stub.calls.size());
+        var call = stub.calls.get(0);
+        assertEquals("session.model.setAllowedModels", call.method());
+        assertEquals(SessionModelSetAllowedModelsResult.class, call.resultType());
+        var params = assertInstanceOf(ObjectNode.class, call.params());
+        assertEquals("sess-model-policy", params.get("sessionId").asText());
+        assertEquals(2, params.get("allowedModels").size());
+        assertEquals("gpt-5", params.get("allowedModels").get(0).asText());
+        assertEquals("azure/gpt-5", params.get("allowedModels").get(1).asText());
+        assertEquals("ignored-session", request.sessionId());
+    }
+
+    @Test
+    void sessionRpc_model_setAllowedModels_omits_cleared_host_restriction() {
+        var stub = new StubCaller();
+        var session = new SessionRpc(stub, "sess-model-policy");
+
+        session.model.setAllowedModels(new SessionModelSetAllowedModelsParams(null, null)).join();
+
+        assertEquals(1, stub.calls.size());
+        assertEquals("session.model.setAllowedModels", stub.calls.get(0).method());
+        var params = assertInstanceOf(ObjectNode.class, stub.calls.get(0).params());
+        assertEquals("sess-model-policy", params.get("sessionId").asText());
+        assertFalse(params.has("allowedModels"));
+    }
+
+    @Test
+    void sessionRpc_model_setAllowedModels_preserves_explicit_empty_list() {
+        var stub = new StubCaller();
+        var session = new SessionRpc(stub, "sess-model-policy");
+
+        session.model.setAllowedModels(new SessionModelSetAllowedModelsParams(null, List.of())).join();
+
+        assertEquals(1, stub.calls.size());
+        assertEquals("session.model.setAllowedModels", stub.calls.get(0).method());
+        var params = assertInstanceOf(ObjectNode.class, stub.calls.get(0).params());
+        assertEquals("sess-model-policy", params.get("sessionId").asText());
+        assertTrue(params.get("allowedModels").isArray());
+        assertTrue(params.get("allowedModels").isEmpty());
+    }
+
     // ── SessionRpc.mode ────────────────────────────────────────────────────
 
     @Test
@@ -127,7 +183,7 @@ class GeneratedRpcApiCoverageTest {
         var session = new SessionRpc(stub, "sess-mode-set");
 
         var modeParams = new SessionModeSetParams(null, null, null, null, null, null, null, null, null, null, null,
-                null);
+                null, null);
         session.mode.set(modeParams);
 
         assertEquals(1, stub.calls.size());
@@ -229,7 +285,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-fleet");
 
-        var fleetParams = new SessionFleetStartParams(null, "fix all bugs");
+        var fleetParams = new SessionFleetStartParams(null, "fix all bugs", null, null, null);
         session.fleet.start(fleetParams);
 
         assertEquals(1, stub.calls.size());

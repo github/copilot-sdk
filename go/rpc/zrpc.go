@@ -1504,6 +1504,10 @@ type CatalogAiSkillCandidate struct {
 	// Where the card came from: exactly one of a URL or embedded data, encoded as a tagged
 	// union so neither both nor neither can be represented.
 	Source CatalogCandidateSource `json:"source"`
+	// Versioned trust metadata observed from the catalog authority. Optional for protocol-3
+	// compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits
+	// an explicit snapshot even when the authority omitted or malformed its trust field.
+	Trust CatalogTrustSnapshot `json:"trust,omitempty"`
 }
 
 func (CatalogAiSkillCandidate) catalogCandidate() {}
@@ -1538,6 +1542,10 @@ type CatalogMCPServerCandidate struct {
 	// Where the card came from: exactly one of a URL or embedded data, encoded as a tagged
 	// union so neither both nor neither can be represented.
 	Source CatalogCandidateSource `json:"source"`
+	// Versioned trust metadata observed from the catalog authority. Optional for protocol-3
+	// compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits
+	// an explicit snapshot even when the authority omitted or malformed its trust field.
+	Trust CatalogTrustSnapshot `json:"trust,omitempty"`
 }
 
 func (CatalogMCPServerCandidate) catalogCandidate() {}
@@ -1769,9 +1777,12 @@ type CatalogNegotiationRefusedError struct {
 	Reason CatalogNegotiationRefusedReason `json:"reason"`
 	// Protocol version of the runtime that refused the request.
 	RuntimeProtocolVersion int64 `json:"runtimeProtocolVersion"`
-	// Every wire feature this runtime understands, so the caller can retry within that
-	// contract. This list does not imply that every deployment has enabled every operation.
-	SupportedCapabilities []CatalogCapability `json:"supportedCapabilities"`
+	// Capabilities this runtime can safely advertise to this caller. The complete
+	// five-capability protocol-3 legacy set is always present; every capability added after
+	// that baseline appears only when the caller required it, so an older closed-enum decoder
+	// can still consume a refusal. This list does not imply that every deployment has enabled
+	// every operation.
+	SupportedCapabilities []string `json:"supportedCapabilities"`
 	// The subset of the caller's bounded extensible capability identifiers this runtime cannot
 	// honour.
 	UnsupportedCapabilities []string `json:"unsupportedCapabilities"`
@@ -1897,6 +1908,177 @@ type CatalogUnsupportedKindError struct {
 func (CatalogUnsupportedKindError) catalogSearchResult() {}
 func (CatalogUnsupportedKindError) Kind() CatalogSearchResultKind {
 	return CatalogSearchResultKindUnsupportedKind
+}
+
+// Where and when the runtime observed the trust metadata. Observation time is not the
+// authority's evaluation time and must not be used to infer staleness.
+// Experimental: CatalogTrustProvenance is part of an experimental API and may change or be
+// removed.
+type CatalogTrustProvenance struct {
+	// ISO 8601 timestamp with a timezone offset at which the runtime observed the search result
+	// carrying this trust field.
+	ObservedAt time.Time `json:"observedAt"`
+	// Bounded authority that supplied the trust field.
+	Source CatalogTrustSource `json:"source"`
+}
+
+// A versioned, bounded trust observation carried unchanged with a catalog candidate and its
+// private handle context. Current observations require a recognised T1/T2 tier; every
+// non-current state structurally forbids a tier. Eligibility remains `unknown` while Agent
+// Finder supplies no exposure decision, and states absent from its current wire are never
+// inferred from age, relevance, popularity, or a tier transition.
+// Experimental: CatalogTrustSnapshot is part of an experimental API and may change or be
+// removed.
+type CatalogTrustSnapshot interface {
+	catalogTrustSnapshot()
+	SchemaVersion() CatalogTrustSnapshotSchemaVersion
+}
+
+type RawCatalogTrustSnapshotData struct {
+	Discriminator CatalogTrustSnapshotSchemaVersion
+	Raw           json.RawMessage
+}
+
+func (RawCatalogTrustSnapshotData) catalogTrustSnapshot() {}
+func (r RawCatalogTrustSnapshotData) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return r.Discriminator
+}
+
+// Discriminator: the authority omitted trust metadata.
+// Experimental: CatalogTrustSnapshotAbsent is part of an experimental API and may change or
+// be removed.
+type CatalogTrustSnapshotAbsent struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the authority omitted trust metadata.
+	Status CatalogTrustSnapshotAbsentStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotAbsent) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotAbsent) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// A recognised current Agent Finder T1 or T2 trust tier.
+// Experimental: CatalogTrustSnapshotCurrent is part of an experimental API and may change
+// or be removed.
+type CatalogTrustSnapshotCurrent struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: a recognised current trust tier was observed.
+	Status CatalogTrustSnapshotCurrentStatus `json:"status"`
+	// Service-computed T1 or T2 trust tier.
+	Tier CatalogTrustTier `json:"tier"`
+}
+
+func (CatalogTrustSnapshotCurrent) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotCurrent) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// Discriminator: the authority explicitly reported a downgraded assessment.
+// Experimental: CatalogTrustSnapshotDowngraded is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotDowngraded struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the authority explicitly reported a downgraded assessment.
+	Status CatalogTrustSnapshotDowngradedStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotDowngraded) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotDowngraded) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+// Experimental: CatalogTrustSnapshotMalformed is part of an experimental API and may change
+// or be removed.
+type CatalogTrustSnapshotMalformed struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+	Status CatalogTrustSnapshotMalformedStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotMalformed) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotMalformed) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// Discriminator: the authority explicitly revoked the assessment.
+// Experimental: CatalogTrustSnapshotRevoked is part of an experimental API and may change
+// or be removed.
+type CatalogTrustSnapshotRevoked struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the authority explicitly revoked the assessment.
+	Status CatalogTrustSnapshotRevokedStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotRevoked) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotRevoked) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// Discriminator: the authority explicitly marked the assessment stale.
+// Experimental: CatalogTrustSnapshotStale is part of an experimental API and may change or
+// be removed.
+type CatalogTrustSnapshotStale struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the authority explicitly marked the assessment stale.
+	Status CatalogTrustSnapshotStaleStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotStale) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotStale) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
+}
+
+// Discriminator: the authority supplied a bounded trust value this runtime does not
+// understand.
+// Experimental: CatalogTrustSnapshotUnsupported is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotUnsupported struct {
+	// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns
+	// no explicit eligibility field.
+	Eligibility CatalogTrustEligibility `json:"eligibility"`
+	// Bounded source and observation time for this snapshot. This is distinct from evidence
+	// used by the authority to calculate trust.
+	Provenance CatalogTrustProvenance `json:"provenance"`
+	// Discriminator: the authority supplied a bounded trust value this runtime does not
+	// understand.
+	Status CatalogTrustSnapshotUnsupportedStatus `json:"status"`
+}
+
+func (CatalogTrustSnapshotUnsupported) catalogTrustSnapshot() {}
+func (CatalogTrustSnapshotUnsupported) SchemaVersion() CatalogTrustSnapshotSchemaVersion {
+	return CatalogTrustSnapshotSchemaVersionV1
 }
 
 // Client-owned, case-sensitive string metadata persisted with a local session. Clients
@@ -2264,7 +2446,7 @@ type CopilotUserResponse struct {
 	Login *string `json:"login,omitempty"`
 	// Per-category monthly quota allotments, keyed by quota category.
 	MonthlyQuotas map[string]float64 `json:"monthly_quotas,omitzero"`
-	// Organizations the user belongs to, each with an optional login and display name.
+	// Organizations the user belongs to, each with an optional ID, login, and display name.
 	OrganizationList []CopilotUserResponseOrganizationListItem `json:"organization_list,omitzero"`
 	// Logins of the organizations the user belongs to.
 	OrganizationLoginList []string `json:"organization_login_list,omitzero"`
@@ -2303,6 +2485,8 @@ type CopilotUserResponseEndpoints struct {
 }
 
 type CopilotUserResponseOrganizationListItem struct {
+	// Numeric database ID of the organization.
+	ID *float64 `json:"id,omitempty"`
 	// GitHub login of the organization.
 	Login *string `json:"login,omitempty"`
 	// Display name of the organization.
@@ -2471,7 +2655,7 @@ type CurrentToolMetadata struct {
 	NamespacedName *string `json:"namespacedName,omitempty"`
 }
 
-// A file included in the redacted debug bundle.
+// A file included in the session debug bundle.
 // Experimental: DebugCollectLogsCollectedEntry is part of an experimental API and may
 // change or be removed.
 type DebugCollectLogsCollectedEntry struct {
@@ -2483,7 +2667,7 @@ type DebugCollectLogsCollectedEntry struct {
 	Source DebugCollectLogsSource `json:"source"`
 }
 
-// Destination for the redacted debug bundle.
+// Destination for the session debug bundle.
 // Experimental: DebugCollectLogsDestination is part of an experimental API and may change
 // or be removed.
 type DebugCollectLogsDestination interface {
@@ -2515,7 +2699,7 @@ func (DebugCollectLogsDestinationArchive) Kind() DebugCollectLogsDestinationKind
 }
 
 type DebugCollectLogsDestinationDirectory struct {
-	// Directory where redacted files should be staged. The directory is created if needed.
+	// Directory where files should be staged. The directory is created if needed.
 	OutputDirectory string `json:"outputDirectory"`
 }
 
@@ -2534,7 +2718,9 @@ type DebugCollectLogsEntry struct {
 	Kind DebugCollectLogsEntryKind `json:"kind"`
 	// Server-local source path to read.
 	Path string `json:"path"`
-	// How text content from this entry should be redacted. Defaults to plain-text.
+	// How text content from this entry should be redacted. Defaults to plain-text. With none,
+	// no redaction is applied; the caller must ensure any necessary redaction is performed
+	// before this call.
 	Redaction *DebugCollectLogsRedaction `json:"redaction,omitempty"`
 	// When true, collection fails if this entry cannot be read. Defaults to false, which
 	// records the entry in `skippedEntries`.
@@ -2565,7 +2751,7 @@ type DebugCollectLogsInclude struct {
 	ShellLogs *bool `json:"shellLogs,omitempty"`
 }
 
-// Options for collecting a redacted session debug bundle.
+// Options for collecting a session debug bundle with configurable redaction.
 // Experimental: DebugCollectLogsRequest is part of an experimental API and may change or be
 // removed.
 type DebugCollectLogsRequest struct {
@@ -2573,18 +2759,18 @@ type DebugCollectLogsRequest struct {
 	// built-in session diagnostics. This lets host applications add their own diagnostics
 	// without changing the API shape.
 	AdditionalEntries []DebugCollectLogsEntry `json:"additionalEntries,omitzero"`
-	// Where the redacted bundle should be written. Use `archive` to produce a .tgz, or
-	// `directory` to stage redacted files for caller-managed upload/post-processing.
+	// Where the bundle should be written. Use `archive` to produce a .tgz, or `directory` to
+	// stage files for caller-managed upload/post-processing.
 	Destination DebugCollectLogsDestination `json:"destination"`
 	// Which built-in session diagnostics to include. Omitted fields default to true.
 	Include *DebugCollectLogsInclude `json:"include,omitempty"`
 }
 
-// Result of collecting a redacted debug bundle.
+// Result of collecting a session debug bundle.
 // Experimental: DebugCollectLogsResult is part of an experimental API and may change or be
 // removed.
 type DebugCollectLogsResult struct {
-	// Files included in the redacted bundle.
+	// Files included in the bundle.
 	Entries []DebugCollectLogsCollectedEntry `json:"entries"`
 	// Destination kind that was written.
 	Kind DebugCollectLogsResultKind `json:"kind"`
@@ -2841,16 +3027,14 @@ type EventsReadResult struct {
 	// backward read this cursor pages toward OLDER events; keep passing `direction: backward`
 	// with it (the cursor is also self-describing, so backward paging continues correctly).
 	Cursor string `json:"cursor"`
-	// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor
-	// referred to an event that no longer exists in history (e.g. truncated or compacted away)
-	// and the read fell back to a boundary of the remaining history. For a forward read the
-	// fallback starts from the beginning of the remaining history; for a backward read it falls
-	// back to the tail (the newest window). Because the fallback page is a fresh boundary
-	// snapshot rather than a continuation of the requested cursor, it may overlap events the
-	// consumer has already rendered — a backward fallback to the tail in particular can repeat
-	// the newest window. On 'expired', consumers should reset or rebase their local pagination
-	// state (or deduplicate by event id) before continuing from the returned cursor rather than
-	// blindly appending/prepending the fallback page.
+	// Cursor status: 'ok' means the cursor was applied successfully. For session.eventLog.read,
+	// 'expired' means the cursor referred to an event that no longer exists in active history
+	// and the read fell back to a boundary of the remaining history: the beginning for a
+	// forward read or the newest window for a backward read. That fallback may overlap already
+	// rendered events, so active-session consumers should reset, rebase, or deduplicate before
+	// continuing. sessions.readPersistedEvents has stricter snapshot semantics: 'expired'
+	// returns an empty terminal page and never switches to a replacement journal generation.
+	// Other persisted-read I/O failures are RPC errors with diagnostics, not cursor expiry.
 	CursorStatus EventsCursorStatus `json:"cursorStatus"`
 	// Session events for this batch, merged into a single stream in creation order: durable
 	// (persisted) events and ephemeral events interleave exactly as they were emitted. Set
@@ -2859,9 +3043,10 @@ type EventsReadResult struct {
 	// reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window
 	// contains persisted events only, still in chronological (oldest-to-newest) append order.
 	Events []SessionEvent `json:"events"`
-	// True when more events are available in the read's direction. For a forward read, true
-	// means the batch returned `max` events and more are available immediately. For a backward
-	// read, true means older persisted events remain before the returned window.
+	// True when more events are available in the read's direction. For a backward read, true
+	// means older persisted events remain before the returned window. A persisted-event page
+	// may contain fewer than `max` events because of its byte budget while still reporting
+	// hasMore true; continue according to this flag rather than the event count.
 	HasMore bool `json:"hasMore"`
 }
 
@@ -3965,12 +4150,24 @@ type FilterMappingEnumMap map[string]ContentFilterMode
 
 func (FilterMappingEnumMap) filterMapping() {}
 
-// Optional user prompt to combine with the fleet orchestration instructions.
+// Parameters for starting fleet orchestration: an optional user prompt combined with the
+// fleet instructions, plus the send options forwarded to the resulting turn.
 // Experimental: FleetStartRequest is part of an experimental API and may change or be
 // removed.
 type FleetStartRequest struct {
+	// Optional attachments (files, directories, selections, blobs, GitHub references) to
+	// include with the fleet request
+	Attachments []Attachment `json:"attachments,omitzero"`
+	// If false, this request will not trigger a Premium Request Unit charge. User requests
+	// default to billable.
+	// Internal: Billable is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Billable *bool `json:"billable,omitempty"`
 	// Optional user prompt to combine with fleet instructions
 	Prompt *string `json:"prompt,omitempty"`
+	// If true, await completion of the agentic loop for this fleet request before returning.
+	// Defaults to false.
+	Wait *bool `json:"wait,omitempty"`
 }
 
 // Indicates whether fleet mode was successfully activated.
@@ -4537,6 +4734,10 @@ type InstalledPluginInfo struct {
 	Marketplace string `json:"marketplace"`
 	// Plugin name
 	Name string `json:"name"`
+	// Runtime-reported plugin provenance. Currently set to "builtin" only for plugins
+	// registered through the trusted host built-in boundary; absent for installed, marketplace,
+	// direct, and live plugins.
+	Source *string `json:"source,omitempty"`
 	// Installed version (when reported by the plugin manifest)
 	Version *string `json:"version,omitempty"`
 }
@@ -4702,6 +4903,26 @@ type InterruptMainTurnResult struct {
 	// Whether an in-flight main agent turn was interrupted. False when the main loop was not
 	// processing.
 	Interrupted bool `json:"interrupted"`
+}
+
+// A JSON Schema output contract. OpenAI receives the name, description, schema and strict
+// setting; Anthropic receives the schema in output_config.format and always uses its native
+// strict enforcement.
+// Experimental: JSONSchemaResponseFormat is part of an experimental API and may change or
+// be removed.
+type JSONSchemaResponseFormat struct {
+	// Optional description passed to OpenAI providers.
+	Description *string `json:"description,omitempty"`
+	// Name of the output schema, subject to the provider's naming restrictions.
+	Name string `json:"name"`
+	// JSON Schema passed unchanged to the inference provider. Schemas larger than 32 MiB when
+	// JSON-encoded are rejected before admission, using the runtime's existing request-size
+	// ceiling. This is not a guarantee that the entire model request fits. Supported keywords
+	// and schema restrictions are determined by the provider.
+	Schema any `json:"schema"`
+	// Optional strict enforcement setting for OpenAI providers. Omitted uses the provider
+	// default. Anthropic always enforces its supported schema subset.
+	Strict *bool `json:"strict,omitempty"`
 }
 
 // HTTP headers as a map from lowercased header name to a list of values. Multi-valued
@@ -4942,6 +5163,23 @@ type LspInitializeRequest struct {
 	// Working directory used to load project-level LSP configs. Defaults to the session working
 	// directory when omitted.
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
+}
+
+// Non-secret host-managed HTTP MCP server configuration. The containing map key is the
+// stable managed identity; credentials are supplied dynamically by the host.
+// Experimental: ManagedMCPServerConfig is part of an experimental API and may change or be
+// removed.
+type ManagedMCPServerConfig struct {
+	// Human-readable catalog display name.
+	DisplayName string `json:"displayName"`
+	// Maximum dynamic-header cache lifetime in milliseconds.
+	HeadersRefreshTtlMs *int64 `json:"headersRefreshTtlMs,omitempty"`
+	// Timeout in milliseconds for tool discovery and tool calls.
+	Timeout *int64 `json:"timeout,omitempty"`
+	// Tools to include. Defaults to all tools when omitted.
+	Tools []string `json:"tools,omitzero"`
+	// Hosted MCP streamable HTTP endpoint.
+	URL string `json:"url"`
 }
 
 // Experimental: ManagedSettingsClearCacheResult is part of an experimental API and may
@@ -5458,10 +5696,24 @@ func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) Kind() MCPHeadersHa
 	return r.Discriminator
 }
 
+type MCPHeadersHandlePendingHeadersRefreshRequestError struct {
+	// Host credential broker failure, denial, or revocation reason.
+	Message string `json:"message"`
+}
+
+func (MCPHeadersHandlePendingHeadersRefreshRequestError) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (MCPHeadersHandlePendingHeadersRefreshRequestError) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return MCPHeadersHandlePendingHeadersRefreshRequestKindError
+}
+
 type MCPHeadersHandlePendingHeadersRefreshRequestHeaders struct {
 	// Headers to overlay onto the MCP request. Dynamic headers override static config headers
 	// but do not replace SDK-managed request headers.
 	Headers map[string]string `json:"headers"`
+	// Optional lifetime in milliseconds for these returned headers. The runtime clamps its
+	// configured cache lifetime to this value.
+	TtlMs *int64 `json:"ttlMs,omitempty"`
 }
 
 func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) mcpHeadersHandlePendingHeadersRefreshRequest() {
@@ -6652,6 +6904,8 @@ func (MCPServerConfigStdio) mcpSerializableServerConfig() {}
 // MCP server status entry, including config source/plugin source and any connection error.
 // Experimental: MCPServer is part of an experimental API and may change or be removed.
 type MCPServer struct {
+	// Human-readable display name supplied by a managed server catalog.
+	DisplayName *string `json:"displayName,omitempty"`
 	// Error message if the server failed to connect
 	Error *string `json:"error,omitempty"`
 	// Server name (config key)
@@ -6660,7 +6914,7 @@ type MCPServer struct {
 	// metadata is available, including while pending or when failed, disabled, stopped, or not
 	// configured.
 	ServerMetadata *MCPServerMetadata `json:"serverMetadata,omitempty"`
-	// Configuration source: user, workspace, plugin, or builtin
+	// Configuration source: user, workspace, plugin, builtin, or managed
 	Source *MCPServerSource `json:"source,omitempty"`
 	// Plugin name that provided this server, when source is plugin.
 	SourcePlugin *string `json:"sourcePlugin,omitempty"`
@@ -7226,6 +7480,9 @@ type ModelApplyStartupOverlayRequest struct {
 	// managed sources: it applies only when neither device nor server policy names a model, and
 	// an explicit user selection still wins.
 	PolicyHelperModel *string `json:"policyHelperModel,omitempty"`
+	// Auto routing preference selected by repository settings, when configured. Applied only
+	// when the overlay selects the Auto model; beside a concrete model it stays dormant.
+	RepoAutoTier *string `json:"repoAutoTier,omitempty"`
 	// Context tier selected by repository settings, when configured.
 	RepoContextTier *string `json:"repoContextTier,omitempty"`
 	// Model selected by repository settings, when configured.
@@ -7407,8 +7664,10 @@ type ModelCapabilitiesOverrideLimitsVision struct {
 // Experimental: ModelCapabilitiesOverrideSupports is part of an experimental API and may
 // change or be removed.
 type ModelCapabilitiesOverrideSupports struct {
-	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required.
-	// 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required /
+	// adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still
+	// accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing
+	// but 'adaptive' (e.g. fable, mythos).
 	AdaptiveThinking *AdaptiveThinkingSupport `json:"adaptive_thinking,omitempty"`
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
@@ -7420,8 +7679,10 @@ type ModelCapabilitiesOverrideSupports struct {
 // Experimental: ModelCapabilitiesSupports is part of an experimental API and may change or
 // be removed.
 type ModelCapabilitiesSupports struct {
-	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required.
-	// 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required /
+	// adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still
+	// accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing
+	// but 'adaptive' (e.g. fable, mythos).
 	AdaptiveThinking *AdaptiveThinkingSupport `json:"adaptive_thinking,omitempty"`
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
@@ -7681,6 +7942,9 @@ type ModelWarningText struct {
 type ModeSetRequest struct {
 	// Explicit response to a model-switch compaction preflight.
 	CompactionDecision *string `json:"compactionDecision,omitempty"`
+	// Mode the session must currently be in for the change to apply. When set and the session
+	// is in a different mode the request is a no-op and reports status 'unchanged'.
+	ExpectedMode *SessionMode `json:"expectedMode,omitempty"`
 	// Session whose plan-mode base state should be inherited.
 	InheritPlanBaseFromSessionID *string `json:"inheritPlanBaseFromSessionId,omitempty"`
 	// The session mode the agent is operating in
@@ -7717,6 +7981,10 @@ type ModeSetResult struct {
 	DeprecationWarnings []string `json:"deprecationWarnings,omitzero"`
 	// User-facing outcome message for the model switch triggered by the mode change.
 	Message *string `json:"message,omitempty"`
+	// Whether the requested mode was applied to the session. False only when an 'expectedMode'
+	// precondition did not hold, in which case any model change reported alongside it was still
+	// applied.
+	ModeApplied *bool `json:"modeApplied,omitempty"`
 	// Whether applying the mode changed the active model.
 	ModelChanged bool `json:"modelChanged"`
 	// Lifecycle status of the requested mode change.
@@ -9484,6 +9752,99 @@ type ProtocolExternalToolDefinition struct {
 	Title *string `json:"title,omitempty"`
 }
 
+// Experimental: ProtocolMarkerSectionOverride is part of an experimental API and may change
+// or be removed.
+type ProtocolMarkerSectionOverride interface {
+	protocolMarkerSectionOverride()
+	Action() ProtocolMarkerSectionOverrideAction
+}
+
+type RawProtocolMarkerSectionOverrideData struct {
+	Discriminator ProtocolMarkerSectionOverrideAction
+	Raw           json.RawMessage
+}
+
+func (RawProtocolMarkerSectionOverrideData) protocolMarkerSectionOverride() {}
+func (r RawProtocolMarkerSectionOverrideData) Action() ProtocolMarkerSectionOverrideAction {
+	return r.Discriminator
+}
+
+type ProtocolMarkerSectionOverridePreserve struct {
+}
+
+func (ProtocolMarkerSectionOverridePreserve) protocolMarkerSectionOverride() {}
+func (ProtocolMarkerSectionOverridePreserve) Action() ProtocolMarkerSectionOverrideAction {
+	return ProtocolMarkerSectionOverrideActionPreserve
+}
+
+type ProtocolMarkerSectionOverrideTransform struct {
+}
+
+func (ProtocolMarkerSectionOverrideTransform) protocolMarkerSectionOverride() {}
+func (ProtocolMarkerSectionOverrideTransform) Action() ProtocolMarkerSectionOverrideAction {
+	return ProtocolMarkerSectionOverrideActionTransform
+}
+
+// Experimental: ProtocolSectionOverride is part of an experimental API and may change or be
+// removed.
+type ProtocolSectionOverride struct {
+	ProtocolMarkerSectionOverride ProtocolMarkerSectionOverride
+	ProtocolStaticSectionOverride *ProtocolStaticSectionOverride
+}
+
+// Experimental: ProtocolStaticSectionOverride is part of an experimental API and may change
+// or be removed.
+type ProtocolStaticSectionOverride struct {
+	// Declarative operation applied to the section.
+	Action ProtocolStaticSectionAction `json:"action"`
+	// Optional content used by replace, append, and prepend operations.
+	Content *string `json:"content,omitempty"`
+}
+
+// Experimental: ProtocolSystemMessageAppendConfig is part of an experimental API and may
+// change or be removed.
+type ProtocolSystemMessageAppendConfig struct {
+	// Text appended to the standard system prompt.
+	Content *string `json:"content,omitempty"`
+	// Append-mode discriminator. Omission also selects append mode.
+	Mode *ProtocolAppendMode `json:"mode,omitempty"`
+}
+
+// Experimental: ProtocolSystemMessageConfig is part of an experimental API and may change
+// or be removed.
+type ProtocolSystemMessageConfig struct {
+	// Text appended to the standard system prompt.
+	Content *string `json:"content,omitempty"`
+	// Optional structured blocks corresponding to the replacement content.
+	ContentBlocks []SystemMessageBlock `json:"contentBlocks,omitzero"`
+	// Append-mode discriminator. Omission also selects append mode.
+	Mode *ProtocolSystemMessageConfigMode `json:"mode,omitempty"`
+	// Named standard-prompt section overrides.
+	Sections map[string]*ProtocolSectionOverride `json:"sections,omitzero"`
+}
+
+// Experimental: ProtocolSystemMessageCustomizeConfig is part of an experimental API and may
+// change or be removed.
+type ProtocolSystemMessageCustomizeConfig struct {
+	// Text appended after the customized sections.
+	Content *string `json:"content,omitempty"`
+	// Customize-mode discriminator.
+	Mode ProtocolCustomizeMode `json:"mode"`
+	// Named standard-prompt section overrides.
+	Sections map[string]*ProtocolSectionOverride `json:"sections,omitzero"`
+}
+
+// Experimental: ProtocolSystemMessageReplaceConfig is part of an experimental API and may
+// change or be removed.
+type ProtocolSystemMessageReplaceConfig struct {
+	// Complete replacement system-message text.
+	Content string `json:"content"`
+	// Optional structured blocks corresponding to the replacement content.
+	ContentBlocks []SystemMessageBlock `json:"contentBlocks,omitzero"`
+	// Replace-mode discriminator.
+	Mode ProtocolReplaceMode `json:"mode"`
+}
+
 // BYOK providers and/or models to add to the session's registry at runtime. Both fields are
 // optional; provide providers, models, or both.
 // Experimental: ProviderAddRequest is part of an experimental API and may change or be
@@ -9615,6 +9976,13 @@ type ProviderModelConfig struct {
 	Name *string `json:"name,omitempty"`
 	// Name of the configured provider that serves this model.
 	Provider string `json:"provider"`
+	// System-message configuration used when the runtime builds the standard prompt for this
+	// provider-qualified model, including general-purpose subagents. It uses the same object
+	// hierarchy as session-level systemMessage configuration, except transform actions are
+	// rejected because the current callback protocol is not model-scoped. When present, it
+	// overrides the session-wide configuration on those prompt paths. Selected custom-agent and
+	// specialized-subagent prompts remain authoritative.
+	SystemMessage *ProtocolSystemMessageConfig `json:"systemMessage,omitempty"`
 	// The model name sent to the provider API for inference. Defaults to `id`.
 	WireModel *string `json:"wireModel,omitempty"`
 }
@@ -10378,35 +10746,6 @@ type RegisterEventInterestResult struct {
 type RegisterExtensionLaunchProviderResult struct {
 }
 
-// Params to attach an extension loader's tools to a session.
-// Experimental: RegisterExtensionToolsParams is part of an experimental API and may change
-// or be removed.
-// Internal: RegisterExtensionToolsParams is an internal SDK API and is not part of the
-// public surface.
-type RegisterExtensionToolsParams struct {
-	// In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK
-	// surface.
-	// Internal: Loader is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Loader any `json:"loader"`
-	// Optional registration options.
-	Options *SessionsRegisterExtensionToolsOnSessionOptions `json:"options,omitempty"`
-	// Session to register extension tools on.
-	SessionID string `json:"sessionId"`
-}
-
-// Handle for releasing the extension tool registration.
-// Experimental: RegisterExtensionToolsResult is part of an experimental API and may change
-// or be removed.
-// Internal: RegisterExtensionToolsResult is an internal SDK API and is not part of the
-// public surface.
-type RegisterExtensionToolsResult struct {
-	// In-process unsubscribe function used only by the CLI.
-	// Internal: Unsubscribe is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Unsubscribe any `json:"unsubscribe"`
-}
-
 // Opaque handle previously returned by `registerInterest` to release.
 // Experimental: ReleaseEventInterestParams is part of an experimental API and may change or
 // be removed.
@@ -10633,6 +10972,14 @@ type RemoteSessionRepository struct {
 	Owner string `json:"owner"`
 }
 
+// Experimental: ResponseFormat is part of an experimental API and may change or be removed.
+type ResponseFormat struct {
+	// JSON Schema and provider options for the turn's output.
+	JSONSchema JSONSchemaResponseFormat `json:"jsonSchema"`
+	// Output format discriminator. Currently only json_schema is supported.
+	Type ResponseFormatType `json:"type"`
+}
+
 // Options controlling factory invocation.
 // Experimental: RunOptions is part of an experimental API and may change or be removed.
 type RunOptions struct {
@@ -10769,18 +11116,25 @@ type SandboxConfigUserPolicyFilesystem struct {
 // Experimental: SandboxConfigUserPolicyNetwork is part of an experimental API and may
 // change or be removed.
 type SandboxConfigUserPolicyNetwork struct {
+	// Hosts allowed through the built-in sandbox proxy. A non-empty list denies unmatched
+	// hosts; an absent or empty list allows all hosts not blocked. Supports exact hostnames, IP
+	// addresses, and *.example.com for strict subdomains. Host rules do not override the
+	// outbound or local-network toggles.
+	AllowedHosts []string `json:"allowedHosts,omitzero"`
 	// Whether traffic to local/loopback addresses is allowed.
 	AllowLocalNetwork *bool `json:"allowLocalNetwork,omitempty"`
 	// Whether outbound network traffic is allowed at all.
 	AllowOutbound *bool `json:"allowOutbound,omitempty"`
-	// HTTP proxy for sandboxed process traffic. Linux restricts egress to the proxy endpoint,
-	// requires that endpoint to be reachable over IPv4 (the [::] dual-stack wildcard is
-	// accepted and routed through the IPv4 gateway), and does not support proxy credentials.
-	// macOS relies on applications honoring proxy environment variables. Windows also
-	// configures a per-AppContainer WinHTTP proxy, but enforcement depends on the application's
-	// networking stack. Configure supported credentials in the separate `username` and
-	// `password` fields. A credential-free http:// loopback URL uses the localhost proxy form,
-	// while an https:// or authenticated loopback URL uses the URL form.
+	// Hosts denied by the built-in sandbox proxy. Deny rules take precedence over allowedHosts.
+	// A domain also denies all its subdomains. IP addresses match exactly; *.example.com
+	// matches strict subdomains, and * denies every host.
+	BlockedHosts []string `json:"blockedHosts,omitzero"`
+	// HTTP(S) proxy for sandboxed traffic. With host rules, this is the built-in local proxy's
+	// upstream; credentials stay in the runtime, and Linux and macOS restrict the child to the
+	// local listener. Without host rules, Linux restricts egress to this endpoint but rejects
+	// credentials, and macOS proxying is cooperative. Windows enforcement depends on the
+	// application's networking stack. Configure credentials in the separate username/password
+	// fields. The transient local listener URL is never persisted.
 	Proxy *SandboxConfigUserPolicyNetworkProxy `json:"proxy,omitempty"`
 }
 
@@ -11049,8 +11403,11 @@ type SendMessagesRequest struct {
 	// The UI mode the agent was in when these messages were sent. Defaults to the session's
 	// current mode.
 	AgentMode *SendAgentMode `json:"agentMode,omitempty"`
-	// The user messages to append to the conversation, in order. May be empty, in which case a
-	// single turn runs over the existing history with no new user message.
+	// The user messages to append to the conversation, in order, before running one agent loop.
+	// When the batch starts a run, its final message is the primary initiating message; earlier
+	// messages provide context, not separate runs or replies. May be empty, in which case a
+	// single turn runs over the existing history with no new user message or
+	// originatingMessageId.
 	Messages []SendMessageItem `json:"messages"`
 	// How to deliver the messages. `enqueue` (default) appends to the message queue.
 	// `immediate` interjects during an in-progress turn.
@@ -11061,6 +11418,12 @@ type SendMessagesRequest struct {
 	// session-level provider headers; per-turn headers augment and overwrite session-level
 	// headers with the same key.
 	RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
+	// Provider-native output format for the whole turn, including an empty message batch and
+	// all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering
+	// inherits the active format; specifying responseFormat with mode: immediate is an error,
+	// even while idle. Returned assistant content remains text; the runtime does not parse or
+	// validate it. Unsupported models or schemas produce provider errors.
+	ResponseFormat *ResponseFormat `json:"responseFormat,omitempty"`
 	// W3C Trace Context traceparent header for distributed tracing of this agent turn
 	Traceparent *string `json:"traceparent,omitempty"`
 	// W3C Trace Context tracestate header for distributed tracing
@@ -11081,8 +11444,11 @@ type SendMessagesRequest struct {
 // Experimental: SendMessagesResult is part of an experimental API and may change or be
 // removed.
 type SendMessagesResult struct {
-	// Unique identifiers assigned to the messages, one per provided message in order. Empty
-	// when no messages were provided.
+	// Unique identifiers assigned to the messages, one per provided message in order. For a
+	// batch that starts a run, assistant messages use the final ID as originatingMessageId
+	// throughout that run, including tool iterations and stop-hook corrections. Immediate
+	// steering does not replace the active run's origin. Empty when no messages were provided;
+	// that run has no originatingMessageId.
 	MessageIDs []string `json:"messageIds"`
 }
 
@@ -11114,6 +11480,12 @@ type SendRequest struct {
 	// If set, the request will fail if the named tool is not available when this message is
 	// among the user messages at the start of the current exchange
 	RequiredTool *string `json:"requiredTool,omitempty"`
+	// Provider-native output format for this turn, including all tool-call iterations. Not
+	// inherited by later turns or subagents. Ordinary steering inherits the active format;
+	// specifying responseFormat with mode: immediate is an error, even while idle. Returned
+	// assistant content remains text; the runtime does not parse or validate it. Unsupported
+	// models or schemas produce provider errors.
+	ResponseFormat *ResponseFormat `json:"responseFormat,omitempty"`
 	// Optional provenance tag copied to the resulting user.message event. Must be `user`,
 	// `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>`
 	// for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
@@ -12449,7 +12821,8 @@ type SessionOpenOptions struct {
 	// narrow which rewinds revert it, because a rewind restores every capture from the selected
 	// turn onward, so the earlier spawning turn reverts it as well.
 	EnableFileChangeTracking *bool `json:"enableFileChangeTracking,omitempty"`
-	// Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
+	// Opt-in: self-fetch and enforce enterprise managed settings, including managed hook
+	// policies, at session bootstrap.
 	EnableManagedSettings *bool `json:"enableManagedSettings,omitempty"`
 	// Whether on-demand custom instruction discovery is enabled.
 	EnableOnDemandInstructionDiscovery *bool `json:"enableOnDemandInstructionDiscovery,omitempty"`
@@ -12509,6 +12882,12 @@ type SessionOpenOptions struct {
 	LogInteractiveShells *bool `json:"logInteractiveShells,omitempty"`
 	// Identifier sent to LSP-style integrations.
 	LspClientName *string `json:"lspClientName,omitempty"`
+	// Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed
+	// provenance is runtime-established from this separate field and credentials are supplied
+	// through dynamic-header refresh.
+	// Experimental: ManagedMCPServers is part of an experimental API and may change or be
+	// removed.
+	ManagedMCPServers map[string]ManagedMCPServerConfig `json:"managedMcpServers,omitzero"`
 	// Permissions-only enterprise policy injected by the SDK host at session create or resume.
 	// Composes restrictively with self-fetched and device policy and is not persisted.
 	ManagedSettings *SessionManagedSettings `json:"managedSettings,omitempty"`
@@ -12539,6 +12918,9 @@ type SessionOpenOptions struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Initial reasoning summary mode for supported model clients.
 	ReasoningSummary *SessionOpenOptionsReasoningSummary `json:"reasoningSummary,omitempty"`
+	// Whether to invalidate cached custom-instruction discovery before constructing the
+	// session. Use when instruction files may have changed earlier in the same runtime process.
+	RefreshCustomInstructions *bool `json:"refreshCustomInstructions,omitempty"`
 	// Telemetry-only remote-defaulted flag.
 	RemoteDefaultedOn *bool `json:"remoteDefaultedOn,omitempty"`
 	// Telemetry-only remote exporting flag.
@@ -13483,25 +13865,20 @@ type SessionsPruneOldRequest struct {
 // Experimental: SessionsReadPersistedEventsRequest is part of an experimental API and may
 // change or be removed.
 type SessionsReadPersistedEventsRequest struct {
-	// Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+	// Opaque, process-local, single-use cursor returned by the previous persisted-event read.
+	// Omit on the first call and issue continuations sequentially; reusing the same cursor
+	// returns an expired terminal page.
 	Cursor *string `json:"cursor,omitempty"`
 	// Direction to page through persisted history. Forward starts at the beginning; backward
-	// starts with the newest events. Events in each page remain chronological.
+	// starts with the newest events. Events in each page remain chronological. This selects the
+	// initial read only; a continuation always uses the direction bound into its cursor.
 	Direction *EventsReadDirection `json:"direction,omitempty"`
-	// Maximum number of events to return in this batch (1–1000, default 200).
+	// Maximum number of events to return in this batch (1–1000, default 200). Pages may contain
+	// fewer events to keep the serialized event array within a soft 1 MiB budget including
+	// resolved binary assets; one oversized event is returned alone to guarantee progress.
 	Max *int64 `json:"max,omitempty"`
 	// Session ID whose persisted event journal should be read.
 	SessionID string `json:"sessionId"`
-}
-
-// Optional registration options.
-// Experimental: SessionsRegisterExtensionToolsOnSessionOptions is part of an experimental
-// API and may change or be removed.
-type SessionsRegisterExtensionToolsOnSessionOptions struct {
-	// In-process `() => boolean` gating callback used only by the CLI.
-	// Internal: Enabled is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Enabled any `json:"enabled,omitempty"`
 }
 
 // Session ID whose in-use lock should be released.
@@ -13823,9 +14200,24 @@ type SessionWorkingDirectoryContext struct {
 	RepositoryHost *string `json:"repositoryHost,omitempty"`
 }
 
+// Experimental: SessionWorkspacesCreateDirectoryResult is part of an experimental API and
+// may change or be removed.
+type SessionWorkspacesCreateDirectoryResult struct {
+}
+
 // Experimental: SessionWorkspacesCreateFileResult is part of an experimental API and may
 // change or be removed.
 type SessionWorkspacesCreateFileResult struct {
+}
+
+// Experimental: SessionWorkspacesRemovePathResult is part of an experimental API and may
+// change or be removed.
+type SessionWorkspacesRemovePathResult struct {
+}
+
+// Experimental: SessionWorkspacesRenamePathResult is part of an experimental API and may
+// change or be removed.
+type SessionWorkspacesRenamePathResult struct {
 }
 
 // Authentication credentials accepted by session.gitHubAuth.setCredentials. Session-owned
@@ -14038,6 +14430,12 @@ type ShellOptions struct {
 // Parameters for shutting down the session
 // Experimental: ShutdownRequest is part of an experimental API and may change or be removed.
 type ShutdownRequest struct {
+	// Dispatch deferred sessionEnd hooks in the background with their full per-hook timeoutSec
+	// instead of awaiting them under the short shared shutdown budget. Set this when the host
+	// process keeps running after the session closes (for example the CLI's /clear), so a slow
+	// hook neither blocks the close nor is aborted. Hooks still detached when the process later
+	// exits are terminated with it. Defaults to false.
+	DetachSessionEndHooks *bool `json:"detachSessionEndHooks,omitempty"`
 	// Optional human-readable reason. Typically the message of the error that triggered
 	// shutdown when type is 'error'.
 	Reason *string `json:"reason,omitempty"`
@@ -14487,6 +14885,10 @@ type SlashCommandTextResult struct {
 	// True when the invocation mutated user runtime settings; consumers caching settings should
 	// refresh
 	RuntimeSettingsChanged *bool `json:"runtimeSettingsChanged,omitempty"`
+	// Present when the invocation changed the sandbox for this session only. Nothing was
+	// persisted, so consumers must mirror the change onto the live session rather than
+	// reloading settings, and must not treat it as a settings change.
+	SandboxSessionChange *SandboxSessionChange `json:"sandboxSessionChange,omitempty"`
 	// Text output for the client to render
 	Text string `json:"text"`
 }
@@ -14567,6 +14969,15 @@ type SubagentSettingsEntry struct {
 	Model *string `json:"model,omitempty"`
 	// Whether the configured model strategy is preferred or required
 	ModelPolicy *AgentModelPolicy `json:"modelPolicy,omitempty"`
+}
+
+// Experimental: SystemMessageBlock is part of an experimental API and may change or be
+// removed.
+type SystemMessageBlock struct {
+	// Text content for this system-message block.
+	Content string `json:"content"`
+	// Whether the block is static and may be cached independently of dynamic prompt content.
+	IsStatic *bool `json:"isStatic,omitempty"`
 }
 
 // Public owner attribution for a client-owned task. Identifiers are opaque and never
@@ -16318,13 +16729,23 @@ type WorkspacesCheckpoints struct {
 	Title string `json:"title"`
 }
 
+// Directory to create within the session workspace files directory.
+// Experimental: WorkspacesCreateDirectoryRequest is part of an experimental API and may
+// change or be removed.
+type WorkspacesCreateDirectoryRequest struct {
+	// Slash-separated relative path within the workspace files directory
+	Path string `json:"path"`
+	// Whether to create missing parent directories. Defaults to false.
+	Recursive *bool `json:"recursive,omitempty"`
+}
+
 // Relative path and UTF-8 content for the workspace file to create or overwrite.
 // Experimental: WorkspacesCreateFileRequest is part of an experimental API and may change
 // or be removed.
 type WorkspacesCreateFileRequest struct {
 	// File content to write as a UTF-8 string
 	Content string `json:"content"`
-	// Relative path within the workspace files directory
+	// Slash-separated relative path within the workspace files directory
 	Path string `json:"path"`
 }
 
@@ -16415,7 +16836,7 @@ type WorkspacesListCheckpointsResult struct {
 // Experimental: WorkspacesListFilesResult is part of an experimental API and may change or
 // be removed.
 type WorkspacesListFilesResult struct {
-	// Relative file paths in the workspace files directory
+	// Slash-separated relative file paths in the workspace files directory
 	Files []string `json:"files"`
 }
 
@@ -16447,7 +16868,7 @@ type WorkspacesReadCheckpointResult struct {
 // Experimental: WorkspacesReadFileRequest is part of an experimental API and may change or
 // be removed.
 type WorkspacesReadFileRequest struct {
-	// Relative path within the workspace files directory
+	// Slash-separated relative path within the workspace files directory
 	Path string `json:"path"`
 }
 
@@ -16457,6 +16878,28 @@ type WorkspacesReadFileRequest struct {
 type WorkspacesReadFileResult struct {
 	// File content as a UTF-8 string
 	Content string `json:"content"`
+}
+
+// File or directory to remove from the session workspace files directory.
+// Experimental: WorkspacesRemovePathRequest is part of an experimental API and may change
+// or be removed.
+type WorkspacesRemovePathRequest struct {
+	// Whether a missing path should be treated as success. Defaults to false.
+	Force *bool `json:"force,omitempty"`
+	// Slash-separated relative path within the workspace files directory
+	Path string `json:"path"`
+	// Whether to remove directory contents recursively. Defaults to false.
+	Recursive *bool `json:"recursive,omitempty"`
+}
+
+// Source and destination paths for a rename within the session workspace files directory.
+// Experimental: WorkspacesRenamePathRequest is part of an experimental API and may change
+// or be removed.
+type WorkspacesRenamePathRequest struct {
+	// Slash-separated destination path relative to the workspace files directory
+	Destination string `json:"destination"`
+	// Slash-separated source path relative to the workspace files directory
+	Source string `json:"source"`
 }
 
 // Pasted content to save as a UTF-8 file in the session workspace.
@@ -16483,6 +16926,30 @@ type WorkspacesSaveLargePasteResultSaved struct {
 	FilePath string `json:"filePath"`
 	// Size of the saved file in bytes
 	SizeBytes int64 `json:"sizeBytes"`
+}
+
+// Relative path of the workspace file or directory to inspect.
+// Experimental: WorkspacesStatFileRequest is part of an experimental API and may change or
+// be removed.
+type WorkspacesStatFileRequest struct {
+	// Slash-separated relative path within the workspace files directory
+	Path string `json:"path"`
+}
+
+// Filesystem metadata for a path in the session workspace files directory.
+// Experimental: WorkspacesStatFileResult is part of an experimental API and may change or
+// be removed.
+type WorkspacesStatFileResult struct {
+	// Creation time in Unix epoch milliseconds
+	BirthtimeMs float64 `json:"birthtimeMs"`
+	// Whether the path identifies a directory
+	IsDirectory bool `json:"isDirectory"`
+	// Whether the path identifies a regular file
+	IsFile bool `json:"isFile"`
+	// Last modification time in Unix epoch milliseconds
+	MtimeMs float64 `json:"mtimeMs"`
+	// Size in bytes
+	Size float64 `json:"size"`
 }
 
 // Rollback point for local workspace summaries.
@@ -16567,10 +17034,13 @@ const (
 type AdaptiveThinkingSupport string
 
 const (
+	// The model accepts only thinking.type='adaptive'; 'enabled', 'disabled', and an omitted
+	// thinking block all fail with HTTP 400 (e.g. fable, mythos)
+	AdaptiveThinkingSupportAdaptiveOnly AdaptiveThinkingSupport = "adaptive_only"
 	// The model accepts adaptive thinking but also accepts thinking.type='enabled'
 	AdaptiveThinkingSupportOptional AdaptiveThinkingSupport = "optional"
-	// The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP
-	// 400 (e.g. opus-4.7/4.8)
+	// The model defaults to adaptive thinking and rejects thinking.type='enabled' with HTTP
+	// 400, but still accepts thinking.type='disabled' (e.g. opus-4.7/4.8/5, sonnet-5)
 	AdaptiveThinkingSupportRequired AdaptiveThinkingSupport = "required"
 	// The model does not accept thinking.type='adaptive'
 	AdaptiveThinkingSupportUnsupported AdaptiveThinkingSupport = "unsupported"
@@ -16942,6 +17412,9 @@ const (
 	// Understands plans that enumerate every eligible transport rather than a single preferred
 	// one.
 	CatalogCapabilityMultipleTransportChoice CatalogCapability = "multiple-transport-choice"
+	// Understands versioned candidate trust snapshots. Protocol-3 callers must require this
+	// capability before the runtime adds the optional snapshot field.
+	CatalogCapabilityTrustSnapshot CatalogCapability = "trust-snapshot"
 )
 
 // Which wire-contract rule an upstream response broke
@@ -17128,6 +17601,125 @@ const (
 	CatalogSearchResultKindUnsupportedKind        CatalogSearchResultKind = "unsupported-kind"
 )
 
+// Authority-computed exposure eligibility, kept separate from tier. The current tier-only
+// Agent Finder response maps to `unknown`, never to a locally inferred eligibility.
+// Experimental: CatalogTrustEligibility is part of an experimental API and may change or be
+// removed.
+type CatalogTrustEligibility string
+
+const (
+	// Eligible for default catalogue exposure.
+	CatalogTrustEligibilityDefault CatalogTrustEligibility = "default"
+	// Eligible only when expanded or community results are requested.
+	CatalogTrustEligibilityExpanded CatalogTrustEligibility = "expanded"
+	// Not eligible for normal catalogue exposure.
+	CatalogTrustEligibilityHidden CatalogTrustEligibility = "hidden"
+	// The authority did not supply an eligibility decision.
+	CatalogTrustEligibilityUnknown CatalogTrustEligibility = "unknown"
+)
+
+// The authority omitted trust metadata.
+// Experimental: CatalogTrustSnapshotAbsentStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotAbsentStatus string
+
+const (
+	// The authority omitted trust metadata.
+	CatalogTrustSnapshotAbsentStatusAbsent CatalogTrustSnapshotAbsentStatus = "absent"
+)
+
+// A recognised T1 or T2 service tier was observed.
+// Experimental: CatalogTrustSnapshotCurrentStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotCurrentStatus string
+
+const (
+	// A recognised T1 or T2 service tier was observed.
+	CatalogTrustSnapshotCurrentStatusCurrent CatalogTrustSnapshotCurrentStatus = "current"
+)
+
+// The authority explicitly reported a downgraded assessment.
+// Experimental: CatalogTrustSnapshotDowngradedStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotDowngradedStatus string
+
+const (
+	// The authority explicitly reported a downgraded assessment.
+	CatalogTrustSnapshotDowngradedStatusDowngraded CatalogTrustSnapshotDowngradedStatus = "downgraded"
+)
+
+// The trust field was empty, unbounded, or had the wrong JSON type.
+// Experimental: CatalogTrustSnapshotMalformedStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotMalformedStatus string
+
+const (
+	// The trust field was empty, unbounded, or had the wrong JSON type.
+	CatalogTrustSnapshotMalformedStatusMalformed CatalogTrustSnapshotMalformedStatus = "malformed"
+)
+
+// The authority explicitly revoked its assessment.
+// Experimental: CatalogTrustSnapshotRevokedStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotRevokedStatus string
+
+const (
+	// The authority explicitly revoked its assessment.
+	CatalogTrustSnapshotRevokedStatusRevoked CatalogTrustSnapshotRevokedStatus = "revoked"
+)
+
+// SchemaVersion discriminator for CatalogTrustSnapshot.
+// Experimental: CatalogTrustSnapshotSchemaVersion is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotSchemaVersion string
+
+const (
+	CatalogTrustSnapshotSchemaVersionV1 CatalogTrustSnapshotSchemaVersion = "v1"
+)
+
+// The authority explicitly marked its assessment stale.
+// Experimental: CatalogTrustSnapshotStaleStatus is part of an experimental API and may
+// change or be removed.
+type CatalogTrustSnapshotStaleStatus string
+
+const (
+	// The authority explicitly marked its assessment stale.
+	CatalogTrustSnapshotStaleStatusStale CatalogTrustSnapshotStaleStatus = "stale"
+)
+
+// The authority supplied a bounded trust value this runtime does not understand.
+// Experimental: CatalogTrustSnapshotUnsupportedStatus is part of an experimental API and
+// may change or be removed.
+type CatalogTrustSnapshotUnsupportedStatus string
+
+const (
+	// The authority supplied a bounded trust value this runtime does not understand.
+	CatalogTrustSnapshotUnsupportedStatusUnsupported CatalogTrustSnapshotUnsupportedStatus = "unsupported"
+)
+
+// Bounded authority that supplied a catalogue trust observation
+// Experimental: CatalogTrustSource is part of an experimental API and may change or be
+// removed.
+type CatalogTrustSource string
+
+const (
+	// GitHub Agent Finder supplied the trust field on its search result.
+	CatalogTrustSourceAgentFinder CatalogTrustSource = "agent-finder"
+)
+
+// Service-computed trust tier currently emitted by Agent Finder. It is independent of
+// search score, popularity, and client-side ranking.
+// Experimental: CatalogTrustTier is part of an experimental API and may change or be
+// removed.
+type CatalogTrustTier string
+
+const (
+	// Tier one as assigned by the catalogue authority.
+	CatalogTrustTierT1 CatalogTrustTier = "T1"
+	// Tier two as assigned by the catalogue authority.
+	CatalogTrustTierT2 CatalogTrustTier = "T2"
+)
+
 // Why a catalog operation is not available on this runtime
 // Experimental: CatalogUnavailableReason is part of an experimental API and may change or
 // be removed.
@@ -17286,6 +17878,9 @@ const (
 	// Redact each non-empty line as a session event JSON object, falling back to plain-text
 	// redaction for malformed lines.
 	DebugCollectLogsRedactionEventsJsonl DebugCollectLogsRedaction = "events-jsonl"
+	// No redaction is applied. The caller must ensure any necessary redaction is performed
+	// before this call.
+	DebugCollectLogsRedactionNone DebugCollectLogsRedaction = "none"
 	// Redact the file as plain UTF-8 log text.
 	DebugCollectLogsRedactionPlainText DebugCollectLogsRedaction = "plain-text"
 )
@@ -17298,7 +17893,7 @@ type DebugCollectLogsResultKind string
 const (
 	// A .tgz archive was written.
 	DebugCollectLogsResultKindArchive DebugCollectLogsResultKind = "archive"
-	// A directory containing redacted files was written.
+	// A directory containing the collected files was written.
 	DebugCollectLogsResultKindDirectory DebugCollectLogsResultKind = "directory"
 )
 
@@ -17381,21 +17976,20 @@ const (
 	EventsAgentScopePrimary EventsAgentScope = "primary"
 )
 
-// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor
-// referred to an event that no longer exists in history (e.g. truncated or compacted away)
-// and the read fell back to a boundary of the remaining history (the beginning for a
-// forward read, the tail for a backward read). The fallback page is a fresh boundary
-// snapshot, not a continuation of the requested cursor, so it may overlap already-rendered
-// events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate
-// by event id) before continuing from the returned cursor.
+// Cursor status: 'ok' means the read succeeded against the requested history; 'expired'
+// means the requested continuation is unavailable. Recovery is endpoint-specific:
+// session.eventLog.read returns a boundary window of remaining active history that may
+// overlap prior pages, while sessions.readPersistedEvents returns an empty terminal page
+// and never switches journal generations. An expired persisted read is not successful
+// completion; a complete persisted snapshot requires cursorStatus 'ok' and hasMore false.
 // Experimental: EventsCursorStatus is part of an experimental API and may change or be
 // removed.
 type EventsCursorStatus string
 
 const (
-	// The cursor referred to history that is no longer available.
+	// The requested continuation is unavailable; see the endpoint's recovery semantics.
 	EventsCursorStatusExpired EventsCursorStatus = "expired"
-	// The cursor was applied successfully.
+	// The read succeeded against the requested history.
 	EventsCursorStatusOk EventsCursorStatus = "ok"
 )
 
@@ -18028,6 +18622,7 @@ const (
 type MCPHeadersHandlePendingHeadersRefreshRequestKind string
 
 const (
+	MCPHeadersHandlePendingHeadersRefreshRequestKindError   MCPHeadersHandlePendingHeadersRefreshRequestKind = "error"
 	MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders MCPHeadersHandlePendingHeadersRefreshRequestKind = "headers"
 	MCPHeadersHandlePendingHeadersRefreshRequestKindNone    MCPHeadersHandlePendingHeadersRefreshRequestKind = "none"
 )
@@ -18418,13 +19013,15 @@ const (
 	MCPServerConfigStdioTypeStdio MCPServerConfigStdioType = "stdio"
 )
 
-// Configuration source: user, workspace, plugin, or builtin
+// Configuration source: user, workspace, plugin, builtin, or managed
 // Experimental: MCPServerSource is part of an experimental API and may change or be removed.
 type MCPServerSource string
 
 const (
 	// Server bundled with the runtime.
 	MCPServerSourceBuiltin MCPServerSource = "builtin"
+	// Server supplied by a trusted host-managed catalog.
+	MCPServerSourceManaged MCPServerSource = "managed"
 	// Server contributed by an installed plugin.
 	MCPServerSourcePlugin MCPServerSource = "plugin"
 	// Server configured in the user's global MCP configuration.
@@ -18764,6 +19361,10 @@ type PermissionDecisionSource string
 const (
 	// The response followed the assisted-approval judge recommendation.
 	PermissionDecisionSourceAssistedApproval PermissionDecisionSource = "assisted_approval"
+	// A live authorization record from an earlier human decision in this session contained the
+	// proposal, so it ran without another prompt. This is not a new human decision and never
+	// mints authority of its own.
+	PermissionDecisionSourceAuthorizationCarryForward PermissionDecisionSource = "authorization_carry_forward"
 	// The host applied a standing policy or override rather than a judge recommendation or
 	// human decision.
 	PermissionDecisionSourceHostPolicy PermissionDecisionSource = "host_policy"
@@ -18828,6 +19429,8 @@ const (
 	PermissionModeSourceAutopilotConfirmation PermissionModeSource = "autopilot_confirmation"
 	// The mode was set from a CLI command-line flag.
 	PermissionModeSourceCLIFlag PermissionModeSource = "cli_flag"
+	// The mode was set at startup by authenticated organization targeting.
+	PermissionModeSourceOrganizationTargeting PermissionModeSource = "organization_targeting"
 	// The mode was set through an RPC caller.
 	PermissionModeSourceRPC PermissionModeSource = "rpc"
 	// The mode was set by a slash command.
@@ -18923,6 +19526,22 @@ const (
 	PluginInstallStagingModeExternal PluginInstallStagingMode = "external"
 )
 
+// Experimental: ProtocolAppendMode is part of an experimental API and may change or be
+// removed.
+type ProtocolAppendMode string
+
+const (
+	ProtocolAppendModeAppend ProtocolAppendMode = "append"
+)
+
+// Experimental: ProtocolCustomizeMode is part of an experimental API and may change or be
+// removed.
+type ProtocolCustomizeMode string
+
+const (
+	ProtocolCustomizeModeCustomize ProtocolCustomizeMode = "customize"
+)
+
 // Controls whether the runtime may defer loading an external tool definition.
 // Experimental: ProtocolExternalToolDefer is part of an experimental API and may change or
 // be removed.
@@ -18933,6 +19552,45 @@ const (
 	ProtocolExternalToolDeferAuto ProtocolExternalToolDefer = "auto"
 	// The runtime must include the tool without deferring it.
 	ProtocolExternalToolDeferNever ProtocolExternalToolDefer = "never"
+)
+
+// Action discriminator for ProtocolMarkerSectionOverride.
+type ProtocolMarkerSectionOverrideAction string
+
+const (
+	ProtocolMarkerSectionOverrideActionPreserve  ProtocolMarkerSectionOverrideAction = "preserve"
+	ProtocolMarkerSectionOverrideActionTransform ProtocolMarkerSectionOverrideAction = "transform"
+)
+
+// Experimental: ProtocolReplaceMode is part of an experimental API and may change or be
+// removed.
+type ProtocolReplaceMode string
+
+const (
+	ProtocolReplaceModeReplace ProtocolReplaceMode = "replace"
+)
+
+// Experimental: ProtocolStaticSectionAction is part of an experimental API and may change
+// or be removed.
+type ProtocolStaticSectionAction string
+
+const (
+	// Append content to the section.
+	ProtocolStaticSectionActionAppend ProtocolStaticSectionAction = "append"
+	// Prepend content to the section.
+	ProtocolStaticSectionActionPrepend ProtocolStaticSectionAction = "prepend"
+	// Remove the section content.
+	ProtocolStaticSectionActionRemove ProtocolStaticSectionAction = "remove"
+	// Replace the section content.
+	ProtocolStaticSectionActionReplace ProtocolStaticSectionAction = "replace"
+)
+
+type ProtocolSystemMessageConfigMode string
+
+const (
+	ProtocolSystemMessageConfigModeAppend    ProtocolSystemMessageConfigMode = "append"
+	ProtocolSystemMessageConfigModeCustomize ProtocolSystemMessageConfigMode = "customize"
+	ProtocolSystemMessageConfigModeReplace   ProtocolSystemMessageConfigMode = "replace"
 )
 
 // Provider transport. Defaults to "http".
@@ -19154,6 +19812,13 @@ const (
 	RemoteSessionModeOn RemoteSessionMode = "on"
 )
 
+// Output format discriminator. Currently only json_schema is supported.
+type ResponseFormatType string
+
+const (
+	ResponseFormatTypeJSONSchema ResponseFormatType = "json_schema"
+)
+
 // Origin of the sandbox choice supplied by an internal client.
 // Experimental: SandboxConfigSource is part of an experimental API and may change or be
 // removed.
@@ -19174,6 +19839,19 @@ const (
 	SandboxConfigSourceUserDisabled SandboxConfigSource = "user_disabled"
 	// The user's persisted settings enabled the sandbox.
 	SandboxConfigSourceUserEnabled SandboxConfigSource = "user_enabled"
+)
+
+// A session-scoped sandbox transition applied while handling a slash command
+// Experimental: SandboxSessionChange is part of an experimental API and may change or be
+// removed.
+type SandboxSessionChange string
+
+const (
+	// The sandbox is off for the rest of this session; nothing was persisted and a new session
+	// starts from managed policy.
+	SandboxSessionChangeDisabled SandboxSessionChange = "disabled"
+	// A previous session-scoped opt-out was cleared and the sandbox is enforced again.
+	SandboxSessionChangeRestored SandboxSessionChange = "restored"
 )
 
 // The UI mode the agent was in when this message was sent. Defaults to the session's
@@ -21546,10 +22224,30 @@ func (a *ServerSessionsAPI) PruneOld(ctx context.Context, params *SessionsPruneO
 }
 
 // ReadPersistedEvents reads a page of durable events directly from a local session's
-// persisted journal without creating, resuming, or activating the session. The initial
-// backward read uses a bounded tail scan for fast first paint; cursor continuations
-// preserve the session event-log paging semantics. Persisted events may omit payloads that
-// are reconstructed only for an active session.
+// persisted journal without creating, resuming, or activating the session. The first read
+// pins the currently opened journal generation and its byte-length boundary; opaque cursor
+// continuations remain on that generation across runtime-owned compaction, truncation, and
+// rewrite operations, which replace the live path atomically, and events appended after the
+// boundary are excluded. For cold hydration, await the first successful page before
+// activation and establish lossless live-event buffering before resume; merge subsequent
+// live events by ID, preserving persisted order and letting live payloads win.
+// Continuations are process-local, single-use capabilities bound to the originating session
+// and storage context and must be paged sequentially; concurrent or repeated use of the
+// same cursor expires that duplicate read rather than reading the generation twice. A
+// complete snapshot has cursorStatus 'ok' and hasMore false. Snapshots expire after five
+// idle minutes, with at most eight retained per process and idle-only eviction under
+// pressure; completion and cancelled-worker exit release their handles. No transcript copy
+// is created, but retained handles may keep replaced files' disk blocks alive until
+// release. Pages have a soft 1 MiB serialized event-array budget including resolved binary
+// assets; one oversized event is returned alone to guarantee progress. Working memory also
+// includes a record/lookahead and asset resolution; resolving the first binary reference
+// may scan the full pinned generation to build a bounded offset index. If the snapshot
+// expires, is evicted, is cancelled before a continuation is established, or becomes
+// unreadable after an observable unsupported in-place shortening, the continuation returns
+// cursorStatus 'expired' with an empty terminal page and never falls back to a different
+// generation. A missing or initially unreadable journal is an RPC error. Persisted history
+// excludes ephemeral events and may omit payloads that are reconstructed only for an active
+// session; use the active session event stream for post-resume live events.
 //
 // RPC method: sessions.readPersistedEvents.
 //
@@ -22034,12 +22732,9 @@ type internalServerAPI struct {
 type InternalServerSessionsAPI internalServerAPI
 
 // ConfigureSessionExtensions attaches (or detaches) an in-process ExtensionController
-// delegate for the given session, used by shared-API surfaces that need to query or modify
-// the session's extension state. Pass `controller: undefined` to detach. Marked internal
-// because the controller is an in-process object that cannot cross the JSON-RPC boundary.
-// Disappears alongside `registerExtensionToolsOnSession`: once the runtime owns extension
-// management, the public surface exposes list/enable/disable/reload as dedicated RPCs
-// served by the runtime.
+// delegate for the given session in a local host adapter. Pass `controller: undefined` to
+// detach. Internal because the controller cannot cross the JSON-RPC boundary; the runtime
+// manages its own session extension service.
 //
 // RPC method: sessions.configureSessionExtensions.
 //
@@ -22192,34 +22887,6 @@ func (a *InternalServerSessionsAPI) ListNonEmptySessionIds(ctx context.Context, 
 		return nil, err
 	}
 	var result SessionsListNonEmptySessionIDsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// RegisterExtensionToolsOnSession registers extension-provided tools on the given session,
-// gated by an optional `enabled` callback. Returns an opaque unsubscribe function the
-// caller must invoke to deregister the tools when the extension is torn down. Marked
-// internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process
-// handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery /
-// launch / tool registration are owned by the runtime: SDK consumers will pass pure config
-// (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch,
-// register, and tear down extensions itself.
-//
-// RPC method: sessions.registerExtensionToolsOnSession.
-//
-// Parameters: Params to attach an extension loader's tools to a session.
-//
-// Returns: Handle for releasing the extension tool registration.
-// Internal: RegisterExtensionToolsOnSession is part of the SDK's internal
-// handshake/plumbing; external callers should not use it.
-func (a *InternalServerSessionsAPI) RegisterExtensionToolsOnSession(ctx context.Context, params *RegisterExtensionToolsParams) (*RegisterExtensionToolsResult, error) {
-	raw, err := a.client.Request(ctx, "sessions.registerExtensionToolsOnSession", params)
-	if err != nil {
-		return nil, err
-	}
-	var result RegisterExtensionToolsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -22817,16 +23484,17 @@ func (a *ContentExclusionAPI) CheckPaths(ctx context.Context, params *ContentExc
 // Experimental: DebugAPI contains experimental APIs that may change or be removed.
 type DebugAPI sessionAPI
 
-// CollectLogs collects a redacted session debug log bundle into a local archive or staging
-// directory. The runtime includes session-owned logs by default and accepts caller-provided
-// diagnostic entries so host applications can add their own files without changing this API
-// shape.
+// CollectLogs collects a session debug log bundle into a local archive or staging
+// directory. Logs are redacted by default; redaction can be configured per caller-provided
+// diagnostic entry. The runtime includes session-owned logs by default and accepts
+// caller-provided diagnostic entries so host applications can add their own files without
+// changing this API shape.
 //
 // RPC method: session.debug.collectLogs.
 //
-// Parameters: Options for collecting a redacted session debug bundle.
+// Parameters: Options for collecting a session debug bundle with configurable redaction.
 //
-// Returns: Result of collecting a redacted debug bundle.
+// Returns: Result of collecting a session debug bundle.
 func (a *DebugAPI) CollectLogs(ctx context.Context, params *DebugCollectLogsRequest) (*DebugCollectLogsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -23410,14 +24078,24 @@ type FleetAPI sessionAPI
 //
 // RPC method: session.fleet.start.
 //
-// Parameters: Optional user prompt to combine with the fleet orchestration instructions.
+// Parameters: Parameters for starting fleet orchestration: an optional user prompt combined
+// with the fleet instructions, plus the send options forwarded to the resulting turn.
 //
 // Returns: Indicates whether fleet mode was successfully activated.
 func (a *FleetAPI) Start(ctx context.Context, params *FleetStartRequest) (*FleetStartResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.Attachments != nil {
+			req["attachments"] = params.Attachments
+		}
+		if params.Billable != nil {
+			req["billable"] = *params.Billable
+		}
 		if params.Prompt != nil {
 			req["prompt"] = *params.Prompt
+		}
+		if params.Wait != nil {
+			req["wait"] = *params.Wait
 		}
 	}
 	raw, err := a.client.Request(ctx, "session.fleet.start", req)
@@ -24896,6 +25574,9 @@ func (a *ModeAPI) Set(ctx context.Context, params *ModeSetRequest) (*ModeSetResu
 	if params != nil {
 		if params.CompactionDecision != nil {
 			req["compactionDecision"] = *params.CompactionDecision
+		}
+		if params.ExpectedMode != nil {
+			req["expectedMode"] = *params.ExpectedMode
 		}
 		if params.InheritPlanBaseFromSessionID != nil {
 			req["inheritPlanBaseFromSessionId"] = *params.InheritPlanBaseFromSessionID
@@ -27832,6 +28513,30 @@ func (a *WorkspacesAPI) AutopilotObjectiveExists(ctx context.Context) (*Workspac
 	return &result, nil
 }
 
+// CreateDirectory creates a directory in the session workspace files directory.
+//
+// RPC method: session.workspaces.createDirectory.
+//
+// Parameters: Directory to create within the session workspace files directory.
+func (a *WorkspacesAPI) CreateDirectory(ctx context.Context, params *WorkspacesCreateDirectoryRequest) (*SessionWorkspacesCreateDirectoryResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["path"] = params.Path
+		if params.Recursive != nil {
+			req["recursive"] = *params.Recursive
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.workspaces.createDirectory", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionWorkspacesCreateDirectoryResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // CreateFile creates or overwrites a file in the session workspace files directory.
 //
 // RPC method: session.workspaces.createFile.
@@ -28049,6 +28754,56 @@ func (a *WorkspacesAPI) ReadFile(ctx context.Context, params *WorkspacesReadFile
 	return &result, nil
 }
 
+// RemovePath removes a file or directory from the session workspace files directory.
+//
+// RPC method: session.workspaces.removePath.
+//
+// Parameters: File or directory to remove from the session workspace files directory.
+func (a *WorkspacesAPI) RemovePath(ctx context.Context, params *WorkspacesRemovePathRequest) (*SessionWorkspacesRemovePathResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Force != nil {
+			req["force"] = *params.Force
+		}
+		req["path"] = params.Path
+		if params.Recursive != nil {
+			req["recursive"] = *params.Recursive
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.workspaces.removePath", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionWorkspacesRemovePathResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RenamePath renames a file or directory within the session workspace files directory.
+//
+// RPC method: session.workspaces.renamePath.
+//
+// Parameters: Source and destination paths for a rename within the session workspace files
+// directory.
+func (a *WorkspacesAPI) RenamePath(ctx context.Context, params *WorkspacesRenamePathRequest) (*SessionWorkspacesRenamePathResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["destination"] = params.Destination
+		req["source"] = params.Source
+	}
+	raw, err := a.client.Request(ctx, "session.workspaces.renamePath", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionWorkspacesRenamePathResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SaveLargePaste saves pasted content as a UTF-8 file in the session workspace.
 //
 // RPC method: session.workspaces.saveLargePaste.
@@ -28066,6 +28821,30 @@ func (a *WorkspacesAPI) SaveLargePaste(ctx context.Context, params *WorkspacesSa
 		return nil, err
 	}
 	var result WorkspacesSaveLargePasteResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// StatFile returns metadata for a file or directory in the session workspace files
+// directory.
+//
+// RPC method: session.workspaces.statFile.
+//
+// Parameters: Relative path of the workspace file or directory to inspect.
+//
+// Returns: Filesystem metadata for a path in the session workspace files directory.
+func (a *WorkspacesAPI) StatFile(ctx context.Context, params *WorkspacesStatFileRequest) (*WorkspacesStatFileResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["path"] = params.Path
+	}
+	raw, err := a.client.Request(ctx, "session.workspaces.statFile", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkspacesStatFileResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -28351,6 +29130,9 @@ func (a *SessionRPC) Send(ctx context.Context, params *SendRequest) (*SendResult
 		if params.RequiredTool != nil {
 			req["requiredTool"] = *params.RequiredTool
 		}
+		if params.ResponseFormat != nil {
+			req["responseFormat"] = *params.ResponseFormat
+		}
 		if params.Source != nil {
 			req["source"] = *params.Source
 		}
@@ -28406,6 +29188,9 @@ func (a *SessionRPC) SendMessages(ctx context.Context, params *SendMessagesReque
 		if params.RequestHeaders != nil {
 			req["requestHeaders"] = params.RequestHeaders
 		}
+		if params.ResponseFormat != nil {
+			req["responseFormat"] = *params.ResponseFormat
+		}
 		if params.Traceparent != nil {
 			req["traceparent"] = *params.Traceparent
 		}
@@ -28439,6 +29224,9 @@ func (a *SessionRPC) SendMessages(ctx context.Context, params *SendMessagesReque
 func (a *SessionRPC) Shutdown(ctx context.Context, params *ShutdownRequest) (*SessionShutdownResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
+		if params.DetachSessionEndHooks != nil {
+			req["detachSessionEndHooks"] = *params.DetachSessionEndHooks
+		}
 		if params.Reason != nil {
 			req["reason"] = *params.Reason
 		}
@@ -29038,6 +29826,9 @@ func (a *InternalModelAPI) ApplyStartupOverlay(ctx context.Context, params *Mode
 		}
 		if params.PolicyHelperModel != nil {
 			req["policyHelperModel"] = *params.PolicyHelperModel
+		}
+		if params.RepoAutoTier != nil {
+			req["repoAutoTier"] = *params.RepoAutoTier
 		}
 		if params.RepoContextTier != nil {
 			req["repoContextTier"] = *params.RepoContextTier

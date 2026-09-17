@@ -53,73 +53,51 @@ function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boole
     });
 }
 
-export async function getFinalAssistantMessage(
+export async function withFinalAssistantMessage(
     session: CopilotSession,
-    { alreadyIdle = false }: { alreadyIdle?: boolean } = {}
+    trigger: () => Promise<unknown>
 ): Promise<AssistantMessageEvent> {
-    // Install the live subscription (via getFutureFinalResponse) before issuing the
-    // existing-messages RPC so we don't miss events that arrive while that RPC is in flight.
-    const futurePromise = getFutureFinalResponse(session);
-    // We may end up returning from the existing-messages path; attach a noop handler so
-    // the unawaited future-response rejection doesn't surface as an unhandled rejection.
-    futurePromise.catch(() => {});
-
-    const existing = await getExistingFinalResponse(session, alreadyIdle);
-    if (existing) {
-        return existing;
-    }
-    return futurePromise;
-}
-
-async function getExistingFinalResponse(
-    session: CopilotSession,
-    alreadyIdle: boolean = false
-): Promise<AssistantMessageEvent | undefined> {
-    const messages = await session.getEvents();
-    const finalUserMessageIndex = messages.findLastIndex((m) => m.type === "user.message");
-    const currentTurnMessages =
-        finalUserMessageIndex < 0 ? messages : messages.slice(finalUserMessageIndex);
-
-    const currentTurnError = currentTurnMessages.find((m) => m.type === "session.error");
-    if (currentTurnError) {
-        const error = new Error(currentTurnError.data.message);
-        error.stack = currentTurnError.data.stack;
-        throw error;
-    }
-
-    const sessionIdleMessageIndex = alreadyIdle
-        ? currentTurnMessages.length
-        : currentTurnMessages.findIndex((m) => m.type === "session.idle");
-    if (sessionIdleMessageIndex !== -1) {
-        return currentTurnMessages
-            .slice(0, sessionIdleMessageIndex)
-            .findLast((m) => m.type === "assistant.message") as AssistantMessageEvent | undefined;
-    }
-
-    return undefined;
-}
-
-function getFutureFinalResponse(session: CopilotSession): Promise<AssistantMessageEvent> {
-    return new Promise<AssistantMessageEvent>((resolve, reject) => {
-        let finalAssistantMessage: AssistantMessageEvent | undefined;
-        session.on((event) => {
-            if (event.type === "assistant.message") {
-                finalAssistantMessage = event;
-            } else if (event.type === "session.idle") {
-                if (!finalAssistantMessage) {
-                    reject(
-                        new Error("Received session.idle without a preceding assistant.message")
-                    );
-                } else {
-                    resolve(finalAssistantMessage);
-                }
-            } else if (event.type === "session.error") {
-                const error = new Error(event.data.message);
-                error.stack = event.data.stack;
-                reject(error);
-            }
-        });
+    type Outcome = { message: AssistantMessageEvent } | { error: Error };
+    let resolveOutcome!: (outcome: Outcome) => void;
+    const outcomePromise = new Promise<Outcome>((resolve) => {
+        resolveOutcome = resolve;
     });
+    let finalAssistantMessage: AssistantMessageEvent | undefined;
+
+    // session.idle is ephemeral: subscribe before triggering work, not after an RPC
+    // reply or a history lookup. Keep errors as values while the trigger is in flight.
+    const unsubscribe = session.on((event) => {
+        if (event.type === "assistant.message") {
+            finalAssistantMessage = event;
+        } else if (event.type === "session.idle" && event.data.mode !== "autopilot") {
+            unsubscribe();
+            resolveOutcome(
+                finalAssistantMessage
+                    ? { message: finalAssistantMessage }
+                    : {
+                          error: new Error(
+                              "Received session.idle without a preceding assistant.message"
+                          ),
+                      }
+            );
+        } else if (event.type === "session.error") {
+            unsubscribe();
+            const error = new Error(event.data.message);
+            error.stack = event.data.stack;
+            resolveOutcome({ error });
+        }
+    });
+
+    try {
+        await trigger();
+        const outcome = await outcomePromise;
+        if ("error" in outcome) {
+            throw outcome.error;
+        }
+        return outcome.message;
+    } finally {
+        unsubscribe();
+    }
 }
 
 export async function retry(

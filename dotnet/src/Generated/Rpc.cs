@@ -356,7 +356,7 @@ public sealed class ModelCapabilitiesLimits
 [Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesSupports
 {
-    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).</summary>
+    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos).</summary>
     [JsonPropertyName("adaptive_thinking")]
     public AdaptiveThinkingSupport? AdaptiveThinking { get; set; }
 
@@ -670,6 +670,10 @@ public sealed class CopilotUserResponseEndpoints
 /// <summary>RPC data type for CopilotUserResponseOrganizationListItem operations.</summary>
 public sealed class CopilotUserResponseOrganizationListItem
 {
+    /// <summary>Numeric database ID of the organization.</summary>
+    [JsonPropertyName("id")]
+    public double? Id { get; set; }
+
     /// <summary>GitHub login of the organization.</summary>
     [JsonPropertyName("login")]
     public string? Login { get; set; }
@@ -931,7 +935,7 @@ public sealed class CopilotUserResponse
     [JsonPropertyName("monthly_quotas")]
     public IDictionary<string, double>? MonthlyQuotas { get; set; }
 
-    /// <summary>Organizations the user belongs to, each with an optional login and display name.</summary>
+    /// <summary>Organizations the user belongs to, each with an optional ID, login, and display name.</summary>
     [JsonPropertyName("organization_list")]
     public IList<CopilotUserResponseOrganizationListItem?>? OrganizationList { get; set; }
 
@@ -1885,9 +1889,9 @@ public partial class McpPlanInstallResultNegotiationRefused : McpPlanInstallResu
     [JsonPropertyName("runtimeProtocolVersion")]
     public required long RuntimeProtocolVersion { get; set; }
 
-    /// <summary>Every wire feature this runtime understands, so the caller can retry within that contract. This list does not imply that every deployment has enabled every operation.</summary>
+    /// <summary>Capabilities this runtime can safely advertise to this caller. The complete five-capability protocol-3 legacy set is always present; every capability added after that baseline appears only when the caller required it, so an older closed-enum decoder can still consume a refusal. This list does not imply that every deployment has enabled every operation.</summary>
     [JsonPropertyName("supportedCapabilities")]
-    public required IList<CatalogCapability> SupportedCapabilities { get; set; }
+    public required IList<string> SupportedCapabilities { get; set; }
 
     /// <summary>The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.</summary>
     [JsonPropertyName("unsupportedCapabilities")]
@@ -2521,6 +2525,201 @@ public partial class CatalogCandidateSourceEmbedded : CatalogCandidateSource
     public override string Kind => "embedded";
 }
 
+/// <summary>A versioned, bounded trust observation carried unchanged with a catalog candidate and its private handle context. Current observations require a recognised T1/T2 tier; every non-current state structurally forbids a tier. Eligibility remains `unknown` while Agent Finder supplies no exposure decision, and states absent from its current wire are never inferred from age, relevance, popularity, or a tier transition.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>status</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "status",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(CatalogTrustSnapshotCurrent), "current")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotAbsent), "absent")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotStale), "stale")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotDowngraded), "downgraded")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotRevoked), "revoked")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotUnsupported), "unsupported")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotMalformed), "malformed")]
+public partial class CatalogTrustSnapshot
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("status")]
+    public virtual string Status { get; set; } = string.Empty;
+}
+
+
+/// <summary>Where and when the runtime observed the trust metadata. Observation time is not the authority's evaluation time and must not be used to infer staleness.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CatalogTrustProvenance
+{
+    /// <summary>ISO 8601 timestamp with a timezone offset at which the runtime observed the search result carrying this trust field.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(20)]
+    [MaxLength(64)]
+    [JsonPropertyName("observedAt")]
+    public DateTimeOffset ObservedAt { get; set; }
+
+    /// <summary>Bounded authority that supplied the trust field.</summary>
+    [JsonPropertyName("source")]
+    public CatalogTrustSource Source { get; set; }
+}
+
+/// <summary>A recognised current Agent Finder T1 or T2 trust tier.</summary>
+/// <remarks>The <c>current</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotCurrent : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "current";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+
+    /// <summary>Service-computed T1 or T2 trust tier.</summary>
+    [JsonPropertyName("tier")]
+    public required CatalogTrustTier Tier { get; set; }
+}
+
+/// <summary>Discriminator: the authority omitted trust metadata.</summary>
+/// <remarks>The <c>absent</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotAbsent : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "absent";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
+/// <summary>Discriminator: the authority explicitly marked the assessment stale.</summary>
+/// <remarks>The <c>stale</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotStale : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "stale";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
+/// <summary>Discriminator: the authority explicitly reported a downgraded assessment.</summary>
+/// <remarks>The <c>downgraded</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotDowngraded : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "downgraded";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
+/// <summary>Discriminator: the authority explicitly revoked the assessment.</summary>
+/// <remarks>The <c>revoked</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotRevoked : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "revoked";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
+/// <summary>Discriminator: the authority supplied a bounded trust value this runtime does not understand.</summary>
+/// <remarks>The <c>unsupported</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotUnsupported : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "unsupported";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
+/// <summary>Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.</summary>
+/// <remarks>The <c>malformed</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotMalformed : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "malformed";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
 /// <summary>An inert MCP server catalog result. Every free-text field is untrusted external data and must never be treated as an instruction, and the handle is the only way to refer to the candidate in a later operation.</summary>
 /// <remarks>The <c>mcp-server</c> variant of <see cref="CatalogCandidate"/>.</remarks>
 [Experimental(Diagnostics.Experimental)]
@@ -2575,6 +2774,11 @@ public partial class CatalogCandidateMcpServer : CatalogCandidate
     /// <summary>Where the card came from: exactly one of a URL or embedded data, encoded as a tagged union so neither both nor neither can be represented.</summary>
     [JsonPropertyName("source")]
     public required CatalogCandidateSource Source { get; set; }
+
+    /// <summary>Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("trust")]
+    public CatalogTrustSnapshot? Trust { get; set; }
 }
 
 /// <summary>Where and when an AI skill catalog reference was observed. Discovery provenance deliberately carries no content digest because search does not establish the exact validated content a later plan will bind.</summary>
@@ -2650,6 +2854,11 @@ public partial class CatalogCandidateAiSkill : CatalogCandidate
     /// <summary>Where the card came from: exactly one of a URL or embedded data, encoded as a tagged union so neither both nor neither can be represented.</summary>
     [JsonPropertyName("source")]
     public required CatalogCandidateSource Source { get; set; }
+
+    /// <summary>Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("trust")]
+    public CatalogTrustSnapshot? Trust { get; set; }
 }
 
 /// <summary>A completed catalog search: inert candidate summaries, each carrying a single-use handle.</summary>
@@ -2708,9 +2917,9 @@ public partial class CatalogSearchResultNegotiationRefused : CatalogSearchResult
     [JsonPropertyName("runtimeProtocolVersion")]
     public required long RuntimeProtocolVersion { get; set; }
 
-    /// <summary>Every wire feature this runtime understands, so the caller can retry within that contract. This list does not imply that every deployment has enabled every operation.</summary>
+    /// <summary>Capabilities this runtime can safely advertise to this caller. The complete five-capability protocol-3 legacy set is always present; every capability added after that baseline appears only when the caller required it, so an older closed-enum decoder can still consume a refusal. This list does not imply that every deployment has enabled every operation.</summary>
     [JsonPropertyName("supportedCapabilities")]
-    public required IList<CatalogCapability> SupportedCapabilities { get; set; }
+    public required IList<string> SupportedCapabilities { get; set; }
 
     /// <summary>The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.</summary>
     [JsonPropertyName("unsupportedCapabilities")]
@@ -2964,6 +3173,10 @@ public sealed class InstalledPluginInfo
     /// <summary>Plugin name.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Runtime-reported plugin provenance. Currently set to "builtin" only for plugins registered through the trusted host built-in boundary; absent for installed, marketplace, direct, and live plugins.</summary>
+    [JsonPropertyName("source")]
+    public string? Source { get; set; }
 
     /// <summary>Installed version (when reported by the plugin manifest).</summary>
     [JsonPropertyName("version")]
@@ -4527,7 +4740,7 @@ public sealed class EventsReadResult
     [JsonPropertyName("cursor")]
     public string Cursor { get; set; } = string.Empty;
 
-    /// <summary>Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.</summary>
+    /// <summary>Cursor status: 'ok' means the cursor was applied successfully. For session.eventLog.read, 'expired' means the cursor referred to an event that no longer exists in active history and the read fell back to a boundary of the remaining history: the beginning for a forward read or the newest window for a backward read. That fallback may overlap already rendered events, so active-session consumers should reset, rebase, or deduplicate before continuing. sessions.readPersistedEvents has stricter snapshot semantics: 'expired' returns an empty terminal page and never switches to a replacement journal generation. Other persisted-read I/O failures are RPC errors with diagnostics, not cursor expiry.</summary>
     [JsonPropertyName("cursorStatus")]
     public EventsCursorStatus CursorStatus { get; set; }
 
@@ -4535,7 +4748,7 @@ public sealed class EventsReadResult
     [JsonPropertyName("events")]
     public IList<SessionEvent> Events { get => field ??= []; set; }
 
-    /// <summary>True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.</summary>
+    /// <summary>True when more events are available in the read's direction. For a backward read, true means older persisted events remain before the returned window. A persisted-event page may contain fewer than `max` events because of its byte budget while still reporting hasMore true; continue according to this flag rather than the event count.</summary>
     [JsonPropertyName("hasMore")]
     public bool HasMore { get; set; }
 }
@@ -4544,15 +4757,15 @@ public sealed class EventsReadResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionsReadPersistedEventsRequest
 {
-    /// <summary>Opaque cursor returned by a previous persisted-event read. Omit on the first call.</summary>
+    /// <summary>Opaque, process-local, single-use cursor returned by the previous persisted-event read. Omit on the first call and issue continuations sequentially; reusing the same cursor returns an expired terminal page.</summary>
     [JsonPropertyName("cursor")]
     public string? Cursor { get; set; }
 
-    /// <summary>Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological.</summary>
+    /// <summary>Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological. This selects the initial read only; a continuation always uses the direction bound into its cursor.</summary>
     [JsonPropertyName("direction")]
     public EventsReadDirection? Direction { get; set; }
 
-    /// <summary>Maximum number of events to return in this batch (1–1000, default 200).</summary>
+    /// <summary>Maximum number of events to return in this batch (1–1000, default 200). Pages may contain fewer events to keep the serialized event array within a soft 1 MiB budget including resolved binary assets; one oversized event is returned alone to guarantee progress.</summary>
     [JsonPropertyName("max")]
     public long? Max { get; set; }
 
@@ -5166,31 +5379,6 @@ internal sealed class SessionsStopRemoteControlRequest
     public bool? Force { get; set; }
 }
 
-/// <summary>Handle for releasing the extension tool registration.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal sealed class RegisterExtensionToolsResult
-{
-}
-
-/// <summary>Optional registration options.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class SessionsRegisterExtensionToolsOnSessionOptions
-{
-}
-
-/// <summary>Params to attach an extension loader's tools to a session.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal sealed class RegisterExtensionToolsParams
-{
-    /// <summary>Optional registration options.</summary>
-    [JsonPropertyName("options")]
-    public SessionsRegisterExtensionToolsOnSessionOptions? Options { get; set; }
-
-    /// <summary>Session to register extension tools on.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
 /// <summary>Params to attach or detach an in-process ExtensionController delegate.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ConfigureSessionExtensionsParams
@@ -5454,6 +5642,55 @@ public sealed class SendResult
     public string MessageId { get; set; } = string.Empty;
 }
 
+/// <summary>Provider-native structured output format. JSON Schema is forwarded without rewriting or validating the schema or the generated output.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "type",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(ResponseFormatJsonSchema), "json_schema")]
+public partial class ResponseFormat
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("type")]
+    public virtual string Type { get; set; } = string.Empty;
+}
+
+
+/// <summary>A JSON Schema output contract. OpenAI receives the name, description, schema and strict setting; Anthropic receives the schema in output_config.format and always uses its native strict enforcement.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class JsonSchemaResponseFormat
+{
+    /// <summary>Optional description passed to OpenAI providers.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Name of the output schema, subject to the provider's naming restrictions.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>JSON Schema passed unchanged to the inference provider. Schemas larger than 32 MiB when JSON-encoded are rejected before admission, using the runtime's existing request-size ceiling. This is not a guarantee that the entire model request fits. Supported keywords and schema restrictions are determined by the provider.</summary>
+    [JsonPropertyName("schema")]
+    public JsonElement Schema { get; set; }
+
+    /// <summary>Optional strict enforcement setting for OpenAI providers. Omitted uses the provider default. Anthropic always enforces its supported schema subset.</summary>
+    [JsonPropertyName("strict")]
+    public bool? Strict { get; set; }
+}
+
+/// <summary>The <c>json_schema</c> variant of <see cref="ResponseFormat"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class ResponseFormatJsonSchema : ResponseFormat
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "json_schema";
+
+    /// <summary>JSON Schema and provider options for the turn's output.</summary>
+    [JsonPropertyName("jsonSchema")]
+    public required JsonSchemaResponseFormat JsonSchema { get; set; }
+}
+
 /// <summary>Parameters for sending a user message to the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SendRequest
@@ -5494,6 +5731,10 @@ internal sealed class SendRequest
     [JsonPropertyName("requiredTool")]
     public string? RequiredTool { get; set; }
 
+    /// <summary>Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.</summary>
+    [JsonPropertyName("responseFormat")]
+    public ResponseFormat? ResponseFormat { get; set; }
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -5521,7 +5762,7 @@ internal sealed class SendRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class SendMessagesResult
 {
-    /// <summary>Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.</summary>
+    /// <summary>Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId.</summary>
     [JsonPropertyName("messageIds")]
     public IList<string> MessageIds { get => field ??= []; set; }
 }
@@ -5566,7 +5807,7 @@ internal sealed class SendMessagesRequest
     [JsonPropertyName("agentMode")]
     public SendAgentMode? AgentMode { get; set; }
 
-    /// <summary>The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.</summary>
+    /// <summary>The user messages to append to the conversation, in order, before running one agent loop. When the batch starts a run, its final message is the primary initiating message; earlier messages provide context, not separate runs or replies. May be empty, in which case a single turn runs over the existing history with no new user message or originatingMessageId.</summary>
     [JsonPropertyName("messages")]
     public IList<SendMessageItem> Messages { get => field ??= []; set; }
 
@@ -5581,6 +5822,10 @@ internal sealed class SendMessagesRequest
     /// <summary>Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.</summary>
     [JsonPropertyName("requestHeaders")]
     public IDictionary<string, string>? RequestHeaders { get; set; }
+
+    /// <summary>Provider-native output format for the whole turn, including an empty message batch and all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.</summary>
+    [JsonPropertyName("responseFormat")]
+    public ResponseFormat? ResponseFormat { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -5681,6 +5926,10 @@ internal sealed class SessionCancelAllBackgroundAgentsRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ShutdownRequest
 {
+    /// <summary>Dispatch deferred sessionEnd hooks in the background with their full per-hook timeoutSec instead of awaiting them under the short shared shutdown budget. Set this when the host process keeps running after the session closes (for example the CLI's /clear), so a slow hook neither blocks the close nor is aborted. Hooks still detached when the process later exits are terminated with it. Defaults to false.</summary>
+    [JsonPropertyName("detachSessionEndHooks")]
+    public bool? DetachSessionEndHooks { get; set; }
+
     /// <summary>Optional human-readable reason. Typically the message of the error that triggered shutdown when type is 'error'.</summary>
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
@@ -6214,7 +6463,7 @@ internal sealed class SessionGitHubAuthLastAuthErrorsRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>A file included in the redacted debug bundle.</summary>
+/// <summary>A file included in the session debug bundle.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class DebugCollectLogsCollectedEntry
 {
@@ -6248,11 +6497,11 @@ public sealed class DebugCollectLogsSkippedEntry
     public string Reason { get; set; } = string.Empty;
 }
 
-/// <summary>Result of collecting a redacted debug bundle.</summary>
+/// <summary>Result of collecting a session debug bundle.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class DebugCollectLogsResult
 {
-    /// <summary>Files included in the redacted bundle.</summary>
+    /// <summary>Files included in the bundle.</summary>
     [JsonPropertyName("entries")]
     public IList<DebugCollectLogsCollectedEntry> Entries { get => field ??= []; set; }
 
@@ -6285,7 +6534,7 @@ public sealed class DebugCollectLogsEntry
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 
-    /// <summary>How text content from this entry should be redacted. Defaults to plain-text.</summary>
+    /// <summary>How text content from this entry should be redacted. Defaults to plain-text. With none, no redaction is applied; the caller must ensure any necessary redaction is performed before this call.</summary>
     [JsonPropertyName("redaction")]
     public DebugCollectLogsRedaction? Redaction { get; set; }
 
@@ -6294,7 +6543,7 @@ public sealed class DebugCollectLogsEntry
     public bool? Required { get; set; }
 }
 
-/// <summary>Destination for the redacted debug bundle.</summary>
+/// <summary>Destination for the session debug bundle.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
@@ -6336,7 +6585,7 @@ public partial class DebugCollectLogsDestinationDirectory : DebugCollectLogsDest
     [JsonIgnore]
     public override string Kind => "directory";
 
-    /// <summary>Directory where redacted files should be staged. The directory is created if needed.</summary>
+    /// <summary>Directory where files should be staged. The directory is created if needed.</summary>
     [JsonPropertyName("outputDirectory")]
     public required string OutputDirectory { get; set; }
 }
@@ -6374,7 +6623,7 @@ public sealed class DebugCollectLogsInclude
     public bool? ShellLogs { get; set; }
 }
 
-/// <summary>Options for collecting a redacted session debug bundle.</summary>
+/// <summary>Options for collecting a session debug bundle with configurable redaction.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class DebugCollectLogsRequest
 {
@@ -6382,7 +6631,7 @@ internal sealed class DebugCollectLogsRequest
     [JsonPropertyName("additionalEntries")]
     public IList<DebugCollectLogsEntry>? AdditionalEntries { get; set; }
 
-    /// <summary>Where the redacted bundle should be written. Use `archive` to produce a .tgz, or `directory` to stage redacted files for caller-managed upload/post-processing.</summary>
+    /// <summary>Where the bundle should be written. Use `archive` to produce a .tgz, or `directory` to stage files for caller-managed upload/post-processing.</summary>
     [JsonPropertyName("destination")]
     public DebugCollectLogsDestination Destination { get => field ??= new(); set; }
 
@@ -7866,7 +8115,7 @@ public sealed class ModelCapabilitiesOverrideLimits
 [Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverrideSupports
 {
-    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).</summary>
+    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos).</summary>
     [JsonPropertyName("adaptive_thinking")]
     public AdaptiveThinkingSupport? AdaptiveThinking { get; set; }
 
@@ -8063,6 +8312,10 @@ internal sealed class ModelApplyStartupOverlayRequest
     [JsonPropertyName("policyHelperModel")]
     public string? PolicyHelperModel { get; set; }
 
+    /// <summary>Auto routing preference selected by repository settings, when configured. Applied only when the overlay selects the Auto model; beside a concrete model it stays dormant.</summary>
+    [JsonPropertyName("repoAutoTier")]
+    public string? RepoAutoTier { get; set; }
+
     /// <summary>Context tier selected by repository settings, when configured.</summary>
     [JsonPropertyName("repoContextTier")]
     public string? RepoContextTier { get; set; }
@@ -8225,6 +8478,10 @@ public sealed class ModeSetResult
     [JsonPropertyName("message")]
     public string? Message { get; set; }
 
+    /// <summary>Whether the requested mode was applied to the session. False only when an 'expectedMode' precondition did not hold, in which case any model change reported alongside it was still applied.</summary>
+    [JsonPropertyName("modeApplied")]
+    public bool? ModeApplied { get; set; }
+
     /// <summary>Whether applying the mode changed the active model.</summary>
     [JsonPropertyName("modelChanged")]
     public bool ModelChanged { get; set; }
@@ -8245,6 +8502,10 @@ internal sealed class ModeSetRequest
     /// <summary>Explicit response to a model-switch compaction preflight.</summary>
     [JsonPropertyName("compactionDecision")]
     public string? CompactionDecision { get; set; }
+
+    /// <summary>Mode the session must currently be in for the change to apply. When set and the session is in a different mode the request is a no-op and reports status 'unchanged'.</summary>
+    [JsonPropertyName("expectedMode")]
+    public SessionMode? ExpectedMode { get; set; }
 
     /// <summary>Session whose plan-mode base state should be inherited.</summary>
     [JsonPropertyName("inheritPlanBaseFromSessionId")]
@@ -8603,7 +8864,7 @@ internal sealed class WorkspacesEnsureRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesListFilesResult
 {
-    /// <summary>Relative file paths in the workspace files directory.</summary>
+    /// <summary>Slash-separated relative file paths in the workspace files directory.</summary>
     [JsonPropertyName("files")]
     public IList<string> Files { get => field ??= []; set; }
 }
@@ -8630,7 +8891,7 @@ public sealed class WorkspacesReadFileResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class WorkspacesReadFileRequest
 {
-    /// <summary>Relative path within the workspace files directory.</summary>
+    /// <summary>Slash-separated relative path within the workspace files directory.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 
@@ -8647,13 +8908,106 @@ internal sealed class WorkspacesCreateFileRequest
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
 
-    /// <summary>Relative path within the workspace files directory.</summary>
+    /// <summary>Slash-separated relative path within the workspace files directory.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Filesystem metadata for a path in the session workspace files directory.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class WorkspacesStatFileResult
+{
+    /// <summary>Creation time in Unix epoch milliseconds.</summary>
+    [JsonPropertyName("birthtimeMs")]
+    public double BirthtimeMs { get; set; }
+
+    /// <summary>Whether the path identifies a directory.</summary>
+    [JsonPropertyName("isDirectory")]
+    public bool IsDirectory { get; set; }
+
+    /// <summary>Whether the path identifies a regular file.</summary>
+    [JsonPropertyName("isFile")]
+    public bool IsFile { get; set; }
+
+    /// <summary>Last modification time in Unix epoch milliseconds.</summary>
+    [JsonPropertyName("mtimeMs")]
+    public double MtimeMs { get; set; }
+
+    /// <summary>Size in bytes.</summary>
+    [JsonPropertyName("size")]
+    public double Size { get; set; }
+}
+
+/// <summary>Relative path of the workspace file or directory to inspect.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class WorkspacesStatFileRequest
+{
+    /// <summary>Slash-separated relative path within the workspace files directory.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Directory to create within the session workspace files directory.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class WorkspacesCreateDirectoryRequest
+{
+    /// <summary>Slash-separated relative path within the workspace files directory.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Whether to create missing parent directories. Defaults to false.</summary>
+    [JsonPropertyName("recursive")]
+    public bool? Recursive { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>File or directory to remove from the session workspace files directory.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class WorkspacesRemovePathRequest
+{
+    /// <summary>Whether a missing path should be treated as success. Defaults to false.</summary>
+    [JsonPropertyName("force")]
+    public bool? Force { get; set; }
+
+    /// <summary>Slash-separated relative path within the workspace files directory.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Whether to remove directory contents recursively. Defaults to false.</summary>
+    [JsonPropertyName("recursive")]
+    public bool? Recursive { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Source and destination paths for a rename within the session workspace files directory.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class WorkspacesRenamePathRequest
+{
+    /// <summary>Slash-separated destination path relative to the workspace files directory.</summary>
+    [JsonPropertyName("destination")]
+    public string Destination { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Slash-separated source path relative to the workspace files directory.</summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
 }
 
 /// <summary>Workspace checkpoint metadata with assigned number, human-readable title, and checkpoint filename.</summary>
@@ -9121,10 +9475,19 @@ public sealed class FleetStartResult
     public bool Started { get; set; }
 }
 
-/// <summary>Optional user prompt to combine with the fleet orchestration instructions.</summary>
+/// <summary>Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class FleetStartRequest
 {
+    /// <summary>Optional attachments (files, directories, selections, blobs, GitHub references) to include with the fleet request.</summary>
+    [JsonPropertyName("attachments")]
+    public IList<Attachment>? Attachments { get; set; }
+
+    /// <summary>If false, this request will not trigger a Premium Request Unit charge. User requests default to billable.</summary>
+    [JsonInclude]
+    [JsonPropertyName("billable")]
+    internal bool? Billable { get; set; }
+
     /// <summary>Optional user prompt to combine with fleet instructions.</summary>
     [JsonPropertyName("prompt")]
     public string? Prompt { get; set; }
@@ -9132,6 +9495,10 @@ internal sealed class FleetStartRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>If true, await completion of the agentic loop for this fleet request before returning. Defaults to false.</summary>
+    [JsonPropertyName("wait")]
+    public bool? Wait { get; set; }
 }
 
 /// <summary>Agents available to the session.</summary>
@@ -10437,6 +10804,10 @@ public sealed class McpHostState
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpServer
 {
+    /// <summary>Human-readable display name supplied by a managed server catalog.</summary>
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
     /// <summary>Error message if the server failed to connect.</summary>
     [JsonPropertyName("error")]
     public string? Error { get; set; }
@@ -10452,7 +10823,7 @@ public sealed class McpServer
     [JsonPropertyName("serverMetadata")]
     public McpServerMetadata? ServerMetadata { get; set; }
 
-    /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
+    /// <summary>Configuration source: user, workspace, plugin, builtin, or managed.</summary>
     [JsonPropertyName("source")]
     public McpServerSource? Source { get; set; }
 
@@ -11196,6 +11567,7 @@ public sealed class McpHeadersHandlePendingHeadersRefreshRequestResult
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
 [JsonDerivedType(typeof(McpHeadersHandlePendingHeadersRefreshRequestHeaders), "headers")]
 [JsonDerivedType(typeof(McpHeadersHandlePendingHeadersRefreshRequestNone), "none")]
+[JsonDerivedType(typeof(McpHeadersHandlePendingHeadersRefreshRequestError), "error")]
 public partial class McpHeadersHandlePendingHeadersRefreshRequest
 {
     /// <summary>The type discriminator.</summary>
@@ -11215,6 +11587,11 @@ public partial class McpHeadersHandlePendingHeadersRefreshRequestHeaders : McpHe
     /// <summary>Headers to overlay onto the MCP request. Dynamic headers override static config headers but do not replace SDK-managed request headers.</summary>
     [JsonPropertyName("headers")]
     public required IDictionary<string, string> Headers { get; set; }
+
+    /// <summary>Optional lifetime in milliseconds for these returned headers. The runtime clamps its configured cache lifetime to this value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ttlMs")]
+    public long? TtlMs { get; set; }
 }
 
 /// <summary>The <c>none</c> variant of <see cref="McpHeadersHandlePendingHeadersRefreshRequest"/>.</summary>
@@ -11224,6 +11601,19 @@ public partial class McpHeadersHandlePendingHeadersRefreshRequestNone : McpHeade
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "none";
+}
+
+/// <summary>The <c>error</c> variant of <see cref="McpHeadersHandlePendingHeadersRefreshRequest"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpHeadersHandlePendingHeadersRefreshRequestError : McpHeadersHandlePendingHeadersRefreshRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "error";
+
+    /// <summary>Host credential broker failure, denial, or revocation reason.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
 }
 
 /// <summary>MCP headers refresh request id and the host response.</summary>
@@ -11956,6 +12346,291 @@ public sealed class ProviderAddResult
     public IList<JsonElement> Models { get => field ??= []; set; }
 }
 
+/// <summary>RPC data type for ProtocolSystemMessageAppendConfig operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ProtocolSystemMessageAppendConfig
+{
+    /// <summary>Text appended to the standard system prompt.</summary>
+    [JsonPropertyName("content")]
+    public string? Content { get; set; }
+
+    /// <summary>Append-mode discriminator. Omission also selects append mode.</summary>
+    [JsonPropertyName("mode")]
+    public ProtocolAppendMode? Mode { get; set; }
+}
+
+/// <summary>RPC data type for SystemMessageBlock operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SystemMessageBlock
+{
+    /// <summary>Text content for this system-message block.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Whether the block is static and may be cached independently of dynamic prompt content.</summary>
+    [JsonPropertyName("isStatic")]
+    public bool? IsStatic { get; set; }
+}
+
+/// <summary>RPC data type for ProtocolSystemMessageReplaceConfig operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ProtocolSystemMessageReplaceConfig
+{
+    /// <summary>Complete replacement system-message text.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Optional structured blocks corresponding to the replacement content.</summary>
+    [JsonPropertyName("contentBlocks")]
+    public IList<SystemMessageBlock>? ContentBlocks { get; set; }
+
+    /// <summary>Replace-mode discriminator.</summary>
+    [JsonPropertyName("mode")]
+    public ProtocolReplaceMode Mode { get; set; }
+}
+
+/// <summary>RPC data type for ProtocolStaticSectionOverride operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ProtocolStaticSectionOverride
+{
+    /// <summary>Declarative operation applied to the section.</summary>
+    [JsonPropertyName("action")]
+    public ProtocolStaticSectionAction Action { get; set; }
+
+    /// <summary>Optional content used by replace, append, and prepend operations.</summary>
+    [JsonPropertyName("content")]
+    public string? Content { get; set; }
+}
+
+/// <summary>Polymorphic base type discriminated by <c>action</c>.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "action",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(ProtocolMarkerSectionOverrideTransform), "transform")]
+[JsonDerivedType(typeof(ProtocolMarkerSectionOverridePreserve), "preserve")]
+public partial class ProtocolMarkerSectionOverride
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("action")]
+    public virtual string Action { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>transform</c> variant of <see cref="ProtocolMarkerSectionOverride"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class ProtocolMarkerSectionOverrideTransform : ProtocolMarkerSectionOverride
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Action => "transform";
+}
+
+/// <summary>The <c>preserve</c> variant of <see cref="ProtocolMarkerSectionOverride"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class ProtocolMarkerSectionOverridePreserve : ProtocolMarkerSectionOverride
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Action => "preserve";
+}
+
+/// <summary>JSON union data type for <c>ProtocolSectionOverride</c>.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+public sealed partial class ProtocolSectionOverride
+{
+    /// <summary>Gets the value when this instance contains <see cref="ProtocolStaticSectionOverride"/>.</summary>
+    public ProtocolStaticSectionOverride? ProtocolStaticSectionOverride { get; }
+
+    /// <summary>Gets the value when this instance contains <see cref="ProtocolMarkerSectionOverride"/>.</summary>
+    public ProtocolMarkerSectionOverride? ProtocolMarkerSectionOverride { get; }
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolSectionOverride"/> class from <see cref="ProtocolStaticSectionOverride"/>.</summary>
+    public ProtocolSectionOverride(ProtocolStaticSectionOverride value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ProtocolStaticSectionOverride = value;
+    }
+
+    /// <summary>Converts <see cref="ProtocolStaticSectionOverride"/> to <see cref="ProtocolSectionOverride"/>.</summary>
+    public static implicit operator ProtocolSectionOverride(ProtocolStaticSectionOverride value) => new(value);
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolSectionOverride"/> class from <see cref="ProtocolMarkerSectionOverride"/>.</summary>
+    public ProtocolSectionOverride(ProtocolMarkerSectionOverride value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ProtocolMarkerSectionOverride = value;
+    }
+
+    /// <summary>Converts <see cref="ProtocolMarkerSectionOverride"/> to <see cref="ProtocolSectionOverride"/>.</summary>
+    public static implicit operator ProtocolSectionOverride(ProtocolMarkerSectionOverride value) => new(value);
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolSectionOverride}"/> for serializing <see cref="ProtocolSectionOverride"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolSectionOverride>
+    {
+        /// <inheritdoc />
+        public override ProtocolSectionOverride Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                throw new JsonException("Expected JSON object for ProtocolSectionOverride.");
+            }
+
+            using var document = JsonDocument.ParseValue(ref reader);
+            var element = document.RootElement;
+            if (element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("action", out _) && element.GetProperty("action").ValueKind == JsonValueKind.String && (element.GetProperty("action").GetString() == "replace" || element.GetProperty("action").GetString() == "remove" || element.GetProperty("action").GetString() == "append" || element.GetProperty("action").GetString() == "prepend")))
+            {
+                var protocolStaticSectionOverride = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolStaticSectionOverride);
+                return protocolStaticSectionOverride is null ? throw new JsonException("Expected ProtocolStaticSectionOverride value.") : new ProtocolSectionOverride(protocolStaticSectionOverride);
+            }
+            if ((element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("action", out _) && element.GetProperty("action").ValueKind == JsonValueKind.String && (element.GetProperty("action").GetString() == "transform")) || element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("action", out _) && element.GetProperty("action").ValueKind == JsonValueKind.String && (element.GetProperty("action").GetString() == "preserve"))))
+            {
+                var protocolMarkerSectionOverride = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolMarkerSectionOverride);
+                return protocolMarkerSectionOverride is null ? throw new JsonException("Expected ProtocolMarkerSectionOverride value.") : new ProtocolSectionOverride(protocolMarkerSectionOverride);
+            }
+
+            throw new JsonException("JSON value did not match any ProtocolSectionOverride variant.");
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolSectionOverride value, JsonSerializerOptions options)
+        {
+            if (value.ProtocolStaticSectionOverride is { } protocolStaticSectionOverride)
+            {
+                JsonSerializer.Serialize(writer, protocolStaticSectionOverride, RpcJsonContext.Default.ProtocolStaticSectionOverride);
+                return;
+            }
+            if (value.ProtocolMarkerSectionOverride is { } protocolMarkerSectionOverride)
+            {
+                JsonSerializer.Serialize(writer, protocolMarkerSectionOverride, RpcJsonContext.Default.ProtocolMarkerSectionOverride);
+                return;
+            }
+
+            throw new JsonException("No ProtocolSectionOverride variant value is set.");
+        }
+    }
+}
+
+/// <summary>RPC data type for ProtocolSystemMessageCustomizeConfig operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ProtocolSystemMessageCustomizeConfig
+{
+    /// <summary>Text appended after the customized sections.</summary>
+    [JsonPropertyName("content")]
+    public string? Content { get; set; }
+
+    /// <summary>Customize-mode discriminator.</summary>
+    [JsonPropertyName("mode")]
+    public ProtocolCustomizeMode Mode { get; set; }
+
+    /// <summary>Named standard-prompt section overrides.</summary>
+    [JsonPropertyName("sections")]
+    public IDictionary<string, ProtocolSectionOverride>? Sections { get; set; }
+}
+
+/// <summary>JSON union data type for <c>ProtocolSystemMessageConfig</c>.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+public sealed partial class ProtocolSystemMessageConfig
+{
+    /// <summary>Gets the value when this instance contains <see cref="ProtocolSystemMessageAppendConfig"/>.</summary>
+    public ProtocolSystemMessageAppendConfig? ProtocolSystemMessageAppendConfig { get; }
+
+    /// <summary>Gets the value when this instance contains <see cref="ProtocolSystemMessageReplaceConfig"/>.</summary>
+    public ProtocolSystemMessageReplaceConfig? ProtocolSystemMessageReplaceConfig { get; }
+
+    /// <summary>Gets the value when this instance contains <see cref="ProtocolSystemMessageCustomizeConfig"/>.</summary>
+    public ProtocolSystemMessageCustomizeConfig? ProtocolSystemMessageCustomizeConfig { get; }
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolSystemMessageConfig"/> class from <see cref="ProtocolSystemMessageAppendConfig"/>.</summary>
+    public ProtocolSystemMessageConfig(ProtocolSystemMessageAppendConfig value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ProtocolSystemMessageAppendConfig = value;
+    }
+
+    /// <summary>Converts <see cref="ProtocolSystemMessageAppendConfig"/> to <see cref="ProtocolSystemMessageConfig"/>.</summary>
+    public static implicit operator ProtocolSystemMessageConfig(ProtocolSystemMessageAppendConfig value) => new(value);
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolSystemMessageConfig"/> class from <see cref="ProtocolSystemMessageReplaceConfig"/>.</summary>
+    public ProtocolSystemMessageConfig(ProtocolSystemMessageReplaceConfig value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ProtocolSystemMessageReplaceConfig = value;
+    }
+
+    /// <summary>Converts <see cref="ProtocolSystemMessageReplaceConfig"/> to <see cref="ProtocolSystemMessageConfig"/>.</summary>
+    public static implicit operator ProtocolSystemMessageConfig(ProtocolSystemMessageReplaceConfig value) => new(value);
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolSystemMessageConfig"/> class from <see cref="ProtocolSystemMessageCustomizeConfig"/>.</summary>
+    public ProtocolSystemMessageConfig(ProtocolSystemMessageCustomizeConfig value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ProtocolSystemMessageCustomizeConfig = value;
+    }
+
+    /// <summary>Converts <see cref="ProtocolSystemMessageCustomizeConfig"/> to <see cref="ProtocolSystemMessageConfig"/>.</summary>
+    public static implicit operator ProtocolSystemMessageConfig(ProtocolSystemMessageCustomizeConfig value) => new(value);
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolSystemMessageConfig}"/> for serializing <see cref="ProtocolSystemMessageConfig"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolSystemMessageConfig>
+    {
+        /// <inheritdoc />
+        public override ProtocolSystemMessageConfig Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                throw new JsonException("Expected JSON object for ProtocolSystemMessageConfig.");
+            }
+
+            using var document = JsonDocument.ParseValue(ref reader);
+            var element = document.RootElement;
+            if (element.ValueKind == JsonValueKind.Object && (!element.TryGetProperty("mode", out _) || (element.TryGetProperty("mode", out _) && element.GetProperty("mode").ValueKind == JsonValueKind.String && (element.GetProperty("mode").GetString() == "append"))))
+            {
+                var protocolSystemMessageAppendConfig = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolSystemMessageAppendConfig);
+                return protocolSystemMessageAppendConfig is null ? throw new JsonException("Expected ProtocolSystemMessageAppendConfig value.") : new ProtocolSystemMessageConfig(protocolSystemMessageAppendConfig);
+            }
+            if (element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("mode", out _) && element.GetProperty("mode").ValueKind == JsonValueKind.String && (element.GetProperty("mode").GetString() == "replace")))
+            {
+                var protocolSystemMessageReplaceConfig = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolSystemMessageReplaceConfig);
+                return protocolSystemMessageReplaceConfig is null ? throw new JsonException("Expected ProtocolSystemMessageReplaceConfig value.") : new ProtocolSystemMessageConfig(protocolSystemMessageReplaceConfig);
+            }
+            if (element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("mode", out _) && element.GetProperty("mode").ValueKind == JsonValueKind.String && (element.GetProperty("mode").GetString() == "customize")))
+            {
+                var protocolSystemMessageCustomizeConfig = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolSystemMessageCustomizeConfig);
+                return protocolSystemMessageCustomizeConfig is null ? throw new JsonException("Expected ProtocolSystemMessageCustomizeConfig value.") : new ProtocolSystemMessageConfig(protocolSystemMessageCustomizeConfig);
+            }
+
+            throw new JsonException("JSON value did not match any ProtocolSystemMessageConfig variant.");
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolSystemMessageConfig value, JsonSerializerOptions options)
+        {
+            if (value.ProtocolSystemMessageAppendConfig is { } protocolSystemMessageAppendConfig)
+            {
+                JsonSerializer.Serialize(writer, protocolSystemMessageAppendConfig, RpcJsonContext.Default.ProtocolSystemMessageAppendConfig);
+                return;
+            }
+            if (value.ProtocolSystemMessageReplaceConfig is { } protocolSystemMessageReplaceConfig)
+            {
+                JsonSerializer.Serialize(writer, protocolSystemMessageReplaceConfig, RpcJsonContext.Default.ProtocolSystemMessageReplaceConfig);
+                return;
+            }
+            if (value.ProtocolSystemMessageCustomizeConfig is { } protocolSystemMessageCustomizeConfig)
+            {
+                JsonSerializer.Serialize(writer, protocolSystemMessageCustomizeConfig, RpcJsonContext.Default.ProtocolSystemMessageCustomizeConfig);
+                return;
+            }
+
+            throw new JsonException("No ProtocolSystemMessageConfig variant value is set.");
+        }
+    }
+}
+
 /// <summary>A BYOK model definition referencing a named provider.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ProviderModelConfig
@@ -11991,6 +12666,10 @@ public sealed class ProviderModelConfig
     /// <summary>Name of the configured provider that serves this model.</summary>
     [JsonPropertyName("provider")]
     public string Provider { get; set; } = string.Empty;
+
+    /// <summary>System-message configuration used when the runtime builds the standard prompt for this provider-qualified model, including general-purpose subagents. It uses the same object hierarchy as session-level systemMessage configuration, except transform actions are rejected because the current callback protocol is not model-scoped. When present, it overrides the session-wide configuration on those prompt paths. Selected custom-agent and specialized-subagent prompts remain authoritative.</summary>
+    [JsonPropertyName("systemMessage")]
+    public ProtocolSystemMessageConfig? SystemMessage { get; set; }
 
     /// <summary>The model name sent to the provider API for inference. Defaults to `id`.</summary>
     [JsonPropertyName("wireModel")]
@@ -12328,6 +13007,10 @@ public sealed class SandboxConfigUserPolicyNetworkProxy
 [Experimental(Diagnostics.Experimental)]
 public sealed class SandboxConfigUserPolicyNetwork
 {
+    /// <summary>Hosts allowed through the built-in sandbox proxy. A non-empty list denies unmatched hosts; an absent or empty list allows all hosts not blocked. Supports exact hostnames, IP addresses, and *.example.com for strict subdomains. Host rules do not override the outbound or local-network toggles.</summary>
+    [JsonPropertyName("allowedHosts")]
+    public IList<string>? AllowedHosts { get; set; }
+
     /// <summary>Whether traffic to local/loopback addresses is allowed.</summary>
     [JsonPropertyName("allowLocalNetwork")]
     public bool? AllowLocalNetwork { get; set; }
@@ -12336,7 +13019,11 @@ public sealed class SandboxConfigUserPolicyNetwork
     [JsonPropertyName("allowOutbound")]
     public bool? AllowOutbound { get; set; }
 
-    /// <summary>HTTP proxy for sandboxed process traffic. Linux restricts egress to the proxy endpoint, requires that endpoint to be reachable over IPv4 (the [::] dual-stack wildcard is accepted and routed through the IPv4 gateway), and does not support proxy credentials. macOS relies on applications honoring proxy environment variables. Windows also configures a per-AppContainer WinHTTP proxy, but enforcement depends on the application's networking stack. Configure supported credentials in the separate `username` and `password` fields. A credential-free http:// loopback URL uses the localhost proxy form, while an https:// or authenticated loopback URL uses the URL form.</summary>
+    /// <summary>Hosts denied by the built-in sandbox proxy. Deny rules take precedence over allowedHosts. A domain also denies all its subdomains. IP addresses match exactly; *.example.com matches strict subdomains, and * denies every host.</summary>
+    [JsonPropertyName("blockedHosts")]
+    public IList<string>? BlockedHosts { get; set; }
+
+    /// <summary>HTTP(S) proxy for sandboxed traffic. With host rules, this is the built-in local proxy's upstream; credentials stay in the runtime, and Linux and macOS restrict the child to the local listener. Without host rules, Linux restricts egress to this endpoint but rejects credentials, and macOS proxying is cooperative. Windows enforcement depends on the application's networking stack. Configure credentials in the separate username/password fields. The transient local listener URL is never persisted.</summary>
     [JsonPropertyName("proxy")]
     public SandboxConfigUserPolicyNetworkProxy? Proxy { get; set; }
 }
@@ -14254,6 +14941,11 @@ public partial class SlashCommandInvocationResultText : SlashCommandInvocationRe
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("runtimeSettingsChanged")]
     public bool? RuntimeSettingsChanged { get; set; }
+
+    /// <summary>Present when the invocation changed the sandbox for this session only. Nothing was persisted, so consumers must mirror the change onto the live session rather than reloading settings, and must not treat it as a settings change.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("sandboxSessionChange")]
+    public SandboxSessionChange? SandboxSessionChange { get; set; }
 
     /// <summary>Text output for the client to render.</summary>
     [JsonPropertyName("text")]
@@ -20310,8 +21002,11 @@ public readonly struct AdaptiveThinkingSupport : IEquatable<AdaptiveThinkingSupp
     /// <summary>The model accepts adaptive thinking but also accepts thinking.type='enabled'.</summary>
     public static AdaptiveThinkingSupport Optional { get; } = new("optional");
 
-    /// <summary>The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).</summary>
+    /// <summary>The model defaults to adaptive thinking and rejects thinking.type='enabled' with HTTP 400, but still accepts thinking.type='disabled' (e.g. opus-4.7/4.8/5, sonnet-5).</summary>
     public static AdaptiveThinkingSupport Required { get; } = new("required");
+
+    /// <summary>The model accepts only thinking.type='adaptive'; 'enabled', 'disabled', and an omitted thinking block all fail with HTTP 400 (e.g. fable, mythos).</summary>
+    public static AdaptiveThinkingSupport AdaptiveOnly { get; } = new("adaptive_only");
 
     /// <summary>Returns a value indicating whether two <see cref="AdaptiveThinkingSupport"/> instances are equivalent.</summary>
     public static bool operator ==(AdaptiveThinkingSupport left, AdaptiveThinkingSupport right) => left.Equals(right);
@@ -20654,6 +21349,9 @@ public readonly struct CatalogCapability : IEquatable<CatalogCapability>
 
     /// <summary>Understands plans that enumerate every eligible transport rather than a single preferred one.</summary>
     public static CatalogCapability MultipleTransportChoice { get; } = new("multiple-transport-choice");
+
+    /// <summary>Understands versioned candidate trust snapshots. Protocol-3 callers must require this capability before the runtime adds the optional snapshot field.</summary>
+    public static CatalogCapability TrustSnapshot { get; } = new("trust-snapshot");
 
     /// <summary>Returns a value indicating whether two <see cref="CatalogCapability"/> instances are equivalent.</summary>
     public static bool operator ==(CatalogCapability left, CatalogCapability right) => left.Equals(right);
@@ -22504,6 +23202,258 @@ public readonly struct CatalogMcpServerInstallability : IEquatable<CatalogMcpSer
 }
 
 
+/// <summary>Authority-computed exposure eligibility, kept separate from tier. The current tier-only Agent Finder response maps to `unknown`, never to a locally inferred eligibility.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogTrustEligibility : IEquatable<CatalogTrustEligibility>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogTrustEligibility"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogTrustEligibility"/>.</param>
+    [JsonConstructor]
+    public CatalogTrustEligibility(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogTrustEligibility"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Eligible for default catalogue exposure.</summary>
+    public static CatalogTrustEligibility Default { get; } = new("default");
+
+    /// <summary>Eligible only when expanded or community results are requested.</summary>
+    public static CatalogTrustEligibility Expanded { get; } = new("expanded");
+
+    /// <summary>Not eligible for normal catalogue exposure.</summary>
+    public static CatalogTrustEligibility Hidden { get; } = new("hidden");
+
+    /// <summary>The authority did not supply an eligibility decision.</summary>
+    public static CatalogTrustEligibility Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustEligibility"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogTrustEligibility left, CatalogTrustEligibility right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustEligibility"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogTrustEligibility left, CatalogTrustEligibility right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogTrustEligibility other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogTrustEligibility other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustEligibility}"/> for serializing <see cref="CatalogTrustEligibility"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogTrustEligibility>
+    {
+        /// <inheritdoc />
+        public override CatalogTrustEligibility Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogTrustEligibility value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustEligibility));
+        }
+    }
+}
+
+
+/// <summary>Bounded authority that supplied a catalogue trust observation.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogTrustSource : IEquatable<CatalogTrustSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogTrustSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogTrustSource"/>.</param>
+    [JsonConstructor]
+    public CatalogTrustSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogTrustSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>GitHub Agent Finder supplied the trust field on its search result.</summary>
+    public static CatalogTrustSource AgentFinder { get; } = new("agent-finder");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSource"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogTrustSource left, CatalogTrustSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogTrustSource left, CatalogTrustSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogTrustSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogTrustSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustSource}"/> for serializing <see cref="CatalogTrustSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogTrustSource>
+    {
+        /// <inheritdoc />
+        public override CatalogTrustSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogTrustSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustSource));
+        }
+    }
+}
+
+
+/// <summary>Schema version of the catalogue trust snapshot envelope.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogTrustSnapshotSchemaVersion : IEquatable<CatalogTrustSnapshotSchemaVersion>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogTrustSnapshotSchemaVersion"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogTrustSnapshotSchemaVersion"/>.</param>
+    [JsonConstructor]
+    public CatalogTrustSnapshotSchemaVersion(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogTrustSnapshotSchemaVersion"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Initial envelope carrying one bounded service tier or one explicit unavailable state.</summary>
+    public static CatalogTrustSnapshotSchemaVersion V1 { get; } = new("v1");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSnapshotSchemaVersion"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogTrustSnapshotSchemaVersion left, CatalogTrustSnapshotSchemaVersion right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSnapshotSchemaVersion"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogTrustSnapshotSchemaVersion left, CatalogTrustSnapshotSchemaVersion right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogTrustSnapshotSchemaVersion other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogTrustSnapshotSchemaVersion other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustSnapshotSchemaVersion}"/> for serializing <see cref="CatalogTrustSnapshotSchemaVersion"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogTrustSnapshotSchemaVersion>
+    {
+        /// <inheritdoc />
+        public override CatalogTrustSnapshotSchemaVersion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogTrustSnapshotSchemaVersion value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustSnapshotSchemaVersion));
+        }
+    }
+}
+
+
+/// <summary>Service-computed trust tier currently emitted by Agent Finder. It is independent of search score, popularity, and client-side ranking.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogTrustTier : IEquatable<CatalogTrustTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogTrustTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogTrustTier"/>.</param>
+    [JsonConstructor]
+    public CatalogTrustTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogTrustTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Tier one as assigned by the catalogue authority.</summary>
+    public static CatalogTrustTier T1 { get; } = new("T1");
+
+    /// <summary>Tier two as assigned by the catalogue authority.</summary>
+    public static CatalogTrustTier T2 { get; } = new("T2");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustTier"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogTrustTier left, CatalogTrustTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogTrustTier left, CatalogTrustTier right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogTrustTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogTrustTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustTier}"/> for serializing <see cref="CatalogTrustTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogTrustTier>
+    {
+        /// <inheritdoc />
+        public override CatalogTrustTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogTrustTier value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustTier));
+        }
+    }
+}
+
+
 /// <summary>What kind of resource a catalog candidate describes.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -23839,7 +24789,7 @@ public readonly struct SessionSource : IEquatable<SessionSource>
 }
 
 
-/// <summary>Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history (the beginning for a forward read, the tail for a backward read). The fallback page is a fresh boundary snapshot, not a continuation of the requested cursor, so it may overlap already-rendered events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate by event id) before continuing from the returned cursor.</summary>
+/// <summary>Cursor status: 'ok' means the read succeeded against the requested history; 'expired' means the requested continuation is unavailable. Recovery is endpoint-specific: session.eventLog.read returns a boundary window of remaining active history that may overlap prior pages, while sessions.readPersistedEvents returns an empty terminal page and never switches journal generations. An expired persisted read is not successful completion; a complete persisted snapshot requires cursorStatus 'ok' and hasMore false.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -23859,10 +24809,10 @@ public readonly struct EventsCursorStatus : IEquatable<EventsCursorStatus>
     /// <summary>Gets the value associated with this <see cref="EventsCursorStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The cursor was applied successfully.</summary>
+    /// <summary>The read succeeded against the requested history.</summary>
     public static EventsCursorStatus Ok { get; } = new("ok");
 
-    /// <summary>The cursor referred to history that is no longer available.</summary>
+    /// <summary>The requested continuation is unavailable; see the endpoint's recovery semantics.</summary>
     public static EventsCursorStatus Expired { get; } = new("expired");
 
     /// <summary>Returns a value indicating whether two <see cref="EventsCursorStatus"/> instances are equivalent.</summary>
@@ -24838,75 +25788,6 @@ public readonly struct PermissionResponseCapability : IEquatable<PermissionRespo
 }
 
 
-/// <summary>Controlled reason or actor responsible for a permission response.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionDecisionSource : IEquatable<PermissionDecisionSource>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionSource"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PermissionDecisionSource"/>.</param>
-    [JsonConstructor]
-    public PermissionDecisionSource(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="PermissionDecisionSource"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The response followed the assisted-approval judge recommendation.</summary>
-    public static PermissionDecisionSource AssistedApproval { get; } = new("assisted_approval");
-
-    /// <summary>A human supplied the response through an interactive prompt.</summary>
-    public static PermissionDecisionSource HumanResponse { get; } = new("human_response");
-
-    /// <summary>The host applied a standing policy or override rather than a judge recommendation or human decision.</summary>
-    public static PermissionDecisionSource HostPolicy { get; } = new("host_policy");
-
-    /// <summary>The host denied the request because no interactive user response was available.</summary>
-    public static PermissionDecisionSource UnattendedFallback { get; } = new("unattended_fallback");
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are equivalent.</summary>
-    public static bool operator ==(PermissionDecisionSource left, PermissionDecisionSource right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are not equivalent.</summary>
-    public static bool operator !=(PermissionDecisionSource left, PermissionDecisionSource right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PermissionDecisionSource other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(PermissionDecisionSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionSource}"/> for serializing <see cref="PermissionDecisionSource"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionDecisionSource>
-    {
-        /// <inheritdoc />
-        public override PermissionDecisionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PermissionDecisionSource value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionSource));
-        }
-    }
-}
-
-
 /// <summary>Client surface that submitted a permission response.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -25152,7 +26033,7 @@ public readonly struct DebugCollectLogsResultKind : IEquatable<DebugCollectLogsR
     /// <summary>A .tgz archive was written.</summary>
     public static DebugCollectLogsResultKind Archive { get; } = new("archive");
 
-    /// <summary>A directory containing redacted files was written.</summary>
+    /// <summary>A directory containing the collected files was written.</summary>
     public static DebugCollectLogsResultKind Directory { get; } = new("directory");
 
     /// <summary>Returns a value indicating whether two <see cref="DebugCollectLogsResultKind"/> instances are equivalent.</summary>
@@ -25280,6 +26161,9 @@ public readonly struct DebugCollectLogsRedaction : IEquatable<DebugCollectLogsRe
 
     /// <summary>Redact each non-empty line as a session event JSON object, falling back to plain-text redaction for malformed lines.</summary>
     public static DebugCollectLogsRedaction EventsJsonl { get; } = new("events-jsonl");
+
+    /// <summary>No redaction is applied. The caller must ensure any necessary redaction is performed before this call.</summary>
+    public static DebugCollectLogsRedaction None { get; } = new("none");
 
     /// <summary>Returns a value indicating whether two <see cref="DebugCollectLogsRedaction"/> instances are equivalent.</summary>
     public static bool operator ==(DebugCollectLogsRedaction left, DebugCollectLogsRedaction right) => left.Equals(right);
@@ -27757,6 +28641,255 @@ public readonly struct ProviderEndpointWireApi : IEquatable<ProviderEndpointWire
 }
 
 
+/// <summary>Defines the allowed values.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProtocolAppendMode : IEquatable<ProtocolAppendMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolAppendMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProtocolAppendMode"/>.</param>
+    [JsonConstructor]
+    public ProtocolAppendMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProtocolAppendMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>append</c> value.</summary>
+    public static ProtocolAppendMode Append { get; } = new("append");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolAppendMode"/> instances are equivalent.</summary>
+    public static bool operator ==(ProtocolAppendMode left, ProtocolAppendMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolAppendMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProtocolAppendMode left, ProtocolAppendMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProtocolAppendMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProtocolAppendMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolAppendMode}"/> for serializing <see cref="ProtocolAppendMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolAppendMode>
+    {
+        /// <inheritdoc />
+        public override ProtocolAppendMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolAppendMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolAppendMode));
+        }
+    }
+}
+
+
+/// <summary>Defines the allowed values.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProtocolReplaceMode : IEquatable<ProtocolReplaceMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolReplaceMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProtocolReplaceMode"/>.</param>
+    [JsonConstructor]
+    public ProtocolReplaceMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProtocolReplaceMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>replace</c> value.</summary>
+    public static ProtocolReplaceMode Replace { get; } = new("replace");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolReplaceMode"/> instances are equivalent.</summary>
+    public static bool operator ==(ProtocolReplaceMode left, ProtocolReplaceMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolReplaceMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProtocolReplaceMode left, ProtocolReplaceMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProtocolReplaceMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProtocolReplaceMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolReplaceMode}"/> for serializing <see cref="ProtocolReplaceMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolReplaceMode>
+    {
+        /// <inheritdoc />
+        public override ProtocolReplaceMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolReplaceMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolReplaceMode));
+        }
+    }
+}
+
+
+/// <summary>Defines the allowed values.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProtocolCustomizeMode : IEquatable<ProtocolCustomizeMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolCustomizeMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProtocolCustomizeMode"/>.</param>
+    [JsonConstructor]
+    public ProtocolCustomizeMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProtocolCustomizeMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>customize</c> value.</summary>
+    public static ProtocolCustomizeMode Customize { get; } = new("customize");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolCustomizeMode"/> instances are equivalent.</summary>
+    public static bool operator ==(ProtocolCustomizeMode left, ProtocolCustomizeMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolCustomizeMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProtocolCustomizeMode left, ProtocolCustomizeMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProtocolCustomizeMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProtocolCustomizeMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolCustomizeMode}"/> for serializing <see cref="ProtocolCustomizeMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolCustomizeMode>
+    {
+        /// <inheritdoc />
+        public override ProtocolCustomizeMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolCustomizeMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolCustomizeMode));
+        }
+    }
+}
+
+
+/// <summary>Defines the allowed values.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProtocolStaticSectionAction : IEquatable<ProtocolStaticSectionAction>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolStaticSectionAction"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProtocolStaticSectionAction"/>.</param>
+    [JsonConstructor]
+    public ProtocolStaticSectionAction(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProtocolStaticSectionAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Replace the section content.</summary>
+    public static ProtocolStaticSectionAction Replace { get; } = new("replace");
+
+    /// <summary>Remove the section content.</summary>
+    public static ProtocolStaticSectionAction Remove { get; } = new("remove");
+
+    /// <summary>Append content to the section.</summary>
+    public static ProtocolStaticSectionAction Append { get; } = new("append");
+
+    /// <summary>Prepend content to the section.</summary>
+    public static ProtocolStaticSectionAction Prepend { get; } = new("prepend");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolStaticSectionAction"/> instances are equivalent.</summary>
+    public static bool operator ==(ProtocolStaticSectionAction left, ProtocolStaticSectionAction right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolStaticSectionAction"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProtocolStaticSectionAction left, ProtocolStaticSectionAction right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProtocolStaticSectionAction other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProtocolStaticSectionAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolStaticSectionAction}"/> for serializing <see cref="ProtocolStaticSectionAction"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolStaticSectionAction>
+    {
+        /// <inheritdoc />
+        public override ProtocolStaticSectionAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolStaticSectionAction value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolStaticSectionAction));
+        }
+    }
+}
+
+
 /// <summary>Provider transport. Defaults to "http".</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -29212,6 +30345,69 @@ public readonly struct SubagentSettingsEntryContextTier : IEquatable<SubagentSet
 }
 
 
+/// <summary>A session-scoped sandbox transition applied while handling a slash command.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SandboxSessionChange : IEquatable<SandboxSessionChange>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SandboxSessionChange"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SandboxSessionChange"/>.</param>
+    [JsonConstructor]
+    public SandboxSessionChange(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SandboxSessionChange"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The sandbox is off for the rest of this session; nothing was persisted and a new session starts from managed policy.</summary>
+    public static SandboxSessionChange Disabled { get; } = new("disabled");
+
+    /// <summary>A previous session-scoped opt-out was cleared and the sandbox is enforced again.</summary>
+    public static SandboxSessionChange Restored { get; } = new("restored");
+
+    /// <summary>Returns a value indicating whether two <see cref="SandboxSessionChange"/> instances are equivalent.</summary>
+    public static bool operator ==(SandboxSessionChange left, SandboxSessionChange right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SandboxSessionChange"/> instances are not equivalent.</summary>
+    public static bool operator !=(SandboxSessionChange left, SandboxSessionChange right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SandboxSessionChange other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SandboxSessionChange other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SandboxSessionChange}"/> for serializing <see cref="SandboxSessionChange"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SandboxSessionChange>
+    {
+        /// <inheritdoc />
+        public override SandboxSessionChange Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SandboxSessionChange value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SandboxSessionChange));
+        }
+    }
+}
+
+
 /// <summary>Defines the allowed values.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -29831,6 +31027,9 @@ public readonly struct PermissionModeSource : IEquatable<PermissionModeSource>
 
     /// <summary>The mode was set at startup by the `defaultPermissionMode` user setting.</summary>
     public static PermissionModeSource UserSetting { get; } = new("user_setting");
+
+    /// <summary>The mode was set at startup by authenticated organization targeting.</summary>
+    public static PermissionModeSource OrganizationTargeting { get; } = new("organization_targeting");
 
     /// <summary>The mode was set through an RPC caller.</summary>
     public static PermissionModeSource Rpc { get; } = new("rpc");
@@ -32888,11 +34087,11 @@ public sealed class ServerSessionsApi
         return await CopilotClient.InvokeRpcAsync<IList<SessionsClientMetadataEntry>>(_rpc, "sessions.getClientMetadata", [request], cancellationToken);
     }
 
-    /// <summary>Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.</summary>
+    /// <summary>Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The first read pins the currently opened journal generation and its byte-length boundary; opaque cursor continuations remain on that generation across runtime-owned compaction, truncation, and rewrite operations, which replace the live path atomically, and events appended after the boundary are excluded. For cold hydration, await the first successful page before activation and establish lossless live-event buffering before resume; merge subsequent live events by ID, preserving persisted order and letting live payloads win. Continuations are process-local, single-use capabilities bound to the originating session and storage context and must be paged sequentially; concurrent or repeated use of the same cursor expires that duplicate read rather than reading the generation twice. A complete snapshot has cursorStatus 'ok' and hasMore false. Snapshots expire after five idle minutes, with at most eight retained per process and idle-only eviction under pressure; completion and cancelled-worker exit release their handles. No transcript copy is created, but retained handles may keep replaced files' disk blocks alive until release. Pages have a soft 1 MiB serialized event-array budget including resolved binary assets; one oversized event is returned alone to guarantee progress. Working memory also includes a record/lookahead and asset resolution; resolving the first binary reference may scan the full pinned generation to build a bounded offset index. If the snapshot expires, is evicted, is cancelled before a continuation is established, or becomes unreadable after an observable unsupported in-place shortening, the continuation returns cursorStatus 'expired' with an empty terminal page and never falls back to a different generation. A missing or initially unreadable journal is an RPC error. Persisted history excludes ephemeral events and may omit payloads that are reconstructed only for an active session; use the active session event stream for post-resume live events.</summary>
     /// <param name="sessionId">Session ID whose persisted event journal should be read.</param>
-    /// <param name="cursor">Opaque cursor returned by a previous persisted-event read. Omit on the first call.</param>
-    /// <param name="max">Maximum number of events to return in this batch (1–1000, default 200).</param>
-    /// <param name="direction">Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological.</param>
+    /// <param name="cursor">Opaque, process-local, single-use cursor returned by the previous persisted-event read. Omit on the first call and issue continuations sequentially; reusing the same cursor returns an expired terminal page.</param>
+    /// <param name="max">Maximum number of events to return in this batch (1–1000, default 200). Pages may contain fewer events to keep the serialized event array within a soft 1 MiB budget including resolved binary assets; one oversized event is returned alone to guarantee progress.</param>
+    /// <param name="direction">Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological. This selects the initial read only; a continuation always uses the direction bound into its cursor.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Batch of session events returned by a read, with cursor and continuation metadata.</returns>
     public async Task<EventsReadResult> ReadPersistedEventsAsync(string sessionId, string? cursor = null, long? max = null, EventsReadDirection? direction = null, CancellationToken cancellationToken = default)
@@ -33181,20 +34380,7 @@ public sealed class ServerSessionsApi
         return await CopilotClient.InvokeRpcAsync<RemoteControlStatusResult>(_rpc, "sessions.getRemoteControlStatus", [], cancellationToken);
     }
 
-    /// <summary>Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.</summary>
-    /// <param name="sessionId">Session to register extension tools on.</param>
-    /// <param name="options">Optional registration options.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Handle for releasing the extension tool registration.</returns>
-    internal async Task<RegisterExtensionToolsResult> RegisterExtensionToolsOnSessionAsync(string sessionId, SessionsRegisterExtensionToolsOnSessionOptions? options = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(sessionId);
-
-        var request = new RegisterExtensionToolsParams { SessionId = sessionId, Options = options };
-        return await CopilotClient.InvokeRpcAsync<RegisterExtensionToolsResult>(_rpc, "sessions.registerExtensionToolsOnSession", [request], cancellationToken);
-    }
-
-    /// <summary>Attaches (or detaches) an in-process ExtensionController delegate for the given session, used by shared-API surfaces that need to query or modify the session's extension state. Pass `controller: undefined` to detach. Marked internal because the controller is an in-process object that cannot cross the JSON-RPC boundary. Disappears alongside `registerExtensionToolsOnSession`: once the runtime owns extension management, the public surface exposes list/enable/disable/reload as dedicated RPCs served by the runtime.</summary>
+    /// <summary>Attaches (or detaches) an in-process ExtensionController delegate for the given session in a local host adapter. Pass `controller: undefined` to detach. Internal because the controller cannot cross the JSON-RPC boundary; the runtime manages its own session extension service.</summary>
     /// <param name="sessionId">Session to attach the extension controller delegate to.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     internal async Task ConfigureSessionExtensionsAsync(string sessionId, CancellationToken cancellationToken = default)
@@ -33509,39 +34695,41 @@ public sealed class SessionRpc
     /// <param name="source">Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, or `agent-&lt;agent-id&gt;` for prompts sent by another agent.</param>
     /// <param name="agentMode">The UI mode the agent was in when this message was sent. Defaults to the session's current mode.</param>
     /// <param name="requestHeaders">Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.</param>
+    /// <param name="responseFormat">Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.</param>
     /// <param name="traceparent">W3C Trace Context traceparent header for distributed tracing of this agent turn.</param>
     /// <param name="tracestate">W3C Trace Context tracestate header for distributed tracing.</param>
     /// <param name="wait">If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of sending a user message.</returns>
     [Experimental(Diagnostics.Experimental)]
-    public async Task<SendResult> SendAsync(string prompt, string? displayPrompt = null, IList<Attachment>? attachments = null, SendMode? mode = null, bool? prepend = null, bool? billable = null, string? requiredTool = null, string? source = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
+    public async Task<SendResult> SendAsync(string prompt, string? displayPrompt = null, IList<Attachment>? attachments = null, SendMode? mode = null, bool? prepend = null, bool? billable = null, string? requiredTool = null, string? source = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, ResponseFormat? responseFormat = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(prompt);
         _session.ThrowIfDisposed();
 
-        var request = new SendRequest { SessionId = _session.SessionId, Prompt = prompt, DisplayPrompt = displayPrompt, Attachments = attachments, Mode = mode, Prepend = prepend, Billable = billable, RequiredTool = requiredTool, Source = source, AgentMode = agentMode, RequestHeaders = requestHeaders, Traceparent = traceparent, Tracestate = tracestate, Wait = wait };
+        var request = new SendRequest { SessionId = _session.SessionId, Prompt = prompt, DisplayPrompt = displayPrompt, Attachments = attachments, Mode = mode, Prepend = prepend, Billable = billable, RequiredTool = requiredTool, Source = source, AgentMode = agentMode, RequestHeaders = requestHeaders, ResponseFormat = responseFormat, Traceparent = traceparent, Tracestate = tracestate, Wait = wait };
         return await CopilotClient.InvokeRpcAsync<SendResult>(_session.Rpc, "session.send", [request], cancellationToken);
     }
 
     /// <summary>Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.</summary>
-    /// <param name="messages">The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.</param>
+    /// <param name="messages">The user messages to append to the conversation, in order, before running one agent loop. When the batch starts a run, its final message is the primary initiating message; earlier messages provide context, not separate runs or replies. May be empty, in which case a single turn runs over the existing history with no new user message or originatingMessageId.</param>
     /// <param name="mode">How to deliver the messages. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.</param>
     /// <param name="prepend">If true, adds the messages to the front of the queue instead of the end.</param>
     /// <param name="agentMode">The UI mode the agent was in when these messages were sent. Defaults to the session's current mode.</param>
     /// <param name="requestHeaders">Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.</param>
+    /// <param name="responseFormat">Provider-native output format for the whole turn, including an empty message batch and all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.</param>
     /// <param name="traceparent">W3C Trace Context traceparent header for distributed tracing of this agent turn.</param>
     /// <param name="tracestate">W3C Trace Context tracestate header for distributed tracing.</param>
     /// <param name="wait">If true, await completion of the agentic loop for this turn before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageIds`; the caller can rely on the agent having processed the messages before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of sending zero or more user messages.</returns>
     [Experimental(Diagnostics.Experimental)]
-    public async Task<SendMessagesResult> SendMessagesAsync(IList<SendMessageItem> messages, SendMode? mode = null, bool? prepend = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
+    public async Task<SendMessagesResult> SendMessagesAsync(IList<SendMessageItem> messages, SendMode? mode = null, bool? prepend = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, ResponseFormat? responseFormat = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messages);
         _session.ThrowIfDisposed();
 
-        var request = new SendMessagesRequest { SessionId = _session.SessionId, Messages = messages, Mode = mode, Prepend = prepend, AgentMode = agentMode, RequestHeaders = requestHeaders, Traceparent = traceparent, Tracestate = tracestate, Wait = wait };
+        var request = new SendMessagesRequest { SessionId = _session.SessionId, Messages = messages, Mode = mode, Prepend = prepend, AgentMode = agentMode, RequestHeaders = requestHeaders, ResponseFormat = responseFormat, Traceparent = traceparent, Tracestate = tracestate, Wait = wait };
         return await CopilotClient.InvokeRpcAsync<SendMessagesResult>(_session.Rpc, "session.sendMessages", [request], cancellationToken);
     }
 
@@ -33601,13 +34789,14 @@ public sealed class SessionRpc
     /// <summary>Shuts down the session and persists its final state. Awaits any deferred sessionEnd hooks before resolving so user-supplied hook scripts complete before the runtime tears down.</summary>
     /// <param name="type">Why the session is being shut down. Defaults to "routine" when omitted.</param>
     /// <param name="reason">Optional human-readable reason. Typically the message of the error that triggered shutdown when type is 'error'.</param>
+    /// <param name="detachSessionEndHooks">Dispatch deferred sessionEnd hooks in the background with their full per-hook timeoutSec instead of awaiting them under the short shared shutdown budget. Set this when the host process keeps running after the session closes (for example the CLI's /clear), so a slow hook neither blocks the close nor is aborted. Hooks still detached when the process later exits are terminated with it. Defaults to false.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     [Experimental(Diagnostics.Experimental)]
-    public async Task ShutdownAsync(ShutdownType? type = null, string? reason = null, CancellationToken cancellationToken = default)
+    public async Task ShutdownAsync(ShutdownType? type = null, string? reason = null, bool? detachSessionEndHooks = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new ShutdownRequest { SessionId = _session.SessionId, Type = type, Reason = reason };
+        var request = new ShutdownRequest { SessionId = _session.SessionId, Type = type, Reason = reason, DetachSessionEndHooks = detachSessionEndHooks };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.shutdown", [request], cancellationToken);
     }
 
@@ -33813,12 +35002,12 @@ public sealed class DebugApi
         _session = session;
     }
 
-    /// <summary>Collects a redacted session debug log bundle into a local archive or staging directory. The runtime includes session-owned logs by default and accepts caller-provided diagnostic entries so host applications can add their own files without changing this API shape.</summary>
-    /// <param name="destination">Where the redacted bundle should be written. Use `archive` to produce a .tgz, or `directory` to stage redacted files for caller-managed upload/post-processing.</param>
+    /// <summary>Collects a session debug log bundle into a local archive or staging directory. Logs are redacted by default; redaction can be configured per caller-provided diagnostic entry. The runtime includes session-owned logs by default and accepts caller-provided diagnostic entries so host applications can add their own files without changing this API shape.</summary>
+    /// <param name="destination">Where the bundle should be written. Use `archive` to produce a .tgz, or `directory` to stage files for caller-managed upload/post-processing.</param>
     /// <param name="include">Which built-in session diagnostics to include. Omitted fields default to true.</param>
     /// <param name="additionalEntries">Caller-provided server-local files or directories to include in addition to the runtime's built-in session diagnostics. This lets host applications add their own diagnostics without changing the API shape.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Result of collecting a redacted debug bundle.</returns>
+    /// <returns>Result of collecting a session debug bundle.</returns>
     public async Task<DebugCollectLogsResult> CollectLogsAsync(DebugCollectLogsDestination destination, DebugCollectLogsInclude? include = null, IList<DebugCollectLogsEntry>? additionalEntries = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(destination);
@@ -34306,15 +35495,16 @@ public sealed class ModelApi
     /// <param name="repoModel">Model selected by repository settings, when configured.</param>
     /// <param name="repoReasoningEffort">Reasoning effort selected by repository settings, when configured.</param>
     /// <param name="repoContextTier">Context tier selected by repository settings, when configured.</param>
+    /// <param name="repoAutoTier">Auto routing preference selected by repository settings, when configured. Applied only when the overlay selects the Auto model; beside a concrete model it stays dormant.</param>
     /// <param name="cliModel">Model explicitly selected by the CLI, when provided.</param>
     /// <param name="deferredResume">Whether the overlay is being applied while resuming a deferred session.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
-    internal async Task<ModelSwitchToResult> ApplyStartupOverlayAsync(string? deviceManagedModel = null, string? serverManagedModel = null, string? policyHelperModel = null, string? repoModel = null, string? repoReasoningEffort = null, string? repoContextTier = null, string? cliModel = null, bool? deferredResume = null, CancellationToken cancellationToken = default)
+    internal async Task<ModelSwitchToResult> ApplyStartupOverlayAsync(string? deviceManagedModel = null, string? serverManagedModel = null, string? policyHelperModel = null, string? repoModel = null, string? repoReasoningEffort = null, string? repoContextTier = null, string? repoAutoTier = null, string? cliModel = null, bool? deferredResume = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new ModelApplyStartupOverlayRequest { SessionId = _session.SessionId, DeviceManagedModel = deviceManagedModel, ServerManagedModel = serverManagedModel, PolicyHelperModel = policyHelperModel, RepoModel = repoModel, RepoReasoningEffort = repoReasoningEffort, RepoContextTier = repoContextTier, CliModel = cliModel, DeferredResume = deferredResume };
+        var request = new ModelApplyStartupOverlayRequest { SessionId = _session.SessionId, DeviceManagedModel = deviceManagedModel, ServerManagedModel = serverManagedModel, PolicyHelperModel = policyHelperModel, RepoModel = repoModel, RepoReasoningEffort = repoReasoningEffort, RepoContextTier = repoContextTier, RepoAutoTier = repoAutoTier, CliModel = cliModel, DeferredResume = deferredResume };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.applyStartupOverlay", [request], cancellationToken);
     }
 
@@ -34380,6 +35570,7 @@ public sealed class ModeApi
 
     /// <summary>Sets the current agent interaction mode.</summary>
     /// <param name="mode">The session mode the agent is operating in.</param>
+    /// <param name="expectedMode">Mode the session must currently be in for the change to apply. When set and the session is in a different mode the request is a no-op and reports status 'unchanged'.</param>
     /// <param name="inheritPlanBaseFromSessionId">Session whose plan-mode base state should be inherited.</param>
     /// <param name="planModelConfigured">Whether a dedicated plan model is configured.</param>
     /// <param name="planModel">Dedicated model to use in plan mode, when configured.</param>
@@ -34392,11 +35583,11 @@ public sealed class ModeApi
     /// <param name="planExitAction">Action to perform when leaving plan mode.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Outcome of a session mode change, including any model switch it triggered and follow-up the host must perform.</returns>
-    public async Task<ModeSetResult> SetAsync(SessionMode mode, string? inheritPlanBaseFromSessionId = null, bool? planModelConfigured = null, string? planModel = null, string? planReasoningEffort = null, string? planContextTier = null, string? compactionDecision = null, bool? restorePlanModel = null, bool? persistPlanSelection = null, ModelPickerSettingsContext? pickerSettingsContext = null, string? planExitAction = null, CancellationToken cancellationToken = default)
+    public async Task<ModeSetResult> SetAsync(SessionMode mode, SessionMode? expectedMode = null, string? inheritPlanBaseFromSessionId = null, bool? planModelConfigured = null, string? planModel = null, string? planReasoningEffort = null, string? planContextTier = null, string? compactionDecision = null, bool? restorePlanModel = null, bool? persistPlanSelection = null, ModelPickerSettingsContext? pickerSettingsContext = null, string? planExitAction = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new ModeSetRequest { SessionId = _session.SessionId, Mode = mode, InheritPlanBaseFromSessionId = inheritPlanBaseFromSessionId, PlanModelConfigured = planModelConfigured, PlanModel = planModel, PlanReasoningEffort = planReasoningEffort, PlanContextTier = planContextTier, CompactionDecision = compactionDecision, RestorePlanModel = restorePlanModel, PersistPlanSelection = persistPlanSelection, PickerSettingsContext = pickerSettingsContext, PlanExitAction = planExitAction };
+        var request = new ModeSetRequest { SessionId = _session.SessionId, Mode = mode, ExpectedMode = expectedMode, InheritPlanBaseFromSessionId = inheritPlanBaseFromSessionId, PlanModelConfigured = planModelConfigured, PlanModel = planModel, PlanReasoningEffort = planReasoningEffort, PlanContextTier = planContextTier, CompactionDecision = compactionDecision, RestorePlanModel = restorePlanModel, PersistPlanSelection = persistPlanSelection, PickerSettingsContext = pickerSettingsContext, PlanExitAction = planExitAction };
         return await CopilotClient.InvokeRpcAsync<ModeSetResult>(_session.Rpc, "session.mode.set", [request], cancellationToken);
     }
 }
@@ -34575,7 +35766,7 @@ public sealed class WorkspacesApi
     }
 
     /// <summary>Reads a file from the session workspace files directory.</summary>
-    /// <param name="path">Relative path within the workspace files directory.</param>
+    /// <param name="path">Slash-separated relative path within the workspace files directory.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Contents of the requested workspace file as a UTF-8 string.</returns>
     public async Task<WorkspacesReadFileResult> ReadFileAsync(string path, CancellationToken cancellationToken = default)
@@ -34588,7 +35779,7 @@ public sealed class WorkspacesApi
     }
 
     /// <summary>Creates or overwrites a file in the session workspace files directory.</summary>
-    /// <param name="path">Relative path within the workspace files directory.</param>
+    /// <param name="path">Slash-separated relative path within the workspace files directory.</param>
     /// <param name="content">File content to write as a UTF-8 string.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task CreateFileAsync(string path, string content, CancellationToken cancellationToken = default)
@@ -34599,6 +35790,60 @@ public sealed class WorkspacesApi
 
         var request = new WorkspacesCreateFileRequest { SessionId = _session.SessionId, Path = path, Content = content };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.workspaces.createFile", [request], cancellationToken);
+    }
+
+    /// <summary>Returns metadata for a file or directory in the session workspace files directory.</summary>
+    /// <param name="path">Slash-separated relative path within the workspace files directory.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Filesystem metadata for a path in the session workspace files directory.</returns>
+    public async Task<WorkspacesStatFileResult> StatFileAsync(string path, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        _session.ThrowIfDisposed();
+
+        var request = new WorkspacesStatFileRequest { SessionId = _session.SessionId, Path = path };
+        return await CopilotClient.InvokeRpcAsync<WorkspacesStatFileResult>(_session.Rpc, "session.workspaces.statFile", [request], cancellationToken);
+    }
+
+    /// <summary>Creates a directory in the session workspace files directory.</summary>
+    /// <param name="path">Slash-separated relative path within the workspace files directory.</param>
+    /// <param name="recursive">Whether to create missing parent directories. Defaults to false.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task CreateDirectoryAsync(string path, bool? recursive = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        _session.ThrowIfDisposed();
+
+        var request = new WorkspacesCreateDirectoryRequest { SessionId = _session.SessionId, Path = path, Recursive = recursive };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.workspaces.createDirectory", [request], cancellationToken);
+    }
+
+    /// <summary>Removes a file or directory from the session workspace files directory.</summary>
+    /// <param name="path">Slash-separated relative path within the workspace files directory.</param>
+    /// <param name="recursive">Whether to remove directory contents recursively. Defaults to false.</param>
+    /// <param name="force">Whether a missing path should be treated as success. Defaults to false.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task RemovePathAsync(string path, bool? recursive = null, bool? force = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        _session.ThrowIfDisposed();
+
+        var request = new WorkspacesRemovePathRequest { SessionId = _session.SessionId, Path = path, Recursive = recursive, Force = force };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.workspaces.removePath", [request], cancellationToken);
+    }
+
+    /// <summary>Renames a file or directory within the session workspace files directory.</summary>
+    /// <param name="source">Slash-separated source path relative to the workspace files directory.</param>
+    /// <param name="destination">Slash-separated destination path relative to the workspace files directory.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task RenamePathAsync(string source, string destination, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+        _session.ThrowIfDisposed();
+
+        var request = new WorkspacesRenamePathRequest { SessionId = _session.SessionId, Source = source, Destination = destination };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.workspaces.renamePath", [request], cancellationToken);
     }
 
     /// <summary>Lists workspace checkpoints in chronological order.</summary>
@@ -34820,13 +36065,16 @@ public sealed class FleetApi
 
     /// <summary>Starts fleet mode by submitting the fleet orchestration prompt to the session.</summary>
     /// <param name="prompt">Optional user prompt to combine with fleet instructions.</param>
+    /// <param name="attachments">Optional attachments (files, directories, selections, blobs, GitHub references) to include with the fleet request.</param>
+    /// <param name="billable">If false, this request will not trigger a Premium Request Unit charge. User requests default to billable.</param>
+    /// <param name="wait">If true, await completion of the agentic loop for this fleet request before returning. Defaults to false.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether fleet mode was successfully activated.</returns>
-    public async Task<FleetStartResult> StartAsync(string? prompt = null, CancellationToken cancellationToken = default)
+    public async Task<FleetStartResult> StartAsync(string? prompt = null, IList<Attachment>? attachments = null, bool? billable = null, bool? wait = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new FleetStartRequest { SessionId = _session.SessionId, Prompt = prompt };
+        var request = new FleetStartRequest { SessionId = _session.SessionId, Prompt = prompt, Attachments = attachments, Billable = billable, Wait = wait };
         return await CopilotClient.InvokeRpcAsync<FleetStartResult>(_session.Rpc, "session.fleet.start", [request], cancellationToken);
     }
 }
@@ -38309,9 +39557,23 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryType), TypeInfoPropertyName = "SessionEventsOmittedBinaryType")]
 [JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedData), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedData")]
 [JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedEvent), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionAssentDetectedData), TypeInfoPropertyName = "SessionEventsPermissionAssentDetectedData")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionAssentDetectedEvent), TypeInfoPropertyName = "SessionEventsPermissionAssentDetectedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionAssistedApproval), TypeInfoPropertyName = "SessionEventsPermissionAssistedApproval")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionCarriedForwardData), TypeInfoPropertyName = "SessionEventsPermissionCarriedForwardData")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionCarriedForwardEvent), TypeInfoPropertyName = "SessionEventsPermissionCarriedForwardEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionCompletedData), TypeInfoPropertyName = "SessionEventsPermissionCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionCompletedEvent), TypeInfoPropertyName = "SessionEventsPermissionCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionContextualAuthorizationData), TypeInfoPropertyName = "SessionEventsPermissionContextualAuthorizationData")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionContextualAuthorizationEvent), TypeInfoPropertyName = "SessionEventsPermissionContextualAuthorizationEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionDecisionSource), TypeInfoPropertyName = "SessionEventsPermissionDecisionSource")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionMessageAuthorizationData), TypeInfoPropertyName = "SessionEventsPermissionMessageAuthorizationData")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionMessageAuthorizationDegradedData), TypeInfoPropertyName = "SessionEventsPermissionMessageAuthorizationDegradedData")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionMessageAuthorizationDegradedEvent), TypeInfoPropertyName = "SessionEventsPermissionMessageAuthorizationDegradedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionMessageAuthorizationEvent), TypeInfoPropertyName = "SessionEventsPermissionMessageAuthorizationEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionMessageAuthorizationPolarity), TypeInfoPropertyName = "SessionEventsPermissionMessageAuthorizationPolarity")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionMessageAuthorizationReadData), TypeInfoPropertyName = "SessionEventsPermissionMessageAuthorizationReadData")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionMessageAuthorizationReadEvent), TypeInfoPropertyName = "SessionEventsPermissionMessageAuthorizationReadEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionMode), TypeInfoPropertyName = "SessionEventsPermissionMode")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequest), TypeInfoPropertyName = "SessionEventsPermissionPromptRequest")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestCommands), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCommands")]
@@ -38385,8 +39647,14 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ShutdownModelMetricUsage), TypeInfoPropertyName = "SessionEventsShutdownModelMetricUsage")]
 [JsonSerializable(typeof(GitHub.Copilot.ShutdownTokenDetail), TypeInfoPropertyName = "SessionEventsShutdownTokenDetail")]
 [JsonSerializable(typeof(GitHub.Copilot.ShutdownType), TypeInfoPropertyName = "SessionEventsShutdownType")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillContextDeliveredData), TypeInfoPropertyName = "SessionEventsSkillContextDeliveredData")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillContextDeliveredEvent), TypeInfoPropertyName = "SessionEventsSkillContextDeliveredEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillContextDeliveredRefData), TypeInfoPropertyName = "SessionEventsSkillContextDeliveredRefData")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillContextDeliveredRefEvent), TypeInfoPropertyName = "SessionEventsSkillContextDeliveredRefEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SkillInvokedData), TypeInfoPropertyName = "SessionEventsSkillInvokedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SkillInvokedEvent), TypeInfoPropertyName = "SessionEventsSkillInvokedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillInvokedRefData), TypeInfoPropertyName = "SessionEventsSkillInvokedRefData")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillInvokedRefEvent), TypeInfoPropertyName = "SessionEventsSkillInvokedRefEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SkillInvokedTrigger), TypeInfoPropertyName = "SessionEventsSkillInvokedTrigger")]
 [JsonSerializable(typeof(GitHub.Copilot.SkillSource), TypeInfoPropertyName = "SessionEventsSkillSource")]
 [JsonSerializable(typeof(GitHub.Copilot.SkillsLoadedSkill), TypeInfoPropertyName = "SessionEventsSkillsLoadedSkill")]
@@ -38438,6 +39706,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteError), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteError")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteEvent), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteResult), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteResult")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteShellExecution), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteShellExecution")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteToolDescription), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteToolDescription")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteToolDescriptionMeta), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteToolDescriptionMeta")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteToolDescriptionMetaUI), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteToolDescriptionMetaUI")]
@@ -38553,6 +39822,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(CatalogNegotiatedContract))]
 [JsonSerializable(typeof(CatalogSearchRequest))]
 [JsonSerializable(typeof(CatalogSearchResult))]
+[JsonSerializable(typeof(CatalogTrustProvenance))]
+[JsonSerializable(typeof(CatalogTrustSnapshot))]
 [JsonSerializable(typeof(ClientTaskCancelRequest))]
 [JsonSerializable(typeof(ClientTaskCancelResult))]
 [JsonSerializable(typeof(CommandList))]
@@ -38706,6 +39977,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(InstructionsGetSourcesResult))]
 [JsonSerializable(typeof(InterruptMainTurnRequest))]
 [JsonSerializable(typeof(InterruptMainTurnResult))]
+[JsonSerializable(typeof(JsonSchemaResponseFormat))]
 [JsonSerializable(typeof(LlmInferenceHttpRequestChunkRequest))]
 [JsonSerializable(typeof(LlmInferenceHttpRequestChunkResult))]
 [JsonSerializable(typeof(LlmInferenceHttpRequestStartRequest))]
@@ -38966,6 +40238,13 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(PluginsUninstallRequest))]
 [JsonSerializable(typeof(PluginsUpdateRequest))]
 [JsonSerializable(typeof(ProtocolExternalToolDefinition))]
+[JsonSerializable(typeof(ProtocolMarkerSectionOverride))]
+[JsonSerializable(typeof(ProtocolSectionOverride))]
+[JsonSerializable(typeof(ProtocolStaticSectionOverride))]
+[JsonSerializable(typeof(ProtocolSystemMessageAppendConfig))]
+[JsonSerializable(typeof(ProtocolSystemMessageConfig))]
+[JsonSerializable(typeof(ProtocolSystemMessageCustomizeConfig))]
+[JsonSerializable(typeof(ProtocolSystemMessageReplaceConfig))]
 [JsonSerializable(typeof(ProviderAddRequest))]
 [JsonSerializable(typeof(ProviderAddResult))]
 [JsonSerializable(typeof(ProviderConfig))]
@@ -39012,8 +40291,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(QueuedCommandResult))]
 [JsonSerializable(typeof(RegisterEventInterestParams))]
 [JsonSerializable(typeof(RegisterEventInterestResult))]
-[JsonSerializable(typeof(RegisterExtensionToolsParams))]
-[JsonSerializable(typeof(RegisterExtensionToolsResult))]
 [JsonSerializable(typeof(ReleaseEventInterestParams))]
 [JsonSerializable(typeof(RemoteControlConfig))]
 [JsonSerializable(typeof(RemoteControlConfigExistingMcSession))]
@@ -39028,6 +40305,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(RemoteSessionConnectionResult))]
 [JsonSerializable(typeof(RemoteSessionMetadataRepository))]
 [JsonSerializable(typeof(RemoteSessionMetadataValue))]
+[JsonSerializable(typeof(ResponseFormat))]
 [JsonSerializable(typeof(RunOptions))]
 [JsonSerializable(typeof(SandboxConfig))]
 [JsonSerializable(typeof(SandboxConfigAuth))]
@@ -39255,7 +40533,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsOpenProgress))]
 [JsonSerializable(typeof(SessionsPruneOldRequest))]
 [JsonSerializable(typeof(SessionsReadPersistedEventsRequest))]
-[JsonSerializable(typeof(SessionsRegisterExtensionToolsOnSessionOptions))]
 [JsonSerializable(typeof(SessionsReleaseLockRequest))]
 [JsonSerializable(typeof(SessionsReleaseLockResult))]
 [JsonSerializable(typeof(SessionsReloadPluginHooksRequest))]
@@ -39301,6 +40578,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SlashCommandSelectSubcommandOption))]
 [JsonSerializable(typeof(SlashCommandTimelineEntry))]
 [JsonSerializable(typeof(SubagentSettingsEntry))]
+[JsonSerializable(typeof(SystemMessageBlock))]
 [JsonSerializable(typeof(TaskClientInfo))]
 [JsonSerializable(typeof(TaskClientOwner))]
 [JsonSerializable(typeof(TaskClientUpdate))]
@@ -39394,6 +40672,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(WorkspacesAddSummaryResultWorkspace))]
 [JsonSerializable(typeof(WorkspacesAutopilotObjectiveExistsResult))]
 [JsonSerializable(typeof(WorkspacesCheckpoints))]
+[JsonSerializable(typeof(WorkspacesCreateDirectoryRequest))]
 [JsonSerializable(typeof(WorkspacesCreateFileRequest))]
 [JsonSerializable(typeof(WorkspacesDeleteAutopilotObjectiveResult))]
 [JsonSerializable(typeof(WorkspacesDiffRequest))]
@@ -39407,9 +40686,13 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(WorkspacesReadCheckpointResult))]
 [JsonSerializable(typeof(WorkspacesReadFileRequest))]
 [JsonSerializable(typeof(WorkspacesReadFileResult))]
+[JsonSerializable(typeof(WorkspacesRemovePathRequest))]
+[JsonSerializable(typeof(WorkspacesRenamePathRequest))]
 [JsonSerializable(typeof(WorkspacesSaveLargePasteRequest))]
 [JsonSerializable(typeof(WorkspacesSaveLargePasteResult))]
 [JsonSerializable(typeof(WorkspacesSaveLargePasteResultSaved))]
+[JsonSerializable(typeof(WorkspacesStatFileRequest))]
+[JsonSerializable(typeof(WorkspacesStatFileResult))]
 [JsonSerializable(typeof(WorkspacesTruncateSummariesRequest))]
 [JsonSerializable(typeof(WorkspacesUpdateMetadataRequest))]
 [JsonSerializable(typeof(WorkspacesWriteAutopilotObjectiveRequest))]

@@ -28,6 +28,8 @@ public record SessionModeSetParams(
     @JsonProperty("sessionId") String sessionId,
     /** The session mode the agent is operating in */
     @JsonProperty("mode") SessionMode mode,
+    /** Mode the session must currently be in for the change to apply. When set and the session is in a different mode the request is a no-op and reports status 'unchanged'. */
+    @JsonProperty("expectedMode") SessionMode expectedMode,
     /** Session whose plan-mode base state should be inherited. */
     @JsonProperty("inheritPlanBaseFromSessionId") String inheritPlanBaseFromSessionId,
     /** Whether a dedicated plan model is configured. */

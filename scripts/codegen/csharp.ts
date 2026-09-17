@@ -1057,6 +1057,7 @@ interface JsonUnionVariant {
     typeName: string;
     propertyName: string;
     schema?: JSONSchema7;
+    matchExpression?: string;
 }
 
 function getUnionMembers(schema: JSONSchema7): JSONSchema7[] | undefined {
@@ -1107,9 +1108,10 @@ function getJsonUnionMatchExpression(variant: JsonUnionVariant, variants: JsonUn
     ].join(" && ");
 }
 
-function generateJsonUnionClass(className: string, variants: JsonUnionVariant[], description: string | undefined, jsonContextType: string, isInternal: boolean): string {
+function generateJsonUnionClass(className: string, variants: JsonUnionVariant[], description: string | undefined, jsonContextType: string, isInternal: boolean, experimental = false): string {
     const lines: string[] = [];
     lines.push(...xmlDocCommentWithFallback(description, `JSON union data type for <c>${escapeXml(className)}</c>.`, ""));
+    if (experimental) pushExperimentalAttribute(lines);
     lines.push(`[JsonConverter(typeof(Converter))]`);
     lines.push(`${isInternal ? "internal" : "public"} sealed partial class ${className}`);
     lines.push(`{`);
@@ -1147,7 +1149,7 @@ function generateJsonUnionClass(className: string, variants: JsonUnionVariant[],
 
     const fallbackVariants: JsonUnionVariant[] = [];
     for (const variant of variants) {
-        const matchExpression = getJsonUnionMatchExpression(variant, variants);
+        const matchExpression = variant.matchExpression ?? getJsonUnionMatchExpression(variant, variants);
         if (!matchExpression) {
             fallbackVariants.push(variant);
             continue;
@@ -1663,6 +1665,39 @@ function stableStringify(value: unknown): string {
     return JSON.stringify(value);
 }
 
+// Match literal values before deserialization: an optional discriminator must not swallow another variant.
+function getRpcUnionMatchExpression(schema: JSONSchema7, seenRefs: ReadonlySet<string> = new Set()): string | undefined {
+    if (schema.$ref) {
+        if (seenRefs.has(schema.$ref)) return undefined;
+        seenRefs = new Set([...seenRefs, schema.$ref]);
+    }
+    const resolved = resolveSchema(schema, rpcDefinitions) ?? schema;
+    const members = getUnionMembers(resolved);
+    if (members) {
+        const expressions = members.map((member) => getRpcUnionMatchExpression(member, seenRefs));
+        return expressions.every((expression) => expression !== undefined)
+            ? `(${expressions.join(" || ")})`
+            : undefined;
+    }
+
+    const expressions: string[] = [];
+    for (const [name, property] of Object.entries(resolved.properties ?? {})) {
+        if (typeof property !== "object") continue;
+        const propSchema = resolveSchema(property, rpcDefinitions) ?? property;
+        const values = propSchema.const !== undefined ? [propSchema.const] : propSchema.enum;
+        if (!values?.length || !values.every((value) => typeof value === "string")) continue;
+        const propertyName = escapeCSharpStringLiteral(name);
+        const present = `element.TryGetProperty("${propertyName}", out _)`;
+        const value = `element.GetProperty("${propertyName}")`;
+        const matches = values.map((entry) => `${value}.GetString() == "${escapeCSharpStringLiteral(entry as string)}"`);
+        const match = `${present} && ${value}.ValueKind == JsonValueKind.String && (${matches.join(" || ")})`;
+        expressions.push(resolved.required?.includes(name) ? `(${match})` : `(!${present} || (${match}))`);
+    }
+    return expressions.length > 0
+        ? `element.ValueKind == JsonValueKind.Object && ${expressions.join(" && ")}`
+        : undefined;
+}
+
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
     if (isOpaqueJson(schema)) {
         return isRequired ? "JsonElement" : "JsonElement?";
@@ -1686,17 +1721,13 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
             return isRequired ? typeName : `${typeName}?`;
         }
 
-        return resolveRpcType(refSchema, isRequired, parentClassName, propName, classes);
+        return resolveRpcType({ ...refSchema, title: refSchema.title ?? typeName }, isRequired, parentClassName, propName, classes);
     }
-    // Handle anyOf: [T, null/{not:{}}] → T? (nullable typed property)
-    const nullableInner = getNullableInner(schema);
-    if (nullableInner) {
-        return resolveRpcType(nullableInner, false, parentClassName, propName, classes);
-    }
-    // Discriminated union: anyOf with multiple variants sharing a const discriminator
-    if (schema.anyOf && Array.isArray(schema.anyOf)) {
-        const nonNull = schema.anyOf.filter((s) => typeof s === "object" && s !== null && (s as JSONSchema7).type !== "null");
-        if (nonNull.length > 1) {
+    const unionVariants = schema.anyOf ?? schema.oneOf;
+    // Keep the same polymorphic API even when a discriminated union has only one variant.
+    if (unionVariants) {
+        const nonNull = getNonNullUnionMembers(schema);
+        if (nonNull.length > 0) {
             const variants = (nonNull as JSONSchema7[]).map((v) => {
                 if (v.$ref) {
                     const resolved = resolveRef(v.$ref, rpcDefinitions);
@@ -1706,7 +1737,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
             });
             const discriminatorInfo = findDiscriminator(variants);
             if (discriminatorInfo) {
-                const hasNull = schema.anyOf.length > nonNull.length;
+                const hasNull = unionVariants.length > nonNull.length;
                 const baseClassName = (schema.title as string) ?? `${parentClassName}${propName}`;
                 if (!emittedRpcClassSchemas.has(baseClassName)) {
                     emittedRpcClassSchemas.set(baseClassName, "polymorphic");
@@ -1725,6 +1756,32 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
                 }
                 return isRequired && !hasNull ? baseClassName : `${baseClassName}?`;
             }
+        }
+    }
+    // Preserve nullable references without introducing another wrapper around their declared type.
+    const nullableInner = getNullableInner(schema);
+    if (nullableInner) {
+        return resolveRpcType(nullableInner, false, parentClassName, propName, classes);
+    }
+    if (unionVariants && getNonNullUnionMembers(schema).length > 0) {
+        const members = getNonNullUnionMembers(schema);
+        const matchExpressions = members.map((member) => getRpcUnionMatchExpression(member));
+        if (matchExpressions.every((expression) => expression !== undefined)) {
+            const className = schema.title ?? `${parentClassName}${propName}`;
+            if (!emittedRpcClassSchemas.has(className)) {
+                emittedRpcClassSchemas.set(className, "union");
+                const usedNames = new Set<string>();
+                const variants = members.map((member, index) => {
+                    const typeName = resolveRpcType(member, true, className, `Variant${index + 1}`, classes);
+                    return {
+                        typeName,
+                        propertyName: toUnionVariantPropertyName(typeName, usedNames),
+                        matchExpression: matchExpressions[index],
+                    };
+                });
+                classes.push(generateJsonUnionClass(className, variants, schema.description, "RpcJsonContext", isSchemaInternal(schema), isSchemaExperimental(schema) || experimentalRpcTypes.has(className)));
+            }
+            return isRequired && members.length === unionVariants.length ? className : `${className}?`;
         }
     }
     // Handle enums (string unions like "interactive" | "plan" | "autopilot")
@@ -2607,7 +2664,7 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>, 
     return lines;
 }
 
-function generateRpcCode(
+export function generateRpcCode(
     schema: ApiSchema,
     externalJsonSerializableRefs: Map<string, Set<string>> = new Map(),
     externalValueTypes: Set<string> = new Set()

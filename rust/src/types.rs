@@ -24,6 +24,9 @@ use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
 /// Acknowledgement and Auto preference snapshot returned by an Auto tier switch.
 pub use crate::generated::api_types::{ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus};
 /// Routing tier for the `auto` model with Auto mode V2.
+///
+/// [`AutoTier::Fast`] is an integrator-only latency preset, not a first-party
+/// GitHub Copilot product preference.
 pub use crate::generated::session_events::AutoTier;
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
@@ -1944,6 +1947,11 @@ pub struct SessionConfig {
     pub session_id: Option<SessionId>,
     /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     pub model: Option<String>,
+    /// Exact model IDs this session may use. When unset, the host imposes no
+    /// model restriction. The runtime validates configured IDs, rejects an
+    /// explicit empty list, and intersects the list with applicable model
+    /// policies.
+    pub allowed_models: Option<Vec<String>>,
     /// Application name sent as `User-Agent` context.
     pub client_name: Option<String>,
     /// Reasoning effort level (e.g. `"low"`, `"medium"`, `"high"`).
@@ -2305,6 +2313,7 @@ impl std::fmt::Debug for SessionConfig {
         f.debug_struct("SessionConfig")
             .field("session_id", &self.session_id)
             .field("model", &self.model)
+            .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
@@ -2456,6 +2465,7 @@ impl Default for SessionConfig {
         Self {
             session_id: None,
             model: None,
+            allowed_models: None,
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
@@ -2628,6 +2638,7 @@ impl SessionConfig {
         let wire = crate::wire::SessionCreateWire {
             session_id,
             model: self.model,
+            allowed_models: self.allowed_models,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
@@ -2850,6 +2861,19 @@ impl SessionConfig {
     /// Set the model identifier (e.g. `"claude-sonnet-4"`).
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Restrict this session to the provided exact model IDs.
+    ///
+    /// Passing an empty iterator sends an explicit empty list, which the
+    /// runtime rejects.
+    pub fn with_allowed_models<I, S>(mut self, models: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.allowed_models = Some(models.into_iter().map(Into::into).collect());
         self
     }
 
@@ -3417,6 +3441,11 @@ pub struct ResumeSessionConfig {
     /// Model to use for this session (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     /// Can change the model when resuming.
     pub model: Option<String>,
+    /// Exact model IDs the resumed session may use. When unset, the host
+    /// imposes no model restriction. The runtime validates configured IDs,
+    /// rejects an explicit empty list, and intersects the list with applicable
+    /// model policies.
+    pub allowed_models: Option<Vec<String>>,
     /// Application name sent as User-Agent context.
     pub client_name: Option<String>,
     /// Desired reasoning effort to apply after resuming the session.
@@ -3690,6 +3719,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
         f.debug_struct("ResumeSessionConfig")
             .field("session_id", &self.session_id)
             .field("model", &self.model)
+            .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
@@ -3884,6 +3914,7 @@ impl ResumeSessionConfig {
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
             model: self.model,
+            allowed_models: self.allowed_models,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
@@ -3994,6 +4025,7 @@ impl ResumeSessionConfig {
         Self {
             session_id,
             model: None,
+            allowed_models: None,
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
@@ -4187,6 +4219,19 @@ impl ResumeSessionConfig {
     /// Set the model identifier to switch to on resume (e.g. `"claude-sonnet-4"`).
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Restrict the resumed session to the provided exact model IDs.
+    ///
+    /// Passing an empty iterator sends an explicit empty list, which the
+    /// runtime rejects.
+    pub fn with_allowed_models<I, S>(mut self, models: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.allowed_models = Some(models.into_iter().map(Into::into).collect());
         self
     }
 
@@ -6523,6 +6568,7 @@ mod tests {
     fn session_config_default_wire_flags_off_without_handlers() {
         let cfg = SessionConfig::default();
         assert_eq!(cfg.mcp_oauth_token_storage, None);
+        assert_eq!(cfg.allowed_models, None);
         // Wire flags are derived from handler presence at create_session
         // time, not stored on the config. With no handlers installed, every
         // request_* flag should serialize as false.
@@ -6538,12 +6584,14 @@ mod tests {
         assert!(!wire.request_mcp_apps);
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("askUserVariant").is_none());
+        assert!(json.get("allowedModels").is_none());
     }
 
     #[test]
     fn resume_session_config_new_wire_flags_off_without_handlers() {
         let cfg = ResumeSessionConfig::new(SessionId::from("resume-flags"));
         assert_eq!(cfg.mcp_oauth_token_storage, None);
+        assert_eq!(cfg.allowed_models, None);
         let (wire, _runtime) = cfg
             .into_wire()
             .expect("default resume config has no duplicate handlers");
@@ -6556,6 +6604,43 @@ mod tests {
         assert!(!wire.request_mcp_apps);
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("askUserVariant").is_none());
+        assert!(json.get("allowedModels").is_none());
+    }
+
+    #[test]
+    fn session_configs_build_debug_and_serialize_allowed_models() {
+        let create = SessionConfig::default().with_allowed_models(["gpt-5.4", "claude-sonnet-4"]);
+        assert_eq!(
+            create.allowed_models.as_deref(),
+            Some(&["gpt-5.4".to_string(), "claude-sonnet-4".to_string()][..])
+        );
+        assert!(format!("{create:?}").contains("allowed_models"));
+
+        let (create_wire, _) = create
+            .into_wire(Some(SessionId::from("create-allowed-models")))
+            .expect("allowed model config has no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(
+            create_json["allowedModels"],
+            json!(["gpt-5.4", "claude-sonnet-4"])
+        );
+
+        let resume = ResumeSessionConfig::new(SessionId::from("resume-allowed-models"))
+            .with_allowed_models(vec!["gpt-5.4".to_string(), "gpt-5-mini".to_string()]);
+        assert_eq!(
+            resume.allowed_models.as_deref(),
+            Some(&["gpt-5.4".to_string(), "gpt-5-mini".to_string()][..])
+        );
+        assert!(format!("{resume:?}").contains("allowed_models"));
+
+        let (resume_wire, _) = resume
+            .into_wire()
+            .expect("resume allowed model config has no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(
+            resume_json["allowedModels"],
+            json!(["gpt-5.4", "gpt-5-mini"])
+        );
     }
 
     #[test]
@@ -7592,6 +7677,7 @@ mod tests {
             (AutoTier::Efficiency, "efficiency"),
             (AutoTier::Balance, "balance"),
             (AutoTier::Intelligence, "intelligence"),
+            (AutoTier::Fast, "fast"),
         ] {
             let exported: crate::AutoTier = tier.clone();
             let capi = CapiSessionOptions::new().with_auto_tier(exported);

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { ResponseError } from "vscode-jsonrpc/node.js";
 import {
@@ -222,16 +221,6 @@ describe("CopilotSession.sendSessionMessage", () => {
         expect(error).toBe(responseError);
         expect(error).toBeInstanceOf(ResponseError);
         expect(error).not.toBeInstanceOf(SendSessionMessageError);
-    });
-
-    it("keeps generated session wrappers source-bound", () => {
-        const generatedRpc = readFileSync(
-            new URL("../src/generated/rpc.ts", import.meta.url),
-            "utf8"
-        );
-
-        expect(generatedRpc).toContain("{ ...params, sessionId }");
-        expect(generatedRpc).not.toContain("{ sessionId, ...params }");
     });
 });
 

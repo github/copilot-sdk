@@ -1983,7 +1983,7 @@ impl<'a> ClientRpcSessions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.
+    /// Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The first read pins the currently opened journal generation and its byte-length boundary; opaque cursor continuations remain on that generation across runtime-owned compaction, truncation, and rewrite operations, which replace the live path atomically, and events appended after the boundary are excluded. For cold hydration, await the first successful page before activation and establish lossless live-event buffering before resume; merge subsequent live events by ID, preserving persisted order and letting live payloads win. Continuations are process-local, single-use capabilities bound to the originating session and storage context and must be paged sequentially; concurrent or repeated use of the same cursor expires that duplicate read rather than reading the generation twice. A complete snapshot has cursorStatus 'ok' and hasMore false. Snapshots expire after five idle minutes, with at most eight retained per process and idle-only eviction under pressure; completion and cancelled-worker exit release their handles. No transcript copy is created, but retained handles may keep replaced files' disk blocks alive until release. Pages have a soft 1 MiB serialized event-array budget including resolved binary assets; one oversized event is returned alone to guarantee progress. Working memory also includes a record/lookahead and asset resolution; resolving the first binary reference may scan the full pinned generation to build a bounded offset index. If the snapshot expires, is evicted, is cancelled before a continuation is established, or becomes unreadable after an observable unsupported in-place shortening, the continuation returns cursorStatus 'expired' with an empty terminal page and never falls back to a different generation. A missing or initially unreadable journal is an RPC error. Persisted history excludes ephemeral events and may omit payloads that are reconstructed only for an active session; use the active session event stream for post-resume live events.
     ///
     /// Wire method: `sessions.readPersistedEvents`.
     ///
@@ -2776,41 +2776,7 @@ impl<'a> ClientRpcSessions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.
-    ///
-    /// Wire method: `sessions.registerExtensionToolsOnSession`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Params to attach an extension loader's tools to a session.
-    ///
-    /// # Returns
-    ///
-    /// Handle for releasing the extension tool registration.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn register_extension_tools_on_session(
-        &self,
-        params: RegisterExtensionToolsParams,
-    ) -> Result<RegisterExtensionToolsResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(
-                rpc_methods::SESSIONS_REGISTEREXTENSIONTOOLSONSESSION,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Attaches (or detaches) an in-process ExtensionController delegate for the given session, used by shared-API surfaces that need to query or modify the session's extension state. Pass `controller: undefined` to detach. Marked internal because the controller is an in-process object that cannot cross the JSON-RPC boundary. Disappears alongside `registerExtensionToolsOnSession`: once the runtime owns extension management, the public surface exposes list/enable/disable/reload as dedicated RPCs served by the runtime.
+    /// Attaches (or detaches) an in-process ExtensionController delegate for the given session in a local host adapter. Pass `controller: undefined` to detach. Internal because the controller cannot cross the JSON-RPC boundary; the runtime manages its own session extension service.
     ///
     /// Wire method: `sessions.configureSessionExtensions`.
     ///
@@ -4532,17 +4498,17 @@ pub struct SessionRpcDebug<'a> {
 }
 
 impl<'a> SessionRpcDebug<'a> {
-    /// Collects a redacted session debug log bundle into a local archive or staging directory. The runtime includes session-owned logs by default and accepts caller-provided diagnostic entries so host applications can add their own files without changing this API shape.
+    /// Collects a session debug log bundle into a local archive or staging directory. Logs are redacted by default; redaction can be configured per caller-provided diagnostic entry. The runtime includes session-owned logs by default and accepts caller-provided diagnostic entries so host applications can add their own files without changing this API shape.
     ///
     /// Wire method: `session.debug.collectLogs`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Options for collecting a redacted session debug bundle.
+    /// * `params` - Options for collecting a session debug bundle with configurable redaction.
     ///
     /// # Returns
     ///
-    /// Result of collecting a redacted debug bundle.
+    /// Result of collecting a session debug bundle.
     ///
     /// <div class="warning">
     ///
@@ -5351,7 +5317,7 @@ impl<'a> SessionRpcFleet<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Optional user prompt to combine with the fleet orchestration instructions.
+    /// * `params` - Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
     ///
     /// # Returns
     ///
@@ -11875,6 +11841,129 @@ impl<'a> SessionRpcWorkspaces<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_WORKSPACES_CREATEFILE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Returns metadata for a file or directory in the session workspace files directory.
+    ///
+    /// Wire method: `session.workspaces.statFile`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Relative path of the workspace file or directory to inspect.
+    ///
+    /// # Returns
+    ///
+    /// Filesystem metadata for a path in the session workspace files directory.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn stat_file(
+        &self,
+        params: WorkspacesStatFileRequest,
+    ) -> Result<WorkspacesStatFileResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_WORKSPACES_STATFILE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Creates a directory in the session workspace files directory.
+    ///
+    /// Wire method: `session.workspaces.createDirectory`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Directory to create within the session workspace files directory.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn create_directory(
+        &self,
+        params: WorkspacesCreateDirectoryRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_CREATEDIRECTORY,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Removes a file or directory from the session workspace files directory.
+    ///
+    /// Wire method: `session.workspaces.removePath`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - File or directory to remove from the session workspace files directory.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn remove_path(&self, params: WorkspacesRemovePathRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_REMOVEPATH,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Renames a file or directory within the session workspace files directory.
+    ///
+    /// Wire method: `session.workspaces.renamePath`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Source and destination paths for a rename within the session workspace files directory.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn rename_path(&self, params: WorkspacesRenamePathRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_RENAMEPATH,
                 Some(wire_params),
             )
             .await?;

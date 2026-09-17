@@ -35,12 +35,11 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "What's the first line of README.md in this directory?"
         });
 
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
         Assert.Contains("ELIZA", assistantMessage!.Data.Content ?? string.Empty);
     }
@@ -54,12 +53,11 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Use encrypt_string to encrypt this string: Hello"
         });
 
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
         Assert.Contains("HELLO", assistantMessage!.Data.Content ?? string.Empty);
 
@@ -92,12 +90,10 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "First, set the current phase to 'analyzing'. Then search for items with keyword 'copilot'. Report the phase and search results."
         });
-
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
 
         Assert.NotNull(assistantMessage);
         var content = assistantMessage!.Data.Content ?? string.Empty;
@@ -133,8 +129,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is my location? If you can't find out, just say 'unknown'." });
-        var answer = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var answer = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions { Prompt = "What is my location? If you can't find out, just say 'unknown'." });
 
         // Check the underlying traffic
         var traffic = await Ctx.GetExchangesAsync();
@@ -175,14 +170,13 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt =
                 "Perform a DB query for the 'cities' table using IDs 12 and 19, sorting ascending. " +
                 "Reply only with lines of the form: [cityname] [population]"
         });
 
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         var responseContent = assistantMessage?.Data.Content!;
         Assert.NotNull(assistantMessage);
         Assert.NotEmpty(responseContent);
@@ -227,12 +221,11 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Use grep to search for the word 'hello'"
         });
 
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
         Assert.Contains("CUSTOM_GREP_RESULT", assistantMessage!.Data.Content ?? string.Empty);
 
@@ -351,12 +344,11 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             }
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Use safe_lookup to look up 'test123'"
         });
 
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
         Assert.Contains("RESULT", assistantMessage!.Data.Content ?? string.Empty);
         Assert.False(didRunPermissionRequest);
@@ -371,12 +363,11 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Use get_image. What color is the square in the image?"
         });
 
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
 
         Assert.Contains("yellow", assistantMessage!.Data.Content?.ToLowerInvariant() ?? string.Empty);
@@ -408,12 +399,11 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             },
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Use encrypt_string to encrypt this string: Hello"
         });
 
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
         Assert.Contains("HELLO", assistantMessage!.Data.Content ?? string.Empty);
 
@@ -438,12 +428,10 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = async (request, invocation) => PermissionDecision.Reject(),
         });
 
-        await session.SendAsync(new MessageOptions
+        await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Use encrypt_string to encrypt this string: Hello"
         });
-
-        await TestHelper.GetFinalAssistantMessageAsync(session);
 
         // The tool handler should NOT have been called since permission was denied
         Assert.False(toolHandlerCalled);
@@ -472,7 +460,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions
+        var assistantMessageTask = TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Use lookup_city with 'Paris' and lookup_country with 'France' at the same time, then combine both results in your reply."
         });
@@ -483,7 +471,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.Equal("Paris", cityResult);
         Assert.Equal("France", countryResult);
 
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var assistantMessage = await assistantMessageTask;
         Assert.NotNull(assistantMessage);
         var content = assistantMessage!.Data.Content ?? string.Empty;
         Assert.Contains("CITY_PARIS", content);

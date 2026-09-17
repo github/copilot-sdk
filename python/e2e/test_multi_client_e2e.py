@@ -22,7 +22,7 @@ from copilot.rpc import (
 from copilot.session import PermissionHandler, PermissionNoResult
 from copilot.tools import ToolInvocation
 
-from .testharness import get_final_assistant_message
+from .testharness import wait_for_event
 from .testharness.proxy import CapiProxy
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -187,25 +187,6 @@ async def configure_multi_test(request, mctx):
     yield
 
 
-def wait_for_event(session, predicate, timeout: float = 30.0):
-    loop = asyncio.get_running_loop()
-    future = loop.create_future()
-
-    def on_event(event):
-        if not future.done() and predicate(event):
-            future.set_result(event)
-
-    unsubscribe = session.on(on_event)
-
-    async def wait():
-        try:
-            return await asyncio.wait_for(future, timeout=timeout)
-        finally:
-            unsubscribe()
-
-    return loop.create_task(wait())
-
-
 class TestMultiClientBroadcast:
     async def test_both_clients_see_tool_request_and_completion_events(
         self, mctx: MultiClientContext
@@ -245,11 +226,12 @@ class TestMultiClientBroadcast:
             waiters = [client1_requested, client2_requested, client1_completed, client2_completed]
 
             # Send a prompt that triggers the custom tool
-            await session1.send(
-                "Use the magic_number tool with seed 'hello' and tell me the result"
-            )
             # Use a longer timeout: first multi-client TCP test on Windows CI needs extra time
-            response = await get_final_assistant_message(session1, timeout=30.0)
+            response = await session1.send_and_wait(
+                "Use the magic_number tool with seed 'hello' and tell me the result",
+                timeout=30.0,
+            )
+            assert response is not None
             assert "MAGIC_hello_42" in (response.data.content or "")
 
             # Both clients should have seen the external_tool.requested and completed events
@@ -296,8 +278,10 @@ class TestMultiClientBroadcast:
             waiters = [client1_requested, client2_requested, client1_completed, client2_completed]
 
             # Send a prompt that triggers a write operation (requires permission)
-            await session1.send("Create a file called hello.txt containing the text 'hello world'")
-            response = await get_final_assistant_message(session1)
+            response = await session1.send_and_wait(
+                "Create a file called hello.txt containing the text 'hello world'", timeout=10.0
+            )
+            assert response is not None
             assert response.data.content
 
             # Client 1 should have handled permission requests
@@ -415,16 +399,18 @@ class TestMultiClientBroadcast:
         )
 
         # Send prompts sequentially to avoid nondeterministic tool_call ordering
-        await session1.send(
-            "Use the city_lookup tool with countryCode 'US' and tell me the result."
+        response1 = await session1.send_and_wait(
+            "Use the city_lookup tool with countryCode 'US' and tell me the result.",
+            timeout=10.0,
         )
-        response1 = await get_final_assistant_message(session1)
+        assert response1 is not None
         assert "CITY_FOR_US" in (response1.data.content or "")
 
-        await session1.send(
-            "Now use the currency_lookup tool with countryCode 'US' and tell me the result."
+        response2 = await session1.send_and_wait(
+            "Now use the currency_lookup tool with countryCode 'US' and tell me the result.",
+            timeout=10.0,
         )
-        response2 = await get_final_assistant_message(session1)
+        assert response2 is not None
         assert "CURRENCY_FOR_US" in (response2.data.content or "")
 
         await session2.disconnect()
@@ -464,12 +450,16 @@ class TestMultiClientBroadcast:
 
         # Verify both tools work before disconnect.
         # Sequential prompts avoid nondeterministic tool_call ordering.
-        await session1.send("Use the stable_tool with input 'test1' and tell me the result.")
-        stable_response = await get_final_assistant_message(session1)
+        stable_response = await session1.send_and_wait(
+            "Use the stable_tool with input 'test1' and tell me the result.", timeout=10.0
+        )
+        assert stable_response is not None
         assert "STABLE_test1" in (stable_response.data.content or "")
 
-        await session1.send("Use the ephemeral_tool with input 'test2' and tell me the result.")
-        ephemeral_response = await get_final_assistant_message(session1)
+        ephemeral_response = await session1.send_and_wait(
+            "Use the ephemeral_tool with input 'test2' and tell me the result.", timeout=10.0
+        )
+        assert ephemeral_response is not None
         assert "EPHEMERAL_test2" in (ephemeral_response.data.content or "")
 
         # Force disconnect client 2 without destroying the shared session
@@ -487,12 +477,13 @@ class TestMultiClientBroadcast:
         )
 
         # Now only stable_tool should be available
-        await session1.send(
+        after_response = await session1.send_and_wait(
             "Use the stable_tool with input 'still_here'."
             " Also try using ephemeral_tool"
-            " if it is available."
+            " if it is available.",
+            timeout=10.0,
         )
-        after_response = await get_final_assistant_message(session1)
+        assert after_response is not None
         assert "STABLE_still_here" in (after_response.data.content or "")
         # ephemeral_tool should NOT have produced a result
         assert "EPHEMERAL_" not in (after_response.data.content or "")

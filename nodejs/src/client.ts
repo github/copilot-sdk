@@ -1200,7 +1200,7 @@ export class CopilotClient {
             const host = this.ffiHost;
             this.ffiHost = null;
             try {
-                host.dispose();
+                await host.dispose();
             } catch (error) {
                 errors.push(
                     new Error(
@@ -1314,12 +1314,13 @@ export class CopilotClient {
 
         // Tear down the in-process FFI host (if any).
         if (this.ffiHost) {
+            const host = this.ffiHost;
+            this.ffiHost = null;
             try {
-                this.ffiHost.dispose();
+                await host.dispose();
             } catch {
                 // Ignore errors during force stop
             }
-            this.ffiHost = null;
         }
 
         if (this.cliStartTimeout) {

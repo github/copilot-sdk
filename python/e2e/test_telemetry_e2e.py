@@ -26,7 +26,7 @@ from copilot._telemetry import get_trace_context, trace_context
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
-from .testharness import E2ETestContext, get_final_assistant_message
+from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -102,8 +102,8 @@ class TestTelemetryExport:
             )
             session_id = session.session_id
 
-            await session.send(prompt)
-            answer = await get_final_assistant_message(session, timeout=60.0)
+            answer = await session.send_and_wait(prompt, timeout=60.0)
+            assert answer is not None
             assert "TELEMETRY_E2E_DONE" in (answer.data.content or "")
 
             await session.disconnect()

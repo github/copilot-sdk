@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Handle for releasing the extension tool registration.
+ * Filesystem metadata for a path in the session workspace files directory.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,8 +23,16 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionsRegisterExtensionToolsOnSessionResult(
-    /** In-process unsubscribe function used only by the CLI. */
-    @JsonProperty("unsubscribe") Object unsubscribe
+public record SessionWorkspacesStatFileResult(
+    /** Whether the path identifies a regular file */
+    @JsonProperty("isFile") Boolean isFile,
+    /** Whether the path identifies a directory */
+    @JsonProperty("isDirectory") Boolean isDirectory,
+    /** Size in bytes */
+    @JsonProperty("size") Double size,
+    /** Last modification time in Unix epoch milliseconds */
+    @JsonProperty("mtimeMs") Double mtimeMs,
+    /** Creation time in Unix epoch milliseconds */
+    @JsonProperty("birthtimeMs") Double birthtimeMs
 ) {
 }

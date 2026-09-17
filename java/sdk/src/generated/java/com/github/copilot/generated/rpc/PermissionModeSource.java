@@ -24,6 +24,8 @@ public enum PermissionModeSource {
     AUTOPILOT_CONFIRMATION("autopilot_confirmation"),
     /** The {@code user_setting} variant. */
     USER_SETTING("user_setting"),
+    /** The {@code organization_targeting} variant. */
+    ORGANIZATION_TARGETING("organization_targeting"),
     /** The {@code rpc} variant. */
     RPC("rpc");
 

@@ -41,17 +41,17 @@ import java.util.logging.Logger;
  * <h2>Active-callback tracking</h2>
  * <p>
  * The {@link #activeCallbacks} counter is incremented when the native runtime
- * enters the outbound callback and decremented when the callback returns.
- * Callers (e.g. {@code FfiRuntimeHost}) must drain this counter to zero before
- * calling {@link #connectionClose} or {@link #hostShutdown}.
+ * enters the outbound callback and decremented when the callback returns. It is
+ * retained for diagnostics and tests; a successful {@link #connectionClose} is
+ * the authoritative callback-quiescence barrier.
  *
  * <h2>Callback lifetime</h2>
  * <p>
- * The native runtime can invoke an outbound callback after connection close and
- * host shutdown return. Each JNA callback wrapper is therefore retained for the
- * lifetime of the JVM. After host shutdown, its Java delegate is detached so a
- * late native invocation safely becomes a no-op without retaining the complete
- * host object graph.
+ * The native runtime can still be inside an outbound callback when
+ * {@link #connectionClose} returns {@code false}. Each JNA callback wrapper is
+ * therefore retained until connection close reports quiescence. A successful
+ * close detaches its Java delegate and releases the wrapper for garbage
+ * collection.
  *
  * <h2>GraalVM Native Image</h2>
  * <p>
@@ -112,9 +112,9 @@ final class JnaNativeBinding implements NativeBinding {
     private static volatile CopilotRuntimeLibrary loadedLib;
 
     /**
-     * Process-lifetime roots for JNA callback trampolines. Native code can invoke a
-     * callback after connection and host teardown return, so entries are never
-     * removed in production.
+     * Roots for JNA callback trampolines until successful connection close confirms
+     * that native code can no longer invoke them. Host shutdown alone is not a
+     * callback-quiescence barrier.
      */
     private static final Set<OutboundCallback> RETAINED_CALLBACKS = ConcurrentHashMap.newKeySet();
 
@@ -133,18 +133,16 @@ final class JnaNativeBinding implements NativeBinding {
      */
     private final CopilotRuntimeLibrary lib;
 
-    /**
-     * Count of callbacks currently executing on native threads. Must reach zero
-     * before {@link #connectionClose} or {@link #hostShutdown} is called.
-     */
+    /** Count of callbacks currently executing on native threads. */
     final AtomicInteger activeCallbacks = new AtomicInteger(0);
 
     /**
      * Callback registrations keyed by connection handle.
      * <p>
      * Registrations remain here through connection close because native callbacks
-     * can still arrive. Successful host shutdown detaches their Java delegates; the
-     * wrappers themselves remain rooted by {@link #RETAINED_CALLBACKS}.
+     * can still arrive while close reports non-quiescence. Successful connection
+     * close detaches their Java delegates and removes their wrapper roots from
+     * {@link #RETAINED_CALLBACKS}.
      */
     private final Map<Integer, CallbackRegistration> callbackRegistrations = new ConcurrentHashMap<>();
 
@@ -240,8 +238,10 @@ final class JnaNativeBinding implements NativeBinding {
     public boolean hostShutdown(int serverId) {
         boolean shutdown = lib.copilot_runtime_host_shutdown(serverId) != 0;
         if (shutdown) {
-            callbackRegistrations.forEach((connectionId, registration) -> {
-                if (registration.serverId == serverId && callbackRegistrations.remove(connectionId, registration)) {
+            // Keep registrations so a later successful close can release their wrapper
+            // roots.
+            callbackRegistrations.values().forEach(registration -> {
+                if (registration.serverId == serverId) {
                     registration.detach();
                 }
             });
@@ -269,7 +269,15 @@ final class JnaNativeBinding implements NativeBinding {
 
     @Override
     public boolean connectionClose(int connectionId) {
-        return lib.copilot_runtime_connection_close(connectionId) != 0;
+        boolean closed = lib.copilot_runtime_connection_close(connectionId) != 0;
+        if (closed) {
+            CallbackRegistration registration = callbackRegistrations.remove(connectionId);
+            if (registration != null) {
+                registration.detach();
+                RETAINED_CALLBACKS.remove(registration.wrapper);
+            }
+        }
+        return closed;
     }
 
     // -------------------------------------------------------------------------

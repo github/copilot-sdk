@@ -41,9 +41,9 @@ public final class CatalogNegotiationRefusedError extends CatalogSearchResult {
     @JsonProperty("minimumSupportedProtocolVersion")
     private Long minimumSupportedProtocolVersion;
 
-    /** Every wire feature this runtime understands, so the caller can retry within that contract. This list does not imply that every deployment has enabled every operation. */
+    /** Capabilities this runtime can safely advertise to this caller. The complete five-capability protocol-3 legacy set is always present; every capability added after that baseline appears only when the caller required it, so an older closed-enum decoder can still consume a refusal. This list does not imply that every deployment has enabled every operation. */
     @JsonProperty("supportedCapabilities")
-    private List<CatalogCapability> supportedCapabilities;
+    private List<String> supportedCapabilities;
 
     /** The subset of the caller's bounded extensible capability identifiers this runtime cannot honour. */
     @JsonProperty("unsupportedCapabilities")
@@ -62,8 +62,8 @@ public final class CatalogNegotiationRefusedError extends CatalogSearchResult {
     public Long getMinimumSupportedProtocolVersion() { return minimumSupportedProtocolVersion; }
     public void setMinimumSupportedProtocolVersion(Long minimumSupportedProtocolVersion) { this.minimumSupportedProtocolVersion = minimumSupportedProtocolVersion; }
 
-    public List<CatalogCapability> getSupportedCapabilities() { return supportedCapabilities; }
-    public void setSupportedCapabilities(List<CatalogCapability> supportedCapabilities) { this.supportedCapabilities = supportedCapabilities; }
+    public List<String> getSupportedCapabilities() { return supportedCapabilities; }
+    public void setSupportedCapabilities(List<String> supportedCapabilities) { this.supportedCapabilities = supportedCapabilities; }
 
     public List<String> getUnsupportedCapabilities() { return unsupportedCapabilities; }
     public void setUnsupportedCapabilities(List<String> unsupportedCapabilities) { this.unsupportedCapabilities = unsupportedCapabilities; }

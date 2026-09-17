@@ -178,7 +178,7 @@ func TestMCPOAuthE2E(t *testing.T) {
 					if request.WwwAuthenticateParams == nil ||
 						request.WwwAuthenticateParams.ResourceMetadataURL == nil ||
 						*request.WwwAuthenticateParams.ResourceMetadataURL != baseURL+"/.well-known/oauth-protected-resource" ||
-						stringValue(request.WwwAuthenticateParams.Scope) != "mcp.write" ||
+						stringValue(request.WwwAuthenticateParams.Scope) != "mcp.read mcp.write" ||
 						stringValue(request.WwwAuthenticateParams.Error) != "insufficient_scope" {
 						t.Fatalf("Unexpected upscope WWW-Authenticate params: %#v", request.WwwAuthenticateParams)
 					}
@@ -397,6 +397,7 @@ func startOAuthMCPServer(t *testing.T, cimdSupported ...bool) string {
 		if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
 			return
 		}
+		testharness.PrepareForProcessWait()
 		_ = cmd.Process.Kill()
 		_, _ = cmd.Process.Wait()
 	})

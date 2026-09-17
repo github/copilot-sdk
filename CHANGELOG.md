@@ -7,6 +7,69 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+## [v1.0.14](https://github.com/github/copilot-sdk/releases/tag/v1.0.14) (2026-09-16)
+
+### Feature: typed message provenance for user, system, and agent sources
+
+Messages sent through the SDK can now carry typed source provenance, distinguishing human `user` input, internal `system` injections, and identified `agent-` senders, so recipients can reliably tell agent input from human authorization. ([#2573](https://github.com/github/copilot-sdk/pull/2573))
+
+```ts
+await session.send("Looks good to me.", { source: "agent-reviewer" });
+```
+
+```py
+await session.send("Looks good to me.", source=AgentMessageSource("reviewer"))
+```
+
+### Feature: Auto model routing Fast tier
+
+Sessions using `auto` model routing can now select the `fast` tier alongside the existing `efficiency`, `balance`, and `intelligence` tiers, giving integrators a latency-focused routing preset across all six SDKs. ([#2669](https://github.com/github/copilot-sdk/pull/2669))
+
+```ts
+await session.setAutoTier("fast");
+```
+
+### Feature: force-refresh managed settings cache
+
+The new `managedSettings.clearCache` RPC method wipes the persistent server-policy cache and drops the runtime's in-memory retained policy, giving hosts a primitive for a "force refresh account policy" action. ([#2438](https://github.com/github/copilot-sdk/pull/2438))
+
+```ts
+await client.rpc.managedSettings.clearCache();
+```
+
+```cs
+await client.Rpc.ManagedSettings.ClearCacheAsync();
+```
+
+### Feature: Rust SDK model allowlists
+
+`SessionConfig` and `ResumeSessionConfig` in the Rust SDK now accept an optional `allowed_models` list, letting hosts restrict which model IDs a session may use without duplicating runtime validation. ([#2512](https://github.com/github/copilot-sdk/pull/2512))
+
+```rust
+let config = SessionConfig::default().with_allowed_models(["gpt-4o", "claude-3.7-sonnet"]);
+```
+
+### Other changes
+
+- feature: **[Core]** add factory pause checkpoints for the Node.js Agent Factories API, letting a paused run resume without losing invocation limits or execution identity ([#2537](https://github.com/github/copilot-sdk/pull/2537))
+- feature: forward the optional host OAuth client metadata URL across all six SDKs on session create and resume ([#2258](https://github.com/github/copilot-sdk/pull/2258))
+- feature: **[TypeScript]** add `max_output_tokens` to the model capabilities override, previously unreachable without an unsafe cast ([#2569](https://github.com/github/copilot-sdk/pull/2569))
+- bugfix: **[.NET]** include Copilot CLI runtime assets in `PackAsTool` packages so `dotnet pack --no-build` produces a working tool ([#2557](https://github.com/github/copilot-sdk/pull/2557))
+- bugfix: apply the runtime's `connection_close` callback-quiescence contract consistently across all six in-process C ABI adapters, preventing races with freed callback state during disposal ([#2610](https://github.com/github/copilot-sdk/pull/2610), [#2622](https://github.com/github/copilot-sdk/pull/2622))
+- bugfix: **[Rust]** fix codegen for CLI 1.0.84 schemas, correctly mapping the `CatalogTrustEligibility` `unknown` value and re-exporting shared session-event types ([#2631](https://github.com/github/copilot-sdk/pull/2631))
+- bugfix: **[C#]** fix codegen for runtime schema unions, unblocking single-variant `anyOf`/`oneOf` handling ([#2656](https://github.com/github/copilot-sdk/pull/2656))
+- bugfix: **[Rust]** isolate the hostless in-process runtime cache from the bundled CLI cache to prevent cross-deletion of a shared executable ([#2659](https://github.com/github/copilot-sdk/pull/2659))
+- improvement: **[Rust]** harden Copilot CLI download retries with more attempts and a longer backoff window ([#2663](https://github.com/github/copilot-sdk/pull/2663))
+
+### New contributors
+
+- @aurokin made their first contribution in [#2573](https://github.com/github/copilot-sdk/pull/2573)
+- @kondv made their first contribution in [#2557](https://github.com/github/copilot-sdk/pull/2557)
+- @1fanwang made their first contribution in [#2569](https://github.com/github/copilot-sdk/pull/2569)
+- @SamMorrowDrums made their first contribution in [#2258](https://github.com/github/copilot-sdk/pull/2258)
+- @SandraAhlgrimm made their first contribution in [#2603](https://github.com/github/copilot-sdk/pull/2603)
+- @jpbufe3 made their first contribution in [#2512](https://github.com/github/copilot-sdk/pull/2512)
+
 ## [v1.0.13](https://github.com/github/copilot-sdk/releases/tag/v1.0.13) (2026-09-04)
 
 ### Feature: cancellation for host-owned external tools

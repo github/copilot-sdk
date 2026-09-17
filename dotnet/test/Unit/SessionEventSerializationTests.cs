@@ -14,6 +14,7 @@ public class SessionEventSerializationTests
         { AutoTier.Efficiency, "efficiency" },
         { AutoTier.Balance, "balance" },
         { AutoTier.Intelligence, "intelligence" },
+        { AutoTier.Fast, "fast" },
         { null, null },
     };
 
@@ -102,7 +103,7 @@ public class SessionEventSerializationTests
                 "type": "session.auto_tier_switch_failed",
                 "data": {
                     "effectiveAutoTier": "balance",
-                    "requestedAutoTier": "intelligence",
+                    "requestedAutoTier": "fast",
                     "reason": "{{wireReason}}"
                 }
             }
@@ -113,7 +114,7 @@ public class SessionEventSerializationTests
         var data = Assert.IsType<SessionAutoTierSwitchFailedEvent>(sessionEvent).Data;
         Assert.Equal(new AutoTierSwitchFailureReason(wireReason), data.Reason);
         Assert.Equal(AutoTier.Balance, data.EffectiveAutoTier);
-        Assert.Equal(AutoTier.Intelligence, data.RequestedAutoTier);
+        Assert.Equal(AutoTier.Fast, data.RequestedAutoTier);
     }
 
     [Fact]

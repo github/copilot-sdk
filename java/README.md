@@ -34,14 +34,14 @@ runtime.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.13</version>
+    <version>1.0.14-preview.1</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.13'
+implementation 'com.github:copilot-sdk-java:1.0.14-preview.1'
 ```
 
 ### Snapshot builds
@@ -62,19 +62,19 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.14-SNAPSHOT</version>
+    <version>1.0.15-preview.1-SNAPSHOT</version>
 </dependency>
 ```
 
 #### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.14-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.15-preview.1-SNAPSHOT'
 ```
 
 ## In-process mode (experimental)
 
-The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **win32-x64**, **win32-arm64**, and **darwin-arm64**.
+The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **win32-x64**, **win32-arm64**, **darwin-x64**, and **darwin-arm64**.
 
 Because in-process mode is experimental, see the [Using experimental APIs](#using-experimental-apis) section for how to opt in.
 
@@ -97,7 +97,7 @@ Add both the SDK and the platform-specific native runtime to your project:
         <version>${copilot.version}</version>
         <classifier>linux-x64</classifier>
     </dependency>
-    <!-- Use linux-arm64, win32-x64, win32-arm64, or darwin-arm64 on those target platforms -->
+    <!-- Use linux-arm64, win32-x64, win32-arm64, darwin-x64, or darwin-arm64 on those target platforms -->
     <!-- JNA (required for in-process mode) -->
     <dependency>
         <groupId>net.java.dev.jna</groupId>
@@ -369,9 +369,12 @@ For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-d
 ## Auto routing tiers
 
 Use `CapiSessionOptions.setAutoTier(...)` to select `AutoTier.EFFICIENCY`,
-`AutoTier.BALANCE`, or `AutoTier.INTELLIGENCE`. This option is meaningful only
-with model `auto` (Auto mode V2).
+`AutoTier.BALANCE`, `AutoTier.INTELLIGENCE`, or `AutoTier.FAST`. This option is
+meaningful only with model `auto` (Auto mode V2).
 It requires a runtime version that supports `capi.autoTier`.
+`AutoTier.FAST` is an integrator-only latency preset, not a first-party GitHub
+Copilot product preference — the SDK does not decide Fast eligibility or apply
+it implicitly.
 
 ```java
 import com.github.copilot.rpc.AutoTier;
@@ -398,7 +401,7 @@ for the lifecycle rules.
 
 Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
 
-Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. A failed activation leaves the incumbent effective tier unchanged. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
 
 ```java
 var result = session.setAutoTier(AutoTier.INTELLIGENCE).get();
@@ -606,7 +609,7 @@ CI enforces both checks. Spotless runs explicitly in CI; `mvn verify` alone does
 
 Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven because `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release.
 
-On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On Windows x64, Windows ARM64, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned platform package from the corresponding `github/copilot-cli` release during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
+On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned platform package from the corresponding `github/copilot-cli` release during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
 
 Before opting in, validate that Node.js reports glibc for the build host:
 
@@ -627,10 +630,10 @@ On Windows x64 or ARM64 PowerShell, initialize Java and run the same profile:
 mvn -Pinprocess clean verify
 ```
 
-The same command validates in-process mode on Apple Silicon macOS:
+The same command validates in-process mode on macOS; use the classifier for the host architecture:
 
 ```bash
-node copilot-native/scripts/validate-native-host.mjs darwin-arm64
+node copilot-native/scripts/validate-native-host.mjs darwin-x64 # Use darwin-arm64 on Apple Silicon
 mvn -Pinprocess clean verify
 ```
 
@@ -641,7 +644,7 @@ node copilot-native/scripts/validate-native-host.mjs linux-arm64
 mvn -Pinprocess clean verify -Dcopilot.native.libc=glibc
 ```
 
-On Intel macOS, Linux musl, and other unsupported hosts, do not set `copilot.native.libc=glibc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
+On Linux musl and other unsupported hosts, do not set `copilot.native.libc=glibc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
 
 To build only the OS-neutral artifacts on any host, or override the glibc opt-in, disable native download and packaging:
 
@@ -660,6 +663,32 @@ mvn clean package -pl copilot-native -DskipTests -Dcopilot.native.libc=glibc -Dc
 ```
 
 Each classifier JAR includes `runtime.node`, `platform.properties`, and `copilot-runtime` (or `copilot-runtime.exe`) under its `native/<classifier>` directory. It does not contain the legacy `copilot` SEA. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior.
+
+### Versioning and releases
+
+The Java SDK uses [Maven CI-friendly versions](https://maven.apache.org/maven-ci-friendly.html). Every module declares `<version>${revision}</version>`, and the single source of truth is the `<revision>` property in `java/pom.xml`. The committed value stays a `-SNAPSHOT` (for example `1.0.14-SNAPSHOT`) and is only used for local development and the daily snapshot publish.
+
+Releasing is intentionally a **read-only** operation that never mutates the repository:
+
+- The release version is computed by the shared release pipeline (`.github/workflows/publish.yml`) — the same version used by every other language SDK — and injected at build time with `-Drevision=X.Y.Z`. The POM is **not** edited or committed.
+- `.github/workflows/java-publish-maven.yml` builds every native classifier and the primary artifact from a single immutable source commit and publishes to Maven Central. It creates no commits, no branch-protection bypass, and requires no elevated repository token.
+- The `java/vX.Y.Z` traceability tag and the cross-language `vX.Y.Z` GitHub Release are created by `publish.yml` **after** publication succeeds, pointing at the original release commit.
+
+For an independent Java publication retry, dispatch `java-publish-maven.yml` from `main` with the original `releaseVersion` and full `sourceSha`. The source must be a commit already in `main`'s history. Unmerged commits, branch names, and tag names are rejected before builds run.
+
+Because there is no `maven-release-plugin` and no `release:prepare` ceremony, the POM deliberately does not track the "next" release version. To validate a build with an explicit version locally, without publishing:
+
+```bash
+# Build and verify with an explicit version, without touching the POM
+mvn clean verify -Drevision=1.2.3
+
+# Inspect the generated flattened POMs for the literal version (no ${revision})
+cat sdk/.flattened-pom.xml copilot-native/.flattened-pom.xml
+```
+
+These commands do not upload artifacts. Do not use `deploy` for local validation: the Central publishing plugin is configured with `autoPublish=true`.
+
+`flatten-maven-plugin` (ossrh mode) resolves `${revision}` into the installed and published POMs, so downstream consumers never see the unresolved property. Documentation version references are updated through a normal reviewed pull request (see `scripts/update-documentation-versions.sh`), not as a side effect of publishing.
 
 ## License
 

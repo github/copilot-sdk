@@ -91,6 +91,12 @@ export type SessionEvent =
   | SystemNotificationEvent
   | PermissionRequestedEvent
   | PermissionCompletedEvent
+  | PermissionCarriedForwardEvent
+  | PermissionMessageAuthorizationEvent
+  | PermissionMessageAuthorizationReadEvent
+  | PermissionMessageAuthorizationDegradedEvent
+  | PermissionAssentDetectedEvent
+  | PermissionContextualAuthorizationEvent
   | UserInputRequestedEvent
   | UserInputCompletedEvent
   | ElicitationRequestedEvent
@@ -642,6 +648,32 @@ export type AbortReason =
   /** Autopilot stopped the run because the active objective reached its user-set --max-ai-credits limit. */
   | "autopilot_credit_limit";
 /**
+ * Configuration source: user, workspace, plugin, builtin, or managed
+ */
+export type McpServerSource =
+  /** Server configured in the user's global MCP configuration. */
+  | "user"
+  /** Server configured by the current workspace. */
+  | "workspace"
+  /** Server contributed by an installed plugin. */
+  | "plugin"
+  /** Server bundled with the runtime. */
+  | "builtin"
+  /** Server supplied by a trusted host-managed catalog. */
+  | "managed";
+/**
+ * Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
+ */
+export type McpServerTransport =
+  /** Server communicates over stdio with a local child process. */
+  | "stdio"
+  /** Server communicates over streamable HTTP. */
+  | "http"
+  /** Server communicates over Server-Sent Events (deprecated). */
+  | "sse"
+  /** Server is backed by an in-memory runtime implementation. */
+  | "memory";
+/**
  * Allowed values for the `ToolExecutionStartToolDescriptionMetaUIVisibility` enumeration.
  */
 export type ToolExecutionStartToolDescriptionMetaUIVisibility =
@@ -720,18 +752,6 @@ export type SkillInvokedTrigger =
   /** Skill content loaded as part of another context, such as a configured custom agent or subagent. */
   | "context-load";
 /**
- * Where the model input for a task-tool sub-agent came from.
- */
-export type SubagentTaskModelSource =
-  /** The spawning agent supplied the task tool's model argument. */
-  | "task_argument"
-  /** The task omitted a model and the per-sub-agent settings entry supplied a concrete one. */
-  | "subagent_configuration"
-  /** The task omitted a model and the user-defined custom agent's definition supplied one. */
-  | "custom_agent_definition"
-  /** Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model. */
-  | "unset";
-/**
  * Authority or runtime mechanism responsible for sub-agent model selection.
  */
 export type SubagentModelSelectionSource =
@@ -749,6 +769,18 @@ export type SubagentModelSelectionSource =
   | "agent_definition_default"
   /** Runtime policy, Auto mode, or an experiment selected the model. */
   | "runtime_policy";
+/**
+ * Where the model input for a task-tool sub-agent came from.
+ */
+export type SubagentTaskModelSource =
+  /** The spawning agent supplied the task tool's model argument. */
+  | "task_argument"
+  /** The task omitted a model and the per-sub-agent settings entry supplied a concrete one. */
+  | "subagent_configuration"
+  /** The task omitted a model and the user-defined custom agent's definition supplied one. */
+  | "custom_agent_definition"
+  /** Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model. */
+  | "unset";
 /**
  * Binary asset type discriminator. Use "image" for images and "resource" otherwise.
  */
@@ -930,6 +962,20 @@ export type PermissionPromptRequestPathAccessKind =
   /** Write access to a filesystem path. */
   | "write";
 /**
+ * Controlled reason or actor responsible for a permission response.
+ */
+export type PermissionDecisionSource =
+  /** The response followed the assisted-approval judge recommendation. */
+  | "assisted_approval"
+  /** A human supplied the response through an interactive prompt. */
+  | "human_response"
+  /** The host applied a standing policy or override rather than a judge recommendation or human decision. */
+  | "host_policy"
+  /** The host denied the request because no interactive user response was available. */
+  | "unattended_fallback"
+  /** A live authorization record from an earlier human decision in this session contained the proposal, so it ran without another prompt. This is not a new human decision and never mints authority of its own. */
+  | "authorization_carry_forward";
+/**
  * The result of the permission request
  */
 export type PermissionResult =
@@ -956,6 +1002,15 @@ export type UserToolSessionApproval =
   | UserToolSessionApprovalFactory
   | UserToolSessionApprovalExtensionPermissionAccess
   | UserToolSessionApprovalExtensionEnvAccess;
+/**
+ * Which direction a message-backed authorization claim moves authority in.
+ */
+/** @experimental */
+export type PermissionMessageAuthorizationPolarity =
+  /** The human's words authorized an effect. */
+  | "grant"
+  /** The human's words refused an effect. */
+  | "denial";
 /**
  * Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
  */
@@ -1016,6 +1071,8 @@ export type McpHeadersRefreshCompletedOutcome =
   | "headers"
   /** The host responded with no dynamic headers. */
   | "none"
+  /** The host credential broker rejected or failed the refresh. */
+  | "error"
   /** No response arrived within the bounded window. */
   | "timeout";
 /**
@@ -1162,18 +1219,6 @@ export type AgentModelPolicy =
   /** Require subagent execution to use one of the authored models. */
   | "required";
 /**
- * Configuration source: user, workspace, plugin, or builtin
- */
-export type McpServerSource =
-  /** Server configured in the user's global MCP configuration. */
-  | "user"
-  /** Server configured by the current workspace. */
-  | "workspace"
-  /** Server contributed by an installed plugin. */
-  | "plugin"
-  /** Server bundled with the runtime. */
-  | "builtin";
-/**
  * Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
  */
 export type McpServerStatus =
@@ -1191,18 +1236,6 @@ export type McpServerStatus =
   | "stopped"
   /** The server is not configured for this session. */
   | "not_configured";
-/**
- * Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
- */
-export type McpServerTransport =
-  /** Server communicates over stdio with a local child process. */
-  | "stdio"
-  /** Server communicates over streamable HTTP. */
-  | "http"
-  /** Server communicates over Server-Sent Events (deprecated). */
-  | "sse"
-  /** Server is backed by an in-memory runtime implementation. */
-  | "memory";
 /**
  * Discovery source
  */
@@ -5050,6 +5083,10 @@ export interface AssistantMessageData {
    */
   model?: string;
   /**
+   * Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
+   */
+  originatingMessageId?: string;
+  /**
    * Actual output token count from the API response (completion_tokens), used for accurate token accounting
    */
   outputTokens?: number;
@@ -6207,6 +6244,11 @@ export interface ToolExecutionStartData {
    */
   fusion?: FusionAttribution;
   /**
+   * Preferred lookup name for the MCP server hosting this tool: the configured (namespaced) config-map key when the tool carries one, otherwise the display name from `mcpServerName`. Present when the tool is an MCP tool; this is the name unrestricted provenance telemetry hashes so it joins with `mcp_server_setup`, which keys off the configured name too.
+   */
+  mcpConfigServerName?: string;
+  mcpConfigSource?: McpServerSource;
+  /**
    * Name of the MCP server hosting this tool, when the tool is an MCP tool
    */
   mcpServerName?: string;
@@ -6214,6 +6256,7 @@ export interface ToolExecutionStartData {
    * Original tool name on the MCP server, when the tool is an MCP tool
    */
   mcpToolName?: string;
+  mcpTransport?: McpServerTransport;
   /**
    * Model identifier that generated this tool call
    */
@@ -6454,6 +6497,12 @@ export interface ToolExecutionCompleteData {
    */
   sandboxed?: boolean;
   /**
+   * Experimental shell completion facts captured before the persisted result contents are stripped.
+   *
+   * @experimental
+   */
+  shellExecution?: ToolExecutionCompleteShellExecution;
+  /**
    * Whether the tool execution completed successfully
    */
   success: boolean;
@@ -6512,7 +6561,7 @@ export interface ToolExecutionCompleteResult {
    */
   contents?: ToolExecutionCompleteContent[];
   /**
-   * Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
+   * Detailed tool result for UI/timeline display, preserving complete content such as diffs for most tools. Successful skill invocations intentionally use the concise model-facing content here; the authoritative skill body is carried by the corresponding skill invocation event. Falls back to content when absent.
    */
   detailedContent?: string;
   /**
@@ -6923,6 +6972,16 @@ export interface ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation {}
  */
 export interface ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone {}
 /**
+ * Experimental shell completion facts retained independently of the full tool result.
+ */
+/** @experimental */
+export interface ToolExecutionCompleteShellExecution {
+  /**
+   * Process exit code reported by the shell driver.
+   */
+  exitCode: number;
+}
+/**
  * Tool definition metadata, present for MCP tools with MCP Apps support
  */
 export interface ToolExecutionCompleteToolDescription {
@@ -7136,6 +7195,7 @@ export interface SubagentStartedData {
    * Model the sub-agent will run with, when known at start.
    */
   model?: string;
+  modelSelectionSource?: SubagentModelSelectionSource;
   /**
    * Task-registry ID of the spawning sub-agent. Absent when the root session spawned this child.
    */
@@ -7509,7 +7569,7 @@ export interface HookStartData {
    */
   hookType: string;
   /**
-   * Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
+   * Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) drops the tool result's inline `contents`/`uiResource`/`skillInvocation` and replaces duplicated text result fields with a `[copilot:elided ...]` marker; the live subscription stream still delivers the full value. Canonical tool output remains in the adjacent tool.execution_complete event, while an invoked skill's authoritative body remains in its skill invocation event.
    */
   input?: JsonValue;
   /**
@@ -7561,7 +7621,7 @@ export interface HookEndData {
    */
   hookType: string;
   /**
-   * Output data produced by the hook
+   * Output data produced by the hook. Durable and resumed postToolUse receipts may omit messages owned by a successful skill invocation and replace an unchanged skill sessionLog copy with an elision marker; hook-modified or re-sourced values are preserved, and the authoritative body remains in the skill invocation event.
    */
   output?: JsonValue;
   /**
@@ -8110,6 +8170,20 @@ export interface PermissionRequestShell {
    */
   requestSandboxPermissive?: boolean;
   /**
+   * Runtime-resolved canonical object each possiblePaths entry names, keyed by the requested spelling, used for authorization identity checks. Internal and experimental; clients should continue to display possiblePaths.
+   *
+   * @experimental
+   */
+  resolvedPaths?: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Runtime-resolved canonical working directory the command runs in, used for authorization identity checks. Internal and experimental; clients should not display it.
+   *
+   * @experimental
+   */
+  resolvedWorkingDirectory?: string;
+  /**
    * Tool call ID that triggered this permission request
    */
   toolCallId?: string;
@@ -8194,6 +8268,12 @@ export interface PermissionRequestWrite {
    */
   requestSandboxBypassReason?: string;
   /**
+   * Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.
+   *
+   * @experimental
+   */
+  resolvedPath?: string;
+  /**
    * Tool call ID that triggered this permission request
    */
   toolCallId?: string;
@@ -8226,6 +8306,12 @@ export interface PermissionRequestRead {
    * What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
    */
   requestSandboxBypassReason?: string;
+  /**
+   * Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.
+   *
+   * @experimental
+   */
+  resolvedPath?: string;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -8657,6 +8743,12 @@ export interface PermissionPromptRequestWrite {
    */
   newFileContents?: string;
   /**
+   * Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.
+   *
+   * @experimental
+   */
+  resolvedPath?: string;
+  /**
    * Tool call ID that triggered this permission request
    */
   toolCallId?: string;
@@ -8687,6 +8779,12 @@ export interface PermissionPromptRequestRead {
    * Path of the file or directory being read
    */
   path: string;
+  /**
+   * Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.
+   *
+   * @experimental
+   */
+  resolvedPath?: string;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -9097,6 +9195,12 @@ export interface PermissionCompletedEvent {
  */
 export interface PermissionCompletedData {
   /**
+   * Who decided this permission request. Absent on completions recorded before this field existed, which consumers must treat as "not a human decision" rather than assuming one. Authorization records are minted only for `human_response`; an assisted-approval verdict, a host policy, an unattended fallback, and a hook resolution all produce the same `result` a person does, so this is the only field that distinguishes them.
+   *
+   * @experimental
+   */
+  decisionSource?: PermissionDecisionSource;
+  /**
    * Request ID of the resolved permission request; clients should dismiss any UI for this request
    */
   requestId: string;
@@ -9377,6 +9481,372 @@ export interface PermissionDeniedByPermissionRequestHook {
    * Optional message from the hook explaining the denial
    */
   message?: string;
+}
+/**
+ * Session event "permission.carriedForward". Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.
+ */
+/** @experimental */
+export interface PermissionCarriedForwardEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: PermissionCarriedForwardData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "permission.carriedForward".
+   */
+  type: "permission.carriedForward";
+}
+/**
+ * Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.
+ */
+/** @experimental */
+export interface PermissionCarriedForwardData {
+  /**
+   * Always `authorization_carry_forward`. Stated explicitly so a consumer reading this event cannot mistake it for a human, host-policy, or assisted-approval decision.
+   *
+   * @experimental
+   */
+  decisionSource: PermissionDecisionSource;
+  /**
+   * Identity of the prior authorization record that contained the proposal.
+   *
+   * @experimental
+   */
+  recordId: string;
+  /**
+   * Authorization edge minted for this admission. Not a prompt id: no prompt was raised, so no client should expect a request with this id.
+   *
+   * @experimental
+   */
+  requestId: string;
+  /**
+   * Tool call this admission authorizes. Its execution receipts the prior grant, which is how a single-effect approval is spent rather than carried forward again.
+   *
+   * @experimental
+   */
+  toolCallId: string;
+}
+/**
+ * Session event "permission.messageAuthorization". Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.
+ */
+/** @experimental */
+export interface PermissionMessageAuthorizationEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: PermissionMessageAuthorizationData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "permission.messageAuthorization".
+   */
+  type: "permission.messageAuthorization";
+}
+/**
+ * Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.
+ */
+/** @experimental */
+export interface PermissionMessageAuthorizationData {
+  /**
+   * The kind of effect authorized, as an action-class identifier.
+   *
+   * @experimental
+   */
+  actionClass: string;
+  /**
+   * Whether the claim granted or denied authority.
+   *
+   * @experimental
+   */
+  polarity: PermissionMessageAuthorizationPolarity;
+  /**
+   * Deterministic identity of the record, derived from the turn and span offsets so re-extracting the same span mints nothing new.
+   *
+   * @experimental
+   */
+  recordId: string;
+  /**
+   * End byte offset of the authorizing span within the turn.
+   *
+   * @experimental
+   */
+  spanEnd: number;
+  /**
+   * Start byte offset of the authorizing span within the turn.
+   *
+   * @experimental
+   */
+  spanStart: number;
+  /**
+   * Concrete named targets that appear verbatim inside the span.
+   *
+   * @experimental
+   */
+  targetMembers?: string[];
+  /**
+   * The task the permission is scoped to, when the human named one.
+   *
+   * @experimental
+   */
+  task?: string;
+  /**
+   * The human turn the quoted span was read from.
+   *
+   * @experimental
+   */
+  turnIndex: number;
+  /**
+   * The trusted version discriminator, when one exists. Exact shell-command grants carry the byte-identical commands grounded in the human span; world-derived classes carry a file object, remote tip, or runner only when that state was captured safely. An opaque object mirroring the runtime's adjacently-tagged resolution.
+   *
+   * @experimental
+   */
+  world?: JsonValue;
+}
+/**
+ * Session event "permission.messageAuthorizationRead". Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.
+ */
+/** @experimental */
+export interface PermissionMessageAuthorizationReadEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: PermissionMessageAuthorizationReadData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "permission.messageAuthorizationRead".
+   */
+  type: "permission.messageAuthorizationRead";
+}
+/**
+ * Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.
+ */
+/** @experimental */
+export interface PermissionMessageAuthorizationReadData {
+  /**
+   * Whether this read activates ongoing message-backed extraction. False for a contextual-assent-only pass while auto-approval is off, so unrelated future messages remain outside extraction.
+   *
+   * @experimental
+   */
+  activatesExtraction?: boolean;
+  /**
+   * The human turn that was read by the proposer.
+   *
+   * @experimental
+   */
+  turnIndex: number;
+}
+/**
+ * Session event "permission.messageAuthorizationDegraded". Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.
+ */
+/** @experimental */
+export interface PermissionMessageAuthorizationDegradedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: PermissionMessageAuthorizationDegradedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "permission.messageAuthorizationDegraded".
+   */
+  type: "permission.messageAuthorizationDegraded";
+}
+/**
+ * Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.
+ */
+/** @experimental */
+export interface PermissionMessageAuthorizationDegradedData {
+  /**
+   * The human turn that could not be represented safely.
+   *
+   * @experimental
+   */
+  turnIndex: number;
+}
+/**
+ * Session event "permission.assentDetected". Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.
+ */
+/** @experimental */
+export interface PermissionAssentDetectedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: PermissionAssentDetectedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "permission.assentDetected".
+   */
+  type: "permission.assentDetected";
+}
+/**
+ * Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.
+ */
+/** @experimental */
+export interface PermissionAssentDetectedData {
+  /**
+   * Permission request the likely assent may refer to. The runtime derives this from the preceding durable blocker; the human message and extraction model do not choose it.
+   *
+   * @experimental
+   */
+  requestId: string;
+  /**
+   * Human turn whose text triggered the deterministic assent recognizer.
+   *
+   * @experimental
+   */
+  turnIndex: number;
+}
+/**
+ * Session event "permission.contextualAuthorization". Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.
+ */
+/** @experimental */
+export interface PermissionContextualAuthorizationEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: PermissionContextualAuthorizationData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "permission.contextualAuthorization".
+   */
+  type: "permission.contextualAuthorization";
+}
+/**
+ * Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.
+ */
+/** @experimental */
+export interface PermissionContextualAuthorizationData {
+  /**
+   * Whether the contextual human span granted or denied authority.
+   *
+   * @experimental
+   */
+  polarity: PermissionMessageAuthorizationPolarity;
+  /**
+   * Deterministic identity of the contextual message grant.
+   *
+   * @experimental
+   */
+  recordId: string;
+  /**
+   * Original blocked permission request selected by deterministic event ordering, never by the extraction model.
+   *
+   * @experimental
+   */
+  requestId: string;
+  /**
+   * End byte offset of the contextual decision span within the turn.
+   *
+   * @experimental
+   */
+  spanEnd: number;
+  /**
+   * Start byte offset of the contextual decision span within the turn.
+   *
+   * @experimental
+   */
+  spanStart: number;
+  /**
+   * Human turn containing the contextual decision.
+   *
+   * @experimental
+   */
+  turnIndex: number;
 }
 /**
  * Session event "user_input.requested". User input request notification with question and optional predefined choices
@@ -11351,6 +11821,10 @@ export interface McpServersLoadedData {
  * A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata.
  */
 export interface McpServersLoadedServer {
+  /**
+   * Human-readable display name supplied by a managed server catalog.
+   */
+  displayName?: string;
   /**
    * Error message if the server failed to connect
    */

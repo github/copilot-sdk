@@ -7,6 +7,7 @@
     },
     "include": [
         "src/**/*",
+        "test/ffiRuntimeHost.test.ts",
         "test/session-list-messageable-sessions.test.ts",
         "test/session-event-types.test.ts",
         "test/session-send-session-message.test.ts",

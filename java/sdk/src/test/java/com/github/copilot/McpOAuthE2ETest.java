@@ -167,7 +167,7 @@ public class McpOAuthE2ETest {
                                         assertNotNull(request.wwwAuthenticateParams());
                                         assertEquals(oauthServer.url() + "/.well-known/oauth-protected-resource",
                                                 request.wwwAuthenticateParams().resourceMetadataUrl());
-                                        assertEquals("mcp.write", request.wwwAuthenticateParams().scope());
+                                        assertEquals("mcp.read mcp.write", request.wwwAuthenticateParams().scope());
                                         assertEquals("insufficient_scope", request.wwwAuthenticateParams().error());
                                         yield McpAuthResult.token(new McpAuthToken(UPSCOPE_TOKEN, null, null));
                                     }

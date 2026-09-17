@@ -111,12 +111,10 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var testFilePath = Path.Combine(Ctx.WorkDir, "protected.txt");
         await File.WriteAllTextAsync(testFilePath, "protected content");
 
-        await session.SendAsync(new MessageOptions
+        await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Edit protected.txt and replace 'protected' with 'hacked'."
         });
-
-        await TestHelper.GetFinalAssistantMessageAsync(session);
 
         Assert.True(
             userRejectedToolCall,
@@ -159,13 +157,16 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     public async Task Should_Work_With_Approve_All_Permission_Handler()
     {
         var session = await CreateSessionAsync(new SessionConfig());
+        await AssertApproveAllPermissionHandlerAsync(session, TimeSpan.FromSeconds(120));
+    }
 
-        await session.SendAsync(new MessageOptions
+    internal static async Task AssertApproveAllPermissionHandlerAsync(CopilotSession session, TimeSpan timeout)
+    {
+        var message = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "What is 2+2?"
-        });
+        }, timeout);
 
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.Contains("4", message?.Data.Content ?? string.Empty);
     }
 
@@ -183,12 +184,10 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             }
         });
 
-        await session.SendAsync(new MessageOptions
+        await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Run 'echo test' and tell me what happens"
         });
-
-        await TestHelper.GetFinalAssistantMessageAsync(session);
 
         Assert.True(permissionRequestReceived, "Permission request should have been received");
     }
@@ -321,12 +320,10 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             }
         });
 
-        await session.SendAsync(new MessageOptions
+        await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
             Prompt = "Run 'echo test'"
         });
-
-        await TestHelper.GetFinalAssistantMessageAsync(session);
 
         Assert.True(receivedToolCallId, "Should have received toolCallId in permission request");
     }

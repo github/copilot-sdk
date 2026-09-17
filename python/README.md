@@ -306,7 +306,7 @@ finally:
 These are passed as keyword arguments to `create_session()`:
 
 - `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `capi` (CapiSessionOptions): Copilot API options. With `model="auto"`, set `auto_tier` to `"efficiency"`, `"balance"`, or `"intelligence"` to choose a routing preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
+- `capi` (CapiSessionOptions): Copilot API options. With `model="auto"`, set `auto_tier` to `"efficiency"`, `"balance"`, `"intelligence"`, or `"fast"` to choose a routing preference. `"fast"` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
 - `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh", "max"). Use `list_models()` to check which models support this option.
 - `session_id` (str): Custom session ID
 - `tools` (list): Custom tools exposed to the CLI. Tools with `handler=None` are declaration-only and must be resolved via pending tool-call RPCs.
@@ -492,7 +492,7 @@ async def lookup_issue(params: LookupParams) -> str:
 
 Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
 
-Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. A failed activation leaves the incumbent effective tier unchanged. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
 
 ```python
 result = await session.set_auto_tier("intelligence")
@@ -1233,3 +1233,13 @@ cd python
 uv sync
 uv run pytest
 ```
+
+Signal-based E2E failures from `pytest-timeout` include an **Async timeout diagnostics** report
+section with suspended coroutine await chains, pending JSON-RPC request IDs and
+methods, session/transport state, and Python thread stacks. The same report is
+saved under `python/.pytest-diagnostics/`. macOS in-process timeouts also capture a
+one-second native thread sample there. RPC payloads and arbitrary frame locals
+are not included. After recording the timeout, the harness cancels only the
+abandoned test coroutine so it does not retain locks needed by later fixture
+cleanup. The original timeout failure is retained; this does not abort native
+runtime work or repair a missing RPC response.

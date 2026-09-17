@@ -494,7 +494,10 @@ impl McpAuthHandler for LifecycleAuthHandler {
                         .as_deref()
                         .is_some_and(|url| url.ends_with("/.well-known/oauth-protected-resource"))
                 );
-                assert_eq!(www_authenticate.scope.as_deref(), Some("mcp.write"));
+                assert_eq!(
+                    www_authenticate.scope.as_deref(),
+                    Some("mcp.read mcp.write")
+                );
                 assert_eq!(
                     www_authenticate.error.as_deref(),
                     Some("insufficient_scope")

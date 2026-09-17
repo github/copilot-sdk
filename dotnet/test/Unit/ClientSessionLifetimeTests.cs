@@ -12,6 +12,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -470,9 +471,11 @@ public sealed class ClientSessionLifetimeTests
         { AutoTier.Efficiency, "efficiency", null },
         { AutoTier.Balance, "balance", null },
         { AutoTier.Intelligence, "intelligence", null },
+        { AutoTier.Fast, "fast", null },
         { AutoTier.Efficiency, "efficiency", false },
         { AutoTier.Balance, "balance", false },
         { AutoTier.Intelligence, "intelligence", false },
+        { AutoTier.Fast, "fast", false },
     };
 
     [Theory]
@@ -516,6 +519,7 @@ public sealed class ClientSessionLifetimeTests
     [InlineData("efficiency")]
     [InlineData("balance")]
     [InlineData("intelligence")]
+    [InlineData("fast")]
     public async Task SetModelAsync_Serializes_AutoTier(string expectedTier)
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -592,10 +596,10 @@ public sealed class ClientSessionLifetimeTests
             OnPermissionRequest = PermissionHandler.ApproveAll
         });
 
-        var result = await session.SetAutoTierAsync(AutoTier.Intelligence);
+        var result = await session.SetAutoTierAsync(AutoTier.Fast);
 
         var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchAutoTier");
-        Assert.Equal("intelligence", request.Params.GetProperty("autoTier").GetString());
+        Assert.Equal("fast", request.Params.GetProperty("autoTier").GetString());
         Assert.Equal(ModelSwitchAutoTierStatus.Pending, result.Status);
         Assert.Equal(AutoTier.Balance, result.EffectiveAutoTier);
     }
@@ -1717,6 +1721,176 @@ public sealed class ClientSessionLifetimeTests
         Assert.False(request.TryGetProperty("wait", out _));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Approve_All_Permission_Handler_Observes_Early_Events(bool completesBeforeReply)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        var timeout = TimeSpan.FromSeconds(5);
+        var sendReplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.BeforeResponseAsync = async (request, cancellationToken) =>
+        {
+            if (request.Method == "session.send")
+            {
+                Assert.Equal("What is 2+2?", request.Params.GetProperty("prompt").GetString());
+                await server.SendSessionEventAsync(session.SessionId, "user.message", new()
+                {
+                    ["content"] = request.Params.GetProperty("prompt").GetString()
+                });
+                await server.SendAndDrainSessionEventAsync(session, "assistant.message", new()
+                {
+                    ["messageId"] = "permission-message",
+                    ["content"] = "4"
+                }, timeout, cancellationToken);
+                if (completesBeforeReply)
+                {
+                    await server.SendAndDrainSessionEventAsync(session, "session.idle", new(), timeout, cancellationToken);
+                }
+            }
+        };
+        server.AfterResponseAsync = (request, _) =>
+        {
+            if (request.Method == "session.send")
+            {
+                sendReplied.TrySetResult();
+            }
+            return Task.CompletedTask;
+        };
+
+        // Exercise the E2E test's actual ordering and assertion, without launching a CLI.
+        var scenario = E2E.PermissionE2ETests.AssertApproveAllPermissionHandlerAsync(session, timeout);
+        await sendReplied.Task.WaitAsync(timeout);
+        if (!completesBeforeReply)
+        {
+            Assert.False(scenario.IsCompleted);
+            await server.SendAndDrainSessionEventAsync(session, "session.idle", new(), timeout);
+        }
+        await scenario;
+
+        Assert.Single(server.Requests, request => request.Method == "session.send");
+        var history = await session.GetEventsAsync();
+        Assert.DoesNotContain(history, evt => evt is SessionIdleEvent);
+        Assert.Equal("4", Assert.Single(history.OfType<AssistantMessageEvent>()).Data.Content);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SendAndGetFinalAssistantMessage_Requires_Current_Turn_Message(bool hasPreviousTurn)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var timeout = TimeSpan.FromSeconds(5);
+        server.BeforeResponseAsync = async (request, cancellationToken) =>
+        {
+            if (request.Method == "session.send")
+            {
+                var prompt = request.Params.GetProperty("prompt").GetString();
+                await server.SendSessionEventAsync(session.SessionId, "user.message", new() { ["content"] = prompt });
+                if (prompt == "previous turn")
+                {
+                    await server.SendAndDrainSessionEventAsync(session, "assistant.message", new()
+                    {
+                        ["messageId"] = "previous-message",
+                        ["content"] = "previous answer"
+                    }, timeout, cancellationToken);
+                }
+                await server.SendAndDrainSessionEventAsync(session, "session.idle", new(), timeout, cancellationToken);
+            }
+        };
+
+        if (hasPreviousTurn)
+        {
+            var previous = await TestHelper.SendAndGetFinalAssistantMessageAsync(
+                session, new MessageOptions { Prompt = "previous turn" }, timeout);
+            Assert.Equal("previous answer", previous.Data.Content);
+        }
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            TestHelper.SendAndGetFinalAssistantMessageAsync(
+                session, new MessageOptions { Prompt = "no assistant message" }, timeout));
+        Assert.Equal("Session became idle without an assistant message.", error.Message);
+        Assert.DoesNotContain(await session.GetEventsAsync(), evt => evt is SessionIdleEvent);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Abort_Recovery_Observes_Early_Events(bool recoveryCompletesBeforeReply)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var timeout = TimeSpan.FromSeconds(5);
+        var sendCount = 0;
+        server.BeforeResponseAsync = async (request, cancellationToken) =>
+        {
+            if (request.Method == "session.send")
+            {
+                sendCount++;
+                await server.SendSessionEventAsync(session.SessionId, "user.message", new()
+                {
+                    ["content"] = request.Params.GetProperty("prompt").GetString()
+                });
+                if (sendCount == 1)
+                {
+                    await server.SendAndDrainSessionEventAsync(session, "tool.execution_start", new()
+                    {
+                        ["toolCallId"] = "slow-tool",
+                        ["toolName"] = "shell"
+                    }, timeout, cancellationToken);
+                }
+                else
+                {
+                    Assert.Equal(2, sendCount);
+                    await server.SendAndDrainSessionEventAsync(session, "assistant.message", new()
+                    {
+                        ["messageId"] = "recovery-message",
+                        ["content"] = "4"
+                    }, timeout, cancellationToken);
+                    if (recoveryCompletesBeforeReply)
+                    {
+                        await server.SendAndDrainSessionEventAsync(session, "session.idle", new(), timeout, cancellationToken);
+                    }
+                }
+            }
+            else if (request.Method == "session.abort")
+            {
+                Assert.Equal(1, sendCount);
+                await server.SendSessionEventAsync(session.SessionId, "abort", new()
+                {
+                    ["reason"] = "user"
+                });
+                await server.SendAndDrainSessionEventAsync(session, "session.idle", new() { ["aborted"] = true }, timeout, cancellationToken);
+            }
+        };
+        server.AfterResponseAsync = async (request, cancellationToken) =>
+        {
+            if (request.Method == "session.send" && sendCount == 2 && !recoveryCompletesBeforeReply)
+            {
+                await server.SendAndDrainSessionEventAsync(session, "session.idle", new(), timeout, cancellationToken);
+            }
+        };
+
+        // Exercise the E2E test's actual ordering and assertions, without launching a CLI.
+        await E2E.SessionE2ETests.AssertAbortAndRecoveryAsync(session, timeout);
+
+        Assert.Equal(
+            ["session.send", "session.abort", "session.send"],
+            server.Requests.Select(request => request.Method)
+                .Where(method => method is "session.send" or "session.abort"));
+        var history = await session.GetEventsAsync();
+        Assert.DoesNotContain(history, evt => evt is SessionIdleEvent);
+        Assert.Equal("4", Assert.Single(history.OfType<AssistantMessageEvent>()).Data.Content);
+    }
+
     [Fact]
     public async Task SendAndWaitAsync_Skips_Autopilot_Continuation_Idle()
     {
@@ -2192,6 +2366,7 @@ public sealed class ClientSessionLifetimeTests
         private readonly TaskCompletionSource _allowDestroy = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly Task _serverTask;
         private readonly List<RpcRequestRecord> _requests = [];
+        private readonly ConcurrentQueue<object?> _sessionEvents = new();
         private readonly object _requestsLock = new();
         private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonElement>> _pendingRequests = new();
         private NetworkStream? _stream;
@@ -2227,6 +2402,10 @@ public sealed class ClientSessionLifetimeTests
         public Task DestroyStarted => _destroyStarted.Task;
 
         public int RuntimeShutdownCount { get; private set; }
+
+        public Func<RpcRequestRecord, CancellationToken, Task>? BeforeResponseAsync { get; set; }
+
+        public Func<RpcRequestRecord, CancellationToken, Task>? AfterResponseAsync { get; set; }
 
         public IReadOnlyList<RpcRequestRecord> Requests
         {
@@ -2300,6 +2479,19 @@ public sealed class ClientSessionLifetimeTests
         public Task SendSessionEventAsync(string sessionId, string type, Dictionary<string, object?> data)
         {
             var stream = _stream ?? throw new InvalidOperationException("Client is not connected.");
+            var evt = new Dictionary<string, object?>
+            {
+                ["id"] = Guid.NewGuid().ToString(),
+                ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
+                ["parentId"] = null,
+                ["type"] = type,
+                ["data"] = data
+            };
+            // Idle is ephemeral in the runtime and cannot be backfilled from history.
+            if (type != "session.idle")
+            {
+                _sessionEvents.Enqueue(evt);
+            }
             return WriteMessageAsync(stream, new Dictionary<string, object?>
             {
                 ["jsonrpc"] = "2.0",
@@ -2307,16 +2499,24 @@ public sealed class ClientSessionLifetimeTests
                 ["params"] = new Dictionary<string, object?>
                 {
                     ["sessionId"] = sessionId,
-                    ["event"] = new Dictionary<string, object?>
-                    {
-                        ["id"] = Guid.NewGuid().ToString(),
-                        ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
-                        ["parentId"] = null,
-                        ["type"] = type,
-                        ["data"] = data
-                    }
+                    ["event"] = evt
                 }
             }, _cts.Token);
+        }
+
+        public async Task SendAndDrainSessionEventAsync(
+            CopilotSession session,
+            string type,
+            Dictionary<string, object?> data,
+            TimeSpan timeout,
+            CancellationToken cancellationToken = default)
+        {
+            var drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var subscription = session.On<SessionTitleChangedEvent>(_ => drained.TrySetResult());
+            await SendSessionEventAsync(session.SessionId, type, data);
+            // A later event is a fence: every subscriber has finished handling the target event.
+            await SendSessionEventAsync(session.SessionId, "session.title_changed", new() { ["title"] = "fence" });
+            await drained.Task.WaitAsync(timeout, cancellationToken);
         }
 
         public async ValueTask DisposeAsync()
@@ -2437,6 +2637,11 @@ public sealed class ClientSessionLifetimeTests
                 }, cancellationToken);
                 return;
             }
+            var requestRecord = new RpcRequestRecord(method!, paramsElement);
+            if (BeforeResponseAsync is { } beforeResponse)
+            {
+                await beforeResponse(requestRecord, cancellationToken);
+            }
             object? result = method switch
             {
                 "connect" => new Dictionary<string, object?>
@@ -2454,6 +2659,11 @@ public sealed class ClientSessionLifetimeTests
                 "session.send" => new Dictionary<string, object?>
                 {
                     ["messageId"] = "message-1"
+                },
+                "session.abort" => new Dictionary<string, object?>(),
+                "session.getMessages" => new Dictionary<string, object?>
+                {
+                    ["events"] = _sessionEvents.ToArray()
                 },
                 "session.options.update" => new Dictionary<string, object?>
                 {
@@ -2495,6 +2705,10 @@ public sealed class ClientSessionLifetimeTests
                 ["id"] = id,
                 ["result"] = result
             }, cancellationToken);
+            if (AfterResponseAsync is { } afterResponse)
+            {
+                await afterResponse(requestRecord, cancellationToken);
+            }
         }
 
         private Dictionary<string, object?> CreateSessionResult(JsonElement request)

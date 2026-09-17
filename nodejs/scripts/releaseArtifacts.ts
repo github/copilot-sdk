@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    renameSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { x as extractTar } from "tar";
 import {
@@ -22,6 +30,24 @@ export interface EnsureCopilotPackageOptions {
 const packageDownloads = new Map<string, Promise<string>>();
 const checksumDownloads = new Map<string, Promise<Map<string, string>>>();
 const DEFAULT_FETCH_TIMEOUT_MS = 60_000;
+
+function validateLocalPackage(
+    packageDirectory: string,
+    platform: string,
+    expectedVersion?: string
+): string | undefined {
+    const packageRoot = join(packageDirectory, platform);
+    const manifestPath = join(packageRoot, "package.json");
+    validateFile(manifestPath, `${platform} runtime package manifest`);
+    if (expectedVersion !== undefined) {
+        const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { version?: string };
+        if (manifest.version !== expectedVersion) {
+            return undefined;
+        }
+    }
+    validateFile(join(packageRoot, "prebuilds", platform, "runtime.node"), "Copilot runtime.node");
+    return packageRoot;
+}
 
 async function fetchWithRetry<T>(
     fetcher: typeof globalThis.fetch,
@@ -107,6 +133,14 @@ export async function ensureCopilotPackage(
     options: EnsureCopilotPackageOptions = {}
 ): Promise<string> {
     const platform = options.platform ?? getRuntimePlatform();
+    const environment = options.environment ?? process.env;
+    const workflowPackageDirectory = environment.COPILOT_SDK_RUNTIME_PACKAGE_DIR;
+    if (workflowPackageDirectory) {
+        const packageRoot = validateLocalPackage(workflowPackageDirectory, platform, version);
+        if (packageRoot) {
+            return packageRoot;
+        }
+    }
     // lgtm[js/trivial-conditional] This generated constant is true for internal canary builds.
     if (version === COPILOT_CLI_VERSION && COPILOT_CLI_USE_NPM_PACKAGE) {
         const packageName = `@github/copilot-${platform}`;
@@ -130,7 +164,7 @@ export async function ensureCopilotPackage(
     }
 
     const baseUrl = (
-        (options.environment ?? process.env).COPILOT_CLI_DOWNLOAD_BASE_URL ??
+        environment.COPILOT_CLI_DOWNLOAD_BASE_URL ??
         "https://github.com/github/copilot-cli/releases/download"
     ).replace(/\/+$/, "");
     const fetchTimeoutMs = options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;

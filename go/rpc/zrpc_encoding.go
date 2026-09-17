@@ -775,6 +775,336 @@ func (r CatalogCandidateSourceURL) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func matchesCatalogTrustSnapshotAbsent(data []byte) bool {
+	var rawGroup0 struct {
+		Status json.RawMessage `json:"status"`
+		Tier   json.RawMessage `json:"tier"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Status == nil {
+		return false
+	}
+	var rawGroup0String string
+	if err := json.Unmarshal(rawGroup0.Status, &rawGroup0String); err != nil {
+		return false
+	}
+	switch rawGroup0String {
+	case "absent":
+	default:
+		return false
+	}
+	return rawGroup0.Tier == nil
+}
+
+func matchesCatalogTrustSnapshotCurrent(data []byte) bool {
+	var rawGroup0 struct {
+		Status json.RawMessage `json:"status"`
+		Tier   json.RawMessage `json:"tier"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Status == nil {
+		return false
+	}
+	var rawGroup0String string
+	if err := json.Unmarshal(rawGroup0.Status, &rawGroup0String); err != nil {
+		return false
+	}
+	switch rawGroup0String {
+	case "current":
+	default:
+		return false
+	}
+	if rawGroup0.Tier == nil {
+		return false
+	}
+	var rawGroup0Term1String string
+	if err := json.Unmarshal(rawGroup0.Tier, &rawGroup0Term1String); err != nil {
+		return false
+	}
+	switch rawGroup0Term1String {
+	case "T1", "T2":
+	default:
+		return false
+	}
+	return true
+}
+
+func matchesCatalogTrustSnapshotDowngraded(data []byte) bool {
+	var rawGroup0 struct {
+		Status json.RawMessage `json:"status"`
+		Tier   json.RawMessage `json:"tier"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Status == nil {
+		return false
+	}
+	var rawGroup0String string
+	if err := json.Unmarshal(rawGroup0.Status, &rawGroup0String); err != nil {
+		return false
+	}
+	switch rawGroup0String {
+	case "downgraded":
+	default:
+		return false
+	}
+	return rawGroup0.Tier == nil
+}
+
+func matchesCatalogTrustSnapshotMalformed(data []byte) bool {
+	var rawGroup0 struct {
+		Status json.RawMessage `json:"status"`
+		Tier   json.RawMessage `json:"tier"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Status == nil {
+		return false
+	}
+	var rawGroup0String string
+	if err := json.Unmarshal(rawGroup0.Status, &rawGroup0String); err != nil {
+		return false
+	}
+	switch rawGroup0String {
+	case "malformed":
+	default:
+		return false
+	}
+	return rawGroup0.Tier == nil
+}
+
+func matchesCatalogTrustSnapshotRevoked(data []byte) bool {
+	var rawGroup0 struct {
+		Status json.RawMessage `json:"status"`
+		Tier   json.RawMessage `json:"tier"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Status == nil {
+		return false
+	}
+	var rawGroup0String string
+	if err := json.Unmarshal(rawGroup0.Status, &rawGroup0String); err != nil {
+		return false
+	}
+	switch rawGroup0String {
+	case "revoked":
+	default:
+		return false
+	}
+	return rawGroup0.Tier == nil
+}
+
+func matchesCatalogTrustSnapshotStale(data []byte) bool {
+	var rawGroup0 struct {
+		Status json.RawMessage `json:"status"`
+		Tier   json.RawMessage `json:"tier"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Status == nil {
+		return false
+	}
+	var rawGroup0String string
+	if err := json.Unmarshal(rawGroup0.Status, &rawGroup0String); err != nil {
+		return false
+	}
+	switch rawGroup0String {
+	case "stale":
+	default:
+		return false
+	}
+	return rawGroup0.Tier == nil
+}
+
+func matchesCatalogTrustSnapshotUnsupported(data []byte) bool {
+	var rawGroup0 struct {
+		Status json.RawMessage `json:"status"`
+		Tier   json.RawMessage `json:"tier"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Status == nil {
+		return false
+	}
+	var rawGroup0String string
+	if err := json.Unmarshal(rawGroup0.Status, &rawGroup0String); err != nil {
+		return false
+	}
+	switch rawGroup0String {
+	case "unsupported":
+	default:
+		return false
+	}
+	return rawGroup0.Tier == nil
+}
+
+func unmarshalCatalogTrustSnapshot(data []byte) (CatalogTrustSnapshot, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		SchemaVersion CatalogTrustSnapshotSchemaVersion `json:"schemaVersion"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.SchemaVersion {
+	case CatalogTrustSnapshotSchemaVersionV1:
+		if matchesCatalogTrustSnapshotAbsent(data) {
+			var d CatalogTrustSnapshotAbsent
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesCatalogTrustSnapshotCurrent(data) {
+			var d CatalogTrustSnapshotCurrent
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesCatalogTrustSnapshotDowngraded(data) {
+			var d CatalogTrustSnapshotDowngraded
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesCatalogTrustSnapshotMalformed(data) {
+			var d CatalogTrustSnapshotMalformed
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesCatalogTrustSnapshotRevoked(data) {
+			var d CatalogTrustSnapshotRevoked
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesCatalogTrustSnapshotStale(data) {
+			var d CatalogTrustSnapshotStale
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesCatalogTrustSnapshotUnsupported(data) {
+			var d CatalogTrustSnapshotUnsupported
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		return &RawCatalogTrustSnapshotData{Discriminator: raw.SchemaVersion, Raw: data}, nil
+	default:
+		return &RawCatalogTrustSnapshotData{Discriminator: raw.SchemaVersion, Raw: data}, nil
+	}
+}
+
+func (r RawCatalogTrustSnapshotData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		SchemaVersion CatalogTrustSnapshotSchemaVersion `json:"schemaVersion"`
+	}{
+		SchemaVersion: r.Discriminator,
+	})
+}
+
+func (r CatalogTrustSnapshotAbsent) MarshalJSON() ([]byte, error) {
+	type alias CatalogTrustSnapshotAbsent
+	return json.Marshal(struct {
+		SchemaVersion CatalogTrustSnapshotSchemaVersion `json:"schemaVersion"`
+		alias
+	}{
+		SchemaVersion: r.SchemaVersion(),
+		alias:         alias(r),
+	})
+}
+
+func (r CatalogTrustSnapshotCurrent) MarshalJSON() ([]byte, error) {
+	type alias CatalogTrustSnapshotCurrent
+	return json.Marshal(struct {
+		SchemaVersion CatalogTrustSnapshotSchemaVersion `json:"schemaVersion"`
+		alias
+	}{
+		SchemaVersion: r.SchemaVersion(),
+		alias:         alias(r),
+	})
+}
+
+func (r CatalogTrustSnapshotDowngraded) MarshalJSON() ([]byte, error) {
+	type alias CatalogTrustSnapshotDowngraded
+	return json.Marshal(struct {
+		SchemaVersion CatalogTrustSnapshotSchemaVersion `json:"schemaVersion"`
+		alias
+	}{
+		SchemaVersion: r.SchemaVersion(),
+		alias:         alias(r),
+	})
+}
+
+func (r CatalogTrustSnapshotMalformed) MarshalJSON() ([]byte, error) {
+	type alias CatalogTrustSnapshotMalformed
+	return json.Marshal(struct {
+		SchemaVersion CatalogTrustSnapshotSchemaVersion `json:"schemaVersion"`
+		alias
+	}{
+		SchemaVersion: r.SchemaVersion(),
+		alias:         alias(r),
+	})
+}
+
+func (r CatalogTrustSnapshotRevoked) MarshalJSON() ([]byte, error) {
+	type alias CatalogTrustSnapshotRevoked
+	return json.Marshal(struct {
+		SchemaVersion CatalogTrustSnapshotSchemaVersion `json:"schemaVersion"`
+		alias
+	}{
+		SchemaVersion: r.SchemaVersion(),
+		alias:         alias(r),
+	})
+}
+
+func (r CatalogTrustSnapshotStale) MarshalJSON() ([]byte, error) {
+	type alias CatalogTrustSnapshotStale
+	return json.Marshal(struct {
+		SchemaVersion CatalogTrustSnapshotSchemaVersion `json:"schemaVersion"`
+		alias
+	}{
+		SchemaVersion: r.SchemaVersion(),
+		alias:         alias(r),
+	})
+}
+
+func (r CatalogTrustSnapshotUnsupported) MarshalJSON() ([]byte, error) {
+	type alias CatalogTrustSnapshotUnsupported
+	return json.Marshal(struct {
+		SchemaVersion CatalogTrustSnapshotSchemaVersion `json:"schemaVersion"`
+		alias
+	}{
+		SchemaVersion: r.SchemaVersion(),
+		alias:         alias(r),
+	})
+}
+
 func (r *CatalogAiSkillCandidate) UnmarshalJSON(data []byte) error {
 	type rawCatalogAiSkillCandidate struct {
 		Description     *string                               `json:"description,omitempty"`
@@ -786,6 +1116,7 @@ func (r *CatalogAiSkillCandidate) UnmarshalJSON(data []byte) error {
 		Provenance      CatalogAiSkillCandidateProvenance     `json:"provenance"`
 		Publisher       *string                               `json:"publisher,omitempty"`
 		Source          json.RawMessage                       `json:"source"`
+		Trust           json.RawMessage                       `json:"trust,omitempty"`
 	}
 	var raw rawCatalogAiSkillCandidate
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -805,6 +1136,13 @@ func (r *CatalogAiSkillCandidate) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		r.Source = value
+	}
+	if raw.Trust != nil {
+		value, err := unmarshalCatalogTrustSnapshot(raw.Trust)
+		if err != nil {
+			return err
+		}
+		r.Trust = value
 	}
 	return nil
 }
@@ -831,6 +1169,7 @@ func (r *CatalogMCPServerCandidate) UnmarshalJSON(data []byte) error {
 		Provenance      CatalogMCPServerCandidateProvenance `json:"provenance"`
 		Publisher       *string                             `json:"publisher,omitempty"`
 		Source          json.RawMessage                     `json:"source"`
+		Trust           json.RawMessage                     `json:"trust,omitempty"`
 	}
 	var raw rawCatalogMCPServerCandidate
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -850,6 +1189,13 @@ func (r *CatalogMCPServerCandidate) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		r.Source = value
+	}
+	if raw.Trust != nil {
+		value, err := unmarshalCatalogTrustSnapshot(raw.Trust)
+		if err != nil {
+			return err
+		}
+		r.Trust = value
 	}
 	return nil
 }
@@ -1843,6 +2189,33 @@ func unmarshalFilterMapping(data []byte) (FilterMapping, error) {
 	return nil, errors.New("data did not match any union variant for FilterMapping")
 }
 
+func (r *FleetStartRequest) UnmarshalJSON(data []byte) error {
+	type rawFleetStartRequest struct {
+		Attachments []json.RawMessage `json:"attachments,omitzero"`
+		Billable    *bool             `json:"billable,omitempty"`
+		Prompt      *string           `json:"prompt,omitempty"`
+		Wait        *bool             `json:"wait,omitempty"`
+	}
+	var raw rawFleetStartRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Attachments != nil {
+		r.Attachments = make([]Attachment, 0, len(raw.Attachments))
+		for _, rawItem := range raw.Attachments {
+			value, err := unmarshalAttachment(rawItem)
+			if err != nil {
+				return err
+			}
+			r.Attachments = append(r.Attachments, value)
+		}
+	}
+	r.Billable = raw.Billable
+	r.Prompt = raw.Prompt
+	r.Wait = raw.Wait
+	return nil
+}
+
 func unmarshalGitHubTokenAcquireResult(data []byte) (GitHubTokenAcquireResult, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -2320,6 +2693,12 @@ func unmarshalMCPHeadersHandlePendingHeadersRefreshRequest(data []byte) (MCPHead
 	}
 
 	switch raw.Kind {
+	case MCPHeadersHandlePendingHeadersRefreshRequestKindError:
+		var d MCPHeadersHandlePendingHeadersRefreshRequestError
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders:
 		var d MCPHeadersHandlePendingHeadersRefreshRequestHeaders
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -2345,6 +2724,17 @@ func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) MarshalJSON() ([]by
 		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
 	}{
 		Kind: r.Discriminator,
+	})
+}
+
+func (r MCPHeadersHandlePendingHeadersRefreshRequestError) MarshalJSON() ([]byte, error) {
+	type alias MCPHeadersHandlePendingHeadersRefreshRequestError
+	return json.Marshal(struct {
+		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
 	})
 }
 
@@ -3166,11 +3556,11 @@ func matchesMCPServerConfigMemory(data []byte) bool {
 	if rawGroup0.Type == nil {
 		return false
 	}
-	var rawGroup0String string
-	if err := json.Unmarshal(rawGroup0.Type, &rawGroup0String); err != nil {
+	var rawGroup0Term1String string
+	if err := json.Unmarshal(rawGroup0.Type, &rawGroup0Term1String); err != nil {
 		return false
 	}
-	switch rawGroup0String {
+	switch rawGroup0Term1String {
 	case "memory":
 	default:
 		return false
@@ -4644,6 +5034,101 @@ func (r *PermissionLocationAddToolApprovalParams) UnmarshalJSON(data []byte) err
 	return nil
 }
 
+func unmarshalProtocolMarkerSectionOverride(data []byte) (ProtocolMarkerSectionOverride, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Action {
+	case ProtocolMarkerSectionOverrideActionPreserve:
+		var d ProtocolMarkerSectionOverridePreserve
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ProtocolMarkerSectionOverrideActionTransform:
+		var d ProtocolMarkerSectionOverrideTransform
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawProtocolMarkerSectionOverrideData{Discriminator: raw.Action, Raw: data}, nil
+	}
+}
+
+func (r RawProtocolMarkerSectionOverrideData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+	}{
+		Action: r.Discriminator,
+	})
+}
+
+func (r ProtocolMarkerSectionOverridePreserve) MarshalJSON() ([]byte, error) {
+	type alias ProtocolMarkerSectionOverridePreserve
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+		alias
+	}{
+		Action: r.Action(),
+		alias:  alias(r),
+	})
+}
+
+func (r ProtocolMarkerSectionOverrideTransform) MarshalJSON() ([]byte, error) {
+	type alias ProtocolMarkerSectionOverrideTransform
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+		alias
+	}{
+		Action: r.Action(),
+		alias:  alias(r),
+	})
+}
+
+func (r ProtocolSectionOverride) MarshalJSON() ([]byte, error) {
+	if r.ProtocolMarkerSectionOverride != nil {
+		return json.Marshal(r.ProtocolMarkerSectionOverride)
+	}
+	if r.ProtocolStaticSectionOverride != nil {
+		return json.Marshal(r.ProtocolStaticSectionOverride)
+	}
+	return []byte("null"), nil
+}
+
+func (r *ProtocolSectionOverride) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*r = ProtocolSectionOverride{}
+		return nil
+	}
+	{
+		value, err := unmarshalProtocolMarkerSectionOverride(data)
+		if err == nil {
+			*r = ProtocolSectionOverride{ProtocolMarkerSectionOverride: value}
+			return nil
+		}
+	}
+	{
+		var value ProtocolStaticSectionOverride
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = ProtocolSectionOverride{ProtocolStaticSectionOverride: &value}
+			return nil
+		}
+	}
+	return errors.New("data did not match any union variant for ProtocolSectionOverride")
+}
+
 func unmarshalPushAttachment(data []byte) (PushAttachment, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -5191,6 +5676,7 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 		Prompt         string            `json:"prompt"`
 		RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
 		RequiredTool   *string           `json:"requiredTool,omitempty"`
+		ResponseFormat *ResponseFormat   `json:"responseFormat,omitempty"`
 		Source         *string           `json:"source,omitempty"`
 		Traceparent    *string           `json:"traceparent,omitempty"`
 		Tracestate     *string           `json:"tracestate,omitempty"`
@@ -5218,6 +5704,7 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 	r.Prompt = raw.Prompt
 	r.RequestHeaders = raw.RequestHeaders
 	r.RequiredTool = raw.RequiredTool
+	r.ResponseFormat = raw.ResponseFormat
 	r.Source = raw.Source
 	r.Traceparent = raw.Traceparent
 	r.Tracestate = raw.Tracestate
@@ -5498,6 +5985,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		IsExperimentalMode                     *bool                                                `json:"isExperimentalMode,omitempty"`
 		LogInteractiveShells                   *bool                                                `json:"logInteractiveShells,omitempty"`
 		LspClientName                          *string                                              `json:"lspClientName,omitempty"`
+		ManagedMCPServers                      map[string]ManagedMCPServerConfig                    `json:"managedMcpServers,omitzero"`
 		ManagedSettings                        *SessionManagedSettings                              `json:"managedSettings,omitempty"`
 		MaxInlineBinaryBytes                   *int64                                               `json:"maxInlineBinaryBytes,omitempty"`
 		Memory                                 *MemoryConfiguration                                 `json:"memory,omitempty"`
@@ -5509,6 +5997,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		Providers                              []NamedProviderConfig                                `json:"providers,omitzero"`
 		ReasoningEffort                        *string                                              `json:"reasoningEffort,omitempty"`
 		ReasoningSummary                       *SessionOpenOptionsReasoningSummary                  `json:"reasoningSummary,omitempty"`
+		RefreshCustomInstructions              *bool                                                `json:"refreshCustomInstructions,omitempty"`
 		RemoteDefaultedOn                      *bool                                                `json:"remoteDefaultedOn,omitempty"`
 		RemoteExporting                        *bool                                                `json:"remoteExporting,omitempty"`
 		RemoteSteerable                        *bool                                                `json:"remoteSteerable,omitempty"`
@@ -5581,6 +6070,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.IsExperimentalMode = raw.IsExperimentalMode
 	r.LogInteractiveShells = raw.LogInteractiveShells
 	r.LspClientName = raw.LspClientName
+	r.ManagedMCPServers = raw.ManagedMCPServers
 	r.ManagedSettings = raw.ManagedSettings
 	r.MaxInlineBinaryBytes = raw.MaxInlineBinaryBytes
 	r.Memory = raw.Memory
@@ -5592,6 +6082,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.Providers = raw.Providers
 	r.ReasoningEffort = raw.ReasoningEffort
 	r.ReasoningSummary = raw.ReasoningSummary
+	r.RefreshCustomInstructions = raw.RefreshCustomInstructions
 	r.RemoteDefaultedOn = raw.RemoteDefaultedOn
 	r.RemoteExporting = raw.RemoteExporting
 	r.RemoteSteerable = raw.RemoteSteerable
@@ -6648,11 +7139,11 @@ func matchesUIElicitationSchemaPropertyUIElicitationArrayEnumField(data []byte) 
 	if rawGroup0Items.Type == nil {
 		return false
 	}
-	var rawGroup0String string
-	if err := json.Unmarshal(rawGroup0Items.Type, &rawGroup0String); err != nil {
+	var rawGroup0Term1String string
+	if err := json.Unmarshal(rawGroup0Items.Type, &rawGroup0Term1String); err != nil {
 		return false
 	}
-	switch rawGroup0String {
+	switch rawGroup0Term1String {
 	case "string":
 	default:
 		return false

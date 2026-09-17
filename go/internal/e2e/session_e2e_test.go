@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/base64"
 	"os"
 	"path/filepath"
@@ -156,12 +157,14 @@ func TestSessionE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is your full name?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		assistantMessage, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -368,12 +371,14 @@ func TestSessionE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is the secret number for key ALPHA?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		assistantMessage, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -402,12 +407,14 @@ func TestSessionE2E(t *testing.T) {
 		}
 		sessionID := session1.SessionID
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session1)
+		defer finalMessage.Close()
 		_, err = session1.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session1)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -428,7 +435,7 @@ func TestSessionE2E(t *testing.T) {
 			t.Errorf("Expected resumed session ID to match, got %q vs %q", session2.SessionID, sessionID)
 		}
 
-		answer2, err := testharness.GetFinalAssistantMessage(t.Context(), session2, true)
+		answer2, err := testharness.GetFinalAssistantMessageFromHistory(t.Context(), session2)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message from resumed session: %v", err)
 		}
@@ -463,12 +470,14 @@ func TestSessionE2E(t *testing.T) {
 		}
 		sessionID := session1.SessionID
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session1)
+		defer finalMessage.Close()
 		_, err = session1.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session1)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -632,28 +641,13 @@ func TestSessionE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		// Set up event listeners BEFORE sending to avoid race conditions
-		toolStartCh := make(chan *copilot.SessionEvent, 1)
-		toolStartErrCh := make(chan error, 1)
-		go func() {
-			evt, err := testharness.GetNextEventOfType(session, copilot.SessionEventTypeToolExecutionStart, 60*time.Second)
-			if err != nil {
-				toolStartErrCh <- err
-			} else {
-				toolStartCh <- evt
-			}
-		}()
-
-		sessionIdleCh := make(chan *copilot.SessionEvent, 1)
-		sessionIdleErrCh := make(chan error, 1)
-		go func() {
-			evt, err := testharness.GetNextEventOfType(session, copilot.SessionEventTypeSessionIdle, 60*time.Second)
-			if err != nil {
-				sessionIdleErrCh <- err
-			} else {
-				sessionIdleCh <- evt
-			}
-		}()
+		// Install subscriptions synchronously; starting a goroutine is not a fence.
+		abortCtx, cancelAbort := context.WithTimeout(t.Context(), 60*time.Second)
+		defer cancelAbort()
+		toolStart := testharness.SubscribeToEvent(session, copilot.SessionEventTypeToolExecutionStart)
+		defer toolStart.Close()
+		sessionIdle := testharness.SubscribeToEvent(session, copilot.SessionEventTypeSessionIdle)
+		defer sessionIdle.Close()
 
 		// Send a message that triggers a long-running shell command
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "run the shell command 'sleep 100' (note this works on both bash and PowerShell)"})
@@ -662,10 +656,7 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// Wait for tool.execution_start
-		select {
-		case <-toolStartCh:
-			// Tool execution has started
-		case err := <-toolStartErrCh:
+		if _, err := toolStart.Wait(abortCtx); err != nil {
 			t.Fatalf("Failed waiting for tool.execution_start: %v", err)
 		}
 
@@ -676,10 +667,7 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// Wait for session.idle after abort
-		select {
-		case <-sessionIdleCh:
-			// Session is idle
-		case err := <-sessionIdleErrCh:
+		if _, err := sessionIdle.Wait(abortCtx); err != nil {
 			t.Fatalf("Failed waiting for session.idle after abort: %v", err)
 		}
 
@@ -705,26 +693,18 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// We should be able to send another message
-		answerCh := make(chan *copilot.SessionEvent, 1)
-		answerErrCh := make(chan error, 1)
-		go func() {
-			evt, err := testharness.GetNextEventOfType(session, copilot.SessionEventTypeAssistantMessage, 60*time.Second)
-			if err != nil {
-				answerErrCh <- err
-			} else {
-				answerCh <- evt
-			}
-		}()
+		answerCtx, cancelAnswer := context.WithTimeout(t.Context(), 60*time.Second)
+		defer cancelAnswer()
+		answerWaiter := testharness.SubscribeToEvent(session, copilot.SessionEventTypeAssistantMessage)
+		defer answerWaiter.Close()
 
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
 		if err != nil {
 			t.Fatalf("Failed to send message after abort: %v", err)
 		}
 
-		var answer *copilot.SessionEvent
-		select {
-		case answer = <-answerCh:
-		case err := <-answerErrCh:
+		answer, err := answerWaiter.Wait(answerCtx)
+		if err != nil {
 			t.Fatalf("Failed waiting for assistant message after abort: %v", err)
 		}
 
@@ -825,7 +805,7 @@ func TestSessionE2E(t *testing.T) {
 		// Verify the assistant response contains the expected answer.
 		// session.idle is ephemeral and not in GetEvents(), but we already
 		// confirmed idle via the live event handler above.
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session, true)
+		assistantMessage, err := testharness.GetFinalAssistantMessageFromHistory(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -852,12 +832,14 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// Session should work normally with custom config dir
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		assistantMessage, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}

@@ -29,6 +29,8 @@ public record SessionModeSetResult(
     @JsonProperty("status") String status,
     /** Whether applying the mode changed the active model. */
     @JsonProperty("modelChanged") Boolean modelChanged,
+    /** Whether the requested mode was applied to the session. False only when an 'expectedMode' precondition did not hold, in which case any model change reported alongside it was still applied. */
+    @JsonProperty("modeApplied") Boolean modeApplied,
     /** Compaction confirmation required before the mode change can complete. */
     @JsonProperty("confirmation") ModelSwitchConfirmation confirmation,
     /** User-facing warning produced while applying the mode change. */

@@ -341,8 +341,44 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypePermissionAssentDetected:
+		var d PermissionAssentDetectedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePermissionCarriedForward:
+		var d PermissionCarriedForwardData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypePermissionCompleted:
 		var d PermissionCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePermissionContextualAuthorization:
+		var d PermissionContextualAuthorizationData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePermissionMessageAuthorization:
+		var d PermissionMessageAuthorizationData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePermissionMessageAuthorizationDegraded:
+		var d PermissionMessageAuthorizationDegradedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePermissionMessageAuthorizationRead:
+		var d PermissionMessageAuthorizationReadData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -743,8 +779,26 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSkillContextDelivered:
+		var d SkillContextDeliveredData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSkillContextDeliveredRef:
+		var d SkillContextDeliveredRefData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSkillInvoked:
 		var d SkillInvokedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSkillInvokedRef:
+		var d SkillInvokedRefData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -2498,14 +2552,16 @@ func (r PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) MarshalJSON() 
 
 func (r *PermissionCompletedData) UnmarshalJSON(data []byte) error {
 	type rawPermissionCompletedData struct {
-		RequestID  string          `json:"requestId"`
-		Result     json.RawMessage `json:"result"`
-		ToolCallID *string         `json:"toolCallId,omitempty"`
+		DecisionSource *PermissionDecisionSource `json:"decisionSource,omitempty"`
+		RequestID      string                    `json:"requestId"`
+		Result         json.RawMessage           `json:"result"`
+		ToolCallID     *string                   `json:"toolCallId,omitempty"`
 	}
 	var raw rawPermissionCompletedData
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	r.DecisionSource = raw.DecisionSource
 	r.RequestID = raw.RequestID
 	if raw.Result != nil {
 		value, err := unmarshalPermissionResult(raw.Result)

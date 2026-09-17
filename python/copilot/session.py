@@ -180,7 +180,7 @@ def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
 ReasoningEffort = Literal["low", "medium", "high", "xhigh", "max"]
 ReasoningSummary = Literal["none", "concise", "detailed"]
 ContextTier = Literal["default", "long_context"]
-AutoTier = Literal["efficiency", "balance", "intelligence"]
+AutoTier = Literal["efficiency", "balance", "intelligence", "fast"]
 SessionFsConventions = Literal["posix", "windows"]
 
 

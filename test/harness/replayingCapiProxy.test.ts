@@ -11,7 +11,7 @@ import type {
 } from "openai/resources/chat/completions";
 import os from "os";
 import path from "path";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import yaml from "yaml";
 import {
   NormalizedData,
@@ -802,6 +802,107 @@ Always include PINEAPPLE_COCONUT_42.
         req.end();
       });
     }
+
+    test.each([
+      ["should_accept_blob_attachments", "pixel.png"],
+      ["vision_disabled_then_enabled_via_setmodel", "test.png"],
+    ])(
+      "replays only the recorded image histories for %s",
+      async (snapshot, filename) => {
+        process.env.GITHUB_ACTIONS = "true";
+        const cachePath = path.join(
+          import.meta.dirname,
+          "..",
+          "snapshots",
+          "session_config",
+          `${snapshot}.yaml`,
+        );
+        const stored = await readYamlOutput(cachePath);
+        const messages = stored.conversations.at(-1)!.messages;
+        const finalResponse = messages.at(-1)!;
+        expect(finalResponse.role).toBe("assistant");
+        expect(finalResponse.content).toBeTruthy();
+        const imageDescription = `Image file at path ${workDir}/${filename}`;
+        const limitMessage = (limit: number) =>
+          `You've reached the maximum number of images you can view (${limit}) so I can't provide the image for you to see.`;
+        const proxy = new ReplayingCapiProxy(
+          "http://localhost:1",
+          cachePath,
+          workDir,
+        );
+        const proxyUrl = await proxy.start();
+
+        try {
+          for (const imagePart of [
+            {
+              type: "image_url",
+              image_url: {
+                url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+              },
+            },
+            { type: "text", text: limitMessage(1) },
+          ]) {
+            const response = await makeRequest(proxyUrl, "/chat/completions", {
+              body: {
+                model: stored.models[0],
+                messages: [
+                  ...messages.slice(0, -2),
+                  {
+                    role: "user",
+                    content: [
+                      { type: "text", text: imageDescription },
+                      imagePart,
+                    ],
+                  },
+                ],
+              },
+            });
+            expect(response.status).toBe(200);
+            const completion = JSON.parse(response.body) as ChatCompletion;
+            expect(completion.choices[0].message.content).toBe(
+              finalResponse.content,
+            );
+            expect(completion.choices[0].finish_reason).toBe("stop");
+          }
+
+          const stderr = vi
+            .spyOn(process.stderr, "write")
+            .mockReturnValue(true);
+          const consoleError = vi
+            .spyOn(console, "error")
+            .mockImplementation(() => {});
+          try {
+            for (const content of [
+              imageDescription,
+              `${imageDescription}\n${limitMessage(2)}`,
+            ]) {
+              const response = await makeRequest(
+                proxyUrl,
+                "/chat/completions",
+                {
+                  body: {
+                    model: stored.models[0],
+                    messages: [
+                      ...messages.slice(0, -2),
+                      { role: "user", content },
+                    ],
+                  },
+                },
+              );
+              expect(response.status).toBe(500);
+              expect(proxy.exchanges.at(-1)?.response?.body).toContain(
+                "No cached response found for POST /chat/completions.",
+              );
+            }
+          } finally {
+            stderr.mockRestore();
+            consoleError.mockRestore();
+          }
+        } finally {
+          await proxy.stop(true);
+        }
+      },
+    );
 
     test("returns cached response when request matches prefix", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");
@@ -1694,6 +1795,56 @@ Always include PINEAPPLE_COCONUT_42.
         expect(parsed.data).toHaveLength(2);
         expect(parsed.data[0].id).toBe("gpt-4o");
         expect(parsed.data[1].id).toBe("claude-sonnet-4");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
+    test("returns cached Auto responses in order", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const autoResponses = [
+        {
+          body: {
+            session_token: "first-token",
+            selected_model: { id: "test-model" },
+          },
+        },
+        {
+          statusCode: 500,
+          body: {
+            session_token: "unused-token",
+            selected_model: { id: "unused-model" },
+          },
+        },
+      ];
+      await writeFile(
+        cachePath,
+        yaml.stringify({
+          models: ["test-model"],
+          autoResponses,
+          conversations: [],
+        } satisfies NormalizedData),
+      );
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const success = await makeRequest(proxyUrl, "/auto", {
+          body: { prompt: "first" },
+        });
+        expect(success.status).toBe(200);
+        expect(JSON.parse(success.body)).toEqual(autoResponses[0].body);
+
+        const failure = await makeRequest(proxyUrl, "/auto", {
+          body: { prompt: "second" },
+        });
+        expect(failure.status).toBe(500);
+        expect(JSON.parse(failure.body)).toEqual(autoResponses[1].body);
       } finally {
         await proxy.stop();
       }

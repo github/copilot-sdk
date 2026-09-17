@@ -10,25 +10,21 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
+import java.time.OffsetDateTime;
 import javax.annotation.processing.Generated;
 
 /**
- * Params to attach an extension loader's tools to a session.
+ * Where and when the runtime observed the trust metadata. Observation time is not the authority's evaluation time and must not be used to infer staleness.
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionsRegisterExtensionToolsOnSessionParams(
-    /** Session to register extension tools on. */
-    @JsonProperty("sessionId") String sessionId,
-    /** In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK surface. */
-    @JsonProperty("loader") Object loader,
-    /** Optional registration options. */
-    @JsonProperty("options") SessionsRegisterExtensionToolsOnSessionOptions options
+public record CatalogTrustProvenance(
+    /** Bounded authority that supplied the trust field. */
+    @JsonProperty("source") CatalogTrustSource source,
+    /** ISO 8601 timestamp with a timezone offset at which the runtime observed the search result carrying this trust field. */
+    @JsonProperty("observedAt") OffsetDateTime observedAt
 ) {
 }

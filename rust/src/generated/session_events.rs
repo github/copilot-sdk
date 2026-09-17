@@ -230,6 +230,33 @@ pub enum SessionEventType {
     ToolSearchActivated,
     #[serde(rename = "skill.invoked")]
     SkillInvoked,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "skill.invoked_ref")]
+    SkillInvokedRef,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "skill.context_delivered")]
+    SkillContextDelivered,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "skill.context_delivered_ref")]
+    SkillContextDeliveredRef,
     #[serde(rename = "sandbox.decision")]
     SandboxDecision,
     #[serde(rename = "subagent.started")]
@@ -267,6 +294,60 @@ pub enum SessionEventType {
     PermissionRequested,
     #[serde(rename = "permission.completed")]
     PermissionCompleted,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.carriedForward")]
+    PermissionCarriedForward,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.messageAuthorization")]
+    PermissionMessageAuthorization,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.messageAuthorizationRead")]
+    PermissionMessageAuthorizationRead,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.messageAuthorizationDegraded")]
+    PermissionMessageAuthorizationDegraded,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.assentDetected")]
+    PermissionAssentDetected,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.contextualAuthorization")]
+    PermissionContextualAuthorization,
     #[serde(rename = "user_input.requested")]
     UserInputRequested,
     #[serde(rename = "user_input.completed")]
@@ -691,6 +772,12 @@ pub enum SessionEventData {
     ToolSearchActivated(ToolSearchActivatedData),
     #[serde(rename = "skill.invoked")]
     SkillInvoked(SkillInvokedData),
+    #[serde(rename = "skill.invoked_ref")]
+    SkillInvokedRef(SkillInvokedRefData),
+    #[serde(rename = "skill.context_delivered")]
+    SkillContextDelivered(SkillContextDeliveredData),
+    #[serde(rename = "skill.context_delivered_ref")]
+    SkillContextDeliveredRef(SkillContextDeliveredRefData),
     #[serde(rename = "sandbox.decision")]
     SandboxDecision(SandboxDecisionData),
     #[serde(rename = "subagent.started")]
@@ -721,6 +808,60 @@ pub enum SessionEventData {
     PermissionRequested(PermissionRequestedData),
     #[serde(rename = "permission.completed")]
     PermissionCompleted(PermissionCompletedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.carriedForward")]
+    PermissionCarriedForward(PermissionCarriedForwardData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.messageAuthorization")]
+    PermissionMessageAuthorization(PermissionMessageAuthorizationData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.messageAuthorizationRead")]
+    PermissionMessageAuthorizationRead(PermissionMessageAuthorizationReadData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.messageAuthorizationDegraded")]
+    PermissionMessageAuthorizationDegraded(PermissionMessageAuthorizationDegradedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.assentDetected")]
+    PermissionAssentDetected(PermissionAssentDetectedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "permission.contextualAuthorization")]
+    PermissionContextualAuthorization(PermissionContextualAuthorizationData),
     #[serde(rename = "user_input.requested")]
     UserInputRequested(UserInputRequestedData),
     #[serde(rename = "user_input.completed")]
@@ -2880,6 +3021,9 @@ pub struct AssistantMessageData {
     /// Model that produced this assistant message, if known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub originating_message_id: Option<String>,
     /// Actual output token count from the API response (completion_tokens), used for accurate token accounting
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<i64>,
@@ -3532,12 +3676,21 @@ pub struct ToolExecutionStartData {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fusion: Option<FusionAttribution>,
+    /// Preferred lookup name for the MCP server hosting this tool: the configured (namespaced) config-map key when the tool carries one, otherwise the display name from `mcpServerName`. Present when the tool is an MCP tool; this is the name unrestricted provenance telemetry hashes so it joins with `mcp_server_setup`, which keys off the configured name too.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_config_server_name: Option<String>,
+    /// Where the MCP server's configuration came from (`user`, `workspace`, `plugin`, or `builtin`), when the tool is an MCP tool and the server is configured
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_config_source: Option<McpServerSource>,
     /// Name of the MCP server hosting this tool, when the tool is an MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_server_name: Option<String>,
     /// Original tool name on the MCP server, when the tool is an MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_tool_name: Option<String>,
+    /// Transport the MCP server hosting this tool is connected over, when the tool is an MCP tool and the server is configured
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_transport: Option<McpServerTransport>,
     /// Model identifier that generated this tool call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -3983,7 +4136,7 @@ pub struct ToolExecutionCompleteResult {
     /// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contents: Option<Vec<ToolExecutionCompleteContent>>,
-    /// Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
+    /// Detailed tool result for UI/timeline display, preserving complete content such as diffs for most tools. Successful skill invocations intentionally use the concise model-facing content here; the authoritative skill body is carried by the corresponding skill invocation event. Falls back to content when absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detailed_content: Option<String>,
     /// FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels) — persisted as `{ ifc: ... }` (only the `ifc` key, not the whole `_meta`). Persisted so the FIDES IFC label survives session resume: the engine rehydrates accumulated taint by replaying these on load. Populated for ingress sources when FIDES IFC is on. Experimental.
@@ -4002,6 +4155,21 @@ pub struct ToolExecutionCompleteResult {
     /// MCP Apps UI resource content for rendering in a sandboxed iframe
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_resource: Option<ToolExecutionCompleteUIResource>,
+}
+
+/// Experimental shell completion facts retained independently of the full tool result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteShellExecution {
+    /// Process exit code reported by the shell driver.
+    pub exit_code: i64,
 }
 
 /// MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_complete`.
@@ -4089,6 +4257,16 @@ pub struct ToolExecutionCompleteData {
     /// Whether this tool execution ran inside a sandbox container
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandboxed: Option<bool>,
+    /// Experimental shell completion facts captured before the persisted result contents are stripped.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shell_execution: Option<ToolExecutionCompleteShellExecution>,
     /// Whether the tool execution completed successfully
     pub success: bool,
     /// Unique identifier for the completed tool call
@@ -4150,6 +4328,76 @@ pub struct SkillInvokedData {
     pub trigger: Option<SkillInvokedTrigger>,
 }
 
+/// Session event "skill.invoked_ref". Internal durable skill invocation receipt whose content resolves from an earlier inline skill event in the same session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInvokedRefData {
+    /// Tool names that should be auto-approved when this skill is active
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_tools: Option<Vec<String>>,
+    /// Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:<lowercase hex digest>` over the UTF-8 bytes of that event's `content`
+    pub content_id: String,
+    /// UTF-16 code unit length of the referenced skill content. Derived from the referenced body and validated against it when the reference is expanded; a reference whose length disagrees with the body it names is rejected instead of expanded
+    pub content_length: i64,
+    /// Description of the skill from its SKILL.md frontmatter
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Whether model invocation is disabled for this skill
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
+    /// Model identifier active when the skill was invoked, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Name of the invoked skill
+    pub name: String,
+    /// File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity
+    pub path: String,
+    /// Name of the plugin this skill originated from, when applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_name: Option<String>,
+    /// Version of the plugin this skill originated from, when applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_version: Option<String>,
+    /// Source identifier for where the skill was discovered
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    /// What triggered the skill invocation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<SkillInvokedTrigger>,
+}
+
+/// Session event "skill.context_delivered". Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillContextDeliveredData {
+    /// Exact model-facing skill wrapper, including its invocation-time file context
+    pub content: String,
+    /// Interaction that delivered this context, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_id: Option<String>,
+    /// Unmodified injection provenance, in the form skill-`<invocation-name>`
+    pub source: String,
+}
+
+/// Session event "skill.context_delivered_ref". Internal durable receipt that reconstructs exact model-visible skill context from earlier session content.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillContextDeliveredRefData {
+    /// Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:<lowercase hex digest>` over the UTF-8 bytes of that event's `content`
+    pub content_id: String,
+    /// Interaction that delivered this context, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_id: Option<String>,
+    /// Exact text preceding the referenced content in the delivered wrapper
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefix: Option<String>,
+    /// Unmodified injection provenance, in the form skill-`<invocation-name>`
+    pub source: String,
+    /// Exact text following the referenced content in the delivered wrapper
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suffix: Option<String>,
+}
+
 /// Session event "sandbox.decision". Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -4177,6 +4425,9 @@ pub struct SubagentStartedData {
     /// Model the sub-agent will run with, when known at start.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Authority or runtime mechanism responsible for sub-agent model selection, when known at start.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_selection_source: Option<SubagentModelSelectionSource>,
     /// Task-registry ID of the spawning sub-agent. Absent when the root session spawned this child.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
@@ -4326,7 +4577,7 @@ pub struct HookStartData {
     pub hook_invocation_id: String,
     /// Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
     pub hook_type: String,
-    /// Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
+    /// Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) drops the tool result's inline `contents`/`uiResource`/`skillInvocation` and replaces duplicated text result fields with a `[copilot:elided ...]` marker; the live subscription stream still delivers the full value. Canonical tool output remains in the adjacent tool.execution_complete event, while an invoked skill's authoritative body remains in its skill invocation event.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<serde_json::Value>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -4359,7 +4610,7 @@ pub struct HookEndData {
     pub hook_invocation_id: String,
     /// Type of hook that was invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
     pub hook_type: String,
-    /// Output data produced by the hook
+    /// Output data produced by the hook. Durable and resumed postToolUse receipts may omit messages owned by a successful skill invocation and replace an unchanged skill sessionLog copy with an elision marker; hook-modified or re-sourced values are preserved, and the authoritative body remains in the skill invocation event.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<serde_json::Value>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -4437,7 +4688,7 @@ pub struct SystemMessageData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemNotificationData {
-    /// The notification text, typically wrapped in <system_notification> XML tags
+    /// The notification text, typically wrapped in `<system_notification>` XML tags
     pub content: String,
     /// Structured metadata identifying what triggered this notification
     pub kind: serde_json::Value,
@@ -4506,6 +4757,26 @@ pub struct PermissionRequestShell {
     /// True when the requested escalation is a permissive retry rather than a full bypass: the command re-runs inside the sandbox with its file and process restrictions recording instead of blocking, while the network policy stays enforced. Always accompanied by requestSandboxBypass, so hosts that do not recognize this field still treat the request as the escalation it is. Hosts that do recognize it must not describe the command as running outside the sandbox, which would overstate the privilege being granted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_permissive: Option<bool>,
+    /// Runtime-resolved canonical object each possiblePaths entry names, keyed by the requested spelling, used for authorization identity checks. Internal and experimental; clients should continue to display possiblePaths.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_paths: Option<HashMap<String, String>>,
+    /// Runtime-resolved canonical working directory the command runs in, used for authorization identity checks. Internal and experimental; clients should not display it.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_working_directory: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -4540,6 +4811,16 @@ pub struct PermissionRequestWrite {
     /// Justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass_reason: Option<String>,
+    /// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_path: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -4564,6 +4845,16 @@ pub struct PermissionRequestRead {
     /// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass_reason: Option<String>,
+    /// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_path: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -4938,6 +5229,16 @@ pub struct PermissionPromptRequestWrite {
     /// Complete new file contents for newly created files
     #[serde(skip_serializing_if = "Option::is_none")]
     pub new_file_contents: Option<String>,
+    /// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display fileName.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_path: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -4966,6 +5267,16 @@ pub struct PermissionPromptRequestRead {
     pub managed_approval_required: Option<bool>,
     /// Path of the file or directory being read
     pub path: String,
+    /// Runtime-resolved canonical path used for authorization identity checks. Internal and experimental; clients should continue to display path.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_path: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -5551,6 +5862,16 @@ pub struct PermissionDeniedByPermissionRequestHook {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionCompletedData {
+    /// Who decided this permission request. Absent on completions recorded before this field existed, which consumers must treat as "not a human decision" rather than assuming one. Authorization records are minted only for `human_response`; an assisted-approval verdict, a host policy, an unattended fallback, and a hook resolution all produce the same `result` a person does, so this is the only field that distinguishes them.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision_source: Option<PermissionDecisionSource>,
     /// Request ID of the resolved permission request; clients should dismiss any UI for this request
     pub request_id: RequestId,
     /// The result of the permission request
@@ -5558,6 +5879,304 @@ pub struct PermissionCompletedData {
     /// Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
+}
+
+/// Session event "permission.carriedForward". Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionCarriedForwardData {
+    /// Always `authorization_carry_forward`. Stated explicitly so a consumer reading this event cannot mistake it for a human, host-policy, or assisted-approval decision.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub decision_source: PermissionDecisionSource,
+    /// Identity of the prior authorization record that contained the proposal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub record_id: String,
+    /// Authorization edge minted for this admission. Not a prompt id: no prompt was raised, so no client should expect a request with this id.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub request_id: RequestId,
+    /// Tool call this admission authorizes. Its execution receipts the prior grant, which is how a single-effect approval is spent rather than carried forward again.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub tool_call_id: String,
+}
+
+/// Session event "permission.messageAuthorization". Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionMessageAuthorizationData {
+    /// The kind of effect authorized, as an action-class identifier.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub action_class: String,
+    /// Whether the claim granted or denied authority.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub polarity: PermissionMessageAuthorizationPolarity,
+    /// Deterministic identity of the record, derived from the turn and span offsets so re-extracting the same span mints nothing new.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub record_id: String,
+    /// End byte offset of the authorizing span within the turn.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub span_end: i64,
+    /// Start byte offset of the authorizing span within the turn.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub span_start: i64,
+    /// Concrete named targets that appear verbatim inside the span.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_members: Option<Vec<String>>,
+    /// The task the permission is scoped to, when the human named one.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task: Option<String>,
+    /// The human turn the quoted span was read from.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub turn_index: i64,
+    /// The trusted version discriminator, when one exists. Exact shell-command grants carry the byte-identical commands grounded in the human span; world-derived classes carry a file object, remote tip, or runner only when that state was captured safely. An opaque object mirroring the runtime's adjacently-tagged resolution.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub world: Option<serde_json::Value>,
+}
+
+/// Session event "permission.messageAuthorizationRead". Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionMessageAuthorizationReadData {
+    /// Whether this read activates ongoing message-backed extraction. False for a contextual-assent-only pass while auto-approval is off, so unrelated future messages remain outside extraction.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activates_extraction: Option<bool>,
+    /// The human turn that was read by the proposer.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub turn_index: i64,
+}
+
+/// Session event "permission.messageAuthorizationDegraded". Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionMessageAuthorizationDegradedData {
+    /// The human turn that could not be represented safely.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub turn_index: i64,
+}
+
+/// Session event "permission.assentDetected". Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionAssentDetectedData {
+    /// Permission request the likely assent may refer to. The runtime derives this from the preceding durable blocker; the human message and extraction model do not choose it.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub request_id: RequestId,
+    /// Human turn whose text triggered the deterministic assent recognizer.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub turn_index: i64,
+}
+
+/// Session event "permission.contextualAuthorization". Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionContextualAuthorizationData {
+    /// Whether the contextual human span granted or denied authority.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub polarity: PermissionMessageAuthorizationPolarity,
+    /// Deterministic identity of the contextual message grant.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub record_id: String,
+    /// Original blocked permission request selected by deterministic event ordering, never by the extraction model.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub request_id: RequestId,
+    /// End byte offset of the contextual decision span within the turn.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub span_end: i64,
+    /// Start byte offset of the contextual decision span within the turn.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub span_start: i64,
+    /// Human turn containing the contextual decision.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub turn_index: i64,
 }
 
 /// Session event "user_input.requested". User input request notification with question and optional predefined choices
@@ -6320,6 +6939,9 @@ pub struct McpServerMetadata {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServersLoadedServer {
+    /// Human-readable display name supplied by a managed server catalog.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     /// Error message if the server failed to connect
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -6334,7 +6956,7 @@ pub struct McpServersLoadedServer {
     /// Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub server_metadata: Option<McpServerMetadata>,
-    /// Configuration source: user, workspace, plugin, or builtin
+    /// Configuration source: user, workspace, plugin, builtin, or managed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<McpServerSource>,
     /// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
@@ -7584,6 +8206,51 @@ pub enum AbortReason {
     Unknown,
 }
 
+/// Configuration source: user, workspace, plugin, builtin, or managed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpServerSource {
+    /// Server configured in the user's global MCP configuration.
+    #[serde(rename = "user")]
+    User,
+    /// Server configured by the current workspace.
+    #[serde(rename = "workspace")]
+    Workspace,
+    /// Server contributed by an installed plugin.
+    #[serde(rename = "plugin")]
+    Plugin,
+    /// Server bundled with the runtime.
+    #[serde(rename = "builtin")]
+    Builtin,
+    /// Server supplied by a trusted host-managed catalog.
+    #[serde(rename = "managed")]
+    Managed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpServerTransport {
+    /// Server communicates over stdio with a local child process.
+    #[serde(rename = "stdio")]
+    Stdio,
+    /// Server communicates over streamable HTTP.
+    #[serde(rename = "http")]
+    Http,
+    /// Server communicates over Server-Sent Events (deprecated).
+    #[serde(rename = "sse")]
+    Sse,
+    /// Server is backed by an in-memory runtime implementation.
+    #[serde(rename = "memory")]
+    Memory,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Allowed values for the `ToolExecutionStartToolDescriptionMetaUIVisibility` enumeration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ToolExecutionStartToolDescriptionMetaUIVisibility {
@@ -7800,27 +8467,6 @@ pub enum SkillInvokedTrigger {
     Unknown,
 }
 
-/// Where the model input for a task-tool sub-agent came from.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SubagentTaskModelSource {
-    /// The spawning agent supplied the task tool's model argument.
-    #[serde(rename = "task_argument")]
-    TaskArgument,
-    /// The task omitted a model and the per-sub-agent settings entry supplied a concrete one.
-    #[serde(rename = "subagent_configuration")]
-    SubagentConfiguration,
-    /// The task omitted a model and the user-defined custom agent's definition supplied one.
-    #[serde(rename = "custom_agent_definition")]
-    CustomAgentDefinition,
-    /// Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model.
-    #[serde(rename = "unset")]
-    Unset,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Authority or runtime mechanism responsible for sub-agent model selection.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SubagentModelSelectionSource {
@@ -7845,6 +8491,27 @@ pub enum SubagentModelSelectionSource {
     /// Runtime policy, Auto mode, or an experiment selected the model.
     #[serde(rename = "runtime_policy")]
     RuntimePolicy,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Where the model input for a task-tool sub-agent came from.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SubagentTaskModelSource {
+    /// The spawning agent supplied the task tool's model argument.
+    #[serde(rename = "task_argument")]
+    TaskArgument,
+    /// The task omitted a model and the per-sub-agent settings entry supplied a concrete one.
+    #[serde(rename = "subagent_configuration")]
+    SubagentConfiguration,
+    /// The task omitted a model and the user-defined custom agent's definition supplied one.
+    #[serde(rename = "custom_agent_definition")]
+    CustomAgentDefinition,
+    /// Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model.
+    #[serde(rename = "unset")]
+    Unset,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -8274,6 +8941,30 @@ pub enum PermissionPromptRequest {
     ExtensionEnvAccess(PermissionPromptRequestExtensionEnvAccess),
 }
 
+/// Controlled reason or actor responsible for a permission response.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionSource {
+    /// The response followed the assisted-approval judge recommendation.
+    #[serde(rename = "assisted_approval")]
+    AssistedApproval,
+    /// A human supplied the response through an interactive prompt.
+    #[serde(rename = "human_response")]
+    HumanResponse,
+    /// The host applied a standing policy or override rather than a judge recommendation or human decision.
+    #[serde(rename = "host_policy")]
+    HostPolicy,
+    /// The host denied the request because no interactive user response was available.
+    #[serde(rename = "unattended_fallback")]
+    UnattendedFallback,
+    /// A live authorization record from an earlier human decision in this session contained the proposal, so it ran without another prompt. This is not a new human decision and never mints authority of its own.
+    #[serde(rename = "authorization_carry_forward")]
+    AuthorizationCarryForward,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// The permission request was approved
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionApprovedKind {
@@ -8459,6 +9150,28 @@ pub enum PermissionResult {
     DeniedByPermissionRequestHook(PermissionDeniedByPermissionRequestHook),
 }
 
+/// Which direction a message-backed authorization claim moves authority in.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionMessageAuthorizationPolarity {
+    /// The human's words authorized an effect.
+    #[serde(rename = "grant")]
+    Grant,
+    /// The human's words refused an effect.
+    #[serde(rename = "denial")]
+    Denial,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ElicitationRequestedMode {
@@ -8571,6 +9284,9 @@ pub enum McpHeadersRefreshCompletedOutcome {
     /// The host responded with no dynamic headers.
     #[serde(rename = "none")]
     None,
+    /// The host credential broker rejected or failed the refresh.
+    #[serde(rename = "error")]
+    Error,
     /// No response arrived within the bounded window.
     #[serde(rename = "timeout")]
     Timeout,
@@ -8827,27 +9543,6 @@ pub enum AgentModelPolicy {
     Unknown,
 }
 
-/// Configuration source: user, workspace, plugin, or builtin
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpServerSource {
-    /// Server configured in the user's global MCP configuration.
-    #[serde(rename = "user")]
-    User,
-    /// Server configured by the current workspace.
-    #[serde(rename = "workspace")]
-    Workspace,
-    /// Server contributed by an installed plugin.
-    #[serde(rename = "plugin")]
-    Plugin,
-    /// Server bundled with the runtime.
-    #[serde(rename = "builtin")]
-    Builtin,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerStatus {
@@ -8872,27 +9567,6 @@ pub enum McpServerStatus {
     /// The server is not configured for this session.
     #[serde(rename = "not_configured")]
     NotConfigured,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpServerTransport {
-    /// Server communicates over stdio with a local child process.
-    #[serde(rename = "stdio")]
-    Stdio,
-    /// Server communicates over streamable HTTP.
-    #[serde(rename = "http")]
-    Http,
-    /// Server communicates over Server-Sent Events (deprecated).
-    #[serde(rename = "sse")]
-    Sse,
-    /// Server is backed by an in-memory runtime implementation.
-    #[serde(rename = "memory")]
-    Memory,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

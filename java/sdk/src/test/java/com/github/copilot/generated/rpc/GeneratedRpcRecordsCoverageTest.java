@@ -141,7 +141,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFleetStartParams_record() {
-        var params = new SessionFleetStartParams("sess-11", "fix all bugs");
+        var params = new SessionFleetStartParams("sess-11", "fix all bugs", null, null, null);
         assertEquals("sess-11", params.sessionId());
         assertEquals("fix all bugs", params.prompt());
     }
@@ -303,7 +303,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionModeSetParams_record() {
         var params = new SessionModeSetParams("sess-30", SessionMode.PLAN, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
         assertEquals("sess-30", params.sessionId());
         assertEquals(SessionMode.PLAN, params.mode());
     }
@@ -323,6 +323,80 @@ class GeneratedRpcRecordsCoverageTest {
     void sessionModelGetCurrentParams_record() {
         var params = new SessionModelGetCurrentParams("sess-31");
         assertEquals("sess-31", params.sessionId());
+    }
+
+    @Test
+    void sessionModelSetAllowedModelsParams_round_trips_exact_ids() throws Exception {
+        var mapper = new ObjectMapper();
+        var allowedModels = List.of("gpt-5", "azure/gpt-5");
+        var params = new SessionModelSetAllowedModelsParams("sess-model-policy", allowedModels);
+
+        assertEquals("sess-model-policy", params.sessionId());
+        assertEquals(allowedModels, params.allowedModels());
+        var json = mapper.readTree(mapper.writeValueAsString(params));
+        assertEquals("sess-model-policy", json.get("sessionId").asText());
+        assertEquals(mapper.valueToTree(allowedModels), json.get("allowedModels"));
+        assertEquals(params, mapper.treeToValue(json, SessionModelSetAllowedModelsParams.class));
+    }
+
+    @Test
+    void sessionModelSetAllowedModelsParams_distinguishes_clearing_from_empty_list() throws Exception {
+        var mapper = new ObjectMapper();
+        var cleared = new SessionModelSetAllowedModelsParams("sess-model-policy", null);
+
+        for (var json : List.of("""
+                {"sessionId":"sess-model-policy"}
+                """, """
+                {"sessionId":"sess-model-policy","allowedModels":null}
+                """)) {
+            assertEquals(cleared, mapper.readValue(json, SessionModelSetAllowedModelsParams.class));
+        }
+        var clearedJson = mapper.readTree(mapper.writeValueAsString(cleared));
+        assertFalse(clearedJson.has("allowedModels"));
+
+        var empty = new SessionModelSetAllowedModelsParams("sess-model-policy", List.of());
+        var emptyJson = mapper.readTree(mapper.writeValueAsString(empty));
+        assertTrue(emptyJson.get("allowedModels").isArray());
+        assertTrue(emptyJson.get("allowedModels").isEmpty());
+        assertEquals(empty, mapper.treeToValue(emptyJson, SessionModelSetAllowedModelsParams.class));
+    }
+
+    @Test
+    void sessionModelSetAllowedModelsResult_round_trips_policy_and_selection() throws Exception {
+        var mapper = new ObjectMapper();
+        var json = """
+                {"allowedModels":["gpt-5","azure/gpt-5"],"effectiveAllowedModels":["gpt-5"],
+                 "fallbackModel":"gpt-5","modelId":"gpt-5"}
+                """;
+
+        var result = mapper.readValue(json, SessionModelSetAllowedModelsResult.class);
+
+        assertEquals(List.of("gpt-5", "azure/gpt-5"), result.allowedModels());
+        assertEquals(List.of("gpt-5"), result.effectiveAllowedModels());
+        assertEquals("gpt-5", result.fallbackModel());
+        assertEquals("gpt-5", result.modelId());
+        assertEquals(mapper.readTree(json), mapper.valueToTree(result));
+    }
+
+    @Test
+    void sessionModelSetAllowedModelsResult_all_fields_are_optional() throws Exception {
+        var mapper = new ObjectMapper();
+        var empty = mapper.readValue("{}", SessionModelSetAllowedModelsResult.class);
+        assertNull(empty.allowedModels());
+        assertNull(empty.effectiveAllowedModels());
+        assertNull(empty.fallbackModel());
+        assertNull(empty.modelId());
+
+        for (var json : List.of("{}", """
+                {"modelId":"gpt-5"}
+                """, """
+                {"allowedModels":["gpt-5"]}
+                """, """
+                {"effectiveAllowedModels":[],"fallbackModel":"gpt-5"}
+                """)) {
+            var result = mapper.readValue(json, SessionModelSetAllowedModelsResult.class);
+            assertEquals(mapper.readTree(json), mapper.valueToTree(result));
+        }
     }
 
     @Test
@@ -653,7 +727,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionMcpListResult_nested() {
         var metadata = new McpServerMetadata("Use this server for repository operations.");
-        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null,
+        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null, null,
                 metadata);
         var result = new SessionMcpListResult(List.of(server), null);
         assertEquals(1, result.servers().size());
