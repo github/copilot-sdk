@@ -1223,3 +1223,25 @@ npm ci
 cd rust
 cargo test --features test-support
 ```
+
+### Notification allocation benchmark
+
+```bash
+cd rust
+cargo bench --no-default-features --features test-support --bench session_notifications
+```
+
+This optimized-build benchmark drives Content-Length-framed notifications through
+the SDK's real JSON-RPC reader, router, session loop, and subscriptions using
+in-memory streams. It needs no running CLI or model requests. It covers 128-byte,
+4-KiB, and 256-KiB payloads with zero, one, and two session observers, while also
+exercising lifecycle routing. Each case uses four warmup batches and fifteen
+measured batches of 64 events, with barriers ensuring both dispatchers finish.
+
+The CSV reports minimum, median, and maximum nanoseconds per event, allocation
+counts, and allocated bytes per event. Frame construction and client startup are
+outside the measured region; framing writes, dispatch, and payload verification
+are included. The allocation counter is benchmark-only. Allocated bytes measure
+heap allocation traffic, not peak heap usage or process RSS, and instrumented
+timings are not production latency estimates. Compare repeated runs on the same
+machine and toolchain.

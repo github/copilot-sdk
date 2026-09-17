@@ -14,6 +14,7 @@ license = "MIT"
 include = [
     "src/**/*",
     "build/**/*",
+    "benches/**/*",
     "examples/**/*",
     "tests/**/*",
     "build.rs",
@@ -81,6 +82,7 @@ windows-sys = { version = "0.61", default-features = false, features = [
 rusqlite = { version = "0.35", features = ["bundled"] }
 schemars = "1"
 serial_test = "3"
+stats_alloc = "0.1.10"
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 
@@ -121,6 +123,12 @@ bench = false
 [[test]]
 name = "prepared_session_test"
 required-features = ["test-support"]
+
+[[bench]]
+name = "session_notifications"
+harness = false
+required-features = ["test-support"]
+
 [build-dependencies]
 dirs = "5"
 flate2 = "1"

@@ -2268,7 +2268,7 @@ async fn handle_notification(
     pending_external_tools: &PendingExternalTools,
 ) {
     let dispatch_start = Instant::now();
-    let event = notification.event.clone();
+    let event = &notification.event;
     let event_type = event.parsed_type();
     if event_type == SessionEventType::PermissionRequested {
         tracing::debug!(
@@ -2298,7 +2298,7 @@ async fn handle_notification(
                         }
                         waiter.last_assistant_message = Some(event.clone());
                     }
-                    SessionEventType::SessionIdle if is_autopilot_continuation_idle(&event) => {}
+                    SessionEventType::SessionIdle if is_autopilot_continuation_idle(event) => {}
                     SessionEventType::SessionIdle | SessionEventType::SessionError => {
                         if let Some(waiter) = guard.take() {
                             if event_type == SessionEventType::SessionIdle {
