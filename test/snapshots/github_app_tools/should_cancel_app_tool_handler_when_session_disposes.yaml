@@ -1,0 +1,15 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call app_wait_for_operation with operation sync-installation.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: app_wait_for_operation
+              arguments: '{"operation":"sync-installation"}'

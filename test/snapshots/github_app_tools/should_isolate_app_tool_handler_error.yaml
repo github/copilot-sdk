@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call app_failing_lookup. If it fails, reply with exactly APP_LOOKUP_UNAVAILABLE.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: app_failing_lookup
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "Failed to execute `app_failing_lookup` tool with arguments: {} due to error: Error: Tool execution failed"
+      - role: assistant
+        content: APP_LOOKUP_UNAVAILABLE
