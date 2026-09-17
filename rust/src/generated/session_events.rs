@@ -1999,6 +1999,18 @@ pub struct CompactionCompleteCompactionTokensUsed {
     pub output_tokens: Option<i64>,
 }
 
+/// Original request-level and effective conversation reasoning effort for a Responses history boundary
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResponsesReasoning {
+    /// Effective effort selected before this message, independent of the response-level reasoning field
+    pub effort: String,
+    /// Original request-level effort, retained while replaying this conversation prefix
+    pub initial_effort: String,
+    /// Provider model whose reasoning settings this boundary records
+    pub model: String,
+}
+
 /// Session event "session.compaction_complete". Conversation compaction results including success status, metrics, and optional error details
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2043,6 +2055,9 @@ pub struct SessionCompactionCompleteData {
     /// GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<RequestId>,
+    /// Reasoning baseline on the replacement summary, preserved when replay skips the compacted history
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub responses_reasoning: Option<ResponsesReasoning>,
     /// Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_request_id: Option<String>,
@@ -2412,6 +2427,9 @@ pub struct UserMessageData {
     /// Parent agent task ID for background telemetry correlated to this user turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_agent_task_id: Option<String>,
+    /// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub responses_reasoning: Option<ResponsesReasoning>,
     /// Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
@@ -4692,6 +4710,9 @@ pub struct SystemNotificationData {
     pub content: String,
     /// Structured metadata identifying what triggered this notification
     pub kind: serde_json::Value,
+    /// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub responses_reasoning: Option<ResponsesReasoning>,
 }
 
 /// A parsed command identifier in a shell permission request, including whether it is read-only.
@@ -4922,6 +4943,21 @@ pub struct PermissionRequestUrl {
     pub url: String,
 }
 
+/// Bounded runtime attribution, independent of free-text rationale. Telemetry revalidates this vocabulary before standard collection.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionApprovalEvaluation {
+    /// Stage that produced this attribution.
+    pub evaluation_stage: PermissionApprovalEvaluationEvaluationStage,
+    /// Whether the request invoked the judge interface. A cached recommendation retains the original attempt fact. Omitted means unknown, including inherited outcomes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub judge_attempted: Option<bool>,
+    /// Status of the local judge interface, not proof of a model network call.
+    pub judge_status: PermissionApprovalEvaluationJudgeStatus,
+    /// Machine-readable runtime gate reason, never a command, path or human rationale.
+    pub reason_code: PermissionApprovalEvaluationReasonCode,
+}
+
 /// Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
 ///
 /// <div class="warning">
@@ -4933,6 +4969,9 @@ pub struct PermissionRequestUrl {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionAssistedApproval {
+    /// Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evaluation: Option<PermissionApprovalEvaluation>,
     /// Classified cause of an `error` recommendation. Absent for every other recommendation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure_reason: Option<AssistedApprovalJudgeFailureReason>,
@@ -5625,6 +5664,9 @@ pub struct PermissionRequestedData {
     /// Agent mode captured from the owning turn when permission evaluation began.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_mode: Option<SessionMode>,
+    /// Permission mode captured when evaluation began. Absent on historical events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_mode: Option<PermissionMode>,
     /// Details of the permission being requested
     pub permission_request: PermissionRequest,
     /// Derived user-facing permission prompt details for UI consumers
@@ -8616,6 +8658,144 @@ pub enum PermissionRequestMemoryAction {
     /// Vote on an existing memory.
     #[serde(rename = "vote")]
     Vote,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Stage that produced this attribution.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionApprovalEvaluationEvaluationStage {
+    /// The attribution stage is unknown.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// The request resolved before assisted-approval evaluation.
+    #[serde(rename = "not_reached")]
+    NotReached,
+    /// A runtime gate skipped the judge.
+    #[serde(rename = "pre_judge")]
+    PreJudge,
+    /// The judge interface produced the evaluation.
+    #[serde(rename = "judge")]
+    Judge,
+    /// A cached recommendation or another request's outcome was reused.
+    #[serde(rename = "reuse")]
+    Reuse,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Status of the local judge interface, not proof of a model network call.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionApprovalEvaluationJudgeStatus {
+    /// No authoritative attribution is available.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// This evaluation did not invoke the judge interface.
+    #[serde(rename = "not_called")]
+    NotCalled,
+    /// The judge interface returned a usable verdict.
+    #[serde(rename = "completed")]
+    Completed,
+    /// The judge interface returned an error.
+    #[serde(rename = "failed")]
+    Failed,
+    /// This evaluation reused a cached recommendation.
+    #[serde(rename = "cached")]
+    Cached,
+    /// This request inherited another decision without local judge attribution.
+    #[serde(rename = "inherited")]
+    Inherited,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Machine-readable runtime gate reason, never a command, path or human rationale.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionApprovalEvaluationReasonCode {
+    /// Attribution is missing or outside the supported vocabulary.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// The request resolved before assisted-approval evaluation.
+    #[serde(rename = "not-reached")]
+    NotReached,
+    /// Assisted approval was inactive for this request.
+    #[serde(rename = "inactive")]
+    Inactive,
+    /// The judge was skipped because authorization extraction could not safely establish a complete recent history.
+    #[serde(rename = "authorization-history-incomplete")]
+    AuthorizationHistoryIncomplete,
+    /// Managed policy required a human decision.
+    #[serde(rename = "managed-approval-required")]
+    ManagedApprovalRequired,
+    /// The request asked to bypass sandbox restrictions.
+    #[serde(rename = "sandbox-bypass")]
+    SandboxBypass,
+    /// An action field exceeded the judge input limit.
+    #[serde(rename = "action-too-long")]
+    ActionTooLong,
+    /// The script path was not authorized for inspection.
+    #[serde(rename = "path-not-authorized")]
+    PathNotAuthorized,
+    /// The script working directory was invalid.
+    #[serde(rename = "invalid-working-directory")]
+    InvalidWorkingDirectory,
+    /// The script snapshot could not be read.
+    #[serde(rename = "unreadable")]
+    Unreadable,
+    /// The script path was not a regular file.
+    #[serde(rename = "not-regular-file")]
+    NotRegularFile,
+    /// The script snapshot exceeded the size limit.
+    #[serde(rename = "too-large")]
+    TooLarge,
+    /// The script snapshot was not UTF-8.
+    #[serde(rename = "non-utf8")]
+    NonUtf8,
+    /// The script interpreter could not be inspected.
+    #[serde(rename = "interpreter-unavailable")]
+    InterpreterUnavailable,
+    /// The interpreter snapshot exceeded the size limit.
+    #[serde(rename = "interpreter-too-large")]
+    InterpreterTooLarge,
+    /// The shell environment could not be reviewed.
+    #[serde(rename = "shell-environment-unreviewable")]
+    ShellEnvironmentUnreviewable,
+    /// A script path could not be represented for review.
+    #[serde(rename = "unrepresentable-path")]
+    UnrepresentablePath,
+    /// An interpreter wrapped a script that could not be reviewed.
+    #[serde(rename = "interpreter-wrapped-script")]
+    InterpreterWrappedScript,
+    /// The script invocation could not be reviewed.
+    #[serde(rename = "unreviewable-script-invocation")]
+    UnreviewableScriptInvocation,
+    /// The script argument binding could not be reviewed.
+    #[serde(rename = "argument-binding-unreviewable")]
+    ArgumentBindingUnreviewable,
+    /// The script review metadata was malformed.
+    #[serde(rename = "malformed-script-action-review")]
+    MalformedScriptActionReview,
+    /// The script snapshot manifest was malformed.
+    #[serde(rename = "malformed-script-action-manifest")]
+    MalformedScriptActionManifest,
+    /// Script review was unavailable.
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    /// The judge interface returned a usable verdict.
+    #[serde(rename = "judge-verdict")]
+    JudgeVerdict,
+    /// The judge interface returned an error.
+    #[serde(rename = "judge-error")]
+    JudgeError,
+    /// The request inherited an outcome from another decision.
+    #[serde(rename = "inherited")]
+    Inherited,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

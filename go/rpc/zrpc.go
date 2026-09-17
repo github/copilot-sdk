@@ -2434,6 +2434,8 @@ type CopilotUserResponse struct {
 	CopilotPlan *string `json:"copilot_plan,omitempty"`
 	// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
 	Endpoints *CopilotUserResponseEndpoints `json:"endpoints,omitempty"`
+	// Enterprises that provide the user's Copilot license, each with a stable numeric ID.
+	EnterpriseList []CopilotUserResponseEnterpriseListItem `json:"enterprise_list,omitzero"`
 	// Whether MCP (Model Context Protocol) support is enabled for the user.
 	IsMCPEnabled *bool `json:"is_mcp_enabled,omitempty"`
 	// Whether the user is a GitHub/Microsoft staff member.
@@ -2482,6 +2484,11 @@ type CopilotUserResponseEndpoints struct {
 	Proxy *string `json:"proxy,omitempty"`
 	// Copilot telemetry endpoint URL.
 	Telemetry *string `json:"telemetry,omitempty"`
+}
+
+type CopilotUserResponseEnterpriseListItem struct {
+	// Numeric database ID of the enterprise.
+	ID int64 `json:"id"`
 }
 
 type CopilotUserResponseOrganizationListItem struct {

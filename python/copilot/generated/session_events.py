@@ -1497,6 +1497,7 @@ class PermissionAssentDetectedData:
 class PermissionAssistedApproval:
     "Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request."
     recommendation: AssistedApprovalRecommendation
+    evaluation: PermissionApprovalEvaluation | None = None
     failure_reason: AssistedApprovalJudgeFailureReason | None = None
     model: str | None = None
     reason: str | None = None
@@ -1505,11 +1506,13 @@ class PermissionAssistedApproval:
     def from_dict(obj: Any) -> "PermissionAssistedApproval":
         assert isinstance(obj, dict)
         recommendation = parse_enum(AssistedApprovalRecommendation, obj.get("recommendation"))
+        evaluation = from_union([from_none, PermissionApprovalEvaluation.from_dict], obj.get("evaluation"))
         failure_reason = from_union([from_none, lambda x: parse_enum(AssistedApprovalJudgeFailureReason, x)], obj.get("failureReason"))
         model = from_union([from_none, from_str], obj.get("model"))
         reason = from_union([from_none, from_str], obj.get("reason"))
         return PermissionAssistedApproval(
             recommendation=recommendation,
+            evaluation=evaluation,
             failure_reason=failure_reason,
             model=model,
             reason=reason,
@@ -1518,6 +1521,8 @@ class PermissionAssistedApproval:
     def to_dict(self) -> dict:
         result: dict = {}
         result["recommendation"] = to_enum(AssistedApprovalRecommendation, self.recommendation)
+        if self.evaluation is not None:
+            result["evaluation"] = from_union([from_none, lambda x: to_class(PermissionApprovalEvaluation, x)], self.evaluation)
         if self.failure_reason is not None:
             result["failureReason"] = from_union([from_none, lambda x: to_enum(AssistedApprovalJudgeFailureReason, x)], self.failure_reason)
         if self.model is not None:
@@ -6040,6 +6045,38 @@ class PendingMessagesModifiedData:
 
 
 @dataclass
+class PermissionApprovalEvaluation:
+    "Bounded runtime attribution, independent of free-text rationale. Telemetry revalidates this vocabulary before standard collection."
+    evaluation_stage: PermissionApprovalEvaluationEvaluationStage
+    judge_status: PermissionApprovalEvaluationJudgeStatus
+    reason_code: PermissionApprovalEvaluationReasonCode
+    judge_attempted: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionApprovalEvaluation":
+        assert isinstance(obj, dict)
+        evaluation_stage = parse_enum(PermissionApprovalEvaluationEvaluationStage, obj.get("evaluationStage"))
+        judge_status = parse_enum(PermissionApprovalEvaluationJudgeStatus, obj.get("judgeStatus"))
+        reason_code = parse_enum(PermissionApprovalEvaluationReasonCode, obj.get("reasonCode"))
+        judge_attempted = from_union([from_none, from_bool], obj.get("judgeAttempted"))
+        return PermissionApprovalEvaluation(
+            evaluation_stage=evaluation_stage,
+            judge_status=judge_status,
+            reason_code=reason_code,
+            judge_attempted=judge_attempted,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["evaluationStage"] = to_enum(PermissionApprovalEvaluationEvaluationStage, self.evaluation_stage)
+        result["judgeStatus"] = to_enum(PermissionApprovalEvaluationJudgeStatus, self.judge_status)
+        result["reasonCode"] = to_enum(PermissionApprovalEvaluationReasonCode, self.reason_code)
+        if self.judge_attempted is not None:
+            result["judgeAttempted"] = from_union([from_none, from_bool], self.judge_attempted)
+        return result
+
+
+@dataclass
 class PermissionApproved:
     "Permission response variant indicating the request was approved without persisting an approval rule."
     kind: ClassVar[str] = "approved"
@@ -7697,6 +7734,7 @@ class PermissionRequestedData:
     permission_request: PermissionRequest
     request_id: str
     agent_mode: SessionMode | None = None
+    permission_mode: PermissionMode | None = None
     prompt_request: PermissionPromptRequest | None = None
     resolved_by_hook: bool | None = None
     risk_assessment: Any = None
@@ -7707,6 +7745,7 @@ class PermissionRequestedData:
         permission_request = _load_PermissionRequest(obj.get("permissionRequest"))
         request_id = from_str(obj.get("requestId"))
         agent_mode = from_union([from_none, lambda x: parse_enum(SessionMode, x)], obj.get("agentMode"))
+        permission_mode = from_union([from_none, lambda x: parse_enum(PermissionMode, x)], obj.get("permissionMode"))
         prompt_request = from_union([from_none, _load_PermissionPromptRequest], obj.get("promptRequest"))
         resolved_by_hook = from_union([from_none, from_bool], obj.get("resolvedByHook"))
         risk_assessment = obj.get("riskAssessment")
@@ -7714,6 +7753,7 @@ class PermissionRequestedData:
             permission_request=permission_request,
             request_id=request_id,
             agent_mode=agent_mode,
+            permission_mode=permission_mode,
             prompt_request=prompt_request,
             resolved_by_hook=resolved_by_hook,
             risk_assessment=risk_assessment,
@@ -7725,6 +7765,8 @@ class PermissionRequestedData:
         result["requestId"] = from_str(self.request_id)
         if self.agent_mode is not None:
             result["agentMode"] = from_union([from_none, lambda x: to_enum(SessionMode, x)], self.agent_mode)
+        if self.permission_mode is not None:
+            result["permissionMode"] = from_union([from_none, lambda x: to_enum(PermissionMode, x)], self.permission_mode)
         if self.prompt_request is not None:
             result["promptRequest"] = from_union([from_none, lambda x: x.to_dict()], self.prompt_request)
         if self.resolved_by_hook is not None:
@@ -7936,6 +7978,33 @@ class PromptCacheBreakData:
 
 
 @dataclass
+class ResponsesReasoning:
+    "Original request-level and effective conversation reasoning effort for a Responses history boundary"
+    effort: str
+    initial_effort: str
+    model: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ResponsesReasoning":
+        assert isinstance(obj, dict)
+        effort = from_str(obj.get("effort"))
+        initial_effort = from_str(obj.get("initialEffort"))
+        model = from_str(obj.get("model"))
+        return ResponsesReasoning(
+            effort=effort,
+            initial_effort=initial_effort,
+            model=model,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["effort"] = from_str(self.effort)
+        result["initialEffort"] = from_str(self.initial_effort)
+        result["model"] = from_str(self.model)
+        return result
+
+
+@dataclass
 class SamplingCompletedData:
     "Sampling request completion notification signaling UI dismissal"
     request_id: str
@@ -8125,6 +8194,7 @@ class SessionCompactionCompleteData:
     pre_compaction_messages_length: int | None = None
     pre_compaction_tokens: int | None = None
     request_id: str | None = None
+    responses_reasoning: ResponsesReasoning | None = None
     service_request_id: str | None = None
     status_code: int | None = None
     summary_content: str | None = None
@@ -8151,6 +8221,7 @@ class SessionCompactionCompleteData:
         pre_compaction_messages_length = from_union([from_none, from_int], obj.get("preCompactionMessagesLength"))
         pre_compaction_tokens = from_union([from_none, from_int], obj.get("preCompactionTokens"))
         request_id = from_union([from_none, from_str], obj.get("requestId"))
+        responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
         summary_content = from_union([from_none, from_str], obj.get("summaryContent"))
@@ -8174,6 +8245,7 @@ class SessionCompactionCompleteData:
             pre_compaction_messages_length=pre_compaction_messages_length,
             pre_compaction_tokens=pre_compaction_tokens,
             request_id=request_id,
+            responses_reasoning=responses_reasoning,
             service_request_id=service_request_id,
             status_code=status_code,
             summary_content=summary_content,
@@ -8213,6 +8285,8 @@ class SessionCompactionCompleteData:
             result["preCompactionTokens"] = from_union([from_none, to_int], self.pre_compaction_tokens)
         if self.request_id is not None:
             result["requestId"] = from_union([from_none, from_str], self.request_id)
+        if self.responses_reasoning is not None:
+            result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self.responses_reasoning)
         if self.service_request_id is not None:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.status_code is not None:
@@ -10618,21 +10692,26 @@ class SystemNotificationData:
     "System-generated notification for runtime events like background task completion"
     content: str
     kind: SystemNotification
+    responses_reasoning: ResponsesReasoning | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SystemNotificationData":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         kind = _load_SystemNotification(obj.get("kind"))
+        responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         return SystemNotificationData(
             content=content,
             kind=kind,
+            responses_reasoning=responses_reasoning,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["content"] = from_str(self.content)
         result["kind"] = self.kind.to_dict()
+        if self.responses_reasoning is not None:
+            result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self.responses_reasoning)
         return result
 
 
@@ -11962,6 +12041,7 @@ class UserMessageData:
     message_id: str | None = None
     native_document_path_fallback_paths: list[str] | None = None
     parent_agent_task_id: str | None = None
+    responses_reasoning: ResponsesReasoning | None = None
     source: str | None = None
     supported_native_document_mime_types: list[str] | None = None
     transformed_content: str | None = None
@@ -11979,6 +12059,7 @@ class UserMessageData:
         message_id = from_union([from_none, from_str], obj.get("messageId"))
         native_document_path_fallback_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("nativeDocumentPathFallbackPaths"))
         parent_agent_task_id = from_union([from_none, from_str], obj.get("parentAgentTaskId"))
+        responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         source = from_union([from_none, from_str], obj.get("source"))
         supported_native_document_mime_types = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("supportedNativeDocumentMimeTypes"))
         transformed_content = from_union([from_none, from_str], obj.get("transformedContent"))
@@ -11993,6 +12074,7 @@ class UserMessageData:
             message_id=message_id,
             native_document_path_fallback_paths=native_document_path_fallback_paths,
             parent_agent_task_id=parent_agent_task_id,
+            responses_reasoning=responses_reasoning,
             source=source,
             supported_native_document_mime_types=supported_native_document_mime_types,
             transformed_content=transformed_content,
@@ -12018,6 +12100,8 @@ class UserMessageData:
             result["nativeDocumentPathFallbackPaths"] = from_union([from_none, lambda x: from_list(from_str, x)], self.native_document_path_fallback_paths)
         if self.parent_agent_task_id is not None:
             result["parentAgentTaskId"] = from_union([from_none, from_str], self.parent_agent_task_id)
+        if self.responses_reasoning is not None:
+            result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self.responses_reasoning)
         if self.source is not None:
             result["source"] = from_union([from_none, from_str], self.source)
         if self.supported_native_document_mime_types is not None:
@@ -13147,6 +13231,92 @@ class OmittedBinaryType(Enum):
     RESOURCE = "resource"
 
 
+class PermissionApprovalEvaluationEvaluationStage(Enum):
+    "Stage that produced this attribution."
+    # The attribution stage is unknown.
+    UNKNOWN = "unknown"
+    # The request resolved before assisted-approval evaluation.
+    NOT_REACHED = "not_reached"
+    # A runtime gate skipped the judge.
+    PRE_JUDGE = "pre_judge"
+    # The judge interface produced the evaluation.
+    JUDGE = "judge"
+    # A cached recommendation or another request's outcome was reused.
+    REUSE = "reuse"
+
+
+class PermissionApprovalEvaluationJudgeStatus(Enum):
+    "Status of the local judge interface, not proof of a model network call."
+    # No authoritative attribution is available.
+    UNKNOWN = "unknown"
+    # This evaluation did not invoke the judge interface.
+    NOT_CALLED = "not_called"
+    # The judge interface returned a usable verdict.
+    COMPLETED = "completed"
+    # The judge interface returned an error.
+    FAILED = "failed"
+    # This evaluation reused a cached recommendation.
+    CACHED = "cached"
+    # This request inherited another decision without local judge attribution.
+    INHERITED = "inherited"
+
+
+class PermissionApprovalEvaluationReasonCode(Enum):
+    "Machine-readable runtime gate reason, never a command, path or human rationale."
+    # Attribution is missing or outside the supported vocabulary.
+    UNKNOWN = "unknown"
+    # The request resolved before assisted-approval evaluation.
+    NOT_REACHED = "not-reached"
+    # Assisted approval was inactive for this request.
+    INACTIVE = "inactive"
+    # The judge was skipped because authorization extraction could not safely establish a complete recent history.
+    AUTHORIZATION_HISTORY_INCOMPLETE = "authorization-history-incomplete"
+    # Managed policy required a human decision.
+    MANAGED_APPROVAL_REQUIRED = "managed-approval-required"
+    # The request asked to bypass sandbox restrictions.
+    SANDBOX_BYPASS = "sandbox-bypass"
+    # An action field exceeded the judge input limit.
+    ACTION_TOO_LONG = "action-too-long"
+    # The script path was not authorized for inspection.
+    PATH_NOT_AUTHORIZED = "path-not-authorized"
+    # The script working directory was invalid.
+    INVALID_WORKING_DIRECTORY = "invalid-working-directory"
+    # The script snapshot could not be read.
+    UNREADABLE = "unreadable"
+    # The script path was not a regular file.
+    NOT_REGULAR_FILE = "not-regular-file"
+    # The script snapshot exceeded the size limit.
+    TOO_LARGE = "too-large"
+    # The script snapshot was not UTF-8.
+    NON_UTF8 = "non-utf8"
+    # The script interpreter could not be inspected.
+    INTERPRETER_UNAVAILABLE = "interpreter-unavailable"
+    # The interpreter snapshot exceeded the size limit.
+    INTERPRETER_TOO_LARGE = "interpreter-too-large"
+    # The shell environment could not be reviewed.
+    SHELL_ENVIRONMENT_UNREVIEWABLE = "shell-environment-unreviewable"
+    # A script path could not be represented for review.
+    UNREPRESENTABLE_PATH = "unrepresentable-path"
+    # An interpreter wrapped a script that could not be reviewed.
+    INTERPRETER_WRAPPED_SCRIPT = "interpreter-wrapped-script"
+    # The script invocation could not be reviewed.
+    UNREVIEWABLE_SCRIPT_INVOCATION = "unreviewable-script-invocation"
+    # The script argument binding could not be reviewed.
+    ARGUMENT_BINDING_UNREVIEWABLE = "argument-binding-unreviewable"
+    # The script review metadata was malformed.
+    MALFORMED_SCRIPT_ACTION_REVIEW = "malformed-script-action-review"
+    # The script snapshot manifest was malformed.
+    MALFORMED_SCRIPT_ACTION_MANIFEST = "malformed-script-action-manifest"
+    # Script review was unavailable.
+    UNAVAILABLE = "unavailable"
+    # The judge interface returned a usable verdict.
+    JUDGE_VERDICT = "judge-verdict"
+    # The judge interface returned an error.
+    JUDGE_ERROR = "judge-error"
+    # The request inherited an outcome from another decision.
+    INHERITED = "inherited"
+
+
 class PermissionDecisionSource(Enum):
     "Controlled reason or actor responsible for a permission response."
     # The response followed the assisted-approval judge recommendation.
@@ -13850,6 +14020,10 @@ __all__ = [
     "OmittedBinaryResult",
     "OmittedBinaryType",
     "PendingMessagesModifiedData",
+    "PermissionApprovalEvaluation",
+    "PermissionApprovalEvaluationEvaluationStage",
+    "PermissionApprovalEvaluationJudgeStatus",
+    "PermissionApprovalEvaluationReasonCode",
     "PermissionApproved",
     "PermissionApprovedForLocation",
     "PermissionApprovedForSession",
@@ -13917,6 +14091,7 @@ __all__ = [
     "ReasoningSummary",
     "RecommendedAutoTier",
     "RemediationAction",
+    "ResponsesReasoning",
     "SamplingCompletedData",
     "SamplingRequestedData",
     "SandboxDecisionData",

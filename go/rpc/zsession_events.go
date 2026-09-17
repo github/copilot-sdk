@@ -642,6 +642,8 @@ type SessionCompactionCompleteData struct {
 	PreCompactionTokens *int64 `json:"preCompactionTokens,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
 	RequestID *string `json:"requestId,omitempty"`
+	// Reasoning baseline on the replacement summary, preserved when replay skips the compacted history
+	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// For failed compaction only: the HTTP status code of the compaction LLM call failure, when it carried one. Absent for successful compaction and for failures without an HTTP status (e.g. an empty model response or a transport error).
@@ -2109,6 +2111,8 @@ type UserMessageData struct {
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
 	// Parent agent task ID for background telemetry correlated to this user turn
 	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
+	// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 	// Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
 	Source *string `json:"source,omitempty"`
 	// Normalized document MIME types that were sent natively instead of through tagged_files XML
@@ -2142,6 +2146,8 @@ func (*PermissionCompletedData) Type() SessionEventType { return SessionEventTyp
 type PermissionRequestedData struct {
 	// Agent mode captured from the owning turn when permission evaluation began.
 	AgentMode *SessionMode `json:"agentMode,omitempty"`
+	// Permission mode captured when evaluation began. Absent on historical events.
+	PermissionMode *PermissionMode `json:"permissionMode,omitempty"`
 	// Details of the permission being requested
 	PermissionRequest PermissionRequest `json:"permissionRequest"`
 	// Derived user-facing permission prompt details for UI consumers
@@ -2910,6 +2916,8 @@ type SystemNotificationData struct {
 	Content string `json:"content"`
 	// Structured metadata identifying what triggered this notification
 	Kind SystemNotification `json:"kind"`
+	// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 }
 
 func (*SystemNotificationData) sessionEventData()      {}
@@ -3815,9 +3823,23 @@ type ModelCallFailureRequestFingerprint struct {
 	ToolResultMessageCount int64 `json:"toolResultMessageCount"`
 }
 
+// Bounded runtime attribution, independent of free-text rationale. Telemetry revalidates this vocabulary before standard collection.
+type PermissionApprovalEvaluation struct {
+	// Stage that produced this attribution.
+	EvaluationStage PermissionApprovalEvaluationEvaluationStage `json:"evaluationStage"`
+	// Whether the request invoked the judge interface. A cached recommendation retains the original attempt fact. Omitted means unknown, including inherited outcomes.
+	JudgeAttempted *bool `json:"judgeAttempted,omitempty"`
+	// Status of the local judge interface, not proof of a model network call.
+	JudgeStatus PermissionApprovalEvaluationJudgeStatus `json:"judgeStatus"`
+	// Machine-readable runtime gate reason, never a command, path or human rationale.
+	ReasonCode PermissionApprovalEvaluationReasonCode `json:"reasonCode"`
+}
+
 // Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
 // Experimental: PermissionAssistedApproval is part of an experimental API and may change or be removed.
 type PermissionAssistedApproval struct {
+	// Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.
+	Evaluation *PermissionApprovalEvaluation `json:"evaluation,omitempty"`
 	// Classified cause of an `error` recommendation. Absent for every other recommendation.
 	FailureReason *AssistedApprovalJudgeFailureReason `json:"failureReason,omitempty"`
 	// Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.
@@ -4719,6 +4741,16 @@ func (r PersistedBinaryImage) Type() PersistedBinaryResultType {
 		return PersistedBinaryResultTypeImage
 	}
 	return PersistedBinaryResultType(r.Discriminator)
+}
+
+// Original request-level and effective conversation reasoning effort for a Responses history boundary
+type ResponsesReasoning struct {
+	// Effective effort selected before this message, independent of the response-level reasoning field
+	Effort string `json:"effort"`
+	// Original request-level effort, retained while replaying this conversation prefix
+	InitialEffort string `json:"initialEffort"`
+	// Provider model whose reasoning settings this boundary records
+	Model string `json:"model"`
 }
 
 // The user's selected action for an exhausted session limit.
@@ -6010,6 +6042,98 @@ const (
 	OmittedBinaryTypeImage OmittedBinaryType = "image"
 	// Other binary resource data.
 	OmittedBinaryTypeResource OmittedBinaryType = "resource"
+)
+
+// Stage that produced this attribution.
+type PermissionApprovalEvaluationEvaluationStage string
+
+const (
+	// The judge interface produced the evaluation.
+	PermissionApprovalEvaluationEvaluationStageJudge PermissionApprovalEvaluationEvaluationStage = "judge"
+	// The request resolved before assisted-approval evaluation.
+	PermissionApprovalEvaluationEvaluationStageNotReached PermissionApprovalEvaluationEvaluationStage = "not_reached"
+	// A runtime gate skipped the judge.
+	PermissionApprovalEvaluationEvaluationStagePreJudge PermissionApprovalEvaluationEvaluationStage = "pre_judge"
+	// A cached recommendation or another request's outcome was reused.
+	PermissionApprovalEvaluationEvaluationStageReuse PermissionApprovalEvaluationEvaluationStage = "reuse"
+	// The attribution stage is unknown.
+	PermissionApprovalEvaluationEvaluationStageUnknown PermissionApprovalEvaluationEvaluationStage = "unknown"
+)
+
+// Status of the local judge interface, not proof of a model network call.
+type PermissionApprovalEvaluationJudgeStatus string
+
+const (
+	// This evaluation reused a cached recommendation.
+	PermissionApprovalEvaluationJudgeStatusCached PermissionApprovalEvaluationJudgeStatus = "cached"
+	// The judge interface returned a usable verdict.
+	PermissionApprovalEvaluationJudgeStatusCompleted PermissionApprovalEvaluationJudgeStatus = "completed"
+	// The judge interface returned an error.
+	PermissionApprovalEvaluationJudgeStatusFailed PermissionApprovalEvaluationJudgeStatus = "failed"
+	// This request inherited another decision without local judge attribution.
+	PermissionApprovalEvaluationJudgeStatusInherited PermissionApprovalEvaluationJudgeStatus = "inherited"
+	// This evaluation did not invoke the judge interface.
+	PermissionApprovalEvaluationJudgeStatusNotCalled PermissionApprovalEvaluationJudgeStatus = "not_called"
+	// No authoritative attribution is available.
+	PermissionApprovalEvaluationJudgeStatusUnknown PermissionApprovalEvaluationJudgeStatus = "unknown"
+)
+
+// Machine-readable runtime gate reason, never a command, path or human rationale.
+type PermissionApprovalEvaluationReasonCode string
+
+const (
+	// An action field exceeded the judge input limit.
+	PermissionApprovalEvaluationReasonCodeActionTooLong PermissionApprovalEvaluationReasonCode = "action-too-long"
+	// The script argument binding could not be reviewed.
+	PermissionApprovalEvaluationReasonCodeArgumentBindingUnreviewable PermissionApprovalEvaluationReasonCode = "argument-binding-unreviewable"
+	// The judge was skipped because authorization extraction could not safely establish a complete recent history.
+	PermissionApprovalEvaluationReasonCodeAuthorizationHistoryIncomplete PermissionApprovalEvaluationReasonCode = "authorization-history-incomplete"
+	// Assisted approval was inactive for this request.
+	PermissionApprovalEvaluationReasonCodeInactive PermissionApprovalEvaluationReasonCode = "inactive"
+	// The request inherited an outcome from another decision.
+	PermissionApprovalEvaluationReasonCodeInherited PermissionApprovalEvaluationReasonCode = "inherited"
+	// The interpreter snapshot exceeded the size limit.
+	PermissionApprovalEvaluationReasonCodeInterpreterTooLarge PermissionApprovalEvaluationReasonCode = "interpreter-too-large"
+	// The script interpreter could not be inspected.
+	PermissionApprovalEvaluationReasonCodeInterpreterUnavailable PermissionApprovalEvaluationReasonCode = "interpreter-unavailable"
+	// An interpreter wrapped a script that could not be reviewed.
+	PermissionApprovalEvaluationReasonCodeInterpreterWrappedScript PermissionApprovalEvaluationReasonCode = "interpreter-wrapped-script"
+	// The script working directory was invalid.
+	PermissionApprovalEvaluationReasonCodeInvalidWorkingDirectory PermissionApprovalEvaluationReasonCode = "invalid-working-directory"
+	// The judge interface returned an error.
+	PermissionApprovalEvaluationReasonCodeJudgeError PermissionApprovalEvaluationReasonCode = "judge-error"
+	// The judge interface returned a usable verdict.
+	PermissionApprovalEvaluationReasonCodeJudgeVerdict PermissionApprovalEvaluationReasonCode = "judge-verdict"
+	// The script snapshot manifest was malformed.
+	PermissionApprovalEvaluationReasonCodeMalformedScriptActionManifest PermissionApprovalEvaluationReasonCode = "malformed-script-action-manifest"
+	// The script review metadata was malformed.
+	PermissionApprovalEvaluationReasonCodeMalformedScriptActionReview PermissionApprovalEvaluationReasonCode = "malformed-script-action-review"
+	// Managed policy required a human decision.
+	PermissionApprovalEvaluationReasonCodeManagedApprovalRequired PermissionApprovalEvaluationReasonCode = "managed-approval-required"
+	// The script snapshot was not UTF-8.
+	PermissionApprovalEvaluationReasonCodeNonUtf8 PermissionApprovalEvaluationReasonCode = "non-utf8"
+	// The request resolved before assisted-approval evaluation.
+	PermissionApprovalEvaluationReasonCodeNotReached PermissionApprovalEvaluationReasonCode = "not-reached"
+	// The script path was not a regular file.
+	PermissionApprovalEvaluationReasonCodeNotRegularFile PermissionApprovalEvaluationReasonCode = "not-regular-file"
+	// The script path was not authorized for inspection.
+	PermissionApprovalEvaluationReasonCodePathNotAuthorized PermissionApprovalEvaluationReasonCode = "path-not-authorized"
+	// The request asked to bypass sandbox restrictions.
+	PermissionApprovalEvaluationReasonCodeSandboxBypass PermissionApprovalEvaluationReasonCode = "sandbox-bypass"
+	// The shell environment could not be reviewed.
+	PermissionApprovalEvaluationReasonCodeShellEnvironmentUnreviewable PermissionApprovalEvaluationReasonCode = "shell-environment-unreviewable"
+	// The script snapshot exceeded the size limit.
+	PermissionApprovalEvaluationReasonCodeTooLarge PermissionApprovalEvaluationReasonCode = "too-large"
+	// Script review was unavailable.
+	PermissionApprovalEvaluationReasonCodeUnavailable PermissionApprovalEvaluationReasonCode = "unavailable"
+	// Attribution is missing or outside the supported vocabulary.
+	PermissionApprovalEvaluationReasonCodeUnknown PermissionApprovalEvaluationReasonCode = "unknown"
+	// The script snapshot could not be read.
+	PermissionApprovalEvaluationReasonCodeUnreadable PermissionApprovalEvaluationReasonCode = "unreadable"
+	// A script path could not be represented for review.
+	PermissionApprovalEvaluationReasonCodeUnrepresentablePath PermissionApprovalEvaluationReasonCode = "unrepresentable-path"
+	// The script invocation could not be reviewed.
+	PermissionApprovalEvaluationReasonCodeUnreviewableScriptInvocation PermissionApprovalEvaluationReasonCode = "unreviewable-script-invocation"
 )
 
 // Which direction a message-backed authorization claim moves authority in.

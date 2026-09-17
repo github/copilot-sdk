@@ -4562,6 +4562,15 @@ export interface CopilotUserResponse {
    * Whether CLI remote control is enabled for the user.
    */
   cli_remote_control_enabled?: boolean;
+  /**
+   * Enterprises that provide the user's Copilot license, each with a stable numeric ID.
+   */
+  enterprise_list?: {
+    /**
+     * Numeric database ID of the enterprise.
+     */
+    id: number;
+  }[];
 }
 /**
  * Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.

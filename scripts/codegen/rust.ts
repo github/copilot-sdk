@@ -85,12 +85,6 @@ const STRING_NEWTYPE_OVERRIDES: Record<string, string> = {
 	requestId: "RequestId",
 };
 
-const STRING_ENUM_VARIANT_OVERRIDES: Record<string, Record<string, string>> = {
-	CatalogTrustEligibility: {
-		unknown: "UnknownValue",
-	},
-};
-
 // ── Naming helpers ──────────────────────────────────────────────────────────
 
 function toPascalCase(s: string): string {
@@ -1055,12 +1049,14 @@ function emitRustStringEnum(
 	const usedVariantNames = new Set<string>();
 	const reservedVariantNames = new Set(["Unknown"]);
 	for (const value of values) {
+		// Keep the protocol's explicit "unknown" distinct from the serde fallback,
+		// including anonymous enums whose names depend on their containing type.
 		const variantName = uniqueRustPascalIdentifier(
 			value,
 			usedVariantNames,
 			"Value",
 			reservedVariantNames,
-			STRING_ENUM_VARIANT_OVERRIDES[enumName]?.[value],
+			value === "unknown" ? "UnknownValue" : undefined,
 		);
 		pushRustDoc(lines, enumValueDescriptions?.[value], "    ");
 		if (variantName !== value) {

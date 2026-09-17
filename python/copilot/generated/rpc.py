@@ -48,6 +48,11 @@ def from_bool(x: Any) -> bool:
     assert isinstance(x, bool)
     return x
 
+def from_int(x: Any) -> int:
+    assert isinstance(x, (int, float)) and not isinstance(x, bool)
+    assert not isinstance(x, float) or x.is_integer()
+    return int(x)
+
 def from_float(x: Any) -> float:
     assert isinstance(x, (float, int)) and not isinstance(x, bool)
     return float(x)
@@ -56,22 +61,17 @@ def to_float(x: Any) -> float:
     assert isinstance(x, (int, float))
     return x
 
-def from_dict(f: Callable[[Any], T], x: Any) -> dict[str, T]:
-    assert isinstance(x, dict)
-    return { k: f(v) for (k, v) in x.items() }
-
 def from_list(f: Callable[[Any], T], x: Any) -> list[T]:
     assert isinstance(x, list)
     return [f(y) for y in x]
 
+def from_dict(f: Callable[[Any], T], x: Any) -> dict[str, T]:
+    assert isinstance(x, dict)
+    return { k: f(v) for (k, v) in x.items() }
+
 def to_enum(c: type[EnumT], x: Any) -> EnumT:
     assert isinstance(x, c)
     return x.value
-
-def from_int(x: Any) -> int:
-    assert isinstance(x, (int, float)) and not isinstance(x, bool)
-    assert not isinstance(x, float) or x.is_integer()
-    return int(x)
 
 def from_datetime(x: Any) -> datetime:
     return dateutil.parser.parse(x)
@@ -163,6 +163,22 @@ class CopilotUserResponseEndpoints:
             result["proxy"] = from_union([from_str, from_none], self.proxy)
         if self.telemetry is not None:
             result["telemetry"] = from_union([from_str, from_none], self.telemetry)
+        return result
+
+@dataclass
+class EnterpriseList:
+    id: int
+    """Numeric database ID of the enterprise."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'EnterpriseList':
+        assert isinstance(obj, dict)
+        id = from_int(obj.get("id"))
+        return EnterpriseList(id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = from_int(self.id)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -34840,6 +34856,9 @@ class CopilotUserResponse:
     endpoints: CopilotUserResponseEndpoints | None = None
     """Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough."""
 
+    enterprise_list: list[EnterpriseList] | None = None
+    """Enterprises that provide the user's Copilot license, each with a stable numeric ID."""
+
     is_mcp_enabled: Any = None
     """Whether MCP (Model Context Protocol) support is enabled for the user."""
 
@@ -34902,6 +34921,7 @@ class CopilotUserResponse:
         copilot_plan = from_union([from_str, from_none], obj.get("copilot_plan"))
         copilotignore_enabled = from_union([from_bool, from_none], obj.get("copilotignore_enabled"))
         endpoints = from_union([CopilotUserResponseEndpoints.from_dict, from_none], obj.get("endpoints"))
+        enterprise_list = from_union([lambda x: from_list(EnterpriseList.from_dict, x), from_none], obj.get("enterprise_list"))
         is_mcp_enabled = obj.get("is_mcp_enabled")
         is_staff = from_union([from_bool, from_none], obj.get("is_staff"))
         limited_user_quotas = from_union([lambda x: from_dict(from_float, x), from_none], obj.get("limited_user_quotas"))
@@ -34916,7 +34936,7 @@ class CopilotUserResponse:
         restricted_telemetry = from_union([from_bool, from_none], obj.get("restricted_telemetry"))
         te = from_union([from_bool, from_none], obj.get("te"))
         token_based_billing = from_union([from_bool, from_none], obj.get("token_based_billing"))
-        return CopilotUserResponse(access_type_sku, analytics_tracking_id, assigned_date, can_signup_for_limited, can_upgrade_plan, chat_enabled, cli_remote_control_enabled, cloud_session_storage_enabled, codex_agent_enabled, copilot_plan, copilotignore_enabled, endpoints, is_mcp_enabled, is_staff, limited_user_quotas, limited_user_reset_date, login, monthly_quotas, organization_list, organization_login_list, quota_reset_date, quota_reset_date_utc, quota_snapshots, restricted_telemetry, te, token_based_billing)
+        return CopilotUserResponse(access_type_sku, analytics_tracking_id, assigned_date, can_signup_for_limited, can_upgrade_plan, chat_enabled, cli_remote_control_enabled, cloud_session_storage_enabled, codex_agent_enabled, copilot_plan, copilotignore_enabled, endpoints, enterprise_list, is_mcp_enabled, is_staff, limited_user_quotas, limited_user_reset_date, login, monthly_quotas, organization_list, organization_login_list, quota_reset_date, quota_reset_date_utc, quota_snapshots, restricted_telemetry, te, token_based_billing)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -34944,6 +34964,8 @@ class CopilotUserResponse:
             result["copilotignore_enabled"] = from_union([from_bool, from_none], self.copilotignore_enabled)
         if self.endpoints is not None:
             result["endpoints"] = from_union([lambda x: to_class(CopilotUserResponseEndpoints, x), from_none], self.endpoints)
+        if self.enterprise_list is not None:
+            result["enterprise_list"] = from_union([lambda x: from_list(lambda x: to_class(EnterpriseList, x), x), from_none], self.enterprise_list)
         if self.is_mcp_enabled is not None:
             result["is_mcp_enabled"] = self.is_mcp_enabled
         if self.is_staff is not None:
@@ -45567,6 +45589,7 @@ __all__ = [
     "DiscoveredMCPServerType",
     "EnqueueCommandParams",
     "EnqueueCommandResult",
+    "EnterpriseList",
     "Entry",
     "EnvAuthInfo",
     "EnvAuthInfoType",

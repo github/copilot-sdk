@@ -3095,6 +3095,11 @@ public sealed partial class SessionCompactionCompleteData
     [JsonPropertyName("requestId")]
     public string? RequestId { get; set; }
 
+    /// <summary>Reasoning baseline on the replacement summary, preserved when replay skips the compacted history.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("responsesReasoning")]
+    public ResponsesReasoning? ResponsesReasoning { get; set; }
+
     /// <summary>Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("serviceRequestId")]
@@ -3490,6 +3495,11 @@ public sealed partial class UserMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentAgentTaskId")]
     public string? ParentAgentTaskId { get; set; }
+
+    /// <summary>Responses reasoning settings anchored before this model-facing message, for cache-stable history replay.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("responsesReasoning")]
+    public ResponsesReasoning? ResponsesReasoning { get; set; }
 
     /// <summary>Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-&lt;agent-id&gt;` for an inter-agent prompt).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5428,6 +5438,11 @@ public sealed partial class SystemNotificationData
     /// <summary>Structured metadata identifying what triggered this notification.</summary>
     [JsonPropertyName("kind")]
     public required SystemNotification Kind { get; set; }
+
+    /// <summary>Responses reasoning settings anchored before this model-facing message, for cache-stable history replay.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("responsesReasoning")]
+    public ResponsesReasoning? ResponsesReasoning { get; set; }
 }
 
 /// <summary>Permission request notification requiring client approval with request details.</summary>
@@ -5437,6 +5452,11 @@ public sealed partial class PermissionRequestedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("agentMode")]
     public SessionMode? AgentMode { get; set; }
+
+    /// <summary>Permission mode captured when evaluation began. Absent on historical events.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("permissionMode")]
+    public PermissionMode? PermissionMode { get; set; }
 
     /// <summary>Details of the permission being requested.</summary>
     [JsonPropertyName("permissionRequest")]
@@ -6961,6 +6981,23 @@ public sealed partial class CompactionCompleteCompactionTokensUsed
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("outputTokens")]
     public long? OutputTokens { get; set; }
+}
+
+/// <summary>Original request-level and effective conversation reasoning effort for a Responses history boundary.</summary>
+/// <remarks>Nested data type for <c>ResponsesReasoning</c>.</remarks>
+public sealed partial class ResponsesReasoning
+{
+    /// <summary>Effective effort selected before this message, independent of the response-level reasoning field.</summary>
+    [JsonPropertyName("effort")]
+    public required string Effort { get; set; }
+
+    /// <summary>Original request-level effort, retained while replaying this conversation prefix.</summary>
+    [JsonPropertyName("initialEffort")]
+    public required string InitialEffort { get; set; }
+
+    /// <summary>Provider model whose reasoning settings this boundary records.</summary>
+    [JsonPropertyName("model")]
+    public required string Model { get; set; }
 }
 
 /// <summary>Inclusive durable event range summarized by a completion receipt.</summary>
@@ -9632,11 +9669,38 @@ public sealed partial class PermissionRequestUrl : PermissionRequest
     public required string Url { get; set; }
 }
 
+/// <summary>Bounded runtime attribution, independent of free-text rationale. Telemetry revalidates this vocabulary before standard collection.</summary>
+/// <remarks>Nested data type for <c>PermissionApprovalEvaluation</c>.</remarks>
+public sealed partial class PermissionApprovalEvaluation
+{
+    /// <summary>Stage that produced this attribution.</summary>
+    [JsonPropertyName("evaluationStage")]
+    public required PermissionApprovalEvaluationEvaluationStage EvaluationStage { get; set; }
+
+    /// <summary>Whether the request invoked the judge interface. A cached recommendation retains the original attempt fact. Omitted means unknown, including inherited outcomes.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("judgeAttempted")]
+    public bool? JudgeAttempted { get; set; }
+
+    /// <summary>Status of the local judge interface, not proof of a model network call.</summary>
+    [JsonPropertyName("judgeStatus")]
+    public required PermissionApprovalEvaluationJudgeStatus JudgeStatus { get; set; }
+
+    /// <summary>Machine-readable runtime gate reason, never a command, path or human rationale.</summary>
+    [JsonPropertyName("reasonCode")]
+    public required PermissionApprovalEvaluationReasonCode ReasonCode { get; set; }
+}
+
 /// <summary>Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.</summary>
 /// <remarks>Nested data type for <c>PermissionAssistedApproval</c>.</remarks>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class PermissionAssistedApproval
 {
+    /// <summary>Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("evaluation")]
+    public PermissionApprovalEvaluation? Evaluation { get; set; }
+
     /// <summary>Classified cause of an `error` recommendation. Absent for every other recommendation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("failureReason")]
@@ -15428,6 +15492,282 @@ public readonly struct PermissionRequestMemoryAction : IEquatable<PermissionRequ
     }
 }
 
+/// <summary>Stage that produced this attribution.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionApprovalEvaluationEvaluationStage : IEquatable<PermissionApprovalEvaluationEvaluationStage>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionApprovalEvaluationEvaluationStage"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionApprovalEvaluationEvaluationStage"/>.</param>
+    [JsonConstructor]
+    public PermissionApprovalEvaluationEvaluationStage(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionApprovalEvaluationEvaluationStage"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The attribution stage is unknown.</summary>
+    public static PermissionApprovalEvaluationEvaluationStage Unknown { get; } = new("unknown");
+
+    /// <summary>The request resolved before assisted-approval evaluation.</summary>
+    public static PermissionApprovalEvaluationEvaluationStage NotReached { get; } = new("not_reached");
+
+    /// <summary>A runtime gate skipped the judge.</summary>
+    public static PermissionApprovalEvaluationEvaluationStage PreJudge { get; } = new("pre_judge");
+
+    /// <summary>The judge interface produced the evaluation.</summary>
+    public static PermissionApprovalEvaluationEvaluationStage Judge { get; } = new("judge");
+
+    /// <summary>A cached recommendation or another request's outcome was reused.</summary>
+    public static PermissionApprovalEvaluationEvaluationStage Reuse { get; } = new("reuse");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionApprovalEvaluationEvaluationStage"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionApprovalEvaluationEvaluationStage left, PermissionApprovalEvaluationEvaluationStage right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionApprovalEvaluationEvaluationStage"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionApprovalEvaluationEvaluationStage left, PermissionApprovalEvaluationEvaluationStage right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionApprovalEvaluationEvaluationStage other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionApprovalEvaluationEvaluationStage other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionApprovalEvaluationEvaluationStage}"/> for serializing <see cref="PermissionApprovalEvaluationEvaluationStage"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionApprovalEvaluationEvaluationStage>
+    {
+        /// <inheritdoc />
+        public override PermissionApprovalEvaluationEvaluationStage Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionApprovalEvaluationEvaluationStage value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionApprovalEvaluationEvaluationStage));
+        }
+    }
+}
+
+/// <summary>Status of the local judge interface, not proof of a model network call.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionApprovalEvaluationJudgeStatus : IEquatable<PermissionApprovalEvaluationJudgeStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionApprovalEvaluationJudgeStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionApprovalEvaluationJudgeStatus"/>.</param>
+    [JsonConstructor]
+    public PermissionApprovalEvaluationJudgeStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionApprovalEvaluationJudgeStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>No authoritative attribution is available.</summary>
+    public static PermissionApprovalEvaluationJudgeStatus Unknown { get; } = new("unknown");
+
+    /// <summary>This evaluation did not invoke the judge interface.</summary>
+    public static PermissionApprovalEvaluationJudgeStatus NotCalled { get; } = new("not_called");
+
+    /// <summary>The judge interface returned a usable verdict.</summary>
+    public static PermissionApprovalEvaluationJudgeStatus Completed { get; } = new("completed");
+
+    /// <summary>The judge interface returned an error.</summary>
+    public static PermissionApprovalEvaluationJudgeStatus Failed { get; } = new("failed");
+
+    /// <summary>This evaluation reused a cached recommendation.</summary>
+    public static PermissionApprovalEvaluationJudgeStatus Cached { get; } = new("cached");
+
+    /// <summary>This request inherited another decision without local judge attribution.</summary>
+    public static PermissionApprovalEvaluationJudgeStatus Inherited { get; } = new("inherited");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionApprovalEvaluationJudgeStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionApprovalEvaluationJudgeStatus left, PermissionApprovalEvaluationJudgeStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionApprovalEvaluationJudgeStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionApprovalEvaluationJudgeStatus left, PermissionApprovalEvaluationJudgeStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionApprovalEvaluationJudgeStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionApprovalEvaluationJudgeStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionApprovalEvaluationJudgeStatus}"/> for serializing <see cref="PermissionApprovalEvaluationJudgeStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionApprovalEvaluationJudgeStatus>
+    {
+        /// <inheritdoc />
+        public override PermissionApprovalEvaluationJudgeStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionApprovalEvaluationJudgeStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionApprovalEvaluationJudgeStatus));
+        }
+    }
+}
+
+/// <summary>Machine-readable runtime gate reason, never a command, path or human rationale.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionApprovalEvaluationReasonCode : IEquatable<PermissionApprovalEvaluationReasonCode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionApprovalEvaluationReasonCode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionApprovalEvaluationReasonCode"/>.</param>
+    [JsonConstructor]
+    public PermissionApprovalEvaluationReasonCode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionApprovalEvaluationReasonCode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Attribution is missing or outside the supported vocabulary.</summary>
+    public static PermissionApprovalEvaluationReasonCode Unknown { get; } = new("unknown");
+
+    /// <summary>The request resolved before assisted-approval evaluation.</summary>
+    public static PermissionApprovalEvaluationReasonCode NotReached { get; } = new("not-reached");
+
+    /// <summary>Assisted approval was inactive for this request.</summary>
+    public static PermissionApprovalEvaluationReasonCode Inactive { get; } = new("inactive");
+
+    /// <summary>The judge was skipped because authorization extraction could not safely establish a complete recent history.</summary>
+    public static PermissionApprovalEvaluationReasonCode AuthorizationHistoryIncomplete { get; } = new("authorization-history-incomplete");
+
+    /// <summary>Managed policy required a human decision.</summary>
+    public static PermissionApprovalEvaluationReasonCode ManagedApprovalRequired { get; } = new("managed-approval-required");
+
+    /// <summary>The request asked to bypass sandbox restrictions.</summary>
+    public static PermissionApprovalEvaluationReasonCode SandboxBypass { get; } = new("sandbox-bypass");
+
+    /// <summary>An action field exceeded the judge input limit.</summary>
+    public static PermissionApprovalEvaluationReasonCode ActionTooLong { get; } = new("action-too-long");
+
+    /// <summary>The script path was not authorized for inspection.</summary>
+    public static PermissionApprovalEvaluationReasonCode PathNotAuthorized { get; } = new("path-not-authorized");
+
+    /// <summary>The script working directory was invalid.</summary>
+    public static PermissionApprovalEvaluationReasonCode InvalidWorkingDirectory { get; } = new("invalid-working-directory");
+
+    /// <summary>The script snapshot could not be read.</summary>
+    public static PermissionApprovalEvaluationReasonCode Unreadable { get; } = new("unreadable");
+
+    /// <summary>The script path was not a regular file.</summary>
+    public static PermissionApprovalEvaluationReasonCode NotRegularFile { get; } = new("not-regular-file");
+
+    /// <summary>The script snapshot exceeded the size limit.</summary>
+    public static PermissionApprovalEvaluationReasonCode TooLarge { get; } = new("too-large");
+
+    /// <summary>The script snapshot was not UTF-8.</summary>
+    public static PermissionApprovalEvaluationReasonCode NonUtf8 { get; } = new("non-utf8");
+
+    /// <summary>The script interpreter could not be inspected.</summary>
+    public static PermissionApprovalEvaluationReasonCode InterpreterUnavailable { get; } = new("interpreter-unavailable");
+
+    /// <summary>The interpreter snapshot exceeded the size limit.</summary>
+    public static PermissionApprovalEvaluationReasonCode InterpreterTooLarge { get; } = new("interpreter-too-large");
+
+    /// <summary>The shell environment could not be reviewed.</summary>
+    public static PermissionApprovalEvaluationReasonCode ShellEnvironmentUnreviewable { get; } = new("shell-environment-unreviewable");
+
+    /// <summary>A script path could not be represented for review.</summary>
+    public static PermissionApprovalEvaluationReasonCode UnrepresentablePath { get; } = new("unrepresentable-path");
+
+    /// <summary>An interpreter wrapped a script that could not be reviewed.</summary>
+    public static PermissionApprovalEvaluationReasonCode InterpreterWrappedScript { get; } = new("interpreter-wrapped-script");
+
+    /// <summary>The script invocation could not be reviewed.</summary>
+    public static PermissionApprovalEvaluationReasonCode UnreviewableScriptInvocation { get; } = new("unreviewable-script-invocation");
+
+    /// <summary>The script argument binding could not be reviewed.</summary>
+    public static PermissionApprovalEvaluationReasonCode ArgumentBindingUnreviewable { get; } = new("argument-binding-unreviewable");
+
+    /// <summary>The script review metadata was malformed.</summary>
+    public static PermissionApprovalEvaluationReasonCode MalformedScriptActionReview { get; } = new("malformed-script-action-review");
+
+    /// <summary>The script snapshot manifest was malformed.</summary>
+    public static PermissionApprovalEvaluationReasonCode MalformedScriptActionManifest { get; } = new("malformed-script-action-manifest");
+
+    /// <summary>Script review was unavailable.</summary>
+    public static PermissionApprovalEvaluationReasonCode Unavailable { get; } = new("unavailable");
+
+    /// <summary>The judge interface returned a usable verdict.</summary>
+    public static PermissionApprovalEvaluationReasonCode JudgeVerdict { get; } = new("judge-verdict");
+
+    /// <summary>The judge interface returned an error.</summary>
+    public static PermissionApprovalEvaluationReasonCode JudgeError { get; } = new("judge-error");
+
+    /// <summary>The request inherited an outcome from another decision.</summary>
+    public static PermissionApprovalEvaluationReasonCode Inherited { get; } = new("inherited");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionApprovalEvaluationReasonCode"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionApprovalEvaluationReasonCode left, PermissionApprovalEvaluationReasonCode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionApprovalEvaluationReasonCode"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionApprovalEvaluationReasonCode left, PermissionApprovalEvaluationReasonCode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionApprovalEvaluationReasonCode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionApprovalEvaluationReasonCode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionApprovalEvaluationReasonCode}"/> for serializing <see cref="PermissionApprovalEvaluationReasonCode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionApprovalEvaluationReasonCode>
+    {
+        /// <inheritdoc />
+        public override PermissionApprovalEvaluationReasonCode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionApprovalEvaluationReasonCode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionApprovalEvaluationReasonCode));
+        }
+    }
+}
+
 /// <summary>Why the assisted-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -17469,6 +17809,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(OmittedBinaryResult))]
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
+[JsonSerializable(typeof(PermissionApprovalEvaluation))]
 [JsonSerializable(typeof(PermissionAssentDetectedData))]
 [JsonSerializable(typeof(PermissionAssentDetectedEvent))]
 [JsonSerializable(typeof(PermissionAssistedApproval))]
@@ -17531,6 +17872,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PersistedBinaryResult))]
 [JsonSerializable(typeof(PromptCacheBreakData))]
 [JsonSerializable(typeof(PromptCacheBreakEvent))]
+[JsonSerializable(typeof(ResponsesReasoning))]
 [JsonSerializable(typeof(SamplingCompletedData))]
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]

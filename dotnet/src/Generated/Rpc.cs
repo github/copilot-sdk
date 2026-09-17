@@ -667,6 +667,14 @@ public sealed class CopilotUserResponseEndpoints
     public string? Telemetry { get; set; }
 }
 
+/// <summary>RPC data type for CopilotUserResponseEnterpriseList operations.</summary>
+public sealed class CopilotUserResponseEnterpriseList
+{
+    /// <summary>Numeric database ID of the enterprise.</summary>
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+}
+
 /// <summary>RPC data type for CopilotUserResponseOrganizationListItem operations.</summary>
 public sealed class CopilotUserResponseOrganizationListItem
 {
@@ -910,6 +918,10 @@ public sealed class CopilotUserResponse
     /// <summary>Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.</summary>
     [JsonPropertyName("endpoints")]
     public CopilotUserResponseEndpoints? Endpoints { get; set; }
+
+    /// <summary>Enterprises that provide the user's Copilot license, each with a stable numeric ID.</summary>
+    [JsonPropertyName("enterprise_list")]
+    public IList<CopilotUserResponseEnterpriseList>? EnterpriseList { get; set; }
 
     /// <summary>Whether MCP (Model Context Protocol) support is enabled for the user.</summary>
     [JsonPropertyName("is_mcp_enabled")]
@@ -39557,6 +39569,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryType), TypeInfoPropertyName = "SessionEventsOmittedBinaryType")]
 [JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedData), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedData")]
 [JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedEvent), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionApprovalEvaluation), TypeInfoPropertyName = "SessionEventsPermissionApprovalEvaluation")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionAssentDetectedData), TypeInfoPropertyName = "SessionEventsPermissionAssentDetectedData")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionAssentDetectedEvent), TypeInfoPropertyName = "SessionEventsPermissionAssentDetectedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionAssistedApproval), TypeInfoPropertyName = "SessionEventsPermissionAssistedApproval")]
@@ -39623,6 +39636,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
 [JsonSerializable(typeof(GitHub.Copilot.RecommendedAutoTier), TypeInfoPropertyName = "SessionEventsRecommendedAutoTier")]
 [JsonSerializable(typeof(GitHub.Copilot.RemediationAction), TypeInfoPropertyName = "SessionEventsRemediationAction")]
+[JsonSerializable(typeof(GitHub.Copilot.ResponsesReasoning), TypeInfoPropertyName = "SessionEventsResponsesReasoning")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedData), TypeInfoPropertyName = "SessionEventsSamplingRequestedData")]
@@ -39851,6 +39865,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ContextHeaviestMessage))]
 [JsonSerializable(typeof(CopilotUserResponse))]
 [JsonSerializable(typeof(CopilotUserResponseEndpoints))]
+[JsonSerializable(typeof(CopilotUserResponseEnterpriseList))]
 [JsonSerializable(typeof(CopilotUserResponseOrganizationListItem))]
 [JsonSerializable(typeof(CopilotUserResponseQuotaSnapshots))]
 [JsonSerializable(typeof(CopilotUserResponseQuotaSnapshotsChat))]

@@ -3178,6 +3178,7 @@ export interface CompactionCompleteData {
    * GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
    */
   requestId?: string;
+  responsesReasoning?: ResponsesReasoning;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
    */
@@ -3293,6 +3294,23 @@ export interface CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
    * Token category (e.g., "input", "output")
    */
   tokenType: string;
+}
+/**
+ * Original request-level and effective conversation reasoning effort for a Responses history boundary
+ */
+export interface ResponsesReasoning {
+  /**
+   * Effective effort selected before this message, independent of the response-level reasoning field
+   */
+  effort: string;
+  /**
+   * Original request-level effort, retained while replaying this conversation prefix
+   */
+  initialEffort: string;
+  /**
+   * Provider model whose reasoning settings this boundary records
+   */
+  model: string;
 }
 /**
  * Session event "session.task_complete". Task completion notification with summary from the agent
@@ -3882,6 +3900,7 @@ export interface UserMessageData {
    * Parent agent task ID for background telemetry correlated to this user turn
    */
   parentAgentTaskId?: string;
+  responsesReasoning?: ResponsesReasoning;
   /**
    * Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
    */
@@ -7859,6 +7878,7 @@ export interface SystemNotificationData {
    */
   content: string;
   kind: SystemNotification;
+  responsesReasoning?: ResponsesReasoning;
 }
 /**
  * System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt.
@@ -8098,6 +8118,7 @@ export interface PermissionRequestedEvent {
  */
 export interface PermissionRequestedData {
   agentMode?: SessionMode;
+  permissionMode?: PermissionMode;
   permissionRequest: PermissionRequest;
   promptRequest?: PermissionPromptRequest;
   /**
@@ -8440,6 +8461,7 @@ export interface PermissionRequestMemory {
  */
 /** @experimental */
 export interface PermissionAssistedApproval {
+  evaluation?: PermissionApprovalEvaluation;
   failureReason?: AssistedApprovalJudgeFailureReason;
   /**
    * Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.
@@ -8450,6 +8472,98 @@ export interface PermissionAssistedApproval {
    */
   reason?: string;
   recommendation: AssistedApprovalRecommendation;
+}
+/**
+ * Bounded runtime attribution, independent of free-text rationale. Telemetry revalidates this vocabulary before standard collection.
+ */
+export interface PermissionApprovalEvaluation {
+  /**
+   * Stage that produced this attribution.
+   */
+  evaluationStage: /** The attribution stage is unknown. */
+    | "unknown"
+    /** The request resolved before assisted-approval evaluation. */
+    | "not_reached"
+    /** A runtime gate skipped the judge. */
+    | "pre_judge"
+    /** The judge interface produced the evaluation. */
+    | "judge"
+    /** A cached recommendation or another request's outcome was reused. */
+    | "reuse";
+  /**
+   * Whether the request invoked the judge interface. A cached recommendation retains the original attempt fact. Omitted means unknown, including inherited outcomes.
+   */
+  judgeAttempted?: boolean;
+  /**
+   * Status of the local judge interface, not proof of a model network call.
+   */
+  judgeStatus: /** No authoritative attribution is available. */
+    | "unknown"
+    /** This evaluation did not invoke the judge interface. */
+    | "not_called"
+    /** The judge interface returned a usable verdict. */
+    | "completed"
+    /** The judge interface returned an error. */
+    | "failed"
+    /** This evaluation reused a cached recommendation. */
+    | "cached"
+    /** This request inherited another decision without local judge attribution. */
+    | "inherited";
+  /**
+   * Machine-readable runtime gate reason, never a command, path or human rationale.
+   */
+  reasonCode: /** Attribution is missing or outside the supported vocabulary. */
+    | "unknown"
+    /** The request resolved before assisted-approval evaluation. */
+    | "not-reached"
+    /** Assisted approval was inactive for this request. */
+    | "inactive"
+    /** The judge was skipped because authorization extraction could not safely establish a complete recent history. */
+    | "authorization-history-incomplete"
+    /** Managed policy required a human decision. */
+    | "managed-approval-required"
+    /** The request asked to bypass sandbox restrictions. */
+    | "sandbox-bypass"
+    /** An action field exceeded the judge input limit. */
+    | "action-too-long"
+    /** The script path was not authorized for inspection. */
+    | "path-not-authorized"
+    /** The script working directory was invalid. */
+    | "invalid-working-directory"
+    /** The script snapshot could not be read. */
+    | "unreadable"
+    /** The script path was not a regular file. */
+    | "not-regular-file"
+    /** The script snapshot exceeded the size limit. */
+    | "too-large"
+    /** The script snapshot was not UTF-8. */
+    | "non-utf8"
+    /** The script interpreter could not be inspected. */
+    | "interpreter-unavailable"
+    /** The interpreter snapshot exceeded the size limit. */
+    | "interpreter-too-large"
+    /** The shell environment could not be reviewed. */
+    | "shell-environment-unreviewable"
+    /** A script path could not be represented for review. */
+    | "unrepresentable-path"
+    /** An interpreter wrapped a script that could not be reviewed. */
+    | "interpreter-wrapped-script"
+    /** The script invocation could not be reviewed. */
+    | "unreviewable-script-invocation"
+    /** The script argument binding could not be reviewed. */
+    | "argument-binding-unreviewable"
+    /** The script review metadata was malformed. */
+    | "malformed-script-action-review"
+    /** The script snapshot manifest was malformed. */
+    | "malformed-script-action-manifest"
+    /** Script review was unavailable. */
+    | "unavailable"
+    /** The judge interface returned a usable verdict. */
+    | "judge-verdict"
+    /** The judge interface returned an error. */
+    | "judge-error"
+    /** The request inherited an outcome from another decision. */
+    | "inherited";
 }
 /**
  * Custom tool invocation permission request

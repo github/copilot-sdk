@@ -879,6 +879,13 @@ pub struct CopilotUserResponseEndpoints {
     pub telemetry: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopilotUserResponseEnterpriseListItem {
+    /// Numeric database ID of the enterprise.
+    pub id: i64,
+}
+
 /// Chat quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
 ///
 /// <div class="warning">
@@ -1125,6 +1132,9 @@ pub struct CopilotUserResponse {
     /// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoints: Option<CopilotUserResponseEndpoints>,
+    /// Enterprises that provide the user's Copilot license, each with a stable numeric ID.
+    #[serde(rename = "enterprise_list", skip_serializing_if = "Option::is_none")]
+    pub enterprise_list: Option<Vec<CopilotUserResponseEnterpriseListItem>>,
     /// Whether MCP (Model Context Protocol) support is enabled for the user.
     #[serde(rename = "is_mcp_enabled", skip_serializing_if = "Option::is_none")]
     pub is_mcp_enabled: Option<serde_json::Value>,

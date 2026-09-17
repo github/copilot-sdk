@@ -957,6 +957,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		MessageID                        *string               `json:"messageId,omitempty"`
 		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitzero"`
 		ParentAgentTaskID                *string               `json:"parentAgentTaskId,omitempty"`
+		ResponsesReasoning               *ResponsesReasoning   `json:"responsesReasoning,omitempty"`
 		Source                           *string               `json:"source,omitempty"`
 		SupportedNativeDocumentMIMETypes []string              `json:"supportedNativeDocumentMimeTypes,omitzero"`
 		TransformedContent               *string               `json:"transformedContent,omitempty"`
@@ -984,6 +985,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	r.MessageID = raw.MessageID
 	r.NativeDocumentPathFallbackPaths = raw.NativeDocumentPathFallbackPaths
 	r.ParentAgentTaskID = raw.ParentAgentTaskID
+	r.ResponsesReasoning = raw.ResponsesReasoning
 	r.Source = raw.Source
 	r.SupportedNativeDocumentMIMETypes = raw.SupportedNativeDocumentMIMETypes
 	r.TransformedContent = raw.TransformedContent
@@ -1791,8 +1793,9 @@ func (r SystemNotificationUnclassified) MarshalJSON() ([]byte, error) {
 
 func (r *SystemNotificationData) UnmarshalJSON(data []byte) error {
 	type rawSystemNotificationData struct {
-		Content string          `json:"content"`
-		Kind    json.RawMessage `json:"kind"`
+		Content            string              `json:"content"`
+		Kind               json.RawMessage     `json:"kind"`
+		ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 	}
 	var raw rawSystemNotificationData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1806,6 +1809,7 @@ func (r *SystemNotificationData) UnmarshalJSON(data []byte) error {
 		}
 		r.Kind = value
 	}
+	r.ResponsesReasoning = raw.ResponsesReasoning
 	return nil
 }
 
@@ -2295,6 +2299,7 @@ func (r PermissionPromptRequestWrite) MarshalJSON() ([]byte, error) {
 func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 	type rawPermissionRequestedData struct {
 		AgentMode         *SessionMode    `json:"agentMode,omitempty"`
+		PermissionMode    *PermissionMode `json:"permissionMode,omitempty"`
 		PermissionRequest json.RawMessage `json:"permissionRequest"`
 		PromptRequest     json.RawMessage `json:"promptRequest,omitempty"`
 		RequestID         string          `json:"requestId"`
@@ -2306,6 +2311,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	r.AgentMode = raw.AgentMode
+	r.PermissionMode = raw.PermissionMode
 	if raw.PermissionRequest != nil {
 		value, err := unmarshalPermissionRequest(raw.PermissionRequest)
 		if err != nil {
