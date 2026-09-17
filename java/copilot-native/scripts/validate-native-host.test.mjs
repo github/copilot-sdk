@@ -29,6 +29,17 @@ test("accepts Linux ARM64 with glibc", () => {
   );
 });
 
+test("accepts Linux musl x64", () => {
+  assert.equal(
+    validateNativeHost("linuxmusl-x64", {
+      platform: "linux",
+      arch: "x64",
+      glibcVersionRuntime: undefined,
+    }),
+    "Validated native build host: linuxmusl-x64 (musl)",
+  );
+});
+
 test("accepts Windows x64 without a libc requirement", () => {
   assert.equal(
     validateNativeHost("win32-x64", {
@@ -94,6 +105,30 @@ test("rejects Linux ARM64 with musl or unknown libc", () => {
         glibcVersionRuntime: undefined,
       }),
     /requires glibc/,
+  );
+});
+
+test("rejects Linux musl x64 with glibc", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("linuxmusl-x64", {
+        platform: "linux",
+        arch: "x64",
+        glibcVersionRuntime: "2.39",
+      }),
+    /requires musl/,
+  );
+});
+
+test("rejects a non-x64 host for Linux musl x64", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("linuxmusl-x64", {
+        platform: "linux",
+        arch: "arm64",
+        glibcVersionRuntime: undefined,
+      }),
+    /requires Linux x64/,
   );
 });
 
@@ -208,9 +243,9 @@ test("rejects macOS ARM64 for the macOS x64 classifier", () => {
 test("rejects an unimplemented classifier", () => {
   assert.throws(
     () =>
-      validateNativeHost("linuxmusl-x64", {
+      validateNativeHost("linuxmusl-arm64", {
         platform: "linux",
-        arch: "x64",
+        arch: "arm64",
         glibcVersionRuntime: undefined,
       }),
     /Unsupported native build classifier/,

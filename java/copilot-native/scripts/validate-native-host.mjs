@@ -5,6 +5,20 @@
 import { pathToFileURL } from "node:url";
 
 export function validateNativeHost(classifier, host) {
+  if (classifier === "linuxmusl-x64") {
+    if (host.platform !== "linux" || host.arch !== "x64") {
+      throw new Error(
+        `Native ${classifier} packaging requires Linux x64; detected ${host.platform}-${host.arch}`,
+      );
+    }
+    if (host.glibcVersionRuntime) {
+      throw new Error(
+        `Native ${classifier} packaging requires musl; detected glibc ${host.glibcVersionRuntime}`,
+      );
+    }
+    return `Validated native build host: ${classifier} (musl)`;
+  }
+
   if (classifier === "linux-x64" || classifier === "linux-arm64") {
     const expectedArch = classifier === "linux-x64" ? "x64" : "arm64";
     const displayArch = expectedArch === "x64" ? "x64" : "ARM64";
