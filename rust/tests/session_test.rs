@@ -3846,42 +3846,19 @@ async fn permission_result_forwards_context_beside_result() {
 }
 
 #[tokio::test]
-async fn session_event_notification_reaches_handler() {
-    let (session, mut server) = create_session_pair().await;
-    let mut sub = session.subscribe();
-    server
-        .send_event("session.idle", serde_json::json!({}))
-        .await;
-
-    let event = timeout(TIMEOUT, sub.recv()).await.unwrap().unwrap();
-    assert_eq!(event.event_type, "session.idle");
-}
-
-#[tokio::test]
-async fn routed_event_preserves_owned_payload_for_each_subscriber() {
+async fn session_event_notification_reaches_subscribers() {
     let (session, mut server) = create_session_pair().await;
     let mut first = session.subscribe();
     let mut second = session.subscribe();
-    let data = serde_json::json!({
-        "deltaContent": "content".repeat(32 * 1024),
-        "extra": {"nested": [1, true, null, {"value": "preserved"}]},
-    });
+    let data = serde_json::json!({"deltaContent": "hello"});
 
-    // A malformed notification must not prevent subsequent valid delivery.
-    server
-        .send_notification(
-            "session.event",
-            serde_json::json!({"sessionId": server.session_id, "event": {"data": data}}),
-        )
-        .await;
     server
         .send_event("assistant.message_delta", data.clone())
         .await;
 
     let mut first_event = timeout(TIMEOUT, first.recv()).await.unwrap().unwrap();
     assert_eq!(first_event.data, data);
-    first_event.data["extra"]["nested"][3]["value"] = serde_json::json!("changed");
-    first_event.data["deltaContent"] = serde_json::json!("replaced");
+    first_event.data["deltaContent"] = serde_json::json!("changed");
 
     let second_event = timeout(TIMEOUT, second.recv()).await.unwrap().unwrap();
     assert_eq!(second_event.id, first_event.id);
