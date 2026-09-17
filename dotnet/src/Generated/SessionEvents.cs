@@ -3095,6 +3095,11 @@ public sealed partial class SessionCompactionCompleteData
     [JsonPropertyName("requestId")]
     public string? RequestId { get; set; }
 
+    /// <summary>Reasoning baseline on the replacement summary, preserved when replay skips the compacted history.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("responsesReasoning")]
+    public ResponsesReasoning? ResponsesReasoning { get; set; }
+
     /// <summary>Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("serviceRequestId")]
@@ -3490,6 +3495,11 @@ public sealed partial class UserMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentAgentTaskId")]
     public string? ParentAgentTaskId { get; set; }
+
+    /// <summary>Responses reasoning settings anchored before this model-facing message, for cache-stable history replay.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("responsesReasoning")]
+    public ResponsesReasoning? ResponsesReasoning { get; set; }
 
     /// <summary>Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-&lt;agent-id&gt;` for an inter-agent prompt).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5428,6 +5438,11 @@ public sealed partial class SystemNotificationData
     /// <summary>Structured metadata identifying what triggered this notification.</summary>
     [JsonPropertyName("kind")]
     public required SystemNotification Kind { get; set; }
+
+    /// <summary>Responses reasoning settings anchored before this model-facing message, for cache-stable history replay.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("responsesReasoning")]
+    public ResponsesReasoning? ResponsesReasoning { get; set; }
 }
 
 /// <summary>Permission request notification requiring client approval with request details.</summary>
@@ -6961,6 +6976,23 @@ public sealed partial class CompactionCompleteCompactionTokensUsed
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("outputTokens")]
     public long? OutputTokens { get; set; }
+}
+
+/// <summary>Original request-level and effective conversation reasoning effort for a Responses history boundary.</summary>
+/// <remarks>Nested data type for <c>ResponsesReasoning</c>.</remarks>
+public sealed partial class ResponsesReasoning
+{
+    /// <summary>Effective effort selected before this message, independent of the response-level reasoning field.</summary>
+    [JsonPropertyName("effort")]
+    public required string Effort { get; set; }
+
+    /// <summary>Original request-level effort, retained while replaying this conversation prefix.</summary>
+    [JsonPropertyName("initialEffort")]
+    public required string InitialEffort { get; set; }
+
+    /// <summary>Provider model whose reasoning settings this boundary records.</summary>
+    [JsonPropertyName("model")]
+    public required string Model { get; set; }
 }
 
 /// <summary>Inclusive durable event range summarized by a completion receipt.</summary>
@@ -17531,6 +17563,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PersistedBinaryResult))]
 [JsonSerializable(typeof(PromptCacheBreakData))]
 [JsonSerializable(typeof(PromptCacheBreakEvent))]
+[JsonSerializable(typeof(ResponsesReasoning))]
 [JsonSerializable(typeof(SamplingCompletedData))]
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]

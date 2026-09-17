@@ -52,6 +52,8 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         @JsonProperty("customInstructions") String customInstructions,
         /** LLM-generated summary of the compacted conversation history */
         @JsonProperty("summaryContent") String summaryContent,
+        /** Reasoning baseline on the replacement summary, preserved when replay skips the compacted history */
+        @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning,
         /** Authoritative active-factory reminder appended to the compacted context */
         @JsonProperty("activeFactorySummary") String activeFactorySummary,
         /** Canonical model identifier used for model-specific behavior when replaying compaction */

@@ -3178,6 +3178,7 @@ export interface CompactionCompleteData {
    * GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
    */
   requestId?: string;
+  responsesReasoning?: ResponsesReasoning;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
    */
@@ -3293,6 +3294,23 @@ export interface CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
    * Token category (e.g., "input", "output")
    */
   tokenType: string;
+}
+/**
+ * Original request-level and effective conversation reasoning effort for a Responses history boundary
+ */
+export interface ResponsesReasoning {
+  /**
+   * Effective effort selected before this message, independent of the response-level reasoning field
+   */
+  effort: string;
+  /**
+   * Original request-level effort, retained while replaying this conversation prefix
+   */
+  initialEffort: string;
+  /**
+   * Provider model whose reasoning settings this boundary records
+   */
+  model: string;
 }
 /**
  * Session event "session.task_complete". Task completion notification with summary from the agent
@@ -3882,6 +3900,7 @@ export interface UserMessageData {
    * Parent agent task ID for background telemetry correlated to this user turn
    */
   parentAgentTaskId?: string;
+  responsesReasoning?: ResponsesReasoning;
   /**
    * Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
    */
@@ -7859,6 +7878,7 @@ export interface SystemNotificationData {
    */
   content: string;
   kind: SystemNotification;
+  responsesReasoning?: ResponsesReasoning;
 }
 /**
  * System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt.

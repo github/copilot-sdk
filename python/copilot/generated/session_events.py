@@ -7936,6 +7936,33 @@ class PromptCacheBreakData:
 
 
 @dataclass
+class ResponsesReasoning:
+    "Original request-level and effective conversation reasoning effort for a Responses history boundary"
+    effort: str
+    initial_effort: str
+    model: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ResponsesReasoning":
+        assert isinstance(obj, dict)
+        effort = from_str(obj.get("effort"))
+        initial_effort = from_str(obj.get("initialEffort"))
+        model = from_str(obj.get("model"))
+        return ResponsesReasoning(
+            effort=effort,
+            initial_effort=initial_effort,
+            model=model,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["effort"] = from_str(self.effort)
+        result["initialEffort"] = from_str(self.initial_effort)
+        result["model"] = from_str(self.model)
+        return result
+
+
+@dataclass
 class SamplingCompletedData:
     "Sampling request completion notification signaling UI dismissal"
     request_id: str
@@ -8125,6 +8152,7 @@ class SessionCompactionCompleteData:
     pre_compaction_messages_length: int | None = None
     pre_compaction_tokens: int | None = None
     request_id: str | None = None
+    responses_reasoning: ResponsesReasoning | None = None
     service_request_id: str | None = None
     status_code: int | None = None
     summary_content: str | None = None
@@ -8151,6 +8179,7 @@ class SessionCompactionCompleteData:
         pre_compaction_messages_length = from_union([from_none, from_int], obj.get("preCompactionMessagesLength"))
         pre_compaction_tokens = from_union([from_none, from_int], obj.get("preCompactionTokens"))
         request_id = from_union([from_none, from_str], obj.get("requestId"))
+        responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
         summary_content = from_union([from_none, from_str], obj.get("summaryContent"))
@@ -8174,6 +8203,7 @@ class SessionCompactionCompleteData:
             pre_compaction_messages_length=pre_compaction_messages_length,
             pre_compaction_tokens=pre_compaction_tokens,
             request_id=request_id,
+            responses_reasoning=responses_reasoning,
             service_request_id=service_request_id,
             status_code=status_code,
             summary_content=summary_content,
@@ -8213,6 +8243,8 @@ class SessionCompactionCompleteData:
             result["preCompactionTokens"] = from_union([from_none, to_int], self.pre_compaction_tokens)
         if self.request_id is not None:
             result["requestId"] = from_union([from_none, from_str], self.request_id)
+        if self.responses_reasoning is not None:
+            result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self.responses_reasoning)
         if self.service_request_id is not None:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.status_code is not None:
@@ -10618,21 +10650,26 @@ class SystemNotificationData:
     "System-generated notification for runtime events like background task completion"
     content: str
     kind: SystemNotification
+    responses_reasoning: ResponsesReasoning | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SystemNotificationData":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         kind = _load_SystemNotification(obj.get("kind"))
+        responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         return SystemNotificationData(
             content=content,
             kind=kind,
+            responses_reasoning=responses_reasoning,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["content"] = from_str(self.content)
         result["kind"] = self.kind.to_dict()
+        if self.responses_reasoning is not None:
+            result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self.responses_reasoning)
         return result
 
 
@@ -11962,6 +11999,7 @@ class UserMessageData:
     message_id: str | None = None
     native_document_path_fallback_paths: list[str] | None = None
     parent_agent_task_id: str | None = None
+    responses_reasoning: ResponsesReasoning | None = None
     source: str | None = None
     supported_native_document_mime_types: list[str] | None = None
     transformed_content: str | None = None
@@ -11979,6 +12017,7 @@ class UserMessageData:
         message_id = from_union([from_none, from_str], obj.get("messageId"))
         native_document_path_fallback_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("nativeDocumentPathFallbackPaths"))
         parent_agent_task_id = from_union([from_none, from_str], obj.get("parentAgentTaskId"))
+        responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         source = from_union([from_none, from_str], obj.get("source"))
         supported_native_document_mime_types = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("supportedNativeDocumentMimeTypes"))
         transformed_content = from_union([from_none, from_str], obj.get("transformedContent"))
@@ -11993,6 +12032,7 @@ class UserMessageData:
             message_id=message_id,
             native_document_path_fallback_paths=native_document_path_fallback_paths,
             parent_agent_task_id=parent_agent_task_id,
+            responses_reasoning=responses_reasoning,
             source=source,
             supported_native_document_mime_types=supported_native_document_mime_types,
             transformed_content=transformed_content,
@@ -12018,6 +12058,8 @@ class UserMessageData:
             result["nativeDocumentPathFallbackPaths"] = from_union([from_none, lambda x: from_list(from_str, x)], self.native_document_path_fallback_paths)
         if self.parent_agent_task_id is not None:
             result["parentAgentTaskId"] = from_union([from_none, from_str], self.parent_agent_task_id)
+        if self.responses_reasoning is not None:
+            result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self.responses_reasoning)
         if self.source is not None:
             result["source"] = from_union([from_none, from_str], self.source)
         if self.supported_native_document_mime_types is not None:
@@ -13917,6 +13959,7 @@ __all__ = [
     "ReasoningSummary",
     "RecommendedAutoTier",
     "RemediationAction",
+    "ResponsesReasoning",
     "SamplingCompletedData",
     "SamplingRequestedData",
     "SandboxDecisionData",

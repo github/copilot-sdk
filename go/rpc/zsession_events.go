@@ -642,6 +642,8 @@ type SessionCompactionCompleteData struct {
 	PreCompactionTokens *int64 `json:"preCompactionTokens,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
 	RequestID *string `json:"requestId,omitempty"`
+	// Reasoning baseline on the replacement summary, preserved when replay skips the compacted history
+	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// For failed compaction only: the HTTP status code of the compaction LLM call failure, when it carried one. Absent for successful compaction and for failures without an HTTP status (e.g. an empty model response or a transport error).
@@ -2109,6 +2111,8 @@ type UserMessageData struct {
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
 	// Parent agent task ID for background telemetry correlated to this user turn
 	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
+	// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 	// Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
 	Source *string `json:"source,omitempty"`
 	// Normalized document MIME types that were sent natively instead of through tagged_files XML
@@ -2910,6 +2914,8 @@ type SystemNotificationData struct {
 	Content string `json:"content"`
 	// Structured metadata identifying what triggered this notification
 	Kind SystemNotification `json:"kind"`
+	// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 }
 
 func (*SystemNotificationData) sessionEventData()      {}
@@ -4719,6 +4725,16 @@ func (r PersistedBinaryImage) Type() PersistedBinaryResultType {
 		return PersistedBinaryResultTypeImage
 	}
 	return PersistedBinaryResultType(r.Discriminator)
+}
+
+// Original request-level and effective conversation reasoning effort for a Responses history boundary
+type ResponsesReasoning struct {
+	// Effective effort selected before this message, independent of the response-level reasoning field
+	Effort string `json:"effort"`
+	// Original request-level effort, retained while replaying this conversation prefix
+	InitialEffort string `json:"initialEffort"`
+	// Provider model whose reasoning settings this boundary records
+	Model string `json:"model"`
 }
 
 // The user's selected action for an exhausted session limit.

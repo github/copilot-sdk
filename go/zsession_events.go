@@ -269,6 +269,7 @@ type (
 	ReasoningSummary                                               = rpc.ReasoningSummary
 	RecommendedAutoTier                                            = rpc.RecommendedAutoTier
 	RemediationAction                                              = rpc.RemediationAction
+	ResponsesReasoning                                             = rpc.ResponsesReasoning
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
 	SandboxDecisionData                                            = rpc.SandboxDecisionData
