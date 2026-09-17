@@ -381,6 +381,65 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  build-darwin-x64-classifier:
+    name: Build Darwin x64 native classifier
+    needs: resolve-source
+    runs-on: macos-15-intel
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./java
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.resolve-source.outputs.validated_source }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Build and validate darwin-x64 classifier
+        run: |
+          set -euo pipefail
+          SOURCE_COMMIT=$(git rev-parse HEAD)
+          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.validated_source }}" ]; then
+            echo "::error::Checked out $SOURCE_COMMIT instead of the resolved release source."
+            exit 1
+          fi
+          VERSION="${{ needs.resolve-source.outputs.release_version }}"
+          node copilot-native/scripts/validate-native-host.mjs darwin-x64
+          mvn -B -pl copilot-native package -DskipTests -Drevision="$VERSION"
+          JAR="copilot-native/target/copilot-sdk-java-runtime-$VERSION-darwin-x64.jar"
+          PRIMARY_JAR="copilot-native/target/copilot-sdk-java-runtime-$VERSION.jar"
+          test -f "$JAR"
+          node copilot-native/scripts/validate-native-artifact.mjs \
+            classifier darwin-x64 "$JAR" "$(basename "$JAR")" ..
+          node copilot-native/scripts/validate-native-artifact.mjs placeholder "$PRIMARY_JAR"
+          MANIFEST="copilot-native/target/darwin-x64-$VERSION.sha256"
+          HASH=$(shasum -a 256 "$JAR" | cut -d ' ' -f 1)
+          printf '%s  %s' "$HASH" "$(basename "$JAR")" > "$MANIFEST"
+          node copilot-native/scripts/validate-native-artifact.mjs \
+            checksum "$JAR" "$MANIFEST" "$(basename "$JAR")"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: java-native-darwin-x64-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            java/copilot-native/target/copilot-sdk-java-runtime-${{ needs.resolve-source.outputs.release_version }}-darwin-x64.jar
+            java/copilot-native/target/darwin-x64-${{ needs.resolve-source.outputs.release_version }}.sha256
+          if-no-files-found: error
+          retention-days: 1
+
   deploy-maven:
     name: Deploy Java release to Maven Central
     needs:
@@ -390,6 +449,7 @@ jobs:
         build-windows-classifier,
         build-windows-arm64-classifier,
         build-darwin-classifier,
+        build-darwin-x64-classifier,
       ]
     runs-on: ubuntu-latest
     permissions:
@@ -442,6 +502,11 @@ jobs:
         with:
           name: java-native-darwin-arm64-release-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/java-native-darwin-arm64
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: java-native-darwin-x64-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/java-native-darwin-x64
 
       - name: Verify immutable source and Linux ARM64 classifier
         id: linux-arm64-artifact
@@ -527,6 +592,27 @@ jobs:
           echo "windows_arm64_jar=$JAR" >> "$GITHUB_OUTPUT"
           echo "windows_arm64_sha=$(cut -d ' ' -f 1 "$MANIFEST")" >> "$GITHUB_OUTPUT"
 
+      - name: Verify immutable source and Darwin x64 classifier
+        id: darwin-x64-artifact
+        run: |
+          SOURCE_COMMIT=$(git rev-parse HEAD)
+          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.validated_source }}" ]; then
+            echo "::error::Checked out $SOURCE_COMMIT instead of the resolved release source."
+            exit 1
+          fi
+          VERSION="${{ needs.resolve-source.outputs.release_version }}"
+          ARTIFACT_DIRECTORY="${{ runner.temp }}/java-native-darwin-x64"
+          JAR="$ARTIFACT_DIRECTORY/copilot-sdk-java-runtime-$VERSION-darwin-x64.jar"
+          MANIFEST="$ARTIFACT_DIRECTORY/darwin-x64-$VERSION.sha256"
+          test -f "$JAR"
+          test -f "$MANIFEST"
+          node "$GITHUB_WORKSPACE/java/copilot-native/scripts/validate-native-artifact.mjs" \
+            checksum "$JAR" "$MANIFEST" "$(basename "$JAR")"
+          node "$GITHUB_WORKSPACE/java/copilot-native/scripts/validate-native-artifact.mjs" \
+            classifier darwin-x64 "$JAR" "$(basename "$JAR")" "$GITHUB_WORKSPACE"
+          echo "darwin_x64_jar=$JAR" >> "$GITHUB_OUTPUT"
+          echo "darwin_x64_sha=$(cut -d ' ' -f 1 "$MANIFEST")" >> "$GITHUB_OUTPUT"
+
       - name: Build Linux classifier and deploy complete release
         id: publish-maven
         run: |
@@ -535,7 +621,8 @@ jobs:
             "-Dcopilot.native.external.linux.arm64.classifier.path=${{ steps.linux-arm64-artifact.outputs.linux_arm64_jar }}" \
             "-Dcopilot.native.external.win32.classifier.path=${{ steps.windows-artifact.outputs.windows_jar }}" \
             "-Dcopilot.native.external.win32.arm64.classifier.path=${{ steps.windows-arm64-artifact.outputs.windows_arm64_jar }}" \
-            "-Dcopilot.native.external.darwin.classifier.path=${{ steps.darwin-artifact.outputs.darwin_jar }}"
+            "-Dcopilot.native.external.darwin.classifier.path=${{ steps.darwin-artifact.outputs.darwin_jar }}" \
+            "-Dcopilot.native.external.darwin.x64.classifier.path=${{ steps.darwin-x64-artifact.outputs.darwin_x64_jar }}"
           LINUX_JAR="copilot-native/target/copilot-sdk-java-runtime-$VERSION-linux-x64.jar"
           test -f "$LINUX_JAR"
           node copilot-native/scripts/validate-native-artifact.mjs \
@@ -572,6 +659,7 @@ jobs:
             echo "| \`linux-arm64\` | \`ubuntu-24.04-arm\` | \`$(basename "${{ steps.linux-arm64-artifact.outputs.linux_arm64_jar }}")\` | \`${{ steps.linux-arm64-artifact.outputs.linux_arm64_sha }}\` | Published |"
             echo "| \`win32-x64\` | \`windows-latest\` | \`$(basename "${{ steps.windows-artifact.outputs.windows_jar }}")\` | \`${{ steps.windows-artifact.outputs.windows_sha }}\` | Published |"
             echo "| \`win32-arm64\` | \`windows-11-arm\` | \`$(basename "${{ steps.windows-arm64-artifact.outputs.windows_arm64_jar }}")\` | \`${{ steps.windows-arm64-artifact.outputs.windows_arm64_sha }}\` | Published |"
+            echo "| \`darwin-x64\` | \`macos-15-intel\` | \`$(basename "${{ steps.darwin-x64-artifact.outputs.darwin_x64_jar }}")\` | \`${{ steps.darwin-x64-artifact.outputs.darwin_x64_sha }}\` | Published |"
             echo "| \`darwin-arm64\` | \`macos-26\` | \`$(basename "${{ steps.darwin-artifact.outputs.darwin_jar }}")\` | \`${{ steps.darwin-artifact.outputs.darwin_sha }}\` | Published |"
           } >> "$GITHUB_STEP_SUMMARY"
         env:
