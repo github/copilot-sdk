@@ -230,6 +230,12 @@ jobs:
           node-version: 22
           package-manager-cache: false
 
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+          cache: "maven"
+
       - name: Build and validate linuxmusl-x64 classifier
         run: |
           set -euo pipefail
@@ -241,12 +247,17 @@ jobs:
           VERSION="${{ needs.resolve-source.outputs.release_version }}"
           docker run --rm \
             --volume "$GITHUB_WORKSPACE:/workspace" \
+            --volume "$HOME/.m2:/root/.m2" \
             --workdir /workspace/java \
+            --env HOST_GID="$(id -g)" \
+            --env HOST_UID="$(id -u)" \
             "eclipse-temurin:25-jdk-alpine" \
-            sh -c "apk add --no-cache git maven nodejs npm &&
+            sh -c "apk add --no-cache git java-cacerts maven nodejs npm &&
+              export JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts &&
               git config --global --add safe.directory /workspace &&
               node copilot-native/scripts/validate-native-host.mjs linuxmusl-x64 &&
-              mvn -B -pl copilot-native package -DskipTests -Dcopilot.native.libc=musl -Drevision=$VERSION"
+              mvn -B -pl copilot-native package -DskipTests -Dcopilot.native.libc=musl -Drevision=$VERSION &&
+              chown -R \$HOST_UID:\$HOST_GID copilot-native/target"
           JAR="copilot-native/target/copilot-sdk-java-runtime-$VERSION-linuxmusl-x64.jar"
           PRIMARY_JAR="copilot-native/target/copilot-sdk-java-runtime-$VERSION.jar"
           test -f "$JAR"
