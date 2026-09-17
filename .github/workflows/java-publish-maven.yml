@@ -279,8 +279,8 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  build-windows-classifier:
-    name: Build Windows native classifier
+  build-windows-x64-classifier:
+    name: Build Windows x64 native classifier
     needs: resolve-source
     runs-on: windows-latest
     permissions:
@@ -518,7 +518,7 @@ jobs:
         resolve-source,
         build-linux-arm64-classifier,
         build-linuxmusl-x64-classifier,
-        build-windows-classifier,
+        build-windows-x64-classifier,
         build-windows-arm64-classifier,
         build-darwin-classifier,
         build-darwin-x64-classifier,

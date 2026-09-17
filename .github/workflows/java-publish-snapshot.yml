@@ -171,8 +171,8 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  build-windows-classifier:
-    name: Build Windows snapshot classifier
+  build-windows-x64-classifier:
+    name: Build Windows x64 snapshot classifier
     needs: resolve-source
     runs-on: windows-latest
     permissions:
@@ -426,7 +426,7 @@ jobs:
         resolve-source,
         build-linux-arm64-classifier,
         build-linuxmusl-x64-classifier,
-        build-windows-classifier,
+        build-windows-x64-classifier,
         build-windows-arm64-classifier,
         build-darwin-classifier,
         build-darwin-x64-classifier,
@@ -527,7 +527,7 @@ jobs:
             exit 1
           fi
           VERSION="${{ steps.linux-arm64-artifact.outputs.version }}"
-          if [ "$VERSION" != "${{ needs.build-windows-classifier.outputs.version }}" ]; then
+          if [ "$VERSION" != "${{ needs.build-windows-x64-classifier.outputs.version }}" ]; then
             echo "::error::Windows classifier version does not match deploy version."
             exit 1
           fi
