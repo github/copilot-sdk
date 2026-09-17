@@ -3853,6 +3853,12 @@ async fn session_event_notification_reaches_subscribers() {
     let data = serde_json::json!({"deltaContent": "hello"});
 
     server
+        .send_notification(
+            "session.event",
+            serde_json::json!({"sessionId": server.session_id, "event": null}),
+        )
+        .await;
+    server
         .send_event("assistant.message_delta", data.clone())
         .await;
 
