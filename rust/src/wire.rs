@@ -113,6 +113,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_store: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_cross_session_messaging: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_skills: Option<bool>,
     pub request_user_input: bool,
     pub request_permission: bool,
@@ -273,6 +275,8 @@ pub(crate) struct SessionResumeWire {
     pub enable_host_git_operations: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_store: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_cross_session_messaging: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_skills: Option<bool>,
     pub request_user_input: bool,
