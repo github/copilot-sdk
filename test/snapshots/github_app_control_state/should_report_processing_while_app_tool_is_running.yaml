@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call wait_for_app_control, then reply with exactly APP_CONTROL_DONE.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: wait_for_app_control
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: APP_CONTROL_DONE
+      - role: assistant
+        content: APP_CONTROL_DONE
