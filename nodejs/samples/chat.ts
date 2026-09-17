@@ -12,6 +12,7 @@ import { mkdir } from "node:fs/promises";
 import { once } from "node:events";
 import { finished } from "node:stream/promises";
 import { parseArgs } from "node:util";
+import { createChatEventFormatter } from "./chatEventFormatting.js";
 
 export async function runChat(
     input: NodeJS.ReadableStream = process.stdin,
@@ -31,13 +32,32 @@ export async function runChat(
     let eventLog: WriteStream | undefined;
     let logFinished: Promise<void> | undefined;
     let loggingFailed = false;
+    const startedAt = performance.now();
+    let sequence = 0;
+    let promptVisible = false;
+    const formatEvent = createChatEventFormatter();
+    const color =
+        "isTTY" in output &&
+        output.isTTY === true &&
+        process.env.NO_COLOR === undefined &&
+        process.env.TERM !== "dumb";
     const write = (text: string) => output.write(text);
     const logEvent = (source: string, event: unknown) => {
         if (!eventLog) throw new Error("SDK event log is not open");
-        eventLog.write(
-            `${JSON.stringify({ receivedAt: new Date().toISOString(), source, event })}\n`
-        );
-        write(`\n[${source}]\n${JSON.stringify(event, null, 2)}\n`);
+        const now = performance.now();
+        const receivedAt = new Date().toISOString();
+        eventLog.write(`${JSON.stringify({ receivedAt, source, event })}\n`);
+        const display = formatEvent(source, event, {
+            receivedAt,
+            elapsedMs: now - startedAt,
+            sequence: ++sequence,
+            color,
+        });
+        if (display) {
+            if (promptVisible) write("\n");
+            promptVisible = false;
+            write(display);
+        }
     };
     const client = new CopilotClient({
         // Session featureFlags alone do not reach every runtime admission gate.
@@ -52,6 +72,7 @@ export async function runChat(
     const lines = rl[Symbol.asyncIterator]();
     const prompt = async (question: string) => {
         write(question);
+        promptVisible = true;
         const line = await lines.next();
         return line.done ? undefined : line.value;
     };
@@ -71,7 +92,9 @@ export async function runChat(
         await once(eventLog, "open");
         write(`SDK event log: ${logPath}\n`);
         write(
-            "Full event payloads are printed and saved, including potentially sensitive tool and telemetry data.\n"
+            "Timeline: Fusion, tool calls, messages, and turn boundaries; full events stay in JSONL.\n" +
+                "Message previews are limited to 180 characters. (*streaming*) marks observed streaming output.\n" +
+                "Times are UTC; event numbers match JSONL lines (gaps are hidden housekeeping events).\n"
         );
         if (enableHydraFusion) {
             write(
@@ -145,7 +168,7 @@ export async function runChat(
             }
 
             fusionCompleted = false;
-            const reply = await session.sendAndWait({ prompt: message });
+            await session.sendAndWait({ prompt: message });
             if (model === "hydrafusion" && !fusionCompleted) {
                 logEvent("chat.diagnostic", {
                     type: "fusion.not_executed",
@@ -158,7 +181,6 @@ export async function runChat(
                             : "Restart with --enable-hydrafusion to enable the local development gates."),
                 });
             }
-            if (reply) write(`\nAssistant: ${reply.data.content}\n\n`);
         }
     } catch (error) {
         if (!errors.includes(error)) errors.push(error);

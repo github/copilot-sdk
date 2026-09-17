@@ -103,7 +103,11 @@ beforeEach(() => {
         config.onEvent?.(startEvent);
         return { sendAndWait: mocks.sendAndWait, setModel: mocks.setModel };
     });
-    mocks.sendAndWait.mockResolvedValue(reply);
+    mocks.sendAndWait.mockImplementation(async () => {
+        const config: SessionConfig = mocks.createSession.mock.calls[0][0];
+        config.onEvent?.(reply);
+        return reply;
+    });
     mocks.setModel.mockResolvedValue(undefined);
     mocks.stop.mockResolvedValue([]);
 });
@@ -263,7 +267,76 @@ describe("chat sample", () => {
         expect(mocks.stop).toHaveBeenCalledOnce();
     });
 
-    it("prints and saves every early, tool, subagent delta, lifecycle, telemetry, and shutdown notification", async () => {
+    it("prints each Fusion progress and telemetry event synchronously, before the turn returns", async () => {
+        const input = new PassThrough();
+        const output = new PassThrough();
+        let transcript = "";
+        output.setEncoding("utf8");
+        output.on("data", (chunk: string) => {
+            transcript += chunk;
+        });
+        const activity: SessionEvent = {
+            ...eventBase,
+            type: "assistant.fusion_phase_activity",
+            ephemeral: true,
+            data: {
+                fusionId: "fusion-1",
+                phaseId: "phase-1",
+                phaseKind: "primary",
+                pattern: "single",
+                role: "solver",
+                conversationScope: "root",
+                activity: "model_output",
+                totalResponseSizeBytes: 12,
+            },
+        };
+        mocks.sendAndWait.mockImplementation(async () => {
+            const config: SessionConfig = mocks.createSession.mock.calls[0][0];
+            config.onEvent?.(activity);
+            expect(transcript).toContain("Fusion progress: model output");
+            expect(transcript).toContain("bytes: 12");
+            config.onEvent?.(activity);
+            expect(transcript.match(/Fusion progress: model output/g)).toHaveLength(2);
+
+            const options = mocks.construct.mock.calls[0][0];
+            options.onGitHubTelemetry?.({
+                restricted: false,
+                event: {
+                    kind: "hydrafusion_phase",
+                    properties: { phase_id: "phase-1" },
+                    metrics: {},
+                },
+            });
+            expect(transcript).toContain("Fusion phase telemetry");
+            expect(transcript).not.toContain("Assistant: Answer from the assistant");
+            config.onEvent?.(reply);
+            return reply;
+        });
+
+        const logPath = await createLogPath();
+        const running = runChat(input, output, logPath);
+        input.end("1\nhello\n/exit\n");
+        try {
+            await running;
+            expect(mocks.sendAndWait).toHaveBeenCalledOnce();
+            const records = (await readFile(logPath, "utf8"))
+                .trimEnd()
+                .split("\n")
+                .map((line) => JSON.parse(line));
+            expect(records.filter((record) => record.event.type === activity.type)).toHaveLength(2);
+            expect(transcript.match(/^\[\d{2}:\d{2}:\d{2}\.\d{3}Z/gm)).toHaveLength(4);
+            records.forEach((record, index) => {
+                if (record.event.type === "session.start") return;
+                expect(transcript).toContain(`[${record.receivedAt.slice(11, 23)}Z`);
+                expect(transcript).toContain(`#${index + 1}]`);
+            });
+        } finally {
+            input.destroy();
+            output.destroy();
+        }
+    });
+
+    it("shows compact selected summaries but saves every complete event without filtering", async () => {
         const toolEvent: SessionEvent = {
             ...eventBase,
             type: "tool.execution_start",
@@ -309,15 +382,15 @@ describe("chat sample", () => {
 
         const logPath = await createLogPath();
         const transcript = await runWithInput("1\nhello\n/exit\n", logPath);
-        for (const event of [startEvent, toolEvent, delta, reply, lifecycle, telemetry]) {
-            expect(transcript).toContain(JSON.stringify(event, null, 2));
-        }
-        expect(transcript).toContain("[sdk.session]");
-        expect(transcript).toContain("[sdk.lifecycle]");
-        expect(transcript).toContain("[sdk.telemetry]");
-        expect(transcript.indexOf('"session.start"')).toBeLessThan(
-            transcript.indexOf("Chat with Copilot")
-        );
+        expect(transcript).toContain("Tool invoked: example");
+        expect(transcript).toContain("Assistant message delta: streamed chunk (*streaming*)");
+        expect(transcript).toContain("Assistant: Answer from the assistant");
+        expect(transcript).not.toContain("session.start");
+        expect(transcript).not.toContain("session.deleted");
+        expect(transcript).not.toContain("deep-value");
+        expect(transcript).not.toContain("x".repeat(181));
+        expect(transcript).not.toContain("full telemetry value");
+        expect(transcript).not.toContain('"type":');
         expect(transcript).toContain(`SDK event log: ${logPath}`);
 
         const log = await readFile(logPath, "utf8");
