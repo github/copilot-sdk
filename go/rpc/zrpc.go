@@ -2439,13 +2439,13 @@ func (ConnectorConnectResultPending) Kind() ConnectorConnectResultKind {
 type ConnectorContinueRequest struct {
 	// Opaque continuation ID returned by connect, reconnect, or an earlier continuation.
 	ContinuationID string `json:"continuationId"`
-	// Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability
-	// limit.
-	DeadlineMs int64 `json:"deadlineMs"`
+	// Maximum wall-clock duration in milliseconds for this call. Must be between one and the
+	// capability limit.
+	DeadlineMs int32 `json:"deadlineMs"`
 	// Maximum catalog requests made by this call. Must be between one and the capability limit.
-	MaxAttempts int64 `json:"maxAttempts"`
+	MaxAttempts int32 `json:"maxAttempts"`
 	// Delay in milliseconds between attempts. Must not exceed the capability limit.
-	PollIntervalMs int64 `json:"pollIntervalMs"`
+	PollIntervalMs int32 `json:"pollIntervalMs"`
 }
 
 // Authoritative result after disconnect and MCP reconciliation.

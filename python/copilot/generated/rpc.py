@@ -2096,8 +2096,8 @@ class ConnectorContinueRequest:
     """Opaque continuation ID returned by connect, reconnect, or an earlier continuation."""
 
     deadline_ms: int
-    """Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability
-    limit.
+    """Maximum wall-clock duration in milliseconds for this call. Must be between one and the
+    capability limit.
     """
     max_attempts: int
     """Maximum catalog requests made by this call. Must be between one and the capability limit."""

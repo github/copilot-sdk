@@ -193,17 +193,20 @@
           "maxAttempts": {
             "type": "integer",
             "minimum": 1,
+            "maximum": 60,
             "description": "Maximum catalog requests made by this call. Must be between one and the capability limit."
           },
           "pollIntervalMs": {
             "type": "integer",
             "minimum": 0,
+            "maximum": 30000,
             "description": "Delay in milliseconds between attempts. Must not exceed the capability limit."
           },
           "deadlineMs": {
             "type": "integer",
-            "minimum": 0,
-            "description": "Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability limit."
+            "minimum": 1,
+            "maximum": 300000,
+            "description": "Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit."
           }
         },
         "required": [
@@ -573,17 +576,20 @@
         "maxAttempts": {
           "type": "integer",
           "minimum": 1,
+          "maximum": 60,
           "description": "Maximum catalog requests made by this call. Must be between one and the capability limit."
         },
         "pollIntervalMs": {
           "type": "integer",
           "minimum": 0,
+          "maximum": 30000,
           "description": "Delay in milliseconds between attempts. Must not exceed the capability limit."
         },
         "deadlineMs": {
           "type": "integer",
-          "minimum": 0,
-          "description": "Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability limit."
+          "minimum": 1,
+          "maximum": 300000,
+          "description": "Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit."
         }
       },
       "required": [

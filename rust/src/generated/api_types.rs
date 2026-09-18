@@ -23055,12 +23055,12 @@ pub struct ConnectorConnectResultPending {
 pub struct ConnectorContinueRequest {
     /// Opaque continuation ID returned by connect, reconnect, or an earlier continuation.
     pub continuation_id: String,
-    /// Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability limit.
-    pub deadline_ms: i64,
+    /// Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit.
+    pub deadline_ms: i32,
     /// Maximum catalog requests made by this call. Must be between one and the capability limit.
-    pub max_attempts: i64,
+    pub max_attempts: i32,
     /// Delay in milliseconds between attempts. Must not exceed the capability limit.
-    pub poll_interval_ms: i64,
+    pub poll_interval_ms: i32,
 }
 
 /// Authoritative result after disconnect and MCP reconciliation.

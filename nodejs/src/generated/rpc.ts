@@ -24754,7 +24754,7 @@ export interface ConnectorContinueRequest {
    */
   pollIntervalMs: number;
   /**
-   * Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability limit.
+   * Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit.
    */
   deadlineMs: number;
 }

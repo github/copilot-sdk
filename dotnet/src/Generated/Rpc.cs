@@ -20013,17 +20013,17 @@ internal sealed class ConnectorContinueRequest
     [JsonPropertyName("continuationId")]
     public string ContinuationId { get; set; } = string.Empty;
 
-    /// <summary>Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability limit.</summary>
+    /// <summary>Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit.</summary>
     [JsonPropertyName("deadlineMs")]
-    public long DeadlineMs { get; set; }
+    public int DeadlineMs { get; set; }
 
     /// <summary>Maximum catalog requests made by this call. Must be between one and the capability limit.</summary>
     [JsonPropertyName("maxAttempts")]
-    public long MaxAttempts { get; set; }
+    public int MaxAttempts { get; set; }
 
     /// <summary>Delay in milliseconds between attempts. Must not exceed the capability limit.</summary>
     [JsonPropertyName("pollIntervalMs")]
-    public long PollIntervalMs { get; set; }
+    public int PollIntervalMs { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -39541,10 +39541,10 @@ public sealed class ConnectorsApi
     /// <param name="continuationId">Opaque continuation ID returned by connect, reconnect, or an earlier continuation.</param>
     /// <param name="maxAttempts">Maximum catalog requests made by this call. Must be between one and the capability limit.</param>
     /// <param name="pollIntervalMs">Delay in milliseconds between attempts. Must not exceed the capability limit.</param>
-    /// <param name="deadlineMs">Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability limit.</param>
+    /// <param name="deadlineMs">Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Typed result of initiating or continuing a Connector connection.</returns>
-    public async Task<ConnectorConnectResult> ContinueConnectionAsync(string continuationId, long maxAttempts, long pollIntervalMs, long deadlineMs, CancellationToken cancellationToken = default)
+    public async Task<ConnectorConnectResult> ContinueConnectionAsync(string continuationId, int maxAttempts, int pollIntervalMs, int deadlineMs, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(continuationId);
         _session.ThrowIfDisposed();

@@ -32,7 +32,7 @@ public record SessionConnectorsContinueConnectionParams(
     @JsonProperty("maxAttempts") Long maxAttempts,
     /** Delay in milliseconds between attempts. Must not exceed the capability limit. */
     @JsonProperty("pollIntervalMs") Long pollIntervalMs,
-    /** Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability limit. */
+    /** Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit. */
     @JsonProperty("deadlineMs") Long deadlineMs
 ) {
 }
