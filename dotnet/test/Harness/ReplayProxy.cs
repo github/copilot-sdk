@@ -251,7 +251,8 @@ public record ChatCompletionRequest(
     string Model,
     List<ChatCompletionMessage> Messages,
     List<ChatCompletionTool>? Tools,
-    [property: JsonPropertyName("tool_choice")] JsonElement? ToolChoice = null);
+    [property: JsonPropertyName("tool_choice")] JsonElement? ToolChoice = null,
+    [property: JsonPropertyName("response_format")] JsonElement? ResponseFormat = null);
 
 public record ChatCompletionMessage(
     string Role,

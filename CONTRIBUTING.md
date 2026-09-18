@@ -121,13 +121,34 @@ environment. If the host proxy substitutes a protected credential, set
 `GITHUB_TOKEN="$GH_TOKEN"` using its issued placeholder; do not print or persist
 the credential. Keep localhost and loopback in `NO_PROXY`.
 
-Equivalent cross-language E2Es should share snapshot names and prompts.
-For example, Node's `typed_wait_returns_stop_hook_correction` and C#'s
-`Typed_Wait_Returns_Stop_Hook_Correction` both use
-`test/snapshots/structured_output/typed_wait_returns_stop_hook_correction.yaml`.
-It was recorded once against real `gpt-4.1` inference, then replayed by both SDKs
-against the local runtime. Both typed helpers select the corrected answer at
-idle; there is no final-message flag.
+Equivalent cross-language E2Es must share snapshot names and prompts, not
+language-specific copies. The structured-output suite in **all six SDKs** reuses
+the following captures in `test/snapshots/structured_output/`, recorded using
+real CAPI `gpt-4.1` calls through the shared harness:
+
+| Shared capture (without `.yaml`) | Flow |
+| --- | --- |
+| `infers_typed_result_after_custom_tool` | Inferred typed result after a tool call, streamed text, then an unformatted follow-up |
+| `sends_explicit_schema_for_message_and_batch` | Explicit-schema batch RPC followed by a schema-bearing single send |
+| `send_selects_correlated_response_after_idle` | Event-driven send, tool commentary, originating-message correlation, and an idle boundary held by a stop hook |
+| `typed_wait_returns_stop_hook_correction` | Typed wait returns the corrected answer, not the first assistant message |
+| `typed_wait_returns_stop_hook_correction_after_terminal_tool` | Output-only finalization after a terminal tool, followed by a stop-hook correction |
+| `typed_result_after_terminal_tool_and_steering` | Immediate steering during a terminal tool preserves the active schema |
+| `typed_wait_returns_late_steering_response` | Steering after the first final answer remains part of the original run |
+| `concurrent_typed_sends_return_their_own_results` | Concurrent queued runs use different inferred types and return their own results |
+
+Typed cases call the public idiomatic APIs: Node/Zod, C# generics, Python/Pydantic,
+Go generics, Java annotated records using the existing tool schema generator,
+and Rust generics with `derive`/schemars. The tool/follow-up case also checks the
+actual provider request's inferred schema, so a recorded JSON response alone
+cannot mask missing schema forwarding. Explicit-schema and event-stream cases
+exercise the corresponding raw public APIs instead.
+
+Every language additionally checks rejection before admission and zero provider
+calls for oversized schemas and typed immediate steering. These cases have no
+model responses and therefore need **no snapshot**. Do not create canned responses
+or empty model captures for them. Unit tests supplement, rather than replace,
+the shared runtime E2Es.
 
 ## Submitting a Pull Request
 

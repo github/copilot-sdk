@@ -18,8 +18,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.generated.AssistantMessageDeltaEvent;
 import com.github.copilot.generated.SessionErrorEvent;
 import com.github.copilot.generated.SessionIdleEvent;
+import com.github.copilot.generated.UserMessageEvent;
 import com.github.copilot.generated.rpc.SessionSendMessagesParams;
 import com.github.copilot.rpc.AgentStopHookOutput;
 import com.github.copilot.rpc.MessageOptions;
@@ -35,6 +37,9 @@ class StructuredOutputE2ETest {
     }
     @CopilotResponse
     public record Answer(int answer) {
+    }
+    @CopilotResponse
+    public record ToolAnswer(int answer, String contract) {
     }
     @CopilotResponse
     public record First(int first) {
@@ -74,17 +79,152 @@ class StructuredOutputE2ETest {
             return "The inventory contains 42 red widgets.";
         });
         try (var client = ctx.createClient();
-                var session = client.createSession(config().setTools(List.of(tool))).get()) {
-            var result = session
-                    .sendAndWait("Call get_inventory, then report the widget count and color.", Inventory.class)
-                    .get(30, TimeUnit.SECONDS);
-            assertEquals(new Inventory(42, "red"), result);
-            assertTrue(calls.get() > 0);
+                var session = client.createSession(config().setTools(List.of(tool)).setStreaming(true)).get()) {
+            var deltas = new AtomicInteger();
+            try (var subscription = session.on(event -> {
+                if (event instanceof AssistantMessageDeltaEvent)
+                    deltas.incrementAndGet();
+            })) {
+                var result = session
+                        .sendAndWait("Call get_inventory, then report the widget count and color.", Inventory.class)
+                        .get(30, TimeUnit.SECONDS);
+                assertEquals(new Inventory(42, "red"), result);
+                assertTrue(calls.get() > 0);
+                assertTrue(deltas.get() > 0, "Typed wait must preserve streaming text updates");
+            }
             var ordinary = session
                     .sendAndWait(
                             new MessageOptions().setPrompt("Now reply with exactly the plain text HELLO, not JSON."))
                     .get(30, TimeUnit.SECONDS);
             assertEquals("HELLO", ordinary.getData().content().trim());
+            var exchanges = ctx.getExchanges();
+            assertTrue(exchanges.size() >= 3);
+            for (var exchange : exchanges.subList(0, exchanges.size() - 1)) {
+                var request = JsonRpcClient.getObjectMapper().valueToTree(exchange).get("request");
+                var format = request.get("response_format");
+                assertEquals("json_schema", format.get("type").asText());
+                assertTrue(format.get("json_schema").get("strict").asBoolean());
+                assertEquals(JsonRpcClient.getObjectMapper().valueToTree(ResponseSchemas.forType(Inventory.class)),
+                        format.get("json_schema").get("schema"));
+            }
+            assertFalse(JsonRpcClient.getObjectMapper().valueToTree(exchanges.get(exchanges.size() - 1)).get("request")
+                    .has("response_format"));
+        }
+    }
+
+    @Test
+    void typedWaitReturnsStopHookCorrection() throws Exception {
+        ctx.configureForTest("structured_output", "typed_wait_returns_stop_hook_correction");
+        var stops = new AtomicInteger();
+        var hooks = new SessionHooks().setOnAgentStop((input,
+                invocation) -> CompletableFuture.completedFuture(stops.incrementAndGet() == 1
+                        ? new AgentStopHookOutput().setDecision("block")
+                                .setReason("Correct the answer to 99, not 42. Do not use tools.")
+                        : null));
+        try (var client = ctx.createClient(); var session = client.createSession(config().setHooks(hooks)).get()) {
+            var replies = new CopyOnWriteArrayList<AssistantMessageEvent>();
+            try (var subscription = session.on(event -> {
+                if (event instanceof AssistantMessageEvent message && event.getAgentId() == null)
+                    replies.add(message);
+            })) {
+                var result = session.sendAndWait("What is 19 + 23? Do not use tools.", Answer.class).get(30,
+                        TimeUnit.SECONDS);
+                assertEquals(99, result.answer());
+                assertEquals(2, stops.get());
+                assertEquals(2, replies.size());
+                assertNotNull(replies.get(0).getData().originatingMessageId());
+                assertFalse(replies.get(0).getData().originatingMessageId().isEmpty());
+                assertEquals(replies.get(0).getData().originatingMessageId(),
+                        replies.get(1).getData().originatingMessageId());
+                assertEquals(42, JsonRpcClient.getObjectMapper()
+                        .readValue(replies.get(0).getData().content(), Answer.class).answer());
+                assertEquals(99, JsonRpcClient.getObjectMapper()
+                        .readValue(replies.get(1).getData().content(), Answer.class).answer());
+            }
+        }
+    }
+
+    @Test
+    void sendSelectsCorrelatedResponseAfterIdle() throws Exception {
+        ctx.configureForTest("structured_output", "send_selects_correlated_response_after_idle");
+        var entered = new CompletableFuture<Void>();
+        var release = new CompletableFuture<Void>();
+        var tool = ToolDefinition.from("read_inventory", "Read the current widget count and color.",
+                () -> "The inventory contains 42 red widgets.");
+        var hooks = new SessionHooks().setOnAgentStop((input, invocation) -> {
+            entered.complete(null);
+            return release.thenApply(ignored -> null);
+        });
+        try (var client = ctx.createClient();
+                var session = client.createSession(config().setTools(List.of(tool)).setHooks(hooks)).get()) {
+            var idle = new CompletableFuture<Void>();
+            var replies = new CopyOnWriteArrayList<AssistantMessageEvent>();
+            try (var subscription = session.on(event -> {
+                if (event.getAgentId() != null)
+                    return;
+                if (event instanceof AssistantMessageEvent message)
+                    replies.add(message);
+                else if (event instanceof SessionIdleEvent)
+                    idle.complete(null);
+                else if (event instanceof SessionErrorEvent error) {
+                    var failure = new IllegalStateException(error.getData().message());
+                    entered.completeExceptionally(failure);
+                    idle.completeExceptionally(failure);
+                }
+            })) {
+                var origin = session.send(new MessageOptions()
+                        .setPrompt("Call read_inventory once, then report the current widget count and color.")
+                        .setResponseSchema(ResponseSchemas.forType(Inventory.class))).get(30, TimeUnit.SECONDS);
+                entered.get(30, TimeUnit.SECONDS);
+                assertFalse(idle.isDone(), "Idle must wait for the stop hook");
+                release.complete(null);
+                idle.get(30, TimeUnit.SECONDS);
+                assertTrue(replies.size() >= 2);
+                var last = replies.get(replies.size() - 1);
+                assertEquals(origin, last.getData().originatingMessageId());
+                assertTrue(last.getData().toolRequests() == null || last.getData().toolRequests().isEmpty());
+                assertTrue(replies.stream().anyMatch(
+                        reply -> reply.getData().toolRequests() != null && !reply.getData().toolRequests().isEmpty()));
+                assertEquals(new Inventory(42, "red"),
+                        JsonRpcClient.getObjectMapper().readValue(last.getData().content(), Inventory.class));
+            } finally {
+                release.complete(null);
+            }
+        }
+    }
+
+    @Test
+    void rejectsInvalidFormatsBeforeAdmission() throws Exception {
+        ctx.initializeProxy();
+        try (var client = ctx.createClient(); var session = client.createSession(config()).get()) {
+            var admitted = new AtomicInteger();
+            try (var subscription = session.on(event -> {
+                if (event instanceof UserMessageEvent || event instanceof SessionErrorEvent)
+                    admitted.incrementAndGet();
+            })) {
+                var immediate = assertThrows(IllegalArgumentException.class,
+                        () -> session.sendAndWait(
+                                new MessageOptions().setPrompt("Must not be admitted").setMode("immediate"),
+                                Answer.class).get(30, TimeUnit.SECONDS));
+                assertTrue(immediate.getMessage().contains("immediate"));
+                var schema = Map.<String, Object>of("type", "object", "description", "x".repeat(32 * 1024 * 1024));
+                var oversized = assertThrows(java.util.concurrent.ExecutionException.class,
+                        () -> session.sendAndWait(
+                                new MessageOptions().setPrompt("Must not be admitted").setResponseSchema(schema))
+                                .get(30, TimeUnit.SECONDS));
+                assertTrue(oversized.getCause().getMessage().contains("32 MiB"));
+                var params = JsonRpcClient.getObjectMapper().convertValue(
+                        Map.of("messages", List.of(), "responseFormat",
+                                Map.of("type", "json_schema", "jsonSchema",
+                                        Map.of("name", "response", "schema", schema))),
+                        SessionSendMessagesParams.class);
+                var batch = assertThrows(java.util.concurrent.ExecutionException.class,
+                        () -> session.getRpc().sendMessages(params).get(30, TimeUnit.SECONDS));
+                assertTrue(batch.getCause().getMessage().contains("32 MiB"));
+                assertTrue(session.getRpc().queue.pendingItems().get(30, TimeUnit.SECONDS).items().isEmpty());
+                assertEquals(0, admitted.get());
+                assertTrue(ctx.getExchanges().isEmpty());
+            }
         }
     }
 
@@ -172,6 +312,42 @@ class StructuredOutputE2ETest {
             assertEquals(99, session.sendAndWait("What is 19 + 23? Do not use tools.", Answer.class)
                     .get(30, TimeUnit.SECONDS).answer());
             assertEquals(2, stops.get());
+        }
+    }
+
+    @Test
+    void typedResultAfterTerminalToolAndSteering() throws Exception {
+        ctx.configureForTest("structured_output", "typed_result_after_terminal_tool_and_steering");
+        var current = new java.util.concurrent.atomic.AtomicReference<CopilotSession>();
+        var calls = new AtomicInteger();
+        var tool = ToolDefinition.create("lookup_number", "Return the number needed for the calculation.",
+                Map.of("type", "object", "properties", Map.of(), "required", List.of()), invocation -> {
+                    calls.incrementAndGet();
+                    return current.get()
+                            .send(new MessageOptions()
+                                    .setPrompt("Continue with the original calculation. Do not call any more tools.")
+                                    .setMode("immediate"))
+                            .thenApply(id -> 58);
+                }).isTerminal(true).skipPermission(true);
+        try (var client = ctx.createClient();
+                var session = client.createSession(config().setTools(List.of(tool))).get()) {
+            current.set(session);
+            var result = session.sendAndWait(
+                    "Call lookup_number exactly once, then add 5 to the returned number. Do not guess its result.",
+                    ToolAnswer.class).get(30, TimeUnit.SECONDS);
+            assertEquals(new ToolAnswer(63, "typed_tool"), result);
+            assertEquals(1, calls.get());
+            var exchanges = ctx.getExchanges();
+            assertTrue(exchanges.size() >= 2);
+            for (var exchange : exchanges.subList(1, exchanges.size())) {
+                assertEquals("none", JsonRpcClient.getObjectMapper().valueToTree(exchange).get("request")
+                        .get("tool_choice").asText());
+            }
+            for (var exchange : exchanges) {
+                assertEquals(JsonRpcClient.getObjectMapper().valueToTree(ResponseSchemas.forType(ToolAnswer.class)),
+                        JsonRpcClient.getObjectMapper().valueToTree(exchange).get("request").get("response_format")
+                                .get("json_schema").get("schema"));
+            }
         }
     }
 

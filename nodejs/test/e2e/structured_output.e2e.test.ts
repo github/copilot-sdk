@@ -35,51 +35,52 @@ describe("Structured output", async () => {
         },
     };
 
-    it("node_raw_schema_and_unformatted_followup", async () => {
+    it("infers_typed_result_after_custom_tool", async () => {
+        let calls = 0;
+        const schema = z.object({ count: z.number().int(), color: z.string() });
         const session = await client.createSession({
             model: "gpt-4.1",
             provider,
             onPermissionRequest: approveAll,
             availableTools: [],
+            streaming: true,
+            tools: [
+                defineTool("get_inventory", {
+                    description: "Get the current widget inventory.",
+                    parameters: z.object({}),
+                    handler: () => {
+                        calls++;
+                        return "The inventory contains 42 red widgets.";
+                    },
+                }),
+            ],
         });
-        const schema = {
-            type: "object",
-            properties: {
-                answer: { type: "integer" },
-                contract: { type: "string", enum: ["raw_schema"] },
-            },
-            required: ["answer", "contract"],
-            additionalProperties: false,
-        };
-        const result = await session.sendAndWait({
-            prompt: "What is 19 + 23? Do not use tools.",
-            responseSchema: schema,
-        });
-        expect(
-            result,
-            JSON.stringify(
-                (await openAiEndpoint.getExchanges()).map((exchange) => exchange.response)
-            )
-        ).toBeDefined();
-        expect(JSON.parse(result!.data.content)).toEqual({ answer: 42, contract: "raw_schema" });
-        expect(result!.data.originatingMessageId).toBeTruthy();
-
-        const ordinary = await session.sendAndWait(
-            "Reply exactly SCHEMA_CLEARED without JSON or quotes."
+        const events: SessionEvent[] = [];
+        session.on((event) => events.push(event));
+        const result = await session.sendAndWait(
+            "Call get_inventory, then report the widget count and color.",
+            schema
         );
-        expect(ordinary?.data.content).toBe("SCHEMA_CLEARED");
+        expectTypeOf(result).toEqualTypeOf<{ count: number; color: string }>();
+        expect(result).toEqual({ count: 42, color: "red" });
+        expect(calls).toBeGreaterThan(0);
+        expect(events.some((event) => event.type === "assistant.message_delta")).toBe(true);
+        const ordinary = await session.sendAndWait(
+            "Now reply with exactly the plain text HELLO, not JSON."
+        );
+        expect(ordinary?.data.content.trim()).toBe("HELLO");
         const exchanges = await openAiEndpoint.getExchanges();
-        expect(exchanges).toHaveLength(2);
-        expect(exchanges[0].request).toMatchObject({
-            response_format: {
-                type: "json_schema",
-                json_schema: { name: "response", strict: true, schema },
-            },
-        });
-        expect(exchanges[1].request).not.toHaveProperty("response_format");
+        expect(exchanges.length).toBeGreaterThanOrEqual(3);
+        for (const exchange of exchanges.slice(0, -1)) {
+            expect(exchange.request).toHaveProperty(
+                "response_format.json_schema.schema",
+                schema.toJSONSchema()
+            );
+        }
+        expect(exchanges.at(-1)!.request).not.toHaveProperty("response_format");
     });
 
-    it("node_zod_typed_result_after_terminal_tool_and_steering", async () => {
+    it("typed_result_after_terminal_tool_and_steering", async () => {
         const events: SessionEvent[] = [];
         let calls = 0;
         let session: CopilotSession;
@@ -203,6 +204,12 @@ describe("Structured output", async () => {
                 onPermissionRequest: approveAll,
                 availableTools: [],
             });
+            await expect(
+                session.sendAndWait(
+                    { prompt: "Must not be admitted", mode: "immediate" },
+                    z.object({ answer: z.number().int() })
+                )
+            ).rejects.toThrow(/immediate/);
             const schema = {
                 type: "object",
                 description: model === "gpt-4.1" ? "x".repeat(32 * 1024 * 1024) : "Small schema",
@@ -233,7 +240,7 @@ describe("Structured output", async () => {
         expect(await openAiEndpoint.getExchanges()).toEqual([]);
     });
 
-    it("node_send_selects_correlated_response_after_idle", async () => {
+    it("send_selects_correlated_response_after_idle", async () => {
         let releaseHook!: () => void;
         let hookEntered = false;
         const hookReleased = new Promise<void>((resolve) => {
@@ -249,7 +256,7 @@ describe("Structured output", async () => {
                     description: "Read the current widget count and color.",
                     parameters: z.object({}),
                     skipPermission: true,
-                    handler: () => ({ count: 42, color: "red" }),
+                    handler: () => "The inventory contains 42 red widgets.",
                 }),
             ],
             hooks: {
@@ -272,7 +279,7 @@ describe("Structured output", async () => {
                 idle = true;
             }
         });
-        const schema = z.object({ count: z.number().int(), color: z.literal("red") });
+        const schema = z.object({ count: z.number().int(), color: z.string() });
         try {
             const messageId = await session.send({
                 prompt: "Call read_inventory once, then report the current widget count and color.",
@@ -395,7 +402,7 @@ describe("Structured output", async () => {
         }
     });
 
-    it("node_concurrent_typed_sends_return_their_own_results", async () => {
+    it("concurrent_typed_sends_return_their_own_results", async () => {
         let markToolEntered!: () => void;
         let releaseTool!: () => void;
         const toolEntered = new Promise<void>((resolve) => {
@@ -424,7 +431,7 @@ describe("Structured output", async () => {
         });
         const first = session.sendAndWait(
             "Call first_number exactly once and report its returned number.",
-            z.object({ first: z.number().int(), contract: z.literal("first") })
+            z.object({ first: z.number().int() })
         );
         try {
             await Promise.race([
@@ -436,7 +443,7 @@ describe("Structured output", async () => {
             const secondPrompt = "What is 30 + 7? Do not use tools.";
             const second = session.sendAndWait(
                 secondPrompt,
-                z.object({ second: z.number().int(), contract: z.literal("second") })
+                z.object({ second: z.number().int() })
             );
             const results = Promise.all([first, second]);
             await Promise.race([
@@ -453,35 +460,43 @@ describe("Structured output", async () => {
             ]);
             releaseTool();
             const [firstResult, secondResult] = await results;
-            expect(firstResult).toEqual({ first: 42, contract: "first" });
-            expect(secondResult).toEqual({ second: 37, contract: "second" });
+            expect(firstResult).toEqual({ first: 42 });
+            expect(secondResult).toEqual({ second: 37 });
         } finally {
             releaseTool();
         }
     });
 
-    it("node_generated_rpc_accepts_a_batch_response_format", async () => {
+    it("sends_explicit_schema_for_message_and_batch", async () => {
         const session = await client.createSession({
             model: "gpt-4.1",
             provider,
             onPermissionRequest: approveAll,
             availableTools: [],
         });
-        const schema = z.object({ total: z.number().int() });
+        const schema = z.object({ count: z.number().int(), color: z.string() });
         const events: SessionEvent[] = [];
         session.on((event) => events.push(event));
         const response = await session.rpc.sendMessages({
-            messages: [{ prompt: "What is 16 + 26? Do not use tools." }],
+            messages: [
+                { prompt: "There are 42 red widgets in stock." },
+                { prompt: "Report the widget count and color." },
+            ],
             responseFormat: {
                 type: "json_schema",
-                jsonSchema: { name: "batch", strict: true, schema: schema.toJSONSchema() },
+                jsonSchema: { name: "inventory", strict: true, schema: schema.toJSONSchema() },
             },
             wait: true,
         });
         const final = events.findLast((event) => event.type === "assistant.message");
         expect(final?.type).toBe("assistant.message");
         if (final?.type !== "assistant.message") throw new Error("No assistant response");
-        expect(schema.parse(JSON.parse(final.data.content))).toEqual({ total: 42 });
-        expect(final.data.originatingMessageId).toBe(response.messageIds[0]);
+        expect(schema.parse(JSON.parse(final.data.content))).toEqual({ count: 42, color: "red" });
+        expect(final.data.originatingMessageId).toBe(response.messageIds.at(-1));
+        const raw = await session.sendAndWait({
+            prompt: "The inventory now has 21 blue widgets. Report the new count and color.",
+            responseSchema: schema.toJSONSchema(),
+        });
+        expect(schema.parse(JSON.parse(raw!.data.content))).toEqual({ count: 21, color: "blue" });
     });
 });

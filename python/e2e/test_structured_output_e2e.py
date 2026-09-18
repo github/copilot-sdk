@@ -15,7 +15,13 @@ from copilot.rpc import (
     SendMessagesRequest,
 )
 from copilot.session import PermissionHandler
-from copilot.session_events import AssistantMessageData, SessionErrorData, SessionIdleData
+from copilot.session_events import (
+    AssistantMessageData,
+    AssistantMessageDeltaData,
+    SessionErrorData,
+    SessionIdleData,
+    UserMessageData,
+)
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -29,6 +35,12 @@ class Inventory(BaseModel):
 class Answer(BaseModel):
     model_config = ConfigDict(extra="forbid")
     answer: int
+
+
+class ToolAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    answer: int
+    contract: str
 
 
 class First(BaseModel):
@@ -71,16 +83,162 @@ async def test_infers_typed_result_after_custom_tool(ctx):
         calls += 1
         return "The inventory contains 42 red widgets."
 
-    async with await ctx.client.create_session(**config(ctx), tools=[get_inventory]) as session:
+    async with await ctx.client.create_session(
+        **config(ctx), tools=[get_inventory], streaming=True
+    ) as session:
+        deltas = []
+        unsubscribe = session.on(
+            lambda event: (
+                deltas.append(event.data)
+                if isinstance(event.data, AssistantMessageDeltaData)
+                else None
+            )
+        )
         result = await session.send_and_wait_typed(
             "Call get_inventory, then report the widget count and color.", Inventory, timeout=30
         )
         assert result == Inventory(count=42, color="red")
         assert calls > 0
+        assert deltas
+        unsubscribe()
         ordinary = await session.send_and_wait(
             "Now reply with exactly the plain text HELLO, not JSON.", timeout=30
         )
         assert ordinary.data.content.strip() == "HELLO"
+        exchanges = await ctx.get_exchanges()
+        assert len(exchanges) >= 3
+        for exchange in exchanges[:-1]:
+            assert exchange["request"]["response_format"] == {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "response",
+                    "strict": True,
+                    "schema": Inventory.model_json_schema(),
+                },
+            }
+        assert "response_format" not in exchanges[-1]["request"]
+
+
+async def test_typed_wait_returns_stop_hook_correction(ctx):
+    stops = 0
+
+    def stop_hook(_input, _invocation):
+        nonlocal stops
+        stops += 1
+        if stops == 1:
+            return {
+                "decision": "block",
+                "reason": "Correct the answer to 99, not 42. Do not use tools.",
+            }
+        return None
+
+    async with await ctx.client.create_session(
+        **config(ctx), hooks={"on_agent_stop": stop_hook}
+    ) as session:
+        replies = []
+        unsubscribe = session.on(
+            lambda event: (
+                replies.append(event.data)
+                if not event.agent_id and isinstance(event.data, AssistantMessageData)
+                else None
+            )
+        )
+        try:
+            result = await session.send_and_wait_typed(
+                "What is 19 + 23? Do not use tools.", Answer, timeout=30
+            )
+            assert result.answer == 99
+            assert stops == 2
+            assert [Answer.model_validate_json(reply.content).answer for reply in replies] == [
+                42,
+                99,
+            ]
+            assert replies[0].originating_message_id
+            assert replies[0].originating_message_id == replies[1].originating_message_id
+        finally:
+            unsubscribe()
+
+
+async def test_send_selects_correlated_response_after_idle(ctx):
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    @define_tool("read_inventory", description="Read the current widget count and color.")
+    def read_inventory() -> str:
+        return "The inventory contains 42 red widgets."
+
+    async def stop_hook(_input, _invocation):
+        entered.set()
+        await release.wait()
+        return None
+
+    async with await ctx.client.create_session(
+        **config(ctx), tools=[read_inventory], hooks={"on_agent_stop": stop_hook}
+    ) as session:
+        idle = asyncio.get_running_loop().create_future()
+        replies = []
+
+        def observe(event):
+            if event.agent_id:
+                return
+            if isinstance(event.data, AssistantMessageData):
+                replies.append(event.data)
+            elif isinstance(event.data, SessionIdleData) and not idle.done():
+                idle.set_result(None)
+            elif isinstance(event.data, SessionErrorData) and not idle.done():
+                idle.set_exception(RuntimeError(event.data.message))
+
+        unsubscribe = session.on(observe)
+        try:
+            origin = await session.send(
+                "Call read_inventory once, then report the current widget count and color.",
+                response_schema=Inventory,
+            )
+            await asyncio.wait_for(entered.wait(), 30)
+            assert not idle.done()
+            release.set()
+            await asyncio.wait_for(idle, 30)
+            final = next(
+                reply for reply in reversed(replies) if reply.originating_message_id == origin
+            )
+            assert final is replies[-1]
+            assert not final.tool_requests
+            assert any(reply.tool_requests for reply in replies)
+            assert Inventory.model_validate_json(final.content) == Inventory(count=42, color="red")
+        finally:
+            release.set()
+            unsubscribe()
+
+
+async def test_rejects_invalid_formats_before_admission(ctx):
+    async with await ctx.client.create_session(**config(ctx)) as session:
+        events = []
+        unsubscribe = session.on(events.append)
+        try:
+            with pytest.raises(ValueError, match="immediate"):
+                await session.send_and_wait_typed("Must not be admitted", Answer, mode="immediate")
+            schema = {"type": "object", "description": "x" * (32 * 1024 * 1024)}
+            with pytest.raises(Exception, match="32 MiB"):
+                await session.send_and_wait(
+                    "Must not be admitted", response_schema=schema, timeout=30
+                )
+            with pytest.raises(Exception, match="32 MiB"):
+                await session.rpc.send_messages(
+                    SendMessagesRequest(
+                        messages=[],
+                        response_format=ResponseFormat(
+                            type=ResponseFormatType.JSON_SCHEMA,
+                            json_schema=JSONSchemaResponseFormat(name="response", schema=schema),
+                        ),
+                    )
+                )
+            assert not (await session.rpc.queue.pending_items()).items
+            assert not any(
+                isinstance(event.data, (UserMessageData, SessionErrorData)) for event in events
+            )
+            assert not await ctx.get_exchanges()
+        finally:
+            unsubscribe()
 
 
 async def test_sends_explicit_schema_for_message_and_batch(ctx):
@@ -186,6 +344,43 @@ async def test_typed_wait_returns_stop_hook_correction_after_terminal_tool(ctx):
             assert replies[0].originating_message_id == replies[1].originating_message_id
         finally:
             unsubscribe()
+
+
+async def test_typed_result_after_terminal_tool_and_steering(ctx):
+    calls = 0
+
+    @define_tool(
+        "lookup_number",
+        description="Return the number needed for the calculation.",
+        is_terminal=True,
+        skip_permission=True,
+    )
+    async def lookup_number() -> int:
+        nonlocal calls
+        calls += 1
+        await session.send(
+            "Continue with the original calculation. Do not call any more tools.", mode="immediate"
+        )
+        return 58
+
+    async with await ctx.client.create_session(**config(ctx), tools=[lookup_number]) as session:
+        result = await session.send_and_wait_typed(
+            "Call lookup_number exactly once, then add 5 to the returned number. "
+            "Do not guess its result.",
+            ToolAnswer,
+            timeout=30,
+        )
+        assert result == ToolAnswer(answer=63, contract="typed_tool")
+        assert calls == 1
+        exchanges = await ctx.get_exchanges()
+        assert len(exchanges) >= 2
+        for exchange in exchanges[1:]:
+            assert exchange["request"]["tool_choice"] == "none"
+        for exchange in exchanges:
+            assert (
+                exchange["request"]["response_format"]["json_schema"]["schema"]
+                == ToolAnswer.model_json_schema()
+            )
 
 
 async def test_typed_wait_returns_late_steering_response(ctx):

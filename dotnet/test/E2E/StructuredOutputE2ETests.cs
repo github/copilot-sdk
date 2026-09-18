@@ -44,6 +44,7 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
     {
         var calls = 0;
         var config = StructuredSessionConfig();
+        config.Streaming = true;
         config.Tools =
         [
             CopilotTool.DefineTool(() =>
@@ -53,12 +54,15 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
             }, factoryOptions: new() { Name = "get_inventory", Description = "Get the current widget inventory." }),
         ];
         var session = await CreateSessionAsync(config);
+        var deltas = 0;
+        using var subscription = session.On<AssistantMessageDeltaEvent>(_ => Interlocked.Increment(ref deltas));
 
         var result = await session.SendAndWaitAsync<Inventory>(
             "Call get_inventory, then report the widget count and color.",
             StructuredOutputE2EJsonContext.Default.Options,
             TimeSpan.FromMinutes(3));
         Assert.True(calls > 0);
+        Assert.True(deltas > 0, "Typed wait must preserve streaming text updates");
         Assert.Equal(42, result.Count);
         Assert.Equal("red", result.Color);
 
@@ -67,6 +71,24 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
             TimeSpan.FromMinutes(3));
         Assert.NotNull(ordinary);
         Assert.Equal("HELLO", ordinary.Data.Content.Trim());
+        if (E2ETestBackendConfiguration.Current == E2ETestBackend.Capi)
+        {
+            var exchanges = await Ctx.GetExchangesAsync();
+            Assert.True(exchanges.Count >= 3);
+            foreach (var exchange in exchanges.Take(exchanges.Count - 1))
+            {
+                Assert.NotNull(exchange.Request.ResponseFormat);
+                var format = exchange.Request.ResponseFormat.Value;
+                Assert.Equal("json_schema", format.GetProperty("type").GetString());
+                var contract = format.GetProperty("json_schema");
+                Assert.True(contract.GetProperty("strict").GetBoolean());
+                var schema = contract.GetProperty("schema");
+                Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
+                Assert.Equal("integer", schema.GetProperty("properties").GetProperty("count").GetProperty("type").GetString());
+                Assert.Equal("string", schema.GetProperty("properties").GetProperty("color").GetProperty("type").GetString());
+            }
+            Assert.Null(exchanges.Last().Request.ResponseFormat);
+        }
     }
 
     [Fact]
@@ -317,6 +339,44 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
     }
 
     [Fact]
+    public async Task Typed_Result_After_Terminal_Tool_And_Steering()
+    {
+        var calls = 0;
+        CopilotSession? session = null;
+        var config = StructuredSessionConfig();
+        config.Tools =
+        [
+            CopilotTool.DefineTool(async () =>
+            {
+                Interlocked.Increment(ref calls);
+                await session!.SendAsync(new MessageOptions
+                {
+                    Prompt = "Continue with the original calculation. Do not call any more tools.",
+                    Mode = "immediate",
+                });
+                return 58;
+            }, new CopilotToolOptions { IsTerminal = true, SkipPermission = true },
+                new() { Name = "lookup_number", Description = "Return the number needed for the calculation." }),
+        ];
+        session = await CreateSessionAsync(config);
+        var result = await session.SendAndWaitAsync<ToolAnswer>(
+            "Call lookup_number exactly once, then add 5 to the returned number. Do not guess its result.",
+            StructuredOutputE2EJsonContext.Default.Options,
+            TimeSpan.FromMinutes(3));
+        Assert.Equal(63, result.Answer);
+        Assert.Equal("typed_tool", result.Contract);
+        Assert.Equal(1, calls);
+        var exchanges = await Ctx.GetExchangesAsync();
+        Assert.True(exchanges.Count >= 2);
+        Assert.All(exchanges.Skip(1), exchange => Assert.Equal("none", exchange.Request.ToolChoice?.GetString()));
+        if (E2ETestBackendConfiguration.Current == E2ETestBackend.Capi)
+        {
+            Assert.All(exchanges, exchange => Assert.Equal("json_schema",
+                exchange.Request.ResponseFormat?.GetProperty("type").GetString()));
+        }
+    }
+
+    [Fact]
     public async Task Rejects_Unsupported_Or_Oversized_Schemas_Before_Admission()
     {
         var environment = Ctx.GetEnvironment();
@@ -328,6 +388,9 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
             config.Model = model;
             config.OnPermissionRequest = PermissionHandler.ApproveAll;
             await using var session = await Ctx.CreateSessionAsync(client, config);
+            await Assert.ThrowsAsync<ArgumentException>(() => session.SendAndWaitAsync<CorrectionResult>(
+                new MessageOptions { Prompt = "Must not be admitted", Mode = "immediate" },
+                StructuredOutputE2EJsonContext.Default.Options));
             using var schema = JsonDocument.Parse(
                 "{\"type\":\"object\",\"description\":\"" +
                 (model == "gpt-4.1" ? new string('x', 32 * 1024 * 1024) : "Small schema") + "\"}");
@@ -421,10 +484,17 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
         public required int Answer { get; set; }
     }
 
+    public sealed class ToolAnswer
+    {
+        public required int Answer { get; set; }
+        public required string Contract { get; set; }
+    }
+
     [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
     [JsonSerializable(typeof(Inventory))]
     [JsonSerializable(typeof(FirstAnswer))]
     [JsonSerializable(typeof(SecondAnswer))]
     [JsonSerializable(typeof(CorrectionResult))]
+    [JsonSerializable(typeof(ToolAnswer))]
     internal sealed partial class StructuredOutputE2EJsonContext : JsonSerializerContext;
 }
