@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly SCENARIO_SAME_MODEL_HISTORY_READY.
+      - role: assistant
+        content: SCENARIO_SAME_MODEL_HISTORY_READY

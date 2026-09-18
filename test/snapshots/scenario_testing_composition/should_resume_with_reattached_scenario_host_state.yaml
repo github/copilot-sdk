@@ -1,0 +1,24 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Remember SCENARIO_RESUME_MARKER and reply with exactly INITIALIZED.
+      - role: assistant
+        content: INITIALIZED
+      - role: user
+        content: Call scenario_host_lookup with key ALPHA, then reply with exactly its result.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: scenario_host_lookup
+              arguments: '{"key":"ALPHA"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: SCENARIO_HOST_VALUE_ALPHA
+      - role: assistant
+        content: SCENARIO_HOST_VALUE_ALPHA
