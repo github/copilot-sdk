@@ -8,5 +8,12 @@ conversations:
         content: Reply with exactly EMPTY_BATCH_CONTEXT_READY.
       - role: assistant
         content: EMPTY_BATCH_CONTEXT_READY
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly EMPTY_BATCH_CONTEXT_READY.
+      - role: assistant
+        content: EMPTY_BATCH_CONTEXT_READY
       - role: assistant
         content: EMPTY_BATCH_RETRY_DONE
