@@ -49,6 +49,10 @@ use crate::{
     Client, ClientInner, JsonRpcRequest, JsonRpcResponse, RequestId, SessionId, error_codes,
 };
 
+use self::http_response_reader::HttpResponseReader;
+
+mod http_response_reader;
+
 const METHOD_HTTP_REQUEST_START: &str = "llmInference.httpRequestStart";
 const METHOD_HTTP_REQUEST_CHUNK: &str = "llmInference.httpRequestChunk";
 
@@ -157,6 +161,14 @@ pub struct CopilotRequestContext {
 }
 
 /// Streaming response body: a sequence of byte chunks or a terminal error.
+///
+/// HTTP bytes are forwarded in order, but chunk boundaries are not preserved.
+/// The SDK reads ahead while awaiting runtime acknowledgements, using at most
+/// 64 KiB of raw-byte forwarding buffers plus one current source chunk. This
+/// excludes storage inside the source stream and RPC serialization. A source
+/// chunk (including its shared backing allocation) is not size-limited by this API.
+/// Bytes available after an acknowledgement are flushed without waiting for
+/// more input. WebSocket message boundaries are preserved separately.
 pub type CopilotHttpResponseBody =
     Pin<Box<dyn Stream<Item = Result<Bytes, CopilotRequestError>> + Send>>;
 
@@ -916,32 +928,57 @@ async fn stream_http_response(
     exchange: &CopilotRequestExchange,
     cancel: &CancellationToken,
 ) -> Result<(), CopilotRequestError> {
-    exchange
-        .start_response(response.status, response.status_text, response.headers)
-        .await?;
-
-    let mut body = response.body;
-    loop {
-        tokio::select! {
-            _ = cancel.cancelled() => {
-                return exchange
-                    .error_response("Request cancelled by runtime", Some("cancelled".to_string()))
-                    .await;
-            }
-            next = body.next() => match next {
-                Some(Ok(chunk)) => {
-                    for piece in chunk.chunks(32 * 1024) {
-                        exchange.write_binary(piece).await?;
-                    }
-                }
-                Some(Err(e)) => {
-                    return exchange.error_response(e.to_string(), None).await;
-                }
-                None => break,
-            }
+    tokio::select! {
+        biased;
+        // The RPC enqueues its complete frame before its first suspension.
+        // Poll it first even if already cancelled: the writer actor then commits
+        // the head before the terminal error, without waiting for the head ACK.
+        result = exchange.start_response(response.status, response.status_text, response.headers) => {
+            result?;
+        }
+        _ = cancel.cancelled() => {
+            drop(response.body);
+            return exchange
+                .error_response("Request cancelled by runtime", Some("cancelled".to_string()))
+                .await;
         }
     }
-    exchange.end_response().await
+
+    let forward = async {
+        let mut reader = HttpResponseReader::new(response.body);
+        let mut chunk = Vec::new();
+        loop {
+            match reader.next_chunk(&mut chunk).await {
+                Ok(true) => {}
+                Ok(false) => return exchange.end_response().await,
+                Err(error) => return exchange.error_response(error.to_string(), None).await,
+            }
+
+            // Keep the same acknowledged write alive while polling the upstream.
+            // Prefer its completion so a ready source cannot delay the next write.
+            let write = exchange.write_binary(&chunk);
+            tokio::pin!(write);
+            loop {
+                tokio::select! {
+                    biased;
+                    result = &mut write => {
+                        result?;
+                        break;
+                    }
+                    () = reader.read_more(), if reader.can_read() => {}
+                }
+            }
+        }
+    };
+    tokio::select! {
+        biased;
+        _ = cancel.cancelled() => {
+            exchange
+                .error_response("Request cancelled by runtime", Some("cancelled".to_string()))
+                .await
+        }
+        result = forward => result,
+    }
 }
 
 /// Forward runtime→upstream WebSocket messages until the runtime closes its side
