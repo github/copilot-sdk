@@ -146,7 +146,8 @@ function placeholderToQuicktypeIdentifiers(placeholder: string): string[] {
 export function postProcessExternalRefsForPython(
     code: string,
     placeholderToReal: Map<string, string>,
-    externalEnumNames: Set<string> = new Set()
+    externalEnumNames: Set<string> = new Set(),
+    externalDiscriminatedUnionNames: Set<string> = new Set()
 ): string {
     for (const [placeholder, realName] of placeholderToReal) {
         const markerProperty = `__externalRefMarker_${placeholder}`;
@@ -182,10 +183,47 @@ export function postProcessExternalRefsForPython(
                 new RegExp(`to_class\\(${realName},\\s*([^)]+)\\)`, "g"),
                 `to_enum(${realName}, $1)`
             );
+        } else if (externalDiscriminatedUnionNames.has(realName)) {
+            code = code.replace(new RegExp(`\\b${realName}\\.from_dict\\b`, "g"), `_load_${realName}`);
         }
     }
 
     return code.replace(/\n{3,}/g, "\n\n");
+}
+
+function collectPythonExternalDiscriminatedUnionNames(
+    schema: JSONSchema7 | undefined,
+    placeholderToReal: Map<string, string>
+): Set<string> {
+    const unionNames = new Set<string>();
+    if (!schema) return unionNames;
+
+    const definitions = collectDefinitionCollections(schema as Record<string, unknown>);
+    for (const realName of placeholderToReal.values()) {
+        // SessionEvent is emitted as a wrapper class with its own from_dict dispatcher,
+        // not as a union alias with a _load_* helper.
+        if (realName === "SessionEvent") continue;
+        const definition = definitions.definitions[realName] ?? definitions.$defs[realName];
+        if (!definition) continue;
+
+        const variants = definition.anyOf ?? definition.oneOf;
+        if (!Array.isArray(variants) || variants.length < 2) continue;
+        const resolvedVariants = variants.map((variant) =>
+            typeof variant === "object" && variant !== null
+                ? resolveObjectSchema(variant, definitions) ??
+                  resolveSchema(variant, definitions) ??
+                  variant
+                : undefined
+        );
+        if (
+            resolvedVariants.every((variant) => variant?.properties !== undefined) &&
+            findPyDiscriminator(resolvedVariants as JSONSchema7[])
+        ) {
+            unionNames.add(realName);
+        }
+    }
+
+    return unionNames;
 }
 
 function collectPythonExternalEnumNames(
@@ -3087,6 +3125,10 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     };
     const externalRefs = rewriteExternalRefsForPython(singleSchema as JSONSchema7 & { definitions?: Record<string, JSONSchema7> });
     const externalEnumNames = collectPythonExternalEnumNames(sessionEventsSchema, externalRefs.placeholderNames);
+    const externalDiscriminatedUnionNames = collectPythonExternalDiscriminatedUnionNames(
+        sessionEventsSchema,
+        externalRefs.placeholderNames
+    );
     const externalUnionAliases = collectExternalUnionAliasesForPython(
         singleSchema.definitions as Record<string, JSONSchema7>,
         externalRefs.placeholderNames
@@ -3138,12 +3180,23 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     const knownDefNames = new Set(Object.keys(allDefinitions).map((n) => n.toLowerCase()));
     typesCode = collapsePlaceholderPythonDataclasses(typesCode, knownDefNames);
     typesCode = postProcessExternalUnionAliasesForPython(typesCode, externalUnionAliases);
-    typesCode = postProcessExternalRefsForPython(typesCode, externalRefs.placeholderNames, externalEnumNames);
+    typesCode = postProcessExternalRefsForPython(
+        typesCode,
+        externalRefs.placeholderNames,
+        externalEnumNames,
+        externalDiscriminatedUnionNames
+    );
     typesCode = removeShadowedSessionEventEnumsForPython(
         typesCode,
         externalRefs.imports.get(".session_events") ?? new Set<string>(),
         sessionEventsSchema
     );
+    const sessionEventImports = externalRefs.imports.get(".session_events");
+    if (sessionEventImports) {
+        for (const unionName of externalDiscriminatedUnionNames) {
+            sessionEventImports.add(`_load_${unionName}`);
+        }
+    }
     const { code: typesCodeAfterUnions, unions: refBasedUnions } = postProcessRefBasedDiscriminatedUnionsForPython(
         typesCode,
         allDefinitions,

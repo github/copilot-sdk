@@ -274,7 +274,25 @@ class BlobAttachment(TypedDict):
     displayName: NotRequired[str]
 
 
-Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment | BlobAttachment
+class ExtensionContextAttachment(TypedDict):
+    """Structured context contributed by an extension."""
+
+    type: Literal["extension_context"]
+    capturedAt: str
+    extensionId: str
+    title: str
+    canvasId: NotRequired[str]
+    instanceId: NotRequired[str]
+    payload: NotRequired[Any]
+
+
+Attachment = (
+    FileAttachment
+    | DirectoryAttachment
+    | SelectionAttachment
+    | BlobAttachment
+    | ExtensionContextAttachment
+)
 
 
 @dataclass(frozen=True)
@@ -1744,7 +1762,8 @@ class CopilotSession:
 
         Args:
             prompt: The message text to send.
-            attachments: Optional file, directory, or selection attachments.
+            attachments: Optional file, directory, selection, blob, or extension-context
+                attachments.
             source: Optional message provenance (``"user"``, ``"system"``, or
                 :class:`AgentMessageSource` for an identified agent).
                 Omitted when None, preserving the runtime's default for user messages.
