@@ -336,7 +336,11 @@ impl Error {
         }
     }
 
-    /// Returns the structured JSON-RPC error data provided by the CLI, if any.
+    /// Returns the non-null JSON-RPC error data for an [`ErrorKind::Rpc`] error, if any.
+    ///
+    /// The value may be an object, array, or scalar. Missing and `null` data
+    /// return `None`. Data is not included in this error's `Display` or `Debug`
+    /// output.
     pub fn rpc_data(&self) -> Option<&Value> {
         self.rpc_data.as_deref()
     }
@@ -362,9 +366,6 @@ impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut dbg = f.debug_struct("Error");
         dbg.field("context", &self.repr);
-        if let Some(rpc_data) = &self.rpc_data {
-            dbg.field("rpc_data", rpc_data);
-        }
         if let Some(backtrace) = &self.backtrace {
             return dbg.field("backtrace", backtrace).finish();
         }
