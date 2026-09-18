@@ -5505,6 +5505,9 @@ pub enum AgentMode {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct MessageOptions {
+    /// Per-run JSON Schema. Independent sends and subagents do not inherit it.
+    /// Immediate steering must not specify a schema. Streaming events remain text.
+    pub response_schema: Option<Value>,
     /// The user prompt to send.
     pub prompt: String,
     /// Optional message provenance. When `None`, the field is omitted,
@@ -5549,6 +5552,7 @@ impl MessageOptions {
     pub fn new(prompt: impl Into<String>) -> Self {
         Self {
             prompt: prompt.into(),
+            response_schema: None,
             source: None,
             mode: None,
             agent_mode: None,
@@ -5564,6 +5568,12 @@ impl MessageOptions {
     /// Set the message provenance without changing its delivery mode.
     pub fn with_source(mut self, source: MessageSource) -> Self {
         self.source = Some(source);
+        self
+    }
+
+    /// Request provider-native structured output for this run.
+    pub fn with_response_schema(mut self, schema: Value) -> Self {
+        self.response_schema = Some(schema);
         self
     }
 

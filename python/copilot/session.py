@@ -21,7 +21,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, TypeVar, cast
+
+from pydantic import BaseModel
 
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcError, ProcessExitedError
@@ -85,6 +87,7 @@ from .generated.session_events import (
     SessionEvent,
     SessionIdleData,
     SessionMode,
+    UserMessageData,
     session_event_from_dict,
 )
 from .generated.session_events import (
@@ -99,6 +102,7 @@ from .tools import (
 )
 
 logger = logging.getLogger(__name__)
+TResponse = TypeVar("TResponse", bound=BaseModel)
 
 # Fixed name of the runtime's built-in tool-search tool. A client can replace
 # its behavior by registering a tool with this exact name and
@@ -1655,6 +1659,7 @@ class CopilotSession:
         self._open_canvases_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
+        self._structured_waits: set[asyncio.Future[SessionEvent]] = set()
         self._disconnect_lock = asyncio.Lock()
         self._on_disconnect = on_disconnect
 
@@ -1678,8 +1683,16 @@ class CopilotSession:
 
     def _mark_disconnected(self) -> None:
         self._destroyed = True
+        self._fail_structured_waits()
         self._cancel_pending_external_tools()
         self._run_disconnect_callback()
+
+    def _fail_structured_waits(self) -> None:
+        for future in tuple(self._structured_waits):
+            if not future.done():
+                future.set_exception(
+                    RuntimeError("Session closed before structured output completed")
+                )
 
     @property
     def rpc(self) -> SessionRpc:
@@ -1734,6 +1747,7 @@ class CopilotSession:
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
         display_prompt: str | None = None,
+        response_schema: dict[str, Any] | type[BaseModel] | None = None,
     ) -> str:
         """
         Send a message to this session.
@@ -1755,6 +1769,8 @@ class CopilotSession:
             request_headers: Optional per-turn HTTP headers for outbound model requests.
             display_prompt: If provided, this is shown in the timeline instead of
                 ``prompt``.
+            response_schema: JSON Schema or a Pydantic model for this run. Independent
+                sends do not inherit it. Immediate steering cannot specify a schema.
 
         Returns:
             The message ID assigned by the server, which can be used to correlate events.
@@ -1786,6 +1802,16 @@ class CopilotSession:
             params["requestHeaders"] = request_headers
         if display_prompt is not None:
             params["displayPrompt"] = display_prompt
+        if response_schema is not None:
+            schema = (
+                response_schema.model_json_schema()
+                if isinstance(response_schema, type) and issubclass(response_schema, BaseModel)
+                else response_schema
+            )
+            params["responseFormat"] = {
+                "type": "json_schema",
+                "jsonSchema": {"name": "response", "strict": True, "schema": schema},
+            }
         params.update(get_trace_context())
 
         rpc_start = time.perf_counter()
@@ -1811,6 +1837,7 @@ class CopilotSession:
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
         display_prompt: str | None = None,
+        response_schema: dict[str, Any] | type[BaseModel] | None = None,
         timeout: float = 60.0,
     ) -> SessionEvent | None:
         """
@@ -1837,6 +1864,8 @@ class CopilotSession:
                 ``prompt``.
             timeout: Timeout in seconds (default: 60). Controls how long to wait;
                 does not abort in-flight agent work.
+            response_schema: A per-run schema. Waits for the last correlated root
+                assistant message without tool requests at non-autopilot idle.
 
         Returns:
             The final assistant message event, or None if none was received.
@@ -1853,6 +1882,20 @@ class CopilotSession:
             ...         case AssistantMessageData() as data:
             ...             print(data.content)
         """
+        if response_schema is not None:
+            return await self._wait_for_structured_message(
+                lambda: self.send(
+                    prompt,
+                    attachments=attachments,
+                    source=source,
+                    mode=mode,
+                    agent_mode=agent_mode,
+                    request_headers=request_headers,
+                    display_prompt=display_prompt,
+                    response_schema=response_schema,
+                ),
+                timeout,
+            )
         total_start = time.perf_counter()
         idle_event = asyncio.Event()
         error_event: Exception | None = None
@@ -1930,6 +1973,125 @@ class CopilotSession:
             raise TimeoutError(f"Timeout after {timeout}s waiting for session.idle")
         finally:
             unsubscribe()
+
+    async def send_and_wait_typed(
+        self,
+        prompt: str,
+        response_type: type[TResponse],
+        *,
+        attachments: list[Attachment] | None = None,
+        source: MessageSource | None = None,
+        mode: Literal["enqueue", "immediate"] | None = None,
+        agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
+        request_headers: dict[str, str] | None = None,
+        display_prompt: str | None = None,
+        timeout: float = 60.0,
+    ) -> TResponse:
+        """Infer a schema using Pydantic, then validate and return the final result.
+
+        Uses the same model schema generation as custom tools. Provider schema
+        restrictions still apply (for example, configure ``extra="forbid"`` for
+        closed objects). Validation uses the schema's alias names, including for
+        nested models, regardless of model-level alias validation settings.
+        Streaming events remain text. Timeout or cancellation
+        only stops waiting, not the agent. Errors remain session-scoped.
+        """
+        if not isinstance(response_type, type) or not issubclass(response_type, BaseModel):
+            raise TypeError("response_type must be a Pydantic BaseModel subclass")
+        if mode == "immediate":
+            raise ValueError(
+                "Structured output cannot be requested on an immediate steering message"
+            )
+        response = await self.send_and_wait(
+            prompt,
+            attachments=attachments,
+            source=source,
+            mode=mode,
+            agent_mode=agent_mode,
+            request_headers=request_headers,
+            display_prompt=display_prompt,
+            response_schema=response_type,
+            timeout=timeout,
+        )
+        assert response is not None and isinstance(response.data, AssistantMessageData)
+        return response_type.model_validate_json(
+            response.data.content, by_alias=True, by_name=False
+        )
+
+    async def _wait_for_structured_message(
+        self, send: Callable[[], Awaitable[str]], timeout: float
+    ) -> SessionEvent:
+        if self._destroyed:
+            raise RuntimeError("Session is disconnected")
+        completion: asyncio.Future[SessionEvent] = asyncio.get_running_loop().create_future()
+        self._structured_waits.add(completion)
+        pending: list[SessionEvent] = []
+        message_id: str | None = None
+        started = False
+        final_message: SessionEvent | None = None
+
+        def process(event: SessionEvent) -> None:
+            nonlocal started, final_message
+            if completion.done() or event.agent_id:
+                return
+            match event.data:
+                case UserMessageData() as data if data.message_id == message_id:
+                    started = True
+                case AssistantMessageData() as data if data.originating_message_id == message_id:
+                    started = True
+                    final_message = None if data.tool_requests else event
+                case SessionIdleData() as data if started and data.mode != SessionMode.AUTOPILOT:
+                    if data.aborted:
+                        completion.set_exception(
+                            RuntimeError("Session aborted before structured output completed")
+                        )
+                    elif (
+                        final_message is None
+                        or not cast(AssistantMessageData, final_message.data).content.strip()
+                    ):
+                        completion.set_exception(
+                            RuntimeError("Run completed without a structured assistant response")
+                        )
+                    else:
+                        completion.set_result(final_message)
+                case SessionErrorData() as data if started:
+                    completion.set_exception(RuntimeError(f"Session error: {data.message}"))
+
+        def handler(event: SessionEvent) -> None:
+            if not isinstance(
+                event.data,
+                (UserMessageData, AssistantMessageData, SessionIdleData, SessionErrorData),
+            ):
+                return
+            if message_id is None:
+                pending.append(event)
+            else:
+                process(event)
+
+        unsubscribe = self.on(handler)
+        admission: asyncio.Future[str] | None = None
+        try:
+            async with asyncio.timeout(timeout):
+                admission = asyncio.ensure_future(send())
+                await asyncio.wait((admission, completion), return_when=asyncio.FIRST_COMPLETED)
+                if completion.done():
+                    return completion.result()
+                message_id = await admission
+                for event in pending:
+                    process(event)
+                pending.clear()
+                return await completion
+        finally:
+            unsubscribe()
+            self._structured_waits.discard(completion)
+            if admission is not None:
+                admission.cancel()
+                await asyncio.gather(admission, return_exceptions=True)
+            # Retrieve an error if admission failed while disconnection also completed the future.
+            if completion.done() and not completion.cancelled():
+                completion.exception()
+            else:
+                completion.cancel()
 
     def on(self, handler: Callable[[SessionEvent], None]) -> Callable[[], None]:
         """
@@ -3102,6 +3264,7 @@ class CopilotSession:
             self._run_disconnect_callback()
             with self._event_handlers_lock:
                 self._destroyed = True
+                self._fail_structured_waits()
                 self._event_handlers.clear()
             with self._tool_handlers_lock:
                 self._tool_handlers.clear()

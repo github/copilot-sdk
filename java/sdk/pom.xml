@@ -153,6 +153,21 @@
                     </compilerArgs>
                     <proc>none</proc>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <proc>full</proc>
+                            <annotationProcessors>
+                                <annotationProcessor>com.github.copilot.tool.CopilotResponseProcessor</annotationProcessor>
+                            </annotationProcessors>
+                            <compilerArgs combine.children="append">
+                                <arg>-processorpath</arg>
+                                <arg>${project.build.outputDirectory}</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -711,6 +726,18 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </activation>
             <properties>
                 <copilot.native.classifier>win32-arm64</copilot.native.classifier>
+            </properties>
+        </profile>
+        <profile>
+            <id>native-darwin-x64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <properties>
+                <copilot.native.classifier>darwin-x64</copilot.native.classifier>
             </properties>
         </profile>
         <profile>

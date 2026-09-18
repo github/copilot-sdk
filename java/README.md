@@ -74,7 +74,7 @@ implementation 'com.github:copilot-sdk-java:1.0.15-preview.1-SNAPSHOT'
 
 ## In-process mode (experimental)
 
-The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **win32-x64**, **win32-arm64**, and **darwin-arm64**.
+The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **win32-x64**, **win32-arm64**, **darwin-x64**, and **darwin-arm64**.
 
 Because in-process mode is experimental, see the [Using experimental APIs](#using-experimental-apis) section for how to opt in.
 
@@ -97,7 +97,7 @@ Add both the SDK and the platform-specific native runtime to your project:
         <version>${copilot.version}</version>
         <classifier>linux-x64</classifier>
     </dependency>
-    <!-- Use linux-arm64, win32-x64, win32-arm64, or darwin-arm64 on those target platforms -->
+    <!-- Use linux-arm64, win32-x64, win32-arm64, darwin-x64, or darwin-arm64 on those target platforms -->
     <!-- JNA (required for in-process mode) -->
     <dependency>
         <groupId>net.java.dev.jna</groupId>
@@ -287,6 +287,41 @@ system prompt.
 Agent sources serialize as `agent-<id>`. Pass the agent ID without adding a
 prefix. The SDK preserves its case and whitespace and rejects null IDs.
 `sendAndWait` accepts the same source values as `send`.
+
+## Structured output (experimental)
+
+Annotate a result record or class using the same compile-time schema-generation
+approach as `@CopilotTool`. No additional schema dependency is needed:
+
+```java
+@CopilotResponse
+public record Inventory(int count, String color) {}
+
+Inventory inventory = session.sendAndWait(
+    "Call get_inventory, then report the widget count and color.",
+    Inventory.class
+).get();
+```
+
+Enable annotation processing with `CopilotResponseProcessor` (automatically
+discoverable alongside the SDK's existing processors), and opt in to experimental
+APIs as described below. The processor reuses the custom-tool `SchemaGenerator`,
+closing record/class objects for strict output. Its existing type-mapping
+limitations apply: custom Jackson naming/converters and recursive types need an explicit schema.
+Provider restrictions, including optional-field and dictionary restrictions,
+still apply. Jackson deserialization is not full JSON Schema validation.
+
+For an explicit schema, use `new MessageOptions().setPrompt(...).setResponseSchema(schema)`
+with `send` or `sendAndWait`; schema-bearing `sendAndWait` returns the ordinary
+message event. Typed overloads accept message options and a timeout, clone the
+options, and reject explicit schemas and immediate delivery.
+
+Schemas apply to one run, including tools, steering, and stop-hook corrections;
+independent sends and subagents do not inherit them. Streaming stays text.
+Structured waits return the last correlated root message without tool requests at
+non-autopilot idle. Concurrent waits keep their own results; queued work can delay
+idle. Aborts, session errors after the run starts, and missing final output fail.
+Cancellation and timeout stop waiting without aborting the agent.
 
 ## Permission Handling
 
@@ -666,7 +701,7 @@ CI enforces both checks. Spotless runs explicitly in CI; `mvn verify` alone does
 
 Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven because `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release.
 
-On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On Windows x64, Windows ARM64, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned platform package from the corresponding `github/copilot-cli` release during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
+On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned platform package from the corresponding `github/copilot-cli` release during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
 
 Before opting in, validate that Node.js reports glibc for the build host:
 
@@ -687,10 +722,10 @@ On Windows x64 or ARM64 PowerShell, initialize Java and run the same profile:
 mvn -Pinprocess clean verify
 ```
 
-The same command validates in-process mode on Apple Silicon macOS:
+The same command validates in-process mode on macOS; use the classifier for the host architecture:
 
 ```bash
-node copilot-native/scripts/validate-native-host.mjs darwin-arm64
+node copilot-native/scripts/validate-native-host.mjs darwin-x64 # Use darwin-arm64 on Apple Silicon
 mvn -Pinprocess clean verify
 ```
 
@@ -701,7 +736,7 @@ node copilot-native/scripts/validate-native-host.mjs linux-arm64
 mvn -Pinprocess clean verify -Dcopilot.native.libc=glibc
 ```
 
-On Intel macOS, Linux musl, and other unsupported hosts, do not set `copilot.native.libc=glibc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
+On Linux musl and other unsupported hosts, do not set `copilot.native.libc=glibc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
 
 To build only the OS-neutral artifacts on any host, or override the glibc opt-in, disable native download and packaging:
 

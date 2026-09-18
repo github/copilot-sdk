@@ -49,6 +49,7 @@ import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvi
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import { getTraceContext } from "./telemetry.js";
+import { toJsonSchema } from "./schema.js";
 import { ToolSet } from "./toolSet.js";
 import type {
     AutoModeSwitchRequest,
@@ -87,7 +88,6 @@ import type {
     SessionMetadata,
     SystemMessageCustomizeConfig,
     TelemetryConfig,
-    Tool,
     TraceContextProvider,
     TypedSessionLifecycleHandler,
 } from "./types.js";
@@ -100,18 +100,6 @@ import type { FactoryHandle } from "./factory.js";
  */
 const MIN_PROTOCOL_VERSION = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
-
-/**
- * Check if value is a Zod schema (has toJSONSchema method)
- */
-function isZodSchema(value: unknown): value is { toJSONSchema(): Record<string, unknown> } {
-    return (
-        value != null &&
-        typeof value === "object" &&
-        "toJSONSchema" in value &&
-        typeof (value as { toJSONSchema: unknown }).toJSONSchema === "function"
-    );
-}
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -158,17 +146,6 @@ async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise
             onExit();
         }
     });
-}
-
-/**
- * Convert tool parameters to JSON schema format for sending to CLI
- */
-function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> | undefined {
-    if (!parameters) return undefined;
-    if (isZodSchema(parameters)) {
-        return parameters.toJSONSchema();
-    }
-    return parameters;
 }
 
 /** Implicit provider name for the singular, whole-session {@link ProviderConfig}. */

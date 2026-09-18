@@ -397,6 +397,7 @@ func startOAuthMCPServer(t *testing.T, cimdSupported ...bool) string {
 		if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
 			return
 		}
+		testharness.PrepareForProcessWait()
 		_ = cmd.Process.Kill()
 		_, _ = cmd.Process.Wait()
 	})

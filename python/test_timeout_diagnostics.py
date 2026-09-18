@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from copilot._jsonrpc import JsonRpcClient
+from copilot.client import CopilotClient, RuntimeConnection
 from copilot.session import CopilotSession
 from e2e import timeout_diagnostics
 from e2e.timeout_diagnostics import (
@@ -139,7 +140,8 @@ def test_non_timeout_does_not_collect_diagnostics(error):
     assert report.sections == []
 
 
-def test_native_sample_is_bounded_and_targets_this_worker(tmp_path, monkeypatch):
+@pytest.mark.parametrize("process_id", [None, 12345])
+def test_native_sample_is_bounded_and_targets_requested_process(tmp_path, monkeypatch, process_id):
     calls = []
 
     def run(args, **kwargs):
@@ -149,11 +151,62 @@ def test_native_sample_is_bounded_and_targets_this_worker(tmp_path, monkeypatch)
     monkeypatch.setattr(subprocess, "run", run)
     path = tmp_path / "native.sample.txt"
     output = io.StringIO()
-    _sample_native_threads(path, output)
+    _sample_native_threads(path, output, process_id)
     args, options = calls[0]
-    assert args == ["sample", str(os.getpid()), "1", "-file", str(path)]
+    expected_pid = os.getpid() if process_id is None else process_id
+    assert args == ["sample", str(expected_pid), "1", "-file", str(path)]
     assert options["timeout"] == 10
     assert "Native sample exit=0" in output.getvalue()
+
+
+async def test_timeout_samples_owned_cli_from_pending_test_frame(tmp_path, monkeypatch):
+    rpc = JsonRpcClient(None)
+    rpc._loop = asyncio.get_running_loop()
+    context_client = SimpleNamespace(_client=rpc, _sessions={}, _ffi_host=None)
+    item = SimpleNamespace(
+        nodeid="test_external_resume",
+        config=SimpleNamespace(rootpath=tmp_path),
+        funcargs={"ctx": SimpleNamespace(_client=context_client)},
+    )
+    owner = CopilotClient(connection=RuntimeConnection.for_stdio(path=sys.executable))
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import sys; sys.stdin.read()"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    owner._cli_process = process
+    started = asyncio.Event()
+    samples = []
+
+    async def pending_test(server):
+        started.set()
+        await asyncio.Future()
+
+    def sample(path, output, process_id=None):
+        samples.append(process_id)
+        path.write_text("native stack", encoding="utf-8")
+
+    task = asyncio.create_task(pending_test(owner))
+    try:
+        await started.wait()
+        monkeypatch.setattr(sys, "platform", "darwin")
+        monkeypatch.setattr(timeout_diagnostics, "_sample_native_threads", sample)
+        text, path = timeout_diagnostics._collect_timeout_diagnostics(item)
+
+        assert samples == [process.pid]
+        assert f"CLI pid={process.pid}" in text
+        assert path is not None
+        (native_sample,) = path.parent.glob("*.sample.txt")
+        assert native_sample.read_text(encoding="utf-8") == "native stack"
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        process.terminate()
+        process.wait(timeout=10)
+        if process.stdin is not None:
+            process.stdin.close()
+        owner._cli_process = None
 
 
 @pytest.mark.parametrize(

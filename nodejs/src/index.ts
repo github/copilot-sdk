@@ -130,6 +130,7 @@ export type {
     DefaultAgentConfig,
     BearerTokenProvider,
     MessageOptions,
+    ResponseSchema,
     MessageSource,
     ManagedSettings,
     ManagedSettingsPermissions,

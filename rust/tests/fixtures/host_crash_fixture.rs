@@ -11,12 +11,15 @@
 //! - `HOST_CRASH_FIXTURE_CWD`: working directory for the spawned CLI.
 //! - `HOST_CRASH_FIXTURE_ENV_JSON`: JSON array of `[key, value]` pairs to set
 //!   on the spawned CLI's environment.
-//! - `HOST_CRASH_FIXTURE_PID_FILE`: path this process writes the CLI child's
-//!   OS process id to, once the client finishes starting.
+//! - `HOST_CRASH_FIXTURE_PID_FILE`: path this process atomically publishes the
+//!   CLI child's OS process id to, once the client finishes starting.
 
+use std::io::Write;
 use std::path::PathBuf;
 
 use github_copilot_sdk::{CliProgram, Client, ClientOptions, Transport};
+
+mod pid_file;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -45,7 +48,12 @@ async fn main() {
 
     let client = Client::start(options).await.expect("start CLI client");
     let pid = client.pid().expect("client reports spawned CLI pid");
-    std::fs::write(&pid_file, pid.to_string()).expect("write pid file");
+    tokio::task::spawn_blocking(move || {
+        pid_file::publish_pid_file(&pid_file, |file| write!(file, "{pid}"))
+    })
+    .await
+    .expect("join PID file writer")
+    .expect("write pid file");
 
     // Deliberately leak the client so nothing in this process — including its
     // `Drop` impls — ever runs cleanup code. The external test process

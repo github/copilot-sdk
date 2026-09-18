@@ -21,6 +21,9 @@ func TestRpcServerPlugins(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 
 	t.Run("should_install_and_list_plugin_from_local_marketplace", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		marketplaceDir := createPortedLocalMarketplaceFixture(t)
 		client := newStartedIsolatedPortedClient(t, ctx)
@@ -67,6 +70,9 @@ func TestRpcServerPlugins(t *testing.T) {
 	})
 
 	t.Run("should_enable_and_disable_marketplace_plugin", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		marketplaceDir := createPortedLocalMarketplaceFixture(t)
 		client := newStartedIsolatedPortedClient(t, ctx)
@@ -96,6 +102,9 @@ func TestRpcServerPlugins(t *testing.T) {
 	})
 
 	t.Run("should_update_single_marketplace_plugin", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		marketplaceDir := createPortedLocalMarketplaceFixture(t)
 		client := newStartedIsolatedPortedClient(t, ctx)
@@ -125,6 +134,9 @@ func TestRpcServerPlugins(t *testing.T) {
 	})
 
 	t.Run("should_update_all_installed_plugins", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		marketplaceDir := createPortedLocalMarketplaceFixture(t)
 		client := newStartedIsolatedPortedClient(t, ctx)
@@ -161,6 +173,9 @@ func TestRpcServerPlugins(t *testing.T) {
 	})
 
 	t.Run("should_install_direct_local_plugin_with_deprecation_warning", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		pluginDir := createPortedDirectPluginFixture(t)
 		client := newStartedIsolatedPortedClient(t, ctx)
@@ -210,6 +225,9 @@ func TestRpcServerPlugins(t *testing.T) {
 	})
 
 	t.Run("should_list_browse_refresh_and_remove_local_marketplace", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		marketplaceDir := createPortedLocalMarketplaceFixture(t)
 		client := newStartedIsolatedPortedClient(t, ctx)
@@ -292,6 +310,9 @@ func TestRpcServerPlugins(t *testing.T) {
 	})
 
 	t.Run("should_reload_mcp_config_cache", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
 		ctx.ConfigureForTest(t)
 		client := newStartedIsolatedPortedClient(t, ctx)
 		defer client.ForceStop()
