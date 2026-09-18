@@ -43,8 +43,7 @@ async def test_send_message_supports_streams_without_process_poll():
     await client._send_message({"jsonrpc": "2.0", "method": "ping"})
 
     assert process.stdin.getvalue() == (
-        b"Content-Length: 33\r\n\r\n"
-        b'{"jsonrpc":"2.0","method":"ping"}'
+        b'Content-Length: 33\r\n\r\n{"jsonrpc":"2.0","method":"ping"}'
     )
 
 
