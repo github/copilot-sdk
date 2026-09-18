@@ -21,7 +21,7 @@ public class ScenarioTestingEventSubscriptionsE2ETests(E2ETestFixture fixture, I
     {
         var handlerEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var toolInvoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseHandler = new ManualResetEventSlim();
+        using var releaseHandler = new ManualResetEventSlim();
         var events = new List<SessionEvent>();
 
         await using var session = await CreateSessionAsync(new SessionConfig
