@@ -232,10 +232,6 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     normalizeToolResultOrder(this.state.storedData.conversations);
     normalizeStoredUserMessages(this.state.storedData.conversations);
     normalizeStoredToolMessages(this.state.storedData.conversations);
-    normalizeStoredMessagesForBackend(
-      this.state.storedData.conversations,
-      this.state.backend,
-    );
   }
 
   async stop(skipWritingCache?: boolean): Promise<void> {
@@ -593,6 +589,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             normalizedBody,
             state.workDir,
             state.toolResultNormalizers,
+            state.backend,
           );
 
           if (savedResponse) {
@@ -615,6 +612,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
               normalizedBody,
               state.workDir,
               state.toolResultNormalizers,
+              state.backend,
             )
           ) {
             const headers = {
@@ -747,7 +745,7 @@ async function writeCapturesToDisk(
 /**
  * Produces a human-readable explanation of why no stored conversation matched
  * a given request. For each stored conversation it reports the first reason
- * matching failed, mirroring the logic in {@link findAssistantIndexAfterPrefix}.
+ * matching failed against the uncoalesced canonical messages.
  */
 function diagnoseMatchFailure(
   requestMessages: NormalizedMessage[],
@@ -767,7 +765,7 @@ function diagnoseMatchFailure(
   for (let c = 0; c < storedData.conversations.length; c++) {
     const saved = storedData.conversations[c].messages;
 
-    // Same check as findAssistantIndexAfterPrefix: request must be a strict prefix
+    // Coalescing can only reduce the number of saved request messages.
     if (requestMessages.length >= saved.length) {
       lines.push(
         `Conversation ${c} (${saved.length} messages): ` +
@@ -869,6 +867,7 @@ async function findSavedChatCompletionResponse(
   requestBody: string | undefined,
   workDir: string,
   toolResultNormalizers: ToolResultNormalizer[],
+  backend: ReplayBackend,
 ): Promise<ChatCompletion | undefined> {
   // Normalize the incoming request the same way we normalize for caching
   const normalized = await parseAndNormalizeRequest(
@@ -888,6 +887,7 @@ async function findSavedChatCompletionResponse(
     const replyIndex = findAssistantIndexAfterPrefix(
       requestMessages,
       conversation.messages,
+      backend,
     );
     if (replyIndex !== undefined) {
       return createOpenAIResponse(
@@ -941,6 +941,7 @@ async function isRequestOnlySnapshot(
   requestBody: string | undefined,
   workDir: string,
   toolResultNormalizers: ToolResultNormalizer[],
+  backend: ReplayBackend,
 ): Promise<boolean> {
   const normalized = await parseAndNormalizeRequest(
     requestBody,
@@ -950,11 +951,14 @@ async function isRequestOnlySnapshot(
   const requestMessages = normalized.conversations[0]?.messages ?? [];
 
   for (const conversation of storedData.conversations) {
+    const messages = normalizeMessagesForBackend(
+      conversation.messages,
+      backend,
+    );
     if (
-      requestMessages.length === conversation.messages.length &&
+      requestMessages.length === messages.length &&
       requestMessages.every(
-        (msg, i) =>
-          JSON.stringify(msg) === JSON.stringify(conversation.messages[i]),
+        (msg, i) => JSON.stringify(msg) === JSON.stringify(messages[i]),
       )
     ) {
       return true;
@@ -1405,18 +1409,16 @@ function normalizeStoredUserMessages(conversations: NormalizedConversation[]) {
   }
 }
 
-function normalizeStoredMessagesForBackend(
-  conversations: NormalizedConversation[],
+function normalizeMessagesForBackend(
+  messages: NormalizedMessage[],
   backend: ReplayBackend,
-) {
-  if (backend === "capi") return;
+): NormalizedMessage[] {
+  if (backend === "capi") return messages;
 
-  for (const conversation of conversations) {
-    conversation.messages = coalesceMessages(
-      conversation.messages,
-      backend !== "openai-completions",
-    );
-  }
+  return coalesceMessages(
+    messages.map((message) => ({ ...message })),
+    backend !== "openai-completions",
+  );
 }
 
 function coalesceMessages(
@@ -1850,6 +1852,7 @@ async function parseOpenAIResponse(
 function findAssistantIndexAfterPrefix(
   requestMessages: NormalizedMessage[],
   savedMessages: NormalizedMessage[],
+  backend: ReplayBackend,
 ): number | undefined {
   const logFile = process.env.PROXY_DEBUG_LOG;
   const log = (msg: string) => {
@@ -1866,30 +1869,37 @@ function findAssistantIndexAfterPrefix(
     return undefined;
   }
 
-  for (let i = 0; i < requestMessages.length; i++) {
-    const reqMsg = JSON.stringify(requestMessages[i]);
-    const savedMsg = JSON.stringify(savedMessages[i]);
-    if (reqMsg !== savedMsg) {
-      log(`mismatch at index ${i}:`);
-      log(`  REQ:   ${reqMsg.substring(0, 1000)}`);
-      log(`  SAVED: ${savedMsg.substring(0, 1000)}`);
-      return undefined;
-    }
-  }
-
-  // The next message after the prefix should be an assistant message
-  const nextIndex = requestMessages.length;
-  if (
-    nextIndex < savedMessages.length &&
-    savedMessages[nextIndex].role === "assistant"
+  for (
+    let nextIndex = requestMessages.length;
+    nextIndex < savedMessages.length;
+    nextIndex++
   ) {
-    log(`MATCH found at index ${nextIndex}`);
-    return nextIndex;
+    if (savedMessages[nextIndex].role !== "assistant") continue;
+
+    // A continuation can start after an assistant message. Never coalesce
+    // across this candidate request/response boundary.
+    const prefix = normalizeMessagesForBackend(
+      savedMessages.slice(0, nextIndex),
+      backend,
+    );
+    if (prefix.length > requestMessages.length) break;
+    if (prefix.length !== requestMessages.length) continue;
+
+    const mismatchIndex = requestMessages.findIndex(
+      (message, i) => JSON.stringify(message) !== JSON.stringify(prefix[i]),
+    );
+    if (mismatchIndex === -1) {
+      log(`MATCH found at index ${nextIndex}`);
+      return nextIndex;
+    }
+    log(`mismatch at index ${mismatchIndex} for reply index ${nextIndex}:`);
+    log(
+      `  REQ:   ${JSON.stringify(requestMessages[mismatchIndex]).substring(0, 1000)}`,
+    );
+    log(`  SAVED: ${JSON.stringify(prefix[mismatchIndex]).substring(0, 1000)}`);
   }
 
-  log(
-    `no assistant at nextIndex=${nextIndex}, saved.length=${savedMessages.length}`,
-  );
+  log(`no matching assistant boundary, saved.length=${savedMessages.length}`);
   return undefined;
 }
 
