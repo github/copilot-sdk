@@ -22,6 +22,9 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
+    BlackbirdCredentialAcquireResult,
+    BlackbirdCredentialHost,
+    BlackbirdTokenGetTokenRequest,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
@@ -31,6 +34,25 @@ import type {
     CurrentToolMetadata,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
+/**
+ * Supplies an existing operational credential for native search, independently
+ * of model authentication. The SDK never mints, probes, or caches the token.
+ *
+ * @experimental Requires a runtime with Blackbird credential binding support.
+ */
+export interface BlackbirdCredentialProvider {
+    host: BlackbirdCredentialHost;
+    /**
+     * Called once per operation with the binding owner's session ID, including
+     * searches by children. Return a nonempty access token. Omit `expiresIn`
+     * unless its positive integer remaining lifetime in seconds is known.
+     * Rejections fail search closed; callback error details are not forwarded.
+     */
+    getToken(
+        args: Pick<BlackbirdTokenGetTokenRequest, "host" | "sessionId">
+    ): BlackbirdCredentialAcquireResult | Promise<BlackbirdCredentialAcquireResult>;
+}
+export type { BlackbirdCredentialAcquireResult } from "./generated/rpc.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {

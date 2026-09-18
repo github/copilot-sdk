@@ -8,6 +8,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { createInternalSessionRpc, createSessionRpc } from "./generated/rpc.js";
@@ -38,6 +39,7 @@ import type {
     ExitPlanModeRequest,
     ExitPlanModeResult,
     BearerTokenProvider,
+    BlackbirdCredentialProvider,
     UiInputOptions,
     MessageOptions,
     ResponseSchema,
@@ -442,6 +444,9 @@ export class CopilotSession {
     private pendingExternalTools: Map<string, AbortController> = new Map();
     private canvases: Map<string, Canvas> = new Map();
     private bearerTokenProviders: Map<string, BearerTokenProvider> = new Map();
+    private blackbirdCredentialProviders = new Map<string, BlackbirdCredentialProvider>();
+    private blackbirdCredentialBinding = false;
+    private blackbirdCredentialProviderClosed = false;
     private commandHandlers: Map<string, CommandHandler> = new Map();
     private factories = new Map<string, ReturnType<typeof getFactoryDefinition>>();
     private factoryAbortControllers = new Map<string, Map<string, AbortController>>();
@@ -1039,6 +1044,7 @@ export class CopilotSession {
 
     /** @internal */
     _runOnDisconnected(): void {
+        this._closeBlackbirdCredentialProvider();
         this.onDisconnected?.();
         this.onDisconnected = undefined;
     }
@@ -1822,6 +1828,128 @@ export class CopilotSession {
                 return {};
             },
         };
+    }
+
+    /**
+     * Binds an operational credential provider for native search on this session.
+     * Model authentication, settings, and policy authentication are unchanged.
+     *
+     * Await before searching. Successful replacement invalidates the previous
+     * registration, including in-flight callbacks; failed binding preserves it.
+     * Overlapping registrations are rejected. Children inherit the native binding
+     * but cannot replace it. Resume requires explicit registration on the new
+     * session object, even when the original connection is still alive. Starting
+     * resume retires the old object's callback, including if resume later fails.
+     *
+     * @returns A registration-scoped cleanup function. It removes only this local
+     * callback, never a replacement. Cleanup or disconnect leaves native search
+     * fail-closed: there is no operation to clear the native credential requirement
+     * or fall back to model authentication.
+     * @experimental Requires a compatible runtime and an attached, non-extension
+     * SDK connection. Unsupported runtimes reject binding without changing auth.
+     *
+     * @example
+     * ```typescript
+     * const unregister = await session.registerBlackbirdCredentialProvider({
+     *     host: "github.com",
+     *     getToken: async () => ({
+     *         accessToken: await getApprovedRepositoryCredential(),
+     *     }),
+     * });
+     * // Keep the callback registered while native search is needed.
+     * unregister();
+     * ```
+     */
+    async registerBlackbirdCredentialProvider(
+        provider: BlackbirdCredentialProvider
+    ): Promise<() => void> {
+        if (this.disconnected || this.disconnecting || this.blackbirdCredentialProviderClosed) {
+            throw new Error("Blackbird credential provider session is no longer available");
+        }
+        if (provider.host !== "github.com" || typeof provider.getToken !== "function") {
+            throw new Error("Blackbird credential provider requires github.com and getToken");
+        }
+        if (this.blackbirdCredentialBinding) {
+            throw new Error("Blackbird credential provider registration is already in progress");
+        }
+
+        this.blackbirdCredentialBinding = true;
+        const registrationId = randomUUID();
+        // Capture configuration so caller mutation cannot change an admitted binding.
+        this.blackbirdCredentialProviders.set(registrationId, {
+            host: provider.host,
+            getToken: provider.getToken,
+        });
+        this.clientSessionApis.blackbirdToken = {
+            getToken: async (params) => {
+                const current = this.blackbirdCredentialProviders.get(params.registrationId);
+                if (
+                    !current ||
+                    params.host !== current.host ||
+                    params.sessionId !== this.sessionId
+                ) {
+                    throw new Error("Blackbird credential provider is unavailable");
+                }
+                let result;
+                try {
+                    result = await current.getToken({
+                        host: current.host,
+                        sessionId: this.sessionId,
+                    });
+                } catch {
+                    // Credential brokers may include secrets in their errors.
+                    throw new Error("Blackbird credential provider failed");
+                }
+                if (this.blackbirdCredentialProviders.get(params.registrationId) !== current) {
+                    throw new Error("Blackbird credential provider is unavailable");
+                }
+                if (
+                    !result ||
+                    typeof result.accessToken !== "string" ||
+                    result.accessToken.length === 0 ||
+                    (result.expiresIn !== undefined &&
+                        (!Number.isInteger(result.expiresIn) || result.expiresIn <= 0))
+                ) {
+                    throw new Error("Blackbird credential provider returned an invalid credential");
+                }
+                return {
+                    accessToken: result.accessToken,
+                    ...(result.expiresIn === undefined ? {} : { expiresIn: result.expiresIn }),
+                };
+            },
+        };
+
+        const unregister = () => {
+            this.blackbirdCredentialProviders.delete(registrationId);
+            if (this.blackbirdCredentialProviders.size === 0) {
+                delete this.clientSessionApis.blackbirdToken;
+            }
+        };
+        try {
+            await this.rpc.blackbird.setCredentialProvider({
+                host: provider.host,
+                registrationId,
+            });
+            if (!this.blackbirdCredentialProviders.has(registrationId)) {
+                throw new Error("Blackbird credential provider session is no longer available");
+            }
+            for (const id of this.blackbirdCredentialProviders.keys()) {
+                if (id !== registrationId) this.blackbirdCredentialProviders.delete(id);
+            }
+            return unregister;
+        } catch (error) {
+            unregister();
+            throw error;
+        } finally {
+            this.blackbirdCredentialBinding = false;
+        }
+    }
+
+    /** @internal Retires callbacks on disconnect or replacement by a resumed session. */
+    _closeBlackbirdCredentialProvider(): void {
+        this.blackbirdCredentialProviderClosed = true;
+        this.blackbirdCredentialProviders.clear();
+        delete this.clientSessionApis.blackbirdToken;
     }
 
     /**

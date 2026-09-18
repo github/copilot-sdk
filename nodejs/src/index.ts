@@ -115,6 +115,8 @@ export type {
     MCPServerConfig,
     DefaultAgentConfig,
     BearerTokenProvider,
+    BlackbirdCredentialProvider,
+    BlackbirdCredentialAcquireResult,
     MessageOptions,
     ResponseSchema,
     MessageSource,

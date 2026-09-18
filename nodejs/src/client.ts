@@ -1873,6 +1873,8 @@ export class CopilotClient {
         if (config.onEvent) {
             session.on(config.onEvent);
         }
+        // Retire operation callbacks before replacing their reverse-RPC dispatch target.
+        this.sessions.get(sessionId)?._closeBlackbirdCredentialProvider();
         this.sessions.set(sessionId, session);
         this.setupSessionFs(session, config);
 

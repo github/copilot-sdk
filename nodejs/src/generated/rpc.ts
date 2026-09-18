@@ -4297,6 +4297,14 @@ export type WorkspacesWorkspaceDetailsHostType =
   /** Workspace repository is hosted on Azure DevOps. */
   | "ado";
 /**
+ * The GitHub host supported by native Blackbird repository credentials.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "BlackbirdCredentialHost".
+ */
+/** @experimental */
+export type BlackbirdCredentialHost = "github.com";
+/**
  * List of all authenticated users
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -24484,6 +24492,54 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
    */
   operation: string;
 }
+/**
+ * Requests the host's current repository credential for one native search operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "BlackbirdCredentialAcquireRequest".
+ */
+/** @experimental */
+export interface BlackbirdCredentialAcquireRequest {
+  host: BlackbirdCredentialHost;
+  /**
+   * The non-secret identifier supplied when binding this provider.
+   */
+  registrationId: string;
+}
+/**
+ * An operation-scoped repository credential, with remaining lifetime only when known.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "BlackbirdCredentialAcquireResult".
+ */
+/** @experimental */
+export interface BlackbirdCredentialAcquireResult {
+  /**
+   * Existing repository-scoped GitHub access token. Never a model credential placeholder.
+   */
+  accessToken: string;
+  /**
+   * Remaining lifetime in seconds, only when known by the host. Zero is rejected.
+   * Omit for opaque existing tokens whose expiry is unknown; never invent a lifetime.
+   * The host must return a currently usable token on every call. GitHub enforces
+   * actual expiry and repository permissions even when this field is omitted.
+   */
+  expiresIn?: number;
+}
+/**
+ * Binds this session's repository credential callback to the calling SDK connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "BlackbirdCredentialSetProviderRequest".
+ */
+/** @experimental */
+export interface BlackbirdCredentialSetProviderRequest {
+  host: BlackbirdCredentialHost;
+  /**
+   * Non-secret host-owned identifier for the repository credential callback.
+   */
+  registrationId: string;
+}
 
 /** @experimental */
 export interface SessionFactoryPauseAtCheckpointResult {
@@ -24596,6 +24652,20 @@ export interface SessionLimitPredictionPredictRequest {
   clientType?: SessionLimitPredictionClientType;
 }
 /**
+ * Binds this session's repository credential callback to the calling SDK connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionBlackbirdSetCredentialProviderRequest".
+ */
+/** @experimental */
+export interface SessionBlackbirdSetCredentialProviderRequest {
+  host: BlackbirdCredentialHost;
+  /**
+   * Non-secret host-owned identifier for the repository credential callback.
+   */
+  registrationId: string;
+}
+/**
  * Identifies the target session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -24620,6 +24690,44 @@ export interface SessionFsSqliteExistsRequest {
    * Target session identifier
    */
   sessionId: string;
+}
+/**
+ * An operation-scoped repository credential, with remaining lifetime only when known.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "BlackbirdTokenGetTokenResult".
+ */
+/** @experimental */
+export interface BlackbirdTokenGetTokenResult {
+  /**
+   * Existing repository-scoped GitHub access token. Never a model credential placeholder.
+   */
+  accessToken: string;
+  /**
+   * Remaining lifetime in seconds, only when known by the host. Zero is rejected.
+   * Omit for opaque existing tokens whose expiry is unknown; never invent a lifetime.
+   * The host must return a currently usable token on every call. GitHub enforces
+   * actual expiry and repository permissions even when this field is omitted.
+   */
+  expiresIn?: number;
+}
+/**
+ * Requests the host's current repository credential for one native search operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "BlackbirdTokenGetTokenRequest".
+ */
+/** @experimental */
+export interface BlackbirdTokenGetTokenRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  host: BlackbirdCredentialHost;
+  /**
+   * The non-secret identifier supplied when binding this provider.
+   */
+  registrationId: string;
 }
 
 /** Create typed server-scoped RPC methods (no session required). */
@@ -27510,6 +27618,16 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             stop: async (params: ScheduleStopRequest): Promise<ScheduleStopResult> =>
                 connection.sendRequest("session.schedule.stop", { sessionId, ...params }),
         },
+        /** @experimental */
+        blackbird: {
+            /**
+             * Binds the calling SDK connection as this session's Blackbird repository-credential provider. Call before search and rebind after resume. Applies only to native lexical_code_search, semantic_code_search and search-subagent semantic_search; never changes model or policy authentication. Persists only a non-secret requirement marker, so an unavailable provider fails search closed rather than falling back to model authentication. Requires session storage; there is no clear/fallback operation.
+             *
+             * @param params Binds this session's repository credential callback to the calling SDK connection.
+             */
+            setCredentialProvider: async (params: SessionBlackbirdSetCredentialProviderRequest): Promise<void> =>
+                connection.sendRequest("session.blackbird.setCredentialProvider", { sessionId, ...params }),
+        },
     };
 }
 
@@ -28027,6 +28145,19 @@ export interface CanvasHandler {
     invoke(params: CanvasProviderInvokeActionRequest): Promise<CanvasActionInvokeResult>;
 }
 
+/** Handler for `blackbirdToken` client session API methods. */
+/** @experimental */
+export interface BlackbirdTokenHandler {
+    /**
+     * Requests a repository credential from the SDK connection explicitly bound by blackbird.setCredentialProvider. Called once per native search operation with the binding owner's sessionId, including for children. The host owns credential selection and refresh; the runtime does not cache, mint, or probe Copilot identity. Callback failure or an invalid credential fails the tool without fallback. Never return or log credentials in tool output.
+     *
+     * @param params Requests the host's current repository credential for one native search operation.
+     *
+     * @returns An operation-scoped repository credential, with remaining lifetime only when known.
+     */
+    getToken(params: BlackbirdTokenGetTokenRequest): Promise<BlackbirdTokenGetTokenResult>;
+}
+
 /** All client session API handler groups. */
 export interface ClientSessionApiHandlers {
     providerToken?: ProviderTokenHandler;
@@ -28034,6 +28165,7 @@ export interface ClientSessionApiHandlers {
     tasks?: TasksHandler;
     sessionFs?: SessionFsHandler;
     canvas?: CanvasHandler;
+    blackbirdToken?: BlackbirdTokenHandler;
 }
 
 /**
@@ -28145,6 +28277,11 @@ export function registerClientSessionApiHandlers(
         const handler = getHandlers(params.sessionId).canvas;
         if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
         return handler.invoke(params);
+    });
+    connection.onRequest("blackbirdToken.getToken", async (params: BlackbirdTokenGetTokenRequest) => {
+        const handler = getHandlers(params.sessionId).blackbirdToken;
+        if (!handler) throw new Error(`No blackbirdToken handler registered for session: ${params.sessionId}`);
+        return handler.getToken(params);
     });
 }
 
