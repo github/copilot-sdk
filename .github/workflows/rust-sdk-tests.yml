@@ -80,7 +80,7 @@ jobs:
         # embed it. Tests exec against the setup-copilot CLI via
         # COPILOT_CLI_PATH (the env override wins over the dev cache).
         # The dedicated `bundle` job below exercises the embed pipeline.
-        run: cargo test --no-default-features --features test-support -- --test-threads=4 --nocapture
+        run: cargo test --no-default-features --features test-support,derive -- --test-threads=4 --nocapture
 
   clippy:
     name: "Rust SDK Format and Clippy"
@@ -139,7 +139,7 @@ jobs:
       - name: cargo clippy
         env:
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
-        run: cargo clippy --all-targets --features test-support,bundled-in-process -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+        run: cargo clippy --all-targets --features test-support,bundled-in-process,derive -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
 
   doc:
     name: "Rust SDK Docs"
@@ -265,7 +265,7 @@ jobs:
         # The harness forces serial execution in-process (both the async semaphore and
         # libtest via --test-threads=1) because it mirrors each test's environment onto
         # the shared process environment, so RUST_E2E_CONCURRENCY is not set here.
-        run: cargo test --no-default-features --features test-support,bundled-in-process --test e2e -- --test-threads=1 --nocapture
+        run: cargo test --no-default-features --features test-support,bundled-in-process,derive --test e2e -- --test-threads=1 --nocapture
 
   # Validates the bundled-CLI build path on all three supported
   # platforms. While the regular `cargo test` job above also exercises
@@ -376,8 +376,8 @@ jobs:
             export CARGO_TARGET_DIR=/tmp/copilot-sdk-rust-target
             if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
               unset RUST_E2E_CONCURRENCY
-              cargo test --no-default-features --features test-support,bundled-in-process --test e2e -- --test-threads=1 --nocapture
+              cargo test --no-default-features --features test-support,bundled-in-process,derive --test e2e -- --test-threads=1 --nocapture
             else
               export RUST_E2E_CONCURRENCY=4
-              cargo test --no-default-features --features test-support -- --test-threads=4 --nocapture
+              cargo test --no-default-features --features test-support,derive -- --test-threads=4 --nocapture
             fi

@@ -441,6 +441,15 @@ func (s *Session) Send(ctx context.Context, options MessageOptions) (string, err
 		Tracestate:     tracestate,
 		RequestHeaders: options.RequestHeaders,
 	}
+	if options.ResponseSchema != nil {
+		strict := true
+		req.ResponseFormat = &rpc.ResponseFormat{
+			Type: "json_schema",
+			JSONSchema: rpc.JSONSchemaResponseFormat{
+				Name: "response", Schema: options.ResponseSchema, Strict: &strict,
+			},
+		}
+	}
 
 	result, err := s.client.Request(ctx, "session.send", req)
 	if err != nil {
@@ -492,6 +501,9 @@ func (s *Session) SendPrompt(ctx context.Context, prompt string) (string, error)
 //	    }
 //	}
 func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*SessionEvent, error) {
+	if options.ResponseSchema != nil {
+		return s.sendAndWaitStructured(ctx, options)
+	}
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, 60*time.Second)

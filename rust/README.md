@@ -873,7 +873,46 @@ session
     .await?;
 ```
 
-Default timeout is 60 seconds. Only one `send_and_wait` can be active per session — concurrent calls return an error.
+Default timeout is 60 seconds. Only one unformatted `send_and_wait` can be active
+per session; it also prevents other sends until it completes.
+
+### Structured output (experimental)
+
+Enable the existing `derive` feature and use the same `schemars`/Serde integration
+as typed custom tools:
+
+```rust,no_run
+use schemars::JsonSchema;
+use serde::Deserialize;
+
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct Inventory {
+    count: i32,
+    color: String,
+}
+
+# async fn example(session: &github_copilot_sdk::Session) -> Result<(), github_copilot_sdk::Error> {
+let inventory: Inventory = session
+    .send_and_wait_typed("Call get_inventory, then report the widget count and color.")
+    .await?;
+# Ok(())
+# }
+```
+
+The helper uses the existing `schema_for::<T>()` generator and deserializes the
+final JSON. Serde deserialization is not full JSON Schema validation. Provider
+schema restrictions apply; `deny_unknown_fields` closes objects for strict output.
+For explicit schemas, `MessageOptions::with_response_schema` works with `send` or
+`send_and_wait` without the `derive` feature and returns ordinary events.
+
+Schemas apply to one run, including tools, steering, and stop-hook corrections,
+not independent sends or subagents. Streaming remains text. Structured waits
+select the last correlated root message without tool requests at non-autopilot
+idle and support concurrent structured waits with independent results. Later
+queued work can delay idle. Aborts, session errors after the run starts, missing
+output, and event-stream lag fail the wait. Dropping the future or timing out
+unsubscribes without aborting the agent. Immediate steering cannot set a schema.
 
 ### Newtypes
 
