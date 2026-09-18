@@ -463,6 +463,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     "CopilotClient.StartAsync protocol verification complete. Elapsed={Elapsed}",
                     startTimestamp);
 
+                if (_options.ExtensionLaunchProvider is not null)
+                {
+                    await connection.Server.RegisterExtensionLaunchProviderAsync(ct);
+                }
+
                 if (_builtinPluginDirectories.Length > 0)
                 {
                     var request = new BuiltinPluginDirectoriesRequest(_builtinPluginDirectories);
@@ -2041,8 +2046,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     /// <summary>
     /// Builds the client-global RPC handler bag at construction time. Registers
-    /// the LLM inference provider adapter and/or the GitHub telemetry adapter
-    /// depending on which options are configured. The GitHub token dispatcher is
+    /// the configured connection-level adapters. The GitHub token dispatcher is
     /// always registered because providers are configured per session.
     /// </summary>
     private ClientGlobalApiHandlers? BuildClientGlobalApis()
@@ -2051,6 +2055,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var onGitHubTelemetry = _options.OnGitHubTelemetry;
         return new ClientGlobalApiHandlers
         {
+            ExtensionLaunchProvider = _options.ExtensionLaunchProvider,
             LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
             GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry, _logger),
             GitHubToken = new GitHubTokenAdapter(this),
@@ -2698,6 +2703,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 ClientGlobalApiRegistration.RegisterClientGlobalApiHandlers(rpc, _clientGlobalApis);
             }
+            if (cliProcess is not null)
+            {
+                RegisterRpcProcessExit(cliProcess, rpc);
+            }
             rpc.StartListening();
             _ = CancelExternalToolsWhenConnectionClosesAsync(rpc);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -2726,6 +2735,23 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 }
             }
             throw;
+        }
+    }
+
+    private void RegisterRpcProcessExit(Process cliProcess, JsonRpc rpc)
+    {
+        try
+        {
+            cliProcess.EnableRaisingEvents = true;
+            cliProcess.Exited += (_, _) => rpc.Dispose();
+            if (cliProcess.HasExited)
+            {
+                rpc.Dispose();
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
+        {
+            _logger.LogDebug(ex, "Unable to monitor the Copilot CLI process for transport closure");
         }
     }
 

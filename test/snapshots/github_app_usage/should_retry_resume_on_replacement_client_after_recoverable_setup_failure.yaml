@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly APP_RETRY_RESUME_READY.
+      - role: assistant
+        content: APP_RETRY_RESUME_READY

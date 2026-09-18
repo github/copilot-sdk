@@ -166,8 +166,9 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         var client1 = Ctx.CreateClient();
         var session1 = await Ctx.CreateSessionAsync(
             client1,
-            CreateAppSessionConfig(originalCanvasHandler, includeTool: false));
+            CreateAppSessionConfig(originalCanvasHandler, includeTool: false, includeMcp: true));
         var sessionId = session1.SessionId;
+        await WaitForMcpServerStatusAsync(session1, "app-resume-mcp", McpServerStatus.Connected);
         var initialResponse = await session1.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Remember APP_RESUME_MARKER and reply with exactly INITIALIZED.",
@@ -190,14 +191,14 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
 
         await session1.Rpc.SuspendAsync();
         await session1.DisposeAsync();
-        await client1.ForceStopAsync();
+        await client1.StopAsync();
 
         var resumedCanvasHandler = new AppCanvasHandler();
         var client2 = Ctx.CreateClient();
         await using var session2 = await Ctx.ResumeSessionAsync(
             client2,
             sessionId,
-            CreateAppResumeConfig(resumedCanvasHandler, openCanvases));
+            CreateAppResumeConfig(resumedCanvasHandler, openCanvases, includeMcp: true));
 
         var restoredOpenRequest = await resumedCanvasHandler.Opened.Task.WaitAsync(EventTimeout);
         Assert.Equal("app-counter-1", restoredOpenRequest.InstanceId);
@@ -215,6 +216,10 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         Assert.Equal(42, action.Result!.Value.GetProperty("count").GetInt32());
         Assert.Single(resumedCanvasHandler.ActionRequests);
 
+        await WaitForMcpServerStatusAsync(session2, "app-resume-mcp", McpServerStatus.Connected);
+        var mcpTools = await session2.Rpc.Mcp.ListToolsAsync("app-resume-mcp");
+        Assert.NotEmpty(mcpTools.Tools);
+
         var response = await session2.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Call app_host_lookup with key ALPHA, then reply with exactly its result.",
@@ -224,6 +229,213 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         var events = await session2.GetEventsAsync();
         Assert.Contains(events.OfType<SessionInfoEvent>(), evt => evt.Data.Message == "APP_HOST_STATE_MARKER");
         Assert.Single(events.OfType<SessionResumeEvent>());
+    }
+
+    [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
+    public async Task Should_Resume_With_Reattached_App_Provider()
+    {
+        var initialProviderTokenRequest = new TaskCompletionSource<ProviderTokenArgs>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var initialRequestHandler = new RecordingRequestHandler();
+        var client1 = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForStdio(),
+            RequestHandler = initialRequestHandler,
+        });
+        var createConfig = new SessionConfig
+        {
+            Model = "app-resume-provider/app-model",
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        };
+        ConfigureAppProvider(
+            createConfig,
+            args =>
+            {
+                initialProviderTokenRequest.TrySetResult(args);
+                return Task.FromResult("initial-app-provider-token");
+            });
+        var session1 = await Ctx.CreateSessionAsync(client1, createConfig);
+        var sessionId = session1.SessionId;
+        var initialResponse = await session1.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Create persisted history before the provider resume.",
+        });
+        Assert.Contains(
+            RecordingRequestHandler.SyntheticText,
+            initialResponse?.Data.Content ?? string.Empty,
+            StringComparison.Ordinal);
+
+        var initialProviderRequest = await initialProviderTokenRequest.Task.WaitAsync(EventTimeout);
+        Assert.Equal(sessionId, initialProviderRequest.SessionId);
+        Assert.Equal("app-resume-provider", initialProviderRequest.ProviderName);
+        Assert.Contains(
+            initialRequestHandler.InferenceRequests,
+            request => request.Url.StartsWith("https://app-resume.invalid/", StringComparison.Ordinal)
+                && request.SessionId == sessionId);
+
+        await session1.Rpc.SuspendAsync();
+        await session1.DisposeAsync();
+        await client1.StopAsync();
+
+        var providerTokenRequest = new TaskCompletionSource<ProviderTokenArgs>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var resumedRequestHandler = new RecordingRequestHandler();
+        var client2 = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForStdio(),
+            RequestHandler = resumedRequestHandler,
+        });
+        var resumeConfig = new ResumeSessionConfig
+        {
+            Model = "app-resume-provider/app-model",
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        };
+        ConfigureAppProvider(
+            resumeConfig,
+            args =>
+            {
+                providerTokenRequest.TrySetResult(args);
+                return Task.FromResult("resumed-app-provider-token");
+            });
+        await using var session2 = await Ctx.ResumeSessionAsync(client2, sessionId, resumeConfig);
+
+        var response = await session2.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Use the reattached app provider.",
+        });
+        Assert.Contains(
+            RecordingRequestHandler.SyntheticText,
+            response?.Data.Content ?? string.Empty,
+            StringComparison.Ordinal);
+
+        var providerRequest = await providerTokenRequest.Task.WaitAsync(EventTimeout);
+        Assert.Equal(sessionId, providerRequest.SessionId);
+        Assert.Equal("app-resume-provider", providerRequest.ProviderName);
+        Assert.Contains(
+            resumedRequestHandler.InferenceRequests,
+            request => request.Url.StartsWith("https://app-resume.invalid/", StringComparison.Ordinal)
+                && request.SessionId == sessionId);
+    }
+
+    [Fact]
+    public async Task Should_Retry_Resume_On_Replacement_Client_After_Recoverable_Setup_Failure()
+    {
+        var originalHandler = new AppCanvasHandler();
+        var client1 = Ctx.CreateClient();
+        var session1 = await Ctx.CreateSessionAsync(client1, CreateAppSessionConfig(originalHandler));
+        var sessionId = session1.SessionId;
+        var initialResponse = await session1.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Reply with exactly APP_RETRY_RESUME_READY.",
+        });
+        Assert.Contains("APP_RETRY_RESUME_READY", initialResponse?.Data.Content ?? string.Empty, StringComparison.Ordinal);
+        var canvas = Assert.Single((await session1.Rpc.Canvas.ListAsync()).Canvases);
+        await session1.Rpc.Canvas.OpenAsync(
+            canvasId: "app-counter",
+            instanceId: "app-retry-canvas",
+            extensionId: canvas.ExtensionId,
+            input: new Dictionary<string, object> { ["start"] = 40 });
+        await TestHelper.WaitForConditionAsync(
+            () => Task.FromResult(session1.OpenCanvases.Count == 1),
+            timeout: EventTimeout,
+            timeoutMessage: "Timed out waiting for the retry canvas snapshot.");
+        var openCanvases = session1.OpenCanvases.ToList();
+        await session1.LogAsync("APP_RETRY_RESUME_HISTORY");
+
+        await session1.Rpc.SuspendAsync();
+        await session1.DisposeAsync();
+        await client1.StopAsync();
+
+        var failingClient = Ctx.CreateClient();
+        var failingConfig = CreateAppResumeConfig(new AppCanvasHandler(), openCanvases);
+        failingConfig.Tools =
+        [
+            AIFunctionFactory.Create(() => "first", "duplicate_app_tool"),
+            AIFunctionFactory.Create(() => "second", "duplicate_app_tool"),
+        ];
+        await Assert.ThrowsAnyAsync<ArgumentException>(() =>
+            Ctx.ResumeSessionAsync(failingClient, sessionId, failingConfig));
+        await failingClient.ForceStopAsync();
+
+        var replacementHandler = new AppCanvasHandler();
+        var replacementClient = Ctx.CreateClient();
+        await using var resumed = await Ctx.ResumeSessionAsync(
+            replacementClient,
+            sessionId,
+            CreateAppResumeConfig(replacementHandler, openCanvases));
+
+        var reopened = await replacementHandler.Opened.Task.WaitAsync(EventTimeout);
+        Assert.Equal("app-retry-canvas", reopened.InstanceId);
+        await TestHelper.WaitForConditionAsync(
+            async () => (await resumed.Rpc.Canvas.ListOpenAsync()).OpenCanvases.Count == 1,
+            timeout: EventTimeout,
+            timeoutMessage: "Timed out waiting for the replacement client to restore the open canvas.");
+        Assert.Single((await resumed.Rpc.Canvas.ListOpenAsync()).OpenCanvases);
+    }
+
+    [Fact]
+    public async Task Should_Not_Emit_Redundant_Model_Change_When_Resuming_Same_Model()
+    {
+        var client1 = Ctx.CreateClient();
+        var session1 = await Ctx.CreateSessionAsync(client1, new SessionConfig
+        {
+            Model = "claude-sonnet-5",
+        });
+        var sessionId = session1.SessionId;
+        Assert.Equal("claude-sonnet-5", (await session1.Rpc.Model.GetCurrentAsync()).ModelId);
+        var initialResponse = await session1.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Reply with exactly APP_SAME_MODEL_HISTORY_READY.",
+        });
+        Assert.Contains("APP_SAME_MODEL_HISTORY_READY", initialResponse?.Data.Content ?? string.Empty, StringComparison.Ordinal);
+
+        await session1.Rpc.SuspendAsync();
+        await session1.DisposeAsync();
+        await client1.StopAsync();
+
+        var earlyEvents = new List<SessionEvent>();
+        var client2 = Ctx.CreateClient();
+        await using var resumed = await Ctx.ResumeSessionAsync(client2, sessionId, new ResumeSessionConfig
+        {
+            Model = "claude-sonnet-5",
+            OnEvent = earlyEvents.Add,
+        });
+
+        Assert.Equal("claude-sonnet-5", (await resumed.Rpc.Model.GetCurrentAsync()).ModelId);
+        var persistedEvents = await resumed.GetEventsAsync();
+        Assert.DoesNotContain(earlyEvents, evt => evt is SessionModelChangeEvent);
+        Assert.DoesNotContain(persistedEvents, evt => evt is SessionModelChangeEvent);
+    }
+
+    [Fact]
+    public async Task Should_Read_Persisted_App_Events_Without_Resuming()
+    {
+        var client1 = Ctx.CreateClient();
+        var session1 = await Ctx.CreateSessionAsync(client1);
+        var sessionId = session1.SessionId;
+        var response = await session1.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Reply with exactly APP_PERSISTED_HISTORY.",
+        });
+        Assert.Contains("APP_PERSISTED_HISTORY", response?.Data.Content ?? string.Empty, StringComparison.Ordinal);
+
+        await session1.Rpc.SuspendAsync();
+        await session1.DisposeAsync();
+        await client1.StopAsync();
+
+        await using var client2 = Ctx.CreateClient();
+        await client2.StartAsync();
+        var persisted = await client2.Rpc.Sessions.ReadPersistedEventsAsync(sessionId);
+
+        Assert.Equal(EventsCursorStatus.Ok, persisted.CursorStatus);
+        Assert.False(persisted.HasMore);
+        Assert.Contains(
+            persisted.Events.OfType<UserMessageEvent>(),
+            evt => evt.Data.TransformedContent?.Contains("APP_PERSISTED_HISTORY", StringComparison.Ordinal) == true);
+        Assert.Contains(
+            persisted.Events.OfType<AssistantMessageEvent>(),
+            evt => evt.Data.Content?.Contains("APP_PERSISTED_HISTORY", StringComparison.Ordinal) == true);
     }
 
     [Fact]
@@ -247,7 +459,10 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         Assert.Contains("The app canvas could not increment.", exception.ToString(), StringComparison.Ordinal);
     }
 
-    private static SessionConfig CreateAppSessionConfig(AppCanvasHandler canvasHandler, bool includeTool = true)
+    private static SessionConfig CreateAppSessionConfig(
+        AppCanvasHandler canvasHandler,
+        bool includeTool = true,
+        bool includeMcp = false)
     {
         var config = new SessionConfig
         {
@@ -282,15 +497,20 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         {
             config.Tools = [AIFunctionFactory.Create(AppHostLookup, "app_host_lookup")];
         }
+        if (includeMcp)
+        {
+            config.McpServers = CreateTestMcpServers("app-resume-mcp");
+        }
 
         return config;
     }
 
     private static ResumeSessionConfig CreateAppResumeConfig(
         AppCanvasHandler canvasHandler,
-        IList<OpenCanvasInstance> openCanvases)
+        IList<OpenCanvasInstance> openCanvases,
+        bool includeMcp = false)
     {
-        return new ResumeSessionConfig
+        var config = new ResumeSessionConfig
         {
             Streaming = true,
             ContinuePendingWork = false,
@@ -322,6 +542,42 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             CanvasHandler = canvasHandler,
             OpenCanvases = openCanvases,
         };
+        if (includeMcp)
+        {
+            config.McpServers = CreateTestMcpServers("app-resume-mcp");
+        }
+        return config;
+    }
+
+    private static void ConfigureAppProvider(
+        SessionConfigBase config,
+        Func<ProviderTokenArgs, Task<string>>? providerTokenProvider)
+    {
+        if (providerTokenProvider is null)
+        {
+            return;
+        }
+
+        config.Providers =
+        [
+            new NamedProviderConfig
+            {
+                Name = "app-resume-provider",
+                Type = "openai",
+                WireApi = "responses",
+                BaseUrl = "https://app-resume.invalid/v1",
+                BearerTokenProvider = providerTokenProvider,
+            },
+        ];
+        config.Models =
+        [
+            new ProviderModelConfig
+            {
+                Provider = "app-resume-provider",
+                Id = "app-model",
+                WireModel = "app-wire-model",
+            },
+        ];
     }
 
     [Description("Looks up app-owned host state")]
