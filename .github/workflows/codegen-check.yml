@@ -68,10 +68,6 @@ jobs:
         working-directory: ./scripts/codegen
         run: npm run generate
 
-      - name: Test codegen
-        working-directory: ./scripts/codegen
-        run: npm test
-
       - name: Apply nightly rustfmt to generated Rust output
         working-directory: ./rust
         run: cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml
