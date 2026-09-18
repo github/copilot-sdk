@@ -60,8 +60,8 @@ jobs:
       runtime_version: ${{ steps.validate.outputs.runtime_version }}
       test_policy: ${{ steps.validate.outputs.test_policy }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22.x"
       - run: npm ci --ignore-scripts
@@ -94,10 +94,10 @@ jobs:
       run:
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: ${{ inputs.dist-tag == 'unstable' && '0' || '1' }}
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22.x"
       - run: npm ci --ignore-scripts
@@ -173,8 +173,8 @@ jobs:
       run:
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22.x"
       - run: npm ci --ignore-scripts
@@ -199,7 +199,7 @@ jobs:
           SDK_VERSION: ${{ needs.version.outputs.version }}
         run: npm run release:manifest -- create-package-set package-set-manifest.json .
       - name: Upload artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: nodejs-package
           path: |
@@ -217,8 +217,8 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22.x"
       - name: Install release dependencies
@@ -228,7 +228,7 @@ jobs:
       - name: Update npm for OIDC support
         run: npm i -g "npm@11.6.3"
       - name: Download Node.js package
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: nodejs-package
           path: ./dist
@@ -288,8 +288,8 @@ jobs:
       ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
       FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22.x"
       - name: Install release dependencies
@@ -297,12 +297,12 @@ jobs:
         working-directory: ./nodejs
         run: npm ci --ignore-scripts
       - name: Download Node.js package
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: nodejs-package
           path: ./dist
       - name: Azure Login (OIDC -> id-cpd-ci)
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: "${{ vars.CPD_ID_CLIENT_ID }}" # id-cpd-ci
           tenant-id: "${{ vars.CPD_ID_TENANT_ID }}"
@@ -372,8 +372,8 @@ jobs:
       run:
         working-directory: ./dotnet
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: "10.0.x"
       - name: Restore dependencies
@@ -381,7 +381,7 @@ jobs:
       - name: Build and pack
         run: dotnet pack src/GitHub.Copilot.SDK.csproj -c Release -p:Version=${{ needs.version.outputs.version }} -o ./artifacts
       - name: Upload artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dotnet-package
           path: |
@@ -417,16 +417,16 @@ jobs:
       ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
       FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/nuget/v3/index.json
     steps:
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
       - name: Download .NET package
-        uses: actions/download-artifact@v8.0.0
+        uses: actions/download-artifact@v8.0.1
         with:
           name: dotnet-package
           path: ./dist
       - name: Azure Login (OIDC -> id-cpd-ci)
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: "${{ vars.CPD_ID_CLIENT_ID }}" # id-cpd-ci
           tenant-id: "${{ vars.CPD_ID_TENANT_ID }}"
@@ -465,7 +465,7 @@ jobs:
       run:
         working-directory: ./rust
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
@@ -490,7 +490,7 @@ jobs:
       - name: Package (dry run)
         run: cargo publish --dry-run --allow-dirty
       - name: Upload artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rust-package
           path: rust/target/package/*.crate
@@ -512,15 +512,15 @@ jobs:
       run:
         working-directory: ./python
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22.x"
       - name: Set up uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
       - name: Set version
         run: sed -i "s/^version = .*/version = \"${{ needs.version.outputs.version }}\"/" pyproject.toml
       - name: Inject CLI version
@@ -528,7 +528,7 @@ jobs:
       - name: Build wheel
         run: uv build --wheel --out-dir dist
       - name: Upload artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: python-package
           path: python/dist/*
@@ -577,7 +577,7 @@ jobs:
       actions: write
       contents: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Create GitHub Release
         if: github.event.inputs.dist-tag == 'latest'
         run: |
@@ -656,7 +656,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.publish-java.outputs.sourceSha }}
           fetch-depth: 0
@@ -732,10 +732,10 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           cache: npm
           cache-dependency-path: ./nodejs/package-lock.json
@@ -782,8 +782,8 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           cache: npm
           cache-dependency-path: ./nodejs/package-lock.json
@@ -806,7 +806,7 @@ jobs:
       - name: Archive validated runtime packages
         run: tar -czf "$RUNNER_TEMP/runtime-packages.tar.gz" --exclude "runtime-packages/tarballs" -C "$RUNNER_TEMP" runtime-packages
       - name: Upload validated runtime packages
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: runtime-${{ inputs.dist-tag }}-${{ needs.validate-dispatch.outputs.runtime_version }}-${{ needs.validate-dispatch.outputs.runtime_sha }}
           path: ${{ runner.temp }}/runtime-packages.tar.gz
@@ -831,8 +831,8 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           cache: npm
           cache-dependency-path: ./nodejs/package-lock.json
@@ -842,7 +842,7 @@ jobs:
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
       - name: Download validated runtime packages
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: runtime-${{ inputs.dist-tag }}-${{ needs.validate-dispatch.outputs.runtime_version }}-${{ needs.validate-dispatch.outputs.runtime_sha }}
           path: ${{ runner.temp }}/runtime-package-artifact
@@ -909,15 +909,15 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           cache: npm
           cache-dependency-path: ./nodejs/package-lock.json
           node-version: 22
       - run: npm ci --ignore-scripts
       - name: Download validated runtime packages
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: runtime-${{ inputs.dist-tag }}-${{ needs.validate-dispatch.outputs.runtime_version }}-${{ needs.validate-dispatch.outputs.runtime_sha }}
           path: ${{ runner.temp }}/runtime-package-artifact
@@ -956,7 +956,7 @@ jobs:
           WORKFLOW_RUN_NUMBER: ${{ github.run_number }}
         run: |
           npm run release:manifest -- create release-manifest.json .
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ needs.runtime-plan.outputs.artifact_name }}
           path: |
@@ -988,14 +988,14 @@ jobs:
       ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
       FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
       - run: npm ci --ignore-scripts
         working-directory: ./nodejs
       - name: Download retained release
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ needs.runtime-plan.outputs.artifact_name }}
           path: ./dist
@@ -1007,7 +1007,7 @@ jobs:
           [ "$(jq -r .channel dist/release-manifest.json)" = "${{ inputs.dist-tag }}" ] ||
             { echo "::error::Retained release channel does not match the requested channel."; exit 1; }
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           allow-no-subscriptions: true
           client-id: ${{ vars.CPD_ID_CLIENT_ID }}
@@ -1046,8 +1046,8 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
       - run: npm ci --ignore-scripts
@@ -1055,7 +1055,7 @@ jobs:
       - name: Update npm for trusted publishing
         run: npm install --global npm@11.6.3
       - name: Download retained release
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ needs.runtime-plan.outputs.artifact_name }}
           path: ./dist
