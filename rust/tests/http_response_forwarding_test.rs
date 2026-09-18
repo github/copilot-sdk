@@ -462,7 +462,7 @@ struct ForwardingHandler;
 #[async_trait]
 impl CopilotRequestHandler for ForwardingHandler {}
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn real_http_burst_preserves_headers_status_and_every_byte() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/stream", listener.local_addr().unwrap());
