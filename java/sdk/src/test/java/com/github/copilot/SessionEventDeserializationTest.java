@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -30,6 +32,20 @@ public class SessionEventDeserializationTest {
      */
     private static SessionEvent parseJson(String json) throws Exception {
         return MAPPER.readValue(json, SessionEvent.class);
+    }
+
+    private static String eventEnvelope(String type, String payload) {
+        return """
+                {
+                    "id": "00000000-0000-4000-8000-000000000001",
+                    "timestamp": "2026-09-18T12:00:00Z",
+                    "parentId": "00000000-0000-4000-8000-000000000002",
+                    "agentId": "test-agent",
+                    "ephemeral": true,
+                    "type": "%s",
+                    "data": %s
+                }
+                """.formatted(type, payload);
     }
 
     // =========================================================================
@@ -111,6 +127,139 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         assertInstanceOf(SessionIdleEvent.class, event);
         assertEquals("session.idle", event.getType());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            """
+                    {"kind":"status","state":"ready"}
+                    """,
+            """
+                    {"kind":"startup","outcome":"skipped_disabled","fileCount":0,
+                     "startupDurationMs":1.25,"forcedByEnv":false,"warmStart":false,
+                     "disabledReason":"organization_policy_unknown","errorMessage":"startup diagnostic",
+                     "eligible":false}
+                    """,
+            """
+                    {"kind":"server_error","errorType":"unexpected_exit","exitCode":0,
+                     "errorMessage":"server diagnostic"}
+                    """,
+            """
+                    {"kind":"incremental","phase":"updated","changedFileCount":0,
+                     "addedFileCount":2,"deletedFileCount":1,"totalChangeCount":3,
+                     "walkDurationMs":0,"updateDurationMs":2.5,"totalDurationMs":3.75}
+                    """
+    })
+    void testIndexedSearchFullEnvelopeRoundTrip(String payload) throws Exception {
+        String json = eventEnvelope("session.indexed_search", payload);
+
+        var event = assertInstanceOf(SessionIndexedSearchEvent.class, parseJson(json));
+        var data = assertInstanceOf(SessionIndexedSearchEvent.SessionIndexedSearchEventData.class, event.getData());
+        var expected = MAPPER.readTree(json);
+        assertEquals(expected.get("data"), data.raw());
+        assertEquals(expected.get("data"), MAPPER.valueToTree(data));
+        var serialized = MAPPER.writeValueAsString(event);
+        assertEquals(expected, MAPPER.readTree(serialized));
+        var reparsed = assertInstanceOf(SessionIndexedSearchEvent.class, parseJson(serialized));
+        assertEquals(data, reparsed.getData());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            """
+                    {"kind":"policy_resolved","control":"filesystem","outcome":"degraded","toolCallId":null,
+                     "platform":"linux","backend":"bubblewrap","policySource":"user_policy",
+                     "enforcementPoint":"shell","readwritePathsCount":1,"readonlyPathsCount":0,"deniedPathsCount":1,
+                     "addCurrentWorkingDirectory":false,"allowOutbound":false,"allowLocalNetwork":false,
+                     "proxyMode":"none","allowBypass":false,"gitAuth":false,"ghAuth":false,"keychainAccess":false,
+                     "effectiveFilesystemPolicy":{"readwritePaths":["/workspace"],"readonlyPaths":[],
+                     "deniedPaths":["/private"]},"degradationReason":"denied_paths_unsupported"}
+                    """,
+            """
+                    {"kind":"spawn_completed","control":"process","outcome":"succeeded","toolCallId":"tool-spawn",
+                     "platform":"macos","backend":"seatbelt","enforcementPoint":"shell","durationMs":1.25,
+                     "degradationReason":null}
+                    """,
+            """
+                    {"kind":"enforcement_state","control":"process","outcome":"engaged","toolCallId":"tool-state",
+                     "platform":"windows","backend":"process_container","enforcementPoint":"shell",
+                     "attestation":"spawn_succeeded","command":"echo example"}
+                    """,
+            """
+                    {"kind":"access_denied","control":"filesystem","outcome":"denied","toolCallId":"tool-denied",
+                     "platform":"linux","enforcementPoint":"builtin_filesystem","denialClass":"filesystem_read",
+                     "attestation":"builtin_policy_checked","confidence":"policy_corroborated",
+                     "deniedResource":"/private/example.txt","command":null,"processName":"example"}
+                    """,
+            """
+                    {"kind":"bypass_decided","control":"bypass","outcome":"declined","toolCallId":"tool-bypass",
+                     "platform":"macos","enforcementPoint":"shell","source":"user_prompted",
+                     "denialClass":"network_outbound","confidence":"captured","deniedResource":"example.invalid",
+                     "command":"example --network","processName":"example"}
+                    """,
+            """
+                    {"kind":"permissive_retry_decided","control":"bypass","outcome":"approved",
+                     "toolCallId":"tool-retry","platform":"linux","enforcementPoint":"shell",
+                     "source":"model_requested","denialClass":"filesystem_write","confidence":"sandbox_reported",
+                     "deniedResource":"/workspace/example.txt","command":"example --write","processName":"example"}
+                    """,
+            """
+                    {"kind":"permissive_retry_completed","control":"process","outcome":"succeeded",
+                     "toolCallId":"tool-retry","platform":"linux","enforcementPoint":"shell",
+                     "denialClass":null,"confidence":null,"deniedResource":null,"command":"example --write",
+                     "processName":"example"}
+                    """
+    })
+    void testSandboxDecisionFullEnvelopeRoundTrip(String payload) throws Exception {
+        String json = eventEnvelope("sandbox.decision", payload);
+        var event = assertInstanceOf(SandboxDecisionEvent.class, parseJson(json));
+        var data = assertInstanceOf(SandboxDecisionEvent.SandboxDecisionEventData.class, event.getData());
+        var expected = MAPPER.readTree(json);
+        assertEquals(expected.get("data"), data.raw());
+        assertEquals(expected.get("data"), MAPPER.valueToTree(data));
+        var serialized = MAPPER.writeValueAsString(event);
+        assertEquals(expected, MAPPER.readTree(serialized));
+        var reparsed = assertInstanceOf(SandboxDecisionEvent.class, parseJson(serialized));
+        assertEquals(data, reparsed.getData());
+    }
+
+    @Test
+    void testOrdinaryObjectFullEnvelopeRoundTrip() throws Exception {
+        String json = eventEnvelope("session.info", """
+                {"infoType":"status","message":"Processing request"}
+                """);
+        var event = assertInstanceOf(SessionInfoEvent.class, parseJson(json));
+        var data = assertInstanceOf(SessionInfoEvent.SessionInfoEventData.class, event.getData());
+        assertEquals("status", data.infoType());
+        assertEquals("Processing request", data.message());
+        var serialized = MAPPER.writeValueAsString(event);
+        assertEquals(MAPPER.readTree(json), MAPPER.readTree(serialized));
+        assertEquals(data, assertInstanceOf(SessionInfoEvent.class, parseJson(serialized)).getData());
+    }
+
+    @Test
+    void testEmptyObjectFullEnvelopeRoundTrip() throws Exception {
+        String json = eventEnvelope("session.todos_changed", "{}");
+        var event = assertInstanceOf(SessionTodosChangedEvent.class, parseJson(json));
+        var data = assertInstanceOf(SessionTodosChangedEvent.SessionTodosChangedEventData.class, event.getData());
+        assertEquals(new SessionTodosChangedEvent.SessionTodosChangedEventData(), data);
+        assertEquals("{}", MAPPER.writeValueAsString(data));
+        var serialized = MAPPER.writeValueAsString(event);
+        assertEquals(MAPPER.readTree(json), MAPPER.readTree(serialized));
+        assertEquals(data, assertInstanceOf(SessionTodosChangedEvent.class, parseJson(serialized)).getData());
+    }
+
+    @Test
+    void testRootUnionDataNoArgConstructors() throws Exception {
+        var indexedSearch = new SessionIndexedSearchEvent();
+        indexedSearch.setData(new SessionIndexedSearchEvent.SessionIndexedSearchEventData());
+        assertEquals(MAPPER.readTree("{}"), indexedSearch.getData().raw());
+        assertEquals("{}", MAPPER.writeValueAsString(indexedSearch.getData()));
+
+        var sandboxDecision = new SandboxDecisionEvent();
+        sandboxDecision.setData(new SandboxDecisionEvent.SandboxDecisionEventData());
+        assertEquals(MAPPER.readTree("{}"), sandboxDecision.getData().raw());
+        assertEquals("{}", MAPPER.writeValueAsString(sandboxDecision.getData()));
     }
 
     @Test
@@ -2600,11 +2749,16 @@ public class SessionEventDeserializationTest {
         var castedEvent = (SessionTaskCompleteEvent) event;
         assertNotNull(castedEvent.getData());
         assertEquals("Task completed successfully", castedEvent.getData().summary());
+        assertNull(castedEvent.getData().blocker());
 
         // Verify setData round-trip
-        castedEvent.setData(
-                new SessionTaskCompleteEvent.SessionTaskCompleteEventData("New summary", null, null, null, null));
+        castedEvent.setData(new SessionTaskCompleteEvent.SessionTaskCompleteEventData("New summary", true,
+                TaskCompletionOutcome.COMPLETED, null, 42L, null));
         assertEquals("New summary", castedEvent.getData().summary());
+        assertTrue(castedEvent.getData().success());
+        assertEquals(TaskCompletionOutcome.COMPLETED, castedEvent.getData().outcome());
+        assertEquals(42L, castedEvent.getData().objectiveId());
+        assertNull(castedEvent.getData().blocker());
     }
 
     @Test

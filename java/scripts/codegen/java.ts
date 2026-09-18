@@ -1103,6 +1103,10 @@ async function generateEventVariantClass(
     packageName: string,
     packageDir: string
 ): Promise<void> {
+    await writeGeneratedFile(`${packageDir}/${variant.className}.java`, renderEventVariantClass(variant, packageName));
+}
+
+export function renderEventVariantClass(variant: EventVariant, packageName: string): string {
     const lines: string[] = [];
     const allImports = new Set<string>([
         "com.fasterxml.jackson.annotation.JsonIgnoreProperties",
@@ -1111,6 +1115,23 @@ async function generateEventVariantClass(
         "javax.annotation.processing.Generated",
     ]);
     const nestedTypes = new Map<string, JavaClassDef>();
+    const hasUnionData = [variant.dataSchema?.anyOf, variant.dataSchema?.oneOf].some(
+        (alternatives) => alternatives && alternatives.filter((alternative) => {
+            if (typeof alternative === "boolean") return alternative;
+            const types = Array.isArray(alternative.type) ? alternative.type : [alternative.type];
+            return !(
+                types.every((type) => type === "null") ||
+                alternative.const === null ||
+                alternative.enum?.every((value) => value === null)
+            );
+        }).length > 1
+    );
+    if (hasUnionData) {
+        allImports.add("com.fasterxml.jackson.annotation.JsonCreator");
+        allImports.add("com.fasterxml.jackson.annotation.JsonValue");
+        allImports.add("com.fasterxml.jackson.databind.JsonNode");
+        allImports.add("com.fasterxml.jackson.databind.node.JsonNodeFactory");
+    }
 
     // Collect data record fields
     interface FieldInfo {
@@ -1122,7 +1143,7 @@ async function generateEventVariantClass(
 
     const dataFields: FieldInfo[] = [];
 
-    if (variant.dataSchema?.properties) {
+    if (!hasUnionData && variant.dataSchema?.properties) {
         for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties)) {
             if (typeof propSchema !== "object") continue;
             const prop = propSchema as JSONSchema7;
@@ -1192,10 +1213,24 @@ async function generateEventVariantClass(
         lines.push(`    public void setData(${variant.className}Data data) { this.data = data; }`);
         lines.push("");
         // Generate data inner record
-        lines.push(`    /** Data payload for {@link ${variant.className}}. */`);
+        lines.push(hasUnionData
+            ? `    /** Raw union payload for {@link ${variant.className}}, preserving every variant's fields. */`
+            : `    /** Data payload for {@link ${variant.className}}. */`);
         lines.push(`    @JsonIgnoreProperties(ignoreUnknown = true)`);
         lines.push(`    @JsonInclude(JsonInclude.Include.NON_NULL)`);
-        if (dataFields.length === 0) {
+        if (hasUnionData) {
+            // Keep the existing nested record and no-arg constructor binary-compatible.
+            lines.push(`    public record ${variant.className}Data(JsonNode raw) {`);
+            lines.push(`        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)`);
+            lines.push(`        public ${variant.className}Data {}`);
+            lines.push("");
+            lines.push(`        public ${variant.className}Data() {`);
+            lines.push(`            this(JsonNodeFactory.instance.objectNode());`);
+            lines.push(`        }`);
+            lines.push("");
+            lines.push(`        @JsonValue`);
+            lines.push(`        public JsonNode raw() { return raw; }`);
+        } else if (dataFields.length === 0) {
             lines.push(`    public record ${variant.className}Data() {`);
         } else {
             lines.push(`    public record ${variant.className}Data(`);
@@ -1225,7 +1260,7 @@ async function generateEventVariantClass(
     const importLines = sortedImports.map((i) => `import ${i};`).join("\n");
     lines[importPlaceholderIdx] = importLines;
 
-    await writeGeneratedFile(`${packageDir}/${variant.className}.java`, lines.join("\n"));
+    return lines.join("\n");
 }
 
 // ── Standalone $ref type generation ──────────────────────────────────────────

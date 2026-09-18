@@ -2628,6 +2628,26 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     };
 
     for (const variant of variants) {
+        const unionMembers = variant.dataSchema.anyOf ?? variant.dataSchema.oneOf;
+        if (unionMembers) {
+            const members = unionMembers
+                .filter((member): member is JSONSchema7 => typeof member === "object")
+                .map((member) => resolveObjectSchema(member, ctx.definitions) ?? member)
+                .filter((member) => !isPyNullLikeSchema(member));
+            const discriminator = findPyDiscriminator(members);
+            if (!discriminator) {
+                throw new Error(`Cannot represent event payload union "${variant.dataClassName}" without a discriminator`);
+            }
+            emitPyFlatDiscriminatedUnion(
+                variant.dataClassName,
+                discriminator.property,
+                discriminator.mapping,
+                ctx,
+                variant.dataDescription,
+                variant.dataExperimental
+            );
+            continue;
+        }
         emitPyClass(
             variant.dataClassName,
             variant.dataSchema,

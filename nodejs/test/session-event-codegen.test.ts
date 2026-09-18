@@ -10,6 +10,141 @@ import {
 import { generateSessionEventsCode as generateRustSessionEventsCode } from "../../scripts/codegen/rust.ts";
 
 describe("session event codegen", () => {
+    describe.each(["anyOf", "oneOf"] as const)("Go root %s payloads", (unionKeyword) => {
+        it.each(["inline", "local", "shared"])(
+            "preserves %s union payloads as raw JSON",
+            (shape) => {
+                const union: JSONSchema7 = {
+                    [unionKeyword]: [
+                        {
+                            type: "object",
+                            required: ["kind", "state"],
+                            properties: {
+                                kind: { const: "status" },
+                                state: { type: "string" },
+                            },
+                        },
+                        {
+                            type: "object",
+                            required: ["kind", "duration"],
+                            properties: {
+                                kind: { const: "finished" },
+                                duration: { type: "number" },
+                            },
+                        },
+                    ],
+                };
+                const data =
+                    shape === "inline"
+                        ? union
+                        : {
+                              $ref: `${shape === "shared" ? "api.schema.json" : ""}#/definitions/Payload`,
+                          };
+                const schema: JSONSchema7 = {
+                    definitions: {
+                        Payload: union,
+                        SessionEvent: {
+                            anyOf: [
+                                {
+                                    type: "object",
+                                    required: ["type", "data"],
+                                    properties: {
+                                        type: { const: "session.synthetic" },
+                                        data,
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                };
+
+                const { typeCode, encodingCode } = generateGoSessionEventsCode(schema, "rpc");
+                const payload = typeCode.match(/type SessionSyntheticData struct \{[^}]*\}/)?.[0];
+                expect(payload).toContain('Raw json.RawMessage `json:"-"`');
+                expect(typeCode).toContain(
+                    "func (*SessionSyntheticData) Type() SessionEventType { return SessionEventTypeSessionSynthetic }"
+                );
+                expect(encodingCode).toContain("func (r *SessionSyntheticData) UnmarshalJSON");
+                expect(encodingCode).toContain("func (r SessionSyntheticData) MarshalJSON");
+                expect(encodingCode).toContain("var d SessionSyntheticData");
+            }
+        );
+    });
+
+    it.each([
+        { type: "object", properties: {} },
+        { type: "object", properties: { count: { type: "integer" } }, required: ["count"] },
+        {
+            anyOf: [
+                {
+                    type: "object",
+                    properties: { count: { type: "integer" } },
+                    required: ["count"],
+                },
+                { type: "null" },
+            ],
+        },
+    ] satisfies JSONSchema7[])("keeps ordinary and empty Go payloads typed: %j", (data) => {
+        const schema: JSONSchema7 = {
+            definitions: {
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            properties: { type: { const: "session.synthetic" }, data },
+                        },
+                    ],
+                },
+            },
+        };
+        const { typeCode } = generateGoSessionEventsCode(schema, "rpc");
+        const payload = typeCode.match(/type SessionSyntheticData struct \{[^}]*\}/)?.[0];
+        expect(payload).not.toContain("Raw json.RawMessage");
+        if ("anyOf" in data || "count" in (data.properties ?? {})) {
+            expect(payload).toContain('Count int64 `json:"count"`');
+        } else {
+            expect(payload).toBe("type SessionSyntheticData struct {\n}");
+        }
+    });
+
+    it("preserves Go event payload fields behind shared external references", () => {
+        const schema: JSONSchema7 = {
+            definitions: {
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            required: ["type", "data"],
+                            properties: {
+                                type: { const: "session.synthetic" },
+                                data: {
+                                    $ref: "api.schema.json#/definitions/SharedPayload",
+                                },
+                            },
+                        },
+                    ],
+                },
+                SharedPayload: {
+                    type: "object",
+                    required: ["source", "failClosed"],
+                    properties: {
+                        source: { type: "string" },
+                        failClosed: { type: "boolean" },
+                        clientManaged: { type: "boolean" },
+                    },
+                },
+            },
+        };
+
+        const { typeCode, encodingCode } = generateGoSessionEventsCode(schema, "rpc");
+        const payload = typeCode.match(/type SessionSyntheticData struct \{[^}]*\}/)?.[0];
+
+        expect(payload).toContain('Source string `json:"source"`');
+        expect(payload).toContain('FailClosed bool `json:"failClosed"`');
+        expect(payload).toContain('ClientManaged *bool `json:"clientManaged,omitempty"`');
+        expect(encodingCode).toContain("var d SessionSyntheticData");
+    });
+
     it("replaces external reference placeholders regardless of acronym casing", () => {
         const code = `@dataclass
 class ExternalRefMCPOauthHTTPResponse:

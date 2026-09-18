@@ -4,8 +4,62 @@ import type { JSONSchema7 } from "json-schema";
 
 import {
     collectNestedDiscriminatedUnionTypeNames,
+    renderEventVariantClass,
     schemaTypeToJava,
 } from "./java.js";
+
+function renderPayload(dataSchema: JSONSchema7): string {
+    return renderEventVariantClass({
+        typeName: "example.notification",
+        className: "ExampleNotificationEvent",
+        dataSchema,
+    }, "com.github.copilot.generated");
+}
+
+for (const keyword of ["anyOf", "oneOf"] as const) {
+    test(`root ${keyword} payload preserves raw JSON and existing data descriptors`, () => {
+        const source = renderPayload({
+            [keyword]: [
+                { type: "object", properties: { kind: { const: "first" }, count: { type: "number" } } },
+                { type: "object", properties: { kind: { const: "second" }, active: { type: "boolean" } } },
+                { type: "null" },
+            ],
+        });
+
+        assert.match(source, /public record ExampleNotificationEventData\(JsonNode raw\)/);
+        assert.match(source, /@JsonCreator\(mode = JsonCreator\.Mode\.DELEGATING\)\s+public ExampleNotificationEventData\s*\{/);
+        assert.match(source, /@JsonValue\s+public JsonNode raw\(\) \{ return raw; \}/);
+        assert.match(source, /public ExampleNotificationEventData\(\) \{\s+this\(JsonNodeFactory\.instance\.objectNode\(\)\);/);
+        assert.match(source, /public ExampleNotificationEventData getData\(\)/);
+        assert.match(source, /public void setData\(ExampleNotificationEventData data\)/);
+    });
+
+    test(`root ${keyword} with only one non-null alternative is not a raw union`, () => {
+        const source = renderPayload({
+            [keyword]: [
+                { type: "object", properties: { message: { type: "string" } } },
+                { type: "null" },
+                { type: ["null"] },
+                { const: null },
+                { enum: [null] },
+            ],
+        });
+        assert.doesNotMatch(source, /JsonNode|DELEGATING|JsonValue/);
+    });
+}
+
+test("ordinary and empty root objects retain their existing records", () => {
+    const source = renderPayload({
+        type: "object",
+        properties: { message: { type: "string" } },
+    });
+    assert.match(source, /@JsonProperty\("message"\) String message/);
+    assert.doesNotMatch(source, /JsonNode|DELEGATING|JsonValue/);
+
+    const empty = renderPayload({ type: "object", properties: {} });
+    assert.match(empty, /public record ExampleNotificationEventData\(\)/);
+    assert.doesNotMatch(empty, /JsonNode|DELEGATING|JsonValue/);
+});
 
 test("nested discriminated array items use their named Java type", () => {
     const definitions: Record<string, JSONSchema7> = {

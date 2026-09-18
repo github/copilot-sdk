@@ -755,7 +755,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToResult_record() {
-        var result = new SessionModelSwitchToResult("gpt-5", true, null, null, null, null, null, null, null);
+        var result = new SessionModelSwitchToResult("queue-model-1", "gpt-5", true, null, null, null, null, null, null,
+                null);
+        assertEquals("queue-model-1", result.queueId());
         assertEquals("gpt-5", result.modelId());
         assertEquals(true, result.deferred());
     }
@@ -777,13 +779,20 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionPluginsListResult_nested() {
-        var plugin = new Plugin("my-plugin", "marketplace-x", "1.2.3", true);
+        var plugin = new Plugin("my-plugin", "marketplace-x", "1.2.3", true, null, "/marketplaces/marketplace-x",
+                null, true, true, true);
         var result = new SessionPluginsListResult(List.of(plugin));
         assertEquals(1, result.plugins().size());
         assertEquals("my-plugin", result.plugins().get(0).name());
         assertEquals("marketplace-x", result.plugins().get(0).marketplace());
         assertEquals("1.2.3", result.plugins().get(0).version());
         assertTrue(result.plugins().get(0).enabled());
+        assertNull(result.plugins().get(0).directSourceId());
+        assertEquals("/marketplaces/marketplace-x", result.plugins().get(0).installedFrom());
+        assertNull(result.plugins().get(0).source());
+        assertTrue(result.plugins().get(0).managed());
+        assertTrue(result.plugins().get(0).managedDesiredEnabled());
+        assertTrue(result.plugins().get(0).installed());
     }
 
     @Test
