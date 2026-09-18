@@ -39,6 +39,15 @@ func TestRearmForeignSignalHandlersAddsOnStack(t *testing.T) {
 }
 
 func TestHostRearmsSignalHandlersAroundNativeOperations(t *testing.T) {
+	for _, entrypoint := range []string{"", "copilot"} {
+		t.Run("entrypoint="+entrypoint, func(t *testing.T) {
+			testHostRearmsSignalHandlers(t, entrypoint)
+		})
+	}
+}
+
+func testHostRearmsSignalHandlers(t *testing.T, entrypoint string) {
+	t.Helper()
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGUSR1)
 	defer signal.Stop(signals)
@@ -50,7 +59,7 @@ func TestHostRearmsSignalHandlersAroundNativeOperations(t *testing.T) {
 	defer linuxSetSigaction(int(syscall.SIGUSR1), &original)
 
 	host := &Host{
-		cliEntrypoint: "copilot",
+		cliEntrypoint: entrypoint,
 		lib: &ffiLibrary{
 			hostStart: func(unsafe.Pointer, uintptr, unsafe.Pointer, uintptr) uint32 {
 				return 1

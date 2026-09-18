@@ -549,10 +549,12 @@ Use a Pydantic model, just like custom-tool parameter schemas:
 ```python
 from pydantic import BaseModel, ConfigDict
 
+
 class Inventory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     count: int
     color: str
+
 
 inventory = await session.send_and_wait_typed(
     "Call get_inventory, then report the widget count and color.",
