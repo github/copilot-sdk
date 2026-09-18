@@ -110,6 +110,8 @@ mod rpc_shell_and_fleet;
 mod rpc_shell_edge_cases;
 #[path = "e2e/rpc_shell_user_requested.rs"]
 mod rpc_shell_user_requested;
+#[path = "e2e/rpc_surface_coverage.rs"]
+mod rpc_surface_coverage;
 #[path = "e2e/rpc_tasks_and_handlers.rs"]
 mod rpc_tasks_and_handlers;
 #[path = "e2e/rpc_ui_ephemeral_query.rs"]
