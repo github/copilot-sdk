@@ -14,9 +14,11 @@ public class ScenarioTestingPermissionsE2ETests(E2ETestFixture fixture, ITestOut
     : ScenarioTestingE2ETestBase(fixture, "scenario_testing_permissions", output)
 {
     [Theory]
-    [InlineData("assisted")]
-    [InlineData("allow-all")]
-    public async Task Should_Set_Reset_And_Read_Authoritative_Scenario_Permission_Mode(string modeValue)
+    [InlineData("assisted", "gpt-5.5")]
+    [InlineData("allow-all", null)]
+    public async Task Should_Set_Reset_And_Read_Authoritative_Scenario_Permission_Mode(
+        string modeValue,
+        string? assistedApprovalModel)
     {
         await using var session = await CreateSessionAsync();
         var mode = new PermissionMode(modeValue);
@@ -25,6 +27,7 @@ public class ScenarioTestingPermissionsE2ETests(E2ETestFixture fixture, ITestOut
 
         var set = await session.Rpc.Permissions.SetModeAsync(
             mode,
+            assistedApprovalModel: assistedApprovalModel,
             source: PermissionModeSource.Rpc);
         Assert.True(set.Success);
         Assert.Equal(mode, set.Mode);

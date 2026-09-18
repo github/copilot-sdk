@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use github_copilot_sdk::ResumeSessionConfig;
@@ -10,12 +11,14 @@ use github_copilot_sdk::rpc::{
 use github_copilot_sdk::types::{CanvasProviderIdentity, ExtensionInfo};
 use parking_lot::Mutex;
 use serde_json::{Value, json};
+use tokio::sync::Notify;
 
 struct TestCanvasHandler {
     open_calls: Mutex<Vec<CanvasProviderOpenRequest>>,
     close_calls: Mutex<Vec<CanvasProviderCloseRequest>>,
     action_calls: Mutex<Vec<CanvasProviderInvokeActionRequest>>,
     callback_order: Mutex<Vec<String>>,
+    open_calls_changed: Notify,
     error_operation: Option<&'static str>,
 }
 
@@ -34,7 +37,18 @@ impl TestCanvasHandler {
             close_calls: Mutex::new(Vec::new()),
             action_calls: Mutex::new(Vec::new()),
             callback_order: Mutex::new(Vec::new()),
+            open_calls_changed: Notify::new(),
             error_operation,
+        }
+    }
+
+    async fn wait_for_open_calls(&self, count: usize) {
+        loop {
+            let changed = self.open_calls_changed.notified();
+            if self.open_calls.lock().len() >= count {
+                return;
+            }
+            changed.await;
         }
     }
 
@@ -56,6 +70,7 @@ impl CanvasHandler for TestCanvasHandler {
         ctx: CanvasProviderOpenRequest,
     ) -> CanvasResult<CanvasProviderOpenResult> {
         self.open_calls.lock().push(ctx.clone());
+        self.open_calls_changed.notify_one();
         self.callback_order
             .lock()
             .push(format!("open:{}", ctx.instance_id));
@@ -573,6 +588,12 @@ async fn resumed_canvas_reattaches_and_routes_all_callbacks() {
                     .await
                     .expect("resume session");
 
+                tokio::time::timeout(
+                    Duration::from_secs(10),
+                    resumed_handler.wait_for_open_calls(1),
+                )
+                .await
+                .expect("reattached canvas open callback");
                 {
                     let opens = resumed_handler.open_calls.lock();
                     assert_eq!(opens.len(), 1);

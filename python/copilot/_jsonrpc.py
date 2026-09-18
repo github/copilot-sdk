@@ -257,7 +257,7 @@ class JsonRpcClient:
         loop = self._loop or asyncio.get_event_loop()
 
         def write():
-            if self.process.poll() is not None:
+            if hasattr(self.process, "poll") and self.process.poll() is not None:
                 raise ProcessExitedError(self._get_process_exit_error())
             content = json.dumps(message, separators=(",", ":"))
             content_bytes = content.encode("utf-8")
