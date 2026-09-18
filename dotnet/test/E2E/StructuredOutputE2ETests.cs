@@ -106,7 +106,7 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
                 },
             });
         using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-        await completion.Task.WaitAsync(cts.Token);
+        await completion.Task.WaitAsync(Timeout.InfiniteTimeSpan, cts.Token);
         var message = replies.Last(message => message.Data.OriginatingMessageId == accepted.MessageIds.Last());
         Assert.Equal(accepted.MessageIds.Last(), message.Data.OriginatingMessageId);
         Assert.Empty(message.Data.ToolRequests ?? []);
@@ -176,10 +176,10 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
                 Prompt = "Call read_inventory once, then report the current widget count and color.",
                 ResponseSchema = schema.RootElement.Clone(),
             }, cts.Token);
-            await hookEntered.Task.WaitAsync(cts.Token);
+            await hookEntered.Task.WaitAsync(Timeout.InfiniteTimeSpan, cts.Token);
             Assert.False(idleReceived.Task.IsCompleted);
             releaseHook.TrySetResult();
-            await idleReceived.Task.WaitAsync(cts.Token);
+            await idleReceived.Task.WaitAsync(Timeout.InfiniteTimeSpan, cts.Token);
             var reply = replies.Last(message => message.Data.OriginatingMessageId == messageId);
             Assert.Equal(messageId, reply.Data.OriginatingMessageId);
             var result = JsonSerializer.Deserialize(reply.Data.Content, StructuredOutputE2EJsonContext.Default.Inventory);
