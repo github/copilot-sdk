@@ -682,7 +682,7 @@ describe("Client options", async () => {
 
         const session = await client.resumeSession("advanced-resume-session", {
             clientName: "advanced-resume-client",
-            model: "claude-haiku-4.5",
+            model: "legacy-resume-model",
             reasoningEffort: "low",
             reasoningSummary: "none",
             contextTier: "default",
@@ -697,6 +697,22 @@ describe("Client options", async () => {
             },
             memory: { enabled: false },
             remoteSession: "on",
+            providers: [
+                {
+                    name: "resume-provider",
+                    type: "openai",
+                    wireApi: "responses",
+                    baseUrl: "https://resume-provider.example.test/v1",
+                    bearerTokenProvider: async () => "resume-provider-token",
+                },
+            ],
+            models: [
+                {
+                    provider: "resume-provider",
+                    id: "legacy-resume-model",
+                    wireModel: "resume-wire-model",
+                },
+            ],
             openCanvases: [
                 {
                     canvasId: "resume-canvas",
@@ -715,7 +731,7 @@ describe("Client options", async () => {
         const resumeRequest = getCapturedRequest(capturePath, "session.resume");
         expect(resumeRequest.sessionId).toBe("advanced-resume-session");
         expect(resumeRequest.clientName).toBe("advanced-resume-client");
-        expect(resumeRequest.model).toBe("claude-haiku-4.5");
+        expect(resumeRequest.model).toBe("legacy-resume-model");
         expect(resumeRequest.reasoningEffort).toBe("low");
         expect(resumeRequest.reasoningSummary).toBe("none");
         expect(resumeRequest.contextTier).toBe("default");
@@ -728,6 +744,20 @@ describe("Client options", async () => {
         expect(getObject(resumeRequest.largeOutput).outputDir).toBe(outputDirectory);
         expect(getObject(resumeRequest.memory).enabled).toBe(false);
         expect(resumeRequest.remoteSession).toBe("on");
+        const provider = getObject(getArray(resumeRequest.providers)[0]);
+        expect(provider).toMatchObject({
+            name: "resume-provider",
+            type: "openai",
+            wireApi: "responses",
+            baseUrl: "https://resume-provider.example.test/v1",
+            hasBearerTokenProvider: true,
+        });
+        expect(provider).not.toHaveProperty("bearerTokenProvider");
+        expect(getObject(getArray(resumeRequest.models)[0])).toMatchObject({
+            provider: "resume-provider",
+            id: "legacy-resume-model",
+            wireModel: "resume-wire-model",
+        });
 
         const openCanvas = getObject(getArray(resumeRequest.openCanvases)[0]);
         expect(openCanvas.canvasId).toBe("resume-canvas");

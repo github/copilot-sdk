@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { approveAll, defineTool } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Abort", async () => {
     const { copilotClient: client } = await createSdkTestContext();
@@ -123,6 +124,11 @@ describe("Abort", async () => {
         // Wait for the tool to start executing
         const toolValue = await withTimeout(toolStarted, 60_000, "slow_analysis start");
         expect(toolValue).toBe("test_abort");
+        expect((await session.rpc.metadata.isProcessing()).processing).toBe(true);
+        expect(await session.rpc.metadata.activity()).toMatchObject({
+            hasActiveWork: true,
+            abortable: true,
+        });
 
         // Abort while the tool is running
         await session.abort();
@@ -145,11 +151,15 @@ describe("Abort", async () => {
             }
         });
 
+        const recoveryIdle = getNextEventOfType(session, "session.idle");
         void session.send({
             prompt: "Say 'tool_abort_recovery_ok'.",
         });
 
         await withTimeout(recoveryReceived, 60_000, "tool abort recovery message");
+        await withTimeout(recoveryIdle, 60_000, "tool abort recovery idle");
+        expect((await session.rpc.metadata.isProcessing()).processing).toBe(false);
+        expect((await session.rpc.metadata.activity()).hasActiveWork).toBe(false);
 
         await session.disconnect();
     });

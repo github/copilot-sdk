@@ -278,15 +278,13 @@ describe("Permission callbacks", async () => {
     });
 
     it("should receive toolCallId in permission requests", async () => {
-        let receivedToolCallId = false;
+        let receivedRequest: PermissionRequest | undefined;
+        let receivedInvocation: { sessionId: string; managedSettingsEnabled?: boolean } | undefined;
 
         const session = await client.createSession({
-            onPermissionRequest: (request) => {
-                if (request.toolCallId) {
-                    receivedToolCallId = true;
-                    expect(typeof request.toolCallId).toBe("string");
-                    expect(request.toolCallId.length).toBeGreaterThan(0);
-                }
+            onPermissionRequest: (request, invocation) => {
+                receivedRequest = request;
+                receivedInvocation = invocation;
                 return { kind: "approve-once" };
             },
         });
@@ -295,7 +293,33 @@ describe("Permission callbacks", async () => {
             prompt: "Run 'echo test'",
         });
 
-        expect(receivedToolCallId).toBe(true);
+        expect(receivedInvocation).toEqual({
+            sessionId: session.sessionId,
+            managedSettingsEnabled: false,
+        });
+        expect(receivedRequest).toMatchObject({
+            kind: "shell",
+            canOfferSessionApproval: expect.any(Boolean),
+            commands: expect.arrayContaining([
+                {
+                    identifier: expect.any(String),
+                    readOnly: expect.any(Boolean),
+                },
+            ]),
+            fullCommandText: expect.stringContaining("echo test"),
+            hasWriteFileRedirection: false,
+            intention: expect.any(String),
+            possiblePaths: expect.any(Array),
+            possibleUrls: expect.any(Array),
+            toolCallId: expect.any(String),
+        });
+        if (receivedRequest?.kind === "shell") {
+            expect(receivedRequest.toolCallId?.length).toBeGreaterThan(0);
+            expect(receivedRequest.intention.trim().length).toBeGreaterThan(0);
+            expect(receivedRequest.commands.every((command) => command.identifier.trim())).toBe(
+                true
+            );
+        }
 
         await session.disconnect();
     });
