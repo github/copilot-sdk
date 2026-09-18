@@ -30,22 +30,26 @@ async def test_session_connectors_exposes_complete_runtime_api():
     ).revision == 1
 
     request = ConnectorConnectRequest(account_id="account-1", connector_name="calendar")
-    assert (
-        await session.rpc.connectors.connect(request)
-    ).kind is ConnectorConnectResultKind.CONSENT_REQUIRED
-    assert (
-        await session.rpc.connectors.reconnect(request)
-    ).kind is ConnectorConnectResultKind.PENDING
-    assert (
-        await session.rpc.connectors.continue_connection(
-            ConnectorContinueRequest(
-                continuation_id="continuation-1",
-                max_attempts=3,
-                poll_interval_ms=100,
-                deadline_ms=1_000,
-            )
+    consent = await session.rpc.connectors.connect(request)
+    assert consent.kind is ConnectorConnectResultKind.CONSENT_REQUIRED
+    assert consent.consent_url == "https://example.com/consent"
+    assert consent.continuation_id == "continuation-1"
+
+    reconnect = await session.rpc.connectors.reconnect(request)
+    assert reconnect.kind is ConnectorConnectResultKind.PENDING
+    assert reconnect.continuation_id == "continuation-1"
+
+    continued = await session.rpc.connectors.continue_connection(
+        ConnectorContinueRequest(
+            continuation_id="continuation-1",
+            max_attempts=3,
+            poll_interval_ms=100,
+            deadline_ms=1_000,
         )
-    ).kind is ConnectorConnectResultKind.PENDING
+    )
+    assert continued.kind is ConnectorConnectResultKind.PENDING
+    assert continued.continuation_id == "continuation-1"
+
     assert (await session.rpc.connectors.disconnect(request)).disconnected
     assert (
         await session.rpc.connectors.reconcile(
@@ -53,16 +57,59 @@ async def test_session_connectors_exposes_complete_runtime_api():
         )
     ).api_version == 1
 
-    assert [call.args[0] for call in transport.request.await_args_list] == [
-        "session.connectors.getCapabilities",
-        "session.connectors.getStatus",
-        "session.connectors.list",
-        "session.connectors.refresh",
-        "session.connectors.connect",
-        "session.connectors.reconnect",
-        "session.connectors.continueConnection",
-        "session.connectors.disconnect",
-        "session.connectors.reconcile",
+    assert [(call.args[0], call.args[1]) for call in transport.request.await_args_list] == [
+        ("session.connectors.getCapabilities", {"sessionId": "session-1"}),
+        ("session.connectors.getStatus", {"sessionId": "session-1"}),
+        (
+            "session.connectors.list",
+            {"accountId": "account-1", "sessionId": "session-1"},
+        ),
+        (
+            "session.connectors.refresh",
+            {"accountId": "account-1", "sessionId": "session-1"},
+        ),
+        (
+            "session.connectors.connect",
+            {
+                "accountId": "account-1",
+                "connectorName": "calendar",
+                "sessionId": "session-1",
+            },
+        ),
+        (
+            "session.connectors.reconnect",
+            {
+                "accountId": "account-1",
+                "connectorName": "calendar",
+                "sessionId": "session-1",
+            },
+        ),
+        (
+            "session.connectors.continueConnection",
+            {
+                "continuationId": "continuation-1",
+                "deadlineMs": 1_000,
+                "maxAttempts": 3,
+                "pollIntervalMs": 100,
+                "sessionId": "session-1",
+            },
+        ),
+        (
+            "session.connectors.disconnect",
+            {
+                "accountId": "account-1",
+                "connectorName": "calendar",
+                "sessionId": "session-1",
+            },
+        ),
+        (
+            "session.connectors.reconcile",
+            {
+                "accountId": "account-1",
+                "refreshCatalog": True,
+                "sessionId": "session-1",
+            },
+        ),
     ]
 
 

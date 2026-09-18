@@ -9,7 +9,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.AllowCopilotExperimental;
 
+@AllowCopilotExperimental
 class ConnectorSerializationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

@@ -115,6 +115,27 @@ class CopilotExperimentalProcessorTest {
     }
 
     @Test
+    void failsByDefault_whenUsingGeneratedExperimentalConnectorTypes() {
+        for (String type : List.of("ConnectorAvailability", "ConnectorStatus", "ConnectorConnectResult",
+                "ConnectorConnectResultConnected")) {
+            String source = """
+                    package consumer;
+                    import com.github.copilot.generated.rpc.%s;
+                    public class Consumer {
+                        private %s value;
+                    }
+                    """.formatted(type, type);
+            DiagnosticCollector<JavaFileObject> diagnostics = compile(
+                    List.of(inMemorySource("consumer.Consumer", source)), Collections.emptyList());
+
+            boolean hasError = diagnostics.getDiagnostics().stream().anyMatch(
+                    d -> d.getKind() == Diagnostic.Kind.ERROR && d.getMessage(null).contains("experimental API"));
+            assertTrue(hasError, "Expected compile error for generated experimental type " + type + ", got: "
+                    + diagnostics.getDiagnostics());
+        }
+    }
+
+    @Test
     void passes_whenAllowAnnotationIsOnType() {
         DiagnosticCollector<JavaFileObject> diagnostics = compile(
                 List.of(inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),

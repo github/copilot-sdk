@@ -192,7 +192,7 @@
           },
           "maxAttempts": {
             "type": "integer",
-            "minimum": 0,
+            "minimum": 1,
             "description": "Maximum catalog requests made by this call. Must be between one and the capability limit."
           },
           "pollIntervalMs": {
@@ -572,7 +572,7 @@
         },
         "maxAttempts": {
           "type": "integer",
-          "minimum": 0,
+          "minimum": 1,
           "description": "Maximum catalog requests made by this call. Must be between one and the capability limit."
         },
         "pollIntervalMs": {
