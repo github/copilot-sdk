@@ -210,7 +210,6 @@ async fn should_reload_replaced_skill_and_replay_it_on_resume() {
                     ),
                 )
                 .expect("write replacement skill");
-                std::fs::remove_file(&skill_file).expect("remove previous skill");
                 std::fs::rename(&replacement, &skill_file).expect("replace skill");
                 session
                     .rpc()

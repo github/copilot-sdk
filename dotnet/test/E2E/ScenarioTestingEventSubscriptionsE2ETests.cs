@@ -20,6 +20,7 @@ public class ScenarioTestingEventSubscriptionsE2ETests(E2ETestFixture fixture, I
     public async Task Should_Deliver_Mixed_Scenario_Event_Stream_In_Order_After_Handler_Lag()
     {
         var handlerEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var toolInvoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseHandler = new ManualResetEventSlim();
         var events = new List<SessionEvent>();
 
@@ -51,8 +52,15 @@ public class ScenarioTestingEventSubscriptionsE2ETests(E2ETestFixture fixture, I
         }, timeout: TimeSpan.FromSeconds(120));
 
         await handlerEntered.Task.WaitAsync(EventTimeout);
-        await Task.Delay(100);
-        releaseHandler.Set();
+        try
+        {
+            await toolInvoked.Task.WaitAsync(EventTimeout);
+        }
+        finally
+        {
+            releaseHandler.Set();
+        }
+
         var response = await send;
         Assert.Contains("SCENARIO_EVENT_ORDERED", response?.Data.Content ?? string.Empty, StringComparison.Ordinal);
 
@@ -73,7 +81,11 @@ public class ScenarioTestingEventSubscriptionsE2ETests(E2ETestFixture fixture, I
         Assert.True(assistant < idle, string.Join(", ", types));
 
         [Description("Looks up scenario-owned event data")]
-        static string ScenarioLookup([Description("Lookup key")] string key) => $"SCENARIO_EVENT_{key.ToUpperInvariant()}";
+        string ScenarioLookup([Description("Lookup key")] string key)
+        {
+            toolInvoked.TrySetResult();
+            return $"SCENARIO_EVENT_{key.ToUpperInvariant()}";
+        }
     }
 
     [Fact]
