@@ -13,15 +13,15 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
-public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_sends", output)
+public class ProductionUsageSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_sends", output)
 {
     private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(60);
 
     [Fact]
     public async Task Should_Send_Complete_App_Message_Wire_Shape()
     {
-        var (cliPath, capturePath) = await GitHubAppTestCli.CreateAsync(Ctx);
+        var (cliPath, capturePath) = await ProductionUsageTestCli.CreateAsync(Ctx);
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForStdio(
@@ -30,9 +30,9 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             UseLoggedInUser = false,
         });
 
-        using var activity = new Activity("github-app-send");
+        using var activity = new Activity("production-client-send");
         activity.SetIdFormat(ActivityIdFormat.W3C);
-        activity.TraceStateString = "github-app=send";
+        activity.TraceStateString = "production-client=send";
         activity.Start();
 
         await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
@@ -51,7 +51,7 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             DisplayPrompt = "Review selected app context",
             Mode = "enqueue",
             AgentMode = AgentMode.Interactive,
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
             Attachments =
             [
                 new AttachmentFile
@@ -93,7 +93,7 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
                 new AttachmentExtensionContext
                 {
                     CapturedAt = DateTimeOffset.Parse("2026-09-17T20:00:00Z"),
-                    ExtensionId = "github-app:code-review",
+                    ExtensionId = "production-client:code-review",
                     CanvasId = "diff",
                     InstanceId = "diff-17",
                     Title = "Selected change",
@@ -102,9 +102,9 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             ],
         });
 
-        Assert.Equal("github-app-message", messageId);
+        Assert.Equal("production-client-message", messageId);
 
-        var requests = await GitHubAppTestCli.ReadRequestsAsync(capturePath);
+        var requests = await ProductionUsageTestCli.ReadRequestsAsync(capturePath);
         var send = Assert.Single(requests, request => request.GetProperty("method").GetString() == "session.send");
         var parameters = send.GetProperty("params");
 
@@ -112,9 +112,9 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         Assert.Equal("Review selected app context", parameters.GetProperty("displayPrompt").GetString());
         Assert.Equal("enqueue", parameters.GetProperty("mode").GetString());
         Assert.Equal("interactive", parameters.GetProperty("agentMode").GetString());
-        Assert.Equal("agent-github-app", parameters.GetProperty("source").GetString());
+        Assert.Equal("agent-production-client", parameters.GetProperty("source").GetString());
         Assert.Equal(activity.Id, parameters.GetProperty("traceparent").GetString());
-        Assert.Equal("github-app=send", parameters.GetProperty("tracestate").GetString());
+        Assert.Equal("production-client=send", parameters.GetProperty("tracestate").GetString());
 
         var attachments = parameters.GetProperty("attachments").EnumerateArray().ToArray();
         Assert.Equal(
@@ -129,14 +129,14 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         Assert.Equal("pr", attachments[3].GetProperty("referenceType").GetString());
         Assert.Equal("QVBQX0JMT0I=", attachments[4].GetProperty("data").GetString());
         Assert.Equal("text/plain", attachments[4].GetProperty("mimeType").GetString());
-        Assert.Equal("github-app:code-review", attachments[5].GetProperty("extensionId").GetString());
+        Assert.Equal("production-client:code-review", attachments[5].GetProperty("extensionId").GetString());
         Assert.Equal("APP_SELECTION", attachments[5].GetProperty("payload").GetProperty("selection").GetString());
     }
 
     [Fact]
     public async Task Should_Not_Invoke_Send_When_App_Cancels_Before_Dispatch()
     {
-        var (cliPath, capturePath) = await GitHubAppTestCli.CreateAsync(Ctx);
+        var (cliPath, capturePath) = await ProductionUsageTestCli.CreateAsync(Ctx);
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForStdio(
@@ -158,18 +158,18 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
                 {
                     Prompt = "This message must never be invoked.",
                     DisplayPrompt = "Cancelled app message",
-                    Source = MessageSource.Agent("github-app"),
+                    Source = MessageSource.Agent("production-client"),
                 },
                 cancellation.Token));
 
-        var requests = await GitHubAppTestCli.ReadRequestsAsync(capturePath);
+        var requests = await ProductionUsageTestCli.ReadRequestsAsync(capturePath);
         Assert.DoesNotContain(requests, request => request.GetProperty("method").GetString() == "session.send");
     }
 
     [Fact]
     public async Task Should_Not_Replay_App_Send_After_Ambiguous_Transport_Loss()
     {
-        var (cliPath, capturePath) = await GitHubAppTestCli.CreateAsync(Ctx);
+        var (cliPath, capturePath) = await ProductionUsageTestCli.CreateAsync(Ctx);
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForStdio(
@@ -188,10 +188,10 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             {
                 Prompt = "AMBIGUOUS_APP_SEND",
                 DisplayPrompt = "Ambiguous app send",
-                Source = MessageSource.Agent("github-app"),
+                Source = MessageSource.Agent("production-client"),
             }, cancellation.Token));
 
-        var requests = await GitHubAppTestCli.ReadRequestsAsync(capturePath);
+        var requests = await ProductionUsageTestCli.ReadRequestsAsync(capturePath);
         Assert.Single(requests, request => request.GetProperty("method").GetString() == "session.send");
     }
 
@@ -222,7 +222,7 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         {
             Prompt = "Reply with exactly IDLE_ENQUEUE.",
             Mode = "enqueue",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
         await idleEnqueue;
 
@@ -231,14 +231,14 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         {
             Prompt = "Reply with exactly IDLE_IMMEDIATE.",
             Mode = "immediate",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
         await idleImmediate;
 
         await session.SendAsync(new MessageOptions
         {
             Prompt = "Call app_send_blocker, then reply with its result.",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
         await firstToolStarted.Task.WaitAsync(SendTimeout);
 
@@ -246,7 +246,7 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         {
             Prompt = "Call app_send_blocker again, then reply with exactly FIRST_STEERING.",
             Mode = "immediate",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
         releaseFirstTool.TrySetResult("APP_SEND_BLOCKER_RELEASED");
         await secondToolStarted.Task.WaitAsync(SendTimeout);
@@ -255,13 +255,13 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         {
             Prompt = "Reply with exactly SECOND_IMMEDIATE.",
             Mode = "immediate",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
         var queuedId = await session.SendAsync(new MessageOptions
         {
             Prompt = "Reply with exactly FINAL_QUEUED.",
             Mode = "enqueue",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
 
         var finalQueuedResponse = TestHelper.GetNextEventOfTypeAsync<AssistantMessageEvent>(

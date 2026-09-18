@@ -16,11 +16,11 @@ using Xunit.Abstractions;
 namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
-/// GitHub App-shaped coverage for provider and model selection.
+/// production client-shaped coverage for provider and model selection.
 /// </summary>
 [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
-public class GitHubAppProvidersE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_providers", output)
+public class ProductionUsageProvidersE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_providers", output)
 {
     [Fact]
     public async Task Should_Route_App_Models_With_Provider_Auth_Headers_Wire_Ids_And_Capabilities()
@@ -74,13 +74,13 @@ public class GitHubAppProvidersE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Should_Use_Dynamic_App_Bearer_Callback_For_Selected_Provider()
     {
-        const string token = "github-app-dynamic-token";
+        const string token = "production-client-dynamic-token";
         ProviderTokenArgs? observedArgs = null;
         var handler = new AppProviderRequestHandler();
         await using var client = CreateProviderClient(handler);
         await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             Model = "managed/default",
             Providers =
             [
@@ -130,7 +130,7 @@ public class GitHubAppProvidersE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     {
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             Model = "claude-sonnet-5",
         });
 
@@ -182,7 +182,7 @@ public class GitHubAppProvidersE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var initialClient = CreateProviderClient(initialHandler);
         var initialSession = await Ctx.CreateSessionAsync(initialClient, new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             Model = "legacy-app-model",
             Provider = new ProviderConfig
             {
@@ -208,7 +208,7 @@ public class GitHubAppProvidersE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         await using var resumedClient = CreateProviderClient(resumedHandler);
         await using var resumed = await Ctx.ResumeSessionAsync(resumedClient, sessionId, new ResumeSessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             Providers =
             [
                 new NamedProviderConfig
@@ -293,7 +293,7 @@ public class GitHubAppProvidersE2ETests(E2ETestFixture fixture, ITestOutputHelpe
 
     private static SessionConfig CreateAppProviderConfig(string model) => new()
     {
-        ClientName = "github-app",
+        ClientName = "production-client",
         Model = model,
         Providers =
         [

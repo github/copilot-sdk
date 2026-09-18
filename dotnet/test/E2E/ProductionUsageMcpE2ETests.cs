@@ -14,21 +14,21 @@ using Xunit.Abstractions;
 namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
-/// GitHub App-shaped coverage for MCP lifecycle, OAuth, configuration, and MCP Apps.
+/// production client-shaped coverage for MCP lifecycle, OAuth, configuration, and MCP Apps.
 /// </summary>
-public class GitHubAppMcpE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_mcp", output)
+public class ProductionUsageMcpE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_mcp", output)
 {
     private static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(60);
-    private const string ExpectedToken = "github-app-mcp-token";
+    private const string ExpectedToken = "production-client-mcp-token";
 
     [Fact]
     public async Task Should_List_Reload_Restart_And_Report_App_Mcp_State()
     {
-        const string serverName = "github-app-lifecycle";
+        const string serverName = "production-client-lifecycle";
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             McpServers = CreateTestMcpServers(serverName),
         });
         await WaitForMcpServerStatusAsync(session, serverName, McpServerStatus.Connected);
@@ -64,13 +64,13 @@ public class GitHubAppMcpE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
     {
         await using var firstParty = await AppOAuthMcpServer.StartAsync(ExpectedToken);
         await using var thirdParty = await AppOAuthMcpServer.StartAsync(ExpectedToken);
-        const string firstPartyName = "github-app-first-party";
-        const string thirdPartyName = "github-app-third-party";
+        const string firstPartyName = "production-client-first-party";
+        const string thirdPartyName = "production-client-third-party";
         var requests = Channel.CreateUnbounded<McpAuthContext>();
 
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             OnMcpAuthRequest = request =>
             {
                 requests.Writer.TryWrite(request);
@@ -124,12 +124,12 @@ public class GitHubAppMcpE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
     public async Task Should_Reconnect_With_Cached_App_Token_Then_Return_Interactive_Oauth_Url()
     {
         await using var oauthServer = await AppOAuthMcpServer.StartAsync(ExpectedToken);
-        const string serverName = "github-app-oauth-reconnect";
+        const string serverName = "production-client-oauth-reconnect";
         var tokenRequests = 0;
 
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             OnMcpAuthRequest = request =>
             {
                 Interlocked.Increment(ref tokenRequests);
@@ -166,9 +166,9 @@ public class GitHubAppMcpE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var interactive = await session.Rpc.Mcp.Oauth.LoginAsync(
             serverName,
             forceReauth: true,
-            clientName: "GitHub App",
+            clientName: "production client",
             callbackSuccessMessage: "Return to GitHub.",
-            clientId: "github-app-client",
+            clientId: "production-client-client",
             publicClient: true);
         Assert.NotNull(interactive.AuthorizationUrl);
         Assert.StartsWith($"{oauthServer.Url}/authorize", interactive.AuthorizationUrl, StringComparison.Ordinal);
@@ -177,7 +177,7 @@ public class GitHubAppMcpE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
     [Fact]
     public async Task Should_Manage_And_Discover_App_Mcp_Config_Lifecycle()
     {
-        var serverName = $"github-app-config-{Guid.NewGuid():N}";
+        var serverName = $"production-client-config-{Guid.NewGuid():N}";
         var testServer = Path.Join(FindTestHarnessDir(), "test-mcp-server.mjs");
         await Client.StartAsync();
 
@@ -228,8 +228,8 @@ public class GitHubAppMcpE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
     [Fact]
     public async Task Should_Enforce_Mcp_App_Origin_Server()
     {
-        const string serverName = "github-app-origin";
-        const string otherServerName = "github-app-other-origin";
+        const string serverName = "production-client-origin";
+        const string otherServerName = "production-client-other-origin";
         var servers = CreateTestMcpServers(serverName, otherServerName);
         ((McpStdioServerConfig)servers[serverName]).Env =
             new Dictionary<string, string> { ["APP_ORIGIN_VALUE"] = "origin-ok" };
@@ -240,7 +240,7 @@ public class GitHubAppMcpE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         await using var client = Ctx.CreateClient(environment: environment);
         await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             EnableMcpApps = true,
             McpServers = servers,
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -274,12 +274,12 @@ public class GitHubAppMcpE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
     [Fact]
     public async Task Should_Preserve_Disabled_App_Mcp_Servers_Across_Reload_And_Resume()
     {
-        const string enabledName = "github-app-enabled-mcp";
-        const string disabledName = "github-app-disabled-mcp";
+        const string enabledName = "production-client-enabled-mcp";
+        const string disabledName = "production-client-disabled-mcp";
         var client1 = Ctx.CreateClient();
         var session1 = await Ctx.CreateSessionAsync(client1, new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             EnableSessionStore = true,
             McpServers = CreateTestMcpServers(enabledName, disabledName),
             DisabledMcpServers = [disabledName],
@@ -306,7 +306,7 @@ public class GitHubAppMcpE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         await using var client2 = Ctx.CreateClient();
         await using var session2 = await Ctx.ResumeSessionAsync(client2, sessionId, new ResumeSessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             EnableSessionStore = true,
             McpServers = CreateTestMcpServers(enabledName, disabledName),
             DisabledMcpServers = [disabledName],

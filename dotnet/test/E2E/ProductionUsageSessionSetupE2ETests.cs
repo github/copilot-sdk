@@ -15,8 +15,8 @@ namespace GitHub.Copilot.Test.E2E;
 
 #pragma warning disable GHCP001
 
-public class GitHubAppSessionSetupE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_session_setup", output)
+public class ProductionUsageSessionSetupE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_session_setup", output)
 {
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(60);
 
@@ -33,11 +33,11 @@ public class GitHubAppSessionSetupE2ETests(E2ETestFixture fixture, ITestOutputHe
             UseLoggedInUser = false,
         });
 
-        var sessionId = $"github-app-composed-{Guid.NewGuid():N}";
+        var sessionId = $"production-client-composed-{Guid.NewGuid():N}";
         await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             SessionId = sessionId,
-            ClientName = "github-app",
+            ClientName = "production-client",
             Model = "claude-sonnet-5",
             ReasoningEffort = "high",
             ReasoningSummary = ReasoningSummary.Detailed,
@@ -91,7 +91,7 @@ public class GitHubAppSessionSetupE2ETests(E2ETestFixture fixture, ITestOutputHe
                 {
                     Name = "app-agent",
                     DisplayName = "App Agent",
-                    Description = "GitHub App agent",
+                    Description = "production client agent",
                     Prompt = "Act as the app agent.",
                     Tools = ["app_tool"],
                 },
@@ -130,8 +130,8 @@ public class GitHubAppSessionSetupE2ETests(E2ETestFixture fixture, ITestOutputHe
             RequestCanvasRenderer = true,
             RequestExtensions = true,
             ExtensionSdkPath = "app-extension-sdk",
-            ExtensionInfo = new ExtensionInfo { Source = "github-app", Name = "desktop" },
-            CanvasProvider = new CanvasProviderIdentity { Id = "app:builtin:desktop", Name = "GitHub App" },
+            ExtensionInfo = new ExtensionInfo { Source = "production-client", Name = "desktop" },
+            CanvasProvider = new CanvasProviderIdentity { Id = "app:builtin:desktop", Name = "production client" },
             Canvases =
             [
                 new CanvasDeclaration
@@ -159,7 +159,7 @@ public class GitHubAppSessionSetupE2ETests(E2ETestFixture fixture, ITestOutputHe
         var optionsUpdate = Assert.Single(GetRequests(capture.RootElement, "session.options.update")).GetProperty("params");
 
         Assert.Equal(sessionId, request.GetProperty("sessionId").GetString());
-        Assert.Equal("github-app", request.GetProperty("clientName").GetString());
+        Assert.Equal("production-client", request.GetProperty("clientName").GetString());
         Assert.Equal("claude-sonnet-5", request.GetProperty("model").GetString());
         Assert.Equal("high", request.GetProperty("reasoningEffort").GetString());
         Assert.Equal("detailed", request.GetProperty("reasoningSummary").GetString());
@@ -385,7 +385,7 @@ public class GitHubAppSessionSetupE2ETests(E2ETestFixture fixture, ITestOutputHe
                 },
             ],
             Canvases = [new CanvasDeclaration { Id = "app-canvas", DisplayName = "App Canvas" }],
-            CanvasProvider = new CanvasProviderIdentity { Id = "app:builtin:desktop", Name = "GitHub App" },
+            CanvasProvider = new CanvasProviderIdentity { Id = "app:builtin:desktop", Name = "production client" },
             CanvasHandler = new CallbackCanvasHandler(() => Mark("canvas")),
             OnPermissionRequest = (_, _) =>
             {
@@ -438,12 +438,44 @@ public class GitHubAppSessionSetupE2ETests(E2ETestFixture fixture, ITestOutputHe
         Assert.Equal(
             expected.OrderBy(value => value, StringComparer.Ordinal),
             observed.Keys.OrderBy(value => value, StringComparer.Ordinal));
+
+        using var capture = await WaitForCaptureAsync(
+            capturePath,
+            root => root.GetProperty("clientResponses").GetArrayLength() == 5
+                && GetRequests(root, "session.permissions.handlePendingPermissionRequest").Count == 1
+                && GetRequests(root, "session.ui.handlePendingElicitation").Count == 1
+                && GetRequests(root, "session.mcp.oauth.handlePendingRequest").Count == 1
+                && GetRequests(root, "session.tools.handlePendingToolCall").Count == 1
+                && GetRequests(root, "session.commands.handlePendingCommand").Count == 1);
+        var responses = capture.RootElement.GetProperty("clientResponses")
+            .EnumerateArray()
+            .ToDictionary(item => item.GetProperty("id").GetInt32());
+
+        Assert.Equal("approved", responses[1000].GetProperty("result").GetProperty("answer").GetString());
+        Assert.False(responses[1000].GetProperty("result").GetProperty("wasFreeform").GetBoolean());
+        Assert.True(responses[1001].GetProperty("result").GetProperty("approved").GetBoolean());
+        Assert.Equal("interactive", responses[1001].GetProperty("result").GetProperty("selectedAction").GetString());
+        Assert.Equal("no", responses[1002].GetProperty("result").GetProperty("response").GetString());
+        Assert.Equal("ready", responses[1003].GetProperty("result").GetProperty("status").GetString());
+        Assert.Equal("App Canvas", responses[1003].GetProperty("result").GetProperty("title").GetString());
+        Assert.Equal("provider-token", responses[1004].GetProperty("result").GetProperty("token").GetString());
+
+        Assert.Equal(
+            ["permission-1", "elicitation-1", "mcp-auth-1", "tool-1", "command-1"],
+            new[]
+            {
+                GetRequests(capture.RootElement, "session.permissions.handlePendingPermissionRequest").Single(),
+                GetRequests(capture.RootElement, "session.ui.handlePendingElicitation").Single(),
+                GetRequests(capture.RootElement, "session.mcp.oauth.handlePendingRequest").Single(),
+                GetRequests(capture.RootElement, "session.tools.handlePendingToolCall").Single(),
+                GetRequests(capture.RootElement, "session.commands.handlePendingCommand").Single(),
+            }.Select(item => item.GetProperty("params").GetProperty("requestId").GetString()));
     }
 
     [Fact]
     public async Task Should_Create_Then_Reload_Mcp_In_Order()
     {
-        const string ServerName = "github-app-reload";
+        const string ServerName = "production-client-reload";
         var milestones = new List<string>();
         var milestonesLock = new object();
         var startObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -485,8 +517,8 @@ public class GitHubAppSessionSetupE2ETests(E2ETestFixture fixture, ITestOutputHe
 
     private async Task<(string CliPath, string CapturePath)> CreateFakeRuntimeAsync(string behavior)
     {
-        var cliPath = Path.Join(Ctx.WorkDir, $"github-app-session-{behavior}-{Guid.NewGuid():N}.js");
-        var capturePath = Path.Join(Ctx.WorkDir, $"github-app-session-{behavior}-{Guid.NewGuid():N}.json");
+        var cliPath = Path.Join(Ctx.WorkDir, $"production-client-session-{behavior}-{Guid.NewGuid():N}.js");
+        var capturePath = Path.Join(Ctx.WorkDir, $"production-client-session-{behavior}-{Guid.NewGuid():N}.json");
         await File.WriteAllTextAsync(cliPath, FakeRuntimeScript);
         return (cliPath, capturePath);
     }

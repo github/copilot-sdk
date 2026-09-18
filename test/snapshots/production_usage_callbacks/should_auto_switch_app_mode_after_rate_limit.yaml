@@ -11,12 +11,12 @@ errors:
       - role: system
         content: ${system}
       - role: user
-        content: Explain that the GitHub app recovered from a rate limit in one short sentence.
+        content: Explain that the production client recovered from a rate limit in one short sentence.
 conversations:
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: Explain that the GitHub app recovered from a rate limit in one short sentence.
+        content: Explain that the production client recovered from a rate limit in one short sentence.
       - role: assistant
-        content: The GitHub app recovered from the rate limit and continued automatically.
+        content: The production client recovered from the rate limit and continued automatically.

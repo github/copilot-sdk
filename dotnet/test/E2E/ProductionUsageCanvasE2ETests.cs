@@ -10,8 +10,8 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
-public class GitHubAppCanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_canvas", output)
+public class ProductionUsageCanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_canvas", output)
 {
     private static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(60);
 
@@ -183,7 +183,7 @@ public class GitHubAppCanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     private static CanvasProviderIdentity CreateProvider() => new()
     {
         Id = "app:builtin:e2e-window",
-        Name = "GitHub App E2E",
+        Name = "production client E2E",
     };
 
     private static IList<CanvasDeclaration> CreateCanvases()
@@ -278,7 +278,7 @@ public class GitHubAppCanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         Assert.Equal("app-inspector", canvas.CanvasId);
         Assert.Equal("app:builtin:e2e-window", canvas.ExtensionId);
-        Assert.Equal("GitHub App E2E", canvas.ExtensionName);
+        Assert.Equal("production client E2E", canvas.ExtensionName);
         Assert.Equal(expectedInstanceId, canvas.InstanceId);
         Assert.Equal(expectedInput, canvas.Input!.Value.GetProperty("value").GetString());
         Assert.Equal("ready", canvas.Status);

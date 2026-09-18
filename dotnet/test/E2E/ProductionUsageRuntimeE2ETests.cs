@@ -14,8 +14,8 @@ namespace GitHub.Copilot.Test.E2E;
 
 #pragma warning disable GHCP001
 
-public class GitHubAppRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_runtime", output)
+public class ProductionUsageRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_runtime", output)
 {
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(30);
 
@@ -23,7 +23,7 @@ public class GitHubAppRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     public async Task Should_Start_With_Complete_App_Options_And_Extension_Launch_Provider()
     {
         var (cliPath, capturePath, pidPath) = await CreateFakeRuntimeAsync("normal");
-        var appHome = Path.Join(Ctx.WorkDir, "github-app-home");
+        var appHome = Path.Join(Ctx.WorkDir, "production-client-home");
         var pluginOne = Path.GetFullPath(Path.Join(Ctx.WorkDir, "plugins", "builtin-one"));
         var pluginTwo = Path.GetFullPath(Path.Join(Ctx.WorkDir, "plugins", "builtin-two"));
         Directory.CreateDirectory(appHome);
@@ -40,7 +40,7 @@ public class GitHubAppRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper 
                 Mode = CopilotClientMode.Empty,
                 BaseDirectory = appHome,
                 BuiltinPluginDirectories = [pluginOne, pluginTwo],
-                GitHubToken = "github-app-runtime-token",
+                GitHubToken = "production-client-runtime-token",
                 UseLoggedInUser = false,
                 LogLevel = CopilotLogLevel.Debug,
                 SessionIdleTimeoutSeconds = 23,
@@ -49,14 +49,14 @@ public class GitHubAppRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper 
                 {
                     OtlpEndpoint = "http://127.0.0.1:4318",
                     OtlpProtocol = "http/protobuf",
-                    FilePath = Path.Join(Ctx.WorkDir, "github-app-telemetry.jsonl"),
+                    FilePath = Path.Join(Ctx.WorkDir, "production-client-telemetry.jsonl"),
                     ExporterType = "file",
-                    SourceName = "github-app",
+                    SourceName = "production-client",
                     CaptureContent = true,
                 },
                 ClientInfo = new CopilotClientInfo
                 {
-                    ApplicationName = "github-app",
+                    ApplicationName = "production-client",
                     ApplicationVersion = "1.2.3",
                     IntegrationName = "copilot-sdk",
                     IntegrationVersion = "4.5.6",
@@ -87,9 +87,9 @@ public class GitHubAppRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         AssertArgumentValue(args, "--session-idle-timeout", "23");
         Assert.Contains("--no-auto-login", args);
         Assert.Equal(appHome, environment.GetProperty("COPILOT_HOME").GetString());
-        Assert.Equal("github-app-runtime-token", environment.GetProperty("COPILOT_SDK_AUTH_TOKEN").GetString());
+        Assert.Equal("production-client-runtime-token", environment.GetProperty("COPILOT_SDK_AUTH_TOKEN").GetString());
         Assert.Equal("true", environment.GetProperty("COPILOT_OTEL_ENABLED").GetString());
-        Assert.Equal("github-app", environment.GetProperty("COPILOT_OTEL_SOURCE_NAME").GetString());
+        Assert.Equal("production-client", environment.GetProperty("COPILOT_OTEL_SOURCE_NAME").GetString());
 
         Assert.Equal(
             ["connect", "registerExtensionLaunchProvider", "plugins.builtin.set"],
@@ -97,7 +97,7 @@ public class GitHubAppRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper 
 
         var connect = requests[0].GetProperty("params");
         var clientInfo = connect.GetProperty("clientInfo");
-        Assert.Equal("github-app", clientInfo.GetProperty("editorName").GetString());
+        Assert.Equal("production-client", clientInfo.GetProperty("editorName").GetString());
         Assert.Equal("1.2.3", clientInfo.GetProperty("editorVersion").GetString());
         Assert.Equal("copilot-sdk", clientInfo.GetProperty("extensionName").GetString());
         Assert.Equal("4.5.6", clientInfo.GetProperty("extensionVersion").GetString());
@@ -113,7 +113,7 @@ public class GitHubAppRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         var launchResponse = root.GetProperty("clientResponses")[0].GetProperty("result").GetProperty("launch");
         Assert.Equal("node", launchResponse.GetProperty("executable").GetString());
         Assert.Equal("extension-host", launchResponse.GetProperty("args")[0].GetString());
-        Assert.Equal("github-app", launchResponse.GetProperty("env").GetProperty("HOST_KIND").GetString());
+        Assert.Equal("production-client", launchResponse.GetProperty("env").GetProperty("HOST_KIND").GetString());
     }
 
     [Fact]
@@ -142,8 +142,8 @@ public class GitHubAppRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         await using var client = Ctx.CreateClient();
         await client.StartAsync();
 
-        var ping = await client.PingAsync("github-app-reuse");
-        Assert.Equal("pong: github-app-reuse", ping.Message);
+        var ping = await client.PingAsync("production-client-reuse");
+        Assert.Equal("pong: production-client-reuse", ping.Message);
 
         string firstSessionId;
         await using (var first = await Ctx.CreateSessionAsync(client))
@@ -228,9 +228,9 @@ public class GitHubAppRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper 
 
     private async Task<(string CliPath, string CapturePath, string PidPath)> CreateFakeRuntimeAsync(string behavior)
     {
-        var cliPath = Path.Join(Ctx.WorkDir, $"github-app-runtime-{behavior}-{Guid.NewGuid():N}.js");
-        var capturePath = Path.Join(Ctx.WorkDir, $"github-app-runtime-{behavior}-{Guid.NewGuid():N}.json");
-        var pidPath = Path.Join(Ctx.WorkDir, $"github-app-runtime-{behavior}-{Guid.NewGuid():N}.pid");
+        var cliPath = Path.Join(Ctx.WorkDir, $"production-client-runtime-{behavior}-{Guid.NewGuid():N}.js");
+        var capturePath = Path.Join(Ctx.WorkDir, $"production-client-runtime-{behavior}-{Guid.NewGuid():N}.json");
+        var pidPath = Path.Join(Ctx.WorkDir, $"production-client-runtime-{behavior}-{Guid.NewGuid():N}.pid");
         await File.WriteAllTextAsync(cliPath, FakeRuntimeScript);
         return (cliPath, capturePath, pidPath);
     }
@@ -319,7 +319,7 @@ public class GitHubAppRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper 
                 {
                     Executable = "node",
                     Args = ["extension-host", request.ModulePath],
-                    Env = new Dictionary<string, string> { ["HOST_KIND"] = "github-app" },
+                    Env = new Dictionary<string, string> { ["HOST_KIND"] = "production-client" },
                 },
             });
         }

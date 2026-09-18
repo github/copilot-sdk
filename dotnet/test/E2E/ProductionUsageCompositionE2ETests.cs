@@ -13,11 +13,11 @@ using Xunit.Abstractions;
 namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
-/// End-to-end coverage for representative SDK workflows used by github/github-app.
+/// End-to-end coverage for representative production SDK workflows.
 /// These tests intentionally compose APIs that are otherwise covered individually.
 /// </summary>
-public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_usage", output)
+public class ProductionUsageCompositionE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_composition", output)
 {
     private static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(60);
 
@@ -40,7 +40,7 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
                 new AttachmentExtensionContext
                 {
                     CapturedAt = DateTimeOffset.Parse("2026-09-17T20:00:00Z"),
-                    ExtensionId = "github-app:trace-viewer",
+                    ExtensionId = "production-client:trace-viewer",
                     CanvasId = "trace",
                     InstanceId = "trace-1",
                     Title = "Selected trace entry",
@@ -62,7 +62,7 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         Assert.Contains("TRACE_SENTINEL", userMessage.Data.TransformedContent ?? string.Empty, StringComparison.Ordinal);
 
         var attachment = Assert.IsType<AttachmentExtensionContext>(Assert.Single(userMessage.Data.Attachments!));
-        Assert.Equal("github-app:trace-viewer", attachment.ExtensionId);
+        Assert.Equal("production-client:trace-viewer", attachment.ExtensionId);
         Assert.Equal("trace", attachment.CanvasId);
         Assert.Equal("trace-1", attachment.InstanceId);
         Assert.Equal("Selected trace entry", attachment.Title);
@@ -478,7 +478,7 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             CanvasProvider = new CanvasProviderIdentity
             {
                 Id = "app:builtin:test-window",
-                Name = "GitHub App",
+                Name = "production client",
             },
             Canvases =
             [
@@ -526,7 +526,7 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             CanvasProvider = new CanvasProviderIdentity
             {
                 Id = "app:builtin:test-window",
-                Name = "GitHub App",
+                Name = "production client",
             },
             Canvases =
             [

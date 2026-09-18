@@ -9,8 +9,8 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
-public class GitHubAppPersistenceE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_persistence", output)
+public class ProductionUsagePersistenceE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_persistence", output)
 {
     [Fact]
     public async Task Should_Retry_From_Existing_History_With_Empty_SendMessages()
@@ -122,6 +122,14 @@ public class GitHubAppPersistenceE2ETests(E2ETestFixture fixture, ITestOutputHel
 
         Assert.Contains(workspaceFile, listed.Files);
         Assert.Equal(workspaceContent, read.Content);
-        Assert.NotNull(diff);
+        Assert.Equal(WorkspaceDiffMode.Session, diff.RequestedMode);
+        Assert.True(
+            diff.Mode == WorkspaceDiffMode.Session || diff.Mode == WorkspaceDiffMode.Unstaged,
+            $"Unexpected effective workspace diff mode: {diff.Mode}");
+        Assert.Equal(diff.Mode == WorkspaceDiffMode.Unstaged, diff.IsFallback);
+        if (diff.IsFallback)
+        {
+            Assert.NotNull(diff.UnavailableReason);
+        }
     }
 }

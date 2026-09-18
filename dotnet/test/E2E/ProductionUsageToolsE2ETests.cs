@@ -14,10 +14,10 @@ using Xunit.Abstractions;
 namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
-/// GitHub App-shaped coverage for host-owned tools.
+/// production client-shaped coverage for host-owned tools.
 /// </summary>
-public partial class GitHubAppToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_tools", output)
+public partial class ProductionUsageToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_tools", output)
 {
     private static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(60);
 
@@ -33,7 +33,7 @@ public partial class GitHubAppToolsE2ETests(E2ETestFixture fixture, ITestOutputH
         var hiddenToolCalled = false;
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             Tools =
             [
                 CopilotTool.DefineTool(
@@ -41,7 +41,7 @@ public partial class GitHubAppToolsE2ETests(E2ETestFixture fixture, ITestOutputH
                     factoryOptions: new AIFunctionFactoryOptions
                     {
                         Name = "app_lookup_issue",
-                        Description = "Looks up an issue in the GitHub App installation.",
+                        Description = "Looks up an issue in the production client installation.",
                     }),
                 CopilotTool.DefineTool(
                     (Func<string, string>)AppGrep,
@@ -77,7 +77,7 @@ public partial class GitHubAppToolsE2ETests(E2ETestFixture fixture, ITestOutputH
         Assert.Equal(1, names.Count(name => name == "grep"));
 
         var lookup = Assert.Single(exchange.Request.Tools!, tool => tool.Function.Name == "app_lookup_issue");
-        Assert.Equal("Looks up an issue in the GitHub App installation.", lookup.Function.Description);
+        Assert.Equal("Looks up an issue in the production client installation.", lookup.Function.Description);
         var parameters = lookup.Function.Parameters!.Value;
         Assert.Equal("object", parameters.GetProperty("type").GetString());
         Assert.Equal("string", parameters.GetProperty("properties").GetProperty("owner").GetProperty("type").GetString());
@@ -106,7 +106,7 @@ public partial class GitHubAppToolsE2ETests(E2ETestFixture fixture, ITestOutputH
 
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             Tools =
             [
                 CopilotTool.DefineTool(
@@ -114,7 +114,7 @@ public partial class GitHubAppToolsE2ETests(E2ETestFixture fixture, ITestOutputH
                     factoryOptions: new AIFunctionFactoryOptions
                     {
                         Name = "app_search_pull_requests",
-                        Description = "Searches pull requests visible to the GitHub App.",
+                        Description = "Searches pull requests visible to the production client.",
                     }),
             ],
         });
@@ -150,7 +150,7 @@ public partial class GitHubAppToolsE2ETests(E2ETestFixture fixture, ITestOutputH
     {
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             Tools =
             [
                 AIFunctionFactory.Create(
@@ -172,16 +172,16 @@ public partial class GitHubAppToolsE2ETests(E2ETestFixture fixture, ITestOutputH
         Assert.DoesNotContain("toolTelemetry", toolResult.StringContent, StringComparison.Ordinal);
         Assert.DoesNotContain("resultType", toolResult.StringContent, StringComparison.Ordinal);
 
-        [Description("Gets deployment state from the GitHub App")]
+        [Description("Gets deployment state from the production client")]
         static ToolResultAIContent GetDeployment([Description("Deployment environment")] string environment) =>
             new(new ToolResultObject
             {
                 TextResultForLlm = $"APP_DEPLOYMENT_READY:{environment}",
                 ResultType = "success",
-                SessionLog = "GitHub App deployment lookup completed.",
+                SessionLog = "production client deployment lookup completed.",
                 ToolTelemetry = new Dictionary<string, object>
                 {
-                    ["source"] = JsonValue.Create("github-app")!,
+                    ["source"] = JsonValue.Create("production-client")!,
                 },
             });
     }
@@ -193,7 +193,7 @@ public partial class GitHubAppToolsE2ETests(E2ETestFixture fixture, ITestOutputH
             TaskCreationOptions.RunContinuationsAsynchronously);
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             Tools = [AIFunctionFactory.Create(FailingLookup, "app_failing_lookup")],
         });
         using var subscription = session.On<ToolExecutionCompleteEvent>(evt =>
@@ -222,7 +222,7 @@ public partial class GitHubAppToolsE2ETests(E2ETestFixture fixture, ITestOutputH
 
         var session = await CreateSessionAsync(new SessionConfig
         {
-            ClientName = "github-app",
+            ClientName = "production-client",
             Tools = [AIFunctionFactory.Create(WaitForAppAsync, "app_wait_for_operation")],
         });
 

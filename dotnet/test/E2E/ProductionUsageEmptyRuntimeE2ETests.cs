@@ -8,8 +8,8 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
-public class GitHubAppEmptyRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_empty_runtime", output)
+public class ProductionUsageEmptyRuntimeE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_empty_runtime", output)
 {
     [Fact]
     public async Task Empty_Mode_Minimal_Toolless_Session_Has_No_Tools()

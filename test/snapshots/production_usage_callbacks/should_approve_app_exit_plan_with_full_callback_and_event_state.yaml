@@ -5,14 +5,14 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Create a GitHub app plan, then request approval with exit_plan_mode.
+        content: Create a production client plan, then request approval with exit_plan_mode.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: exit_plan_mode
-              arguments: '{"summary":"GitHub app implementation
+              arguments: '{"summary":"production client implementation
                 plan","actions":["autopilot","interactive","exit_only"],"recommendedAction":"interactive"}'
       - role: tool
         tool_call_id: toolcall_0
@@ -23,4 +23,4 @@ conversations:
           You are now in interactive mode. Start implementing the plan now, in this same response. Approving the plan is
           your go-signal, so do not stop to ask whether to proceed or wait for another message.
       - role: assistant
-        content: The GitHub app plan was approved.
+        content: The production client plan was approved.

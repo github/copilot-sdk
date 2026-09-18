@@ -10,8 +10,8 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
-public class GitHubAppLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_lifecycle_recovery", output)
+public class ProductionUsageLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_lifecycle_recovery", output)
 {
     private static readonly TimeSpan LifecycleTimeout = TimeSpan.FromSeconds(60);
 
@@ -31,7 +31,7 @@ public class GitHubAppLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOut
         {
             Prompt = "Call app_blocking_lookup with key 'abort', then reply with the result.",
             DisplayPrompt = "Run cancellable app lookup",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
 
         Assert.Equal("abort", await toolStarted.Task.WaitAsync(LifecycleTimeout));
@@ -50,7 +50,7 @@ public class GitHubAppLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOut
         {
             Prompt = "Reply with exactly APP_ABORT_RECOVERY_OK.",
             DisplayPrompt = "Verify app session recovery",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
         Assert.Contains(
             "APP_ABORT_RECOVERY_OK",
@@ -70,7 +70,7 @@ public class GitHubAppLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOut
     [Fact]
     public async Task Should_Suspend_Disconnect_And_Resume_App_State_Without_Delete()
     {
-        const string connectionToken = "github-app-lifecycle-token";
+        const string connectionToken = "production-client-lifecycle-token";
         await using var server = Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForTcp(connectionToken: connectionToken),
@@ -93,7 +93,7 @@ public class GitHubAppLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOut
             var initialized = await firstSession.SendAndWaitAsync(new MessageOptions
             {
                 Prompt = "Remember APP_LIFECYCLE_MEMORY and reply with exactly APP_LIFECYCLE_INITIALIZED.",
-                Source = MessageSource.Agent("github-app"),
+                Source = MessageSource.Agent("production-client"),
             });
             Assert.Contains("APP_LIFECYCLE_INITIALIZED", initialized?.Data.Content ?? string.Empty, StringComparison.Ordinal);
 
@@ -115,7 +115,7 @@ public class GitHubAppLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOut
         var response = await resumed.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Reply with exactly the app lifecycle memory value from the earlier turn.",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
         Assert.Contains("APP_LIFECYCLE_MEMORY", response?.Data.Content ?? string.Empty, StringComparison.Ordinal);
         Assert.Contains((await resumed.GetEventsAsync()).OfType<SessionResumeEvent>(), _ => true);
@@ -124,7 +124,7 @@ public class GitHubAppLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOut
     [Fact]
     public async Task Should_Classify_Delete_Not_Found_For_App_Cleanup()
     {
-        var (cliPath, capturePath) = await GitHubAppTestCli.CreateAsync(Ctx);
+        var (cliPath, capturePath) = await ProductionUsageTestCli.CreateAsync(Ctx);
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForStdio(
@@ -133,13 +133,13 @@ public class GitHubAppLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOut
             UseLoggedInUser = false,
         });
 
-        const string missingId = "missing-github-app-session";
+        const string missingId = "missing-production-client-session";
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => client.DeleteSessionAsync(missingId));
         Assert.Equal(
             $"Failed to delete session {missingId}: Session file not found",
             exception.Message);
 
-        var requests = await GitHubAppTestCli.ReadRequestsAsync(capturePath);
+        var requests = await ProductionUsageTestCli.ReadRequestsAsync(capturePath);
         var delete = Assert.Single(requests, request => request.GetProperty("method").GetString() == "session.delete");
         var parameters = delete.GetProperty("params");
         var request = parameters.ValueKind == JsonValueKind.Array ? parameters[0] : parameters;
@@ -149,7 +149,7 @@ public class GitHubAppLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOut
     [Fact]
     public async Task Should_Allow_Caller_Retry_After_Preacceptance_Session_Not_Found()
     {
-        var (cliPath, capturePath) = await GitHubAppTestCli.CreateAsync(Ctx);
+        var (cliPath, capturePath) = await ProductionUsageTestCli.CreateAsync(Ctx);
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForStdio(
@@ -158,7 +158,7 @@ public class GitHubAppLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOut
             UseLoggedInUser = false,
         });
 
-        const string sessionId = "github-app-retry-session";
+        const string sessionId = "production-client-retry-session";
         var first = await Assert.ThrowsAnyAsync<Exception>(() =>
             Ctx.ResumeSessionAsync(client, sessionId, new ResumeSessionConfig
             {
@@ -172,7 +172,7 @@ public class GitHubAppLifecycleRecoveryE2ETests(E2ETestFixture fixture, ITestOut
         });
         Assert.Equal(sessionId, resumed.SessionId);
 
-        var requests = await GitHubAppTestCli.ReadRequestsAsync(capturePath);
+        var requests = await ProductionUsageTestCli.ReadRequestsAsync(capturePath);
         Assert.Equal(2, requests.Count(request => request.GetProperty("method").GetString() == "session.resume"));
     }
 }

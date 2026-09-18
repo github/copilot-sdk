@@ -12,8 +12,8 @@ namespace GitHub.Copilot.Test.E2E;
 
 #pragma warning disable GHCP001
 
-public class GitHubAppCloudE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_cloud", output)
+public class ProductionUsageCloudE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_cloud", output)
 {
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(30);
 
@@ -111,8 +111,8 @@ public class GitHubAppCloudE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
 
     private async Task<(string CliPath, string CapturePath)> CreateFakeCloudRuntimeAsync()
     {
-        var cliPath = Path.Join(Ctx.WorkDir, $"github-app-cloud-{Guid.NewGuid():N}.js");
-        var capturePath = Path.Join(Ctx.WorkDir, $"github-app-cloud-{Guid.NewGuid():N}.json");
+        var cliPath = Path.Join(Ctx.WorkDir, $"production-client-cloud-{Guid.NewGuid():N}.js");
+        var capturePath = Path.Join(Ctx.WorkDir, $"production-client-cloud-{Guid.NewGuid():N}.json");
         await File.WriteAllTextAsync(cliPath, FakeCloudRuntimeScript);
         return (cliPath, capturePath);
     }

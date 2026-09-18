@@ -12,8 +12,8 @@ using RpcExtension = GitHub.Copilot.Rpc.Extension;
 
 namespace GitHub.Copilot.Test.E2E;
 
-public class GitHubAppJsExtensionBridgeE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_js_extension_bridge", output)
+public class ProductionUsageJsExtensionBridgeE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_js_extension_bridge", output)
 {
     private static readonly TimeSpan ExtensionTimeout = TimeSpan.FromSeconds(60);
 

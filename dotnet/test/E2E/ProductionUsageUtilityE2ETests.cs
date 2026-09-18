@@ -8,8 +8,8 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
-public class GitHubAppUtilityE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_utility", output)
+public class ProductionUsageUtilityE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_utility", output)
 {
     [Fact]
     public async Task Should_Send_Wait_Observe_Idle_Events_And_Delete_Suggestion_Session()

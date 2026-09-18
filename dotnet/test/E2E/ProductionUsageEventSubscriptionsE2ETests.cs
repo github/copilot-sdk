@@ -11,8 +11,8 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
-public class GitHubAppEventSubscriptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_event_subscriptions", output)
+public class ProductionUsageEventSubscriptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_event_subscriptions", output)
 {
     private static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(60);
 
@@ -47,7 +47,7 @@ public class GitHubAppEventSubscriptionsE2ETests(E2ETestFixture fixture, ITestOu
         {
             Prompt = "Call app_event_lookup with key 'ordered', then reply with exactly its result.",
             DisplayPrompt = "Run ordered app lookup",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         }, timeout: TimeSpan.FromSeconds(120));
 
         await handlerEntered.Task.WaitAsync(EventTimeout);
@@ -79,7 +79,7 @@ public class GitHubAppEventSubscriptionsE2ETests(E2ETestFixture fixture, ITestOu
     [Fact]
     public async Task Should_Stop_Closed_And_Replaced_App_Event_Sources()
     {
-        const string connectionToken = "github-app-events-token";
+        const string connectionToken = "production-client-events-token";
         await using var server = Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForTcp(connectionToken: connectionToken),
@@ -105,7 +105,7 @@ public class GitHubAppEventSubscriptionsE2ETests(E2ETestFixture fixture, ITestOu
             await firstSession.SendAndWaitAsync(new MessageOptions
             {
                 Prompt = "Reply with exactly APP_EVENT_SOURCE_ONE.",
-                Source = MessageSource.Agent("github-app"),
+                Source = MessageSource.Agent("production-client"),
             });
             await firstSession.Rpc.SuspendAsync();
             await firstSession.DisposeAsync();

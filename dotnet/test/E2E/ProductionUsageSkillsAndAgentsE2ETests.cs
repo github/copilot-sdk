@@ -9,8 +9,8 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
-public class GitHubAppSkillsAndAgentsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_skills_and_agents", output)
+public class ProductionUsageSkillsAndAgentsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_skills_and_agents", output)
 {
     [Fact]
     public async Task Should_Reload_Atomically_Replaced_Skill_And_Replay_It_On_Resume()

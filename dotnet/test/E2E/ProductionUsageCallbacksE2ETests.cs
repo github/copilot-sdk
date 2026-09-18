@@ -13,11 +13,11 @@ using Xunit.Abstractions;
 namespace GitHub.Copilot.Test.E2E;
 
 [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
-public class GitHubAppCallbacksE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_callbacks", output)
+public class ProductionUsageCallbacksE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_callbacks", output)
 {
-    private const string ModeHandlerToken = "github-app-mode-handler-token";
-    private const string AutoModePrompt = "Explain that the GitHub app recovered from a rate limit in one short sentence.";
+    private const string ModeHandlerToken = "production-client-mode-handler-token";
+    private const string AutoModePrompt = "Explain that the production client recovered from a rate limit in one short sentence.";
 
     [Fact]
     public async Task Should_Run_App_Prompt_And_Tool_Hooks_With_Full_Context_And_Suppression()
@@ -98,7 +98,7 @@ public class GitHubAppCallbacksE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         {
             Prompt = "Original hidden app hook prompt.",
             DisplayPrompt = "Run app hook pipeline",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
 
         AssertHookContext(submitted, session.SessionId);
@@ -120,7 +120,7 @@ public class GitHubAppCallbacksE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     {
         var events = new List<SessionEvent>();
         var allEventsReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var (cliPath, capturePath) = await GitHubAppTestCli.CreateAsync(Ctx);
+        var (cliPath, capturePath) = await ProductionUsageTestCli.CreateAsync(Ctx);
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForStdio(
@@ -194,7 +194,7 @@ public class GitHubAppCallbacksE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             new UIElicitationResponse { Action = UIElicitationResponseAction.Cancel });
         Assert.False(stale.Success);
 
-        var requests = await GitHubAppTestCli.ReadRequestsAsync(capturePath);
+        var requests = await ProductionUsageTestCli.ReadRequestsAsync(capturePath);
         var userInputResponse = RequestParameters(Assert.Single(
             requests,
             request => request.GetProperty("method").GetString() == "session.ui.handlePendingUserInput"));
@@ -232,7 +232,7 @@ public class GitHubAppCallbacksE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         {
             Prompt = "Call app_host_callback with value 'disconnect' and wait for it.",
             DisplayPrompt = "Run disconnectable app callback",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
 
         await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(60));
@@ -262,7 +262,7 @@ public class GitHubAppCallbacksE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Should_Approve_App_Exit_Plan_With_Full_Callback_And_Event_State()
     {
-        const string summary = "GitHub app implementation plan";
+        const string summary = "production client implementation plan";
         await ConfigureAuthenticatedUserAsync();
 
         var callback = new TaskCompletionSource<(ExitPlanModeRequest Request, ExitPlanModeInvocation Invocation)>(
@@ -279,38 +279,38 @@ public class GitHubAppCallbacksE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 {
                     Approved = true,
                     SelectedAction = "interactive",
-                    Feedback = "Approved by the GitHub app",
+                    Feedback = "Approved by the production client",
                 });
             },
         });
 
         var userMessageTask = TestHelper.GetNextEventOfTypeAsync<UserMessageEvent>(
             session,
-            evt => evt.Data.Source == "agent-github-app",
+            evt => evt.Data.Source == "agent-production-client",
             TimeSpan.FromSeconds(30),
-            timeoutDescription: "GitHub app exit-plan user message");
+            timeoutDescription: "production client exit-plan user message");
         var requestedTask = TestHelper.GetNextEventOfTypeAsync<ExitPlanModeRequestedEvent>(
             session,
             evt => evt.Data.Summary == summary,
             TimeSpan.FromSeconds(30),
-            timeoutDescription: "GitHub app exit-plan request");
+            timeoutDescription: "production client exit-plan request");
         var completedTask = TestHelper.GetNextEventOfTypeAsync<ExitPlanModeCompletedEvent>(
             session,
             evt => evt.Data.Approved == true &&
                 evt.Data.SelectedAction.GetValueOrDefault() == ExitPlanModeAction.Interactive,
             TimeSpan.FromSeconds(30),
-            timeoutDescription: "GitHub app exit-plan completion");
+            timeoutDescription: "production client exit-plan completion");
 
         var response = await session.SendAndWaitAsync(new MessageOptions
         {
             AgentMode = AgentMode.Plan,
-            Prompt = "Create a GitHub app plan, then request approval with exit_plan_mode.",
-            DisplayPrompt = "Review proposed GitHub app plan",
-            Source = MessageSource.Agent("github-app"),
+            Prompt = "Create a production client plan, then request approval with exit_plan_mode.",
+            DisplayPrompt = "Review proposed production client plan",
+            Source = MessageSource.Agent("production-client"),
         }, timeout: TimeSpan.FromSeconds(120));
 
         var userMessage = await userMessageTask;
-        Assert.Equal("Review proposed GitHub app plan", userMessage.Data.Content);
+        Assert.Equal("Review proposed production client plan", userMessage.Data.Content);
         Assert.Equal(UserMessageAgentMode.Plan, userMessage.Data.AgentMode);
 
         var (request, invocation) = await callback.Task.WaitAsync(TimeSpan.FromSeconds(30));
@@ -328,7 +328,7 @@ public class GitHubAppCallbacksE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var completed = await completedTask;
         Assert.True(completed.Data.Approved);
         Assert.Equal(ExitPlanModeAction.Interactive, completed.Data.SelectedAction);
-        Assert.Equal("Approved by the GitHub app", completed.Data.Feedback);
+        Assert.Equal("Approved by the production client", completed.Data.Feedback);
         Assert.NotNull(response);
     }
 
@@ -354,36 +354,36 @@ public class GitHubAppCallbacksE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         const long expectedRetryAfter = 1;
         var userMessageTask = GetNextEventAllowingRateLimitAsync<UserMessageEvent>(
             session,
-            evt => evt.Data.Source == "agent-github-app",
-            "GitHub app auto-switch user message");
+            evt => evt.Data.Source == "agent-production-client",
+            "production client auto-switch user message");
         var requestedTask = GetNextEventAllowingRateLimitAsync<AutoModeSwitchRequestedEvent>(
             session,
             evt => evt.Data.ErrorCode == "user_weekly_rate_limited" &&
                 evt.Data.RetryAfterSeconds == expectedRetryAfter,
-            "GitHub app auto-switch request");
+            "production client auto-switch request");
         var completedTask = GetNextEventAllowingRateLimitAsync<AutoModeSwitchCompletedEvent>(
             session,
             evt => evt.Data.Response == AutoModeSwitchResponse.Yes,
-            "GitHub app auto-switch completion");
+            "production client auto-switch completion");
         var modelChangeTask = GetNextEventAllowingRateLimitAsync<SessionModelChangeEvent>(
             session,
             evt => evt.Data.Cause == "rate_limit_auto_switch",
-            "GitHub app rate-limit model change");
+            "production client rate-limit model change");
         var idleTask = GetNextEventAllowingRateLimitAsync<SessionIdleEvent>(
             session,
             static _ => true,
-            "GitHub app auto-switch idle");
+            "production client auto-switch idle");
 
         var messageId = await session.SendAsync(new MessageOptions
         {
             Prompt = AutoModePrompt,
-            DisplayPrompt = "Continue GitHub app request automatically",
-            Source = MessageSource.Agent("github-app"),
+            DisplayPrompt = "Continue production client request automatically",
+            Source = MessageSource.Agent("production-client"),
         });
         Assert.NotEmpty(messageId);
 
         var userMessage = await userMessageTask;
-        Assert.Equal("Continue GitHub app request automatically", userMessage.Data.Content);
+        Assert.Equal("Continue production client request automatically", userMessage.Data.Content);
 
         var (request, invocation) = await callback.Task.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(session.SessionId, invocation.SessionId);
@@ -410,10 +410,10 @@ public class GitHubAppCallbacksE2ETests(E2ETestFixture fixture, ITestOutputHelpe
 
     private Task ConfigureAuthenticatedUserAsync() =>
         Ctx.SetCopilotUserByTokenAsync(ModeHandlerToken, new CopilotUserConfig(
-            Login: "github-app-mode-handler-user",
+            Login: "production-client-mode-handler-user",
             CopilotPlan: "individual_pro",
             Endpoints: new CopilotUserEndpoints(Api: Ctx.ProxyUrl, Telemetry: "https://localhost:1/telemetry"),
-            AnalyticsTrackingId: "github-app-mode-handler-tracking-id"));
+            AnalyticsTrackingId: "production-client-mode-handler-tracking-id"));
 
     private static async Task<T> GetNextEventAllowingRateLimitAsync<T>(
         CopilotSession session,

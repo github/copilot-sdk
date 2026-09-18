@@ -1,0 +1,15 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Reply with exactly TRACE_SENTINEL from the attached extension context.
+
+
+
+          <extension_context extensionId="production-client:trace-viewer" canvasId="trace" instanceId="trace-1" title="Selected trace entry" capturedAt="2026-09-17T20:00:00+00:00"><payload>{&quot;selection&quot;:&quot;TRACE_SENTINEL&quot;,&quot;line&quot;:42}</payload></extension_context>
+      - role: assistant
+        content: TRACE_SENTINEL

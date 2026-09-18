@@ -11,8 +11,8 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
-public class GitHubAppControlStateE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_control_state", output)
+public class ProductionUsageControlStateE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_control_state", output)
 {
     private static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(60);
 
@@ -30,8 +30,8 @@ public class GitHubAppControlStateE2ETests(E2ETestFixture fixture, ITestOutputHe
         var metadata = await session.Rpc.Metadata.UpdateClientMetadataAsync(
             set: new Dictionary<string, string>
             {
-                ["github-app/control-mode"] = "plan",
-                ["github-app/objective"] = "VERIFY_APP_CONTROL",
+                ["production-client/control-mode"] = "plan",
+                ["production-client/objective"] = "VERIFY_APP_CONTROL",
             });
         var objectiveWrite = await session.Rpc.Workspaces.WriteAutopilotObjectiveAsync(objective);
 
@@ -40,7 +40,7 @@ public class GitHubAppControlStateE2ETests(E2ETestFixture fixture, ITestOutputHe
         Assert.Equal(objective, (await session.Rpc.Workspaces.ReadAutopilotObjectiveAsync()).Content);
         Assert.Equal(plan, (await session.Rpc.Plan.ReadAsync()).Content);
         Assert.Equal(sessionName, (await session.Rpc.Name.GetAsync()).Name);
-        Assert.Equal("VERIFY_APP_CONTROL", metadata["github-app/objective"]);
+        Assert.Equal("VERIFY_APP_CONTROL", metadata["production-client/objective"]);
 
         var snapshot = await session.Rpc.Metadata.SnapshotAsync();
         Assert.Equal(session.SessionId, snapshot.SessionId);

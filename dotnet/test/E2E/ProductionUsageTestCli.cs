@@ -7,12 +7,12 @@ using System.Text.Json;
 
 namespace GitHub.Copilot.Test.E2E;
 
-internal static class GitHubAppTestCli
+internal static class ProductionUsageTestCli
 {
     public static async Task<(string CliPath, string CapturePath)> CreateAsync(E2ETestContext context)
     {
-        var cliPath = Path.Join(context.WorkDir, $"github-app-test-cli-{Guid.NewGuid():N}.js");
-        var capturePath = Path.Join(context.WorkDir, $"github-app-test-cli-{Guid.NewGuid():N}.json");
+        var cliPath = Path.Join(context.WorkDir, $"production-client-test-cli-{Guid.NewGuid():N}.js");
+        var capturePath = Path.Join(context.WorkDir, $"production-client-test-cli-{Guid.NewGuid():N}.json");
         await File.WriteAllTextAsync(cliPath, Script);
         return (cliPath, capturePath);
     }
@@ -80,12 +80,12 @@ internal static class GitHubAppTestCli
           saveCapture();
 
           if (message.method === "connect") {
-            writeResponse(message.id, { ok: true, protocolVersion: 3, version: "github-app-test" });
+            writeResponse(message.id, { ok: true, protocolVersion: 3, version: "production-client-test" });
             return;
           }
 
           if (message.method === "session.create") {
-            const sessionId = message.params?.sessionId ?? message.params?.[0]?.sessionId ?? "github-app-session";
+            const sessionId = message.params?.sessionId ?? message.params?.[0]?.sessionId ?? "production-client-session";
             writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
             if (behavior === "emit-ui-events") {
               setTimeout(() => {
@@ -137,7 +137,7 @@ internal static class GitHubAppTestCli
               return;
             }
 
-            const sessionId = message.params?.sessionId ?? message.params?.[0]?.sessionId ?? "github-app-session";
+            const sessionId = message.params?.sessionId ?? message.params?.[0]?.sessionId ?? "production-client-session";
             writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
             return;
           }
@@ -148,7 +148,7 @@ internal static class GitHubAppTestCli
           }
 
           if (message.method === "session.send") {
-            writeResponse(message.id, { messageId: "github-app-message" });
+            writeResponse(message.id, { messageId: "production-client-message" });
             return;
           }
 

@@ -10,8 +10,8 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
-public class GitHubAppPermissionsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
-    : E2ETestBase(fixture, "github_app_permissions", output)
+public class ProductionUsagePermissionsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : ProductionUsageE2ETestBase(fixture, "production_usage_permissions", output)
 {
     [Fact]
     public async Task Should_Set_Reset_And_Read_Authoritative_App_Permission_Mode()
@@ -112,7 +112,7 @@ public class GitHubAppPermissionsE2ETests(E2ETestFixture fixture, ITestOutputHel
         {
             Prompt = "Call app_permission_tool with key 'payload', then reply with exactly its result.",
             DisplayPrompt = "Run permission-gated app action",
-            Source = MessageSource.Agent("github-app"),
+            Source = MessageSource.Agent("production-client"),
         });
 
         var (request, invocation) = await callback.Task.WaitAsync(TimeSpan.FromSeconds(30));
@@ -142,7 +142,7 @@ public class GitHubAppPermissionsE2ETests(E2ETestFixture fixture, ITestOutputHel
         Assert.Equal(PermissionLocationType.Dir, resolved.LocationType);
         Assert.True(PathsEqual(location, resolved.LocationKey));
 
-        var identifier = $"github-app-command-{Guid.NewGuid():N}";
+        var identifier = $"production-client-command-{Guid.NewGuid():N}";
         var add = await session.Rpc.Permissions.Locations.AddToolApprovalAsync(
             resolved.LocationKey,
             new PermissionsLocationsAddToolApprovalDetailsCommands
