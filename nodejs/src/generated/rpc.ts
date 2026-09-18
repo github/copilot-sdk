@@ -24622,6 +24622,207 @@ export interface SessionFsSqliteExistsRequest {
   sessionId: string;
 }
 
+/** @experimental */
+/** @internal */
+export interface AhpConnectionClosedNotification {
+  endpointId: string;
+  connectionId: string;
+  error?: string;
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpConnectionRef {
+  endpointId: string;
+  connectionId: string;
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpCreateSessionRequest {
+  endpointId: string;
+  connectionId: string;
+  requestedSessionId: string;
+  workingDirectory?: string;
+  model?: string;
+  config?: JsonValue;
+}
+/**
+ * Executable endpoint handlers retained by the application, never serialized.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AhpEndpointCallbacks".
+ */
+/** @experimental */
+/** @internal */
+export interface AhpEndpointCallbacks {
+  createSession: boolean;
+  resumeSession: boolean;
+  listSessions: boolean;
+  sessionControl: boolean;
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpEndpointClosedNotification {
+  endpointId: string;
+  error?: string;
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpEndpointRef {
+  endpointId: string;
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpListSessionsResult {
+  sessionIds: string[];
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpMessage {
+  endpointId: string;
+  connectionId: string;
+  /**
+   * One complete AHP JSON message, preserved without SDK-side decoding.
+   */
+  message: string;
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpOpenConnectionResult {
+  connectionId: string;
+}
+/**
+ * Endpoint policy and the callbacks installed on its owning SDK connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AhpRegisterEndpointRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AhpRegisterEndpointRequest {
+  callbacks: AhpEndpointCallbacks;
+  allowSessionCreation?: boolean;
+  capabilities?: JsonValue;
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpResumeSessionRequest {
+  endpointId: string;
+  connectionId: string;
+  sessionId: string;
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpSessionControlRequest {
+  endpointId: string;
+  sessionId: string;
+  kind: string;
+  payload: JsonValue;
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpSessionControlResult {
+  applied: boolean;
+  reason?: string;
+  result?: JsonValue;
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpSessionIdentity {
+  sessionId: string;
+}
+
+/** @experimental */
+/** @internal */
+export interface AhpSetCapabilitiesRequest {
+  endpointId: string;
+  capabilities: JsonValue;
+}
+
+/** @experimental */
+export interface AhpRegisterEndpointResult {
+  endpointId: string;
+}
+
+/** @experimental */
+export interface AhpOpenConnectionRequest {
+  endpointId: string;
+}
+
+/** @experimental */
+export interface AhpSendRequest {
+  endpointId: string;
+  connectionId: string;
+  /**
+   * One complete AHP JSON message, preserved without SDK-side decoding.
+   */
+  message: string;
+}
+
+/** @experimental */
+export interface AhpCloseConnectionRequest {
+  endpointId: string;
+  connectionId: string;
+}
+
+/** @experimental */
+export interface AhpDisposeEndpointRequest {
+  endpointId: string;
+}
+
+/** @experimental */
+export interface AhpRefreshExposureRequest {
+  endpointId: string;
+}
+
+/** @experimental */
+export interface AhpCreateSessionResult {
+  sessionId: string;
+}
+
+/** @experimental */
+export interface AhpResumeSessionResult {
+  sessionId: string;
+}
+
+/** @experimental */
+export interface AhpListSessionsRequest {
+  endpointId: string;
+}
+
+/** @experimental */
+export interface AhpMessageRequest {
+  endpointId: string;
+  connectionId: string;
+  /**
+   * One complete AHP JSON message, preserved without SDK-side decoding.
+   */
+  message: string;
+}
+
+/** @experimental */
+export interface AhpConnectionClosedRequest {
+  endpointId: string;
+  connectionId: string;
+  error?: string;
+}
+
+/** @experimental */
+export interface AhpEndpointClosedRequest {
+  endpointId: string;
+  error?: string;
+}
+
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
@@ -25387,6 +25588,46 @@ export function createServerRpc(connection: MessageConnection) {
  */
 export function createInternalServerRpc(connection: MessageConnection) {
     return {
+        /** @experimental */
+        ahp: {
+            /**
+             * Registers an application-owned, transport-neutral AHP agent endpoint. Callback flags refer to executable handlers retained by the SDK client; no listener is opened by the runtime.
+             *
+             * @param params Endpoint policy and the callbacks installed on its owning SDK connection.
+             */
+            registerEndpoint: async (params: AhpRegisterEndpointRequest): Promise<AhpRegisterEndpointResult> =>
+                connection.sendRequest("ahp.registerEndpoint", params),
+            /**
+             * Opens an independent logical AHP connection on an endpoint owned by this SDK connection.
+             */
+            openConnection: async (params: AhpOpenConnectionRequest): Promise<AhpOpenConnectionResult> =>
+                connection.sendRequest("ahp.openConnection", params),
+            /**
+             * Admits one complete opaque AHP message to a logical connection. Success acknowledges admission, not completion; AHP responses arrive through ahp.message. Message size and retained queue limits are enforced by the runtime.
+             */
+            send: async (params: AhpSendRequest): Promise<void> =>
+                connection.sendRequest("ahp.send", params),
+            /**
+             * Idempotently closes one logical AHP connection and releases its participation without closing the original session owner.
+             */
+            closeConnection: async (params: AhpCloseConnectionRequest): Promise<void> =>
+                connection.sendRequest("ahp.closeConnection", params),
+            /**
+             * Idempotently closes an application-owned AHP endpoint and all of its logical connections.
+             */
+            disposeEndpoint: async (params: AhpDisposeEndpointRequest): Promise<void> =>
+                connection.sendRequest("ahp.disposeEndpoint", params),
+            /**
+             * Re-evaluates this endpoint's session exposure policy and removes access and subscriptions for sessions no longer exposed.
+             */
+            refreshExposure: async (params: AhpRefreshExposureRequest): Promise<void> =>
+                connection.sendRequest("ahp.refreshExposure", params),
+            /**
+             * Updates the endpoint's application-supplied agent catalog and customizations without changing session configuration.
+             */
+            setCapabilities: async (params: AhpSetCapabilitiesRequest): Promise<void> =>
+                connection.sendRequest("ahp.setCapabilities", params),
+        },
         /**
          * Performs the SDK server connection handshake and validates the optional connection token. Marked internal because this is JSON-RPC transport plumbing invoked automatically by an SDK client's own `connect()` wrapper, not a user-facing method. Stays internal as long as the SDK client owns the handshake; would only become public if the SDK ever exposed the raw schema surface to consumers without a connection wrapper.
          *

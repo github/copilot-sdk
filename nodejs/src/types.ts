@@ -2987,6 +2987,11 @@ export interface SessionConfig extends SessionConfigBase {
     sessionId?: string;
 
     /**
+     * Optional friendly name. A named session is persisted even before its first turn.
+     */
+    name?: string;
+
+    /**
      * Creates a remote session in the cloud instead of a local session.
      * The optional repository is associated with the cloud session.
      */

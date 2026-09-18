@@ -93,6 +93,7 @@ import type {
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
 import type { FactoryHandle } from "./factory.js";
+import { AhpEndpointRegistry, type AhpEndpoint, type AhpEndpointOptions } from "./ahp.js";
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -442,6 +443,7 @@ export class CopilotClient {
     private cliProcess: ChildProcess | null = null;
     private ffiHost: FfiRuntimeHost | null = null;
     private connection: MessageConnection | null = null;
+    private ahpEndpoints?: AhpEndpointRegistry;
     private messageWriter: TeardownResilientStreamMessageWriter | null = null;
     private connectionClosed: boolean = false;
     private socket: Socket | null = null;
@@ -915,6 +917,23 @@ export class CopilotClient {
     }
 
     /**
+     * Registers a native AHP endpoint on the ordinary runtime connection.
+     * The application owns the physical transport; the SDK forwards opaque strings.
+     * Requires a matching runtime with ahp.* support.
+     */
+    async createAhpEndpoint(options: AhpEndpointOptions = {}): Promise<AhpEndpoint> {
+        if (!this.connection) {
+            await this.start();
+        }
+        if (!this.ahpEndpoints || this.ahpEndpoints.closed) {
+            // Connection setup registers generated handlers first. Override AHP
+            // handlers here so callback requests retain their CancellationToken.
+            this.ahpEndpoints = new AhpEndpointRegistry(this.connection!);
+        }
+        return this.ahpEndpoints.create(options);
+    }
+
+    /**
      * Starts the CLI server and establishes a connection.
      *
      * If connecting to an external server (via cliUrl), only establishes the connection.
@@ -1032,6 +1051,8 @@ export class CopilotClient {
      * ```
      */
     async stop(): Promise<Error[]> {
+        this.ahpEndpoints?.close(new Error("CopilotClient stopped"));
+        this.ahpEndpoints = undefined;
         const errors: Error[] = [];
 
         // Disconnect all active sessions with retry logic
@@ -1264,6 +1285,8 @@ export class CopilotClient {
      * ```
      */
     async forceStop(): Promise<void> {
+        this.ahpEndpoints?.close(new Error("CopilotClient stopped"));
+        this.ahpEndpoints = undefined;
         this.forceStopping = true;
 
         // Clear sessions immediately without trying to destroy them
@@ -1645,6 +1668,7 @@ export class CopilotClient {
                 ...(await getTraceContext(this.onGetTraceContext)),
                 model: config.model,
                 sessionId: localSessionId,
+                name: config.name,
                 clientName: config.clientName,
                 reasoningEffort: config.reasoningEffort,
                 reasoningSummary: config.reasoningSummary,
@@ -3012,6 +3036,11 @@ export class CopilotClient {
         if (!this.connection) {
             return;
         }
+
+        // A reconnect replaces both generated handlers and the endpoint registry.
+        // The next createAhpEndpoint installs its manual handlers after this setup.
+        this.ahpEndpoints?.close(new Error("Runtime connection replaced"));
+        this.ahpEndpoints = undefined;
 
         this.connection.onNotification("session.event", (notification: unknown) => {
             this.handleSessionEventNotification(notification);

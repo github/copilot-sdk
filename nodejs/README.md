@@ -2,6 +2,9 @@
 
 TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 
+For experimental native AHP 0.9 endpoints and an SDK-owned WebSocket sample, see
+[Native AHP endpoints](docs/ahp-endpoints.md).
+
 ## Prerequisites
 
 To use the SDK, you'll need:
