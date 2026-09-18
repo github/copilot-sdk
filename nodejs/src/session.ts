@@ -15,7 +15,6 @@ import type {
     ClientSessionApiHandlers,
     CanvasActionInvokeResult,
     CurrentToolMetadata,
-    McpHeadersHandlePendingHeadersRefreshRequest,
     McpOauthPendingRequestResponse,
     FactoryLogLine,
     FactoryRunResult as WireFactoryRunResult,
@@ -42,9 +41,6 @@ import type {
     MessageOptions,
     McpAuthHandler,
     McpAuthRequest,
-    McpHeadersRefreshHandler,
-    McpHeadersRefreshRequest,
-    McpHeadersRefreshResult,
     PermissionHandler,
     PermissionRequest,
     PermissionRequestResult,
@@ -174,17 +170,6 @@ function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
         instance.extensionId.length > 0 &&
         typeof instance.canvasId === "string" &&
         instance.canvasId.length > 0
-    );
-}
-
-function isMcpHeadersRefreshResult(
-    value: McpHeadersRefreshResult | Record<string, string>
-): value is McpHeadersRefreshResult {
-    const headers = (value as { headers?: unknown }).headers;
-    return (
-        typeof headers === "object" &&
-        headers !== null &&
-        Object.values(headers).every((header) => typeof header === "string")
     );
 }
 
@@ -460,7 +445,6 @@ export class CopilotSession {
     private factoryAbortControllers = new Map<string, Map<string, AbortController>>();
     private permissionHandler?: PermissionHandler;
     private mcpAuthHandler?: McpAuthHandler;
-    private mcpHeadersRefreshHandler?: McpHeadersRefreshHandler;
     private userInputHandler?: UserInputHandler;
     private elicitationHandler?: ElicitationHandler;
     private exitPlanModeHandler?: ExitPlanModeHandler;
@@ -670,14 +654,12 @@ export class CopilotSession {
         traceContextProvider?: TraceContextProvider,
         options?: {
             mcpAuthHandler?: McpAuthHandler;
-            mcpHeadersRefreshHandler?: McpHeadersRefreshHandler;
             managedSettingsEnabled?: boolean;
             onDisconnected?: () => void;
         }
     ) {
         this.traceContextProvider = traceContextProvider;
         this.mcpAuthHandler = options?.mcpAuthHandler;
-        this.mcpHeadersRefreshHandler = options?.mcpHeadersRefreshHandler;
         this.managedSettingsEnabled = options?.managedSettingsEnabled === true;
         this.onDisconnected = options?.onDisconnected;
     }
@@ -1083,16 +1065,6 @@ export class CopilotSession {
                 return;
             }
             void this._executeMcpAuthAndRespond(data);
-        } else if (event.type === "mcp.headers_refresh_required") {
-            const { requestId, serverName, serverUrl, reason } = event.data;
-            if (!requestId || !this.mcpHeadersRefreshHandler) {
-                return;
-            }
-            void this._executeMcpHeadersRefreshAndRespond(requestId, {
-                serverKey: serverName,
-                serverUrl,
-                reason,
-            });
         } else if (event.type === "command.execute") {
             const { requestId, commandName, command, args } = event.data as {
                 requestId: string;
@@ -1344,48 +1316,6 @@ export class CopilotSession {
                 if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
                     throw rpcError;
                 }
-            }
-        }
-    }
-
-    /**
-     * Executes an MCP headers refresh handler and sends the result via RPC.
-     * @internal
-     */
-    private async _executeMcpHeadersRefreshAndRespond(
-        requestId: string,
-        request: McpHeadersRefreshRequest
-    ): Promise<void> {
-        let result: McpHeadersHandlePendingHeadersRefreshRequest;
-        try {
-            const response = await this.mcpHeadersRefreshHandler!(request, {
-                sessionId: this.sessionId,
-            });
-            if (response === undefined) {
-                result = { kind: "none" };
-            } else if (isMcpHeadersRefreshResult(response)) {
-                result = {
-                    kind: "headers",
-                    headers: response.headers,
-                    ...(response.ttlMs === undefined ? {} : { ttlMs: response.ttlMs }),
-                };
-            } else {
-                result = { kind: "headers", headers: response };
-            }
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.warn(`MCP headers refresh failed for '${request.serverKey}': ${message}`);
-            result = { kind: "error", message };
-        }
-
-        try {
-            await this.rpc.mcp.headers.handlePendingHeadersRefreshRequest({
-                requestId,
-                result,
-            });
-        } catch (rpcError) {
-            if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
-                throw rpcError;
             }
         }
     }

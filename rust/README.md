@@ -257,19 +257,64 @@ New RPCs land in the namespace immediately as the schema regenerates;
 helpers are added on top only when an ergonomic story is worth the
 maintenance.
 
+#### Connectors (experimental)
+
+When the runtime's Connector experiment is enabled, use the generated
+session-scoped namespace to discover and manage Connectors:
+
+```rust,ignore
+use github_copilot_sdk::rpc::{
+    ConnectorAccountRequest, ConnectorAvailability, ConnectorConnectRequest,
+    ConnectorReconcileRequest,
+};
+
+let capabilities = session.rpc().connectors().get_capabilities().await?;
+if capabilities.availability == ConnectorAvailability::Enabled {
+    let account_id = "selected-account".to_string();
+    let catalog = session
+        .rpc()
+        .connectors()
+        .list(ConnectorAccountRequest {
+            account_id: account_id.clone(),
+        })
+        .await?;
+    session
+        .rpc()
+        .connectors()
+        .reconcile(ConnectorReconcileRequest {
+            account_id: account_id.clone(),
+            refresh_catalog: None,
+        })
+        .await?;
+    let connection = session
+        .rpc()
+        .connectors()
+        .connect(ConnectorConnectRequest {
+            account_id,
+            connector_name: catalog.connectors[0].name.clone(),
+        })
+        .await?;
+}
+```
+
+The namespace also provides `get_status`, `refresh`, `reconnect`,
+`continue_connection`, `disconnect`, and `reconcile`. Hosts select an opaque
+GitHub account ID and own consent and browser UI. Connector methods accept only
+that account ID, never credentials or provider tokens; the runtime returns
+validated consent URLs and owns MCP reconciliation. This API is experimental,
+so check its reported availability before use.
+
 ### Handler Traits
 
-The SDK exposes seven focused handler traits, one per CLI callback type. Implement only the traits you need and install each with the matching `SessionConfig` setter. Each trait has a single `async fn handle(...)` method:
+The SDK exposes five focused handler traits, one per CLI callback type. Implement only the traits you need and install each with the matching `SessionConfig` setter. Each trait has a single `async fn handle(...)` method:
 
-| Trait                      | Setter                                | Purpose                                      |
-| -------------------------- | ------------------------------------- | -------------------------------------------- |
-| `PermissionHandler`        | `with_permission_handler(...)`        | Approve/deny tool-use permission requests    |
-| `ElicitationHandler`       | `with_elicitation_handler(...)`       | Respond to structured elicitation prompts    |
-| `McpAuthHandler`           | `with_mcp_auth_handler(...)`           | Supply host-provided MCP OAuth tokens        |
-| `McpHeadersRefreshHandler` | `with_mcp_headers_handler(...)`        | Supply short-lived Copilot Connectors service authorization |
-| `UserInputHandler`         | `with_user_input_handler(...)`        | Answer free-form / choice user-input prompts |
-| `ExitPlanModeHandler`      | `with_exit_plan_mode_handler(...)`    | Respond when the agent exits plan mode       |
-| `AutoModeSwitchHandler`    | `with_auto_mode_switch_handler(...)`  | Respond to automatic mode-switch proposals  |
+| Trait                   | Setter                            | Purpose                                       |
+| ----------------------- | --------------------------------- | --------------------------------------------- |
+| `PermissionHandler`     | `with_permission_handler(...)`    | Approve/deny tool-use permission requests     |
+| `ElicitationHandler`    | `with_elicitation_handler(...)`   | Respond to structured elicitation prompts     |
+| `UserInputHandler`      | `with_user_input_handler(...)`    | Answer free-form / choice user-input prompts  |
+| `ExitPlanModeHandler`   | `with_exit_plan_mode_handler(...)`| Respond when the agent exits plan mode        |
+| `AutoModeSwitchHandler` | `with_auto_mode_switch_handler(...)`| Respond to automatic mode-switch proposals  |
 
 The CLI's `requestPermission` / `requestElicitation` / `requestUserInput` / etc. wire flags are derived automatically from which traits you've installed — clients that don't install a handler are silently skipped, letting another connected client handle the request.
 
@@ -335,80 +380,6 @@ Use `with_ask_user_variant(AskUserVariant::Elicitation)` together with
 `with_elicitation_handler(...)` to expose the structured form-based `ask_user`
 tool. The default remains `AskUserVariant::Legacy`. Re-supply the option and
 handler through `ResumeSessionConfig` on a cold resume.
-
-#### Connector MCP servers
-
-Use `ConnectorMcpServerConfig` for connected Copilot Connector MCP endpoints
-supplied from the service catalog. Map keys are stable Connector server keys;
-short-lived client-to-Copilot-Connectors service authorization comes from
-`McpHeadersRefreshHandler` rather than the configuration. This is normally the
-selected account's GitHub bearer authorization. The host does not supply
-Outlook, Slack, or other downstream provider tokens; the Connector service owns
-those provider tokens. The callback's `server_key` is the stable map key (for
-example, `"github-enterprise"`), not the human-readable `display_name` or
-Connector service ID.
-
-```rust,ignore
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use github_copilot_sdk::{ConnectorMcpServerConfig, SessionConfig};
-
-let connectors = HashMap::from([(
-    "github-enterprise".to_string(),
-    ConnectorMcpServerConfig {
-        display_name: "GitHub Enterprise".to_string(),
-        url: "https://mcp.example.com/".to_string(),
-        tools: Some(vec!["issues".to_string(), "pull_requests".to_string()]),
-        timeout: Some(30_000),
-        authorization_cache_ttl_ms: Some(60_000),
-    },
-)]);
-
-let config = SessionConfig::default()
-    .with_connector_mcp_servers(connectors)
-    .with_mcp_headers_handler(Arc::new(MyMcpHeadersHandler));
-```
-
-The generic `McpHeaders*` API names describe the remote-header protocol, but
-the handler is for connected Copilot Connector MCP endpoints; ordinary
-`mcp_servers` entries do not opt into dynamic refresh.
-`authorization_cache_ttl_ms` caps how long the runtime may reuse Connector
-service authorization; the handler result's `ttl_ms` reports that
-authorization's remaining lifetime.
-
-> **Same-session Connector reconciliation is not available through the current
-> public runtime contract.** Generic MCP start, restart, and stop operations
-> only change transient running state; a reload can restore an endpoint from
-> the session's original configuration. Do not map Connector service Connect
-> or Disconnect to those operations. To change the connected set, create or
-> cold-resume a session with the new `connector_mcp_servers` map until the
-> runtime exposes public authoritative replace/remove operations.
-
-The public live-session MCP observation and availability surface remains:
-
-| Capability | Rust API |
-| --- | --- |
-| List servers and current status | `session.rpc().mcp().list()` |
-| Enable a server | `session.rpc().mcp().enable(rpc::McpEnableRequest { ... })` |
-| Disable a server | `session.rpc().mcp().disable(rpc::McpDisableRequest { ... })` |
-| List connected-server tools | `session.rpc().mcp().list_tools(rpc::McpListToolsRequest { ... })` |
-| Observe status changes | `session.subscribe()` plus `SessionEvent::parsed_type()` / `typed_data()` |
-
-The generated MCP request and status-event fields named `server_name`, plus
-`rpc::McpServer::name`, carry the stable Connector server key. The separate
-`display_name` is human-readable. Relevant typed event payloads are
-`SessionMcpServersLoadedData`, `SessionMcpServerStatusChangedData`,
-`SessionMcpServerNeedsReconnectData`, and `SessionMcpServerRemovedData` from
-`github_copilot_sdk::session_events`.
-
-The host owns service-catalog discovery, Connector consent, external service
-HTTP calls, and all browser or UI flows. The SDK does not add polling for these
-operations.
-
-On cold resume, re-supply both the connected endpoints with
-`ResumeSessionConfig::with_connector_mcp_servers` and the handler with
-`with_mcp_headers_handler`.
 
 For rotating per-session GitHub credentials, install a `GitHubTokenProvider`
 instead of setting `github_token`:

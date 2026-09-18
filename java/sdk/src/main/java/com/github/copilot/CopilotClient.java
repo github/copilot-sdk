@@ -1026,29 +1026,32 @@ public final class CopilotClient implements AutoCloseable {
                             session.setGitHubTokenProviderRegistration(tokenRegistration);
                         }
                         registeredIdHolder[0] = returnedId;
-                        CompletableFuture<Void> interests = registerMcpEventInterests(session, returnedId,
-                                config.getOnMcpAuthRequest() != null, config.getOnMcpHeadersRefresh() != null);
+                        CompletableFuture<?> interest = config.getOnMcpAuthRequest() != null
+                                ? session.getRpc().eventLog.registerInterest(
+                                        new SessionEventLogRegisterInterestParams(returnedId, "mcp.oauth_required"))
+                                : CompletableFuture.completedFuture(null);
                         session.setWorkspacePath(response.workspacePath());
                         session.setCapabilities(response.capabilities());
                         session.setOpenCanvases(response.openCanvases());
 
-                        return interests.thenCompose(v -> updateSessionOptionsForMode(session,
-                                config.getSkipCustomInstructions().orElse(null),
-                                config.getCustomAgentsLocalOnly().orElse(null),
-                                config.getCoauthorEnabled().orElse(null),
-                                config.getManageScheduleEnabled().orElse(null), config.getIncludedBuiltinSkills()))
-                                .thenApply(v -> {
-                                    if (tokenRegistration != null) {
-                                        tokenRegistration.claim(session.getSessionId());
-                                    } else {
-                                        gitHubTokenProviders.retire(session.getSessionId());
-                                    }
-                                    LoggingHelpers.logTiming(LOG, Level.FINE,
-                                            "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId="
-                                                    + session.getSessionId(),
-                                            totalNanos);
-                                    return session;
-                                });
+                        return interest.thenCompose(interestResult -> {
+                            logMcpAuthInterestRegistration(interestResult);
+                            return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
+                                    config.getCustomAgentsLocalOnly().orElse(null),
+                                    config.getCoauthorEnabled().orElse(null),
+                                    config.getManageScheduleEnabled().orElse(null), config.getIncludedBuiltinSkills());
+                        }).thenApply(v -> {
+                            if (tokenRegistration != null) {
+                                tokenRegistration.claim(session.getSessionId());
+                            } else {
+                                gitHubTokenProviders.retire(session.getSessionId());
+                            }
+                            LoggingHelpers.logTiming(LOG, Level.FINE,
+                                    "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId="
+                                            + session.getSessionId(),
+                                    totalNanos);
+                            return session;
+                        });
                     }).exceptionally(ex -> {
                         if (preRegisteredSessionHolder[0] != null) {
                             preRegisteredSessionHolder[0].cancelPendingExternalTools();
@@ -1068,26 +1071,9 @@ public final class CopilotClient implements AutoCloseable {
         });
     }
 
-    private static CompletableFuture<Void> registerMcpEventInterests(CopilotSession session, String sessionId,
-            boolean auth, boolean headersRefresh) {
-        CompletableFuture<Void> interests = CompletableFuture.completedFuture(null);
-        if (auth) {
-            interests = interests.thenCompose(v -> session.getRpc().eventLog
-                    .registerInterest(new SessionEventLogRegisterInterestParams(sessionId, "mcp.oauth_required"))
-                    .thenAccept(result -> logMcpInterestRegistration(result, "OAuth")));
-        }
-        if (headersRefresh) {
-            interests = interests.thenCompose(v -> session.getRpc().eventLog
-                    .registerInterest(
-                            new SessionEventLogRegisterInterestParams(sessionId, "mcp.headers_refresh_required"))
-                    .thenAccept(result -> logMcpInterestRegistration(result, "headers refresh")));
-        }
-        return interests;
-    }
-
-    private static void logMcpInterestRegistration(Object interestResult, String eventName) {
+    private static void logMcpAuthInterestRegistration(Object interestResult) {
         if (interestResult != null && LOG.isLoggable(Level.FINEST)) {
-            LOG.finest("MCP " + eventName + " event interest registered");
+            LOG.finest("MCP OAuth event interest registered");
         }
     }
 
@@ -1213,9 +1199,14 @@ public final class CopilotClient implements AutoCloseable {
                                 rpcNanos);
                         String returnedId = response.sessionId();
                         String interestSessionId = returnedId != null ? returnedId : sessionId;
-                        return registerMcpEventInterests(session, interestSessionId,
-                                config.getOnMcpAuthRequest() != null, config.getOnMcpHeadersRefresh() != null)
-                                .thenApply(v -> response);
+                        CompletableFuture<?> interest = config.getOnMcpAuthRequest() != null
+                                ? session.getRpc().eventLog.registerInterest(new SessionEventLogRegisterInterestParams(
+                                        interestSessionId, "mcp.oauth_required"))
+                                : CompletableFuture.completedFuture(null);
+                        return interest.thenApply(interestResult -> {
+                            logMcpAuthInterestRegistration(interestResult);
+                            return response;
+                        });
                     }).thenCompose(response -> {
                         session.setWorkspacePath(response.workspacePath());
                         session.setCapabilities(response.capabilities());

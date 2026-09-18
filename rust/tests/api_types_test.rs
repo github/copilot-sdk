@@ -4,11 +4,12 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::rpc::{
-    Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
-    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, ModelSetAllowedModelsRequest,
-    ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
-    ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SandboxConfig,
-    SendAgentMode, TasksStartAgentRequest,
+    ConnectorAccountRequest, ConnectorCatalogStatus, ConnectorConnectRequest,
+    ConnectorContinueRequest, ConnectorReconcileRequest, Extension, ExtensionList, ExtensionSource,
+    ExtensionStatus, ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest,
+    FleetStartResult, ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult,
+    ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus,
+    QueuePendingItems, QueuePendingItemsKind, SandboxConfig, SendAgentMode, TasksStartAgentRequest,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
@@ -128,6 +129,68 @@ fn tasks_start_agent_request_fields_are_accessible() {
     assert_eq!(request.agent_type, "general-purpose");
     assert_eq!(request.name, "sdk-test-task");
     assert_eq!(request.description.as_deref(), Some("SDK task agent"));
+}
+
+#[test]
+fn connector_request_dtos_use_public_camel_case_wire_fields() {
+    let account = ConnectorAccountRequest {
+        account_id: "account-1".to_string(),
+    };
+    assert_eq!(
+        serde_json::to_value(account).unwrap(),
+        serde_json::json!({ "accountId": "account-1" })
+    );
+
+    let connector = ConnectorConnectRequest {
+        account_id: "account-1".to_string(),
+        connector_name: "github".to_string(),
+    };
+    assert_eq!(
+        serde_json::to_value(connector).unwrap(),
+        serde_json::json!({
+            "accountId": "account-1",
+            "connectorName": "github",
+        })
+    );
+
+    let continuation = ConnectorContinueRequest {
+        continuation_id: "continuation-1".to_string(),
+        deadline_ms: 30_000,
+        max_attempts: 5,
+        poll_interval_ms: 1_000,
+    };
+    assert_eq!(
+        serde_json::to_value(continuation).unwrap(),
+        serde_json::json!({
+            "continuationId": "continuation-1",
+            "deadlineMs": 30_000,
+            "maxAttempts": 5,
+            "pollIntervalMs": 1_000,
+        })
+    );
+
+    let reconcile = ConnectorReconcileRequest {
+        account_id: "account-1".to_string(),
+        refresh_catalog: Some(true),
+    };
+    assert_eq!(
+        serde_json::to_value(reconcile).unwrap(),
+        serde_json::json!({
+            "accountId": "account-1",
+            "refreshCatalog": true,
+        })
+    );
+}
+
+#[test]
+fn connector_catalog_unknown_wire_value_has_a_distinct_variant() {
+    let service_unknown: ConnectorCatalogStatus =
+        serde_json::from_value(serde_json::json!("unknown")).unwrap();
+    let future_status: ConnectorCatalogStatus =
+        serde_json::from_value(serde_json::json!("future_status")).unwrap();
+
+    assert_eq!(service_unknown, ConnectorCatalogStatus::UnknownValue);
+    assert_eq!(future_status, ConnectorCatalogStatus::Unknown);
 }
 
 #[test]

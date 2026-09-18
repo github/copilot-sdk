@@ -3125,6 +3125,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.connectors.*` sub-namespace.
+    pub fn connectors(&self) -> SessionRpcConnectors<'a> {
+        SessionRpcConnectors {
+            session: self.session,
+        }
+    }
+
     /// `session.contentExclusion.*` sub-namespace.
     pub fn content_exclusion(&self) -> SessionRpcContentExclusion<'a> {
         SessionRpcContentExclusion {
@@ -4442,6 +4449,304 @@ impl<'a> SessionRpcCompletions<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_COMPLETIONS_REQUEST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.connectors.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcConnectors<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcConnectors<'a> {
+    /// Returns feature availability and bounded polling limits for the EXPERIMENTAL session connector API. This method never performs a Connector service request.
+    ///
+    /// Wire method: `session.connectors.getCapabilities`.
+    ///
+    /// # Returns
+    ///
+    /// Feature detection and hard polling limits for the EXPERIMENTAL session connector API.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_capabilities(&self) -> Result<ConnectorCapabilities, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_CONNECTORS_GETCAPABILITIES,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns authoritative session Connector state from current availability, pinned account selection, cached catalog, and live MCP projection without performing a Connector service request.
+    ///
+    /// Wire method: `session.connectors.getStatus`.
+    ///
+    /// # Returns
+    ///
+    /// Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_status(&self) -> Result<ConnectorStatus, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CONNECTORS_GETSTATUS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns the cached Connector catalog for the pinned opaque account selection, fetching it only when this session has no cached catalog.
+    ///
+    /// Wire method: `session.connectors.list`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
+    ///
+    /// # Returns
+    ///
+    /// Validated Connector catalog snapshot cached by the session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list(
+        &self,
+        params: ConnectorAccountRequest,
+    ) -> Result<ConnectorCatalogResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CONNECTORS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Refreshes and validates the Connector catalog for the pinned opaque account selection.
+    ///
+    /// Wire method: `session.connectors.refresh`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
+    ///
+    /// # Returns
+    ///
+    /// Validated Connector catalog snapshot cached by the session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn refresh(
+        &self,
+        params: ConnectorAccountRequest,
+    ) -> Result<ConnectorCatalogResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CONNECTORS_REFRESH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Initiates an idempotent Connector connection request without opening a browser. Returns connected when the service is immediately authoritative, consent_required with a validated URL, or pending with an opaque continuation ID.
+    ///
+    /// Wire method: `session.connectors.connect`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+    ///
+    /// # Returns
+    ///
+    /// Typed result of initiating or continuing a Connector connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn connect(
+        &self,
+        params: ConnectorConnectRequest,
+    ) -> Result<ConnectorConnectResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CONNECTORS_CONNECT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Re-initiates an idempotent Connector connection request without browser or UI effects, with the same typed outcomes as connect.
+    ///
+    /// Wire method: `session.connectors.reconnect`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+    ///
+    /// # Returns
+    ///
+    /// Typed result of initiating or continuing a Connector connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn reconnect(
+        &self,
+        params: ConnectorConnectRequest,
+    ) -> Result<ConnectorConnectResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CONNECTORS_RECONNECT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Continues a pending Connector connection with caller-supplied attempt, interval, and deadline bounds. The runtime never opens the returned consent URL.
+    ///
+    /// Wire method: `session.connectors.continueConnection`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Explicitly bounded continuation of a pending Connector connection.
+    ///
+    /// # Returns
+    ///
+    /// Typed result of initiating or continuing a Connector connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn continue_connection(
+        &self,
+        params: ConnectorContinueRequest,
+    ) -> Result<ConnectorConnectResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_CONNECTORS_CONTINUECONNECTION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Disconnects one Connector for the pinned opaque account selection, refreshes the authoritative catalog, and removes its session-owned MCP projection.
+    ///
+    /// Wire method: `session.connectors.disconnect`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+    ///
+    /// # Returns
+    ///
+    /// Authoritative result after disconnect and MCP reconciliation.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn disconnect(
+        &self,
+        params: ConnectorConnectRequest,
+    ) -> Result<ConnectorDisconnectResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_CONNECTORS_DISCONNECT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reconciles the authoritative cached or freshly requested Connector catalog into the session Connector MCP projection and returns live status.
+    ///
+    /// Wire method: `session.connectors.reconcile`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Requests authoritative Connector-to-MCP reconciliation for the pinned account.
+    ///
+    /// # Returns
+    ///
+    /// Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn reconcile(
+        &self,
+        params: ConnectorReconcileRequest,
+    ) -> Result<ConnectorStatus, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CONNECTORS_RECONCILE, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

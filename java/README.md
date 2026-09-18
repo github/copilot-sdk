@@ -176,42 +176,62 @@ and `setExcludedTools(...)`, prefer the source-qualified filter form
 `DefaultAgentConfig.setExcludedTools(...)`, use `<server-key>-<tool-name>`
 directly.
 
-For experimental Copilot Connector integration, supply connected Connector MCP
-endpoints from the service catalog through
-`SessionConfig.setConnectorMcpServers(...)`. Re-supply them through
-`ResumeSessionConfig.setConnectorMcpServers(...)` when cold-resuming.
+## Connector session API (experimental)
 
-The MCP headers refresh handler supplies short-lived authorization from the SDK
-client to the exact Copilot Connectors service endpoint advertised by the
-service catalog. This is normally the selected account's GitHub bearer token.
-It is not an Outlook, Slack, or other downstream provider credential; the
-Connector service owns those provider tokens.
+The Connector API is experimental and may be unavailable in some runtime
+versions. Check `getCapabilities()` before using the remaining methods.
 
-`ConnectorMcpServerConfig.setAuthorizationCacheTtlMs(...)` sets the maximum
-time the runtime may reuse that Connector service authorization. A refresh
-handler result's `ttlMs` is the remaining authorization lifetime; it may further
-shorten that cache period.
+Opt in to experimental APIs, then use the generated DTOs through
+`session.getRpc().connectors`:
 
-Correct same-session reconciliation after Connector service Connect or
-Disconnect operations is not available through the current public runtime
-contract. Transient server lifecycle operations do not replace the
-authoritative Connector configuration and may be undone by a reload. To apply a
-changed connected set, create a new session or cold-resume with the updated
-map passed to `setConnectorMcpServers(...)` until the runtime exposes supported
-public replacement and removal operations.
+```java
+import com.github.copilot.AllowCopilotExperimental;
+import com.github.copilot.CopilotSession;
+import com.github.copilot.generated.rpc.ConnectorAvailability;
+import com.github.copilot.generated.rpc.ConnectorConnectResultConsentRequired;
+import com.github.copilot.generated.rpc.SessionConnectorsConnectParams;
+import com.github.copilot.generated.rpc.SessionConnectorsContinueConnectionParams;
+import com.github.copilot.generated.rpc.SessionConnectorsListParams;
+import com.github.copilot.generated.rpc.SessionConnectorsReconcileParams;
 
-For servers already configured on a session, the public generated session RPC
-API supports `list()` for status, `enable(...)`, `disable(...)`,
-and `listTools(...)`. Access it through `session.getRpc().mcp`. These operations
-do not add or remove Connector configurations. Generated RPC parameter and
-event models call the stable Connector MCP server map key `serverName`; it is
-not the display name or Connector service ID.
+@AllowCopilotExperimental
+static void connectConnector(CopilotSession session, String accountId)
+        throws Exception {
+    var connectors = session.getRpc().connectors;
+    var capabilities = connectors.getCapabilities().get();
+    if (capabilities.availability() != ConnectorAvailability.ENABLED) {
+        return;
+    }
 
-Hosts can subscribe with `session.on(...)` to
-`SessionMcpServersLoadedEvent`, `SessionMcpServerStatusChangedEvent`,
-`SessionMcpServerRemovedEvent`, and `SessionMcpServerNeedsReconnectEvent`.
-The SDK does not fetch the Connector service catalog, request consent, or
-provide UI; application hosts own those responsibilities.
+    var catalog = connectors
+        .list(new SessionConnectorsListParams(null, accountId)).get();
+    connectors
+        .reconcile(new SessionConnectorsReconcileParams(
+            null, accountId, false)).get();
+    var connectorName = chooseConnector(catalog.connectors());
+    var connection = connectors
+        .connect(new SessionConnectorsConnectParams(
+            null, accountId, connectorName)).get();
+    if (connection instanceof ConnectorConnectResultConsentRequired consent) {
+        openConsentUrl(consent.getConsentUrl());
+        connection = connectors
+            .continueConnection(new SessionConnectorsContinueConnectionParams(
+                null,
+                consent.getContinuationId(),
+                capabilities.maxPollAttempts(),
+                capabilities.maxPollIntervalMs(),
+                capabilities.maxDeadlineMs()))
+            .get();
+    }
+}
+```
+
+Pass `null` for each DTO's `sessionId`; the session-scoped wrapper injects the
+active session ID. Bound continuation values using `getCapabilities()`. The
+host supplies only its opaque account selection ID and owns browser and consent
+UI; Connector methods never accept or return credentials or provider tokens.
+The namespace also exposes `getStatus`, `refresh`, `reconnect`, `disconnect`,
+and `reconcile`.
 
 `CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
 

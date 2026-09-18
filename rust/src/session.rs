@@ -14,20 +14,18 @@ use tracing::{Instrument, error, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, McpHeadersHandlePendingHeadersRefreshRequestRequest, ModelSwitchAutoTierRequest,
-    ModelSwitchAutoTierResult, ModelSwitchToRequest, OpenCanvasInstance, PermissionDecisionRequest,
-    RegisterEventInterestParams, ToolsGetCurrentMetadataResult, rpc_methods,
+    LogRequest, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult, ModelSwitchToRequest,
+    OpenCanvasInstance, PermissionDecisionRequest, RegisterEventInterestParams,
+    ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
-    CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData,
-    McpHeadersRefreshRequiredData, McpOauthRequiredData, SessionCanvasClosedData, SessionErrorData,
-    SessionEventType, SessionIdleData, SessionMode,
+    CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
+    SessionCanvasClosedData, SessionErrorData, SessionEventType, SessionIdleData, SessionMode,
 };
 use crate::handler::{
     AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler, ExitPlanModeHandler,
-    McpAuthHandler, McpAuthRequest, McpAuthResult, McpHeadersRefreshHandler,
-    McpHeadersRefreshRequest, PermissionHandler, PermissionResult, UserInputHandler,
-    UserInputResponse, mcp_headers_error_result,
+    McpAuthHandler, McpAuthRequest, McpAuthResult, PermissionHandler, PermissionResult,
+    UserInputHandler, UserInputResponse,
 };
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
@@ -90,7 +88,6 @@ pub(crate) struct SessionHandlers {
     pub managed_settings_enabled: bool,
     pub elicitation: Option<Arc<dyn ElicitationHandler>>,
     pub mcp_auth: Option<Arc<dyn McpAuthHandler>>,
-    pub mcp_headers: Option<Arc<dyn McpHeadersRefreshHandler>>,
     pub user_input: Option<Arc<dyn UserInputHandler>>,
     pub exit_plan_mode: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch: Option<Arc<dyn AutoModeSwitchHandler>>,
@@ -191,6 +188,7 @@ enum PendingSessionId {
     /// callback. `None` in the stash means nothing was ever registered.
     Deferred(Arc<ParkingLotMutex<Option<(SessionId, crate::router::SessionRegistration)>>>),
 }
+
 impl PendingSessionRegistration {
     fn new(
         client: Client,
@@ -458,7 +456,7 @@ impl Session {
     /// The hand-authored helpers on [`Session`] delegate to this namespace
     /// and remain the recommended entry point for everyday use; reach for
     /// `rpc()` when you want a method without a hand-written wrapper.
-    pub fn rpc(&self) -> crate::rpc::SessionRpc<'_> {
+    pub fn rpc(&self) -> crate::generated::rpc::SessionRpc<'_> {
         crate::generated::rpc::SessionRpc { session: self }
     }
 
@@ -1268,7 +1266,6 @@ impl Client {
             ),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
-            mcp_headers: runtime.mcp_headers_handler.take(),
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
@@ -1291,7 +1288,6 @@ impl Client {
             .as_ref()
             .map(|registration| registration.id().to_string());
         let has_mcp_auth_handler = handlers.mcp_auth.is_some();
-        let has_mcp_headers_handler = handlers.mcp_headers.is_some();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
@@ -1324,31 +1320,12 @@ impl Client {
         let inline_stash: Arc<
             ParkingLotMutex<Option<(SessionId, crate::router::SessionRegistration)>>,
         > = Arc::new(ParkingLotMutex::new(None));
-        let mut local_startup = None;
 
         let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
             local_session_id
         {
-            let registration = self.register_session(sid);
-            let event_loop = spawn_event_loop(
-                sid.clone(),
-                self.clone(),
-                handlers.clone(),
-                hooks.clone(),
-                transforms.clone(),
-                command_handlers.clone(),
-                canvas_handler.clone(),
-                session_fs_provider.clone(),
-                bearer_token_providers.clone(),
-                registration.channels,
-                idle_waiter.clone(),
-                capabilities.clone(),
-                open_canvases.clone(),
-                event_tx.clone(),
-                shutdown.clone(),
-                external_tools_shutdown.clone(),
-            );
-            local_startup = Some((registration.token, event_loop));
+            let channels = self.register_session(sid);
+            *inline_stash.lock() = Some((sid.clone(), channels));
             None
         } else {
             let client = self.clone();
@@ -1388,12 +1365,14 @@ impl Client {
         // token and unregisters whatever was registered on the router. For
         // the cloud path the ID is only known once the inline callback has
         // run, so the guard reads the stash at cleanup time.
-        let mut pending_registration = match local_session_id.as_ref() {
-            Some(sid) => {
-                let token = local_startup
+        let mut pending_registration = match local_session_id {
+            Some(ref sid) => {
+                let token = inline_stash
+                    .lock()
                     .as_ref()
-                    .expect("local session startup must exist")
-                    .0;
+                    .expect("session registration must exist")
+                    .1
+                    .token;
                 PendingSessionRegistration::new(
                     self.clone(),
                     sid.clone(),
@@ -1430,42 +1409,31 @@ impl Client {
             .into());
         }
 
-        let (session_id, registration_token, event_loop) =
-            if let Some((registration_token, event_loop)) = local_startup.take() {
-                (
-                    local_session_id
-                        .clone()
-                        .expect("local session ID must exist for local startup"),
-                    registration_token,
-                    event_loop,
-                )
-            } else {
-                let (session_id, registration) = inline_stash
-                    .lock()
-                    .take()
-                    .expect("server-assigned session registration must exist");
-                let registration_token = registration.token;
-                pending_registration.resolve_to(session_id.clone(), registration_token);
-                let event_loop = spawn_event_loop(
-                    session_id.clone(),
-                    self.clone(),
-                    handlers,
-                    hooks,
-                    transforms,
-                    command_handlers,
-                    canvas_handler,
-                    session_fs_provider,
-                    bearer_token_providers,
-                    registration.channels,
-                    idle_waiter.clone(),
-                    capabilities.clone(),
-                    open_canvases.clone(),
-                    event_tx.clone(),
-                    shutdown.clone(),
-                    external_tools_shutdown.clone(),
-                );
-                (session_id, registration_token, event_loop)
-            };
+        let (session_id, registration) = inline_stash
+            .lock()
+            .take()
+            .expect("session registration must have populated stash on success");
+        let channels = registration.channels;
+        let registration_token = registration.token;
+        pending_registration.resolve_to(session_id.clone(), registration_token);
+        let event_loop = spawn_event_loop(
+            session_id.clone(),
+            self.clone(),
+            handlers,
+            hooks,
+            transforms,
+            command_handlers,
+            canvas_handler,
+            session_fs_provider,
+            bearer_token_providers,
+            channels,
+            idle_waiter.clone(),
+            capabilities.clone(),
+            open_canvases.clone(),
+            event_tx.clone(),
+            shutdown.clone(),
+            external_tools_shutdown.clone(),
+        );
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -1475,13 +1443,8 @@ impl Client {
             "Client::create_session local setup complete"
         );
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
-        if let Err(error) = register_mcp_handler_interests(
-            self,
-            &session_id,
-            has_mcp_auth_handler,
-            has_mcp_headers_handler,
-        )
-        .await
+        if has_mcp_auth_handler
+            && let Err(error) = register_mcp_auth_interest(self, &session_id).await
         {
             pending_registration.cleanup(event_loop).await;
             return Err(error);
@@ -1622,7 +1585,6 @@ impl Client {
             ),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
-            mcp_headers: runtime.mcp_headers_handler.take(),
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
@@ -1645,7 +1607,6 @@ impl Client {
             .as_ref()
             .map(|registration| registration.id().to_string());
         let has_mcp_auth_handler = handlers.mcp_auth.is_some();
-        let has_mcp_headers_handler = handlers.mcp_headers.is_some();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
@@ -1739,13 +1700,8 @@ impl Client {
             })
             .into());
         }
-        if let Err(error) = register_mcp_handler_interests(
-            self,
-            &session_id,
-            has_mcp_auth_handler,
-            has_mcp_headers_handler,
-        )
-        .await
+        if has_mcp_auth_handler
+            && let Err(error) = register_mcp_auth_interest(self, &session_id).await
         {
             registration.cleanup(event_loop).await;
             return Err(error);
@@ -2265,33 +2221,14 @@ fn permission_response_params(
     Some(params)
 }
 
-async fn register_mcp_event_interest(
-    client: &Client,
-    session_id: &SessionId,
-    event_type: &str,
-) -> Result<(), Error> {
+async fn register_mcp_auth_interest(client: &Client, session_id: &SessionId) -> Result<(), Error> {
     let mut params = serde_json::to_value(RegisterEventInterestParams {
-        event_type: event_type.to_string(),
+        event_type: "mcp.oauth_required".to_string(),
     })?;
     params["sessionId"] = Value::String(session_id.to_string());
     client
         .call(rpc_methods::SESSION_EVENTLOG_REGISTERINTEREST, Some(params))
         .await?;
-    Ok(())
-}
-
-async fn register_mcp_handler_interests(
-    client: &Client,
-    session_id: &SessionId,
-    has_auth_handler: bool,
-    has_headers_handler: bool,
-) -> Result<(), Error> {
-    if has_auth_handler {
-        register_mcp_event_interest(client, session_id, "mcp.oauth_required").await?;
-    }
-    if has_headers_handler {
-        register_mcp_event_interest(client, session_id, "mcp.headers_refresh_required").await?;
-    }
     Ok(())
 }
 
@@ -2932,95 +2869,6 @@ async fn handle_notification(
                         elapsed_ms = rpc_start.elapsed().as_millis(),
                         "Session::handle_notification MCP auth response sent"
                     );
-                }
-                .instrument(span),
-            );
-        }
-        SessionEventType::McpHeadersRefreshRequired => {
-            let Some(mcp_headers_handler) = handlers.mcp_headers.clone() else {
-                warn!(
-                    session_id = %session_id,
-                    "received MCP headers refresh request without a registered handler"
-                );
-                return;
-            };
-            let data: McpHeadersRefreshRequiredData =
-                match serde_json::from_value(notification.event.data.clone()) {
-                    Ok(data) => data,
-                    Err(error) => {
-                        warn!(error = %error, "failed to deserialize MCP headers refresh request");
-                        return;
-                    }
-                };
-            let request_id = data.request_id;
-            let request = McpHeadersRefreshRequest {
-                server_key: data.server_name,
-                server_url: data.server_url,
-                reason: data.reason,
-            };
-            let client = client.clone();
-            let sid = session_id.clone();
-            let span = tracing::error_span!(
-                "mcp_headers_request_handler",
-                session_id = %sid,
-                request_id = %request_id
-            );
-            tokio::spawn(
-                async move {
-                    let handler_task = tokio::spawn({
-                        let sid = sid.clone();
-                        let request_id = request_id.clone();
-                        let span = tracing::error_span!(
-                            "mcp_headers_callback",
-                            session_id = %sid,
-                            request_id = %request_id
-                        );
-                        async move {
-                            let handler_start = Instant::now();
-                            let result = mcp_headers_handler
-                                .handle(sid.clone(), request_id.clone(), request)
-                                .await;
-                            tracing::debug!(
-                                elapsed_ms = handler_start.elapsed().as_millis(),
-                                session_id = %sid,
-                                request_id = %request_id,
-                                "McpHeadersRefreshHandler::handle dispatch"
-                            );
-                            result
-                        }
-                        .instrument(span)
-                    });
-                    let result = match handler_task.await {
-                        Ok(Ok(result)) => result.into_wire(),
-                        Ok(Err(error)) => mcp_headers_error_result(error.to_string()),
-                        Err(error) => mcp_headers_error_result(error.to_string()),
-                    };
-                    let params = McpHeadersHandlePendingHeadersRefreshRequestRequest {
-                        request_id: request_id.clone(),
-                        result,
-                    };
-                    let mut wire_params = match serde_json::to_value(params) {
-                        Ok(params) => params,
-                        Err(error) => {
-                            warn!(error = %error, "failed to serialize MCP headers response");
-                            return;
-                        }
-                    };
-                    wire_params["sessionId"] = Value::String(sid.to_string());
-                    if let Err(error) = client
-                        .call(
-                            rpc_methods::SESSION_MCP_HEADERS_HANDLEPENDINGHEADERSREFRESHREQUEST,
-                            Some(wire_params),
-                        )
-                        .await
-                    {
-                        warn!(
-                            error = %error,
-                            session_id = %sid,
-                            request_id = %request_id,
-                            "failed to send MCP headers response"
-                        );
-                    }
                 }
                 .instrument(span),
             );

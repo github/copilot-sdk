@@ -15,7 +15,6 @@ import type {
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
     PermissionRequestedEvent as GeneratedPermissionRequestedEvent,
-    McpHeadersRefreshRequiredReason,
     ReasoningSummary,
     SessionLimitsConfig,
     SessionEvent as GeneratedSessionEvent,
@@ -34,20 +33,21 @@ import type {
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
-/** Non-secret hosted MCP endpoint advertised for a connected Copilot Connector. */
-export interface ConnectorMcpServerConfig {
-    /** Human-readable Connector name. */
-    displayName: string;
-    /** Service-advertised MCP endpoint. */
-    url: string;
-    /** Tools to expose. Defaults to all tools when omitted. */
-    tools?: string[];
-    /** Timeout in milliseconds for discovery and tool calls. */
-    timeout?: number;
-    /** Maximum time the runtime may reuse Connector service authorization. */
-    authorizationCacheTtlMs?: number;
-}
 export type {
+    ConnectorAccountRequest,
+    ConnectorAvailability,
+    ConnectorCapabilities,
+    ConnectorCatalogEntry,
+    ConnectorCatalogResult,
+    ConnectorCatalogStatus,
+    ConnectorConnectRequest,
+    ConnectorConnectResult,
+    ConnectorContinueRequest,
+    ConnectorDisconnectResult,
+    ConnectorMcpStatus,
+    ConnectorReconcileRequest,
+    ConnectorRuntimeStatus,
+    ConnectorStatus,
     GitHubTokenAcquireReason,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
@@ -2094,38 +2094,6 @@ export type McpAuthHandler = (
     | undefined
     | Promise<McpAuthResult | McpAuthToken | null | undefined>;
 
-/** Connector MCP server whose short-lived HTTP headers must be refreshed. */
-export interface McpHeadersRefreshRequest {
-    /** Stable server identity used as the connectorMcpServers map key. */
-    serverKey: string;
-    /** Hosted MCP streamable HTTP endpoint. */
-    serverUrl: string;
-    /** Why the runtime invalidated or requested dynamic headers. */
-    reason: McpHeadersRefreshRequiredReason;
-}
-
-/** Connector service authorization headers and their optional cache lifetime. */
-export interface McpHeadersRefreshResult {
-    headers: Record<string, string>;
-    ttlMs?: number;
-}
-
-/**
- * Callback invoked when a Connector MCP server needs fresh HTTP headers.
- *
- * Return a bare header map or a structured result with `ttlMs`. Returning
- * `undefined` reports that no headers are available. Throwing reports an
- * explicit Connector authorization error to the runtime.
- */
-export type McpHeadersRefreshHandler = (
-    request: McpHeadersRefreshRequest,
-    context: { sessionId: string }
-) =>
-    | McpHeadersRefreshResult
-    | Record<string, string>
-    | undefined
-    | Promise<McpHeadersRefreshResult | Record<string, string> | undefined>;
-
 /**
  * Stable extension identity for session participants that provide canvases.
  */
@@ -2668,12 +2636,6 @@ export interface SessionConfigBase {
     onMcpAuthRequest?: McpAuthHandler;
 
     /**
-     * Supplies short-lived HTTP headers for Connector MCP servers.
-     * Re-register this handler when cold-resuming a session.
-     */
-    onMcpHeadersRefresh?: McpHeadersRefreshHandler;
-
-    /**
      * Handler for user input requests from the agent.
      * When provided with the default `legacy` {@link AskUserVariant}, enables the
      * question-and-answer form of the `ask_user` tool.
@@ -2803,15 +2765,6 @@ export interface SessionConfigBase {
      * Keys are server names, values are server configurations.
      */
     mcpServers?: Record<string, MCPServerConfig>;
-
-    /**
-     * Non-secret hosted MCP endpoints advertised for connected Copilot Connectors.
-     * Keys are stable Connector server identities. Service authorization must be
-     * supplied through {@link onMcpHeadersRefresh}, never stored in this configuration.
-     *
-     * @experimental
-     */
-    connectorMcpServers?: Record<string, ConnectorMcpServerConfig>;
 
     /**
      * Custom agent configurations for the session.

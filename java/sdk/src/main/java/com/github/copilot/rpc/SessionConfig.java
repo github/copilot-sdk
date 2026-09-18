@@ -67,7 +67,6 @@ public class SessionConfig {
     private Boolean manageScheduleEnabled;
     private PermissionHandler onPermissionRequest;
     private McpAuthHandler onMcpAuthRequest;
-    private McpHeadersRefreshHandler onMcpHeadersRefresh;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
@@ -75,7 +74,6 @@ public class SessionConfig {
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
-    private Map<String, ConnectorMcpServerConfig> connectorMcpServers;
     private String mcpOAuthTokenStorage;
     private String authClientIdMetadataUrl;
     private List<CustomAgentConfig> customAgents;
@@ -912,38 +910,6 @@ public class SessionConfig {
     }
 
     /**
-     * Gets the dynamic-header refresh handler for connected Copilot Connector MCP
-     * endpoints.
-     * <p>
-     * The handler supplies short-lived client-to-Copilot-Connectors service
-     * authorization, not downstream provider credentials. The Connector service
-     * owns downstream provider tokens.
-     *
-     * @return the handler, or {@code null} if not set
-     */
-    @JsonIgnore
-    public McpHeadersRefreshHandler getOnMcpHeadersRefresh() {
-        return onMcpHeadersRefresh;
-    }
-
-    /**
-     * Sets the dynamic-header refresh handler for connected Copilot Connector MCP
-     * endpoints.
-     * <p>
-     * The handler supplies short-lived client-to-Copilot-Connectors service
-     * authorization, not downstream provider credentials. The Connector service
-     * owns downstream provider tokens.
-     *
-     * @param onMcpHeadersRefresh
-     *            the handler
-     * @return this config instance for method chaining
-     */
-    public SessionConfig setOnMcpHeadersRefresh(McpHeadersRefreshHandler onMcpHeadersRefresh) {
-        this.onMcpHeadersRefresh = onMcpHeadersRefresh;
-        return this;
-    }
-
-    /**
      * Gets the user input request handler.
      *
      * @return the user input handler
@@ -1081,33 +1047,6 @@ public class SessionConfig {
      */
     public SessionConfig setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
-        return this;
-    }
-
-    /**
-     * Gets connected Copilot Connector MCP endpoint configurations supplied from
-     * the service catalog.
-     *
-     * @return the Connector MCP servers map
-     */
-    @CopilotExperimental
-    public Map<String, ConnectorMcpServerConfig> getConnectorMcpServers() {
-        return connectorMcpServers == null ? null : Collections.unmodifiableMap(connectorMcpServers);
-    }
-
-    /**
-     * Sets connected Copilot Connector MCP endpoint configurations supplied from
-     * the service catalog.
-     *
-     * @param connectorMcpServers
-     *            non-secret Connector endpoint configurations keyed by stable
-     *            server key; each key is reported as
-     *            {@link McpHeadersRefreshRequest#serverKey()}
-     * @return this config instance for method chaining
-     */
-    @CopilotExperimental
-    public SessionConfig setConnectorMcpServers(Map<String, ConnectorMcpServerConfig> connectorMcpServers) {
-        this.connectorMcpServers = connectorMcpServers;
         return this;
     }
 
@@ -2333,9 +2272,6 @@ public class SessionConfig {
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
-        copy.connectorMcpServers = this.connectorMcpServers != null
-                ? new java.util.HashMap<>(this.connectorMcpServers)
-                : null;
         copy.mcpOAuthTokenStorage = this.mcpOAuthTokenStorage;
         copy.authClientIdMetadataUrl = this.authClientIdMetadataUrl;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
@@ -2370,7 +2306,6 @@ public class SessionConfig {
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
         copy.onElicitationRequest = this.onElicitationRequest;
         copy.onMcpAuthRequest = this.onMcpAuthRequest;
-        copy.onMcpHeadersRefresh = this.onMcpHeadersRefresh;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;

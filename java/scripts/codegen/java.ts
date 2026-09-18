@@ -12,6 +12,8 @@ import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import { applyConnectorSessionApiOverlay } from "../../../scripts/codegen/connectorSessionApiOverlay.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -1478,7 +1480,9 @@ function generateRpcClass(
 async function generateRpcTypes(schemaPath: string): Promise<void> {
     console.log("\n🔌 Generating RPC types...");
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent)) as Record<string, unknown> & {
+    const schema = normalizeSchemaBrandCasing(
+        applyConnectorSessionApiOverlay(JSON.parse(schemaContent), path.basename(schemaPath))
+    ) as Record<string, unknown> & {
         server?: Record<string, unknown>;
         session?: Record<string, unknown>;
         clientSession?: Record<string, unknown>;
@@ -2342,7 +2346,9 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
     console.log("\n🔧 Generating RPC wrapper classes...");
 
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent)) as {
+    const schema = normalizeSchemaBrandCasing(
+        applyConnectorSessionApiOverlay(JSON.parse(schemaContent), path.basename(schemaPath))
+    ) as {
         server?: Record<string, unknown>;
         session?: Record<string, unknown>;
         clientSession?: Record<string, unknown>;

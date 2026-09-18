@@ -15,143 +15,81 @@ The Copilot SDK can integrate with **MCP servers** (Model Context Protocol) to e
 * Call external APIs
 * And much more
 
-## Server transports
+## Server types
 
-The SDK supports two MCP transport families:
+The SDK supports two types of MCP servers:
 
 | Type | Description | Use Case |
 |------|-------------|----------|
 | **Local/Stdio** | Runs as a subprocess, communicates via stdin/stdout | Local tools, file access, custom scripts |
 | **HTTP/SSE** | Remote server accessed via HTTP | Shared services, cloud-hosted tools |
 
-Transport and configuration origin are separate concepts. A Connector MCP
-endpoint uses the HTTP transport, but its configuration comes from the
-Copilot Connectors service rather than user or workspace settings.
+## Copilot Connectors
 
-## Integrating Copilot Connectors
+The experimental Connector session API lets SDK hosts offer the same non-UI
+Connector flow as Copilot CLI. The runtime owns catalog validation, GitHub
+authorization, bounded connection polling, MCP projection, and authoritative
+same-session reconciliation. The SDK host owns account selection, browser
+opening, confirmation, and presentation.
 
-People use Copilot Connectors by choosing a Connector in the host application,
-completing consent when required, and then using its tools. They do not enter an
-MCP endpoint, configure authorization, or manage the underlying MCP server.
+Use `mcpServers` for MCP servers that your application configures directly.
+Use the Connector API for service-backed catalog entries whose connection and
+session lifecycle the runtime manages.
 
-An SDK-based host implements that experience:
-
-1. Retrieve the supported Connector catalog for the selected account.
-1. Present Connector metadata and connection status, and perform Connect,
-   Reconnect, or Disconnect through the Connector service.
-1. Consume each service-advertised MCP URL without constructing or rewriting it.
-1. Supply connected Connector endpoints to the session through
-   `connectorMcpServers`.
-1. Authorize calls to those endpoints for the same selected GitHub account
-   through `onMcpHeadersRefresh`.
-
-The SDK API described here is the session bridge for connected Connectors. It
-does not fetch the catalog, render Connector UI, perform consent, or manage
-service connections. Existing local stdio, HTTP, SSE, and OAuth MCP behavior
-remains unchanged.
-
-The integration boundary is:
-
-| Responsibility | Owner |
-| --- | --- |
-| List available Connectors and connection state | Connector service and host application |
-| Connect, Reconnect, Disconnect, browser consent, and polling | Connector service and host application |
-| Select and pin the active account | Host application |
-| Load connected Connector endpoints and supply service authorization | Copilot SDK |
-| List server state and tools, enable or disable per session, and receive status events | Copilot SDK |
-| Apply MCP policy, cache authorization, and retry once after a 401 | Connected Copilot runtime |
-
-> [!NOTE]
-> Connector session integration is experimental and only takes effect when
-> enabled by the connected runtime. The host must re-supply the effective
-> connected set on cold resume.
-
-The host supplies each connected endpoint under a stable Connector server key:
+Start with capability detection. When availability is `enabled`, obtain the
+opaque account ID from your host's account-selection flow, list the catalog,
+reconcile already-connected entries, and drive the typed connection result:
 
 <!-- docs-validate: skip -->
 
 ```typescript
-const session = await client.createSession({
-    connectorMcpServers: {
-        [connector.serverKey]: {
-            displayName: connector.displayName,
-            url: connector.advertisedMcpUrl,
-            tools: connector.tools,
-            timeout: 30_000,
-            authorizationCacheTtlMs: 60_000,
-        },
-    },
-    onMcpHeadersRefresh: async ({ serverKey, serverUrl, reason }) => {
-        const authorization = await getConnectorAuthorization({
-            account: selectedAccount,
-            serverKey,
-            serverUrl,
-            reason,
+async function connectConnector(session, accountId, openConsentUrl) {
+    const capabilities = await session.rpc.connectors.getCapabilities();
+    if (capabilities.availability !== "enabled") return;
+
+    const catalog = await session.rpc.connectors.list({ accountId });
+    await session.rpc.connectors.reconcile({ accountId });
+    const connectorName = await chooseConnector(catalog.connectors);
+
+    const result = await session.rpc.connectors.connect({
+        accountId,
+        connectorName,
+    });
+    if (result.kind === "consent_required") {
+        await openConsentUrl(result.consentUrl);
+    }
+    if (result.kind !== "connected") {
+        await session.rpc.connectors.continueConnection({
+            continuationId: result.continuationId,
+            maxAttempts: Math.min(30, capabilities.maxPollAttempts),
+            pollIntervalMs: Math.min(2_000, capabilities.maxPollIntervalMs),
+            deadlineMs: Math.min(60_000, capabilities.maxDeadlineMs),
         });
-        return {
-            headers: {
-                Authorization: ["Bearer", authorization.accessToken].join(" "),
-            },
-            ttlMs: authorization.expiresInMs,
-        };
-    },
-});
+    }
+}
 ```
 
-The corresponding configuration and callback names are:
+The generated API also exposes `refresh`, `reconnect`, `disconnect`,
+`getStatus`, and `reconcile`. Connect and continuation results are discriminated
+as `connected`, `consent_required`, or `pending`. Disconnect and reconcile
+return authoritative session state, including live Connector-owned MCP status.
+Account IDs and continuation IDs are opaque. The host obtains the account ID
+through its existing account-selection flow and passes only that identifier to
+Connector methods; credentials and provider tokens never appear in Connector
+DTOs.
 
-| SDK | Connector MCP servers | Header refresh callback |
-| --- | --- | --- |
-| Node.js | `connectorMcpServers` | `onMcpHeadersRefresh` |
-| Python | `connector_mcp_servers` | `on_mcp_headers_refresh` |
-| Go | `ConnectorMCPServers` | `OnMCPHeadersRefresh` |
-| .NET | `ConnectorMcpServers` | `OnMcpHeadersRefresh` |
-| Java | `setConnectorMcpServers(...)` | `setOnMcpHeadersRefresh(...)` |
-| Rust | `with_connector_mcp_servers(...)` | `with_mcp_headers_handler(...)` |
+| SDK | Connector API |
+| --- | --- |
+| Node.js | `session.rpc.connectors` |
+| Python | `session.rpc.connectors` |
+| Go | `session.RPC.Connectors` |
+| .NET | `session.Rpc.Connectors` |
+| Java | `session.getRpc().connectors` |
+| Rust | `session.rpc().connectors()` |
 
-The typed session MCP API supplies UI hooks for already loaded Connectors: list
-server status and tools, enable or disable a server for the current session, and
-subscribe to MCP loaded and status-change events. Connect, Reconnect,
-Disconnect, browser consent, and catalog polling remain operations against the
-Connector service.
-
-> [!WARNING]
-> The current public runtime contract cannot replace the authoritative
-> Connector set on a running session. After a Connect, Reconnect, or Disconnect,
-> create or cold-resume a session with the updated `connectorMcpServers` map.
-> Do not treat the generic MCP `stopServer` operation as Connector Disconnect:
-> an MCP reload can restore a server from the session's original configuration.
-
-### Host responsibilities
-
-SDK hosts must enforce these boundaries:
-
-* **Trusted catalog injection**: Only inject server identities, display metadata,
-  endpoints, and tool policy from a trusted catalog. Do not treat model output
-  or untrusted content as catalog configuration.
-* **Connector service authorization**: Supply the selected account's
-  short-lived GitHub authorization only to the exact endpoint advertised by the
-  Connector service. The Connector service, not the SDK host, owns downstream
-  provider credentials such as Microsoft or Slack tokens.
-* **Memory-only authorization**: Keep access tokens and derived authorization
-  headers in memory. Do not place them in `connectorMcpServers`, session history,
-  workspace state, or persistent MCP OAuth storage.
-* **Account binding**: Fetch the catalog and authorization for the same
-  authenticated account. Invalidate cached authorization before switching
-  accounts so one account's access cannot be reused by another.
-* **Expiry and revocation**: Set `ttlMs` to the remaining authorization lifetime.
-  The runtime clamps it to `authorizationCacheTtlMs`. Throw from the callback
-  when Connector authorization is denied, fails, or is revoked; the SDK
-  forwards an explicit error without converting it to a successful empty
-  response.
-* **Cold resume**: Re-supply both the connected Connector endpoints and the
-  header refresh callback when cold-resuming a session. Connector configuration
-  and authorization are not recovered from persisted session state.
-
-Returning no result from the callback reports that no dynamic headers are
-available for the Connector endpoint. Existing static `headers`, arbitrary HTTP
-servers configured through `mcpServers`, and MCP OAuth handlers continue to use
-their current behavior.
+> [!NOTE]
+> Connector support is experimental and may be unavailable in some runtime
+> versions. Always call the capability method before using the API.
 
 ## Configuration
 

@@ -15,16 +15,19 @@ use github_copilot_sdk::github_token::{
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, McpAuthHandler, McpAuthRequest, McpAuthResult,
-    McpHeadersRefreshHandler, McpHeadersRefreshRequest, McpHeadersRefreshResult, PermissionHandler,
-    PermissionResult, UserInputHandler, UserInputResponse,
+    PermissionHandler, PermissionResult, UserInputHandler, UserInputResponse,
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    ModelSetAllowedModelsRequest, OpenCanvasInstance, SendAgentMode, SendMode, SendRequest,
+    ConnectorAccountRequest, ConnectorAvailability, ConnectorCapabilities, ConnectorCatalogResult,
+    ConnectorCatalogStatus, ConnectorConnectRequest, ConnectorConnectResult,
+    ConnectorContinueRequest, ConnectorDisconnectResult, ConnectorMcpStatus,
+    ConnectorReconcileRequest, ConnectorStatus, ModelSetAllowedModelsRequest, OpenCanvasInstance,
+    SendAgentMode, SendMode, SendRequest, SessionRpcConnectors,
 };
 use github_copilot_sdk::session_events::{
-    ManagedSettingsResolvedSource, McpHeadersRefreshRequiredReason, McpOauthRequiredData,
-    ReasoningSummary, SessionLimitsConfig, SessionManagedSettingsResolvedData,
+    ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
+    SessionManagedSettingsResolvedData,
 };
 use github_copilot_sdk::types::{
     AskUserVariant, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository,
@@ -189,10 +192,6 @@ struct TestCanvasHandler;
 
 struct CancelMcpAuthHandler;
 
-struct TestMcpHeadersHandler {
-    calls: tokio::sync::mpsc::UnboundedSender<(SessionId, RequestId, McpHeadersRefreshRequest)>,
-}
-
 struct ContextualApproveHandler;
 
 struct GatedApproveHandler {
@@ -240,41 +239,6 @@ impl McpAuthHandler for CancelMcpAuthHandler {
         _request: McpAuthRequest,
     ) -> McpAuthResult {
         McpAuthResult::Cancelled
-    }
-}
-
-#[async_trait]
-impl McpHeadersRefreshHandler for TestMcpHeadersHandler {
-    async fn handle(
-        &self,
-        session_id: SessionId,
-        request_id: RequestId,
-        request: McpHeadersRefreshRequest,
-    ) -> Result<McpHeadersRefreshResult, github_copilot_sdk::Error> {
-        self.calls
-            .send((session_id, request_id, request.clone()))
-            .unwrap();
-        match request.server_key.as_str() {
-            "ttl-absent" => Ok(McpHeadersRefreshResult::Headers {
-                headers: HashMap::from([(
-                    "Authorization".to_string(),
-                    "Bearer absent".to_string(),
-                )]),
-                ttl_ms: None,
-            }),
-            "ttl-present" => Ok(McpHeadersRefreshResult::Headers {
-                headers: HashMap::from([(
-                    "Authorization".to_string(),
-                    "Bearer present".to_string(),
-                )]),
-                ttl_ms: Some(12_345),
-            }),
-            "none" => Ok(McpHeadersRefreshResult::None),
-            _ => Err(github_copilot_sdk::Error::with_message(
-                ErrorKind::InvalidConfig,
-                "credential broker unavailable",
-            )),
-        }
     }
 }
 
@@ -1269,423 +1233,6 @@ async fn resume_session_registers_mcp_auth_interest_only_with_handler() {
 
     respond_to_reload(&mut server_read, &mut server_write).await;
     let _session = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
-}
-
-#[tokio::test]
-async fn mcp_headers_handler_dispatches_all_results() {
-    let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel();
-    let handler = Arc::new(TestMcpHeadersHandler { calls: calls_tx });
-    let (client, server_read, server_write) = make_client();
-    let mut server = FakeServer {
-        read: server_read,
-        write: server_write,
-        session_id: "mcp-headers-session".to_string(),
-    };
-    let create_handle = tokio::spawn({
-        let client = client.clone();
-        async move {
-            client
-                .create_session(
-                    SessionConfig::default()
-                        .with_session_id("mcp-headers-session")
-                        .with_mcp_headers_handler(handler),
-                )
-                .await
-                .unwrap()
-        }
-    });
-
-    let create_request = server.read_request().await;
-    assert_eq!(create_request["method"], "session.create");
-    server
-        .send_event(
-            "mcp.headers_refresh_required",
-            serde_json::json!({
-                "requestId": "headers-before-create",
-                "serverName": "ttl-absent",
-                "serverUrl": "https://ttl-absent.example.test/mcp",
-                "reason": "startup"
-            }),
-        )
-        .await;
-    let response_request = timeout(TIMEOUT, server.read_request()).await.unwrap();
-    assert_eq!(
-        response_request["method"],
-        "session.mcp.headers.handlePendingHeadersRefreshRequest"
-    );
-    assert_eq!(
-        response_request["params"]["sessionId"],
-        "mcp-headers-session"
-    );
-    assert_eq!(
-        response_request["params"]["requestId"],
-        "headers-before-create"
-    );
-    assert_eq!(response_request["params"]["result"]["kind"], "headers");
-    assert!(
-        response_request["params"]["result"]["headers"]["Authorization"]
-            .as_str()
-            .is_some()
-    );
-    let (received_session_id, received_request_id, received_request) =
-        timeout(TIMEOUT, calls_rx.recv()).await.unwrap().unwrap();
-    assert_eq!(received_session_id.as_str(), "mcp-headers-session");
-    assert_eq!(received_request_id, "headers-before-create");
-    assert_eq!(received_request.server_key, "ttl-absent");
-    assert_eq!(
-        received_request.server_url,
-        "https://ttl-absent.example.test/mcp"
-    );
-    assert_eq!(
-        received_request.reason,
-        McpHeadersRefreshRequiredReason::Startup
-    );
-    server
-        .respond(&response_request, serde_json::json!({ "success": true }))
-        .await;
-
-    server
-        .respond(
-            &create_request,
-            serde_json::json!({
-                "sessionId": "mcp-headers-session",
-                "workspacePath": "/workspace"
-            }),
-        )
-        .await;
-    let interest_request = server.read_request().await;
-    assert_eq!(
-        interest_request["method"],
-        "session.eventLog.registerInterest"
-    );
-    assert_eq!(
-        interest_request["params"]["eventType"],
-        "mcp.headers_refresh_required"
-    );
-    server
-        .respond(&interest_request, serde_json::json!({ "id": "interest-1" }))
-        .await;
-    let _session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
-
-    let cases = [
-        (
-            "ttl-absent",
-            "startup",
-            McpHeadersRefreshRequiredReason::Startup,
-            serde_json::json!({
-                "kind": "headers",
-                "headers": { "Authorization": "Bearer absent" }
-            }),
-        ),
-        (
-            "ttl-present",
-            "ttl-expired",
-            McpHeadersRefreshRequiredReason::TtlExpired,
-            serde_json::json!({
-                "kind": "headers",
-                "headers": { "Authorization": "Bearer present" },
-                "ttlMs": 12_345
-            }),
-        ),
-        (
-            "none",
-            "auth-failed",
-            McpHeadersRefreshRequiredReason::AuthFailed,
-            serde_json::json!({ "kind": "none" }),
-        ),
-        (
-            "error",
-            "startup",
-            McpHeadersRefreshRequiredReason::Startup,
-            serde_json::json!({
-                "kind": "error",
-                "message": "credential broker unavailable"
-            }),
-        ),
-    ];
-
-    for (index, (server_identity, reason, expected_reason, expected_result)) in
-        cases.into_iter().enumerate()
-    {
-        let request_id = format!("headers-{index}");
-        let server_url = format!("https://{server_identity}.example.test/mcp");
-        server
-            .send_event(
-                "mcp.headers_refresh_required",
-                serde_json::json!({
-                    "requestId": request_id,
-                    "serverName": server_identity,
-                    "serverUrl": server_url,
-                    "reason": reason
-                }),
-            )
-            .await;
-
-        let response_request = timeout(TIMEOUT, server.read_request()).await.unwrap();
-        assert_eq!(
-            response_request["method"],
-            "session.mcp.headers.handlePendingHeadersRefreshRequest"
-        );
-        assert_eq!(response_request["params"]["requestId"], request_id);
-        assert_eq!(response_request["params"]["result"], expected_result);
-
-        let (received_session_id, received_request_id, received_request) =
-            timeout(TIMEOUT, calls_rx.recv()).await.unwrap().unwrap();
-        assert_eq!(received_session_id.as_str(), "mcp-headers-session");
-        assert_eq!(received_request_id, request_id);
-        assert_eq!(received_request.server_key, server_identity);
-        assert_eq!(received_request.server_url, server_url);
-        assert_eq!(received_request.reason, expected_reason);
-
-        server
-            .respond(&response_request, serde_json::json!({ "success": true }))
-            .await;
-    }
-}
-
-#[tokio::test]
-async fn mcp_headers_interest_failure_cleans_up_session_dispatch() {
-    let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel();
-    let handler = Arc::new(TestMcpHeadersHandler { calls: calls_tx });
-    let (client, server_read, server_write) = make_client();
-    let mut server = FakeServer {
-        read: server_read,
-        write: server_write,
-        session_id: "mcp-headers-interest-failure".to_string(),
-    };
-    let create_handle = tokio::spawn({
-        let client = client.clone();
-        async move {
-            client
-                .create_session(
-                    SessionConfig::default()
-                        .with_session_id("mcp-headers-interest-failure")
-                        .with_mcp_headers_handler(handler),
-                )
-                .await
-        }
-    });
-
-    let create_request = server.read_request().await;
-    server
-        .respond(
-            &create_request,
-            serde_json::json!({
-                "sessionId": "mcp-headers-interest-failure",
-                "workspacePath": "/workspace"
-            }),
-        )
-        .await;
-    let interest_request = server.read_request().await;
-    assert_eq!(
-        interest_request["method"],
-        "session.eventLog.registerInterest"
-    );
-    assert_eq!(
-        interest_request["params"]["eventType"],
-        "mcp.headers_refresh_required"
-    );
-    let response = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": interest_request["id"],
-        "error": { "code": -32603, "message": "registration failed" }
-    });
-    write_framed(&mut server.write, &serde_json::to_vec(&response).unwrap()).await;
-
-    let result = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
-    assert!(result.is_err());
-
-    server
-        .send_event(
-            "mcp.headers_refresh_required",
-            serde_json::json!({
-                "requestId": "stale-request",
-                "serverName": "ttl-absent",
-                "serverUrl": "https://example.test/mcp",
-                "reason": "startup"
-            }),
-        )
-        .await;
-    assert!(timeout(TIMEOUT, calls_rx.recv()).await.unwrap().is_none());
-}
-
-#[tokio::test]
-async fn public_mcp_list_toggle_tools_and_status_events_are_reachable() {
-    use github_copilot_sdk::rpc::{McpDisableRequest, McpEnableRequest, McpListToolsRequest};
-    use github_copilot_sdk::session_events::{
-        McpServerSource, McpServerStatus, SessionEventType, SessionMcpServerNeedsReconnectData,
-        SessionMcpServerRemovedData, SessionMcpServerStatusChangedData,
-        SessionMcpServersLoadedData,
-    };
-
-    let (session, mut server) = create_session_pair().await;
-    let session = Arc::new(session);
-    let _: github_copilot_sdk::rpc::SessionRpc<'_> = session.rpc();
-
-    let list = tokio::spawn({
-        let session = session.clone();
-        async move { session.rpc().mcp().list().await.unwrap() }
-    });
-    let request = server.read_request().await;
-    assert_eq!(request["method"], "session.mcp.list");
-    assert_eq!(request["params"]["sessionId"], server.session_id);
-    server
-        .respond(
-            &request,
-            serde_json::json!({
-                "servers": [{
-                    "displayName": "Calendar",
-                    "name": "calendar",
-                    "source": "managed",
-                    "status": "connected"
-                }]
-            }),
-        )
-        .await;
-    let list = timeout(TIMEOUT, list).await.unwrap().unwrap();
-    assert_eq!(list.servers.len(), 1);
-    assert_eq!(list.servers[0].name, "calendar");
-    assert_eq!(list.servers[0].display_name.as_deref(), Some("Calendar"));
-    assert_eq!(list.servers[0].source, Some(McpServerSource::Managed));
-    assert_eq!(list.servers[0].status, McpServerStatus::Connected);
-
-    let enable = tokio::spawn({
-        let session = session.clone();
-        async move {
-            session
-                .rpc()
-                .mcp()
-                .enable(McpEnableRequest {
-                    server_name: "calendar".to_string(),
-                })
-                .await
-                .unwrap();
-        }
-    });
-    let request = server.read_request().await;
-    assert_eq!(request["method"], "session.mcp.enable");
-    assert_eq!(request["params"]["serverName"], "calendar");
-    server.respond(&request, serde_json::json!({})).await;
-    timeout(TIMEOUT, enable).await.unwrap().unwrap();
-
-    let disable = tokio::spawn({
-        let session = session.clone();
-        async move {
-            session
-                .rpc()
-                .mcp()
-                .disable(McpDisableRequest {
-                    server_name: "calendar".to_string(),
-                })
-                .await
-                .unwrap();
-        }
-    });
-    let request = server.read_request().await;
-    assert_eq!(request["method"], "session.mcp.disable");
-    assert_eq!(request["params"]["serverName"], "calendar");
-    server.respond(&request, serde_json::json!({})).await;
-    timeout(TIMEOUT, disable).await.unwrap().unwrap();
-
-    let list_tools = tokio::spawn({
-        let session = session.clone();
-        async move {
-            session
-                .rpc()
-                .mcp()
-                .list_tools(McpListToolsRequest {
-                    server_name: "calendar".to_string(),
-                })
-                .await
-                .unwrap()
-        }
-    });
-    let request = server.read_request().await;
-    assert_eq!(request["method"], "session.mcp.listTools");
-    assert_eq!(request["params"]["serverName"], "calendar");
-    server
-        .respond(
-            &request,
-            serde_json::json!({
-                "tools": [{
-                    "name": "events",
-                    "description": "List calendar events"
-                }]
-            }),
-        )
-        .await;
-    let tools = timeout(TIMEOUT, list_tools).await.unwrap().unwrap();
-    assert_eq!(tools.tools.len(), 1);
-    assert_eq!(tools.tools[0].name, "events");
-
-    let mut events = session.subscribe();
-    server
-        .send_event(
-            "session.mcp_servers_loaded",
-            serde_json::json!({
-                "servers": [{
-                    "displayName": "Calendar",
-                    "name": "calendar",
-                    "source": "managed",
-                    "status": "connected"
-                }]
-            }),
-        )
-        .await;
-    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
-    assert_eq!(
-        event.parsed_type(),
-        SessionEventType::SessionMcpServersLoaded
-    );
-    let loaded: SessionMcpServersLoadedData = event.typed_data().unwrap();
-    assert_eq!(loaded.servers[0].name, "calendar");
-    assert_eq!(loaded.servers[0].status, McpServerStatus::Connected);
-
-    server
-        .send_event(
-            "session.mcp_server_status_changed",
-            serde_json::json!({
-                "serverName": "calendar",
-                "status": "needs-auth"
-            }),
-        )
-        .await;
-    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
-    assert_eq!(
-        event.parsed_type(),
-        SessionEventType::SessionMcpServerStatusChanged
-    );
-    let changed: SessionMcpServerStatusChangedData = event.typed_data().unwrap();
-    assert_eq!(changed.server_name, "calendar");
-    assert_eq!(changed.status, McpServerStatus::NeedsAuth);
-
-    server
-        .send_event(
-            "session.mcp_server_needs_reconnect",
-            serde_json::json!({ "serverName": "calendar" }),
-        )
-        .await;
-    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
-    assert_eq!(
-        event.parsed_type(),
-        SessionEventType::SessionMcpServerNeedsReconnect
-    );
-    let reconnect: SessionMcpServerNeedsReconnectData = event.typed_data().unwrap();
-    assert_eq!(reconnect.server_name, "calendar");
-
-    server
-        .send_event(
-            "session.mcp_server_removed",
-            serde_json::json!({ "serverName": "calendar" }),
-        )
-        .await;
-    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
-    assert_eq!(
-        event.parsed_type(),
-        SessionEventType::SessionMcpServerRemoved
-    );
-    let removed: SessionMcpServerRemovedData = event.typed_data().unwrap();
-    assert_eq!(removed.server_name, "calendar");
 }
 
 async fn server_respond_create(
@@ -6268,6 +5815,235 @@ async fn rpc_namespace_session_tasks_list_dispatches_correctly() {
 
     let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     assert!(result.tasks.is_empty());
+}
+
+#[tokio::test]
+async fn rpc_namespace_session_connectors_dispatches_all_methods() {
+    let (session, mut server) = create_session_pair().await;
+    let session_id = server.session_id.clone();
+    let catalog = serde_json::json!({
+        "connectors": [{
+            "description": "Source control",
+            "displayName": "GitHub",
+            "name": "github",
+            "runtimeServerIds": ["connector-github"],
+            "status": "connected"
+        }],
+        "refreshedAtMs": 1_726_668_000_000_i64,
+        "revision": 4
+    });
+    let status = serde_json::json!({
+        "accountId": "account-1",
+        "apiVersion": 1,
+        "availability": "enabled",
+        "catalog": catalog.clone(),
+        "pendingConnections": 0,
+        "runtimeServers": [{
+            "connectorName": "github",
+            "runtimeServerId": "connector-github",
+            "status": "connected"
+        }]
+    });
+    let capabilities = serde_json::json!({
+        "apiVersion": 1,
+        "availability": "enabled",
+        "consentContinuation": true,
+        "maxDeadlineMs": 60_000,
+        "maxPollAttempts": 10,
+        "maxPollIntervalMs": 5_000,
+        "opaqueAccountSelection": true
+    });
+
+    let server_handle = tokio::spawn(async move {
+        let expectations = [
+            (
+                "session.connectors.getCapabilities",
+                serde_json::json!({ "sessionId": session_id }),
+                capabilities,
+            ),
+            (
+                "session.connectors.getStatus",
+                serde_json::json!({ "sessionId": session_id }),
+                status.clone(),
+            ),
+            (
+                "session.connectors.list",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "sessionId": session_id
+                }),
+                catalog.clone(),
+            ),
+            (
+                "session.connectors.refresh",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "sessionId": session_id
+                }),
+                catalog,
+            ),
+            (
+                "session.connectors.connect",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "connectorName": "github",
+                    "sessionId": session_id
+                }),
+                serde_json::json!({
+                    "kind": "connected",
+                    "status": status.clone()
+                }),
+            ),
+            (
+                "session.connectors.reconnect",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "connectorName": "github",
+                    "sessionId": session_id
+                }),
+                serde_json::json!({
+                    "consentUrl": "https://example.test/consent",
+                    "continuationId": "continuation-1",
+                    "kind": "consent_required"
+                }),
+            ),
+            (
+                "session.connectors.continueConnection",
+                serde_json::json!({
+                    "continuationId": "continuation-1",
+                    "deadlineMs": 60_000,
+                    "maxAttempts": 10,
+                    "pollIntervalMs": 1_000,
+                    "sessionId": session_id
+                }),
+                serde_json::json!({
+                    "continuationId": "continuation-2",
+                    "kind": "pending"
+                }),
+            ),
+            (
+                "session.connectors.disconnect",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "connectorName": "github",
+                    "sessionId": session_id
+                }),
+                serde_json::json!({
+                    "disconnected": true,
+                    "status": status.clone()
+                }),
+            ),
+            (
+                "session.connectors.reconcile",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "refreshCatalog": true,
+                    "sessionId": session_id
+                }),
+                status,
+            ),
+        ];
+
+        for (method, params, result) in expectations {
+            let request = server.read_request().await;
+            assert_eq!(request["method"], method);
+            assert_eq!(request["params"], params);
+            server.respond(&request, result).await;
+        }
+    });
+
+    let connectors: SessionRpcConnectors<'_> = session.rpc().connectors();
+
+    let capabilities: ConnectorCapabilities = connectors.get_capabilities().await.unwrap();
+    assert_eq!(capabilities.availability, ConnectorAvailability::Enabled);
+    assert_eq!(capabilities.max_poll_attempts, 10);
+
+    let status: ConnectorStatus = connectors.get_status().await.unwrap();
+    assert_eq!(status.account_id.as_deref(), Some("account-1"));
+    assert_eq!(
+        status.runtime_servers[0].status,
+        ConnectorMcpStatus::Connected
+    );
+
+    let catalog: ConnectorCatalogResult = connectors
+        .list(ConnectorAccountRequest {
+            account_id: "account-1".to_string(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        catalog.connectors[0].status,
+        ConnectorCatalogStatus::Connected
+    );
+
+    let refreshed: ConnectorCatalogResult = connectors
+        .refresh(ConnectorAccountRequest {
+            account_id: "account-1".to_string(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(refreshed.revision, 4);
+
+    let connected: ConnectorConnectResult = connectors
+        .connect(ConnectorConnectRequest {
+            account_id: "account-1".to_string(),
+            connector_name: "github".to_string(),
+        })
+        .await
+        .unwrap();
+    let ConnectorConnectResult::Connected(connected) = connected else {
+        panic!("expected connected result");
+    };
+    assert_eq!(
+        connected.status.availability,
+        ConnectorAvailability::Enabled
+    );
+
+    let reconnect: ConnectorConnectResult = connectors
+        .reconnect(ConnectorConnectRequest {
+            account_id: "account-1".to_string(),
+            connector_name: "github".to_string(),
+        })
+        .await
+        .unwrap();
+    let ConnectorConnectResult::ConsentRequired(consent) = reconnect else {
+        panic!("expected consent-required result");
+    };
+    assert_eq!(consent.continuation_id, "continuation-1");
+
+    let continuation: ConnectorConnectResult = connectors
+        .continue_connection(ConnectorContinueRequest {
+            continuation_id: "continuation-1".to_string(),
+            deadline_ms: 60_000,
+            max_attempts: 10,
+            poll_interval_ms: 1_000,
+        })
+        .await
+        .unwrap();
+    let ConnectorConnectResult::Pending(pending) = continuation else {
+        panic!("expected pending result");
+    };
+    assert_eq!(pending.continuation_id, "continuation-2");
+
+    let disconnected: ConnectorDisconnectResult = connectors
+        .disconnect(ConnectorConnectRequest {
+            account_id: "account-1".to_string(),
+            connector_name: "github".to_string(),
+        })
+        .await
+        .unwrap();
+    assert!(disconnected.disconnected);
+
+    let reconciled: ConnectorStatus = connectors
+        .reconcile(ConnectorReconcileRequest {
+            account_id: "account-1".to_string(),
+            refresh_catalog: Some(true),
+        })
+        .await
+        .unwrap();
+    assert_eq!(reconciled.catalog.unwrap().revision, 4);
+
+    timeout(TIMEOUT, server_handle).await.unwrap().unwrap();
 }
 
 #[tokio::test]

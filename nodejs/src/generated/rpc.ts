@@ -4297,6 +4297,99 @@ export type WorkspacesWorkspaceDetailsHostType =
   /** Workspace repository is hosted on Azure DevOps. */
   | "ado";
 /**
+ * Availability of the EXPERIMENTAL session connector API.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorAvailability".
+ */
+/** @experimental */
+export type ConnectorAvailability =
+  /** The resolved Connector feature is enabled and Connector requests are permitted. */
+  | "enabled"
+  /** The resolved Connector feature is off. No Connector service request is made while disabled. */
+  | "disabled"
+  /** The session has no eligible host-owned GitHub account or does not support local Connector projection. */
+  | "unavailable";
+/**
+ * Authoritative service connection state for one Connector.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorCatalogStatus".
+ */
+/** @experimental */
+export type ConnectorCatalogStatus =
+  /** The Connector is available but not connected. */
+  | "not_connected"
+  /** The Connector service is still completing connection or consent. */
+  | "pending"
+  /** The Connector is connected and may contribute MCP servers. */
+  | "connected"
+  /** The Connector service reports an unusable connection. */
+  | "error"
+  /** The service returned a future or unrecognized state. */
+  | "unknown";
+/**
+ * Typed result of initiating or continuing a Connector connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorConnectResult".
+ */
+/** @experimental */
+export type ConnectorConnectResult =
+  | {
+      /**
+       * The service is connected and the session MCP graph was reconciled.
+       */
+      kind: "connected";
+      status: ConnectorStatus;
+    }
+  | {
+      /**
+       * Host-owned consent is required before bounded continuation can complete.
+       */
+      kind: "consent_required";
+      /**
+       * Validated HTTPS consent URL. The runtime does not open it.
+       */
+      consentUrl: string;
+      /**
+       * Opaque ID accepted by continueConnection.
+       */
+      continuationId: string;
+    }
+  | {
+      /**
+       * The service is still completing the connection without a consent URL.
+       */
+      kind: "pending";
+      /**
+       * Opaque ID accepted by continueConnection.
+       */
+      continuationId: string;
+    };
+/**
+ * Live MCP status of one Connector-owned runtime server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorMcpStatus".
+ */
+/** @experimental */
+export type ConnectorMcpStatus =
+  /** The server is connected and its tools are available. */
+  | "connected"
+  /** The server connection is still being established. */
+  | "pending"
+  /** The server requires refreshed GitHub authorization. */
+  | "needs_auth"
+  /** The server failed to connect or initialize. */
+  | "failed"
+  /** The server is intentionally stopped, including when managed policy blocks it. */
+  | "stopped"
+  /** The server is configured but explicitly disabled. */
+  | "disabled"
+  /** The Connector currently has no live server configuration. */
+  | "not_configured";
+/**
  * List of all authenticated users
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -24484,6 +24577,218 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
    */
   operation: string;
 }
+/**
+ * Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorAccountRequest".
+ */
+/** @experimental */
+export interface ConnectorAccountRequest {
+  /**
+   * Opaque account selection ID previously returned by an account discovery API.
+   */
+  accountId: string;
+}
+/**
+ * Feature detection and hard polling limits for the EXPERIMENTAL session connector API.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorCapabilities".
+ */
+/** @experimental */
+export interface ConnectorCapabilities {
+  /**
+   * Connector API contract version.
+   */
+  apiVersion: number;
+  availability: ConnectorAvailability;
+  /**
+   * Whether connect and reconnect can return an opaque continuation for bounded consent polling.
+   */
+  consentContinuation: boolean;
+  /**
+   * Whether callers select a host-owned GitHub account through an opaque selection ID rather than supplying a provider token.
+   */
+  opaqueAccountSelection: boolean;
+  /**
+   * Maximum accepted polling attempts for one continuation call.
+   */
+  maxPollAttempts: number;
+  /**
+   * Maximum accepted delay in milliseconds between polling attempts.
+   */
+  maxPollIntervalMs: number;
+  /**
+   * Maximum accepted wall-clock deadline in milliseconds for one continuation call.
+   */
+  maxDeadlineMs: number;
+}
+/**
+ * Credential-free Connector catalog entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorCatalogEntry".
+ */
+/** @experimental */
+export interface ConnectorCatalogEntry {
+  /**
+   * Canonical Connector name used by lifecycle methods.
+   */
+  name: string;
+  /**
+   * Untrusted display label from the service.
+   */
+  displayName: string;
+  /**
+   * Untrusted service description, when present.
+   */
+  description?: string;
+  status: ConnectorCatalogStatus;
+  /**
+   * Opaque stable runtime IDs currently projected into the session for this Connector.
+   */
+  runtimeServerIds: string[];
+}
+/**
+ * Validated Connector catalog snapshot cached by the session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorCatalogResult".
+ */
+/** @experimental */
+export interface ConnectorCatalogResult {
+  /**
+   * Monotonically increasing session-local catalog revision.
+   */
+  revision: number;
+  /**
+   * Unix epoch milliseconds when this snapshot was accepted.
+   */
+  refreshedAtMs: number;
+  /**
+   * Validated catalog entries in service order.
+   */
+  connectors: ConnectorCatalogEntry[];
+}
+/**
+ * Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorConnectRequest".
+ */
+/** @experimental */
+export interface ConnectorConnectRequest {
+  /**
+   * Opaque account selection ID. It must match the account already pinned to the session, if any.
+   */
+  accountId: string;
+  /**
+   * Canonical Connector name from the current catalog.
+   */
+  connectorName: string;
+}
+/**
+ * Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorStatus".
+ */
+/** @experimental */
+export interface ConnectorStatus {
+  /**
+   * Connector API contract version.
+   */
+  apiVersion: number;
+  availability: ConnectorAvailability;
+  /**
+   * Opaque account selection pinned to this session, when one has been selected.
+   */
+  accountId?: string;
+  catalog?: ConnectorCatalogResult;
+  /**
+   * Live MCP status for every Connector-owned runtime server.
+   */
+  runtimeServers: ConnectorRuntimeStatus[];
+  /**
+   * Number of active opaque connection continuations.
+   */
+  pendingConnections: number;
+}
+/**
+ * Live status of one session-owned MCP projection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorRuntimeStatus".
+ */
+/** @experimental */
+export interface ConnectorRuntimeStatus {
+  /**
+   * Opaque runtime server ID.
+   */
+  runtimeServerId: string;
+  /**
+   * Canonical Connector name that owns this server.
+   */
+  connectorName: string;
+  status: ConnectorMcpStatus;
+}
+/**
+ * Explicitly bounded continuation of a pending Connector connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorContinueRequest".
+ */
+/** @experimental */
+export interface ConnectorContinueRequest {
+  /**
+   * Opaque continuation ID returned by connect, reconnect, or an earlier continuation.
+   */
+  continuationId: string;
+  /**
+   * Maximum catalog requests made by this call. Must be between one and the capability limit.
+   */
+  maxAttempts: number;
+  /**
+   * Delay in milliseconds between attempts. Must not exceed the capability limit.
+   */
+  pollIntervalMs: number;
+  /**
+   * Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability limit.
+   */
+  deadlineMs: number;
+}
+/**
+ * Authoritative result after disconnect and MCP reconciliation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorDisconnectResult".
+ */
+/** @experimental */
+export interface ConnectorDisconnectResult {
+  /**
+   * Whether the service accepted the idempotent disconnect.
+   */
+  disconnected: boolean;
+  status: ConnectorStatus;
+}
+/**
+ * Requests authoritative Connector-to-MCP reconciliation for the pinned account.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorReconcileRequest".
+ */
+/** @experimental */
+export interface ConnectorReconcileRequest {
+  /**
+   * Opaque account selection ID. It must match the account already pinned to the session, if any.
+   */
+  accountId: string;
+  /**
+   * When true, refresh the catalog before reconciling. A disabled Connector API performs no service request.
+   */
+  refreshCatalog?: boolean;
+}
 
 /** @experimental */
 export interface SessionFactoryPauseAtCheckpointResult {
@@ -27509,6 +27814,86 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             stop: async (params: ScheduleStopRequest): Promise<ScheduleStopResult> =>
                 connection.sendRequest("session.schedule.stop", { sessionId, ...params }),
+        },
+        /** @experimental */
+        connectors: {
+            /**
+             * Returns feature availability and bounded polling limits for the EXPERIMENTAL session connector API. This method never performs a Connector service request.
+             *
+             * @returns Feature detection and hard polling limits for the EXPERIMENTAL session connector API.
+             */
+            getCapabilities: async (): Promise<ConnectorCapabilities> =>
+                connection.sendRequest("session.connectors.getCapabilities", { sessionId }),
+            /**
+             * Returns authoritative session Connector state from current availability, pinned account selection, cached catalog, and live MCP projection without performing a Connector service request.
+             *
+             * @returns Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+             */
+            getStatus: async (): Promise<ConnectorStatus> =>
+                connection.sendRequest("session.connectors.getStatus", { sessionId }),
+            /**
+             * Returns the cached Connector catalog for the pinned opaque account selection, fetching it only when this session has no cached catalog.
+             *
+             * @param params Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
+             *
+             * @returns Validated Connector catalog snapshot cached by the session.
+             */
+            list: async (params: ConnectorAccountRequest): Promise<ConnectorCatalogResult> =>
+                connection.sendRequest("session.connectors.list", { sessionId, ...params }),
+            /**
+             * Refreshes and validates the Connector catalog for the pinned opaque account selection.
+             *
+             * @param params Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
+             *
+             * @returns Validated Connector catalog snapshot cached by the session.
+             */
+            refresh: async (params: ConnectorAccountRequest): Promise<ConnectorCatalogResult> =>
+                connection.sendRequest("session.connectors.refresh", { sessionId, ...params }),
+            /**
+             * Initiates an idempotent Connector connection request without opening a browser. Returns connected when the service is immediately authoritative, consent_required with a validated URL, or pending with an opaque continuation ID.
+             *
+             * @param params Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+             *
+             * @returns Typed result of initiating or continuing a Connector connection.
+             */
+            connect: async (params: ConnectorConnectRequest): Promise<ConnectorConnectResult> =>
+                connection.sendRequest("session.connectors.connect", { sessionId, ...params }),
+            /**
+             * Re-initiates an idempotent Connector connection request without browser or UI effects, with the same typed outcomes as connect.
+             *
+             * @param params Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+             *
+             * @returns Typed result of initiating or continuing a Connector connection.
+             */
+            reconnect: async (params: ConnectorConnectRequest): Promise<ConnectorConnectResult> =>
+                connection.sendRequest("session.connectors.reconnect", { sessionId, ...params }),
+            /**
+             * Continues a pending Connector connection with caller-supplied attempt, interval, and deadline bounds. The runtime never opens the returned consent URL.
+             *
+             * @param params Explicitly bounded continuation of a pending Connector connection.
+             *
+             * @returns Typed result of initiating or continuing a Connector connection.
+             */
+            continueConnection: async (params: ConnectorContinueRequest): Promise<ConnectorConnectResult> =>
+                connection.sendRequest("session.connectors.continueConnection", { sessionId, ...params }),
+            /**
+             * Disconnects one Connector for the pinned opaque account selection, refreshes the authoritative catalog, and removes its session-owned MCP projection.
+             *
+             * @param params Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+             *
+             * @returns Authoritative result after disconnect and MCP reconciliation.
+             */
+            disconnect: async (params: ConnectorConnectRequest): Promise<ConnectorDisconnectResult> =>
+                connection.sendRequest("session.connectors.disconnect", { sessionId, ...params }),
+            /**
+             * Reconciles the authoritative cached or freshly requested Connector catalog into the session Connector MCP projection and returns live status.
+             *
+             * @param params Requests authoritative Connector-to-MCP reconciliation for the pinned account.
+             *
+             * @returns Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+             */
+            reconcile: async (params: ConnectorReconcileRequest): Promise<ConnectorStatus> =>
+                connection.sendRequest("session.connectors.reconcile", { sessionId, ...params }),
         },
     };
 }

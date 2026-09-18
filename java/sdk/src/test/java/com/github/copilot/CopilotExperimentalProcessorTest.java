@@ -12,12 +12,6 @@ import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import javax.tools.ToolProvider;
-import javax.annotation.processing.AbstractProcessor;
-import javax.annotation.processing.RoundEnvironment;
-import javax.lang.model.SourceVersion;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.util.ElementFilter;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
@@ -25,12 +19,8 @@ import java.security.CodeSource;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -98,42 +88,6 @@ class CopilotExperimentalProcessorTest {
             }
             """;
 
-    private static final String CONNECTOR_MCP_PUBLIC_PRIMITIVES_CONSUMER = """
-            package consumer;
-
-            import java.util.Map;
-
-            import com.github.copilot.CopilotSession;
-            import com.github.copilot.generated.SessionMcpServerNeedsReconnectEvent;
-            import com.github.copilot.generated.SessionMcpServerRemovedEvent;
-            import com.github.copilot.generated.SessionMcpServerStatusChangedEvent;
-            import com.github.copilot.generated.SessionMcpServersLoadedEvent;
-            import com.github.copilot.generated.rpc.SessionMcpDisableParams;
-            import com.github.copilot.generated.rpc.SessionMcpEnableParams;
-            import com.github.copilot.generated.rpc.SessionMcpListToolsParams;
-            import com.github.copilot.rpc.ConnectorMcpServerConfig;
-            import com.github.copilot.rpc.ResumeSessionConfig;
-            import com.github.copilot.rpc.SessionConfig;
-
-            public class Consumer {
-                public void compose(CopilotSession session, ConnectorMcpServerConfig server) {
-                    String serverKey = "calendar";
-                    server.setAuthorizationCacheTtlMs(60_000L);
-                    var servers = Map.of(serverKey, server);
-                    new SessionConfig().setConnectorMcpServers(servers);
-                    new ResumeSessionConfig().setConnectorMcpServers(servers);
-                    session.getRpc().mcp.list();
-                    session.getRpc().mcp.enable(new SessionMcpEnableParams(null, serverKey));
-                    session.getRpc().mcp.disable(new SessionMcpDisableParams(null, serverKey));
-                    session.getRpc().mcp.listTools(new SessionMcpListToolsParams(null, serverKey));
-                    session.on(SessionMcpServersLoadedEvent.class, event -> {});
-                    session.on(SessionMcpServerStatusChangedEvent.class, event -> {});
-                    session.on(SessionMcpServerRemovedEvent.class, event -> {});
-                    session.on(SessionMcpServerNeedsReconnectEvent.class, event -> {});
-                }
-            }
-            """;
-
     @Test
     void failsByDefault_whenFieldOrSignatureUsesExperimentalType() {
         DiagnosticCollector<JavaFileObject> diagnostics = compile(
@@ -192,79 +146,6 @@ class CopilotExperimentalProcessorTest {
 
         boolean hasError = diagnostics.getDiagnostics().stream().anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR);
         assertFalse(hasError, "Expected no errors with opt-in flag, got: " + diagnostics.getDiagnostics());
-    }
-
-    @Test
-    void connectorMcpServerApisArePublicAndExperimentalForCreateAndResume() {
-        var diagnostics = new DiagnosticCollector<JavaFileObject>();
-        var checkedMethods = new AtomicInteger();
-        var task = ToolProvider.getSystemJavaCompiler().getTask(null, null, diagnostics,
-                List.of("-classpath", resolveClasspath(), "-proc:only"), null,
-                List.of(inMemorySource("consumer.Consumer", "package consumer; public class Consumer {}")));
-        task.setProcessors(List.of(new AbstractProcessor() {
-            @Override
-            public Set<String> getSupportedAnnotationTypes() {
-                return Set.of("*");
-            }
-
-            @Override
-            public SourceVersion getSupportedSourceVersion() {
-                return SourceVersion.latestSupported();
-            }
-
-            @Override
-            public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-                if (!roundEnv.processingOver()) {
-                    var connectorConfig = processingEnv.getElementUtils()
-                            .getTypeElement("com.github.copilot.rpc.ConnectorMcpServerConfig");
-                    assertNotNull(connectorConfig);
-                    assertTrue(connectorConfig.getModifiers().contains(Modifier.PUBLIC));
-                    var connectorMethodNames = ElementFilter.methodsIn(connectorConfig.getEnclosedElements()).stream()
-                            .map(method -> method.getSimpleName().toString())
-                            .collect(java.util.stream.Collectors.toSet());
-                    assertTrue(connectorMethodNames.contains("getAuthorizationCacheTtlMs"));
-                    assertTrue(connectorMethodNames.contains("setAuthorizationCacheTtlMs"));
-                    assertFalse(connectorMethodNames.contains("getHeadersRefreshTtlMs"));
-                    assertFalse(connectorMethodNames.contains("setHeadersRefreshTtlMs"));
-
-                    for (String configName : List.of("SessionConfig", "ResumeSessionConfig")) {
-                        var config = processingEnv.getElementUtils()
-                                .getTypeElement("com.github.copilot.rpc." + configName);
-                        assertNotNull(config);
-                        var methodNames = ElementFilter.methodsIn(config.getEnclosedElements()).stream()
-                                .map(method -> method.getSimpleName().toString())
-                                .collect(java.util.stream.Collectors.toSet());
-                        assertFalse(methodNames.contains("getManagedMcpServers"));
-                        assertFalse(methodNames.contains("setManagedMcpServers"));
-                        assertFalse(methodNames.contains("getCatalogMcpServers"));
-                        assertFalse(methodNames.contains("setCatalogMcpServers"));
-                        for (var method : ElementFilter.methodsIn(config.getEnclosedElements())) {
-                            if (Set.of("getConnectorMcpServers", "setConnectorMcpServers")
-                                    .contains(method.getSimpleName().toString())) {
-                                assertNotNull(method.getAnnotation(CopilotExperimental.class),
-                                        configName + "." + method.getSimpleName());
-                                checkedMethods.incrementAndGet();
-                            }
-                        }
-                    }
-
-                }
-                return false;
-            }
-        }));
-
-        assertTrue(task.call(), () -> "Compiler diagnostics: " + diagnostics.getDiagnostics());
-        assertEquals(4, checkedMethods.get());
-    }
-
-    @Test
-    void connectorMcpConfigurationComposesWithPublicSessionRpcAndStatusEvents() {
-        var diagnostics = compile(
-                List.of(inMemorySource("consumer.Consumer", CONNECTOR_MCP_PUBLIC_PRIMITIVES_CONSUMER)),
-                List.of("-Acopilot.experimental.allowed=true"));
-
-        boolean hasError = diagnostics.getDiagnostics().stream().anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR);
-        assertFalse(hasError, "Expected public MCP primitives to compile, got: " + diagnostics.getDiagnostics());
     }
 
     private DiagnosticCollector<JavaFileObject> compile(List<JavaFileObject> sources, List<String> extraOptions) {

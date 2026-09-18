@@ -97,50 +97,6 @@ public class SerializationTests
     }
 
     [Fact]
-    public void SessionRequests_Serialize_ConnectorMcpServers_Using_Managed_Wire_Field()
-    {
-        var options = GetSerializerOptions();
-        var connectorServers = new Dictionary<string, ConnectorMcpServerConfig>
-        {
-            ["github"] = new()
-            {
-                DisplayName = "GitHub",
-                Url = "https://example.com/mcp",
-                Tools = ["issues"],
-                Timeout = 30_000,
-                AuthorizationCacheTtlMs = 60_000
-            }
-        };
-        var mapper = typeof(CopilotClient).GetMethod(
-            "ToManagedMcpServers",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        Assert.NotNull(mapper);
-        var managed = mapper!.Invoke(null, [connectorServers]);
-        Assert.NotNull(managed);
-
-        foreach (var requestName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
-        {
-            var requestType = GetNestedType(typeof(CopilotClient), requestName);
-            var request = CreateInternalRequest(
-                requestType,
-                ("SessionId", "session-id"),
-                ("ManagedMcpServers", managed));
-            var json = JsonSerializer.Serialize(request, requestType, options);
-            using var document = JsonDocument.Parse(json);
-            var server = document.RootElement
-                .GetProperty("managedMcpServers")
-                .GetProperty("github");
-
-            Assert.Equal("GitHub", server.GetProperty("displayName").GetString());
-            Assert.Equal("https://example.com/mcp", server.GetProperty("url").GetString());
-            Assert.Equal("issues", server.GetProperty("tools")[0].GetString());
-            Assert.Equal(30_000, server.GetProperty("timeout").GetInt64());
-            Assert.Equal(60_000, server.GetProperty("headersRefreshTtlMs").GetInt64());
-            Assert.False(document.RootElement.TryGetProperty("connectorMcpServers", out _));
-        }
-    }
-
-    [Fact]
     public void ProviderConfig_CanSerializeHeaders_WithSdkOptions()
     {
         var options = GetSerializerOptions();

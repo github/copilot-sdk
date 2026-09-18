@@ -7,12 +7,7 @@ import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, onTestFinished } from "vitest";
-import type {
-    CopilotSession,
-    MCPServerConfig,
-    McpAuthRequest,
-    McpHeadersRefreshRequest,
-} from "../../src/index.js";
+import type { CopilotSession, MCPServerConfig, McpAuthRequest } from "../../src/index.js";
 import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { stopChildProcess, waitForCondition } from "./harness/sdkTestHelper.js";
@@ -32,8 +27,6 @@ describe("MCP OAuth host auth", async () => {
             env: {
                 COPILOT_MCP_APPS: "true",
                 MCP_APPS: "true",
-                COPILOT_CLI_ENABLED_FEATURE_FLAGS: "MANAGED_MCP_SERVERS",
-                COPILOT_EXP_COPILOT_CLI_MANAGED_MCP_SERVERS: "true",
             },
         },
     });
@@ -129,49 +122,6 @@ describe("MCP OAuth host auth", async () => {
             requests.some((request) => request.authorization === `Bearer ${EXPECTED_TOKEN}`)
         ).toBe(true);
     });
-
-    it(
-        "should project a connected Connector endpoint at startup",
-        { timeout: 180_000 },
-        async () => {
-            const oauthServer = await startOAuthMcpServer();
-            const serverKey = "connector-calendar";
-            const connectorServer = {
-                displayName: "Calendar",
-                url: `${oauthServer.url}/mcp`,
-                authorizationCacheTtlMs: 0,
-            };
-            const refreshRequests: McpHeadersRefreshRequest[] = [];
-            const session = await client.createSession({
-                onPermissionRequest: approveAll,
-                connectorMcpServers: { [serverKey]: connectorServer },
-                onMcpHeadersRefresh: (request) => {
-                    refreshRequests.push(request);
-                    return { Authorization: ["Bearer", EXPECTED_TOKEN].join(" ") };
-                },
-            });
-            onTestFinished(() => disconnectSession(session));
-
-            await waitForMcpServerStatus(session, serverKey);
-            expect((await session.rpc.mcp.listTools({ serverName: serverKey })).tools).toEqual(
-                expect.arrayContaining([expect.objectContaining({ name: "whoami" })])
-            );
-            expect(refreshRequests[0]).toEqual({
-                serverKey,
-                serverUrl: `${oauthServer.url}/mcp`,
-                reason: "startup",
-            });
-
-            expect(refreshRequests.length).toBeGreaterThanOrEqual(1);
-            expect(
-                refreshRequests.every(
-                    (request) =>
-                        request.serverKey === serverKey &&
-                        request.serverUrl === `${oauthServer.url}/mcp`
-                )
-            ).toBe(true);
-        }
-    );
 
     it(
         "should resolve pending MCP OAuth request with direct RPC",

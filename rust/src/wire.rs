@@ -21,7 +21,7 @@ use serde::Serialize;
 
 use crate::canvas::CanvasDeclaration;
 use crate::generated::api_types::{
-    ManagedMcpServerConfig, ModelCapabilitiesOverride, OpenCanvasInstance, RemoteSessionMode,
+    ModelCapabilitiesOverride, OpenCanvasInstance, RemoteSessionMode,
 };
 use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
@@ -93,8 +93,6 @@ pub(crate) struct SessionCreateWire {
     pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub managed_mcp_servers: Option<HashMap<String, ManagedMcpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_oauth_token_storage: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -258,8 +256,6 @@ pub(crate) struct SessionResumeWire {
     pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub managed_mcp_servers: Option<HashMap<String, ManagedMcpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_oauth_token_storage: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

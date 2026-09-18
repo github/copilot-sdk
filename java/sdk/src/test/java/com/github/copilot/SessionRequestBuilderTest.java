@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.AskUserVariant;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
-import com.github.copilot.rpc.ConnectorMcpServerConfig;
 import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
 import com.github.copilot.rpc.CopilotClientMode;
@@ -1153,44 +1152,5 @@ public class SessionRequestBuilderTest {
         assertFalse(
                 mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
                         .contains("\"githubMcpToolConfig\""));
-    }
-
-    @Test
-    void connectorMcpServersUsePublicFacadeAndExactInternalWireName() throws Exception {
-        var connectorServer = new ConnectorMcpServerConfig().setDisplayName("Connector server")
-                .setUrl("https://mcp.example.com").setTools(List.of("search")).setTimeout(15_000L)
-                .setAuthorizationCacheTtlMs(300_000L);
-        var connectorServers = Map.of("connector-server", connectorServer);
-
-        var createRequest = SessionRequestBuilder
-                .buildCreateRequest(new SessionConfig().setConnectorMcpServers(connectorServers), "session-1");
-        var resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1",
-                new ResumeSessionConfig().setConnectorMcpServers(connectorServers));
-
-        assertEquals("Connector server",
-                createRequest.getConnectorMcpServers().get("connector-server").getDisplayName());
-        assertEquals(300_000L,
-                createRequest.getConnectorMcpServers().get("connector-server").getAuthorizationCacheTtlMs());
-        assertEquals("Connector server",
-                resumeRequest.getConnectorMcpServers().get("connector-server").getDisplayName());
-
-        var mapper = JsonRpcClient.getObjectMapper();
-        var createJson = mapper.readTree(mapper.writeValueAsBytes(createRequest));
-        var resumeJson = mapper.readTree(mapper.writeValueAsBytes(resumeRequest));
-        var expectedWire = mapper.readTree("""
-                {
-                  "connector-server": {
-                    "displayName": "Connector server",
-                    "url": "https://mcp.example.com",
-                    "tools": ["search"],
-                    "timeout": 15000,
-                    "headersRefreshTtlMs": 300000
-                  }
-                }
-                """);
-        assertEquals(expectedWire, createJson.path("managedMcpServers"));
-        assertEquals(expectedWire, resumeJson.path("managedMcpServers"));
-        assertFalse(createJson.has("connectorMcpServers"));
-        assertFalse(resumeJson.has("connectorMcpServers"));
     }
 }

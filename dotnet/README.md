@@ -77,6 +77,44 @@ tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
 `mcp:<server-key>-<tool-name>`. For `CustomAgents[].Tools` and
 `DefaultAgent.ExcludedTools`, use `<server-key>-<tool-name>` directly.
 
+## Experimental Connector API
+
+`session.Rpc.Connectors` exposes the runtime-owned Connector catalog and
+lifecycle. The API is experimental, so call `GetCapabilitiesAsync()` first and
+use the remaining methods only when availability is enabled.
+
+```csharp
+using GitHub.Copilot.Rpc;
+
+const string accountId = "opaque-account-selection-id";
+var connectors = session.Rpc.Connectors;
+var capabilities = await connectors.GetCapabilitiesAsync();
+
+if (capabilities.Availability == ConnectorAvailability.Enabled)
+{
+    var catalog = await connectors.ListAsync(accountId);
+    await connectors.ReconcileAsync(accountId);
+    var result = await connectors.ConnectAsync(accountId, catalog.Connectors[0].Name);
+
+    if (result is ConnectorConnectResultConsentRequired consent)
+    {
+        OpenBrowser(consent.ConsentUrl);
+        result = await connectors.ContinueConnectionAsync(
+            consent.ContinuationId,
+            maxAttempts: capabilities.MaxPollAttempts,
+            pollIntervalMs: capabilities.MaxPollIntervalMs,
+            deadlineMs: capabilities.MaxDeadlineMs);
+    }
+}
+```
+
+The nine experimental methods are `GetCapabilitiesAsync`, `GetStatusAsync`,
+`ListAsync`, `RefreshAsync`, `ConnectAsync`, `ReconnectAsync`,
+`ContinueConnectionAsync`, `DisconnectAsync`, and `ReconcileAsync`. The host
+selects the opaque GitHub account and handles consent UI. Connector methods
+accept only that account ID, never credentials or provider tokens; credentials
+and MCP projection remain runtime-owned.
+
 ## API Reference
 
 ### CopilotClient
@@ -146,8 +184,6 @@ Create a new conversation session.
 - `WorkingDirectory` - Working directory for the session. When not set, the runtime uses its own process working directory.
 - `EnableSessionStore` - Enables the cross-session store for search and retrieval across sessions. When unset in `CopilotClientMode.CopilotCli`, the runtime default applies (enabled). In `CopilotClientMode.Empty`, defaults to disabled.
 - `GitHubTokenProvider` - Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenProviderResult.FromToken` with a positive `ExpiresIn` value (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenProviderResult.Cancel()`. Cannot be combined with `GitHubToken`.
-- `ConnectorMcpServers` - Connected Copilot Connector MCP endpoints supplied from the service catalog, keyed by stable server key. Configuration is non-secret.
-- `OnMcpHeadersRefresh` - Supplies short-lived client-to-Copilot Connectors service authorization headers, normally the selected account's GitHub bearer. `McpHeadersRefreshContext.ServerKey` matches the `ConnectorMcpServers` key.
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.ApproveAll` approves requests when managed settings are disabled and throws when `EnableManagedSettings` is true. Custom handlers can inspect `ManagedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `AskUserVariant` - Selects the model-facing `ask_user` tool shape. Defaults to `AskUserVariant.Legacy`; use `AskUserVariant.Elicitation` with `OnElicitationRequest`.
@@ -162,8 +198,6 @@ Resume an existing session. Returns the session with `WorkspacePath` populated i
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
 - `GitHubTokenProvider` - Replaces the session-scoped token provider when resuming. Cannot be combined with `GitHubToken`.
 - `AskUserVariant` - Re-supplies the model-facing `ask_user` tool shape on cold resume.
-- `ConnectorMcpServers` - Re-supplies the connected Connector MCP endpoint set on cold resume.
-- `OnMcpHeadersRefresh` - Re-registers the callback that supplies Copilot Connectors service authorization headers.
 
 ```csharp
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -302,83 +336,6 @@ Abort the currently processing message in this session.
 ##### `GetEventsAsync(): Task<IReadOnlyList<SessionEvent>>`
 
 Get all events/messages from this session.
-
-##### Connector MCP configuration and runtime APIs
-
-Supply connected Copilot Connector MCP endpoints when creating a session and
-re-supply the effective connected set after a cold resume.
-
-The endpoint configuration is non-secret. `OnMcpHeadersRefresh` supplies
-short-lived authorization from the SDK client to the exact service-advertised
-Copilot Connectors MCP endpoint, normally using the selected account's GitHub
-bearer. It does not supply Outlook, Slack, or other downstream provider tokens;
-the Copilot Connectors service owns those. Hosts should match
-`McpHeadersRefreshContext.ServerKey` and `ServerUrl` to the service-catalog entry
-before returning headers. `ConnectorMcpServerConfig.AuthorizationCacheTtlMs`
-caps how long the runtime may reuse service authorization, while
-`McpHeadersRefreshResult.TtlMs` reports the remaining lifetime of the
-authorization returned by a specific refresh.
-
-```csharp
-var connectorServers = new Dictionary<string, ConnectorMcpServerConfig>
-{
-    ["github"] = new()
-    {
-        DisplayName = "GitHub",
-        Url = "https://example.com/github/mcp",
-        AuthorizationCacheTtlMs = 60_000,
-    },
-};
-
-async Task<McpHeadersRefreshResult?> RefreshConnectorHeadersAsync(
-    McpHeadersRefreshContext context) => new()
-{
-    Headers = await GetCopilotConnectorsAuthorizationHeadersAsync(
-        context.ServerKey,
-        context.ServerUrl),
-    TtlMs = 60_000,
-};
-
-await using var session = await client.CreateSessionAsync(new SessionConfig
-{
-    ConnectorMcpServers = connectorServers,
-    OnMcpHeadersRefresh = RefreshConnectorHeadersAsync,
-});
-
-// Re-supply the connected set and callback after a cold resume.
-await using var resumed = await client.ResumeSessionAsync("session-id", new ResumeSessionConfig
-{
-    ConnectorMcpServers = connectorServers,
-    OnMcpHeadersRefresh = RefreshConnectorHeadersAsync,
-});
-```
-
-The current public runtime contract does not support authoritative same-session
-Connect or Disconnect reconciliation for `ConnectorMcpServers`. Generic MCP
-start and stop operations are transient, and a runtime reload can restore the
-configuration supplied when the session was created. Until the runtime promotes
-its internal replacement and removal operations, create a new session or
-cold-resume with the updated connected set.
-
-The generated session MCP API provides the public runtime operations needed for
-Connector status and lifecycle UI:
-
-```csharp
-var servers = await session.Rpc.Mcp.ListAsync();
-var running = await session.Rpc.Mcp.IsServerRunningAsync("github");
-var tools = await session.Rpc.Mcp.ListToolsAsync("github");
-await session.Rpc.Mcp.DisableAsync("github");
-await session.Rpc.Mcp.EnableAsync("github");
-
-using var statusChanges = session.On<SessionMcpServerStatusChangedEvent>(evt =>
-    Console.WriteLine($"{evt.Data.ServerName}: {evt.Data.Status}"));
-```
-
-`SessionMcpServersLoadedEvent`, `SessionMcpServerRemovedEvent`, and
-`SessionMcpServerNeedsReconnectEvent` provide the related lifecycle hooks. The
-application host owns Connector service-catalog access, consent, polling, and
-UI. These generic runtime APIs expose status and operational controls; they do
-not reconcile Connector service-catalog membership.
 
 ##### `DisposeAsync(): ValueTask`
 

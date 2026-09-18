@@ -20,9 +20,7 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketForwarderBuilder, CopilotWebSocketHandler, CopilotWebSocketMessage,
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
-use crate::generated::api_types::{
-    CurrentToolMetadata, ManagedMcpServerConfig as WireManagedMcpServerConfig, OpenCanvasInstance,
-};
+use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
 /// Acknowledgement and Auto preference snapshot returned by an Auto tier switch.
 pub use crate::generated::api_types::{ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus};
 /// Routing tier for the `auto` model with Auto mode V2.
@@ -36,7 +34,7 @@ pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
 use crate::github_token::GitHubTokenProvider;
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, McpAuthHandler,
-    McpHeadersRefreshHandler, PermissionHandler, UserInputHandler,
+    PermissionHandler, UserInputHandler,
 };
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
@@ -1220,57 +1218,6 @@ pub struct McpHttpServerConfig {
     pub headers: HashMap<String, String>,
 }
 
-/// Connected Copilot Connector MCP endpoint supplied from the service catalog.
-///
-/// The containing map key is the stable Connector server key. Short-lived
-/// client-to-Copilot-Connectors service authorization is supplied through
-/// [`McpHeadersRefreshHandler`], never stored in this configuration. The
-/// Connector service owns downstream provider tokens.
-///
-/// **Experimental.** This type is part of an experimental Connector MCP
-/// surface and may change or be removed in a future release.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ConnectorMcpServerConfig {
-    /// Human-readable Connector display name.
-    pub display_name: String,
-    /// Maximum time, in milliseconds, that the runtime may reuse Connector
-    /// service authorization.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub authorization_cache_ttl_ms: Option<i64>,
-    /// Timeout in milliseconds for tool discovery and tool calls.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub timeout: Option<i64>,
-    /// Tools to include. Defaults to all tools when omitted.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tools: Option<Vec<String>>,
-    /// Hosted MCP streamable HTTP endpoint.
-    pub url: String,
-}
-
-impl ConnectorMcpServerConfig {
-    fn into_wire(self) -> WireManagedMcpServerConfig {
-        WireManagedMcpServerConfig {
-            display_name: self.display_name,
-            headers_refresh_ttl_ms: self.authorization_cache_ttl_ms,
-            timeout: self.timeout,
-            tools: self.tools,
-            url: self.url,
-        }
-    }
-}
-
-fn connector_mcp_servers_into_wire(
-    servers: Option<HashMap<String, ConnectorMcpServerConfig>>,
-) -> Option<HashMap<String, WireManagedMcpServerConfig>> {
-    servers.map(|servers| {
-        servers
-            .into_iter()
-            .map(|(identity, server)| (identity, server.into_wire()))
-            .collect()
-    })
-}
-
 /// Configures a custom inference provider (BYOK — Bring Your Own Key).
 ///
 /// Routes session requests through an alternative model provider
@@ -2063,12 +2010,6 @@ pub struct SessionConfig {
     pub included_builtin_skills: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
-    /// Connected Copilot Connector MCP endpoints supplied from the service catalog.
-    ///
-    /// Keys are stable Connector server keys. Short-lived Copilot Connectors
-    /// service authorization is supplied through [`McpHeadersRefreshHandler`];
-    /// downstream provider tokens remain owned by the Connector service.
-    pub connector_mcp_servers: Option<HashMap<String, ConnectorMcpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
     ///
     /// - `"persistent"` — tokens are stored in the OS keychain (shared across sessions).
@@ -2301,8 +2242,6 @@ pub struct SessionConfig {
     /// Optional MCP OAuth request handler. When set, the SDK can satisfy MCP
     /// server OAuth requests with host-acquired token data or cancellation.
     pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
-    /// Optional service-authorization handler for Copilot Connector MCP endpoints.
-    pub mcp_headers_handler: Option<Arc<dyn McpHeadersRefreshHandler>>,
     /// Optional handler for the legacy question-and-answer `ask_user` variant.
     /// When `None`, `requestUserInput: false` goes on the wire, so this client
     /// cannot handle legacy user-input requests.
@@ -2395,7 +2334,6 @@ impl std::fmt::Debug for SessionConfig {
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
-            .field("connector_mcp_servers", &self.connector_mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field(
                 "auth_client_id_metadata_url",
@@ -2486,10 +2424,6 @@ impl std::fmt::Debug for SessionConfig {
                 &self.mcp_auth_handler.as_ref().map(|_| "<set>"),
             )
             .field(
-                "mcp_headers_handler",
-                &self.mcp_headers_handler.as_ref().map(|_| "<set>"),
-            )
-            .field(
                 "user_input_handler",
                 &self.user_input_handler.as_ref().map(|_| "<set>"),
             )
@@ -2545,7 +2479,6 @@ impl Default for SessionConfig {
             excluded_builtin_agents: None,
             included_builtin_skills: None,
             mcp_servers: None,
-            connector_mcp_servers: None,
             mcp_oauth_token_storage: None,
             auth_client_id_metadata_url: None,
             enable_config_discovery: None,
@@ -2598,7 +2531,6 @@ impl Default for SessionConfig {
             permission_handler: None,
             elicitation_handler: None,
             mcp_auth_handler: None,
-            mcp_headers_handler: None,
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
@@ -2625,7 +2557,6 @@ pub(crate) struct SessionConfigRuntime {
     pub permission_policy: Option<crate::permission::Policy>,
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
     pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
-    pub mcp_headers_handler: Option<Arc<dyn McpHeadersRefreshHandler>>,
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
     pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
@@ -2719,7 +2650,6 @@ impl SessionConfig {
             excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
-            managed_mcp_servers: connector_mcp_servers_into_wire(self.connector_mcp_servers),
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
             auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
@@ -2784,7 +2714,6 @@ impl SessionConfig {
             permission_policy: self.permission_policy,
             elicitation_handler: self.elicitation_handler,
             mcp_auth_handler: self.mcp_auth_handler,
-            mcp_headers_handler: self.mcp_headers_handler,
             user_input_handler: self.user_input_handler,
             exit_plan_mode_handler: self.exit_plan_mode_handler,
             auto_mode_switch_handler: self.auto_mode_switch_handler,
@@ -2819,13 +2748,6 @@ impl SessionConfig {
     /// Install an [`McpAuthHandler`] for host-provided MCP OAuth tokens.
     pub fn with_mcp_auth_handler(mut self, handler: Arc<dyn McpAuthHandler>) -> Self {
         self.mcp_auth_handler = Some(handler);
-        self
-    }
-
-    /// Install an [`McpHeadersRefreshHandler`] for short-lived Copilot
-    /// Connectors service authorization.
-    pub fn with_mcp_headers_handler(mut self, handler: Arc<dyn McpHeadersRefreshHandler>) -> Self {
-        self.mcp_headers_handler = Some(handler);
         self
     }
 
@@ -3069,15 +2991,6 @@ impl SessionConfig {
     /// Set MCP server configurations passed through to the CLI.
     pub fn with_mcp_servers(mut self, servers: IndexMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
-        self
-    }
-
-    /// Set connected Copilot Connector MCP endpoints keyed by stable server key.
-    pub fn with_connector_mcp_servers(
-        mut self,
-        servers: HashMap<String, ConnectorMcpServerConfig>,
-    ) -> Self {
-        self.connector_mcp_servers = Some(servers);
         self
     }
 
@@ -3577,8 +3490,6 @@ pub struct ResumeSessionConfig {
     pub included_builtin_skills: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
-    /// Re-supply connected Copilot Connector MCP endpoints after app restart.
-    pub connector_mcp_servers: Option<HashMap<String, ConnectorMcpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
@@ -3753,8 +3664,6 @@ pub struct ResumeSessionConfig {
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
     /// Optional MCP OAuth handler. See [`SessionConfig::mcp_auth_handler`].
     pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
-    /// Optional Copilot Connectors service-authorization handler.
-    pub mcp_headers_handler: Option<Arc<dyn McpHeadersRefreshHandler>>,
     /// Optional user-input handler. See
     /// [`SessionConfig::user_input_handler`].
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
@@ -3817,7 +3726,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
-            .field("connector_mcp_servers", &self.connector_mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field(
                 "auth_client_id_metadata_url",
@@ -3901,10 +3809,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field(
                 "elicitation_handler",
                 &self.elicitation_handler.as_ref().map(|_| "<set>"),
-            )
-            .field(
-                "mcp_headers_handler",
-                &self.mcp_headers_handler.as_ref().map(|_| "<set>"),
             )
             .field(
                 "user_input_handler",
@@ -4009,7 +3913,6 @@ impl ResumeSessionConfig {
             excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
-            managed_mcp_servers: connector_mcp_servers_into_wire(self.connector_mcp_servers),
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
             auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
@@ -4075,7 +3978,6 @@ impl ResumeSessionConfig {
             permission_policy: self.permission_policy,
             elicitation_handler: self.elicitation_handler,
             mcp_auth_handler: self.mcp_auth_handler,
-            mcp_headers_handler: self.mcp_headers_handler,
             user_input_handler: self.user_input_handler,
             exit_plan_mode_handler: self.exit_plan_mode_handler,
             auto_mode_switch_handler: self.auto_mode_switch_handler,
@@ -4122,7 +4024,6 @@ impl ResumeSessionConfig {
             excluded_builtin_agents: None,
             included_builtin_skills: None,
             mcp_servers: None,
-            connector_mcp_servers: None,
             mcp_oauth_token_storage: None,
             auth_client_id_metadata_url: None,
             enable_config_discovery: None,
@@ -4176,7 +4077,6 @@ impl ResumeSessionConfig {
             permission_handler: None,
             elicitation_handler: None,
             mcp_auth_handler: None,
-            mcp_headers_handler: None,
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
@@ -4207,13 +4107,6 @@ impl ResumeSessionConfig {
     /// Install an [`McpAuthHandler`] for host-provided MCP OAuth tokens.
     pub fn with_mcp_auth_handler(mut self, handler: Arc<dyn McpAuthHandler>) -> Self {
         self.mcp_auth_handler = Some(handler);
-        self
-    }
-
-    /// Install an [`McpHeadersRefreshHandler`] for short-lived Copilot
-    /// Connectors service authorization.
-    pub fn with_mcp_headers_handler(mut self, handler: Arc<dyn McpHeadersRefreshHandler>) -> Self {
-        self.mcp_headers_handler = Some(handler);
         self
     }
 
@@ -4449,15 +4342,6 @@ impl ResumeSessionConfig {
     /// Re-supply MCP server configurations on resume.
     pub fn with_mcp_servers(mut self, servers: IndexMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
-        self
-    }
-
-    /// Re-supply connected Copilot Connector MCP endpoints on resume.
-    pub fn with_connector_mcp_servers(
-        mut self,
-        servers: HashMap<String, ConnectorMcpServerConfig>,
-    ) -> Self {
-        self.connector_mcp_servers = Some(servers);
         self
     }
 
@@ -5851,7 +5735,7 @@ impl SessionEvent {
     ///
     /// Returns `SessionEventType::Unknown` for unrecognized event types,
     /// ensuring forward compatibility with newer CLI versions.
-    pub fn parsed_type(&self) -> crate::session_events::SessionEventType {
+    pub fn parsed_type(&self) -> crate::generated::SessionEventType {
         use serde::de::IntoDeserializer;
         let deserializer: serde::de::value::StrDeserializer<'_, serde::de::value::Error> =
             self.event_type.as_str().into_deserializer();
@@ -6395,14 +6279,13 @@ mod tests {
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
         AttachmentSelectionRange, AutoTier, AzureProviderOptions, CapiSessionOptions,
-        ConnectionState, ConnectorMcpServerConfig, CopilotExpAssignmentResponse, CustomAgentConfig,
-        DeliveryMode, ExpConfigEntry, ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig,
-        GitHubReferenceType, InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig,
-        McpStdioServerConfig, MemoryConfiguration, NamedProviderConfig,
-        PermissionResponseCapability, ProviderConfig, ProviderModelConfig, ReasoningSummary,
-        ResumeSessionConfig, SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool,
-        ToolBinaryResult, ToolResult, ToolResultExpanded, ToolResultResponse,
-        ensure_attachment_display_names,
+        ConnectionState, CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode,
+        ExpConfigEntry, ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
+        InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
+        MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
+        ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
+        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -6727,50 +6610,6 @@ mod tests {
         assert_eq!(
             resume_json["allowedModels"],
             json!(["gpt-5.4", "gpt-5-mini"])
-        );
-    }
-
-    #[test]
-    fn connector_mcp_servers_map_to_internal_wire_on_create_and_resume() {
-        let servers = HashMap::from([(
-            "connector-key".to_string(),
-            ConnectorMcpServerConfig {
-                display_name: "Connector server".to_string(),
-                authorization_cache_ttl_ms: Some(30_000),
-                timeout: Some(15_000),
-                tools: Some(vec!["search".to_string()]),
-                url: "https://mcp.example.test".to_string(),
-            },
-        )]);
-
-        let public_json = serde_json::to_value(servers.get("connector-key").unwrap()).unwrap();
-        assert_eq!(public_json["authorizationCacheTtlMs"], 30_000);
-        assert!(public_json.get("headersRefreshTtlMs").is_none());
-
-        let (create_wire, _) = SessionConfig::default()
-            .with_connector_mcp_servers(servers.clone())
-            .into_wire(Some(SessionId::from("connector-create")))
-            .expect("create config has no duplicate handlers");
-        let create_json = serde_json::to_value(create_wire).unwrap();
-        assert_eq!(
-            create_json["managedMcpServers"]["connector-key"],
-            json!({
-                "displayName": "Connector server",
-                "headersRefreshTtlMs": 30_000,
-                "timeout": 15_000,
-                "tools": ["search"],
-                "url": "https://mcp.example.test"
-            })
-        );
-
-        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("connector-resume"))
-            .with_connector_mcp_servers(servers)
-            .into_wire()
-            .expect("resume config has no duplicate handlers");
-        let resume_json = serde_json::to_value(resume_wire).unwrap();
-        assert_eq!(
-            resume_json["managedMcpServers"]["connector-key"]["displayName"],
-            "Connector server"
         );
     }
 

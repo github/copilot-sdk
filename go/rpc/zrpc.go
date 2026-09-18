@@ -2308,6 +2308,198 @@ type ConnectedRemoteSessionMetadataRepository struct {
 	Owner string `json:"owner"`
 }
 
+// Pins a Connector operation to one host-owned GitHub account through its opaque selection
+// ID. Provider tokens are never accepted.
+// Experimental: ConnectorAccountRequest is part of an experimental API and may change or be
+// removed.
+type ConnectorAccountRequest struct {
+	// Opaque account selection ID previously returned by an account discovery API.
+	AccountID string `json:"accountId"`
+}
+
+// Feature detection and hard polling limits for the EXPERIMENTAL session connector API.
+// Experimental: ConnectorCapabilities is part of an experimental API and may change or be
+// removed.
+type ConnectorCapabilities struct {
+	// Connector API contract version.
+	APIVersion int64 `json:"apiVersion"`
+	// Current session availability. Disabled availability is reported without making a
+	// Connector request.
+	Availability ConnectorAvailability `json:"availability"`
+	// Whether connect and reconnect can return an opaque continuation for bounded consent
+	// polling.
+	ConsentContinuation bool `json:"consentContinuation"`
+	// Maximum accepted wall-clock deadline in milliseconds for one continuation call.
+	MaxDeadlineMs int64 `json:"maxDeadlineMs"`
+	// Maximum accepted polling attempts for one continuation call.
+	MaxPollAttempts int64 `json:"maxPollAttempts"`
+	// Maximum accepted delay in milliseconds between polling attempts.
+	MaxPollIntervalMs int64 `json:"maxPollIntervalMs"`
+	// Whether callers select a host-owned GitHub account through an opaque selection ID rather
+	// than supplying a provider token.
+	OpaqueAccountSelection bool `json:"opaqueAccountSelection"`
+}
+
+// Credential-free Connector catalog entry.
+// Experimental: ConnectorCatalogEntry is part of an experimental API and may change or be
+// removed.
+type ConnectorCatalogEntry struct {
+	// Untrusted service description, when present.
+	Description *string `json:"description,omitempty"`
+	// Untrusted display label from the service.
+	DisplayName string `json:"displayName"`
+	// Canonical Connector name used by lifecycle methods.
+	Name string `json:"name"`
+	// Opaque stable runtime IDs currently projected into the session for this Connector.
+	RuntimeServerIDs []string `json:"runtimeServerIds"`
+	// Current authoritative service connection state.
+	Status ConnectorCatalogStatus `json:"status"`
+}
+
+// Validated Connector catalog snapshot cached by the session.
+// Experimental: ConnectorCatalogResult is part of an experimental API and may change or be
+// removed.
+type ConnectorCatalogResult struct {
+	// Validated catalog entries in service order.
+	Connectors []ConnectorCatalogEntry `json:"connectors"`
+	// Unix epoch milliseconds when this snapshot was accepted.
+	RefreshedAtMs int64 `json:"refreshedAtMs"`
+	// Monotonically increasing session-local catalog revision.
+	Revision int64 `json:"revision"`
+}
+
+// Selects one Connector and the pinned host-owned account used for its service and MCP
+// authorization.
+// Experimental: ConnectorConnectRequest is part of an experimental API and may change or be
+// removed.
+type ConnectorConnectRequest struct {
+	// Opaque account selection ID. It must match the account already pinned to the session, if
+	// any.
+	AccountID string `json:"accountId"`
+	// Canonical Connector name from the current catalog.
+	ConnectorName string `json:"connectorName"`
+}
+
+// Typed result of initiating or continuing a Connector connection.
+// Experimental: ConnectorConnectResult is part of an experimental API and may change or be
+// removed.
+type ConnectorConnectResult interface {
+	connectorConnectResult()
+	Kind() ConnectorConnectResultKind
+}
+
+type RawConnectorConnectResultData struct {
+	Discriminator ConnectorConnectResultKind
+	Raw           json.RawMessage
+}
+
+func (RawConnectorConnectResultData) connectorConnectResult() {}
+func (r RawConnectorConnectResultData) Kind() ConnectorConnectResultKind {
+	return r.Discriminator
+}
+
+// The service is connected and the session MCP graph was reconciled.
+type ConnectorConnectResultConnected struct {
+	// Fresh authoritative Connector state after MCP reconciliation.
+	Status ConnectorStatus `json:"status"`
+}
+
+func (ConnectorConnectResultConnected) connectorConnectResult() {}
+func (ConnectorConnectResultConnected) Kind() ConnectorConnectResultKind {
+	return ConnectorConnectResultKindConnected
+}
+
+// Host-owned consent is required before bounded continuation can complete.
+type ConnectorConnectResultConsentRequired struct {
+	// Validated HTTPS consent URL. The runtime does not open it.
+	ConsentURL string `json:"consentUrl"`
+	// Opaque ID accepted by continueConnection.
+	ContinuationID string `json:"continuationId"`
+}
+
+func (ConnectorConnectResultConsentRequired) connectorConnectResult() {}
+func (ConnectorConnectResultConsentRequired) Kind() ConnectorConnectResultKind {
+	return ConnectorConnectResultKindConsentRequired
+}
+
+// The service is still completing the connection without a consent URL.
+type ConnectorConnectResultPending struct {
+	// Opaque ID accepted by continueConnection.
+	ContinuationID string `json:"continuationId"`
+}
+
+func (ConnectorConnectResultPending) connectorConnectResult() {}
+func (ConnectorConnectResultPending) Kind() ConnectorConnectResultKind {
+	return ConnectorConnectResultKindPending
+}
+
+// Explicitly bounded continuation of a pending Connector connection.
+// Experimental: ConnectorContinueRequest is part of an experimental API and may change or
+// be removed.
+type ConnectorContinueRequest struct {
+	// Opaque continuation ID returned by connect, reconnect, or an earlier continuation.
+	ContinuationID string `json:"continuationId"`
+	// Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability
+	// limit.
+	DeadlineMs int64 `json:"deadlineMs"`
+	// Maximum catalog requests made by this call. Must be between one and the capability limit.
+	MaxAttempts int64 `json:"maxAttempts"`
+	// Delay in milliseconds between attempts. Must not exceed the capability limit.
+	PollIntervalMs int64 `json:"pollIntervalMs"`
+}
+
+// Authoritative result after disconnect and MCP reconciliation.
+// Experimental: ConnectorDisconnectResult is part of an experimental API and may change or
+// be removed.
+type ConnectorDisconnectResult struct {
+	// Whether the service accepted the idempotent disconnect.
+	Disconnected bool `json:"disconnected"`
+	// Fresh authoritative session state after removing Connector-owned MCP servers.
+	Status ConnectorStatus `json:"status"`
+}
+
+// Requests authoritative Connector-to-MCP reconciliation for the pinned account.
+// Experimental: ConnectorReconcileRequest is part of an experimental API and may change or
+// be removed.
+type ConnectorReconcileRequest struct {
+	// Opaque account selection ID. It must match the account already pinned to the session, if
+	// any.
+	AccountID string `json:"accountId"`
+	// When true, refresh the catalog before reconciling. A disabled Connector API performs no
+	// service request.
+	RefreshCatalog *bool `json:"refreshCatalog,omitempty"`
+}
+
+// Live status of one session-owned MCP projection.
+// Experimental: ConnectorRuntimeStatus is part of an experimental API and may change or be
+// removed.
+type ConnectorRuntimeStatus struct {
+	// Canonical Connector name that owns this server.
+	ConnectorName string `json:"connectorName"`
+	// Opaque runtime server ID.
+	RuntimeServerID string `json:"runtimeServerId"`
+	// Current live MCP host status.
+	Status ConnectorMCPStatus `json:"status"`
+}
+
+// Authoritative session connector state. Account IDs are opaque routing identifiers and
+// credentials are never included.
+// Experimental: ConnectorStatus is part of an experimental API and may change or be removed.
+type ConnectorStatus struct {
+	// Opaque account selection pinned to this session, when one has been selected.
+	AccountID *string `json:"accountId,omitempty"`
+	// Connector API contract version.
+	APIVersion int64 `json:"apiVersion"`
+	// Current feature and session availability.
+	Availability ConnectorAvailability `json:"availability"`
+	// Latest validated catalog snapshot, when available.
+	Catalog *ConnectorCatalogResult `json:"catalog,omitempty"`
+	// Number of active opaque connection continuations.
+	PendingConnections int64 `json:"pendingConnections"`
+	// Live MCP status for every Connector-owned runtime server.
+	RuntimeServers []ConnectorRuntimeStatus `json:"runtimeServers"`
+}
+
 // Remote session connection parameters.
 // Experimental: ConnectRemoteSessionParams is part of an experimental API and may change or
 // be removed.
@@ -17815,6 +18007,73 @@ const (
 	ConnectedRemoteSessionMetadataKindRemoteSession ConnectedRemoteSessionMetadataKind = "remote-session"
 )
 
+// Availability of the EXPERIMENTAL session connector API.
+// Experimental: ConnectorAvailability is part of an experimental API and may change or be
+// removed.
+type ConnectorAvailability string
+
+const (
+	// The resolved Connector feature is off. No Connector service request is made while
+	// disabled.
+	ConnectorAvailabilityDisabled ConnectorAvailability = "disabled"
+	// The resolved Connector feature is enabled and Connector requests are permitted.
+	ConnectorAvailabilityEnabled ConnectorAvailability = "enabled"
+	// The session has no eligible host-owned GitHub account or does not support local Connector
+	// projection.
+	ConnectorAvailabilityUnavailable ConnectorAvailability = "unavailable"
+)
+
+// Authoritative service connection state for one Connector.
+// Experimental: ConnectorCatalogStatus is part of an experimental API and may change or be
+// removed.
+type ConnectorCatalogStatus string
+
+const (
+	// The Connector is connected and may contribute MCP servers.
+	ConnectorCatalogStatusConnected ConnectorCatalogStatus = "connected"
+	// The Connector service reports an unusable connection.
+	ConnectorCatalogStatusError ConnectorCatalogStatus = "error"
+	// The Connector is available but not connected.
+	ConnectorCatalogStatusNotConnected ConnectorCatalogStatus = "not_connected"
+	// The Connector service is still completing connection or consent.
+	ConnectorCatalogStatusPending ConnectorCatalogStatus = "pending"
+	// The service returned a future or unrecognized state.
+	ConnectorCatalogStatusUnknown ConnectorCatalogStatus = "unknown"
+)
+
+// Kind discriminator for ConnectorConnectResult.
+// Experimental: ConnectorConnectResultKind is part of an experimental API and may change or
+// be removed.
+type ConnectorConnectResultKind string
+
+const (
+	ConnectorConnectResultKindConnected       ConnectorConnectResultKind = "connected"
+	ConnectorConnectResultKindConsentRequired ConnectorConnectResultKind = "consent_required"
+	ConnectorConnectResultKindPending         ConnectorConnectResultKind = "pending"
+)
+
+// Live MCP status of one Connector-owned runtime server.
+// Experimental: ConnectorMCPStatus is part of an experimental API and may change or be
+// removed.
+type ConnectorMCPStatus string
+
+const (
+	// The server is connected and its tools are available.
+	ConnectorMCPStatusConnected ConnectorMCPStatus = "connected"
+	// The server is configured but explicitly disabled.
+	ConnectorMCPStatusDisabled ConnectorMCPStatus = "disabled"
+	// The server failed to connect or initialize.
+	ConnectorMCPStatusFailed ConnectorMCPStatus = "failed"
+	// The server requires refreshed GitHub authorization.
+	ConnectorMCPStatusNeedsAuth ConnectorMCPStatus = "needs_auth"
+	// The Connector currently has no live server configuration.
+	ConnectorMCPStatusNotConfigured ConnectorMCPStatus = "not_configured"
+	// The server connection is still being established.
+	ConnectorMCPStatusPending ConnectorMCPStatus = "pending"
+	// The server is intentionally stopped, including when managed policy blocks it.
+	ConnectorMCPStatusStopped ConnectorMCPStatus = "stopped"
+)
+
 // Controls how MCP tool result content is filtered: none leaves content unchanged, markdown
 // sanitizes HTML while preserving Markdown-friendly output, and hidden_characters removes
 // characters that can hide directives.
@@ -23449,6 +23708,234 @@ func (a *CompletionsAPI) Request(ctx context.Context, params *CompletionsRequest
 	return &result, nil
 }
 
+// Experimental: ConnectorsAPI contains experimental APIs that may change or be removed.
+type ConnectorsAPI sessionAPI
+
+// Connect initiates an idempotent Connector connection request without opening a browser.
+// Returns connected when the service is immediately authoritative, consent_required with a
+// validated URL, or pending with an opaque continuation ID.
+//
+// RPC method: session.connectors.connect.
+//
+// Parameters: Selects one Connector and the pinned host-owned account used for its service
+// and MCP authorization.
+//
+// Returns: Typed result of initiating or continuing a Connector connection.
+func (a *ConnectorsAPI) Connect(ctx context.Context, params *ConnectorConnectRequest) (ConnectorConnectResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["accountId"] = params.AccountID
+		req["connectorName"] = params.ConnectorName
+	}
+	raw, err := a.client.Request(ctx, "session.connectors.connect", req)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalConnectorConnectResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ContinueConnection continues a pending Connector connection with caller-supplied attempt,
+// interval, and deadline bounds. The runtime never opens the returned consent URL.
+//
+// RPC method: session.connectors.continueConnection.
+//
+// Parameters: Explicitly bounded continuation of a pending Connector connection.
+//
+// Returns: Typed result of initiating or continuing a Connector connection.
+func (a *ConnectorsAPI) ContinueConnection(ctx context.Context, params *ConnectorContinueRequest) (ConnectorConnectResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["continuationId"] = params.ContinuationID
+		req["deadlineMs"] = params.DeadlineMs
+		req["maxAttempts"] = params.MaxAttempts
+		req["pollIntervalMs"] = params.PollIntervalMs
+	}
+	raw, err := a.client.Request(ctx, "session.connectors.continueConnection", req)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalConnectorConnectResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Disconnects one Connector for the pinned opaque account selection, refreshes the
+// authoritative catalog, and removes its session-owned MCP projection.
+//
+// RPC method: session.connectors.disconnect.
+//
+// Parameters: Selects one Connector and the pinned host-owned account used for its service
+// and MCP authorization.
+//
+// Returns: Authoritative result after disconnect and MCP reconciliation.
+func (a *ConnectorsAPI) Disconnect(ctx context.Context, params *ConnectorConnectRequest) (*ConnectorDisconnectResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["accountId"] = params.AccountID
+		req["connectorName"] = params.ConnectorName
+	}
+	raw, err := a.client.Request(ctx, "session.connectors.disconnect", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ConnectorDisconnectResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetCapabilities returns feature availability and bounded polling limits for the
+// EXPERIMENTAL session connector API. This method never performs a Connector service
+// request.
+//
+// RPC method: session.connectors.getCapabilities.
+//
+// Returns: Feature detection and hard polling limits for the EXPERIMENTAL session connector
+// API.
+func (a *ConnectorsAPI) GetCapabilities(ctx context.Context) (*ConnectorCapabilities, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.connectors.getCapabilities", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ConnectorCapabilities
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetStatus returns authoritative session Connector state from current availability, pinned
+// account selection, cached catalog, and live MCP projection without performing a Connector
+// service request.
+//
+// RPC method: session.connectors.getStatus.
+//
+// Returns: Authoritative session connector state. Account IDs are opaque routing
+// identifiers and credentials are never included.
+func (a *ConnectorsAPI) GetStatus(ctx context.Context) (*ConnectorStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.connectors.getStatus", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ConnectorStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// List returns the cached Connector catalog for the pinned opaque account selection,
+// fetching it only when this session has no cached catalog.
+//
+// RPC method: session.connectors.list.
+//
+// Parameters: Pins a Connector operation to one host-owned GitHub account through its
+// opaque selection ID. Provider tokens are never accepted.
+//
+// Returns: Validated Connector catalog snapshot cached by the session.
+func (a *ConnectorsAPI) List(ctx context.Context, params *ConnectorAccountRequest) (*ConnectorCatalogResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["accountId"] = params.AccountID
+	}
+	raw, err := a.client.Request(ctx, "session.connectors.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ConnectorCatalogResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Reconciles the authoritative cached or freshly requested Connector catalog into the
+// session Connector MCP projection and returns live status.
+//
+// RPC method: session.connectors.reconcile.
+//
+// Parameters: Requests authoritative Connector-to-MCP reconciliation for the pinned account.
+//
+// Returns: Authoritative session connector state. Account IDs are opaque routing
+// identifiers and credentials are never included.
+func (a *ConnectorsAPI) Reconcile(ctx context.Context, params *ConnectorReconcileRequest) (*ConnectorStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["accountId"] = params.AccountID
+		if params.RefreshCatalog != nil {
+			req["refreshCatalog"] = *params.RefreshCatalog
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.connectors.reconcile", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ConnectorStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Reconnect re-initiates an idempotent Connector connection request without browser or UI
+// effects, with the same typed outcomes as connect.
+//
+// RPC method: session.connectors.reconnect.
+//
+// Parameters: Selects one Connector and the pinned host-owned account used for its service
+// and MCP authorization.
+//
+// Returns: Typed result of initiating or continuing a Connector connection.
+func (a *ConnectorsAPI) Reconnect(ctx context.Context, params *ConnectorConnectRequest) (ConnectorConnectResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["accountId"] = params.AccountID
+		req["connectorName"] = params.ConnectorName
+	}
+	raw, err := a.client.Request(ctx, "session.connectors.reconnect", req)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalConnectorConnectResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Refreshes and validates the Connector catalog for the pinned opaque account selection.
+//
+// RPC method: session.connectors.refresh.
+//
+// Parameters: Pins a Connector operation to one host-owned GitHub account through its
+// opaque selection ID. Provider tokens are never accepted.
+//
+// Returns: Validated Connector catalog snapshot cached by the session.
+func (a *ConnectorsAPI) Refresh(ctx context.Context, params *ConnectorAccountRequest) (*ConnectorCatalogResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["accountId"] = params.AccountID
+	}
+	raw, err := a.client.Request(ctx, "session.connectors.refresh", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ConnectorCatalogResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ContentExclusionAPI contains experimental APIs that may change or be
 // removed.
 type ContentExclusionAPI sessionAPI
@@ -28939,6 +29426,7 @@ type SessionRPC struct {
 	Canvas             *CanvasAPI
 	Commands           *CommandsAPI
 	Completions        *CompletionsAPI
+	Connectors         *ConnectorsAPI
 	ContentExclusion   *ContentExclusionAPI
 	Debug              *DebugAPI
 	EventLog           *EventLogAPI
@@ -29271,6 +29759,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Canvas = (*CanvasAPI)(&r.common)
 	r.Commands = (*CommandsAPI)(&r.common)
 	r.Completions = (*CompletionsAPI)(&r.common)
+	r.Connectors = (*ConnectorsAPI)(&r.common)
 	r.ContentExclusion = (*ContentExclusionAPI)(&r.common)
 	r.Debug = (*DebugAPI)(&r.common)
 	r.EventLog = (*EventLogAPI)(&r.common)

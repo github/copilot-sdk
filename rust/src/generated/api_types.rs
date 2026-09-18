@@ -771,6 +771,24 @@ pub mod rpc_methods {
     pub const SESSION_SCHEDULE_REARMSELFPACED: &str = "session.schedule.rearmSelfPaced";
     /// `session.schedule.stop`
     pub const SESSION_SCHEDULE_STOP: &str = "session.schedule.stop";
+    /// `session.connectors.getCapabilities`
+    pub const SESSION_CONNECTORS_GETCAPABILITIES: &str = "session.connectors.getCapabilities";
+    /// `session.connectors.getStatus`
+    pub const SESSION_CONNECTORS_GETSTATUS: &str = "session.connectors.getStatus";
+    /// `session.connectors.list`
+    pub const SESSION_CONNECTORS_LIST: &str = "session.connectors.list";
+    /// `session.connectors.refresh`
+    pub const SESSION_CONNECTORS_REFRESH: &str = "session.connectors.refresh";
+    /// `session.connectors.connect`
+    pub const SESSION_CONNECTORS_CONNECT: &str = "session.connectors.connect";
+    /// `session.connectors.reconnect`
+    pub const SESSION_CONNECTORS_RECONNECT: &str = "session.connectors.reconnect";
+    /// `session.connectors.continueConnection`
+    pub const SESSION_CONNECTORS_CONTINUECONNECTION: &str = "session.connectors.continueConnection";
+    /// `session.connectors.disconnect`
+    pub const SESSION_CONNECTORS_DISCONNECT: &str = "session.connectors.disconnect";
+    /// `session.connectors.reconcile`
+    pub const SESSION_CONNECTORS_RECONCILE: &str = "session.connectors.reconcile";
     /// `skillProvider.list`
     pub const SKILLPROVIDER_LIST: &str = "skillProvider.list";
     /// `skillProvider.read`
@@ -22823,6 +22841,263 @@ pub struct WorkspacesWriteAutopilotObjectiveResult {
     pub operation: String,
 }
 
+/// Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorAccountRequest {
+    /// Opaque account selection ID previously returned by an account discovery API.
+    pub account_id: String,
+}
+
+/// Feature detection and hard polling limits for the EXPERIMENTAL session connector API.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorCapabilities {
+    /// Connector API contract version.
+    pub api_version: i64,
+    /// Current session availability. Disabled availability is reported without making a Connector request.
+    pub availability: ConnectorAvailability,
+    /// Whether connect and reconnect can return an opaque continuation for bounded consent polling.
+    pub consent_continuation: bool,
+    /// Maximum accepted wall-clock deadline in milliseconds for one continuation call.
+    pub max_deadline_ms: i64,
+    /// Maximum accepted polling attempts for one continuation call.
+    pub max_poll_attempts: i64,
+    /// Maximum accepted delay in milliseconds between polling attempts.
+    pub max_poll_interval_ms: i64,
+    /// Whether callers select a host-owned GitHub account through an opaque selection ID rather than supplying a provider token.
+    pub opaque_account_selection: bool,
+}
+
+/// Credential-free Connector catalog entry.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorCatalogEntry {
+    /// Untrusted service description, when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Untrusted display label from the service.
+    pub display_name: String,
+    /// Canonical Connector name used by lifecycle methods.
+    pub name: String,
+    /// Opaque stable runtime IDs currently projected into the session for this Connector.
+    pub runtime_server_ids: Vec<String>,
+    /// Current authoritative service connection state.
+    pub status: ConnectorCatalogStatus,
+}
+
+/// Validated Connector catalog snapshot cached by the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorCatalogResult {
+    /// Validated catalog entries in service order.
+    pub connectors: Vec<ConnectorCatalogEntry>,
+    /// Unix epoch milliseconds when this snapshot was accepted.
+    pub refreshed_at_ms: i64,
+    /// Monotonically increasing session-local catalog revision.
+    pub revision: i64,
+}
+
+/// Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorConnectRequest {
+    /// Opaque account selection ID. It must match the account already pinned to the session, if any.
+    pub account_id: String,
+    /// Canonical Connector name from the current catalog.
+    pub connector_name: String,
+}
+
+/// Live status of one session-owned MCP projection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorRuntimeStatus {
+    /// Canonical Connector name that owns this server.
+    pub connector_name: String,
+    /// Opaque runtime server ID.
+    pub runtime_server_id: String,
+    /// Current live MCP host status.
+    pub status: ConnectorMcpStatus,
+}
+
+/// Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorStatus {
+    /// Opaque account selection pinned to this session, when one has been selected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<String>,
+    /// Connector API contract version.
+    pub api_version: i64,
+    /// Current feature and session availability.
+    pub availability: ConnectorAvailability,
+    /// Latest validated catalog snapshot, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalog: Option<ConnectorCatalogResult>,
+    /// Number of active opaque connection continuations.
+    pub pending_connections: i64,
+    /// Live MCP status for every Connector-owned runtime server.
+    pub runtime_servers: Vec<ConnectorRuntimeStatus>,
+}
+
+/// The service is connected and the session MCP graph was reconciled.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorConnectResultConnected {
+    /// The service is connected and the session MCP graph was reconciled.
+    pub kind: ConnectorConnectResultConnectedKind,
+    /// Fresh authoritative Connector state after MCP reconciliation.
+    pub status: ConnectorStatus,
+}
+
+/// Host-owned consent is required before bounded continuation can complete.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorConnectResultConsentRequired {
+    /// Validated HTTPS consent URL. The runtime does not open it.
+    pub consent_url: String,
+    /// Opaque ID accepted by continueConnection.
+    pub continuation_id: String,
+    /// Host-owned consent is required before bounded continuation can complete.
+    pub kind: ConnectorConnectResultConsentRequiredKind,
+}
+
+/// The service is still completing the connection without a consent URL.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorConnectResultPending {
+    /// Opaque ID accepted by continueConnection.
+    pub continuation_id: String,
+    /// The service is still completing the connection without a consent URL.
+    pub kind: ConnectorConnectResultPendingKind,
+}
+
+/// Explicitly bounded continuation of a pending Connector connection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorContinueRequest {
+    /// Opaque continuation ID returned by connect, reconnect, or an earlier continuation.
+    pub continuation_id: String,
+    /// Maximum wall-clock duration in milliseconds for this call. Must not exceed the capability limit.
+    pub deadline_ms: i64,
+    /// Maximum catalog requests made by this call. Must be between one and the capability limit.
+    pub max_attempts: i64,
+    /// Delay in milliseconds between attempts. Must not exceed the capability limit.
+    pub poll_interval_ms: i64,
+}
+
+/// Authoritative result after disconnect and MCP reconciliation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorDisconnectResult {
+    /// Whether the service accepted the idempotent disconnect.
+    pub disconnected: bool,
+    /// Fresh authoritative session state after removing Connector-owned MCP servers.
+    pub status: ConnectorStatus,
+}
+
+/// Requests authoritative Connector-to-MCP reconciliation for the pinned account.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorReconcileRequest {
+    /// Opaque account selection ID. It must match the account already pinned to the session, if any.
+    pub account_id: String,
+    /// When true, refresh the catalog before reconciling. A disabled Connector API performs no service request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_catalog: Option<bool>,
+}
+
 /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
 ///
 /// <div class="warning">
@@ -28735,6 +29010,172 @@ pub struct SessionScheduleStopResult {
     /// The removed entry, or omitted if no entry matched.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<ScheduleEntry>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionConnectorsGetCapabilitiesParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Feature detection and hard polling limits for the EXPERIMENTAL session connector API.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionConnectorsGetCapabilitiesResult {
+    /// Connector API contract version.
+    pub api_version: i64,
+    /// Current session availability. Disabled availability is reported without making a Connector request.
+    pub availability: ConnectorAvailability,
+    /// Whether connect and reconnect can return an opaque continuation for bounded consent polling.
+    pub consent_continuation: bool,
+    /// Maximum accepted wall-clock deadline in milliseconds for one continuation call.
+    pub max_deadline_ms: i64,
+    /// Maximum accepted polling attempts for one continuation call.
+    pub max_poll_attempts: i64,
+    /// Maximum accepted delay in milliseconds between polling attempts.
+    pub max_poll_interval_ms: i64,
+    /// Whether callers select a host-owned GitHub account through an opaque selection ID rather than supplying a provider token.
+    pub opaque_account_selection: bool,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionConnectorsGetStatusParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionConnectorsGetStatusResult {
+    /// Opaque account selection pinned to this session, when one has been selected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<String>,
+    /// Connector API contract version.
+    pub api_version: i64,
+    /// Current feature and session availability.
+    pub availability: ConnectorAvailability,
+    /// Latest validated catalog snapshot, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalog: Option<ConnectorCatalogResult>,
+    /// Number of active opaque connection continuations.
+    pub pending_connections: i64,
+    /// Live MCP status for every Connector-owned runtime server.
+    pub runtime_servers: Vec<ConnectorRuntimeStatus>,
+}
+
+/// Validated Connector catalog snapshot cached by the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionConnectorsListResult {
+    /// Validated catalog entries in service order.
+    pub connectors: Vec<ConnectorCatalogEntry>,
+    /// Unix epoch milliseconds when this snapshot was accepted.
+    pub refreshed_at_ms: i64,
+    /// Monotonically increasing session-local catalog revision.
+    pub revision: i64,
+}
+
+/// Validated Connector catalog snapshot cached by the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionConnectorsRefreshResult {
+    /// Validated catalog entries in service order.
+    pub connectors: Vec<ConnectorCatalogEntry>,
+    /// Unix epoch milliseconds when this snapshot was accepted.
+    pub refreshed_at_ms: i64,
+    /// Monotonically increasing session-local catalog revision.
+    pub revision: i64,
+}
+
+/// Authoritative result after disconnect and MCP reconciliation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionConnectorsDisconnectResult {
+    /// Whether the service accepted the idempotent disconnect.
+    pub disconnected: bool,
+    /// Fresh authoritative session state after removing Connector-owned MCP servers.
+    pub status: ConnectorStatus,
+}
+
+/// Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionConnectorsReconcileResult {
+    /// Opaque account selection pinned to this session, when one has been selected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<String>,
+    /// Connector API contract version.
+    pub api_version: i64,
+    /// Current feature and session availability.
+    pub availability: ConnectorAvailability,
+    /// Latest validated catalog snapshot, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalog: Option<ConnectorCatalogResult>,
+    /// Number of active opaque connection continuations.
+    pub pending_connections: i64,
+    /// Live MCP status for every Connector-owned runtime server.
+    pub runtime_servers: Vec<ConnectorRuntimeStatus>,
 }
 
 /// Identifies the target session.
@@ -36127,4 +36568,137 @@ pub enum WorkspacesWorkspaceDetailsHostType {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Availability of the EXPERIMENTAL session connector API.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectorAvailability {
+    /// The resolved Connector feature is enabled and Connector requests are permitted.
+    #[serde(rename = "enabled")]
+    Enabled,
+    /// The resolved Connector feature is off. No Connector service request is made while disabled.
+    #[serde(rename = "disabled")]
+    Disabled,
+    /// The session has no eligible host-owned GitHub account or does not support local Connector projection.
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Authoritative service connection state for one Connector.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectorCatalogStatus {
+    /// The Connector is available but not connected.
+    #[serde(rename = "not_connected")]
+    NotConnected,
+    /// The Connector service is still completing connection or consent.
+    #[serde(rename = "pending")]
+    Pending,
+    /// The Connector is connected and may contribute MCP servers.
+    #[serde(rename = "connected")]
+    Connected,
+    /// The Connector service reports an unusable connection.
+    #[serde(rename = "error")]
+    Error,
+    /// The service returned a future or unrecognized state.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The service is connected and the session MCP graph was reconciled.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectorConnectResultConnectedKind {
+    #[serde(rename = "connected")]
+    #[default]
+    Connected,
+}
+
+/// Live MCP status of one Connector-owned runtime server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectorMcpStatus {
+    /// The server is connected and its tools are available.
+    #[serde(rename = "connected")]
+    Connected,
+    /// The server connection is still being established.
+    #[serde(rename = "pending")]
+    Pending,
+    /// The server requires refreshed GitHub authorization.
+    #[serde(rename = "needs_auth")]
+    NeedsAuth,
+    /// The server failed to connect or initialize.
+    #[serde(rename = "failed")]
+    Failed,
+    /// The server is intentionally stopped, including when managed policy blocks it.
+    #[serde(rename = "stopped")]
+    Stopped,
+    /// The server is configured but explicitly disabled.
+    #[serde(rename = "disabled")]
+    Disabled,
+    /// The Connector currently has no live server configuration.
+    #[serde(rename = "not_configured")]
+    NotConfigured,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Host-owned consent is required before bounded continuation can complete.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectorConnectResultConsentRequiredKind {
+    #[serde(rename = "consent_required")]
+    #[default]
+    ConsentRequired,
+}
+
+/// The service is still completing the connection without a consent URL.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectorConnectResultPendingKind {
+    #[serde(rename = "pending")]
+    #[default]
+    Pending,
+}
+
+/// Typed result of initiating or continuing a Connector connection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ConnectorConnectResult {
+    Connected(ConnectorConnectResultConnected),
+    ConsentRequired(ConnectorConnectResultConsentRequired),
+    Pending(ConnectorConnectResultPending),
 }

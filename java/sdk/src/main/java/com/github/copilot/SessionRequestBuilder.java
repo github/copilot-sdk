@@ -148,7 +148,6 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
-        request.setConnectorMcpServers(config.getConnectorMcpServers());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setAuthClientIdMetadataUrl(config.getAuthClientIdMetadataUrl());
         request.setCustomAgents(config.getCustomAgents());
@@ -305,7 +304,6 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
-        request.setConnectorMcpServers(config.getConnectorMcpServers());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setAuthClientIdMetadataUrl(config.getAuthClientIdMetadataUrl());
         request.setCustomAgents(config.getCustomAgents());
@@ -391,9 +389,6 @@ final class SessionRequestBuilder {
         if (config.getOnMcpAuthRequest() != null) {
             session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
         }
-        if (config.getOnMcpHeadersRefresh() != null) {
-            session.registerMcpHeadersRefreshHandler(config.getOnMcpHeadersRefresh());
-        }
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());
         }
@@ -445,9 +440,6 @@ final class SessionRequestBuilder {
                 config.getEnableManagedSettings().orElse(false) || config.getManagedSettings() != null);
         if (config.getOnMcpAuthRequest() != null) {
             session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
-        }
-        if (config.getOnMcpHeadersRefresh() != null) {
-            session.registerMcpHeadersRefreshHandler(config.getOnMcpHeadersRefresh());
         }
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());

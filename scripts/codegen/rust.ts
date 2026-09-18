@@ -16,6 +16,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
+
+import { applyConnectorSessionApiOverlay } from "./connectorSessionApiOverlay.js";
 import {
 	addManagedApprovalRequiredToPermissionRequests,
 	type ApiSchema,
@@ -87,6 +89,9 @@ const STRING_NEWTYPE_OVERRIDES: Record<string, string> = {
 
 const STRING_ENUM_VARIANT_OVERRIDES: Record<string, Record<string, string>> = {
 	CatalogTrustEligibility: {
+		unknown: "UnknownValue",
+	},
+	ConnectorCatalogStatus: {
 		unknown: "UnknownValue",
 	},
 };
@@ -2240,7 +2245,10 @@ async function generate(): Promise<void> {
 		JSON.parse(await fs.readFile(sessionEventsSchemaPath, "utf-8")),
 	);
 	const apiRaw = normalizeSchemaBrandCasing(
-		JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
+		applyConnectorSessionApiOverlay(
+			JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
+			path.basename(apiSchemaPath),
+		),
 	);
 
 	const sessionEventsSchema = propagateInternalVisibility(

@@ -868,7 +868,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.OnPermissionRequest,
             config.EnableManagedSettings is true || config.ManagedSettings is not null);
         session.RegisterMcpAuthHandler(config.OnMcpAuthRequest);
-        session.RegisterMcpHeadersRefreshHandler(config.OnMcpHeadersRefresh);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
         session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
@@ -1251,7 +1250,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
-                ToManagedMcpServers(config.ConnectorMcpServers),
                 config.McpOAuthTokenStorage,
                 config.AuthClientIdMetadataUrl,
                 "direct",
@@ -1354,10 +1352,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             if (config.OnMcpAuthRequest is not null)
             {
                 await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
-            }
-            if (config.OnMcpHeadersRefresh is not null)
-            {
-                await session.Rpc.EventLog.RegisterInterestAsync("mcp.headers_refresh_required", cancellationToken);
             }
 
             session.WorkspacePath = response.WorkspacePath;
@@ -1509,7 +1503,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
-                ToManagedMcpServers(config.ConnectorMcpServers),
                 config.McpOAuthTokenStorage,
                 config.AuthClientIdMetadataUrl,
                 "direct",
@@ -1569,10 +1562,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             if (config.OnMcpAuthRequest is not null)
             {
                 await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
-            }
-            if (config.OnMcpHeadersRefresh is not null)
-            {
-                await session.Rpc.EventLog.RegisterInterestAsync("mcp.headers_refresh_required", cancellationToken);
             }
 
             await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
@@ -3016,39 +3005,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
     }
 
-    private static Dictionary<string, ManagedMcpServerConfig>? ToManagedMcpServers(
-        IDictionary<string, ConnectorMcpServerConfig>? connectorMcpServers)
-    {
-        if (connectorMcpServers is null)
-        {
-            return null;
-        }
-
-        var managedMcpServers = connectorMcpServers is Dictionary<string, ConnectorMcpServerConfig> dictionary
-            ? new Dictionary<string, ManagedMcpServerConfig>(dictionary.Comparer)
-            : new Dictionary<string, ManagedMcpServerConfig>();
-
-        foreach (var (name, config) in connectorMcpServers)
-        {
-            managedMcpServers.Add(name, new ManagedMcpServerConfig(
-                config.DisplayName,
-                config.Url,
-                config.Tools,
-                config.Timeout,
-                config.AuthorizationCacheTtlMs));
-        }
-
-        return managedMcpServers;
-    }
-
     // Request/Response types for RPC
-    internal sealed record ManagedMcpServerConfig(
-        string DisplayName,
-        string Url,
-        IList<string>? Tools,
-        long? Timeout,
-        long? HeadersRefreshTtlMs);
-
     internal record CreateSessionRequest(
         string? Model,
         string? SessionId,
@@ -3077,7 +3034,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? Streaming,
         bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,
-        [property: JsonPropertyName("managedMcpServers")] IDictionary<string, ManagedMcpServerConfig>? ManagedMcpServers,
         McpOAuthTokenStorageMode? McpOAuthTokenStorage,
         string? AuthClientIdMetadataUrl,
         string? EnvValueMode,
@@ -3208,7 +3164,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? Streaming,
         bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,
-        [property: JsonPropertyName("managedMcpServers")] IDictionary<string, ManagedMcpServerConfig>? ManagedMcpServers,
         McpOAuthTokenStorageMode? McpOAuthTokenStorage,
         string? AuthClientIdMetadataUrl,
         string? EnvValueMode,

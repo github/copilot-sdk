@@ -95,7 +95,6 @@ from .session import (
     AutoTier,
     BearerTokenProvider,
     CommandDefinition,
-    ConnectorMCPServerConfig,
     ContextTier,
     CopilotSession,
     CreateSessionFsHandler,
@@ -107,7 +106,6 @@ from .session import (
     InfiniteSessionConfig,
     LargeToolOutputConfig,
     McpAuthHandler,
-    McpHeadersRefreshHandler,
     MCPServerConfig,
     MemoryConfiguration,
     ModelCapabilitiesOverride,
@@ -124,7 +122,6 @@ from .session import (
     ToolSearchConfig,
     UserInputHandler,
     _capabilities_to_dict,
-    _connector_mcp_servers_to_wire,
     _PermissionHandlerFn,
 )
 from .session_fs_provider import SessionFsProvider, create_session_fs_adapter
@@ -2296,7 +2293,6 @@ class CopilotClient:
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
-        connector_mcp_servers: dict[str, ConnectorMCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
         auth_client_id_metadata_url: str | None = None,
         embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
@@ -2325,7 +2321,6 @@ class CopilotClient:
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
         on_mcp_auth_request: McpAuthHandler | None = None,
-        on_mcp_headers_refresh: McpHeadersRefreshHandler | None = None,
         enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
@@ -2432,13 +2427,6 @@ class CopilotClient:
                 ``agentId`` set). When False, only non-streaming sub-agent events and
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
-            connector_mcp_servers: Non-secret hosted MCP endpoints advertised
-                for connected Copilot Connectors, keyed by stable server identity.
-                Re-supply on cold resume.
-            on_mcp_headers_refresh: Supplies short-lived HTTP headers for
-                Connector MCP endpoints. These authorize the selected GitHub
-                account to the Connector service; the service owns downstream
-                provider credentials. Exceptions are explicit runtime errors.
             mcp_oauth_token_storage: Controls how MCP OAuth tokens are stored.
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
@@ -2749,8 +2737,6 @@ class CopilotClient:
         # Add MCP servers configuration if provided
         if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
-        if connector_mcp_servers is not None:
-            payload["managedMcpServers"] = _connector_mcp_servers_to_wire(connector_mcp_servers)
         # Mode "empty" defaults MCP OAuth token storage to in-memory; caller wins.
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:
@@ -2923,7 +2909,6 @@ class CopilotClient:
             s._register_commands(commands)
             s._register_permission_handler(on_permission_request)
             s._register_mcp_auth_handler(on_mcp_auth_request)
-            s._register_mcp_headers_refresh_handler(on_mcp_headers_refresh)
             if on_user_input_request:
                 s._register_user_input_handler(on_user_input_request)
             if on_elicitation_request:
@@ -3016,14 +3001,6 @@ class CopilotClient:
                     "session.eventLog.registerInterest",
                     {"sessionId": session.session_id, "eventType": "mcp.oauth_required"},
                 )
-            if on_mcp_headers_refresh is not None:
-                await self._client.request(
-                    "session.eventLog.registerInterest",
-                    {
-                        "sessionId": session.session_id,
-                        "eventType": "mcp.headers_refresh_required",
-                    },
-                )
             session._workspace_path = response.get("workspacePath")
             capabilities = response.get("capabilities")
             session._set_capabilities(capabilities)
@@ -3103,7 +3080,6 @@ class CopilotClient:
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
-        connector_mcp_servers: dict[str, ConnectorMCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
         auth_client_id_metadata_url: str | None = None,
         embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
@@ -3132,7 +3108,6 @@ class CopilotClient:
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
         on_mcp_auth_request: McpAuthHandler | None = None,
-        on_mcp_headers_refresh: McpHeadersRefreshHandler | None = None,
         enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
@@ -3240,11 +3215,6 @@ class CopilotClient:
                 ``agentId`` set). When False, only non-streaming sub-agent events and
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
-            connector_mcp_servers: Non-secret hosted MCP endpoints advertised
-                for connected Copilot Connectors. Re-supply them on cold resume.
-            on_mcp_headers_refresh: Supplies short-lived HTTP headers for
-                Connector MCP endpoints. The Connector service owns downstream
-                provider credentials.
             mcp_oauth_token_storage: Controls how MCP OAuth tokens are stored.
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
@@ -3550,8 +3520,6 @@ class CopilotClient:
         # TODO: disable_resume is not a keyword arg yet; keeping for future use
         if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
-        if connector_mcp_servers is not None:
-            payload["managedMcpServers"] = _connector_mcp_servers_to_wire(connector_mcp_servers)
         # Mode "empty" defaults MCP OAuth token storage to in-memory; caller wins.
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:
@@ -3661,7 +3629,6 @@ class CopilotClient:
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
         session._register_mcp_auth_handler(on_mcp_auth_request)
-        session._register_mcp_headers_refresh_handler(on_mcp_headers_refresh)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if on_elicitation_request:
@@ -3726,14 +3693,6 @@ class CopilotClient:
                 await self._client.request(
                     "session.eventLog.registerInterest",
                     {"sessionId": session.session_id, "eventType": "mcp.oauth_required"},
-                )
-            if on_mcp_headers_refresh is not None:
-                await self._client.request(
-                    "session.eventLog.registerInterest",
-                    {
-                        "sessionId": session.session_id,
-                        "eventType": "mcp.headers_refresh_required",
-                    },
                 )
         except BaseException as exc:
             with self._sessions_lock:
