@@ -19,7 +19,11 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    ModelSetAllowedModelsRequest, OpenCanvasInstance, SendAgentMode, SendMode, SendRequest,
+    ConnectorAccountRequest, ConnectorAvailability, ConnectorCapabilities, ConnectorCatalogResult,
+    ConnectorCatalogStatus, ConnectorConnectRequest, ConnectorConnectResult,
+    ConnectorContinueRequest, ConnectorDisconnectResult, ConnectorMcpStatus,
+    ConnectorReconcileRequest, ConnectorStatus, ModelSetAllowedModelsRequest, OpenCanvasInstance,
+    SendAgentMode, SendMode, SendRequest, SessionRpcConnectors,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -6111,6 +6115,235 @@ async fn rpc_namespace_session_tasks_list_dispatches_correctly() {
 
     let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     assert!(result.tasks.is_empty());
+}
+
+#[tokio::test]
+async fn rpc_namespace_session_connectors_dispatches_all_methods() {
+    let (session, mut server) = create_session_pair().await;
+    let session_id = server.session_id.clone();
+    let catalog = serde_json::json!({
+        "connectors": [{
+            "description": "Source control",
+            "displayName": "GitHub",
+            "name": "github",
+            "runtimeServerIds": ["connector-github"],
+            "status": "connected"
+        }],
+        "refreshedAtMs": 1_726_668_000_000_i64,
+        "revision": 4
+    });
+    let status = serde_json::json!({
+        "accountId": "account-1",
+        "apiVersion": 1,
+        "availability": "enabled",
+        "catalog": catalog.clone(),
+        "pendingConnections": 0,
+        "runtimeServers": [{
+            "connectorName": "github",
+            "runtimeServerId": "connector-github",
+            "status": "connected"
+        }]
+    });
+    let capabilities = serde_json::json!({
+        "apiVersion": 1,
+        "availability": "enabled",
+        "consentContinuation": true,
+        "maxDeadlineMs": 60_000,
+        "maxPollAttempts": 10,
+        "maxPollIntervalMs": 5_000,
+        "opaqueAccountSelection": true
+    });
+
+    let server_handle = tokio::spawn(async move {
+        let expectations = [
+            (
+                "session.connectors.getCapabilities",
+                serde_json::json!({ "sessionId": session_id }),
+                capabilities,
+            ),
+            (
+                "session.connectors.getStatus",
+                serde_json::json!({ "sessionId": session_id }),
+                status.clone(),
+            ),
+            (
+                "session.connectors.list",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "sessionId": session_id
+                }),
+                catalog.clone(),
+            ),
+            (
+                "session.connectors.refresh",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "sessionId": session_id
+                }),
+                catalog,
+            ),
+            (
+                "session.connectors.connect",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "connectorName": "github",
+                    "sessionId": session_id
+                }),
+                serde_json::json!({
+                    "kind": "connected",
+                    "status": status.clone()
+                }),
+            ),
+            (
+                "session.connectors.reconnect",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "connectorName": "github",
+                    "sessionId": session_id
+                }),
+                serde_json::json!({
+                    "consentUrl": "https://example.test/consent",
+                    "continuationId": "continuation-1",
+                    "kind": "consent_required"
+                }),
+            ),
+            (
+                "session.connectors.continueConnection",
+                serde_json::json!({
+                    "continuationId": "continuation-1",
+                    "deadlineMs": 60_000,
+                    "maxAttempts": 10,
+                    "pollIntervalMs": 1_000,
+                    "sessionId": session_id
+                }),
+                serde_json::json!({
+                    "continuationId": "continuation-2",
+                    "kind": "pending"
+                }),
+            ),
+            (
+                "session.connectors.disconnect",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "connectorName": "github",
+                    "sessionId": session_id
+                }),
+                serde_json::json!({
+                    "disconnected": true,
+                    "status": status.clone()
+                }),
+            ),
+            (
+                "session.connectors.reconcile",
+                serde_json::json!({
+                    "accountId": "account-1",
+                    "refreshCatalog": true,
+                    "sessionId": session_id
+                }),
+                status,
+            ),
+        ];
+
+        for (method, params, result) in expectations {
+            let request = server.read_request().await;
+            assert_eq!(request["method"], method);
+            assert_eq!(request["params"], params);
+            server.respond(&request, result).await;
+        }
+    });
+
+    let connectors: SessionRpcConnectors<'_> = session.rpc().connectors();
+
+    let capabilities: ConnectorCapabilities = connectors.get_capabilities().await.unwrap();
+    assert_eq!(capabilities.availability, ConnectorAvailability::Enabled);
+    assert_eq!(capabilities.max_poll_attempts, 10);
+
+    let status: ConnectorStatus = connectors.get_status().await.unwrap();
+    assert_eq!(status.account_id.as_deref(), Some("account-1"));
+    assert_eq!(
+        status.runtime_servers[0].status,
+        ConnectorMcpStatus::Connected
+    );
+
+    let catalog: ConnectorCatalogResult = connectors
+        .list(ConnectorAccountRequest {
+            account_id: "account-1".to_string(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        catalog.connectors[0].status,
+        ConnectorCatalogStatus::Connected
+    );
+
+    let refreshed: ConnectorCatalogResult = connectors
+        .refresh(ConnectorAccountRequest {
+            account_id: "account-1".to_string(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(refreshed.revision, 4);
+
+    let connected: ConnectorConnectResult = connectors
+        .connect(ConnectorConnectRequest {
+            account_id: "account-1".to_string(),
+            connector_name: "github".to_string(),
+        })
+        .await
+        .unwrap();
+    let ConnectorConnectResult::Connected(connected) = connected else {
+        panic!("expected connected result");
+    };
+    assert_eq!(
+        connected.status.availability,
+        ConnectorAvailability::Enabled
+    );
+
+    let reconnect: ConnectorConnectResult = connectors
+        .reconnect(ConnectorConnectRequest {
+            account_id: "account-1".to_string(),
+            connector_name: "github".to_string(),
+        })
+        .await
+        .unwrap();
+    let ConnectorConnectResult::ConsentRequired(consent) = reconnect else {
+        panic!("expected consent-required result");
+    };
+    assert_eq!(consent.continuation_id, "continuation-1");
+
+    let continuation: ConnectorConnectResult = connectors
+        .continue_connection(ConnectorContinueRequest {
+            continuation_id: "continuation-1".to_string(),
+            deadline_ms: 60_000,
+            max_attempts: 10,
+            poll_interval_ms: 1_000,
+        })
+        .await
+        .unwrap();
+    let ConnectorConnectResult::Pending(pending) = continuation else {
+        panic!("expected pending result");
+    };
+    assert_eq!(pending.continuation_id, "continuation-2");
+
+    let disconnected: ConnectorDisconnectResult = connectors
+        .disconnect(ConnectorConnectRequest {
+            account_id: "account-1".to_string(),
+            connector_name: "github".to_string(),
+        })
+        .await
+        .unwrap();
+    assert!(disconnected.disconnected);
+
+    let reconciled: ConnectorStatus = connectors
+        .reconcile(ConnectorReconcileRequest {
+            account_id: "account-1".to_string(),
+            refresh_catalog: Some(true),
+        })
+        .await
+        .unwrap();
+    assert_eq!(reconciled.catalog.unwrap().revision, 4);
+
+    timeout(TIMEOUT, server_handle).await.unwrap().unwrap();
 }
 
 #[tokio::test]

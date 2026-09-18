@@ -77,6 +77,44 @@ tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
 `mcp:<server-key>-<tool-name>`. For `CustomAgents[].Tools` and
 `DefaultAgent.ExcludedTools`, use `<server-key>-<tool-name>` directly.
 
+## Experimental Connector API
+
+`session.Rpc.Connectors` exposes the runtime-owned Connector catalog and
+lifecycle. The API is experimental, so call `GetCapabilitiesAsync()` first and
+use the remaining methods only when availability is enabled.
+
+```csharp
+using GitHub.Copilot.Rpc;
+
+const string accountId = "opaque-account-selection-id";
+var connectors = session.Rpc.Connectors;
+var capabilities = await connectors.GetCapabilitiesAsync();
+
+if (capabilities.Availability == ConnectorAvailability.Enabled)
+{
+    var catalog = await connectors.ListAsync(accountId);
+    await connectors.ReconcileAsync(accountId);
+    var result = await connectors.ConnectAsync(accountId, catalog.Connectors[0].Name);
+
+    if (result is ConnectorConnectResultConsentRequired consent)
+    {
+        OpenBrowser(consent.ConsentUrl);
+        result = await connectors.ContinueConnectionAsync(
+            consent.ContinuationId,
+            maxAttempts: capabilities.MaxPollAttempts,
+            pollIntervalMs: capabilities.MaxPollIntervalMs,
+            deadlineMs: capabilities.MaxDeadlineMs);
+    }
+}
+```
+
+The nine experimental methods are `GetCapabilitiesAsync`, `GetStatusAsync`,
+`ListAsync`, `RefreshAsync`, `ConnectAsync`, `ReconnectAsync`,
+`ContinueConnectionAsync`, `DisconnectAsync`, and `ReconcileAsync`. The host
+selects the opaque GitHub account and handles consent UI. Connector methods
+accept only that account ID, never credentials or provider tokens; credentials
+and MCP projection remain runtime-owned.
+
 ## API Reference
 
 ### CopilotClient

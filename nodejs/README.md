@@ -474,6 +474,20 @@ Capabilities may update during the session. For example, when another client joi
 
 Interactive UI methods for showing dialogs to the user. Only available when the CLI host supports elicitation (`session.capabilities.ui?.elicitation === true`). See [UI Elicitation](#ui-elicitation) for full details.
 
+##### `rpc.connectors` _(experimental)_
+
+The generated Connector namespace exposes `getCapabilities`, `getStatus`,
+`list`, `refresh`, `connect`, `reconnect`, `continueConnection`, `disconnect`,
+and `reconcile`. The runtime owns Connector service calls, bounded polling, and
+session MCP reconciliation. Your application chooses the opaque account ID,
+opens returned consent URLs, confirms destructive actions, and renders UI.
+Pass only the host-selected account ID; Connector methods do not accept or
+return credentials or provider tokens.
+
+Check `getCapabilities()` before use. Connector support remains default-off
+unless enabled by the connected runtime. See
+[Using MCP servers](../docs/features/mcp.md#copilot-connectors).
+
 ##### `destroy(): Promise<void>` _(deprecated)_
 
 Deprecated — use `disconnect()` instead.

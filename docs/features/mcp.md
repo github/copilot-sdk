@@ -24,6 +24,73 @@ The SDK supports two types of MCP servers:
 | **Local/Stdio** | Runs as a subprocess, communicates via stdin/stdout | Local tools, file access, custom scripts |
 | **HTTP/SSE** | Remote server accessed via HTTP | Shared services, cloud-hosted tools |
 
+## Copilot Connectors
+
+The experimental Connector session API lets SDK hosts offer the same non-UI
+Connector flow as Copilot CLI. The runtime owns catalog validation, GitHub
+authorization, bounded connection polling, MCP projection, and authoritative
+same-session reconciliation. The SDK host owns account selection, browser
+opening, confirmation, and presentation.
+
+Use `mcpServers` for MCP servers that your application configures directly.
+Use the Connector API for service-backed catalog entries whose connection and
+session lifecycle the runtime manages.
+
+Start with capability detection. When availability is `enabled`, obtain the
+opaque account ID from your host's account-selection flow, list the catalog,
+reconcile already-connected entries, and drive the typed connection result:
+
+<!-- docs-validate: skip -->
+
+```typescript
+async function connectConnector(session, accountId, openConsentUrl) {
+    const capabilities = await session.rpc.connectors.getCapabilities();
+    if (capabilities.availability !== "enabled") return;
+
+    const catalog = await session.rpc.connectors.list({ accountId });
+    await session.rpc.connectors.reconcile({ accountId });
+    const connectorName = await chooseConnector(catalog.connectors);
+
+    const result = await session.rpc.connectors.connect({
+        accountId,
+        connectorName,
+    });
+    if (result.kind === "consent_required") {
+        await openConsentUrl(result.consentUrl);
+    }
+    if (result.kind !== "connected") {
+        await session.rpc.connectors.continueConnection({
+            continuationId: result.continuationId,
+            maxAttempts: Math.min(30, capabilities.maxPollAttempts),
+            pollIntervalMs: Math.min(2_000, capabilities.maxPollIntervalMs),
+            deadlineMs: Math.min(60_000, capabilities.maxDeadlineMs),
+        });
+    }
+}
+```
+
+The generated API also exposes `refresh`, `reconnect`, `disconnect`,
+`getStatus`, and `reconcile`. Connect and continuation results are discriminated
+as `connected`, `consent_required`, or `pending`. Disconnect and reconcile
+return authoritative session state, including live Connector-owned MCP status.
+Account IDs and continuation IDs are opaque. The host obtains the account ID
+through its existing account-selection flow and passes only that identifier to
+Connector methods; credentials and provider tokens never appear in Connector
+DTOs.
+
+| SDK | Connector API |
+| --- | --- |
+| Node.js | `session.rpc.connectors` |
+| Python | `session.rpc.connectors` |
+| Go | `session.RPC.Connectors` |
+| .NET | `session.Rpc.Connectors` |
+| Java | `session.getRpc().connectors` |
+| Rust | `session.rpc().connectors()` |
+
+> [!NOTE]
+> Connector support is experimental and may be unavailable in some runtime
+> versions. Always call the capability method before using the API.
+
 ## Configuration
 
 ### Node.js / TypeScript

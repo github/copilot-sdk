@@ -1,0 +1,743 @@
+{
+  "sessionConnectors": {
+    "getCapabilities": {
+      "rpcMethod": "session.connectors.getCapabilities",
+      "description": "Returns feature availability and bounded polling limits for the EXPERIMENTAL session connector API. This method never performs a Connector service request.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Target session identifier"
+          }
+        },
+        "required": [
+          "sessionId"
+        ],
+        "additionalProperties": false,
+        "description": "Identifies the target session."
+      },
+      "result": {
+        "$ref": "#/definitions/ConnectorCapabilities",
+        "description": "Feature detection and hard polling limits for the EXPERIMENTAL session connector API."
+      },
+      "stability": "experimental"
+    },
+    "getStatus": {
+      "rpcMethod": "session.connectors.getStatus",
+      "description": "Returns authoritative session Connector state from current availability, pinned account selection, cached catalog, and live MCP projection without performing a Connector service request.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Target session identifier"
+          }
+        },
+        "required": [
+          "sessionId"
+        ],
+        "additionalProperties": false,
+        "description": "Identifies the target session."
+      },
+      "result": {
+        "$ref": "#/definitions/ConnectorStatus",
+        "description": "Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included."
+      },
+      "stability": "experimental"
+    },
+    "list": {
+      "rpcMethod": "session.connectors.list",
+      "description": "Returns the cached Connector catalog for the pinned opaque account selection, fetching it only when this session has no cached catalog.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Target session identifier"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Opaque account selection ID previously returned by an account discovery API."
+          }
+        },
+        "required": [
+          "sessionId",
+          "accountId"
+        ],
+        "additionalProperties": false,
+        "description": "Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.",
+        "title": "ConnectorAccountRequest",
+        "stability": "experimental"
+      },
+      "result": {
+        "$ref": "#/definitions/ConnectorCatalogResult",
+        "description": "Validated Connector catalog snapshot cached by the session."
+      },
+      "stability": "experimental"
+    },
+    "refresh": {
+      "rpcMethod": "session.connectors.refresh",
+      "description": "Refreshes and validates the Connector catalog for the pinned opaque account selection.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Target session identifier"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Opaque account selection ID previously returned by an account discovery API."
+          }
+        },
+        "required": [
+          "sessionId",
+          "accountId"
+        ],
+        "additionalProperties": false,
+        "description": "Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.",
+        "title": "ConnectorAccountRequest",
+        "stability": "experimental"
+      },
+      "result": {
+        "$ref": "#/definitions/ConnectorCatalogResult",
+        "description": "Validated Connector catalog snapshot cached by the session."
+      },
+      "stability": "experimental"
+    },
+    "connect": {
+      "rpcMethod": "session.connectors.connect",
+      "description": "Initiates an idempotent Connector connection request without opening a browser. Returns connected when the service is immediately authoritative, consent_required with a validated URL, or pending with an opaque continuation ID.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Target session identifier"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Opaque account selection ID. It must match the account already pinned to the session, if any."
+          },
+          "connectorName": {
+            "type": "string",
+            "description": "Canonical Connector name from the current catalog."
+          }
+        },
+        "required": [
+          "sessionId",
+          "accountId",
+          "connectorName"
+        ],
+        "additionalProperties": false,
+        "description": "Selects one Connector and the pinned host-owned account used for its service and MCP authorization.",
+        "title": "ConnectorConnectRequest",
+        "stability": "experimental"
+      },
+      "result": {
+        "$ref": "#/definitions/ConnectorConnectResult",
+        "description": "Typed result of initiating or continuing a Connector connection."
+      },
+      "stability": "experimental"
+    },
+    "reconnect": {
+      "rpcMethod": "session.connectors.reconnect",
+      "description": "Re-initiates an idempotent Connector connection request without browser or UI effects, with the same typed outcomes as connect.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Target session identifier"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Opaque account selection ID. It must match the account already pinned to the session, if any."
+          },
+          "connectorName": {
+            "type": "string",
+            "description": "Canonical Connector name from the current catalog."
+          }
+        },
+        "required": [
+          "sessionId",
+          "accountId",
+          "connectorName"
+        ],
+        "additionalProperties": false,
+        "description": "Selects one Connector and the pinned host-owned account used for its service and MCP authorization.",
+        "title": "ConnectorConnectRequest",
+        "stability": "experimental"
+      },
+      "result": {
+        "$ref": "#/definitions/ConnectorConnectResult",
+        "description": "Typed result of initiating or continuing a Connector connection."
+      },
+      "stability": "experimental"
+    },
+    "continueConnection": {
+      "rpcMethod": "session.connectors.continueConnection",
+      "description": "Continues a pending Connector connection with caller-supplied attempt, interval, and deadline bounds. The runtime never opens the returned consent URL.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Target session identifier"
+          },
+          "continuationId": {
+            "type": "string",
+            "description": "Opaque continuation ID returned by connect, reconnect, or an earlier continuation."
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60,
+            "description": "Maximum catalog requests made by this call. Must be between one and the capability limit."
+          },
+          "pollIntervalMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 30000,
+            "description": "Delay in milliseconds between attempts. Must not exceed the capability limit."
+          },
+          "deadlineMs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 300000,
+            "description": "Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit."
+          }
+        },
+        "required": [
+          "sessionId",
+          "continuationId",
+          "maxAttempts",
+          "pollIntervalMs",
+          "deadlineMs"
+        ],
+        "additionalProperties": false,
+        "description": "Explicitly bounded continuation of a pending Connector connection.",
+        "title": "ConnectorContinueRequest",
+        "stability": "experimental"
+      },
+      "result": {
+        "$ref": "#/definitions/ConnectorConnectResult",
+        "description": "Typed result of initiating or continuing a Connector connection."
+      },
+      "stability": "experimental"
+    },
+    "disconnect": {
+      "rpcMethod": "session.connectors.disconnect",
+      "description": "Disconnects one Connector for the pinned opaque account selection, refreshes the authoritative catalog, and removes its session-owned MCP projection.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Target session identifier"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Opaque account selection ID. It must match the account already pinned to the session, if any."
+          },
+          "connectorName": {
+            "type": "string",
+            "description": "Canonical Connector name from the current catalog."
+          }
+        },
+        "required": [
+          "sessionId",
+          "accountId",
+          "connectorName"
+        ],
+        "additionalProperties": false,
+        "description": "Selects one Connector and the pinned host-owned account used for its service and MCP authorization.",
+        "title": "ConnectorConnectRequest",
+        "stability": "experimental"
+      },
+      "result": {
+        "$ref": "#/definitions/ConnectorDisconnectResult",
+        "description": "Authoritative result after disconnect and MCP reconciliation."
+      },
+      "stability": "experimental"
+    },
+    "reconcile": {
+      "rpcMethod": "session.connectors.reconcile",
+      "description": "Reconciles the authoritative cached or freshly requested Connector catalog into the session Connector MCP projection and returns live status.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Target session identifier"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Opaque account selection ID. It must match the account already pinned to the session, if any."
+          },
+          "refreshCatalog": {
+            "type": "boolean",
+            "description": "When true, refresh the catalog before reconciling. A disabled Connector API performs no service request."
+          }
+        },
+        "required": [
+          "sessionId",
+          "accountId"
+        ],
+        "additionalProperties": false,
+        "description": "Requests authoritative Connector-to-MCP reconciliation for the pinned account.",
+        "title": "ConnectorReconcileRequest",
+        "stability": "experimental"
+      },
+      "result": {
+        "$ref": "#/definitions/ConnectorStatus",
+        "description": "Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included."
+      },
+      "stability": "experimental"
+    }
+  },
+  "definitions": {
+    "ConnectorAccountRequest": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "description": "Opaque account selection ID previously returned by an account discovery API."
+        }
+      },
+      "required": [
+        "accountId"
+      ],
+      "additionalProperties": false,
+      "description": "Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.",
+      "title": "ConnectorAccountRequest",
+      "stability": "experimental"
+    },
+    "ConnectorAvailability": {
+      "type": "string",
+      "enum": [
+        "enabled",
+        "disabled",
+        "unavailable"
+      ],
+      "description": "Availability of the EXPERIMENTAL session connector API.",
+      "title": "ConnectorAvailability",
+      "x-enumDescriptions": {
+        "enabled": "The resolved Connector feature is enabled and Connector requests are permitted.",
+        "disabled": "The resolved Connector feature is off. No Connector service request is made while disabled.",
+        "unavailable": "The session has no eligible host-owned GitHub account or does not support local Connector projection."
+      },
+      "stability": "experimental"
+    },
+    "ConnectorCapabilities": {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Connector API contract version."
+        },
+        "availability": {
+          "$ref": "#/definitions/ConnectorAvailability",
+          "description": "Current session availability. Disabled availability is reported without making a Connector request."
+        },
+        "consentContinuation": {
+          "type": "boolean",
+          "description": "Whether connect and reconnect can return an opaque continuation for bounded consent polling."
+        },
+        "opaqueAccountSelection": {
+          "type": "boolean",
+          "description": "Whether callers select a host-owned GitHub account through an opaque selection ID rather than supplying a provider token."
+        },
+        "maxPollAttempts": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum accepted polling attempts for one continuation call."
+        },
+        "maxPollIntervalMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum accepted delay in milliseconds between polling attempts."
+        },
+        "maxDeadlineMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum accepted wall-clock deadline in milliseconds for one continuation call."
+        }
+      },
+      "required": [
+        "apiVersion",
+        "availability",
+        "consentContinuation",
+        "opaqueAccountSelection",
+        "maxPollAttempts",
+        "maxPollIntervalMs",
+        "maxDeadlineMs"
+      ],
+      "additionalProperties": false,
+      "description": "Feature detection and hard polling limits for the EXPERIMENTAL session connector API.",
+      "title": "ConnectorCapabilities",
+      "stability": "experimental"
+    },
+    "ConnectorCatalogEntry": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Canonical Connector name used by lifecycle methods."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Untrusted display label from the service."
+        },
+        "description": {
+          "type": "string",
+          "description": "Untrusted service description, when present."
+        },
+        "status": {
+          "$ref": "#/definitions/ConnectorCatalogStatus",
+          "description": "Current authoritative service connection state."
+        },
+        "runtimeServerIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Opaque stable runtime IDs currently projected into the session for this Connector."
+        }
+      },
+      "required": [
+        "name",
+        "displayName",
+        "status",
+        "runtimeServerIds"
+      ],
+      "additionalProperties": false,
+      "description": "Credential-free Connector catalog entry.",
+      "title": "ConnectorCatalogEntry",
+      "stability": "experimental"
+    },
+    "ConnectorCatalogResult": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Monotonically increasing session-local catalog revision."
+        },
+        "refreshedAtMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Unix epoch milliseconds when this snapshot was accepted."
+        },
+        "connectors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ConnectorCatalogEntry",
+            "description": "Credential-free Connector catalog entry."
+          },
+          "description": "Validated catalog entries in service order."
+        }
+      },
+      "required": [
+        "revision",
+        "refreshedAtMs",
+        "connectors"
+      ],
+      "additionalProperties": false,
+      "description": "Validated Connector catalog snapshot cached by the session.",
+      "title": "ConnectorCatalogResult",
+      "stability": "experimental"
+    },
+    "ConnectorCatalogStatus": {
+      "type": "string",
+      "enum": [
+        "not_connected",
+        "pending",
+        "connected",
+        "error",
+        "unknown"
+      ],
+      "description": "Authoritative service connection state for one Connector.",
+      "title": "ConnectorCatalogStatus",
+      "x-enumDescriptions": {
+        "not_connected": "The Connector is available but not connected.",
+        "pending": "The Connector service is still completing connection or consent.",
+        "connected": "The Connector is connected and may contribute MCP servers.",
+        "error": "The Connector service reports an unusable connection.",
+        "unknown": "The service returned a future or unrecognized state."
+      },
+      "stability": "experimental"
+    },
+    "ConnectorConnectRequest": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "description": "Opaque account selection ID. It must match the account already pinned to the session, if any."
+        },
+        "connectorName": {
+          "type": "string",
+          "description": "Canonical Connector name from the current catalog."
+        }
+      },
+      "required": [
+        "accountId",
+        "connectorName"
+      ],
+      "additionalProperties": false,
+      "description": "Selects one Connector and the pinned host-owned account used for its service and MCP authorization.",
+      "title": "ConnectorConnectRequest",
+      "stability": "experimental"
+    },
+    "ConnectorConnectResult": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "connected",
+              "description": "The service is connected and the session MCP graph was reconciled."
+            },
+            "status": {
+              "$ref": "#/definitions/ConnectorStatus",
+              "description": "Fresh authoritative Connector state after MCP reconciliation."
+            }
+          },
+          "required": [
+            "kind",
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "The service is connected and the session MCP graph was reconciled.",
+          "stability": "experimental"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "consent_required",
+              "description": "Host-owned consent is required before bounded continuation can complete."
+            },
+            "consentUrl": {
+              "type": "string",
+              "description": "Validated HTTPS consent URL. The runtime does not open it."
+            },
+            "continuationId": {
+              "type": "string",
+              "description": "Opaque ID accepted by continueConnection."
+            }
+          },
+          "required": [
+            "kind",
+            "consentUrl",
+            "continuationId"
+          ],
+          "additionalProperties": false,
+          "description": "Host-owned consent is required before bounded continuation can complete.",
+          "stability": "experimental"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "pending",
+              "description": "The service is still completing the connection without a consent URL."
+            },
+            "continuationId": {
+              "type": "string",
+              "description": "Opaque ID accepted by continueConnection."
+            }
+          },
+          "required": [
+            "kind",
+            "continuationId"
+          ],
+          "additionalProperties": false,
+          "description": "The service is still completing the connection without a consent URL.",
+          "stability": "experimental"
+        }
+      ],
+      "description": "Typed result of initiating or continuing a Connector connection.",
+      "title": "ConnectorConnectResult",
+      "stability": "experimental"
+    },
+    "ConnectorContinueRequest": {
+      "type": "object",
+      "properties": {
+        "continuationId": {
+          "type": "string",
+          "description": "Opaque continuation ID returned by connect, reconnect, or an earlier continuation."
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60,
+          "description": "Maximum catalog requests made by this call. Must be between one and the capability limit."
+        },
+        "pollIntervalMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 30000,
+          "description": "Delay in milliseconds between attempts. Must not exceed the capability limit."
+        },
+        "deadlineMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300000,
+          "description": "Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit."
+        }
+      },
+      "required": [
+        "continuationId",
+        "maxAttempts",
+        "pollIntervalMs",
+        "deadlineMs"
+      ],
+      "additionalProperties": false,
+      "description": "Explicitly bounded continuation of a pending Connector connection.",
+      "title": "ConnectorContinueRequest",
+      "stability": "experimental"
+    },
+    "ConnectorDisconnectResult": {
+      "type": "object",
+      "properties": {
+        "disconnected": {
+          "type": "boolean",
+          "description": "Whether the service accepted the idempotent disconnect."
+        },
+        "status": {
+          "$ref": "#/definitions/ConnectorStatus",
+          "description": "Fresh authoritative session state after removing Connector-owned MCP servers."
+        }
+      },
+      "required": [
+        "disconnected",
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "Authoritative result after disconnect and MCP reconciliation.",
+      "title": "ConnectorDisconnectResult",
+      "stability": "experimental"
+    },
+    "ConnectorMcpStatus": {
+      "type": "string",
+      "enum": [
+        "connected",
+        "pending",
+        "needs_auth",
+        "failed",
+        "stopped",
+        "disabled",
+        "not_configured"
+      ],
+      "description": "Live MCP status of one Connector-owned runtime server.",
+      "title": "ConnectorMcpStatus",
+      "x-enumDescriptions": {
+        "connected": "The server is connected and its tools are available.",
+        "pending": "The server connection is still being established.",
+        "needs_auth": "The server requires refreshed GitHub authorization.",
+        "failed": "The server failed to connect or initialize.",
+        "stopped": "The server is intentionally stopped, including when managed policy blocks it.",
+        "disabled": "The server is configured but explicitly disabled.",
+        "not_configured": "The Connector currently has no live server configuration."
+      },
+      "stability": "experimental"
+    },
+    "ConnectorReconcileRequest": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "description": "Opaque account selection ID. It must match the account already pinned to the session, if any."
+        },
+        "refreshCatalog": {
+          "type": "boolean",
+          "description": "When true, refresh the catalog before reconciling. A disabled Connector API performs no service request."
+        }
+      },
+      "required": [
+        "accountId"
+      ],
+      "additionalProperties": false,
+      "description": "Requests authoritative Connector-to-MCP reconciliation for the pinned account.",
+      "title": "ConnectorReconcileRequest",
+      "stability": "experimental"
+    },
+    "ConnectorRuntimeStatus": {
+      "type": "object",
+      "properties": {
+        "runtimeServerId": {
+          "type": "string",
+          "description": "Opaque runtime server ID."
+        },
+        "connectorName": {
+          "type": "string",
+          "description": "Canonical Connector name that owns this server."
+        },
+        "status": {
+          "$ref": "#/definitions/ConnectorMcpStatus",
+          "description": "Current live MCP host status."
+        }
+      },
+      "required": [
+        "runtimeServerId",
+        "connectorName",
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "Live status of one session-owned MCP projection.",
+      "title": "ConnectorRuntimeStatus",
+      "stability": "experimental"
+    },
+    "ConnectorStatus": {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Connector API contract version."
+        },
+        "availability": {
+          "$ref": "#/definitions/ConnectorAvailability",
+          "description": "Current feature and session availability."
+        },
+        "accountId": {
+          "type": "string",
+          "description": "Opaque account selection pinned to this session, when one has been selected."
+        },
+        "catalog": {
+          "$ref": "#/definitions/ConnectorCatalogResult",
+          "description": "Latest validated catalog snapshot, when available."
+        },
+        "runtimeServers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ConnectorRuntimeStatus",
+            "description": "Live status of one session-owned MCP projection."
+          },
+          "description": "Live MCP status for every Connector-owned runtime server."
+        },
+        "pendingConnections": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of active opaque connection continuations."
+        }
+      },
+      "required": [
+        "apiVersion",
+        "availability",
+        "runtimeServers",
+        "pendingConnections"
+      ],
+      "additionalProperties": false,
+      "description": "Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.",
+      "title": "ConnectorStatus",
+      "stability": "experimental"
+    }
+  }
+}

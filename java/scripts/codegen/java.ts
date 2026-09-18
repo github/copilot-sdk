@@ -12,6 +12,8 @@ import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import { applyConnectorSessionApiOverlay } from "../../../scripts/codegen/connectorSessionApiOverlay.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -25,6 +27,19 @@ function isSchemaInternal(schema: JSONSchema7 | null | undefined): boolean {
     return typeof schema === "object" &&
         schema !== null &&
         (schema as Record<string, unknown>).visibility === "internal";
+}
+
+function isSchemaExperimental(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" &&
+        schema !== null &&
+        (schema as Record<string, unknown>).stability === "experimental";
+}
+
+function appendExperimentalTypeApiNote(lines: string[], schema: JSONSchema7): void {
+    if (isSchemaExperimental(schema)) {
+        lines.push(` *`);
+        lines.push(` * @apiNote This type is experimental and may change in a future version.`);
+    }
 }
 
 const AUTO_GENERATED_HEADER = `// AUTO-GENERATED FILE - DO NOT EDIT`;
@@ -435,6 +450,7 @@ async function generatePolymorphicResultClass(
     const anyOf = schema.anyOf as JSONSchema7[];
     const variants = resolveAnyOfVariants(anyOf);
     const discriminator = findDiscriminator(variants);
+    const experimental = isSchemaExperimental(schema);
 
     if (!discriminator) {
         console.warn(`[codegen] Cannot find discriminator for ${className} — skipping polymorphic generation`);
@@ -466,11 +482,15 @@ async function generatePolymorphicResultClass(
     baseLines.push(`import com.fasterxml.jackson.annotation.JsonIgnoreProperties;`);
     baseLines.push(`import com.fasterxml.jackson.annotation.JsonSubTypes;`);
     baseLines.push(`import com.fasterxml.jackson.annotation.JsonTypeInfo;`);
+    if (experimental) {
+        baseLines.push(`import com.github.copilot.CopilotExperimental;`);
+    }
     baseLines.push(`import javax.annotation.processing.Generated;`);
     baseLines.push("");
-    if (schema.description) {
+    if (schema.description || experimental) {
         baseLines.push(`/**`);
-        baseLines.push(` * ${schema.description}`);
+        baseLines.push(` * ${schema.description ?? `Polymorphic result type {@code ${className}}.`}`);
+        appendExperimentalTypeApiNote(baseLines, schema);
         baseLines.push(` *`);
         baseLines.push(` * @since 1.0.0`);
         baseLines.push(` */`);
@@ -486,6 +506,9 @@ async function generatePolymorphicResultClass(
         baseLines.push(`    @JsonSubTypes.Type(value = ${v.variantClassName}.class, name = "${v.discriminatorValue}")${comma}`);
     }
     baseLines.push(`})`);
+    if (experimental) {
+        baseLines.push(`@CopilotExperimental`);
+    }
     baseLines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);
     baseLines.push(GENERATED_ANNOTATION);
     baseLines.push(`public abstract class ${className} {`);
@@ -519,12 +542,16 @@ async function generatePolymorphicVariantClass(
     packageName: string,
     packageDir: string
 ): Promise<void> {
+    const experimental = isSchemaExperimental(schema);
     const allImports = new Set<string>([
         "com.fasterxml.jackson.annotation.JsonIgnoreProperties",
         "com.fasterxml.jackson.annotation.JsonInclude",
         "com.fasterxml.jackson.annotation.JsonProperty",
         "javax.annotation.processing.Generated",
     ]);
+    if (experimental) {
+        allImports.add("com.github.copilot.CopilotExperimental");
+    }
     const nestedTypes = new Map<string, JavaClassDef>();
 
     // Collect fields (excluding the discriminator property)
@@ -569,15 +596,20 @@ async function generatePolymorphicVariantClass(
     if (schema.description) {
         lines.push(`/**`);
         lines.push(` * ${schema.description}`);
+        appendExperimentalTypeApiNote(lines, schema);
         lines.push(` *`);
         lines.push(` * @since 1.0.0`);
         lines.push(` */`);
     } else {
         lines.push(`/**`);
         lines.push(` * Variant {@code ${discriminatorValue}} of {@link ${baseClassName}}.`);
+        appendExperimentalTypeApiNote(lines, schema);
         lines.push(` *`);
         lines.push(` * @since 1.0.0`);
         lines.push(` */`);
+    }
+    if (experimental) {
+        lines.push(`@CopilotExperimental`);
     }
     lines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);
     lines.push(`@JsonInclude(JsonInclude.Include.NON_NULL)`);
@@ -1281,6 +1313,7 @@ async function generateStandaloneEnum(
     headerComment: string
 ): Promise<void> {
     const values = schema.enum as string[];
+    const experimental = isSchemaExperimental(schema);
     const lines: string[] = [];
     lines.push(COPYRIGHT);
     lines.push("");
@@ -1289,14 +1322,21 @@ async function generateStandaloneEnum(
     lines.push("");
     lines.push(`package ${packageName};`);
     lines.push("");
+    if (experimental) {
+        lines.push(`import com.github.copilot.CopilotExperimental;`);
+    }
     lines.push(`import javax.annotation.processing.Generated;`);
     lines.push("");
-    if (schema.description) {
+    if (schema.description || experimental) {
         lines.push(`/**`);
-        lines.push(` * ${schema.description}`);
+        lines.push(` * ${schema.description ?? `Values for {@code ${name}}.`}`);
+        appendExperimentalTypeApiNote(lines, schema);
         lines.push(` *`);
         lines.push(` * @since 1.0.0`);
         lines.push(` */`);
+    }
+    if (experimental) {
+        lines.push(`@CopilotExperimental`);
     }
     lines.push(GENERATED_ANNOTATION);
     lines.push(`public enum ${name} {`);
@@ -1333,6 +1373,7 @@ async function generateStandaloneRecord(
 ): Promise<void> {
     const nestedTypes = new Map<string, { code: string }>();
     const { code, imports } = generateRpcClass(name, schema, nestedTypes, packageName);
+    const experimental = isSchemaExperimental(schema);
 
     const lines: string[] = [];
     lines.push(COPYRIGHT);
@@ -1350,18 +1391,25 @@ async function generateStandaloneRecord(
         "javax.annotation.processing.Generated",
         ...imports,
     ]);
+    if (experimental) {
+        allImports.add("com.github.copilot.CopilotExperimental");
+    }
     const sortedImports = [...allImports].sort();
     for (const imp of sortedImports) {
         lines.push(`import ${imp};`);
     }
     lines.push("");
 
-    if (schema.description) {
+    if (schema.description || experimental) {
         lines.push(`/**`);
-        lines.push(` * ${schema.description}`);
+        lines.push(` * ${schema.description ?? `Data type {@code ${name}}.`}`);
+        appendExperimentalTypeApiNote(lines, schema);
         lines.push(` *`);
         lines.push(` * @since 1.0.0`);
         lines.push(` */`);
+    }
+    if (experimental) {
+        lines.push(`@CopilotExperimental`);
     }
     lines.push(GENERATED_ANNOTATION);
     lines.push(code);
@@ -1478,7 +1526,9 @@ function generateRpcClass(
 async function generateRpcTypes(schemaPath: string): Promise<void> {
     console.log("\n🔌 Generating RPC types...");
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent)) as Record<string, unknown> & {
+    const schema = normalizeSchemaBrandCasing(
+        applyConnectorSessionApiOverlay(JSON.parse(schemaContent), path.basename(schemaPath))
+    ) as Record<string, unknown> & {
         server?: Record<string, unknown>;
         session?: Record<string, unknown>;
         clientSession?: Record<string, unknown>;
@@ -2342,7 +2392,9 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
     console.log("\n🔧 Generating RPC wrapper classes...");
 
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent)) as {
+    const schema = normalizeSchemaBrandCasing(
+        applyConnectorSessionApiOverlay(JSON.parse(schemaContent), path.basename(schemaPath))
+    ) as {
         server?: Record<string, unknown>;
         session?: Record<string, unknown>;
         clientSession?: Record<string, unknown>;

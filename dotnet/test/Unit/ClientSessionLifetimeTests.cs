@@ -2412,6 +2412,8 @@ public sealed partial class ClientSessionLifetimeTests
 
         public Func<RpcRequestRecord, CancellationToken, Task>? AfterResponseAsync { get; set; }
 
+        public Func<RpcRequestRecord, object?>? ResponseFactory { get; set; }
+
         public IReadOnlyList<RpcRequestRecord> Requests
         {
             get
@@ -2711,6 +2713,7 @@ public sealed partial class ClientSessionLifetimeTests
                 },
                 "session.detach" => await DetachSessionAsync(cancellationToken),
                 "runtime.shutdown" => HandleRuntimeShutdown(),
+                _ when ResponseFactory is { } responseFactory => responseFactory(requestRecord),
                 _ => throw new InvalidOperationException($"Unexpected RPC method '{method}'.")
             };
 

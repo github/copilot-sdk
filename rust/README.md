@@ -257,6 +257,53 @@ New RPCs land in the namespace immediately as the schema regenerates;
 helpers are added on top only when an ergonomic story is worth the
 maintenance.
 
+#### Connectors (experimental)
+
+When the experimental runtime Connector API is available, use the generated
+session-scoped namespace to discover and manage Connectors:
+
+```rust,ignore
+use github_copilot_sdk::rpc::{
+    ConnectorAccountRequest, ConnectorAvailability, ConnectorConnectRequest,
+    ConnectorReconcileRequest,
+};
+
+let capabilities = session.rpc().connectors().get_capabilities().await?;
+if capabilities.availability == ConnectorAvailability::Enabled {
+    let account_id = "selected-account".to_string();
+    let catalog = session
+        .rpc()
+        .connectors()
+        .list(ConnectorAccountRequest {
+            account_id: account_id.clone(),
+        })
+        .await?;
+    session
+        .rpc()
+        .connectors()
+        .reconcile(ConnectorReconcileRequest {
+            account_id: account_id.clone(),
+            refresh_catalog: None,
+        })
+        .await?;
+    let connection = session
+        .rpc()
+        .connectors()
+        .connect(ConnectorConnectRequest {
+            account_id,
+            connector_name: catalog.connectors[0].name.clone(),
+        })
+        .await?;
+}
+```
+
+The namespace also provides `get_status`, `refresh`, `reconnect`,
+`continue_connection`, `disconnect`, and `reconcile`. Hosts select an opaque
+GitHub account ID and own consent and browser UI. Connector methods accept only
+that account ID, never credentials or provider tokens; the runtime returns
+validated consent URLs and owns MCP reconciliation. This API is experimental,
+so check its reported availability before use.
+
 ### Handler Traits
 
 The SDK exposes five focused handler traits, one per CLI callback type. Implement only the traits you need and install each with the matching `SessionConfig` setter. Each trait has a single `async fn handle(...)` method:

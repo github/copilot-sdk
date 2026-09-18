@@ -19773,6 +19773,293 @@ internal sealed class ScheduleStopRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Feature detection and hard polling limits for the EXPERIMENTAL session connector API.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorCapabilities
+{
+    /// <summary>Connector API contract version.</summary>
+    [JsonPropertyName("apiVersion")]
+    public long ApiVersion { get; set; }
+
+    /// <summary>Current session availability. Disabled availability is reported without making a Connector request.</summary>
+    [JsonPropertyName("availability")]
+    public ConnectorAvailability Availability { get; set; }
+
+    /// <summary>Whether connect and reconnect can return an opaque continuation for bounded consent polling.</summary>
+    [JsonPropertyName("consentContinuation")]
+    public bool ConsentContinuation { get; set; }
+
+    /// <summary>Maximum accepted wall-clock deadline in milliseconds for one continuation call.</summary>
+    [JsonPropertyName("maxDeadlineMs")]
+    public long MaxDeadlineMs { get; set; }
+
+    /// <summary>Maximum accepted polling attempts for one continuation call.</summary>
+    [JsonPropertyName("maxPollAttempts")]
+    public long MaxPollAttempts { get; set; }
+
+    /// <summary>Maximum accepted delay in milliseconds between polling attempts.</summary>
+    [JsonPropertyName("maxPollIntervalMs")]
+    public long MaxPollIntervalMs { get; set; }
+
+    /// <summary>Whether callers select a host-owned GitHub account through an opaque selection ID rather than supplying a provider token.</summary>
+    [JsonPropertyName("opaqueAccountSelection")]
+    public bool OpaqueAccountSelection { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionConnectorsGetCapabilitiesRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Credential-free Connector catalog entry.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorCatalogEntry
+{
+    /// <summary>Untrusted service description, when present.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Untrusted display label from the service.</summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Canonical Connector name used by lifecycle methods.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Opaque stable runtime IDs currently projected into the session for this Connector.</summary>
+    [JsonPropertyName("runtimeServerIds")]
+    public IList<string> RuntimeServerIds { get => field ??= []; set; }
+
+    /// <summary>Current authoritative service connection state.</summary>
+    [JsonPropertyName("status")]
+    public ConnectorCatalogStatus Status { get; set; }
+}
+
+/// <summary>Validated Connector catalog snapshot cached by the session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorCatalogResult
+{
+    /// <summary>Validated catalog entries in service order.</summary>
+    [JsonPropertyName("connectors")]
+    public IList<ConnectorCatalogEntry> Connectors { get => field ??= []; set; }
+
+    /// <summary>Unix epoch milliseconds when this snapshot was accepted.</summary>
+    [JsonPropertyName("refreshedAtMs")]
+    public long RefreshedAtMs { get; set; }
+
+    /// <summary>Monotonically increasing session-local catalog revision.</summary>
+    [JsonPropertyName("revision")]
+    public long Revision { get; set; }
+}
+
+/// <summary>Live status of one session-owned MCP projection.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorRuntimeStatus
+{
+    /// <summary>Canonical Connector name that owns this server.</summary>
+    [JsonPropertyName("connectorName")]
+    public string ConnectorName { get; set; } = string.Empty;
+
+    /// <summary>Opaque runtime server ID.</summary>
+    [JsonPropertyName("runtimeServerId")]
+    public string RuntimeServerId { get; set; } = string.Empty;
+
+    /// <summary>Current live MCP host status.</summary>
+    [JsonPropertyName("status")]
+    public ConnectorMcpStatus Status { get; set; }
+}
+
+/// <summary>Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorStatus
+{
+    /// <summary>Opaque account selection pinned to this session, when one has been selected.</summary>
+    [JsonPropertyName("accountId")]
+    public string? AccountId { get; set; }
+
+    /// <summary>Connector API contract version.</summary>
+    [JsonPropertyName("apiVersion")]
+    public long ApiVersion { get; set; }
+
+    /// <summary>Current feature and session availability.</summary>
+    [JsonPropertyName("availability")]
+    public ConnectorAvailability Availability { get; set; }
+
+    /// <summary>Latest validated catalog snapshot, when available.</summary>
+    [JsonPropertyName("catalog")]
+    public ConnectorCatalogResult? Catalog { get; set; }
+
+    /// <summary>Number of active opaque connection continuations.</summary>
+    [JsonPropertyName("pendingConnections")]
+    public long PendingConnections { get; set; }
+
+    /// <summary>Live MCP status for every Connector-owned runtime server.</summary>
+    [JsonPropertyName("runtimeServers")]
+    public IList<ConnectorRuntimeStatus> RuntimeServers { get => field ??= []; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionConnectorsGetStatusRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ConnectorAccountRequest
+{
+    /// <summary>Opaque account selection ID previously returned by an account discovery API.</summary>
+    [JsonPropertyName("accountId")]
+    public string AccountId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Typed result of initiating or continuing a Connector connection.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(ConnectorConnectResultConnected), "connected")]
+[JsonDerivedType(typeof(ConnectorConnectResultConsentRequired), "consent_required")]
+[JsonDerivedType(typeof(ConnectorConnectResultPending), "pending")]
+public partial class ConnectorConnectResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The service is connected and the session MCP graph was reconciled.</summary>
+/// <remarks>The <c>connected</c> variant of <see cref="ConnectorConnectResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class ConnectorConnectResultConnected : ConnectorConnectResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "connected";
+
+    /// <summary>Fresh authoritative Connector state after MCP reconciliation.</summary>
+    [JsonPropertyName("status")]
+    public required ConnectorStatus Status { get; set; }
+}
+
+/// <summary>Host-owned consent is required before bounded continuation can complete.</summary>
+/// <remarks>The <c>consent_required</c> variant of <see cref="ConnectorConnectResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class ConnectorConnectResultConsentRequired : ConnectorConnectResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "consent_required";
+
+    /// <summary>Validated HTTPS consent URL. The runtime does not open it.</summary>
+    [JsonPropertyName("consentUrl")]
+    public required string ConsentUrl { get; set; }
+
+    /// <summary>Opaque ID accepted by continueConnection.</summary>
+    [JsonPropertyName("continuationId")]
+    public required string ContinuationId { get; set; }
+}
+
+/// <summary>The service is still completing the connection without a consent URL.</summary>
+/// <remarks>The <c>pending</c> variant of <see cref="ConnectorConnectResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class ConnectorConnectResultPending : ConnectorConnectResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "pending";
+
+    /// <summary>Opaque ID accepted by continueConnection.</summary>
+    [JsonPropertyName("continuationId")]
+    public required string ContinuationId { get; set; }
+}
+
+/// <summary>Selects one Connector and the pinned host-owned account used for its service and MCP authorization.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ConnectorConnectRequest
+{
+    /// <summary>Opaque account selection ID. It must match the account already pinned to the session, if any.</summary>
+    [JsonPropertyName("accountId")]
+    public string AccountId { get; set; } = string.Empty;
+
+    /// <summary>Canonical Connector name from the current catalog.</summary>
+    [JsonPropertyName("connectorName")]
+    public string ConnectorName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Explicitly bounded continuation of a pending Connector connection.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ConnectorContinueRequest
+{
+    /// <summary>Opaque continuation ID returned by connect, reconnect, or an earlier continuation.</summary>
+    [JsonPropertyName("continuationId")]
+    public string ContinuationId { get; set; } = string.Empty;
+
+    /// <summary>Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit.</summary>
+    [JsonPropertyName("deadlineMs")]
+    public int DeadlineMs { get; set; }
+
+    /// <summary>Maximum catalog requests made by this call. Must be between one and the capability limit.</summary>
+    [JsonPropertyName("maxAttempts")]
+    public int MaxAttempts { get; set; }
+
+    /// <summary>Delay in milliseconds between attempts. Must not exceed the capability limit.</summary>
+    [JsonPropertyName("pollIntervalMs")]
+    public int PollIntervalMs { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Authoritative result after disconnect and MCP reconciliation.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorDisconnectResult
+{
+    /// <summary>Whether the service accepted the idempotent disconnect.</summary>
+    [JsonPropertyName("disconnected")]
+    public bool Disconnected { get; set; }
+
+    /// <summary>Fresh authoritative session state after removing Connector-owned MCP servers.</summary>
+    [JsonPropertyName("status")]
+    public ConnectorStatus Status { get => field ??= new(); set; }
+}
+
+/// <summary>Requests authoritative Connector-to-MCP reconciliation for the pinned account.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ConnectorReconcileRequest
+{
+    /// <summary>Opaque account selection ID. It must match the account already pinned to the session, if any.</summary>
+    [JsonPropertyName("accountId")]
+    public string AccountId { get; set; } = string.Empty;
+
+    /// <summary>When true, refresh the catalog before reconciling. A disabled Connector API performs no service request.</summary>
+    [JsonPropertyName("refreshCatalog")]
+    public bool? RefreshCatalog { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer &lt;token&gt;` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ProviderTokenAcquireResult
@@ -32486,6 +32773,222 @@ public readonly struct SessionVisibilityStatus : IEquatable<SessionVisibilitySta
 }
 
 
+/// <summary>Availability of the EXPERIMENTAL session connector API.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ConnectorAvailability : IEquatable<ConnectorAvailability>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ConnectorAvailability"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ConnectorAvailability"/>.</param>
+    [JsonConstructor]
+    public ConnectorAvailability(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ConnectorAvailability"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The resolved Connector feature is enabled and Connector requests are permitted.</summary>
+    public static ConnectorAvailability Enabled { get; } = new("enabled");
+
+    /// <summary>The resolved Connector feature is off. No Connector service request is made while disabled.</summary>
+    public static ConnectorAvailability Disabled { get; } = new("disabled");
+
+    /// <summary>The session has no eligible host-owned GitHub account or does not support local Connector projection.</summary>
+    public static ConnectorAvailability Unavailable { get; } = new("unavailable");
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorAvailability"/> instances are equivalent.</summary>
+    public static bool operator ==(ConnectorAvailability left, ConnectorAvailability right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorAvailability"/> instances are not equivalent.</summary>
+    public static bool operator !=(ConnectorAvailability left, ConnectorAvailability right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ConnectorAvailability other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ConnectorAvailability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ConnectorAvailability}"/> for serializing <see cref="ConnectorAvailability"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ConnectorAvailability>
+    {
+        /// <inheritdoc />
+        public override ConnectorAvailability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ConnectorAvailability value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectorAvailability));
+        }
+    }
+}
+
+
+/// <summary>Authoritative service connection state for one Connector.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ConnectorCatalogStatus : IEquatable<ConnectorCatalogStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ConnectorCatalogStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ConnectorCatalogStatus"/>.</param>
+    [JsonConstructor]
+    public ConnectorCatalogStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ConnectorCatalogStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The Connector is available but not connected.</summary>
+    public static ConnectorCatalogStatus NotConnected { get; } = new("not_connected");
+
+    /// <summary>The Connector service is still completing connection or consent.</summary>
+    public static ConnectorCatalogStatus Pending { get; } = new("pending");
+
+    /// <summary>The Connector is connected and may contribute MCP servers.</summary>
+    public static ConnectorCatalogStatus Connected { get; } = new("connected");
+
+    /// <summary>The Connector service reports an unusable connection.</summary>
+    public static ConnectorCatalogStatus Error { get; } = new("error");
+
+    /// <summary>The service returned a future or unrecognized state.</summary>
+    public static ConnectorCatalogStatus Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorCatalogStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(ConnectorCatalogStatus left, ConnectorCatalogStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorCatalogStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(ConnectorCatalogStatus left, ConnectorCatalogStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ConnectorCatalogStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ConnectorCatalogStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ConnectorCatalogStatus}"/> for serializing <see cref="ConnectorCatalogStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ConnectorCatalogStatus>
+    {
+        /// <inheritdoc />
+        public override ConnectorCatalogStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ConnectorCatalogStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectorCatalogStatus));
+        }
+    }
+}
+
+
+/// <summary>Live MCP status of one Connector-owned runtime server.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ConnectorMcpStatus : IEquatable<ConnectorMcpStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ConnectorMcpStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ConnectorMcpStatus"/>.</param>
+    [JsonConstructor]
+    public ConnectorMcpStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ConnectorMcpStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The server is connected and its tools are available.</summary>
+    public static ConnectorMcpStatus Connected { get; } = new("connected");
+
+    /// <summary>The server connection is still being established.</summary>
+    public static ConnectorMcpStatus Pending { get; } = new("pending");
+
+    /// <summary>The server requires refreshed GitHub authorization.</summary>
+    public static ConnectorMcpStatus NeedsAuth { get; } = new("needs_auth");
+
+    /// <summary>The server failed to connect or initialize.</summary>
+    public static ConnectorMcpStatus Failed { get; } = new("failed");
+
+    /// <summary>The server is intentionally stopped, including when managed policy blocks it.</summary>
+    public static ConnectorMcpStatus Stopped { get; } = new("stopped");
+
+    /// <summary>The server is configured but explicitly disabled.</summary>
+    public static ConnectorMcpStatus Disabled { get; } = new("disabled");
+
+    /// <summary>The Connector currently has no live server configuration.</summary>
+    public static ConnectorMcpStatus NotConfigured { get; } = new("not_configured");
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorMcpStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(ConnectorMcpStatus left, ConnectorMcpStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorMcpStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(ConnectorMcpStatus left, ConnectorMcpStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ConnectorMcpStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ConnectorMcpStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ConnectorMcpStatus}"/> for serializing <see cref="ConnectorMcpStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ConnectorMcpStatus>
+    {
+        /// <inheritdoc />
+        public override ConnectorMcpStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ConnectorMcpStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectorMcpStatus));
+        }
+    }
+}
+
+
 /// <summary>Why the runtime requests client-task cancellation.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -34669,6 +35172,12 @@ public sealed class SessionRpc
 
     /// <summary>Schedule APIs.</summary>
     public ScheduleApi Schedule =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
+    /// <summary>Connectors APIs.</summary>
+    public ConnectorsApi Connectors =>
         field ??
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
@@ -38939,6 +39448,141 @@ public sealed class ScheduleApi
     }
 }
 
+/// <summary>Provides session-scoped Connectors APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorsApi
+{
+    private readonly CopilotSession _session;
+
+    internal ConnectorsApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Returns feature availability and bounded polling limits for the EXPERIMENTAL session connector API. This method never performs a Connector service request.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Feature detection and hard polling limits for the EXPERIMENTAL session connector API.</returns>
+    public async Task<ConnectorCapabilities> GetCapabilitiesAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionConnectorsGetCapabilitiesRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<ConnectorCapabilities>(_session.Rpc, "session.connectors.getCapabilities", [request], cancellationToken);
+    }
+
+    /// <summary>Returns authoritative session Connector state from current availability, pinned account selection, cached catalog, and live MCP projection without performing a Connector service request.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.</returns>
+    public async Task<ConnectorStatus> GetStatusAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionConnectorsGetStatusRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<ConnectorStatus>(_session.Rpc, "session.connectors.getStatus", [request], cancellationToken);
+    }
+
+    /// <summary>Returns the cached Connector catalog for the pinned opaque account selection, fetching it only when this session has no cached catalog.</summary>
+    /// <param name="accountId">Opaque account selection ID previously returned by an account discovery API.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Validated Connector catalog snapshot cached by the session.</returns>
+    public async Task<ConnectorCatalogResult> ListAsync(string accountId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorAccountRequest { SessionId = _session.SessionId, AccountId = accountId };
+        return await CopilotClient.InvokeRpcAsync<ConnectorCatalogResult>(_session.Rpc, "session.connectors.list", [request], cancellationToken);
+    }
+
+    /// <summary>Refreshes and validates the Connector catalog for the pinned opaque account selection.</summary>
+    /// <param name="accountId">Opaque account selection ID previously returned by an account discovery API.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Validated Connector catalog snapshot cached by the session.</returns>
+    public async Task<ConnectorCatalogResult> RefreshAsync(string accountId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorAccountRequest { SessionId = _session.SessionId, AccountId = accountId };
+        return await CopilotClient.InvokeRpcAsync<ConnectorCatalogResult>(_session.Rpc, "session.connectors.refresh", [request], cancellationToken);
+    }
+
+    /// <summary>Initiates an idempotent Connector connection request without opening a browser. Returns connected when the service is immediately authoritative, consent_required with a validated URL, or pending with an opaque continuation ID.</summary>
+    /// <param name="accountId">Opaque account selection ID. It must match the account already pinned to the session, if any.</param>
+    /// <param name="connectorName">Canonical Connector name from the current catalog.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Typed result of initiating or continuing a Connector connection.</returns>
+    public async Task<ConnectorConnectResult> ConnectAsync(string accountId, string connectorName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        ArgumentNullException.ThrowIfNull(connectorName);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorConnectRequest { SessionId = _session.SessionId, AccountId = accountId, ConnectorName = connectorName };
+        return await CopilotClient.InvokeRpcAsync<ConnectorConnectResult>(_session.Rpc, "session.connectors.connect", [request], cancellationToken);
+    }
+
+    /// <summary>Re-initiates an idempotent Connector connection request without browser or UI effects, with the same typed outcomes as connect.</summary>
+    /// <param name="accountId">Opaque account selection ID. It must match the account already pinned to the session, if any.</param>
+    /// <param name="connectorName">Canonical Connector name from the current catalog.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Typed result of initiating or continuing a Connector connection.</returns>
+    public async Task<ConnectorConnectResult> ReconnectAsync(string accountId, string connectorName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        ArgumentNullException.ThrowIfNull(connectorName);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorConnectRequest { SessionId = _session.SessionId, AccountId = accountId, ConnectorName = connectorName };
+        return await CopilotClient.InvokeRpcAsync<ConnectorConnectResult>(_session.Rpc, "session.connectors.reconnect", [request], cancellationToken);
+    }
+
+    /// <summary>Continues a pending Connector connection with caller-supplied attempt, interval, and deadline bounds. The runtime never opens the returned consent URL.</summary>
+    /// <param name="continuationId">Opaque continuation ID returned by connect, reconnect, or an earlier continuation.</param>
+    /// <param name="maxAttempts">Maximum catalog requests made by this call. Must be between one and the capability limit.</param>
+    /// <param name="pollIntervalMs">Delay in milliseconds between attempts. Must not exceed the capability limit.</param>
+    /// <param name="deadlineMs">Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Typed result of initiating or continuing a Connector connection.</returns>
+    public async Task<ConnectorConnectResult> ContinueConnectionAsync(string continuationId, int maxAttempts, int pollIntervalMs, int deadlineMs, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(continuationId);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorContinueRequest { SessionId = _session.SessionId, ContinuationId = continuationId, MaxAttempts = maxAttempts, PollIntervalMs = pollIntervalMs, DeadlineMs = deadlineMs };
+        return await CopilotClient.InvokeRpcAsync<ConnectorConnectResult>(_session.Rpc, "session.connectors.continueConnection", [request], cancellationToken);
+    }
+
+    /// <summary>Disconnects one Connector for the pinned opaque account selection, refreshes the authoritative catalog, and removes its session-owned MCP projection.</summary>
+    /// <param name="accountId">Opaque account selection ID. It must match the account already pinned to the session, if any.</param>
+    /// <param name="connectorName">Canonical Connector name from the current catalog.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Authoritative result after disconnect and MCP reconciliation.</returns>
+    public async Task<ConnectorDisconnectResult> DisconnectAsync(string accountId, string connectorName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        ArgumentNullException.ThrowIfNull(connectorName);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorConnectRequest { SessionId = _session.SessionId, AccountId = accountId, ConnectorName = connectorName };
+        return await CopilotClient.InvokeRpcAsync<ConnectorDisconnectResult>(_session.Rpc, "session.connectors.disconnect", [request], cancellationToken);
+    }
+
+    /// <summary>Reconciles the authoritative cached or freshly requested Connector catalog into the session Connector MCP projection and returns live status.</summary>
+    /// <param name="accountId">Opaque account selection ID. It must match the account already pinned to the session, if any.</param>
+    /// <param name="refreshCatalog">When true, refresh the catalog before reconciling. A disabled Connector API performs no service request.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.</returns>
+    public async Task<ConnectorStatus> ReconcileAsync(string accountId, bool? refreshCatalog = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorReconcileRequest { SessionId = _session.SessionId, AccountId = accountId, RefreshCatalog = refreshCatalog };
+        return await CopilotClient.InvokeRpcAsync<ConnectorStatus>(_session.Rpc, "session.connectors.reconcile", [request], cancellationToken);
+    }
+}
+
 /// <summary>Handles `providerToken` client session API methods.</summary>
 [Experimental(Diagnostics.Experimental)]
 public interface IProviderTokenHandler
@@ -39845,6 +40489,17 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ConnectResult))]
 [JsonSerializable(typeof(ConnectedRemoteSessionMetadata))]
 [JsonSerializable(typeof(ConnectedRemoteSessionMetadataRepository))]
+[JsonSerializable(typeof(ConnectorAccountRequest))]
+[JsonSerializable(typeof(ConnectorCapabilities))]
+[JsonSerializable(typeof(ConnectorCatalogEntry))]
+[JsonSerializable(typeof(ConnectorCatalogResult))]
+[JsonSerializable(typeof(ConnectorConnectRequest))]
+[JsonSerializable(typeof(ConnectorConnectResult))]
+[JsonSerializable(typeof(ConnectorContinueRequest))]
+[JsonSerializable(typeof(ConnectorDisconnectResult))]
+[JsonSerializable(typeof(ConnectorReconcileRequest))]
+[JsonSerializable(typeof(ConnectorRuntimeStatus))]
+[JsonSerializable(typeof(ConnectorStatus))]
 [JsonSerializable(typeof(ContentExclusionCheckPathsRequest))]
 [JsonSerializable(typeof(ContentExclusionCheckPathsResult))]
 [JsonSerializable(typeof(ContentExclusionPathCheck))]
@@ -40362,6 +41017,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionCommandsListRequestWithSession))]
 [JsonSerializable(typeof(SessionCompletionItem))]
 [JsonSerializable(typeof(SessionCompletionsGetTriggerCharactersRequest))]
+[JsonSerializable(typeof(SessionConnectorsGetCapabilitiesRequest))]
+[JsonSerializable(typeof(SessionConnectorsGetStatusRequest))]
 [JsonSerializable(typeof(SessionContext))]
 [JsonSerializable(typeof(SessionEnrichMetadataResult))]
 [JsonSerializable(typeof(SessionEventLogTailRequest))]

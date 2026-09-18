@@ -1,6 +1,8 @@
+import { readFile } from "node:fs/promises";
 import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
+import { applyConnectorSessionApiOverlay } from "../../scripts/codegen/connectorSessionApiOverlay.ts";
 import {
     collectDefinitionCollections,
     collectExperimentalOnlyRpcReferencedDefinitionNames,
@@ -58,6 +60,57 @@ describe("shared schema definition codegen utilities", () => {
                 maximum: 100.5,
             })
         ).toBe(false);
+    });
+
+    describe("Connector session API overlay", () => {
+        async function loadOverlay(): Promise<{
+            sessionConnectors: Record<string, unknown>;
+            definitions: Record<string, Record<string, unknown>>;
+        }> {
+            return JSON.parse(
+                await readFile(
+                    new URL(
+                        "../../scripts/codegen/connector-session-api-overlay.json",
+                        import.meta.url
+                    ),
+                    "utf8"
+                )
+            );
+        }
+
+        it("installs the complete draft contract and is idempotent", async () => {
+            const schema = { session: {}, definitions: {} };
+            const target = await loadOverlay();
+
+            expect(applyConnectorSessionApiOverlay(schema, "api.schema.json")).toBe(schema);
+            expect(schema.session).toEqual({ connectors: target.sessionConnectors });
+            expect(schema.definitions).toEqual(target.definitions);
+
+            const before = structuredClone(schema);
+            expect(applyConnectorSessionApiOverlay(schema, "api.schema.json")).toBe(schema);
+            expect(schema).toEqual(before);
+        });
+
+        it("rejects partial or changed upstream contracts without mutation", async () => {
+            const target = await loadOverlay();
+            const schema = {
+                session: { connectors: target.sessionConnectors },
+                definitions: {},
+            };
+            const before = structuredClone(schema);
+
+            expect(() => applyConnectorSessionApiOverlay(schema, "api.schema.json")).toThrow(
+                "partial or unknown upstream contract"
+            );
+            expect(schema).toEqual(before);
+        });
+
+        it("ignores non-API schemas", () => {
+            const schema = { definitions: {} };
+            expect(applyConnectorSessionApiOverlay(schema, "session-events.schema.json")).toBe(
+                schema
+            );
+        });
     });
 
     it("extracts non-empty enum value descriptions from schema extensions", () => {

@@ -1528,6 +1528,86 @@ func (r *CommandsRespondToQueuedCommandRequest) UnmarshalJSON(data []byte) error
 	return nil
 }
 
+func unmarshalConnectorConnectResult(data []byte) (ConnectorConnectResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind ConnectorConnectResultKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case ConnectorConnectResultKindConnected:
+		var d ConnectorConnectResultConnected
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ConnectorConnectResultKindConsentRequired:
+		var d ConnectorConnectResultConsentRequired
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ConnectorConnectResultKindPending:
+		var d ConnectorConnectResultPending
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawConnectorConnectResultData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawConnectorConnectResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind ConnectorConnectResultKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r ConnectorConnectResultConnected) MarshalJSON() ([]byte, error) {
+	type alias ConnectorConnectResultConnected
+	return json.Marshal(struct {
+		Kind ConnectorConnectResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r ConnectorConnectResultConsentRequired) MarshalJSON() ([]byte, error) {
+	type alias ConnectorConnectResultConsentRequired
+	return json.Marshal(struct {
+		Kind ConnectorConnectResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r ConnectorConnectResultPending) MarshalJSON() ([]byte, error) {
+	type alias ConnectorConnectResultPending
+	return json.Marshal(struct {
+		Kind ConnectorConnectResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
 func unmarshalDebugCollectLogsDestination(data []byte) (DebugCollectLogsDestination, error) {
 	if string(data) == "null" {
 		return nil, nil

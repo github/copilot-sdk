@@ -176,6 +176,63 @@ and `setExcludedTools(...)`, prefer the source-qualified filter form
 `DefaultAgentConfig.setExcludedTools(...)`, use `<server-key>-<tool-name>`
 directly.
 
+## Connector session API (experimental)
+
+The Connector API is experimental and may be unavailable in some runtime
+versions. Check `getCapabilities()` before using the remaining methods.
+
+Opt in to experimental APIs, then use the generated DTOs through
+`session.getRpc().connectors`:
+
+```java
+import com.github.copilot.AllowCopilotExperimental;
+import com.github.copilot.CopilotSession;
+import com.github.copilot.generated.rpc.ConnectorAvailability;
+import com.github.copilot.generated.rpc.ConnectorConnectResultConsentRequired;
+import com.github.copilot.generated.rpc.SessionConnectorsConnectParams;
+import com.github.copilot.generated.rpc.SessionConnectorsContinueConnectionParams;
+import com.github.copilot.generated.rpc.SessionConnectorsListParams;
+import com.github.copilot.generated.rpc.SessionConnectorsReconcileParams;
+
+@AllowCopilotExperimental
+static void connectConnector(CopilotSession session, String accountId)
+        throws Exception {
+    var connectors = session.getRpc().connectors;
+    var capabilities = connectors.getCapabilities().get();
+    if (capabilities.availability() != ConnectorAvailability.ENABLED) {
+        return;
+    }
+
+    var catalog = connectors
+        .list(new SessionConnectorsListParams(null, accountId)).get();
+    connectors
+        .reconcile(new SessionConnectorsReconcileParams(
+            null, accountId, false)).get();
+    var connectorName = chooseConnector(catalog.connectors());
+    var connection = connectors
+        .connect(new SessionConnectorsConnectParams(
+            null, accountId, connectorName)).get();
+    if (connection instanceof ConnectorConnectResultConsentRequired consent) {
+        openConsentUrl(consent.getConsentUrl());
+        connection = connectors
+            .continueConnection(new SessionConnectorsContinueConnectionParams(
+                null,
+                consent.getContinuationId(),
+                capabilities.maxPollAttempts(),
+                capabilities.maxPollIntervalMs(),
+                capabilities.maxDeadlineMs()))
+            .get();
+    }
+}
+```
+
+Pass `null` for each DTO's `sessionId`; the session-scoped wrapper injects the
+active session ID. Bound continuation values using `getCapabilities()`. The
+host supplies only its opaque account selection ID and owns browser and consent
+UI; Connector methods never accept or return credentials or provider tokens.
+The namespace also exposes `getStatus`, `refresh`, `reconnect`, `disconnect`,
+and `reconcile`.
+
 `CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
 
 `SessionConfig.setAskUserVariant(AskUserVariant.ELICITATION)` selects the

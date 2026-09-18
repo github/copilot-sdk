@@ -278,6 +278,19 @@ Initial acquisition runs during session creation or resume. Cancellation, provid
 - `UI() *SessionUI` - Interactive UI API for elicitation dialogs
 - `Capabilities() SessionCapabilities` - Host capabilities (e.g. elicitation support)
 
+#### Connector session API (Experimental)
+
+`session.RPC.Connectors` exposes the runtime-owned Connector catalog, lifecycle,
+bounded consent continuation, and MCP reconciliation APIs:
+`GetCapabilities`, `GetStatus`, `List`, `Refresh`, `Connect`, `Reconnect`,
+`ContinueConnection`, `Disconnect`, and `Reconcile`. The host account-selection
+flow supplies an opaque `selectionId`, passed as `AccountID` (`accountId` on the
+wire), and owns consent/browser UX. Connector APIs neither require nor return
+tokens; Connector credentials and MCP projection remain runtime-owned.
+
+`GetCapabilities` reports API availability and bounded continuation limits
+without changing Connector state. Check it before using the remaining methods.
+
 #### Message source
 
 Set `MessageOptions.Source` to `copilot.MessageSourceAgent(id)` for messages from

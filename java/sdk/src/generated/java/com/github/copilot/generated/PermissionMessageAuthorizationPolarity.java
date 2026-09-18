@@ -7,13 +7,17 @@
 
 package com.github.copilot.generated;
 
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Which direction a message-backed authorization claim moves authority in.
  *
+ * @apiNote This type is experimental and may change in a future version.
+ *
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public enum PermissionMessageAuthorizationPolarity {
     /** The {@code grant} variant. */

@@ -34,6 +34,20 @@ import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
+    ConnectorAccountRequest,
+    ConnectorAvailability,
+    ConnectorCapabilities,
+    ConnectorCatalogEntry,
+    ConnectorCatalogResult,
+    ConnectorCatalogStatus,
+    ConnectorConnectRequest,
+    ConnectorConnectResult,
+    ConnectorContinueRequest,
+    ConnectorDisconnectResult,
+    ConnectorMcpStatus,
+    ConnectorReconcileRequest,
+    ConnectorRuntimeStatus,
+    ConnectorStatus,
     GitHubTokenAcquireReason,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
