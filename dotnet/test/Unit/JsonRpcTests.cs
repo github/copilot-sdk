@@ -114,6 +114,26 @@ public class JsonRpcTests
         pair.Client.Dispose();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task JsonRpc_Process_Exit_Reports_Connection_Lost(bool requestBeforeExit)
+    {
+        using var pair = JsonRpcReflectionPair.Create(startServer: false);
+        await using var client = new CopilotClient();
+        var pending = requestBeforeExit
+            ? pair.Client.InvokeAsync<string>("pendingAtExit", args: null)
+            : null;
+
+        pair.Client.NotifyProcessExit(client);
+        pending ??= pair.Client.InvokeAsync<string>("afterExit", args: null);
+
+        var exception = await Assert.ThrowsAnyAsync<IOException>(() => pending);
+        Assert.Equal("ConnectionLostException", exception.GetType().Name);
+        Assert.Equal("The JSON-RPC connection was lost.", exception.Message);
+        Assert.True(pair.Client.Completion.IsCompleted);
+    }
+
     [Fact]
     public async Task JsonRpc_Does_Not_Retain_Oversized_Receive_Buffer()
     {
@@ -283,6 +303,11 @@ public class JsonRpcTests
         }
 
         public void Dispose() => ((IDisposable)_instance).Dispose();
+
+        public void NotifyProcessExit(CopilotClient client) =>
+            typeof(CopilotClient)
+                .GetMethod("DisposeRpcAfterProcessExit", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(client, [_instance]);
     }
 
     private sealed class CoalescedFramesThenWaitStream : Stream

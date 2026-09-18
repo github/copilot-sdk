@@ -42,7 +42,8 @@ internal sealed partial class JsonRpc : IDisposable
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly CancellationTokenSource _disposeCts = new();
     private long _nextId;
-    private bool _disposed;
+    private int _disposeStarted;
+    private Exception? _terminalError;
 
     /// <summary>
     /// Initializes a new <see cref="JsonRpc"/>.
@@ -96,6 +97,11 @@ internal sealed partial class JsonRpc : IDisposable
         CancellationTokenRegistration cancelRegistration = default;
         try
         {
+            if (Volatile.Read(ref _terminalError) is { } terminalError)
+            {
+                throw terminalError;
+            }
+
             if (cancellationToken.CanBeCanceled)
             {
                 cancelRegistration = cancellationToken.Register(static state =>
@@ -135,6 +141,11 @@ internal sealed partial class JsonRpc : IDisposable
         {
             LogInvokeTiming(LogLevel.Debug, ex, method, id, "Canceled", timingTimestamp);
             throw;
+        }
+        catch (ObjectDisposedException ex) when (Volatile.Read(ref _terminalError) is ConnectionLostException)
+        {
+            LogInvokeTiming(LogLevel.Warning, ex, method, id, "Failed", timingTimestamp);
+            throw new ConnectionLostException();
         }
         catch (Exception ex)
         {
@@ -183,29 +194,22 @@ internal sealed partial class JsonRpc : IDisposable
     }
 
     /// <inheritdoc />
-    public void Dispose()
+    public void Dispose() => Dispose(new ObjectDisposedException(nameof(JsonRpc)));
+
+    internal void Dispose(Exception reason)
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
         {
             return;
         }
 
-        _disposed = true;
+        FailPendingRequests(reason);
         try
         {
             _disposeCts.Cancel();
         }
         finally
         {
-            // Fail all pending requests even if a cancellation callback throws.
-            foreach (var kvp in _pendingRequests)
-            {
-                if (_pendingRequests.TryRemove(kvp.Key, out var pending))
-                {
-                    pending.TrySetException(new ObjectDisposedException(nameof(JsonRpc)));
-                }
-            }
-
             _completionSource.TrySetResult();
             _writeLock.Dispose();
         }
@@ -343,16 +347,20 @@ internal sealed partial class JsonRpc : IDisposable
         }
         finally
         {
-            // Fail all pending requests
-            foreach (var kvp in _pendingRequests)
-            {
-                if (_pendingRequests.TryRemove(kvp.Key, out var pending))
-                {
-                    pending.TrySetException(new ConnectionLostException());
-                }
-            }
-
+            FailPendingRequests(new ConnectionLostException());
             _completionSource.TrySetResult();
+        }
+    }
+
+    private void FailPendingRequests(Exception reason)
+    {
+        var terminalError = Interlocked.CompareExchange(ref _terminalError, reason, null) ?? reason;
+        foreach (var kvp in _pendingRequests)
+        {
+            if (_pendingRequests.TryRemove(kvp.Key, out var pending))
+            {
+                pending.TrySetException(terminalError);
+            }
         }
     }
 

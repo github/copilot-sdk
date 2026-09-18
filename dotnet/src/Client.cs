@@ -2759,7 +2759,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         try
         {
-            rpc.Dispose();
+            rpc.Dispose(new ConnectionLostException());
         }
         catch (Exception ex) when (IsRecoverableConnectionCleanupFailure(ex))
         {
