@@ -28,7 +28,7 @@ function stableStringify(value: unknown): string {
       .map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`)
       .join(",")}}`;
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? "undefined";
 }
 
 function clone<T>(value: T): T {
