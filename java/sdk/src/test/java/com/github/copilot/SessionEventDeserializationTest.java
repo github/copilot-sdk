@@ -130,26 +130,21 @@ public class SessionEventDeserializationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {
-            """
-                    {"kind":"status","state":"ready"}
-                    """,
-            """
-                    {"kind":"startup","outcome":"skipped_disabled","fileCount":0,
-                     "startupDurationMs":1.25,"forcedByEnv":false,"warmStart":false,
-                     "disabledReason":"organization_policy_unknown","errorMessage":"startup diagnostic",
-                     "eligible":false}
-                    """,
-            """
-                    {"kind":"server_error","errorType":"unexpected_exit","exitCode":0,
-                     "errorMessage":"server diagnostic"}
-                    """,
-            """
-                    {"kind":"incremental","phase":"updated","changedFileCount":0,
-                     "addedFileCount":2,"deletedFileCount":1,"totalChangeCount":3,
-                     "walkDurationMs":0,"updateDurationMs":2.5,"totalDurationMs":3.75}
-                    """
-    })
+    @ValueSource(strings = {"""
+            {"kind":"status","state":"ready"}
+            """, """
+            {"kind":"startup","outcome":"skipped_disabled","fileCount":0,
+             "startupDurationMs":1.25,"forcedByEnv":false,"warmStart":false,
+             "disabledReason":"organization_policy_unknown","errorMessage":"startup diagnostic",
+             "eligible":false}
+            """, """
+            {"kind":"server_error","errorType":"unexpected_exit","exitCode":0,
+             "errorMessage":"server diagnostic"}
+            """, """
+            {"kind":"incremental","phase":"updated","changedFileCount":0,
+             "addedFileCount":2,"deletedFileCount":1,"totalChangeCount":3,
+             "walkDurationMs":0,"updateDurationMs":2.5,"totalDurationMs":3.75}
+            """})
     void testIndexedSearchFullEnvelopeRoundTrip(String payload) throws Exception {
         String json = eventEnvelope("session.indexed_search", payload);
 
@@ -165,51 +160,43 @@ public class SessionEventDeserializationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {
-            """
-                    {"kind":"policy_resolved","control":"filesystem","outcome":"degraded","toolCallId":null,
-                     "platform":"linux","backend":"bubblewrap","policySource":"user_policy",
-                     "enforcementPoint":"shell","readwritePathsCount":1,"readonlyPathsCount":0,"deniedPathsCount":1,
-                     "addCurrentWorkingDirectory":false,"allowOutbound":false,"allowLocalNetwork":false,
-                     "proxyMode":"none","allowBypass":false,"gitAuth":false,"ghAuth":false,"keychainAccess":false,
-                     "effectiveFilesystemPolicy":{"readwritePaths":["/workspace"],"readonlyPaths":[],
-                     "deniedPaths":["/private"]},"degradationReason":"denied_paths_unsupported"}
-                    """,
-            """
-                    {"kind":"spawn_completed","control":"process","outcome":"succeeded","toolCallId":"tool-spawn",
-                     "platform":"macos","backend":"seatbelt","enforcementPoint":"shell","durationMs":1.25,
-                     "degradationReason":null}
-                    """,
-            """
-                    {"kind":"enforcement_state","control":"process","outcome":"engaged","toolCallId":"tool-state",
-                     "platform":"windows","backend":"process_container","enforcementPoint":"shell",
-                     "attestation":"spawn_succeeded","command":"echo example"}
-                    """,
-            """
-                    {"kind":"access_denied","control":"filesystem","outcome":"denied","toolCallId":"tool-denied",
-                     "platform":"linux","enforcementPoint":"builtin_filesystem","denialClass":"filesystem_read",
-                     "attestation":"builtin_policy_checked","confidence":"policy_corroborated",
-                     "deniedResource":"/private/example.txt","command":null,"processName":"example"}
-                    """,
-            """
-                    {"kind":"bypass_decided","control":"bypass","outcome":"declined","toolCallId":"tool-bypass",
-                     "platform":"macos","enforcementPoint":"shell","source":"user_prompted",
-                     "denialClass":"network_outbound","confidence":"captured","deniedResource":"example.invalid",
-                     "command":"example --network","processName":"example"}
-                    """,
-            """
-                    {"kind":"permissive_retry_decided","control":"bypass","outcome":"approved",
-                     "toolCallId":"tool-retry","platform":"linux","enforcementPoint":"shell",
-                     "source":"model_requested","denialClass":"filesystem_write","confidence":"sandbox_reported",
-                     "deniedResource":"/workspace/example.txt","command":"example --write","processName":"example"}
-                    """,
-            """
-                    {"kind":"permissive_retry_completed","control":"process","outcome":"succeeded",
-                     "toolCallId":"tool-retry","platform":"linux","enforcementPoint":"shell",
-                     "denialClass":null,"confidence":null,"deniedResource":null,"command":"example --write",
-                     "processName":"example"}
-                    """
-    })
+    @ValueSource(strings = {"""
+            {"kind":"policy_resolved","control":"filesystem","outcome":"degraded","toolCallId":null,
+             "platform":"linux","backend":"bubblewrap","policySource":"user_policy",
+             "enforcementPoint":"shell","readwritePathsCount":1,"readonlyPathsCount":0,"deniedPathsCount":1,
+             "addCurrentWorkingDirectory":false,"allowOutbound":false,"allowLocalNetwork":false,
+             "proxyMode":"none","allowBypass":false,"gitAuth":false,"ghAuth":false,"keychainAccess":false,
+             "effectiveFilesystemPolicy":{"readwritePaths":["/workspace"],"readonlyPaths":[],
+             "deniedPaths":["/private"]},"degradationReason":"denied_paths_unsupported"}
+            """, """
+            {"kind":"spawn_completed","control":"process","outcome":"succeeded","toolCallId":"tool-spawn",
+             "platform":"macos","backend":"seatbelt","enforcementPoint":"shell","durationMs":1.25,
+             "degradationReason":null}
+            """, """
+            {"kind":"enforcement_state","control":"process","outcome":"engaged","toolCallId":"tool-state",
+             "platform":"windows","backend":"process_container","enforcementPoint":"shell",
+             "attestation":"spawn_succeeded","command":"echo example"}
+            """, """
+            {"kind":"access_denied","control":"filesystem","outcome":"denied","toolCallId":"tool-denied",
+             "platform":"linux","enforcementPoint":"builtin_filesystem","denialClass":"filesystem_read",
+             "attestation":"builtin_policy_checked","confidence":"policy_corroborated",
+             "deniedResource":"/private/example.txt","command":null,"processName":"example"}
+            """, """
+            {"kind":"bypass_decided","control":"bypass","outcome":"declined","toolCallId":"tool-bypass",
+             "platform":"macos","enforcementPoint":"shell","source":"user_prompted",
+             "denialClass":"network_outbound","confidence":"captured","deniedResource":"example.invalid",
+             "command":"example --network","processName":"example"}
+            """, """
+            {"kind":"permissive_retry_decided","control":"bypass","outcome":"approved",
+             "toolCallId":"tool-retry","platform":"linux","enforcementPoint":"shell",
+             "source":"model_requested","denialClass":"filesystem_write","confidence":"sandbox_reported",
+             "deniedResource":"/workspace/example.txt","command":"example --write","processName":"example"}
+            """, """
+            {"kind":"permissive_retry_completed","control":"process","outcome":"succeeded",
+             "toolCallId":"tool-retry","platform":"linux","enforcementPoint":"shell",
+             "denialClass":null,"confidence":null,"deniedResource":null,"command":"example --write",
+             "processName":"example"}
+            """})
     void testSandboxDecisionFullEnvelopeRoundTrip(String payload) throws Exception {
         String json = eventEnvelope("sandbox.decision", payload);
         var event = assertInstanceOf(SandboxDecisionEvent.class, parseJson(json));

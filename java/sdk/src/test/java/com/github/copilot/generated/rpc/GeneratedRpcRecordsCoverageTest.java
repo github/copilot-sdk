@@ -779,8 +779,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionPluginsListResult_nested() {
-        var plugin = new Plugin("my-plugin", "marketplace-x", "1.2.3", true, null, "/marketplaces/marketplace-x",
-                null, true, true, true);
+        var plugin = new Plugin("my-plugin", "marketplace-x", "1.2.3", true, null, "/marketplaces/marketplace-x", null,
+                true, true, true);
         var result = new SessionPluginsListResult(List.of(plugin));
         assertEquals(1, result.plugins().size());
         assertEquals("my-plugin", result.plugins().get(0).name());
