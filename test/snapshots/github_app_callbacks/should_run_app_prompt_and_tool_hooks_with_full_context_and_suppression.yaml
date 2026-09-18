@@ -1,0 +1,32 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call app_hook_tool with value 'original', then reply with exactly APP_POST_RESULT.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: app_hook_tool
+              arguments: '{"value":"original"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call app_hook_tool with value 'original', then reply with exactly APP_POST_RESULT.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: app_hook_tool
+              arguments: '{"value":"pre-hook"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: APP_POST_RESULT
+      - role: assistant
+        content: APP_POST_RESULT

@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Remember APP_LIFECYCLE_MEMORY and reply with exactly APP_LIFECYCLE_INITIALIZED.
+      - role: assistant
+        content: APP_LIFECYCLE_INITIALIZED
+      - role: user
+        content: Reply with exactly the app lifecycle memory value from the earlier turn.
+      - role: assistant
+        content: APP_LIFECYCLE_MEMORY
