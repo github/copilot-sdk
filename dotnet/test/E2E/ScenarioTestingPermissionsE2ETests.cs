@@ -20,7 +20,10 @@ public class ScenarioTestingPermissionsE2ETests(E2ETestFixture fixture, ITestOut
         string modeValue,
         string? assistedApprovalModel)
     {
-        await using var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync(new SessionConfig
+        {
+            FeatureFlags = new Dictionary<string, bool> { ["AUTO_APPROVAL"] = true },
+        });
         var mode = new PermissionMode(modeValue);
 
         Assert.Equal(PermissionMode.Manual, (await session.Rpc.Permissions.GetModeAsync()).Mode);
