@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { approveAll, defineTool } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Abort", async () => {
     const { copilotClient: client } = await createSdkTestContext();
@@ -141,17 +140,24 @@ describe("Abort", async () => {
         const recoveryReceived = new Promise<void>((resolve) => {
             recoveryResolve = resolve;
         });
+        let recoveryIdleResolve!: (value: void) => void;
+        const recoveryIdle = new Promise<void>((resolve) => {
+            recoveryIdleResolve = resolve;
+        });
+        let recoveryMessageSeen = false;
 
         session.on((event) => {
             if (
                 event.type === "assistant.message" &&
                 event.data.content?.includes("tool_abort_recovery_ok")
             ) {
+                recoveryMessageSeen = true;
                 recoveryResolve();
+            } else if (event.type === "session.idle" && recoveryMessageSeen) {
+                recoveryIdleResolve();
             }
         });
 
-        const recoveryIdle = getNextEventOfType(session, "session.idle");
         void session.send({
             prompt: "Say 'tool_abort_recovery_ok'.",
         });

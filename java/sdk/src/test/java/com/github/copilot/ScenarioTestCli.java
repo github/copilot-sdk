@@ -135,7 +135,11 @@ final class ScenarioTestCli implements AutoCloseable {
                     break;
                 }
                 if (header.toLowerCase(Locale.ROOT).startsWith("content-length:")) {
-                    contentLength = Integer.parseInt(header.substring(header.indexOf(':') + 1).trim());
+                    try {
+                        contentLength = Integer.parseInt(header.substring(header.indexOf(':') + 1).trim());
+                    } catch (NumberFormatException e) {
+                        throw new IOException("Invalid Content-Length header: " + header, e);
+                    }
                 }
             } else if (value != '\r') {
                 line.write(value);

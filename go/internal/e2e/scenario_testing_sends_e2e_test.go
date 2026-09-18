@@ -171,10 +171,14 @@ func TestScenarioTestingSendsE2E(t *testing.T) {
 			defer cancel()
 			f := newGeneratedRPCFixture(t, ctx)
 			var calls atomic.Int64
-			var captured map[string]any
+			capturedRequests := make(chan map[string]any, 1)
 			f.server.SetRequestHandler("session.send", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 				calls.Add(1)
-				_ = json.Unmarshal(params, &captured)
+				var captured map[string]any
+				if err := json.Unmarshal(params, &captured); err != nil {
+					return nil, &jsonrpc2.Error{Code: -32000, Message: err.Error()}
+				}
+				capturedRequests <- captured
 				_ = f.conn.Close()
 				return nil, nil
 			})
@@ -193,6 +197,12 @@ func TestScenarioTestingSendsE2E(t *testing.T) {
 			}
 			if calls.Load() != 1 {
 				t.Fatalf("session.send calls = %d, want 1", calls.Load())
+			}
+			var captured map[string]any
+			select {
+			case captured = <-capturedRequests:
+			case <-ctx.Done():
+				t.Fatalf("Timed out waiting for captured session.send request: %v", ctx.Err())
 			}
 			if mode == "" {
 				if _, exists := captured["mode"]; exists {
@@ -291,7 +301,7 @@ func TestScenarioTestingSendsE2E(t *testing.T) {
 		steeringIndex := assertDelivery(steeringID, copilot.UserMessageDeliverySteering)
 		behindIndex := assertDelivery(immediateBehindID, copilot.UserMessageDeliverySteering)
 		queuedIndex := assertDelivery(queuedID, copilot.UserMessageDeliveryQueued)
-		if !(steeringIndex < behindIndex && behindIndex < queuedIndex) {
+		if steeringIndex >= behindIndex || behindIndex >= queuedIndex {
 			t.Fatalf("Unexpected delivery order: steering=%d behind=%d queued=%d", steeringIndex, behindIndex, queuedIndex)
 		}
 	})

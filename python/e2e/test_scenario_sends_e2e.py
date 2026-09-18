@@ -134,7 +134,7 @@ class TestScenarioSends:
                 send_task = asyncio.create_task(
                     session.send("This must not be dispatched.", mode=mode)
                 )
-                send_task.cancel()
+                assert send_task.cancel()
 
                 with pytest.raises(asyncio.CancelledError):
                     await send_task
