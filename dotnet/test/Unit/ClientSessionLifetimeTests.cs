@@ -2489,6 +2489,7 @@ public sealed partial class ClientSessionLifetimeTests
                 ["id"] = Guid.NewGuid().ToString(),
                 ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
                 ["parentId"] = null,
+                ["agentId"] = agentId,
                 ["type"] = type,
                 ["data"] = data
             };

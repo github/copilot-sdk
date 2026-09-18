@@ -22,9 +22,8 @@ public sealed partial class ClientSessionLifetimeTests
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
         await using var session = await client.CreateSessionAsync(new SessionConfig());
         using var document = JsonDocument.Parse("""{"type":"object","properties":{"value":{"type":"integer"}},"x-provider":{"anything":[true,42,null]}}""");
-        var format = new ResponseFormat
+        var format = new ResponseFormatJsonSchema
         {
-            Type = "json_schema",
             JsonSchema = new JsonSchemaResponseFormat
             {
                 Name = "answer",

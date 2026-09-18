@@ -50,13 +50,15 @@ for (const keyword of ["anyOf", "oneOf"] as const) {
             },
         });
 
-        assert.match(code, /public sealed class ResponseFormat\b/);
+        assert.match(code, /public partial class ResponseFormat\b/);
+        assert.match(code, /public partial class ResponseFormatJsonSchema : ResponseFormat/);
+        assert.match(code, /\[JsonDerivedType\(typeof\(ResponseFormatJsonSchema\), "json_schema"\)\]/);
         assert.match(code, /A provider-native output format\./);
         assert.match(code, /public ResponseFormat\? ResponseFormat/);
         assert.match(code, /public ResponseFormat RequiredFormat/);
-        assert.match(code, /public JsonSchemaResponseFormat JsonSchema/);
+        assert.match(code, /public required JsonSchemaResponseFormat JsonSchema/);
         assert.match(code, /public JsonElement Schema/);
         assert.match(code, /public bool\? Strict/);
-        assert.equal(code.match(/public sealed class ResponseFormat\b/g)?.length, 1);
+        assert.equal(code.match(/public partial class ResponseFormat\b/g)?.length, 1);
     });
 }

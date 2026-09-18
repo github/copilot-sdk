@@ -14,28 +14,30 @@ namespace GitHub.Copilot.Test.E2E;
 public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "structured_output", output)
 {
-    private SessionConfig StructuredSessionConfig() => new()
-    {
-        Model = "gpt-4.1",
-        AvailableTools = [],
-        Provider = new ProviderConfig
+    private SessionConfig StructuredSessionConfig() => E2ETestBackendConfiguration.Current != E2ETestBackend.Capi
+        ? new() { AvailableTools = [] }
+        : new()
         {
-            Type = "openai",
-            WireApi = "completions",
-            BaseUrl = Ctx.ProxyUrl,
-            ModelId = "gpt-4.1",
-            WireModel = "gpt-4.1",
-            ApiKey = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
+            Model = "gpt-4.1",
+            AvailableTools = [],
+            Provider = new ProviderConfig
+            {
+                Type = "openai",
+                WireApi = "completions",
+                BaseUrl = Ctx.ProxyUrl,
+                ModelId = "gpt-4.1",
+                WireModel = "gpt-4.1",
+                ApiKey = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
                 ? "fake-token-for-e2e-tests"
                 : Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? "fake-token-for-e2e-tests",
-            Headers = new Dictionary<string, string>
-            {
-                ["Copilot-Integration-Id"] = "copilot-developer-cli",
-                ["Copilot-Harness-Id"] = "copilot-sdk",
-                ["X-GitHub-Api-Version"] = "2026-08-01",
+                Headers = new Dictionary<string, string>
+                {
+                    ["Copilot-Integration-Id"] = "copilot-developer-cli",
+                    ["Copilot-Harness-Id"] = "copilot-sdk",
+                    ["X-GitHub-Api-Version"] = "2026-08-01",
+                },
             },
-        },
-    };
+        };
 
     [Fact]
     public async Task Infers_Typed_Result_After_Custom_Tool()
@@ -93,9 +95,8 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
             """{"type":"object","properties":{"count":{"type":"integer"},"color":{"type":"string"}},"required":["count","color"],"additionalProperties":false}""");
         var accepted = await session.Rpc.SendMessagesAsync(
             [new() { Prompt = "There are 42 red widgets in stock." }, new() { Prompt = "Report the widget count and color." }],
-            responseFormat: new ResponseFormat
+            responseFormat: new ResponseFormatJsonSchema
             {
-                Type = "json_schema",
                 JsonSchema = new JsonSchemaResponseFormat
                 {
                     Name = "inventory",
@@ -339,9 +340,8 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
                 }));
             Assert.Contains(message, error.Message);
             error = await Assert.ThrowsAnyAsync<Exception>(() =>
-                session.Rpc.SendMessagesAsync([], responseFormat: new ResponseFormat
+                session.Rpc.SendMessagesAsync([], responseFormat: new ResponseFormatJsonSchema
                 {
-                    Type = "json_schema",
                     JsonSchema = new() { Name = "response", Schema = schema.RootElement },
                 }));
             Assert.Contains(message, error.Message);

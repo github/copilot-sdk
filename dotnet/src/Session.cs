@@ -332,9 +332,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
             Traceparent = traceparent,
             Tracestate = tracestate,
             RequestHeaders = options.RequestHeaders,
-            ResponseFormat = options.ResponseSchema is { } schema ? new ResponseFormat
+            ResponseFormat = options.ResponseSchema is { } schema ? new ResponseFormatJsonSchema
             {
-                Type = "json_schema",
                 JsonSchema = new JsonSchemaResponseFormat
                 {
                     Name = "response",

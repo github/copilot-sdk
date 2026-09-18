@@ -362,9 +362,8 @@ using System.Text.Json;
 using var schema = JsonDocument.Parse("""
     {"type":"object","properties":{"count":{"type":"integer"}},"required":["count"],"additionalProperties":false}
     """);
-var format = new ResponseFormat
+var format = new ResponseFormatJsonSchema
 {
-    Type = "json_schema",
     JsonSchema = new JsonSchemaResponseFormat
     {
         Name = "inventory",
@@ -402,8 +401,8 @@ admission, using the runtime's existing request-size ceiling. This does not
 guarantee the schema plus conversation and tools fits the provider's budget.
 Use a provider route that enforces JSON Schema: an API-compatible gateway can
 ignore unsupported format fields, and the Claude Chat-completions compatibility
-route is not equivalent to Anthropic's native Messages endpoint. This preview
-requires the unreleased runtime changes; see [local-runtime development](../CONTRIBUTING.md#testing-an-unreleased-runtime-api).
+route is not equivalent to Anthropic's native Messages endpoint. The SDK's
+pinned CLI release includes the required runtime support.
 
 ##### `On(Action<SessionEvent> handler): IDisposable`
 
