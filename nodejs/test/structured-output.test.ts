@@ -168,6 +168,16 @@ describe("structured output", () => {
         expect(sendRequest).not.toHaveBeenCalled();
     });
 
+    it("rejects typed immediate steering before sending", async () => {
+        const { session, sendRequest } = controlledSession();
+        await expect(
+            session.sendAndWait({ prompt: "question", mode: "immediate" }, answer)
+        ).rejects.toThrow(
+            "Structured output cannot be requested on an immediate steering message."
+        );
+        expect(sendRequest).not.toHaveBeenCalled();
+    });
+
     it.each([{ type: "object" }, { toJSONSchema: () => ({ type: "object" }) }, null])(
         "rejects an invalid second argument instead of sending an unformatted request: %j",
         async (schema) => {

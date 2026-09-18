@@ -832,6 +832,11 @@ export class CopilotSession {
                 "Do not specify responseSchema in options when requesting a typed response."
             );
         }
+        if (typedSchema && options.mode === "immediate") {
+            throw new Error(
+                "Structured output cannot be requested on an immediate steering message."
+            );
+        }
         if (typedSchema || options.responseSchema) {
             const message = await this.sendAndWaitForStructuredMessage(
                 typedSchema ? { ...options, responseSchema: typedSchema } : options,
