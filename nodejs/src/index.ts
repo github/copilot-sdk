@@ -115,6 +115,7 @@ export type {
     MCPServerConfig,
     DefaultAgentConfig,
     BearerTokenProvider,
+    ExtensionContextAttachment,
     MessageOptions,
     MessageSource,
     ManagedSettings,

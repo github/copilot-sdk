@@ -11,6 +11,7 @@ import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
+    AttachmentExtensionContext as GeneratedExtensionContextAttachment,
     AutoTier,
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
@@ -3328,6 +3329,9 @@ export interface ProviderModelConfig {
  */
 export type MessageSource = "user" | "system" | `agent-${string}`;
 
+/** Structured context contributed by an extension. */
+export type ExtensionContextAttachment = GeneratedExtensionContextAttachment;
+
 export interface MessageOptions {
     /**
      * The prompt/message to send
@@ -3342,7 +3346,7 @@ export interface MessageOptions {
     source?: MessageSource;
 
     /**
-     * File, directory, selection, or blob attachments
+     * File, directory, selection, blob, or extension context attachments
      */
     attachments?: Array<
         | {
@@ -3371,6 +3375,7 @@ export interface MessageOptions {
               mimeType: string;
               displayName?: string;
           }
+        | ExtensionContextAttachment
     >;
 
     /**
