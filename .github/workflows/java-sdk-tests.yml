@@ -233,7 +233,7 @@ jobs:
           overwrite: true
           retention-days: 1
 
-  java-native-publication-windows:
+  java-native-publication-windows-x64:
     name: "Java Native Publication Input (win32-x64)"
     if: github.event.repository.fork == false
     runs-on: windows-latest
@@ -349,7 +349,7 @@ jobs:
           overwrite: true
           retention-days: 1
 
-  java-native-publication-darwin:
+  java-native-publication-darwin-arm64:
     name: "Java Native Publication Input (darwin-arm64)"
     if: github.event.repository.fork == false
     runs-on: macos-26
@@ -473,9 +473,9 @@ jobs:
       [
         java-native-publication-linux-arm64,
         java-native-publication-linuxmusl-x64,
-        java-native-publication-windows,
+        java-native-publication-windows-x64,
         java-native-publication-windows-arm64,
-        java-native-publication-darwin,
+        java-native-publication-darwin-arm64,
         java-native-publication-darwin-x64,
       ]
     runs-on: ubuntu-latest
@@ -534,16 +534,16 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ needs.java-native-publication-linux-arm64.outputs.source_sha }}"
           test "$(git rev-parse HEAD)" = "${{ needs.java-native-publication-linuxmusl-x64.outputs.source_sha }}"
-          test "$(git rev-parse HEAD)" = "${{ needs.java-native-publication-windows.outputs.source_sha }}"
+          test "$(git rev-parse HEAD)" = "${{ needs.java-native-publication-windows-x64.outputs.source_sha }}"
           test "$(git rev-parse HEAD)" = "${{ needs.java-native-publication-windows-arm64.outputs.source_sha }}"
-          test "$(git rev-parse HEAD)" = "${{ needs.java-native-publication-darwin.outputs.source_sha }}"
+          test "$(git rev-parse HEAD)" = "${{ needs.java-native-publication-darwin-arm64.outputs.source_sha }}"
           test "$(git rev-parse HEAD)" = "${{ needs.java-native-publication-darwin-x64.outputs.source_sha }}"
-          VERSION="${{ needs.java-native-publication-windows.outputs.version }}"
+          VERSION="${{ needs.java-native-publication-windows-x64.outputs.version }}"
           test "$VERSION" = "$JAVA_PUBLICATION_REVISION"
           test "$VERSION" = "${{ needs.java-native-publication-linux-arm64.outputs.version }}"
           test "$VERSION" = "${{ needs.java-native-publication-linuxmusl-x64.outputs.version }}"
           test "$VERSION" = "${{ needs.java-native-publication-windows-arm64.outputs.version }}"
-          test "$VERSION" = "${{ needs.java-native-publication-darwin.outputs.version }}"
+          test "$VERSION" = "${{ needs.java-native-publication-darwin-arm64.outputs.version }}"
           test "$VERSION" = "${{ needs.java-native-publication-darwin-x64.outputs.version }}"
           LINUX_ARM64_DIRECTORY="$GITHUB_WORKSPACE/java/native-publication-input/linux-arm64"
           LINUXMUSL_X64_DIRECTORY="$GITHUB_WORKSPACE/java/native-publication-input/linuxmusl-x64"
