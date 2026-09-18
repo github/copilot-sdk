@@ -564,7 +564,10 @@ print(inventory.count, inventory.color)
 ```
 
 The helper derives a JSON Schema using `model_json_schema()` and validates the
-final JSON with `model_validate_json()`. For explicit schemas, use
+final JSON with `model_validate_json(by_alias=True, by_name=False)` so validation
+uses the schema's alias names, including in nested models, regardless of
+model-level alias settings. This requires Pydantic 2.11 or newer.
+For explicit schemas, use
 `send(prompt, response_schema=schema)` or `send_and_wait(prompt,
 response_schema=schema)`; the latter returns the ordinary message event.
 `response_schema` also accepts a Pydantic model class without parsing the result.

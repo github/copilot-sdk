@@ -57,10 +57,16 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
         var deltas = 0;
         using var subscription = session.On<AssistantMessageDeltaEvent>(_ => Interlocked.Increment(ref deltas));
 
+        var serializerOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        if (!JsonSerializer.IsReflectionEnabledByDefault)
+        {
+            serializerOptions.TypeInfoResolver = StructuredOutputE2EJsonContext.Default;
+        }
         var result = await session.SendAndWaitAsync<Inventory>(
             "Call get_inventory, then report the widget count and color.",
-            StructuredOutputE2EJsonContext.Default.Options,
+            serializerOptions,
             TimeSpan.FromMinutes(3));
+        Assert.False(serializerOptions.IsReadOnly);
         Assert.True(calls > 0);
         Assert.True(deltas > 0, "Typed wait must preserve streaming text updates");
         Assert.Equal(42, result.Count);

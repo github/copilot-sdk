@@ -91,6 +91,41 @@ public sealed partial class ClientSessionLifetimeTests
         Assert.Equal(42, result.Count);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StructuredOutput_Initializes_Fresh_Serializer_Options_Without_Mutating_Them(bool withResolver)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        if (withResolver)
+        {
+            options.TypeInfoResolver = StructuredOutputJsonContext.Default;
+        }
+        var resolver = options.TypeInfoResolver;
+        var task = session.SendAndWaitAsync<StructuredAnswer>("Answer", options);
+        if (JsonSerializer.IsReflectionEnabledByDefault || withResolver)
+        {
+            var request = await WaitForRequestAsync(server, "session.send");
+            var properties = request.Params.GetProperty("responseFormat").GetProperty("jsonSchema").GetProperty("schema").GetProperty("properties");
+            Assert.True(properties.TryGetProperty("answer_text", out _));
+            Assert.True(properties.TryGetProperty("count", out _));
+            await SendStructuredAnswerAsync(server, session, "message-1", """{"answer_text":"correct","count":42}""");
+            var result = await task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal("correct", result.Answer);
+            Assert.Equal(42, result.Count);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => task);
+            Assert.DoesNotContain(server.Requests, request => request.Method == "session.send");
+        }
+        Assert.Same(resolver, options.TypeInfoResolver);
+        Assert.False(options.IsReadOnly);
+    }
+
     [Fact]
     public async Task StructuredOutput_Infers_Schema_Using_Serialization_Contract()
     {

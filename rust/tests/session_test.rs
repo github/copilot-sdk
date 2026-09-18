@@ -4030,6 +4030,80 @@ async fn structured_output_infers_schema_and_buffers_pre_ack_corrections() {
 
 #[cfg(feature = "derive")]
 #[tokio::test]
+async fn structured_output_preserves_wide_integers() {
+    #[derive(Debug, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+    struct WideIntegers {
+        signed: i128,
+        unsigned: u128,
+    }
+
+    for signed in [i128::MIN, i128::MAX, 18446744073709551616] {
+        let (session, mut server) = create_session_pair().await;
+        let waiting = tokio::spawn(async move {
+            session
+                .send_and_wait_typed::<WideIntegers>("wide integers")
+                .await
+        });
+        let request = server.read_request().await;
+        let content = format!(r#"{{"signed":{signed},"unsigned":{}}}"#, u128::MAX);
+        server
+            .respond(&request, serde_json::json!({"messageId":"user-1"}))
+            .await;
+        server
+            .send_event(
+                "assistant.message",
+                serde_json::json!({
+                    "messageId":"assistant", "originatingMessageId":"user-1", "content":content
+                }),
+            )
+            .await;
+        server
+            .send_event("session.idle", serde_json::json!({}))
+            .await;
+        assert_eq!(
+            timeout(TIMEOUT, waiting).await.unwrap().unwrap().unwrap(),
+            WideIntegers {
+                signed,
+                unsigned: u128::MAX
+            }
+        );
+    }
+}
+
+#[cfg(feature = "derive")]
+#[tokio::test]
+async fn structured_output_rejects_null_even_for_optional_results() {
+    let (session, mut server) = create_session_pair().await;
+    let waiting = tokio::spawn(async move {
+        session
+            .send_and_wait_typed::<Option<StructuredInventory>>("inventory")
+            .await
+    });
+    let request = server.read_request().await;
+    server
+        .respond(&request, serde_json::json!({"messageId":"user-1"}))
+        .await;
+    server
+        .send_event(
+            "assistant.message",
+            serde_json::json!({
+                "messageId":"assistant", "originatingMessageId":"user-1", "content":" \nnull\t "
+            }),
+        )
+        .await;
+    server
+        .send_event("session.idle", serde_json::json!({}))
+        .await;
+    let error = timeout(TIMEOUT, waiting)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert!(error.to_string().contains("JSON null"), "{error}");
+}
+
+#[cfg(feature = "derive")]
+#[tokio::test]
 async fn structured_output_rejects_invalid_results() {
     for content in [
         "null",

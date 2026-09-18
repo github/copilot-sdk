@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from copilot.session import CopilotSession
 from copilot.session_events import SessionEvent
@@ -76,6 +76,31 @@ async def test_typed_output_buffers_pre_ack_events_and_infers_schema():
         "type": "json_schema",
         "jsonSchema": {"name": "response", "strict": True, "schema": Inventory.model_json_schema()},
     }
+    assert_clean(session)
+
+
+@pytest.mark.asyncio
+async def test_typed_output_validates_schema_aliases_including_nested_models():
+    class Answer(BaseModel):
+        model_config = ConfigDict(extra="forbid", validate_by_alias=False, validate_by_name=True)
+        value: int = Field(alias="answer")
+
+    class Result(BaseModel):
+        model_config = ConfigDict(extra="forbid", validate_by_alias=False, validate_by_name=True)
+        value: Answer = Field(alias="result")
+        values: list[Answer] = Field(alias="results")
+
+    content = '{"result":{"answer":42},"results":[{"answer":99}]}'
+    session, client = fake_session([assistant(content), idle()])
+    result = await session.send_and_wait_typed("answer", Result, timeout=1)
+    assert result.value.value == 42
+    assert result.values[0].value == 99
+    schema = client.request.call_args.args[1]["responseFormat"]["jsonSchema"]["schema"]
+    assert schema == Result.model_json_schema()
+    assert set(schema["properties"]) == {"result", "results"}
+    assert set(schema["$defs"]["Answer"]["properties"]) == {"answer"}
+    assert not Result.model_config["validate_by_alias"]
+    assert not Answer.model_config["validate_by_alias"]
     assert_clean(session)
 
 

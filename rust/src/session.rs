@@ -767,13 +767,9 @@ impl Session {
         opts.response_schema = Some(crate::tool::schema_for::<T>());
         let event = self.send_and_wait_structured(opts).await?;
         let data: crate::session_events::AssistantMessageData = serde_json::from_value(event.data)?;
-        let value: Value = serde_json::from_str(&data.content)?;
-        if value.is_null() {
-            return Err(structured_output_error(
-                "structured response was JSON null, not a result",
-            ));
-        }
-        Ok(serde_json::from_value(value)?)
+        serde_json::from_str::<Option<T>>(&data.content)?.ok_or_else(|| {
+            structured_output_error("structured response was JSON null, not a result")
+        })
     }
 
     async fn send_and_wait_structured(&self, opts: MessageOptions) -> Result<SessionEvent, Error> {

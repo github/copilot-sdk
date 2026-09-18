@@ -4,7 +4,7 @@ import asyncio
 import json
 
 import pytest
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from copilot import define_tool
 from copilot.rpc import (
@@ -75,6 +75,11 @@ def config(ctx):
 
 
 async def test_infers_typed_result_after_custom_tool(ctx):
+    class AliasedInventory(BaseModel):
+        model_config = ConfigDict(extra="forbid", validate_by_alias=False, validate_by_name=True)
+        count_value: int = Field(alias="count")
+        color_value: str = Field(alias="color")
+
     calls = 0
 
     @define_tool("get_inventory", description="Get the current widget inventory.")
@@ -95,9 +100,12 @@ async def test_infers_typed_result_after_custom_tool(ctx):
             )
         )
         result = await session.send_and_wait_typed(
-            "Call get_inventory, then report the widget count and color.", Inventory, timeout=30
+            "Call get_inventory, then report the widget count and color.",
+            AliasedInventory,
+            timeout=30,
         )
-        assert result == Inventory(count=42, color="red")
+        assert result.count_value == 42
+        assert result.color_value == "red"
         assert calls > 0
         assert deltas
         unsubscribe()
@@ -113,7 +121,7 @@ async def test_infers_typed_result_after_custom_tool(ctx):
                 "json_schema": {
                     "name": "response",
                     "strict": True,
-                    "schema": Inventory.model_json_schema(),
+                    "schema": AliasedInventory.model_json_schema(),
                 },
             }
         assert "response_format" not in exchanges[-1]["request"]

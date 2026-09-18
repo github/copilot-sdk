@@ -76,7 +76,7 @@ public sealed partial class CopilotSession
             throw new ArgumentException("Structured output cannot be requested on an immediate steering message.", nameof(options));
         }
 
-        serializerOptions ??= AIJsonUtilities.DefaultOptions;
+        serializerOptions = ResolveStructuredOutputOptions(serializerOptions);
         var typeInfo = (JsonTypeInfo<TResult>)serializerOptions.GetTypeInfo(typeof(TResult));
         var schema = AIJsonUtilities.CreateJsonSchema(
             typeof(TResult),
@@ -96,6 +96,24 @@ public sealed partial class CopilotSession
         var response = await SendAndWaitForStructuredMessageAsync(message, timeout, cancellationToken);
         return JsonSerializer.Deserialize(response.Data.Content, typeInfo)
             ?? throw new JsonException("The structured response was JSON null, not a result.");
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "The reflection resolver is only created when JsonSerializer.IsReflectionEnabledByDefault is enabled.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The reflection resolver is only created when JsonSerializer.IsReflectionEnabledByDefault is enabled.")]
+    private static JsonSerializerOptions ResolveStructuredOutputOptions(JsonSerializerOptions? options)
+    {
+        options ??= AIJsonUtilities.DefaultOptions;
+        if (options.IsReadOnly)
+        {
+            return options;
+        }
+        var resolved = new JsonSerializerOptions(options);
+        if (resolved.TypeInfoResolver is null && JsonSerializer.IsReflectionEnabledByDefault)
+        {
+            resolved.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
+        }
+        resolved.MakeReadOnly();
+        return resolved;
     }
 
     private async Task<AssistantMessageEvent> SendAndWaitForStructuredMessageAsync(

@@ -1991,7 +1991,9 @@ class CopilotSession:
 
         Uses the same model schema generation as custom tools. Provider schema
         restrictions still apply (for example, configure ``extra="forbid"`` for
-        closed objects). Streaming events remain text. Timeout or cancellation
+        closed objects). Validation uses the schema's alias names, including for
+        nested models, regardless of model-level alias validation settings.
+        Streaming events remain text. Timeout or cancellation
         only stops waiting, not the agent. Errors remain session-scoped.
         """
         if not isinstance(response_type, type) or not issubclass(response_type, BaseModel):
@@ -2012,7 +2014,9 @@ class CopilotSession:
             timeout=timeout,
         )
         assert response is not None and isinstance(response.data, AssistantMessageData)
-        return response_type.model_validate_json(response.data.content)
+        return response_type.model_validate_json(
+            response.data.content, by_alias=True, by_name=False
+        )
 
     async def _wait_for_structured_message(
         self, send: Callable[[], Awaitable[str]], timeout: float
