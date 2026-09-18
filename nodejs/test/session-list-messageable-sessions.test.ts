@@ -27,6 +27,7 @@ type CandidateMatchesPublicContract = AssertEqual<
         sessionId: string;
         name?: string;
         summary?: string;
+        clientKind?: "cli" | "acp" | "sdk";
     }
 >;
 const candidateMatchesPublicContract: CandidateMatchesPublicContract = true;
@@ -51,7 +52,7 @@ describe("CopilotSession.listMessageableSessions", () => {
     it("lists all candidates when no name is supplied", async () => {
         const result = {
             sessions: [
-                { sessionId: "session-a", name: "Research" },
+                { sessionId: "session-a", name: "Research", clientKind: "cli" as const },
                 { sessionId: "session-b", summary: "Research" },
             ],
         };

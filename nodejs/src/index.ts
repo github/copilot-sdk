@@ -18,6 +18,7 @@ export {
     type ListMessageableSessionsRequest,
     type ListMessageableSessionsResult,
     type MessageableSession,
+    type MessageableSessionClientKind,
     type SendSessionMessageRequest,
     type SendSessionMessageResult,
     type SendSessionMessageErrorCode,

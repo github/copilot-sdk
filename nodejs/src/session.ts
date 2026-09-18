@@ -407,6 +407,9 @@ export interface ListMessageableSessionsRequest {
 }
 
 /** Sanitized active local session available for exact-ID messaging selection. */
+export type MessageableSessionClientKind = "cli" | "acp" | "sdk";
+
+/** Sanitized active local session available for exact-ID messaging selection. */
 export interface MessageableSession {
     /** Stable session ID to provide to {@link CopilotSession.sendSessionMessage}. */
     sessionId: string;
@@ -414,6 +417,8 @@ export interface MessageableSession {
     name?: string;
     /** Current session summary when available. */
     summary?: string;
+    /** Client family that owns this session when the registering runtime can identify it. */
+    clientKind?: MessageableSessionClientKind;
 }
 
 /** Sanitized active local sessions available for exact-ID messaging selection. */

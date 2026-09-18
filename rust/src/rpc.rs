@@ -21,6 +21,18 @@ pub struct ListMessageableSessionsRequest {
 }
 
 /// Sanitized active local session available for exact-ID messaging selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MessageableSessionClientKind {
+    /// Interactive or prompt-driven GitHub Copilot CLI session.
+    Cli,
+    /// Agent Client Protocol host session.
+    Acp,
+    /// Programmatic SDK consumer session.
+    Sdk,
+}
+
+/// Sanitized active local session available for exact-ID messaging selection.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageableSession {
@@ -32,6 +44,9 @@ pub struct MessageableSession {
     /// Current session summary when available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
+    /// Client family that owns this session when the registering runtime can identify it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_kind: Option<MessageableSessionClientKind>,
 }
 
 /// Sanitized active local sessions available for exact-ID messaging selection.

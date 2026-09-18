@@ -19,8 +19,9 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    ListMessageableSessionsRequest, ModelSetAllowedModelsRequest, OpenCanvasInstance,
-    SendAgentMode, SendMode, SendRequest, SendSessionMessageRequest, SessionMessageDelivery,
+    ListMessageableSessionsRequest, MessageableSessionClientKind, ModelSetAllowedModelsRequest,
+    OpenCanvasInstance, SendAgentMode, SendMode, SendRequest, SendSessionMessageRequest,
+    SessionMessageDelivery,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -2465,7 +2466,8 @@ async fn list_messageable_sessions_stamps_bound_source_and_preserves_exact_name(
                     {
                         "sessionId": "target-session",
                         "name": "Research",
-                        "summary": "Inspect the runtime."
+                        "summary": "Inspect the runtime.",
+                        "clientKind": "cli"
                     }
                 ]
             }),
@@ -2479,6 +2481,10 @@ async fn list_messageable_sessions_stamps_bound_source_and_preserves_exact_name(
     assert_eq!(
         result.sessions[0].summary.as_deref(),
         Some("Inspect the runtime.")
+    );
+    assert_eq!(
+        result.sessions[0].client_kind,
+        Some(MessageableSessionClientKind::Cli)
     );
 }
 
