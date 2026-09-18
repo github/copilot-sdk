@@ -13,31 +13,31 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The request was rejected because a bounded field fell outside its permitted range or a required field was unusable. Pagination may also be rejected by the authority after a continuation request; repeat the search without page.
+ * Registry or enterprise policy refused the operation.
  *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class CatalogInvalidRequestError extends CatalogSearchResult {
+public final class McpPlanInstallResultCatalogPolicyRejectedError extends McpPlanInstallResult {
 
     @JsonProperty("kind")
-    private final String kind = "invalid-request";
+    private final String kind = "policy-rejected";
 
     @Override
     public String getKind() { return kind; }
 
-    /** Which request field was rejected. */
-    @JsonProperty("field")
-    private CatalogInvalidRequestField field;
+    /** Which authority produced the decision. */
+    @JsonProperty("source")
+    private McpPlanPolicySource source;
 
-    /** Human-readable explanation, safe to surface. Never echoes the offending value, nor a query, URL, handle, or secret. */
+    /** Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret. */
     @JsonProperty("message")
     private String message;
 
-    public CatalogInvalidRequestField getField() { return field; }
-    public void setField(CatalogInvalidRequestField field) { this.field = field; }
+    public McpPlanPolicySource getSource() { return source; }
+    public void setSource(McpPlanPolicySource source) { this.source = source; }
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }

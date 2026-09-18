@@ -13,31 +13,31 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The request was rejected because a bounded field fell outside its permitted range or a required field was unusable. Pagination may also be rejected by the authority after a continuation request; repeat the search without page.
+ * Retrieval was refused by the runtime's hardened fetch boundary before any request left the process, or before a redirect was followed.
  *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class CatalogInvalidRequestError extends CatalogSearchResult {
+public final class McpPlanInstallResultCatalogUnsafeRetrievalError extends McpPlanInstallResult {
 
     @JsonProperty("kind")
-    private final String kind = "invalid-request";
+    private final String kind = "unsafe-retrieval";
 
     @Override
     public String getKind() { return kind; }
 
-    /** Which request field was rejected. */
-    @JsonProperty("field")
-    private CatalogInvalidRequestField field;
+    /** Which control refused the retrieval, low cardinality so it can be aggregated without carrying a URL. */
+    @JsonProperty("reason")
+    private CatalogUnsafeRetrievalReason reason;
 
-    /** Human-readable explanation, safe to surface. Never echoes the offending value, nor a query, URL, handle, or secret. */
+    /** Human-readable explanation, safe to surface. Never contains the refused URL, nor a query, handle, or secret. */
     @JsonProperty("message")
     private String message;
 
-    public CatalogInvalidRequestField getField() { return field; }
-    public void setField(CatalogInvalidRequestField field) { this.field = field; }
+    public CatalogUnsafeRetrievalReason getReason() { return reason; }
+    public void setReason(CatalogUnsafeRetrievalReason reason) { this.reason = reason; }
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }

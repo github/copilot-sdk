@@ -13,31 +13,31 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The operation is not available on this runtime. Distinct from a network failure: nothing was attempted.
+ * An optional catalog authentication exchange did not establish the caller's identity. Anonymous search remains supported; this refusal is reserved for an operation that cannot continue after the attempted exchange. It is distinct from `policy-rejected` and from a network failure, and the reason identifies the recovery action.
  *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class CatalogUnavailableError extends CatalogSearchResult {
+public final class McpPlanInstallResultCatalogAuthenticationRequiredError extends McpPlanInstallResult {
 
     @JsonProperty("kind")
-    private final String kind = "unavailable";
+    private final String kind = "authentication-required";
 
     @Override
     public String getKind() { return kind; }
 
-    /** Why the operation is unavailable. */
+    /** Why authentication failed. Only an expired credential justifies attempting a silent refresh; an absent or rejected credential requires sign-in. */
     @JsonProperty("reason")
-    private CatalogUnavailableReason reason;
+    private CatalogAuthenticationRequiredReason reason;
 
-    /** Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret. */
+    /** Human-readable explanation, safe to surface. Never contains a credential or token, nor a query, URL, handle, or secret. */
     @JsonProperty("message")
     private String message;
 
-    public CatalogUnavailableReason getReason() { return reason; }
-    public void setReason(CatalogUnavailableReason reason) { this.reason = reason; }
+    public CatalogAuthenticationRequiredReason getReason() { return reason; }
+    public void setReason(CatalogAuthenticationRequiredReason reason) { this.reason = reason; }
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }

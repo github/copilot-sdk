@@ -13,31 +13,38 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The request was rejected because a bounded field fell outside its permitted range or a required field was unusable. Pagination may also be rejected by the authority after a continuation request; repeat the search without page.
+ * A card could not be parsed or did not satisfy its declared media type's schema.
  *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class CatalogInvalidRequestError extends CatalogSearchResult {
+public final class McpPlanInstallResultCatalogMalformedCardError extends McpPlanInstallResult {
 
     @JsonProperty("kind")
-    private final String kind = "invalid-request";
+    private final String kind = "malformed-card";
 
     @Override
     public String getKind() { return kind; }
 
-    /** Which request field was rejected. */
-    @JsonProperty("field")
-    private CatalogInvalidRequestField field;
+    /** How the card failed validation. */
+    @JsonProperty("reason")
+    private CatalogMalformedCardReason reason;
 
-    /** Human-readable explanation, safe to surface. Never echoes the offending value, nor a query, URL, handle, or secret. */
+    /** Media type the card was interpreted as, when it declared one this runtime recognises. */
+    @JsonProperty("mediaType")
+    private CatalogMediaType mediaType;
+
+    /** Human-readable explanation, safe to surface. Never echoes card content, nor a query, URL, handle, or secret. */
     @JsonProperty("message")
     private String message;
 
-    public CatalogInvalidRequestField getField() { return field; }
-    public void setField(CatalogInvalidRequestField field) { this.field = field; }
+    public CatalogMalformedCardReason getReason() { return reason; }
+    public void setReason(CatalogMalformedCardReason reason) { this.reason = reason; }
+
+    public CatalogMediaType getMediaType() { return mediaType; }
+    public void setMediaType(CatalogMediaType mediaType) { this.mediaType = mediaType; }
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }

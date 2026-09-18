@@ -10,8 +10,13 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.TestUtil;
@@ -545,6 +550,102 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     // ── Result records ─────────────────────────────────────────────────────
+
+    @ParameterizedTest
+    @MethodSource("catalogSearchSharedErrors")
+    void catalogSearchResult_shared_errors_round_trip(Class<? extends CatalogSearchResult> subtype, String json)
+            throws Exception {
+        assertSame(CatalogSearchResult.class, subtype.getSuperclass());
+        assertCatalogErrorRoundTrip(CatalogSearchResult.class, subtype, json, CatalogSearchResult::getKind);
+    }
+
+    static Stream<Arguments> catalogSearchSharedErrors() {
+        return Stream.of(Arguments.of(CatalogNegotiationRefusedError.class, catalogNegotiationRefusedJson()),
+                Arguments.of(CatalogInvalidRequestError.class, """
+                        {"kind":"invalid-request","field":"query","message":"A query is required"}
+                        """), Arguments.of(CatalogUnavailableError.class, """
+                        {"kind":"unavailable","reason":"search-unavailable","message":"Search is unavailable"}
+                        """));
+    }
+
+    @ParameterizedTest
+    @MethodSource("catalogSelectionSharedErrors")
+    void catalogSelectionResult_shared_errors_round_trip(Class<? extends CatalogSelectionResult> subtype, String json)
+            throws Exception {
+        assertCatalogErrorRoundTrip(CatalogSelectionResult.class, subtype, json, CatalogSelectionResult::getKind);
+    }
+
+    static Stream<Arguments> catalogSelectionSharedErrors() {
+        return Stream.of(
+                Arguments.of(CatalogSelectionResultCatalogNegotiationRefusedError.class,
+                        catalogNegotiationRefusedJson()),
+                Arguments.of(CatalogSelectionResultCatalogInvalidRequestError.class, """
+                        {"kind":"invalid-request","field":"selectionRef","message":"A selection reference is required"}
+                        """), Arguments.of(CatalogSelectionResultCatalogUnavailableError.class, """
+                        {"kind":"unavailable","reason":"selection-unavailable","message":"Selection is unavailable"}
+                        """));
+    }
+
+    @ParameterizedTest
+    @MethodSource("mcpPlanInstallSharedErrors")
+    void mcpPlanInstallResult_shared_errors_round_trip(Class<? extends McpPlanInstallResult> subtype, String json)
+            throws Exception {
+        assertCatalogErrorRoundTrip(McpPlanInstallResult.class, subtype, json, McpPlanInstallResult::getKind);
+    }
+
+    static Stream<Arguments> mcpPlanInstallSharedErrors() {
+        return Stream.of(
+                Arguments.of(McpPlanInstallResultCatalogNegotiationRefusedError.class, catalogNegotiationRefusedJson()),
+                Arguments.of(McpPlanInstallResultCatalogInvalidRequestError.class, """
+                        {"kind":"invalid-request","field":"card","message":"A card is required"}
+                        """), Arguments.of(McpPlanInstallResultCatalogAuthenticationRequiredError.class, """
+                        {"kind":"authentication-required","reason":"credential-expired","message":"Sign in again"}
+                        """), Arguments.of(McpPlanInstallResultCatalogPolicyRejectedError.class, """
+                        {"kind":"policy-rejected","source":"enterprise-allowlist","message":"Installation is blocked"}
+                        """), Arguments.of(McpPlanInstallResultCatalogNetworkFailureError.class, """
+                        {"kind":"network-failure","reason":"rate-limited","statusCode":429,
+                         "retryAfterSeconds":30,"message":"Retry later"}
+                        """), Arguments.of(McpPlanInstallResultCatalogUnsafeRetrievalError.class, """
+                        {"kind":"unsafe-retrieval","reason":"blocked-address","message":"Retrieval is blocked"}
+                        """), Arguments.of(McpPlanInstallResultCatalogMalformedCardError.class, """
+                        {"kind":"malformed-card","reason":"schema-violation",
+                         "mediaType":"application/mcp-server-card+json","message":"The card does not match its schema"}
+                        """), Arguments.of(McpPlanInstallResultCatalogContractViolationError.class, """
+                        {"kind":"contract-violation","reason":"both-url-and-data","message":"Use one card source"}
+                        """), Arguments.of(McpPlanInstallResultCatalogUnavailableError.class, """
+                        {"kind":"unavailable","reason":"planning-unavailable","message":"Planning is unavailable"}
+                        """));
+    }
+
+    private static String catalogNegotiationRefusedJson() {
+        return """
+                {"kind":"negotiation-refused","reason":"unsupported-capability","runtimeProtocolVersion":3,
+                 "minimumSupportedProtocolVersion":3,
+                 "supportedCapabilities":["mcp-server-card","legacy-mcp-server-card","ai-skill-discovery",
+                                          "agent-plugin-discovery","mcp-install-planning"],
+                 "unsupportedCapabilities":["catalog-selection"],"message":"The required capability is unavailable"}
+                """;
+    }
+
+    private static <T> void assertCatalogErrorRoundTrip(Class<T> root, Class<? extends T> subtype, String json,
+            Function<T, String> kind) throws Exception {
+        var mapper = new ObjectMapper();
+        var expected = mapper.readTree(json);
+        assertTrue(root.isAssignableFrom(subtype));
+
+        var result = mapper.readValue(json, root);
+        assertInstanceOf(root, result);
+        assertEquals(subtype, result.getClass());
+        assertEquals(expected.get("kind").asText(), kind.apply(result));
+
+        var serialized = mapper.writeValueAsString(result);
+        assertEquals(expected, mapper.readTree(serialized));
+        var roundTripped = mapper.readValue(serialized, root);
+        assertInstanceOf(root, roundTripped);
+        assertEquals(subtype, roundTripped.getClass());
+        assertEquals(expected.get("kind").asText(), kind.apply(roundTripped));
+        assertEquals(expected, mapper.readTree(mapper.writeValueAsString(roundTripped)));
+    }
 
     @Test
     void pingResult_fields() {

@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class CatalogNegotiationRefusedError extends CatalogSearchResult {
+public final class McpPlanInstallResultCatalogNegotiationRefusedError extends McpPlanInstallResult {
 
     @JsonProperty("kind")
     private final String kind = "negotiation-refused";

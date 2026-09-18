@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class CatalogInvalidRequestError extends CatalogSearchResult {
+public final class McpPlanInstallResultCatalogInvalidRequestError extends McpPlanInstallResult {
 
     @JsonProperty("kind")
     private final String kind = "invalid-request";
