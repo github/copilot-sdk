@@ -5,6 +5,7 @@
 using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Text.Json;
 using Xunit;
@@ -400,12 +401,12 @@ public class ScenarioTestingCompositionE2ETests(E2ETestFixture fixture, ITestOut
         await session1.DisposeAsync();
         await client1.StopAsync();
 
-        var earlyEvents = new List<SessionEvent>();
+        var earlyEvents = new ConcurrentQueue<SessionEvent>();
         var client2 = Ctx.CreateClient();
         await using var resumed = await Ctx.ResumeSessionAsync(client2, sessionId, new ResumeSessionConfig
         {
             Model = "claude-sonnet-5",
-            OnEvent = earlyEvents.Add,
+            OnEvent = earlyEvents.Enqueue,
         });
 
         Assert.Equal("claude-sonnet-5", (await resumed.Rpc.Model.GetCurrentAsync()).ModelId);
