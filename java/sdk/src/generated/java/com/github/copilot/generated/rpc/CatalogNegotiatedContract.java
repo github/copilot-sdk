@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 public record CatalogNegotiatedContract(
     /** Protocol version of the runtime that served the request. */
     @JsonProperty("runtimeProtocolVersion") Long runtimeProtocolVersion,
-    /** Wire features the runtime understood for this operation. Always a superset of the caller's required features, because any shortfall is a refusal instead. Operation availability remains a separate typed result. */
+    /** Wire features the runtime understood for this operation. Includes the five original catalog capabilities and only explicitly requested supported additions, in supported order without duplicates. Capabilities that introduce new success-union variants or operations are therefore included only when explicitly required, preserving older protocol-v3 clients. Always a superset of the caller's required features, because any shortfall is a refusal instead. Operation availability remains a separate typed result. */
     @JsonProperty("grantedCapabilities") List<CatalogCapability> grantedCapabilities
 ) {
 }

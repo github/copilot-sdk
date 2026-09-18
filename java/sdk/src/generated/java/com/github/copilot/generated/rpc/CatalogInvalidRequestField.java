@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Which request field was rejected before any work was done
+ * Which request field was rejected locally or by the catalog authority
  *
  * @since 1.0.0
  */
@@ -29,7 +29,15 @@ public enum CatalogInvalidRequestField {
     /** The {@code card} variant. */
     CARD("card"),
     /** The {@code scope} variant. */
-    SCOPE("scope");
+    SCOPE("scope"),
+    /** The {@code page} variant. */
+    PAGE("page"),
+    /** The {@code sessionId} variant. */
+    SESSIONID("sessionId"),
+    /** The {@code selectionRef} variant. */
+    SELECTIONREF("selectionRef"),
+    /** The {@code outcome} variant. */
+    OUTCOME("outcome");
 
     private final String value;
     CatalogInvalidRequestField(String value) { this.value = value; }

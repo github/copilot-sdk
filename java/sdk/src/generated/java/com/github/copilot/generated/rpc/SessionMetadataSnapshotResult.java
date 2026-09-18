@@ -53,6 +53,8 @@ public record SessionMetadataSnapshotResult(
     @JsonProperty("selectedModel") String selectedModel,
     /** Current session limits, or null when no limits are active */
     @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
+    /** Live indexed-search state for this session activation. Omitted by runtimes that do not expose indexed-search status; absence does not indicate enablement. */
+    @JsonProperty("indexedSearch") IndexedSearchState indexedSearch,
     /** Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags). */
     @JsonProperty("workspace") SessionMetadataSnapshotResultWorkspace workspace
 ) {

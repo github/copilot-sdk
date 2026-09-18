@@ -13,14 +13,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The request was rejected before any work was done, because a bounded field fell outside its permitted range or a required field was unusable.
+ * The request was rejected because a bounded field fell outside its permitted range or a required field was unusable. Pagination may also be rejected by the authority after a continuation request; repeat the search without page.
  *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class CatalogInvalidRequestError extends CatalogSearchResult {
+public final class CatalogInvalidRequestError extends CatalogSelectionResult {
 
     @JsonProperty("kind")
     private final String kind = "invalid-request";

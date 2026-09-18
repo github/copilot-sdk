@@ -26,6 +26,6 @@ public record CatalogAiSkillCandidateProvenance(
     /** ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a retrieval or validation timestamp. */
     @JsonProperty("observedAt") String observedAt,
     /** Media type advertised for the referenced AI skill card */
-    @JsonProperty("mediaType") String mediaType
+    @JsonProperty("mediaType") CatalogAiSkillMediaType mediaType
 ) {
 }
