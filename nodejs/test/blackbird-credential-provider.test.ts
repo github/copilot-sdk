@@ -179,6 +179,53 @@ describe("Blackbird operation credential providers over SDK transport", () => {
         expect(secondProvider.getToken).toHaveBeenCalledOnce();
     });
 
+    it("invokes the captured method on the original provider instance", async () => {
+        class InstanceProvider implements BlackbirdCredentialProvider {
+            readonly host = "github.com";
+            #credential = "initial-instance-credential";
+
+            getToken() {
+                return { accessToken: this.#credential };
+            }
+
+            rotateCredential() {
+                this.#credential = "rotated-instance-credential";
+            }
+        }
+
+        const { client, registrations, getToken } = await transportFixture();
+        const session = await client.createSession({});
+        const ops = new InstanceProvider();
+        await session.registerBlackbirdCredentialProvider(ops);
+        await expect(getToken(registrations[0])).resolves.toEqual({
+            accessToken: "initial-instance-credential",
+        });
+        ops.rotateCredential();
+        await expect(getToken(registrations[0])).resolves.toEqual({
+            accessToken: "rotated-instance-credential",
+        });
+    });
+
+    it("snapshots callback and host even if the caller replaces them after registration", async () => {
+        const { client, registrations, getToken } = await transportFixture();
+        const session = await client.createSession({});
+        const ops = provider("original-credential");
+        const original = ops.getToken;
+        await session.registerBlackbirdCredentialProvider(ops);
+        const replacement = vi.fn(() => ({ accessToken: "replacement-credential" }));
+        ops.getToken = replacement;
+        // @ts-expect-error Model mutation by an untyped JavaScript caller.
+        ops.host = "github.example.com";
+        await expect(getToken(registrations[0])).resolves.toEqual({
+            accessToken: "original-credential",
+        });
+        expect(original).toHaveBeenCalledWith({
+            host: "github.com",
+            sessionId: session.sessionId,
+        });
+        expect(replacement).not.toHaveBeenCalled();
+    });
+
     it("registers the callback before native admission can request it", async () => {
         const { client, registrations, bind, getToken } = await transportFixture();
         bind.mockImplementation(async (registration) => {

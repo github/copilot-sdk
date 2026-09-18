@@ -1878,7 +1878,7 @@ export class CopilotSession {
         // Capture configuration so caller mutation cannot change an admitted binding.
         this.blackbirdCredentialProviders.set(registrationId, {
             host: provider.host,
-            getToken: provider.getToken,
+            getToken: provider.getToken.bind(provider),
         });
         this.clientSessionApis.blackbirdToken = {
             getToken: async (params) => {
