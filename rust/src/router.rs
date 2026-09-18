@@ -206,7 +206,7 @@ impl SessionRouter {
                         if notification.method != "session.event" {
                             continue;
                         }
-                        let Some(params) = notification.params else {
+                        let Some(mut params) = notification.params else {
                             continue;
                         };
                         let Some(session_id) = params.get("sessionId").and_then(|v| v.as_str())
@@ -221,8 +221,17 @@ impl SessionRouter {
                                 .map(|(id, s)| (id.clone(), s.notifications.clone()))
                         };
                         if let Some((session_id, sender)) = sender {
+                            // Leave null in the existing slot so serde still rejects
+                            // missing data, without rebuilding the owned payload.
+                            let data = params
+                                .get_mut("event")
+                                .and_then(|event| event.get_mut("data"))
+                                .map(serde_json::Value::take);
                             match serde_json::from_value::<SessionEventNotification>(params) {
-                                Ok(event_notification) => {
+                                Ok(mut event_notification) => {
+                                    if let Some(data) = data {
+                                        event_notification.event.data = data;
+                                    }
                                     let _ = sender.send(event_notification);
                                 }
                                 Err(e) => {

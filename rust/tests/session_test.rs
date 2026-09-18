@@ -3873,6 +3873,34 @@ async fn session_event_notification_reaches_subscribers() {
 }
 
 #[tokio::test]
+async fn session_event_notification_preserves_unknown_event_payloads() {
+    let (session, mut server) = create_session_pair().await;
+    let mut events = session.subscribe();
+    server
+        .send_notification(
+            "session.event",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "event": {"id": "invalid", "timestamp": "now", "type": "future.event"}
+            }),
+        )
+        .await;
+
+    for data in [
+        Value::Null,
+        serde_json::json!("text"),
+        serde_json::json!(false),
+        serde_json::json!([1, {"nested": [null, true]}]),
+        serde_json::json!({"result": {"rows": [{"content": "preserved"}]}}),
+    ] {
+        server.send_event("future.event", data.clone()).await;
+        let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+        assert_eq!(event.event_type, "future.event");
+        assert_eq!(event.data, data);
+    }
+}
+
+#[tokio::test]
 async fn router_routes_to_correct_session() {
     let (client, mut server_read, mut server_write) = make_client();
 
