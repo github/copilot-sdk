@@ -255,16 +255,31 @@ public class GitHubAppJsExtensionBridgeE2ETests(E2ETestFixture fixture, ITestOut
 
     private static async Task InitializeGitRepositoryAsync(string projectDirectory)
     {
+        var startInfo = new ProcessStartInfo("git")
+        {
+            WorkingDirectory = projectDirectory,
+            Arguments = "init --quiet",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+
+        // .NET Framework drops inherited environment variables with empty values.
+        // Remove the indexed Git config group so GIT_CONFIG_COUNT cannot reference
+        // a value that disappeared while ProcessStartInfo copied the environment.
+        foreach (var name in startInfo.Environment.Keys
+            .Where(name =>
+                name.Equals("GIT_CONFIG_COUNT", StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("GIT_CONFIG_KEY_", StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("GIT_CONFIG_VALUE_", StringComparison.OrdinalIgnoreCase))
+            .ToArray())
+        {
+            startInfo.Environment.Remove(name);
+        }
+
         using var process = new Process
         {
-            StartInfo = new ProcessStartInfo("git")
-            {
-                WorkingDirectory = projectDirectory,
-                Arguments = "init --quiet",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            },
+            StartInfo = startInfo,
         };
 
         if (!process.Start())
