@@ -882,6 +882,8 @@ Enable the existing `derive` feature and use the same `schemars`/Serde integrati
 as typed custom tools:
 
 ```rust,no_run
+# #[cfg(feature = "derive")]
+# mod example {
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -892,11 +894,12 @@ struct Inventory {
     color: String,
 }
 
-# async fn example(session: &github_copilot_sdk::Session) -> Result<(), github_copilot_sdk::Error> {
+# async fn example(session: &github_copilot_sdk::session::Session) -> Result<(), github_copilot_sdk::Error> {
 let inventory: Inventory = session
     .send_and_wait_typed("Call get_inventory, then report the widget count and color.")
     .await?;
 # Ok(())
+# }
 # }
 ```
 

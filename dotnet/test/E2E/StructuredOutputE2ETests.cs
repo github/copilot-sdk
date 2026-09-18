@@ -327,7 +327,7 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
             var config = StructuredSessionConfig();
             config.Model = model;
             config.OnPermissionRequest = PermissionHandler.ApproveAll;
-            await using var session = await client.CreateSessionAsync(config);
+            await using var session = await Ctx.CreateSessionAsync(client, config);
             using var schema = JsonDocument.Parse(
                 "{\"type\":\"object\",\"description\":\"" +
                 (model == "gpt-4.1" ? new string('x', 32 * 1024 * 1024) : "Small schema") + "\"}");
