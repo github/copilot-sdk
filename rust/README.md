@@ -259,7 +259,7 @@ maintenance.
 
 #### Connectors (experimental)
 
-When the runtime's Connector experiment is enabled, use the generated
+When the experimental runtime Connector API is available, use the generated
 session-scoped namespace to discover and manage Connectors:
 
 ```rust,ignore
