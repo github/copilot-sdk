@@ -601,6 +601,15 @@ async fn resumed_canvas_reattaches_and_routes_all_callbacks() {
                     assert_eq!(opens[0].instance_id, "counter-resume");
                     assert_eq!(opens[0].input, Some(json!({ "value": "persisted" })));
                 }
+                // The renderer callback precedes the runtime's authoritative opened event.
+                let mut events = resumed.subscribe();
+                tokio::time::timeout(Duration::from_secs(10), async {
+                    while resumed.open_canvases().is_empty() {
+                        events.recv().await.expect("resumed canvas event");
+                    }
+                })
+                .await
+                .expect("reattached canvas snapshot");
                 let resumed_snapshots = resumed.open_canvases();
                 assert_eq!(resumed_snapshots.len(), 1);
                 assert_eq!(resumed_snapshots[0].instance_id, "counter-resume");
