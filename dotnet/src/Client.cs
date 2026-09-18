@@ -2743,15 +2743,27 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         try
         {
             cliProcess.EnableRaisingEvents = true;
-            cliProcess.Exited += (_, _) => rpc.Dispose();
+            cliProcess.Exited += (_, _) => DisposeRpcAfterProcessExit(rpc);
             if (cliProcess.HasExited)
             {
-                rpc.Dispose();
+                DisposeRpcAfterProcessExit(rpc);
             }
         }
         catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
         {
             _logger.LogDebug(ex, "Unable to monitor the Copilot CLI process for transport closure");
+        }
+    }
+
+    private void DisposeRpcAfterProcessExit(JsonRpc rpc)
+    {
+        try
+        {
+            rpc.Dispose();
+        }
+        catch (Exception ex) when (IsRecoverableConnectionCleanupFailure(ex))
+        {
+            _logger.LogDebug(ex, "Failed to dispose JSON-RPC connection after Copilot CLI process exit");
         }
     }
 

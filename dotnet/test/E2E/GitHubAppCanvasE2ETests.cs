@@ -139,7 +139,7 @@ public class GitHubAppCanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         AssertRequest(resumedHandler.OpenRequests.Single(), sessionId, "app-inspector-resume");
         Assert.Equal("persisted", resumedHandler.OpenRequests[0].Input!.Value.GetProperty("value").GetString());
         AssertOpenCanvas(
-            Assert.Single((await session2.Rpc.Canvas.ListOpenAsync()).OpenCanvases),
+            await WaitForOpenCanvasAsync(session2, "app-inspector-resume"),
             "app-inspector-resume",
             "persisted");
 
@@ -223,6 +223,24 @@ public class GitHubAppCanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper o
             timeout: EventTimeout,
             pollInterval: TimeSpan.FromMilliseconds(100),
             timeoutMessage: "Timed out waiting for the app canvas registry.");
+        return result!;
+    }
+
+    private static async Task<OpenCanvasInstance> WaitForOpenCanvasAsync(
+        CopilotSession session,
+        string instanceId)
+    {
+        OpenCanvasInstance? result = null;
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                result = (await session.Rpc.Canvas.ListOpenAsync()).OpenCanvases
+                    .SingleOrDefault(canvas => canvas.InstanceId == instanceId);
+                return result is not null;
+            },
+            timeout: EventTimeout,
+            pollInterval: TimeSpan.FromMilliseconds(100),
+            timeoutMessage: $"Timed out waiting for open app canvas '{instanceId}'.");
         return result!;
     }
 

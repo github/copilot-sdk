@@ -115,6 +115,11 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
                 Source = MessageSource.Agent("session-coordinator"),
             });
 
+            var finalQueuedResponse = TestHelper.GetNextEventOfTypeAsync<AssistantMessageEvent>(
+                session,
+                message => message.Data.Content?.Contains("QUEUED_APP_MESSAGE", StringComparison.Ordinal) == true,
+                EventTimeout,
+                "the queued app response");
             releaseTool.TrySetResult("ACTIVE_TURN_RELEASED");
 
             await TestHelper.WaitForConditionAsync(
@@ -129,6 +134,7 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
                 },
                 timeout: EventTimeout,
                 timeoutMessage: "Timed out waiting for queued and steering messages to be consumed.");
+            await finalQueuedResponse;
 
             List<UserMessageEvent> observedMessages;
             lock (userMessagesLock)
@@ -204,7 +210,7 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         Assert.Equal("app-counter-1", restoredOpenRequest.InstanceId);
         Assert.Equal(40, restoredOpenRequest.Input!.Value.GetProperty("start").GetInt32());
 
-        var restoredCanvas = Assert.Single((await session2.Rpc.Canvas.ListOpenAsync()).OpenCanvases);
+        var restoredCanvas = await WaitForOpenCanvasAsync(session2, "app-counter-1");
         Assert.Equal("app-counter-1", restoredCanvas.InstanceId);
         Assert.Equal("app-counter", restoredCanvas.CanvasId);
         Assert.Equal(40, restoredCanvas.Input!.Value.GetProperty("start").GetInt32());
@@ -578,6 +584,23 @@ public class GitHubAppUsageE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
                 WireModel = "app-wire-model",
             },
         ];
+    }
+
+    private static async Task<OpenCanvasInstance> WaitForOpenCanvasAsync(
+        CopilotSession session,
+        string instanceId)
+    {
+        OpenCanvasInstance? result = null;
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                result = (await session.Rpc.Canvas.ListOpenAsync()).OpenCanvases
+                    .SingleOrDefault(canvas => canvas.InstanceId == instanceId);
+                return result is not null;
+            },
+            timeout: EventTimeout,
+            timeoutMessage: $"Timed out waiting for open app canvas '{instanceId}'.");
+        return result!;
     }
 
     [Description("Looks up app-owned host state")]

@@ -264,6 +264,11 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             Source = MessageSource.Agent("github-app"),
         });
 
+        var finalQueuedResponse = TestHelper.GetNextEventOfTypeAsync<AssistantMessageEvent>(
+            session,
+            message => message.Data.Content?.Contains("FINAL_QUEUED", StringComparison.Ordinal) == true,
+            SendTimeout,
+            "the final queued app response");
         releaseSecondTool.TrySetResult("APP_SEND_BLOCKER_RELEASED_AGAIN");
 
         await TestHelper.WaitForConditionAsync(
@@ -279,6 +284,7 @@ public class GitHubAppSendsE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             },
             timeout: SendTimeout,
             timeoutMessage: "Timed out waiting for all app delivery classifications.");
+        await finalQueuedResponse;
 
         List<UserMessageEvent> observed;
         lock (messages)

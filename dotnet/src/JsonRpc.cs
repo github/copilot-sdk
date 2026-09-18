@@ -191,19 +191,24 @@ internal sealed partial class JsonRpc : IDisposable
         }
 
         _disposed = true;
-        _disposeCts.Cancel();
-
-        // Fail all pending requests
-        foreach (var kvp in _pendingRequests)
+        try
         {
-            if (_pendingRequests.TryRemove(kvp.Key, out var pending))
-            {
-                pending.TrySetException(new ObjectDisposedException(nameof(JsonRpc)));
-            }
+            _disposeCts.Cancel();
         }
+        finally
+        {
+            // Fail all pending requests even if a cancellation callback throws.
+            foreach (var kvp in _pendingRequests)
+            {
+                if (_pendingRequests.TryRemove(kvp.Key, out var pending))
+                {
+                    pending.TrySetException(new ObjectDisposedException(nameof(JsonRpc)));
+                }
+            }
 
-        _completionSource.TrySetResult();
-        _writeLock.Dispose();
+            _completionSource.TrySetResult();
+            _writeLock.Dispose();
+        }
     }
 
     private async Task SendMessageAsync<T>(T message, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken)
