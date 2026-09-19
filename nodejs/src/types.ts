@@ -22,6 +22,8 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
+    ExtensionLaunchProviderResolveRequest,
+    ExtensionLaunchProviderResolveResult,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
@@ -31,6 +33,13 @@ import type {
     CurrentToolMetadata,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
+export type {
+    ExtensionLaunchProfile,
+    ExtensionLaunchProviderRegistrationResult,
+    ExtensionLaunchProviderResolveRequest,
+    ExtensionLaunchProviderResolveResult,
+    ExtensionSource,
+} from "./generated/rpc.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
@@ -66,6 +75,32 @@ export type GitHubTokenProviderResult = GitHubTokenAcquireResult;
 export type GitHubTokenProvider = (
     args: GitHubTokenProviderArgs
 ) => GitHubTokenProviderResult | Promise<GitHubTokenProviderResult>;
+
+/**
+ * Resolves a process launch profile for one runtime-discovered extension
+ * entrypoint, immediately before the runtime launches or reloads it.
+ *
+ * Return an approved `launch` profile, or return `{}` / `{ launch: null }` to
+ * deny execution. Denial, callback failure, timeout, and shutdown never fall back
+ * to the runtime's built-in launcher. When provided, `request.defaultLaunch`
+ * is the runtime's unexecuted built-in bootstrap profile; approve and return
+ * it only after checking the candidate and its owning `request.sessionId`.
+ * Some runtime embeddings have no built-in profile and omit `defaultLaunch`.
+ * If durable backing must precede package startup, await
+ * {@link CopilotClient.retainSession} with `request.sessionId` before returning
+ * the profile. Do not await the pending create/resume or its session facade
+ * from this callback; extension startup may be blocking that operation.
+ *
+ * A launch resolver does not establish package trust, freeze code, verify
+ * integrity, or sandbox execution. The caller owns revision approval and
+ * must ensure that the approved code is the code being launched.
+ *
+ * The provider must respond within 15 seconds; the runtime enforces this
+ * deadline independent of the SDK.
+ */
+export type ExtensionLaunchProvider = (
+    request: ExtensionLaunchProviderResolveRequest
+) => ExtensionLaunchProviderResolveResult | Promise<ExtensionLaunchProviderResolveResult>;
 export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -495,6 +530,28 @@ export interface CopilotClientOptions {
      * @experimental
      */
     onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
+
+    /**
+     * Experimental. Registers this client as the connection-global extension
+     * launch provider before {@link CopilotClient.start} returns and before
+     * creating or resuming sessions. Each connection must acknowledge exactly
+     * `contractVersion: 1`; unsupported or failed registration rejects startup
+     * without retrying with the provider disabled.
+     *
+     * When set, the runtime asks this callback to resolve a process launch
+     * profile for each extension entrypoint it discovers, immediately before
+     * launching or reloading it, instead of using its built-in launcher for
+     * that entrypoint. When unset (the default), the runtime's built-in
+     * launcher handles every entrypoint and no registration request is sent —
+     * fully backward compatible with clients that never set this option.
+     *
+     * An omitted or null `launch` denies execution without fallback, as do
+     * errors and timeouts. See {@link ExtensionLaunchProvider} for approval
+     * responsibilities; this option is not a package trust or integrity store.
+     *
+     * @experimental
+     */
+    extensionLaunchProvider?: ExtensionLaunchProvider;
 
     /**
      * Server-wide idle timeout for sessions in seconds.

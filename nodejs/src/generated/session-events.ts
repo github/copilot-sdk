@@ -20,6 +20,7 @@ export type SessionEvent =
   | ScheduleCancelledEvent
   | ScheduleRearmedEvent
   | AutopilotObjectiveChangedEvent
+  | RetainedEvent
   | InfoEvent
   | WarningEvent
   | ModelChangeEvent
@@ -77,6 +78,7 @@ export type SessionEvent =
   | ToolExecutionCompleteEvent
   | ToolSearchActivatedEvent
   | SkillInvokedEvent
+  | SkillContextDeliveredEvent
   | SubagentStartedEvent
   | SubagentConfiguredEvent
   | SubagentCompletedEvent
@@ -1882,6 +1884,42 @@ export interface AutopilotObjectiveChangedData {
   operation: AutopilotObjectiveChangedOperation;
   status?: AutopilotObjectiveChangedStatus;
 }
+/**
+ * Session event "session.retained". Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
+ */
+/** @experimental */
+export interface RetainedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: RetainedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.retained".
+   */
+  type: "session.retained";
+}
+/**
+ * Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
+ */
+/** @experimental */
+export interface RetainedData {}
 /**
  * Session event "session.info". Informational message for timeline display with categorization
  */
@@ -7132,6 +7170,54 @@ export interface SkillInvokedData {
    */
   source?: string;
   trigger?: SkillInvokedTrigger;
+}
+/**
+ * Session event "skill.context_delivered". Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.
+ */
+/** @experimental */
+export interface SkillContextDeliveredEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: SkillContextDeliveredData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "skill.context_delivered".
+   */
+  type: "skill.context_delivered";
+}
+/**
+ * Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.
+ */
+export interface SkillContextDeliveredData {
+  /**
+   * Exact model-facing skill wrapper, including its invocation-time file context
+   */
+  content: string;
+  /**
+   * Interaction that delivered this context, when known
+   */
+  interactionId?: string;
+  /**
+   * Unmodified injection provenance, in the form skill-<invocation-name>
+   */
+  source: string;
 }
 /**
  * Session event "subagent.started". Sub-agent startup details including parent tool call and agent information
