@@ -33,6 +33,8 @@ pub enum SessionEventType {
     SessionAutopilotObjectiveChanged,
     #[serde(rename = "session.info")]
     SessionInfo,
+    #[serde(rename = "session.indexed_search")]
+    SessionIndexedSearch,
     #[serde(rename = "session.warning")]
     SessionWarning,
     #[serde(rename = "session.model_change")]
@@ -136,6 +138,8 @@ pub enum SessionEventType {
     /// </div>
     #[serde(rename = "session.fusion_completed")]
     SessionFusionCompleted,
+    #[serde(rename = "session.permission_recovery")]
+    SessionPermissionRecovery,
     #[serde(rename = "user.message")]
     UserMessage,
     #[serde(rename = "pending_messages.modified")]
@@ -575,6 +579,8 @@ pub enum SessionEventData {
     SessionAutopilotObjectiveChanged(SessionAutopilotObjectiveChangedData),
     #[serde(rename = "session.info")]
     SessionInfo(SessionInfoData),
+    #[serde(rename = "session.indexed_search")]
+    SessionIndexedSearch(SessionIndexedSearchData),
     #[serde(rename = "session.warning")]
     SessionWarning(SessionWarningData),
     #[serde(rename = "session.model_change")]
@@ -678,6 +684,8 @@ pub enum SessionEventData {
     /// </div>
     #[serde(rename = "session.fusion_completed")]
     SessionFusionCompleted(SessionFusionCompletedData),
+    #[serde(rename = "session.permission_recovery")]
+    SessionPermissionRecovery(SessionPermissionRecoveryData),
     #[serde(rename = "user.message")]
     UserMessage(UserMessageData),
     #[serde(rename = "pending_messages.modified")]
@@ -1388,6 +1396,11 @@ pub struct SessionInfoData {
     pub url: Option<String>,
 }
 
+/// Session event "session.indexed_search". Transient indexed-search status and diagnostics from the live runtime service. Never persisted or used to infer activation from session history.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionIndexedSearchData {}
+
 /// Session event "session.warning". Warning message for timeline display with categorization
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1999,6 +2012,18 @@ pub struct CompactionCompleteCompactionTokensUsed {
     pub output_tokens: Option<i64>,
 }
 
+/// Original request-level and effective conversation reasoning effort for a Responses history boundary
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResponsesReasoning {
+    /// Effective effort selected before this message, independent of the response-level reasoning field
+    pub effort: String,
+    /// Original request-level effort, retained while replaying this conversation prefix
+    pub initial_effort: String,
+    /// Provider model whose reasoning settings this boundary records
+    pub model: String,
+}
+
 /// Session event "session.compaction_complete". Conversation compaction results including success status, metrics, and optional error details
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2043,6 +2068,9 @@ pub struct SessionCompactionCompleteData {
     /// GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<RequestId>,
+    /// Reasoning baseline on the replacement summary, preserved when replay skips the compacted history
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub responses_reasoning: Option<ResponsesReasoning>,
     /// Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_request_id: Option<String>,
@@ -2071,10 +2099,74 @@ pub struct SessionCompactionCompleteData {
     pub trigger: Option<CompactionTrigger>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionRecoveryAttempt {
+    /// Unique identifier for this attempt record
+    pub attempt_id: String,
+    /// How the runtime handled this attempt
+    pub disposition: PermissionRecoveryAttemptDisposition,
+    /// One-based position of this attempt in the episode
+    pub ordinal: i64,
+    /// Controlled permission request kind, such as shell, path, URL, or tool
+    pub permission_kind: String,
+    /// Controlled reason for the attempt disposition
+    pub reason: PermissionRecoveryAttemptReason,
+    /// Relationship between this attempt and earlier attempts in the episode
+    pub relation: PermissionRecoveryAttemptRelation,
+    /// SHA-256 fingerprint of normalized request data; raw permission arguments are not included
+    pub request_fingerprint: String,
+    /// Tool-call identifier associated with this attempt, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+/// Authoritative snapshot of an Autopilot permission-recovery episode
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionRecoveryData {
+    /// Ordered privacy-safe record of permission attempts and the successful alternative, when any
+    pub attempts: Vec<PermissionRecoveryAttempt>,
+    /// Stable identifier shared by every transition in this recovery episode
+    pub episode_id: String,
+    /// Maximum number of distinct autonomous permission attempts allowed before escalation
+    pub max_attempts: i64,
+    /// Policy selected from the current client's response capability; mode or client changes may update it during recovery
+    pub on_blocked: PermissionRecoveryOnBlocked,
+    /// Controlled reason for the latest episode transition
+    pub reason: PermissionRecoveryReason,
+    /// Current lifecycle state of the recovery episode
+    pub status: PermissionRecoveryStatus,
+}
+
+/// Structured reason that the task cannot continue without intervention
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskBlocker {
+    /// Category of intervention that blocked the task
+    pub kind: TaskBlockerKind,
+    /// Permission-recovery episode that produced this blocker
+    pub permission_recovery: PermissionRecoveryData,
+    /// Controlled reason for the current blocked state
+    pub reason: PermissionRecoveryReason,
+    /// Whether a later user response or steering message can resume the task
+    pub resumable: bool,
+}
+
 /// Session event "session.task_complete". Task completion notification with summary from the agent
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionTaskCompleteData {
+    /// Structured blocker details when outcome is blocked
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocker: Option<TaskBlocker>,
     /// Active autopilot objective ID evaluated by the completion reviewer
     #[serde(skip_serializing_if = "Option::is_none")]
     pub objective_id: Option<i64>,
@@ -2382,6 +2474,24 @@ pub struct SessionFusionCompletedData {
     pub turn_id: String,
 }
 
+/// Session event "session.permission_recovery". Authoritative snapshot of an Autopilot permission-recovery episode
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPermissionRecoveryData {
+    /// Ordered privacy-safe record of permission attempts and the successful alternative, when any
+    pub attempts: Vec<PermissionRecoveryAttempt>,
+    /// Stable identifier shared by every transition in this recovery episode
+    pub episode_id: String,
+    /// Maximum number of distinct autonomous permission attempts allowed before escalation
+    pub max_attempts: i64,
+    /// Policy selected from the current client's response capability; mode or client changes may update it during recovery
+    pub on_blocked: PermissionRecoveryOnBlocked,
+    /// Controlled reason for the latest episode transition
+    pub reason: PermissionRecoveryReason,
+    /// Current lifecycle state of the recovery episode
+    pub status: PermissionRecoveryStatus,
+}
+
 /// Session event "user.message". Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2412,6 +2522,9 @@ pub struct UserMessageData {
     /// Parent agent task ID for background telemetry correlated to this user turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_agent_task_id: Option<String>,
+    /// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub responses_reasoning: Option<ResponsesReasoning>,
     /// Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
@@ -3324,6 +3437,14 @@ pub struct AssistantUsageData {
     /// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_request_id: Option<String>,
+    /// Number of prior thinking blocks the provider dropped while transforming the request
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) thinking_dropped_blocks: Option<i64>,
+    /// Recognized provider-reported reasons for dropped thinking blocks, in response order
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) thinking_dropped_reasons: Option<Vec<String>>,
     /// Time to first token in milliseconds. Only available for streaming requests
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_to_first_token_ms: Option<f64>,
@@ -4307,6 +4428,9 @@ pub struct SkillInvokedData {
     /// Whether model invocation is disabled for this skill
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_model_invocation: Option<bool>,
+    /// Projected chat-message count when the skill was invoked. New writers persist this so replay does not need to reconstruct superseded history; readers derive it for legacy events when absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invoked_at_turn: Option<i64>,
     /// Model identifier active when the skill was invoked, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -4345,6 +4469,9 @@ pub struct SkillInvokedRefData {
     /// Whether model invocation is disabled for this skill
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_model_invocation: Option<bool>,
+    /// Projected chat-message count when the skill was invoked. Preserved from the inline event data when the authored body is deduplicated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invoked_at_turn: Option<i64>,
     /// Model identifier active when the skill was invoked, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -4692,6 +4819,9 @@ pub struct SystemNotificationData {
     pub content: String,
     /// Structured metadata identifying what triggered this notification
     pub kind: serde_json::Value,
+    /// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub responses_reasoning: Option<ResponsesReasoning>,
 }
 
 /// A parsed command identifier in a shell permission request, including whether it is read-only.
@@ -4922,6 +5052,21 @@ pub struct PermissionRequestUrl {
     pub url: String,
 }
 
+/// Bounded runtime attribution, independent of free-text rationale. Telemetry revalidates this vocabulary before standard collection.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionApprovalEvaluation {
+    /// Stage that produced this attribution.
+    pub evaluation_stage: PermissionApprovalEvaluationEvaluationStage,
+    /// Whether the request invoked the judge interface. A cached recommendation retains the original attempt fact. Omitted means unknown, including inherited outcomes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub judge_attempted: Option<bool>,
+    /// Status of the local judge interface, not proof of a model network call.
+    pub judge_status: PermissionApprovalEvaluationJudgeStatus,
+    /// Machine-readable runtime gate reason, never a command, path or human rationale.
+    pub reason_code: PermissionApprovalEvaluationReasonCode,
+}
+
 /// Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
 ///
 /// <div class="warning">
@@ -4933,6 +5078,9 @@ pub struct PermissionRequestUrl {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionAssistedApproval {
+    /// Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evaluation: Option<PermissionApprovalEvaluation>,
     /// Classified cause of an `error` recommendation. Absent for every other recommendation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure_reason: Option<AssistedApprovalJudgeFailureReason>,
@@ -5625,11 +5773,17 @@ pub struct PermissionRequestedData {
     /// Agent mode captured from the owning turn when permission evaluation began.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_mode: Option<SessionMode>,
+    /// Permission mode captured when evaluation began. Absent on historical events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_mode: Option<PermissionMode>,
     /// Details of the permission being requested
     pub permission_request: PermissionRequest,
     /// Derived user-facing permission prompt details for UI consumers
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_request: Option<PermissionPromptRequest>,
+    /// Permission-recovery episode that authorized this request to surface for interactive attention
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recovery_episode_id: Option<String>,
     /// Unique identifier for this permission request; used to respond via session.respondToPermission()
     pub request_id: RequestId,
     /// When true, this permission was already resolved by a permissionRequest hook and requires no client action
@@ -5862,6 +6016,9 @@ pub struct PermissionDeniedByPermissionRequestHook {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionCompletedData {
+    /// Atomic structured blocked outcome when this permission response ended an Autopilot recovery episode unsuccessfully
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocker: Option<TaskBlocker>,
     /// Who decided this permission request. Absent on completions recorded before this field existed, which consumers must treat as "not a human decision" rather than assuming one. Authorization records are minted only for `human_response`; an assisted-approval verdict, a host policy, an unattended fallback, and a hook resolution all produce the same `result` a person does, so this is the only field that distinguishes them.
     ///
     /// <div class="warning">
@@ -5872,6 +6029,9 @@ pub struct PermissionCompletedData {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decision_source: Option<PermissionDecisionSource>,
+    /// Permission-recovery episode settled by this response, when the request was escalated by Autopilot
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recovery_episode_id: Option<String>,
     /// Request ID of the resolved permission request; clients should dismiss any UI for this request
     pub request_id: RequestId,
     /// The result of the permission request
@@ -7516,6 +7676,9 @@ pub enum ModelChangeSource {
     /// The runtime selected the model automatically, such as rate-limit recovery or refusal fallback.
     #[serde(rename = "automatic")]
     Automatic,
+    /// The user selected the promoted model from the changeboarding card or its keyboard shortcut.
+    #[serde(rename = "changeboarding_shortcut")]
+    ChangeboardingShortcut,
     /// An SDK or RPC caller selected the model.
     #[serde(rename = "sdk")]
     Sdk,
@@ -7670,6 +7833,159 @@ pub enum CompactionTrigger {
     /// Compaction requested while switching to a model with a smaller context window.
     #[serde(rename = "model_switch")]
     ModelSwitch,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Category of structured task blocker
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskBlockerKind {
+    /// Autopilot permission recovery requires intervention or has no safe autonomous path.
+    #[serde(rename = "permission_recovery")]
+    PermissionRecovery,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Runtime handling applied to a recovery attempt
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRecoveryAttemptDisposition {
+    /// The request was denied without prompting so the agent could try an alternative.
+    #[serde(rename = "deferred")]
+    Deferred,
+    /// The request was surfaced to an interactive responder.
+    #[serde(rename = "prompted")]
+    Prompted,
+    /// The interactive responder approved the request.
+    #[serde(rename = "approved")]
+    Approved,
+    /// The interactive responder denied the request or became unavailable.
+    #[serde(rename = "denied")]
+    Denied,
+    /// The request exhausted unattended recovery and produced a blocked outcome.
+    #[serde(rename = "blocked")]
+    Blocked,
+    /// A tool call succeeded as an equivalent alternative.
+    #[serde(rename = "succeeded")]
+    Succeeded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Controlled reason for an individual attempt disposition
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRecoveryAttemptReason {
+    /// The attempt required permission that Assisted Permissions could not grant.
+    #[serde(rename = "permission_required")]
+    PermissionRequired,
+    /// The request repeated an earlier attempt.
+    #[serde(rename = "repeated_attempt")]
+    RepeatedAttempt,
+    /// The request exceeded the bounded number of distinct attempts.
+    #[serde(rename = "attempts_exhausted")]
+    AttemptsExhausted,
+    /// The interactive responder approved the request.
+    #[serde(rename = "permission_approved")]
+    PermissionApproved,
+    /// The interactive responder denied the request.
+    #[serde(rename = "permission_denied")]
+    PermissionDenied,
+    /// The interactive responder became unavailable.
+    #[serde(rename = "responder_unavailable")]
+    ResponderUnavailable,
+    /// The tool call succeeded without the blocked permission.
+    #[serde(rename = "equivalent_alternative_succeeded")]
+    EquivalentAlternativeSucceeded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Relationship of an attempt to earlier permission requests
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRecoveryAttemptRelation {
+    /// The first denied permission request in the episode.
+    #[serde(rename = "initial")]
+    Initial,
+    /// A request equivalent to an earlier attempt.
+    #[serde(rename = "retry")]
+    Retry,
+    /// A distinct request or a successful alternative tool call.
+    #[serde(rename = "alternative")]
+    Alternative,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Action selected when autonomous recovery cannot continue
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRecoveryOnBlocked {
+    /// Surface the existing permission prompt to a response-capable client.
+    #[serde(rename = "ask")]
+    Ask,
+    /// Return a structured unsuccessful blocked outcome because no responder is available.
+    #[serde(rename = "fail")]
+    Fail,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Controlled reason for a permission-recovery episode transition
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRecoveryReason {
+    /// An action required permission that Assisted Permissions could not grant.
+    #[serde(rename = "permission_required")]
+    PermissionRequired,
+    /// The agent repeated an equivalent permission request instead of making progress.
+    #[serde(rename = "repeated_attempt")]
+    RepeatedAttempt,
+    /// The bounded number of distinct permission attempts was exhausted.
+    #[serde(rename = "attempts_exhausted")]
+    AttemptsExhausted,
+    /// A responder approved the escalated permission request.
+    #[serde(rename = "permission_approved")]
+    PermissionApproved,
+    /// A responder denied the escalated permission request.
+    #[serde(rename = "permission_denied")]
+    PermissionDenied,
+    /// The response-capable client became unavailable while escalation was pending.
+    #[serde(rename = "responder_unavailable")]
+    ResponderUnavailable,
+    /// A later tool call succeeded without requiring the blocked permission.
+    #[serde(rename = "equivalent_alternative_succeeded")]
+    EquivalentAlternativeSucceeded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Lifecycle state of a permission-recovery episode
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRecoveryStatus {
+    /// Autopilot may try a bounded equivalent alternative.
+    #[serde(rename = "recovering")]
+    Recovering,
+    /// An interactive permission response is required.
+    #[serde(rename = "awaiting_approval")]
+    AwaitingApproval,
+    /// The episode ended through approval or a successful equivalent alternative.
+    #[serde(rename = "resolved")]
+    Resolved,
+    /// No autonomous path remains and the task requires intervention.
+    #[serde(rename = "blocked")]
+    Blocked,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -8616,6 +8932,144 @@ pub enum PermissionRequestMemoryAction {
     /// Vote on an existing memory.
     #[serde(rename = "vote")]
     Vote,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Stage that produced this attribution.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionApprovalEvaluationEvaluationStage {
+    /// The attribution stage is unknown.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// The request resolved before assisted-approval evaluation.
+    #[serde(rename = "not_reached")]
+    NotReached,
+    /// A runtime gate skipped the judge.
+    #[serde(rename = "pre_judge")]
+    PreJudge,
+    /// The judge interface produced the evaluation.
+    #[serde(rename = "judge")]
+    Judge,
+    /// A cached recommendation or another request's outcome was reused.
+    #[serde(rename = "reuse")]
+    Reuse,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Status of the local judge interface, not proof of a model network call.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionApprovalEvaluationJudgeStatus {
+    /// No authoritative attribution is available.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// This evaluation did not invoke the judge interface.
+    #[serde(rename = "not_called")]
+    NotCalled,
+    /// The judge interface returned a usable verdict.
+    #[serde(rename = "completed")]
+    Completed,
+    /// The judge interface returned an error.
+    #[serde(rename = "failed")]
+    Failed,
+    /// This evaluation reused a cached recommendation.
+    #[serde(rename = "cached")]
+    Cached,
+    /// This request inherited another decision without local judge attribution.
+    #[serde(rename = "inherited")]
+    Inherited,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Machine-readable runtime gate reason, never a command, path or human rationale.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionApprovalEvaluationReasonCode {
+    /// Attribution is missing or outside the supported vocabulary.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// The request resolved before assisted-approval evaluation.
+    #[serde(rename = "not-reached")]
+    NotReached,
+    /// Assisted approval was inactive for this request.
+    #[serde(rename = "inactive")]
+    Inactive,
+    /// The judge was skipped because authorization extraction could not safely establish a complete recent history.
+    #[serde(rename = "authorization-history-incomplete")]
+    AuthorizationHistoryIncomplete,
+    /// Managed policy required a human decision.
+    #[serde(rename = "managed-approval-required")]
+    ManagedApprovalRequired,
+    /// The request asked to bypass sandbox restrictions.
+    #[serde(rename = "sandbox-bypass")]
+    SandboxBypass,
+    /// An action field exceeded the judge input limit.
+    #[serde(rename = "action-too-long")]
+    ActionTooLong,
+    /// The script path was not authorized for inspection.
+    #[serde(rename = "path-not-authorized")]
+    PathNotAuthorized,
+    /// The script working directory was invalid.
+    #[serde(rename = "invalid-working-directory")]
+    InvalidWorkingDirectory,
+    /// The script snapshot could not be read.
+    #[serde(rename = "unreadable")]
+    Unreadable,
+    /// The script path was not a regular file.
+    #[serde(rename = "not-regular-file")]
+    NotRegularFile,
+    /// The script snapshot exceeded the size limit.
+    #[serde(rename = "too-large")]
+    TooLarge,
+    /// The script snapshot was not UTF-8.
+    #[serde(rename = "non-utf8")]
+    NonUtf8,
+    /// The script interpreter could not be inspected.
+    #[serde(rename = "interpreter-unavailable")]
+    InterpreterUnavailable,
+    /// The interpreter snapshot exceeded the size limit.
+    #[serde(rename = "interpreter-too-large")]
+    InterpreterTooLarge,
+    /// The shell environment could not be reviewed.
+    #[serde(rename = "shell-environment-unreviewable")]
+    ShellEnvironmentUnreviewable,
+    /// A script path could not be represented for review.
+    #[serde(rename = "unrepresentable-path")]
+    UnrepresentablePath,
+    /// An interpreter wrapped a script that could not be reviewed.
+    #[serde(rename = "interpreter-wrapped-script")]
+    InterpreterWrappedScript,
+    /// The script invocation could not be reviewed.
+    #[serde(rename = "unreviewable-script-invocation")]
+    UnreviewableScriptInvocation,
+    /// The script argument binding could not be reviewed.
+    #[serde(rename = "argument-binding-unreviewable")]
+    ArgumentBindingUnreviewable,
+    /// The script review metadata was malformed.
+    #[serde(rename = "malformed-script-action-review")]
+    MalformedScriptActionReview,
+    /// The script snapshot manifest was malformed.
+    #[serde(rename = "malformed-script-action-manifest")]
+    MalformedScriptActionManifest,
+    /// Script review was unavailable.
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    /// The judge interface returned a usable verdict.
+    #[serde(rename = "judge-verdict")]
+    JudgeVerdict,
+    /// The judge interface returned an error.
+    #[serde(rename = "judge-error")]
+    JudgeError,
+    /// The request inherited an outcome from another decision.
+    #[serde(rename = "inherited")]
+    Inherited,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

@@ -45,6 +45,7 @@ struct SessionSenders {
 ///
 /// Internal to the SDK — consumers interact via `Client::register_session()`.
 pub(crate) struct SessionRouter {
+    pub(crate) ahp: Arc<crate::ahp::Registry>,
     sessions: Arc<Mutex<HashMap<SessionId, SessionSenders>>>,
     next_token: AtomicU64,
     started: Mutex<bool>,
@@ -53,6 +54,7 @@ pub(crate) struct SessionRouter {
 impl SessionRouter {
     pub(crate) fn new() -> Self {
         Self {
+            ahp: Arc::new(crate::ahp::Registry::default()),
             sessions: Arc::new(Mutex::new(HashMap::new())),
             next_token: AtomicU64::new(0),
             started: Mutex::new(false),
@@ -137,6 +139,7 @@ impl SessionRouter {
     /// Used by [`Client::force_stop`](crate::Client::force_stop) to release
     /// per-session state without waiting for graceful unregistration.
     pub(crate) fn clear(&self) {
+        self.ahp.clear();
         self.sessions.lock().clear();
     }
 
