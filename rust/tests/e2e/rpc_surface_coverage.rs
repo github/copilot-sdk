@@ -90,6 +90,7 @@ async fn client_rpc_surface_uses_typed_namespaces_and_round_trips_results() {
         },
         kinds: None,
         limit: Some(4),
+        page: None,
         query: "offline catalog".to_string(),
     }));
     let CatalogSearchResult::Succeeded(search) = search else {
@@ -872,6 +873,17 @@ async fn session_mcp_metadata_model_and_permission_rpc_surface_is_typed() {
 
 #[tokio::test]
 async fn session_queue_tasks_tools_ui_and_workspace_rpc_surface_is_typed() {
+    let task = || TaskClientInfo {
+        execution_mode: TaskClientExecutionMode::Background,
+        owner: TaskClientOwner {
+            kind: TaskClientOwnerKind::Sdk,
+            presence: TaskClientOwnerPresence::Connected,
+            ..Default::default()
+        },
+        status: TaskClientStatus::Running,
+        r#type: TaskClientType::Client,
+        ..Default::default()
+    };
     let mut results = ResponseMap::default();
     results.insert_default::<QueueMoveItemResult>("session.queue.moveItem");
     results.insert(
@@ -893,6 +905,7 @@ async fn session_queue_tasks_tools_ui_and_workspace_rpc_surface_is_typed() {
         "session.tasks.register",
         TasksRegisterResult {
             created: true,
+            task: task(),
             ..Default::default()
         },
     );
@@ -900,6 +913,7 @@ async fn session_queue_tasks_tools_ui_and_workspace_rpc_surface_is_typed() {
         "session.tasks.update",
         TasksUpdateResult {
             applied: true,
+            task: task(),
             ..Default::default()
         },
     );
@@ -1043,7 +1057,7 @@ async fn session_queue_tasks_tools_ui_and_workspace_rpc_surface_is_typed() {
         description: "deterministic external work".to_string(),
         display_name: Some("Coverage task".to_string()),
         expected_sequence: Some(0),
-        r#type: TaskClientType::default(),
+        r#type: TaskClientType::Client,
     }));
     assert!(registered.created);
     let updated = rpc_ok!(session.rpc().tasks().update(TasksUpdateRequest {

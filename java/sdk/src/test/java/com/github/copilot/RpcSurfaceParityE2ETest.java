@@ -41,11 +41,11 @@ class RpcSurfaceParityE2ETest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final long TIMEOUT_SECONDS = 30;
-    private static final int EXPECTED_RPC_METHOD_COUNT = 373;
-    private static final String EXPECTED_RPC_SIGNATURE_SHA256 = "7de47ec727b66e168b6e3e4cc3f083d14dfb87066980e919b53b55884f055ba3";
+    private static final int EXPECTED_RPC_METHOD_COUNT = 403;
+    private static final String EXPECTED_RPC_SIGNATURE_SHA256 = "24f93e3b9142caf0641a506217ef53727ab87f518ddbacb41852d913d7ad5988";
     private static final Map<String, Integer> EXPECTED_METHODS_BY_DECLARING_TYPE = Map.ofEntries(
             Map.entry("RpcCaller", 2), Map.entry("ServerAccountApi", 6), Map.entry("ServerAgentRegistryApi", 1),
-            Map.entry("ServerAgentsApi", 2), Map.entry("ServerCatalogApi", 1), Map.entry("ServerCommandsApi", 1),
+            Map.entry("ServerAgentsApi", 2), Map.entry("ServerCatalogApi", 2), Map.entry("ServerCommandsApi", 1),
             Map.entry("ServerExtensionsApi", 3), Map.entry("ServerHooksApi", 1), Map.entry("ServerInstructionsApi", 2),
             Map.entry("ServerLlmInferenceApi", 3), Map.entry("ServerManagedSettingsApi", 2),
             Map.entry("ServerMcpApi", 2), Map.entry("ServerMcpConfigApi", 7), Map.entry("ServerModelsApi", 3),
@@ -62,19 +62,21 @@ class RpcSurfaceParityE2ETest {
             Map.entry("SessionFactoryApi", 13), Map.entry("SessionFactoryJournalApi", 2),
             Map.entry("SessionFleetApi", 1), Map.entry("SessionGitHubAuthApi", 10), Map.entry("SessionHistoryApi", 10),
             Map.entry("SessionInstructionsApi", 1), Map.entry("SessionLimitPredictionApi", 2),
-            Map.entry("SessionLspApi", 1), Map.entry("SessionMcpApi", 18), Map.entry("SessionMcpAppsApi", 6),
-            Map.entry("SessionMcpHeadersApi", 1), Map.entry("SessionMcpOauthApi", 5),
+            Map.entry("SessionManagedSettingsApi", 1), Map.entry("SessionLspApi", 1), Map.entry("SessionMcpApi", 18),
+            Map.entry("SessionMcpAppsApi", 6), Map.entry("SessionMcpHeadersApi", 1), Map.entry("SessionMcpOauthApi", 5),
             Map.entry("SessionMcpResourcesApi", 3), Map.entry("SessionMetadataApi", 11), Map.entry("SessionModeApi", 2),
             Map.entry("SessionModelApi", 8), Map.entry("SessionNameApi", 3), Map.entry("SessionOptionsApi", 1),
             Map.entry("SessionPermissionsApi", 10), Map.entry("SessionPermissionsFolderTrustApi", 2),
             Map.entry("SessionPermissionsLocationsApi", 3), Map.entry("SessionPermissionsPathsApi", 5),
             Map.entry("SessionPermissionsUrlsApi", 1), Map.entry("SessionPlanApi", 5),
-            Map.entry("SessionPluginsApi", 3), Map.entry("SessionProviderApi", 3), Map.entry("SessionQueueApi", 18),
-            Map.entry("SessionRemoteApi", 3), Map.entry("SessionRpc", 9), Map.entry("SessionSandboxApi", 2),
-            Map.entry("SessionScheduleApi", 9), Map.entry("SessionSettingsApi", 2), Map.entry("SessionShellApi", 4),
-            Map.entry("SessionSkillsApi", 6), Map.entry("SessionTasksApi", 13), Map.entry("SessionTelemetryApi", 2),
-            Map.entry("SessionToolsApi", 8), Map.entry("SessionUiApi", 10), Map.entry("SessionUsageApi", 1),
-            Map.entry("SessionVisibilityApi", 2), Map.entry("SessionWorkspacesApi", 20));
+            Map.entry("SessionPluginsApi", 8), Map.entry("SessionPluginsMarketplacesApi", 6),
+            Map.entry("SessionProviderApi", 3), Map.entry("SessionQueueApi", 20), Map.entry("SessionRemoteApi", 3),
+            Map.entry("SessionRpc", 9), Map.entry("SessionSandboxApi", 2), Map.entry("SessionScheduleApi", 9),
+            Map.entry("SessionSettingsApi", 2), Map.entry("SessionShellApi", 4), Map.entry("SessionSkillsApi", 6),
+            Map.entry("SessionTasksApi", 13), Map.entry("SessionTelemetryApi", 2), Map.entry("SessionToolsApi", 8),
+            Map.entry("SessionUiApi", 10), Map.entry("SessionUsageApi", 1), Map.entry("SessionVisibilityApi", 2),
+            Map.entry("SessionWorkflowApi", 13), Map.entry("SessionWorkflowJournalApi", 2),
+            Map.entry("SessionWorkspacesApi", 20));
 
     @Test
     void everyGeneratedRpcMethodHasRequestCaptureCoverageAndStableStructuralInventory() throws Exception {
