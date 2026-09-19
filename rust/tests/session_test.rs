@@ -3973,6 +3973,306 @@ async fn send_and_wait_returns_last_assistant_message_on_idle() {
     assert_eq!(event.data["message"], "Hello back!");
 }
 
+#[cfg(feature = "derive")]
+#[derive(Debug, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct StructuredInventory {
+    count: i32,
+    color: String,
+}
+
+#[cfg(feature = "derive")]
+#[tokio::test]
+async fn structured_output_infers_schema_and_buffers_pre_ack_corrections() {
+    let (session, mut server) = create_session_pair().await;
+    let waiting = tokio::spawn(async move {
+        session
+            .send_and_wait_typed::<StructuredInventory>("inventory")
+            .await
+    });
+    let request = server.read_request().await;
+    let schema = &request["params"]["responseFormat"]["jsonSchema"]["schema"];
+    assert_eq!(schema["properties"]["count"]["type"], "integer");
+    assert_eq!(schema["additionalProperties"], false);
+    server
+        .send_event("session.idle", serde_json::json!({}))
+        .await;
+    for (origin, count) in [("user-1", 42), ("user-1", 99), ("other", 123)] {
+        server
+            .send_event(
+                "assistant.message",
+                serde_json::json!({
+                    "messageId": "assistant", "originatingMessageId": origin,
+                    "content": format!(r#"{{"count":{count},"color":"red"}}"#)
+                }),
+            )
+            .await;
+        if count == 42 {
+            server
+                .send_event("session.idle", serde_json::json!({"mode":"autopilot"}))
+                .await;
+        }
+    }
+    server
+        .send_event("session.idle", serde_json::json!({}))
+        .await;
+    server
+        .respond(&request, serde_json::json!({"messageId":"user-1"}))
+        .await;
+    assert_eq!(
+        timeout(TIMEOUT, waiting).await.unwrap().unwrap().unwrap(),
+        StructuredInventory {
+            count: 99,
+            color: "red".into()
+        }
+    );
+}
+
+#[cfg(feature = "derive")]
+#[tokio::test]
+async fn structured_output_preserves_wide_integers() {
+    #[derive(Debug, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+    struct WideIntegers {
+        signed: i128,
+        unsigned: u128,
+    }
+
+    for signed in [i128::MIN, i128::MAX, 18446744073709551616] {
+        let (session, mut server) = create_session_pair().await;
+        let waiting = tokio::spawn(async move {
+            session
+                .send_and_wait_typed::<WideIntegers>("wide integers")
+                .await
+        });
+        let request = server.read_request().await;
+        let content = format!(r#"{{"signed":{signed},"unsigned":{}}}"#, u128::MAX);
+        server
+            .respond(&request, serde_json::json!({"messageId":"user-1"}))
+            .await;
+        server
+            .send_event(
+                "assistant.message",
+                serde_json::json!({
+                    "messageId":"assistant", "originatingMessageId":"user-1", "content":content
+                }),
+            )
+            .await;
+        server
+            .send_event("session.idle", serde_json::json!({}))
+            .await;
+        assert_eq!(
+            timeout(TIMEOUT, waiting).await.unwrap().unwrap().unwrap(),
+            WideIntegers {
+                signed,
+                unsigned: u128::MAX
+            }
+        );
+    }
+}
+
+#[cfg(feature = "derive")]
+#[tokio::test]
+async fn structured_output_rejects_null_even_for_optional_results() {
+    let (session, mut server) = create_session_pair().await;
+    let waiting = tokio::spawn(async move {
+        session
+            .send_and_wait_typed::<Option<StructuredInventory>>("inventory")
+            .await
+    });
+    let request = server.read_request().await;
+    server
+        .respond(&request, serde_json::json!({"messageId":"user-1"}))
+        .await;
+    server
+        .send_event(
+            "assistant.message",
+            serde_json::json!({
+                "messageId":"assistant", "originatingMessageId":"user-1", "content":" \nnull\t "
+            }),
+        )
+        .await;
+    server
+        .send_event("session.idle", serde_json::json!({}))
+        .await;
+    let error = timeout(TIMEOUT, waiting)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert!(error.to_string().contains("JSON null"), "{error}");
+}
+
+#[cfg(feature = "derive")]
+#[tokio::test]
+async fn structured_output_rejects_invalid_results() {
+    for content in [
+        "null",
+        "not JSON",
+        r#"{"count":"bad","color":"red"}"#,
+        r#"{"count":42}"#,
+    ] {
+        let (session, mut server) = create_session_pair().await;
+        let waiting = tokio::spawn(async move {
+            session
+                .send_and_wait_typed::<StructuredInventory>("inventory")
+                .await
+        });
+        let request = server.read_request().await;
+        server
+            .respond(&request, serde_json::json!({"messageId":"user-1"}))
+            .await;
+        server
+            .send_event(
+                "assistant.message",
+                serde_json::json!({
+                    "messageId":"assistant", "originatingMessageId":"user-1", "content":content
+                }),
+            )
+            .await;
+        server
+            .send_event("session.idle", serde_json::json!({}))
+            .await;
+        assert!(
+            timeout(TIMEOUT, waiting).await.unwrap().unwrap().is_err(),
+            "{content}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn structured_output_raw_schema_and_concurrent_waits_are_independent() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let mut waits = Vec::new();
+    for origin in ["first", "second"] {
+        let session = session.clone();
+        waits.push(tokio::spawn(async move {
+            session
+                .send_and_wait(MessageOptions::new(origin).with_response_schema(
+                    serde_json::json!({"type":"object","description":"unchanged"}),
+                ))
+                .await
+        }));
+        let request = server.read_request().await;
+        assert_eq!(
+            request["params"]["responseFormat"]["jsonSchema"]["schema"],
+            serde_json::json!({"type":"object","description":"unchanged"})
+        );
+        server
+            .respond(&request, serde_json::json!({"messageId": origin}))
+            .await;
+    }
+    for origin in ["first", "second"] {
+        server
+            .send_event(
+                "assistant.message",
+                serde_json::json!({
+                    "messageId":"assistant", "originatingMessageId":origin, "content":origin
+                }),
+            )
+            .await;
+    }
+    server
+        .send_event("session.idle", serde_json::json!({}))
+        .await;
+    for (wait, origin) in waits.into_iter().zip(["first", "second"]) {
+        let event = timeout(TIMEOUT, wait)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(event.data["content"], origin);
+    }
+}
+
+#[tokio::test]
+async fn structured_output_rejects_aborted_missing_and_tool_only_responses() {
+    for kind in ["missing", "aborted", "tool", "error"] {
+        let (session, mut server) = create_session_pair().await;
+        let waiting = tokio::spawn(async move {
+            session
+                .send_and_wait(
+                    MessageOptions::new("inventory")
+                        .with_response_schema(serde_json::json!({"type":"object"})),
+                )
+                .await
+        });
+        let request = server.read_request().await;
+        server
+            .respond(&request, serde_json::json!({"messageId":"user-1"}))
+            .await;
+        server
+            .send_event(
+                "user.message",
+                serde_json::json!({"messageId":"user-1","content":"inventory"}),
+            )
+            .await;
+        if kind == "tool" {
+            server.send_event("assistant.message", serde_json::json!({
+                "messageId":"assistant", "originatingMessageId":"user-1", "content":"working",
+                "toolRequests":[{"toolCallId":"tool-1","name":"tool"}]
+            })).await;
+        }
+        if kind == "error" {
+            server
+                .send_event(
+                    "session.error",
+                    serde_json::json!({"errorType":"test","message":"provider failed"}),
+                )
+                .await;
+        } else {
+            server
+                .send_event(
+                    "session.idle",
+                    serde_json::json!({"aborted":kind == "aborted"}),
+                )
+                .await;
+        }
+        assert!(
+            timeout(TIMEOUT, waiting).await.unwrap().unwrap().is_err(),
+            "{kind}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn structured_output_timeout_and_cancellation_do_not_block_later_sends() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    for cancel in [false, true] {
+        let waiting = tokio::spawn({
+            let session = session.clone();
+            async move {
+                session
+                    .send_and_wait(
+                        MessageOptions::new("inventory")
+                            .with_response_schema(serde_json::json!({"type":"object"}))
+                            .with_wait_timeout(Duration::from_millis(50)),
+                    )
+                    .await
+            }
+        });
+        let request = server.read_request().await;
+        server
+            .respond(&request, serde_json::json!({"messageId":"user-1"}))
+            .await;
+        if cancel {
+            waiting.abort();
+            assert!(waiting.await.unwrap_err().is_cancelled());
+        } else {
+            assert!(timeout(TIMEOUT, waiting).await.unwrap().unwrap().is_err());
+        }
+    }
+    let sending = tokio::spawn(async move { session.send("ordinary").await });
+    let request = server.read_request().await;
+    assert!(request["params"].get("responseFormat").is_none());
+    server
+        .respond(&request, serde_json::json!({"messageId":"plain"}))
+        .await;
+    assert_eq!(sending.await.unwrap().unwrap(), "plain");
+}
+
 #[tokio::test]
 async fn send_and_wait_agent_source_preserves_mode_and_optional_reply() {
     let (session, mut server) = create_session_pair().await;

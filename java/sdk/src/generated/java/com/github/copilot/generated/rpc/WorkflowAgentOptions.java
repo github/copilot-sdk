@@ -1,0 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * Options for one workflow-scoped subagent call.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record WorkflowAgentOptions(
+    /** Optional label distinguishing otherwise identical memoized agent calls. */
+    @JsonProperty("label") String label,
+    /** Optional JSON Schema for structured agent output. */
+    @JsonProperty("schema") Object schema,
+    /** Optional model identifier for the subagent. */
+    @JsonProperty("model") String model,
+    /** Optional reasoning effort override for the subagent. */
+    @JsonProperty("reasoningEffort") String reasoningEffort,
+    /** Optional context tier override for the subagent. */
+    @JsonProperty("contextTier") ContextTier contextTier,
+    /** Optional built-in or custom agent name whose definition configures the subagent. */
+    @JsonProperty("agent") String agent
+) {
+}

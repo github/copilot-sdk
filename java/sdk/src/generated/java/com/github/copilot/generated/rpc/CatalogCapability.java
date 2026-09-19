@@ -22,12 +22,18 @@ public enum CatalogCapability {
     LEGACY_MCP_SERVER_CARD("legacy-mcp-server-card"),
     /** The {@code ai-skill-discovery} variant. */
     AI_SKILL_DISCOVERY("ai-skill-discovery"),
+    /** The {@code agent-plugin-discovery} variant. */
+    AGENT_PLUGIN_DISCOVERY("agent-plugin-discovery"),
     /** The {@code mcp-install-planning} variant. */
     MCP_INSTALL_PLANNING("mcp-install-planning"),
     /** The {@code multiple-transport-choice} variant. */
     MULTIPLE_TRANSPORT_CHOICE("multiple-transport-choice"),
+    /** The {@code catalog-search-pagination} variant. */
+    CATALOG_SEARCH_PAGINATION("catalog-search-pagination"),
     /** The {@code trust-snapshot} variant. */
-    TRUST_SNAPSHOT("trust-snapshot");
+    TRUST_SNAPSHOT("trust-snapshot"),
+    /** The {@code catalog-selection} variant. */
+    CATALOG_SELECTION("catalog-selection");
 
     private final String value;
     CatalogCapability(String value) { this.value = value; }

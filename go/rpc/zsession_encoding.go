@@ -581,6 +581,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionIndexedSearch:
+		var d SessionIndexedSearchData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionInfo:
 		var d SessionInfoData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -649,6 +655,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionModeNoticeDelivered:
 		var d SessionModeNoticeDeliveredData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionPermissionRecovery:
+		var d SessionPermissionRecoveryData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -946,6 +958,14 @@ func (r RawSessionEventData) MarshalJSON() ([]byte, error) {
 	return r.Raw, nil
 }
 
+func (r SessionIndexedSearchData) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.Raw)
+}
+
+func (r *SessionIndexedSearchData) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &r.Raw)
+}
+
 func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	type rawUserMessageData struct {
 		AgentMode                        *UserMessageAgentMode `json:"agentMode,omitempty"`
@@ -957,6 +977,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		MessageID                        *string               `json:"messageId,omitempty"`
 		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitzero"`
 		ParentAgentTaskID                *string               `json:"parentAgentTaskId,omitempty"`
+		ResponsesReasoning               *ResponsesReasoning   `json:"responsesReasoning,omitempty"`
 		Source                           *string               `json:"source,omitempty"`
 		SupportedNativeDocumentMIMETypes []string              `json:"supportedNativeDocumentMimeTypes,omitzero"`
 		TransformedContent               *string               `json:"transformedContent,omitempty"`
@@ -984,6 +1005,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	r.MessageID = raw.MessageID
 	r.NativeDocumentPathFallbackPaths = raw.NativeDocumentPathFallbackPaths
 	r.ParentAgentTaskID = raw.ParentAgentTaskID
+	r.ResponsesReasoning = raw.ResponsesReasoning
 	r.Source = raw.Source
 	r.SupportedNativeDocumentMIMETypes = raw.SupportedNativeDocumentMIMETypes
 	r.TransformedContent = raw.TransformedContent
@@ -1523,6 +1545,14 @@ func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (r SandboxDecisionData) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.Raw)
+}
+
+func (r *SandboxDecisionData) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &r.Raw)
+}
+
 func unmarshalSystemNotification(data []byte) (SystemNotification, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -1791,8 +1821,9 @@ func (r SystemNotificationUnclassified) MarshalJSON() ([]byte, error) {
 
 func (r *SystemNotificationData) UnmarshalJSON(data []byte) error {
 	type rawSystemNotificationData struct {
-		Content string          `json:"content"`
-		Kind    json.RawMessage `json:"kind"`
+		Content            string              `json:"content"`
+		Kind               json.RawMessage     `json:"kind"`
+		ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 	}
 	var raw rawSystemNotificationData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1806,6 +1837,7 @@ func (r *SystemNotificationData) UnmarshalJSON(data []byte) error {
 		}
 		r.Kind = value
 	}
+	r.ResponsesReasoning = raw.ResponsesReasoning
 	return nil
 }
 
@@ -2295,8 +2327,10 @@ func (r PermissionPromptRequestWrite) MarshalJSON() ([]byte, error) {
 func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 	type rawPermissionRequestedData struct {
 		AgentMode         *SessionMode    `json:"agentMode,omitempty"`
+		PermissionMode    *PermissionMode `json:"permissionMode,omitempty"`
 		PermissionRequest json.RawMessage `json:"permissionRequest"`
 		PromptRequest     json.RawMessage `json:"promptRequest,omitempty"`
+		RecoveryEpisodeID *string         `json:"recoveryEpisodeId,omitempty"`
 		RequestID         string          `json:"requestId"`
 		ResolvedByHook    *bool           `json:"resolvedByHook,omitempty"`
 		RiskAssessment    any             `json:"riskAssessment,omitempty"`
@@ -2306,6 +2340,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	r.AgentMode = raw.AgentMode
+	r.PermissionMode = raw.PermissionMode
 	if raw.PermissionRequest != nil {
 		value, err := unmarshalPermissionRequest(raw.PermissionRequest)
 		if err != nil {
@@ -2320,6 +2355,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 		}
 		r.PromptRequest = value
 	}
+	r.RecoveryEpisodeID = raw.RecoveryEpisodeID
 	r.RequestID = raw.RequestID
 	r.ResolvedByHook = raw.ResolvedByHook
 	r.RiskAssessment = raw.RiskAssessment
@@ -2552,16 +2588,20 @@ func (r PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) MarshalJSON() 
 
 func (r *PermissionCompletedData) UnmarshalJSON(data []byte) error {
 	type rawPermissionCompletedData struct {
-		DecisionSource *PermissionDecisionSource `json:"decisionSource,omitempty"`
-		RequestID      string                    `json:"requestId"`
-		Result         json.RawMessage           `json:"result"`
-		ToolCallID     *string                   `json:"toolCallId,omitempty"`
+		Blocker           *TaskBlocker              `json:"blocker,omitempty"`
+		DecisionSource    *PermissionDecisionSource `json:"decisionSource,omitempty"`
+		RecoveryEpisodeID *string                   `json:"recoveryEpisodeId,omitempty"`
+		RequestID         string                    `json:"requestId"`
+		Result            json.RawMessage           `json:"result"`
+		ToolCallID        *string                   `json:"toolCallId,omitempty"`
 	}
 	var raw rawPermissionCompletedData
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	r.Blocker = raw.Blocker
 	r.DecisionSource = raw.DecisionSource
+	r.RecoveryEpisodeID = raw.RecoveryEpisodeID
 	r.RequestID = raw.RequestID
 	if raw.Result != nil {
 		value, err := unmarshalPermissionResult(raw.Result)

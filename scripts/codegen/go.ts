@@ -580,10 +580,14 @@ function extractGoEventVariants(schema: JSONSchema7): GoEventVariant[] {
             const typeSchema = variant.properties!.type as JSONSchema7;
             const typeName = typeSchema?.const as string;
             if (!typeName) throw new Error("Variant must have type.const");
+            const payloadSchema = resolveGoUnionMember(
+                (variant.properties!.data as JSONSchema7) || {},
+                definitionCollections
+            );
             const dataSchema =
-                resolveObjectSchema(variant.properties!.data as JSONSchema7, definitionCollections) ??
-                resolveSchema(variant.properties!.data as JSONSchema7, definitionCollections) ??
-                ((variant.properties!.data as JSONSchema7) || {});
+                resolveObjectSchema(payloadSchema, definitionCollections) ??
+                resolveSchema(payloadSchema, definitionCollections) ??
+                payloadSchema;
             return {
                 typeName,
                 dataClassName: `${toPascalCase(typeName)}Data`,
@@ -3197,6 +3201,7 @@ export function generateGoSessionEventsCode(
     const dataStructs: string[] = [];
     for (const variant of variants) {
         const required = new Set(variant.dataSchema.required || []);
+        const rawUnionPayload = goNonNullUnionMembers(variant.dataSchema).length > 1;
         const lines: string[] = [];
 
         if (variant.dataDescription) {
@@ -3210,8 +3215,13 @@ export function generateGoSessionEventsCode(
         lines.push(`type ${variant.dataClassName} struct {`);
 
         const fields: GoStructField[] = [];
+        if (rawUnionPayload) {
+            lines.push(`\t// Raw preserves the complete union payload, including unrecognized variants.`);
+            lines.push(`\tRaw json.RawMessage \`json:"-"\``);
+        }
+        const properties = rawUnionPayload ? {} : (variant.dataSchema.properties || {});
 
-        for (const [propName, propSchema] of sortByGoFieldName(Object.entries(variant.dataSchema.properties || {}))) {
+        for (const [propName, propSchema] of sortByGoFieldName(Object.entries(properties))) {
             if (typeof propSchema !== "object") continue;
             const prop = propSchema as JSONSchema7;
             const isReq = required.has(propName);
@@ -3232,7 +3242,19 @@ export function generateGoSessionEventsCode(
         }
 
         lines.push(`}`);
-        pushGoStructUnmarshalJSON(lines, variant.dataClassName, fields, ctx);
+        if (rawUnionPayload) {
+            pushGoEncodingBlock([
+                `func (r ${variant.dataClassName}) MarshalJSON() ([]byte, error) {`,
+                `\treturn json.Marshal(r.Raw)`,
+                `}`,
+                ``,
+                `func (r *${variant.dataClassName}) UnmarshalJSON(data []byte) error {`,
+                `\treturn json.Unmarshal(data, &r.Raw)`,
+                `}`,
+            ], ctx);
+        } else {
+            pushGoStructUnmarshalJSON(lines, variant.dataClassName, fields, ctx);
+        }
         lines.push(``);
         const constName = "SessionEventType" + variant.typeName
             .split(/[._]/)

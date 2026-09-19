@@ -27,7 +27,7 @@ public final class ServerSessionFsApi {
     }
 
     /**
-     * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
+     * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider. A registered provider is authoritative for path interpretation and filesystem facts used by workspace permission validation. Paths are interpreted lexically; home-relative paths (`~` and `~/...`) and Windows drive-relative paths such as `C:foo` are unsupported. Until provider-side canonicalization is supported, providers must not expose symlinks inside allowed roots that escape those roots.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

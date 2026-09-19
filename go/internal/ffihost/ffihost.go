@@ -208,9 +208,7 @@ type Host struct {
 }
 
 func (h *Host) rearmForeignSignalHandlers() {
-	if h.cliEntrypoint != "" {
-		rearmForeignSignalHandlers(h.lib.handle)
-	}
+	rearmForeignSignalHandlers(h.lib.handle)
 }
 
 // PrepareForChildProcessWait repairs signal handlers that the embedded runtime

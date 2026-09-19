@@ -38,11 +38,11 @@ public record McpInstallPlan(
     @JsonProperty("target") McpPlanTarget target,
     /** Outcome of evaluating the server against registry and enterprise policy. */
     @JsonProperty("policy") McpPlanPolicyResult policy,
-    /** The configuration changes installing would make, described rather than serialised, so the mutable configuration payload stays behind the runtime boundary. */
+    /** Alternative configuration changes, with exactly one entry for each transportChoices entry in the same order. Only the entry for the subsequently selected transport applies; these are not cumulative writes. Payloads remain behind the runtime boundary. */
     @JsonProperty("configurationChanges") List<McpPlanConfigurationChange> configurationChanges,
     /** Whether applying this plan would require an MCP reload to take effect. Planning itself never reloads. */
     @JsonProperty("reloadRequired") Boolean reloadRequired,
-    /** Whether the plan cannot be applied without further input, because a required value has no default or a secret must be supplied. */
+    /** True only when every eligible transport choice needs additional values or secrets. False means at least one choice needs no additional configuration, not that every choice is ready. A later apply operation must validate the selected choice's own inputs, secrets and policy after explicit confirmation. */
     @JsonProperty("requiresInteractiveConfiguration") Boolean requiresInteractiveConfiguration
 ) {
 }

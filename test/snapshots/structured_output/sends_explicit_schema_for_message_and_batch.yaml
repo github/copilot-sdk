@@ -1,0 +1,16 @@
+models:
+  - gpt-4.1
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: There are 42 red widgets in stock.
+      - role: user
+        content: Report the widget count and color.
+      - role: assistant
+        content: '{"color":"red","count":42}'
+      - role: user
+        content: The inventory now has 21 blue widgets. Report the new count and color.
+      - role: assistant
+        content: '{"color":"blue","count":21}'

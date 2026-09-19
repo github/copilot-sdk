@@ -121,6 +121,7 @@ export type {
     BearerTokenProvider,
     ExtensionContextAttachment,
     MessageOptions,
+    ResponseSchema,
     MessageSource,
     ManagedSettings,
     ManagedSettingsPermissions,

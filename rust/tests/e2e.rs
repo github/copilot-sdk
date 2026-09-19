@@ -134,6 +134,9 @@ mod session_todos_changed;
 mod skills;
 #[path = "e2e/streaming_fidelity.rs"]
 mod streaming_fidelity;
+#[cfg(feature = "derive")]
+#[path = "e2e/structured_output.rs"]
+mod structured_output;
 #[path = "e2e/subagent_hooks.rs"]
 mod subagent_hooks;
 #[path = "e2e/support.rs"]

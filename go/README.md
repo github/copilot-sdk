@@ -530,6 +530,38 @@ lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details",
 lookupIssue.Defer = copilot.ToolDeferAuto
 ```
 
+## Structured output (experimental)
+
+Use the package-level generic helper (Go does not support generic methods):
+
+```go
+type Inventory struct {
+    Count int    `json:"count"`
+    Color string `json:"color"`
+}
+
+inventory, err := copilot.SendAndWait[Inventory](ctx, session, copilot.MessageOptions{
+    Prompt: "Call get_inventory, then report the widget count and color.",
+})
+```
+
+This derives the schema using the same `jsonschema-go` generator as `DefineTool`
+and unmarshals the final JSON into `Inventory`. Unmarshaling is not full JSON
+Schema validation. For an explicit schema, set `MessageOptions.ResponseSchema`
+on `session.Send` or `session.SendAndWait`; the latter returns the message event.
+The generic helper rejects an explicit schema or immediate delivery.
+
+The schema lasts for one run, including tools, steering, and stop-hook corrections.
+Independent sends and subagents do not inherit it; streaming stays text.
+Structured waits select the last correlated root assistant message without tool
+requests at non-autopilot idle. Concurrent waits retain their own results, though
+queued work can delay idle. Aborted runs, session errors after the run starts,
+and missing final output fail. Context cancellation stops waiting, not agent work.
+
+Provider schema restrictions apply, and supplied schemas are forwarded unchanged.
+Low-level `session.RPC.Send` and `session.RPC.SendMessages` expose the full
+`rpc.ResponseFormat` options, including name, description, and strictness.
+
 ## Streaming
 
 Enable streaming to receive assistant response chunks as they're generated:

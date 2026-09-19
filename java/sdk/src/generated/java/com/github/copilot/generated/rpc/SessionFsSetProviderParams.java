@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
+ * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider. A registered provider is authoritative for path interpretation and filesystem facts used by workspace permission validation. Paths are interpreted lexically; home-relative paths (`~` and `~/...`) and Windows drive-relative paths such as `C:foo` are unsupported. Until provider-side canonicalization is supported, providers must not expose symlinks inside allowed roots that escape those roots.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionFsSetProviderParams(
-    /** Initial working directory for sessions */
+    /** Absolute initial working directory for sessions. Registering the provider establishes this path as the root of its virtual namespace; the runtime does not require the provider to materialize or stat it before creating a session. */
     @JsonProperty("initialCwd") String initialCwd,
     /** Path within each session's SessionFs where the runtime stores files for that session */
     @JsonProperty("sessionStatePath") String sessionStatePath,

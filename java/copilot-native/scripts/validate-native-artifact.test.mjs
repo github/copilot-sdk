@@ -515,6 +515,7 @@ function createPublicationFixture(
     for (const nativeClassifier of [
       "linux-x64",
       "linux-arm64",
+      "linuxmusl-x64",
       "win32-x64",
       "win32-arm64",
       "darwin-x64",

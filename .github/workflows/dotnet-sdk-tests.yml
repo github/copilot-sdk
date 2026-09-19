@@ -42,6 +42,14 @@ jobs:
       - name: Build SDK
         run: dotnet build --no-restore
 
+      - name: Test structured output with reflection enabled
+        env:
+          DOTNET_ROLL_FORWARD: Major
+        run: >-
+          dotnet test test/GitHub.Copilot.SDK.Test.csproj --no-restore --framework net8.0
+          -p:JsonSerializerIsReflectionEnabledByDefault=true
+          --filter "FullyQualifiedName~GitHub.Copilot.Test.Unit.ClientSessionLifetimeTests.StructuredOutput"
+
   test:
     name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }}, ${{ matrix.backend }}, ${{ matrix.shard }})"
     if: github.event.repository.fork == false

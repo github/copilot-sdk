@@ -2476,6 +2476,10 @@ func MessageSourceAgent(id string) MessageSource {
 
 // MessageOptions configures a message to send
 type MessageOptions struct {
+	// ResponseSchema is a per-run JSON Schema. Independent sends do not inherit it.
+	// Immediate steering inherits the active format and must not specify its own.
+	// Use RPC.Send for schema name, description and strictness options.
+	ResponseSchema map[string]any
 	// Prompt is the message to send
 	Prompt string
 	// Source identifies the message origin independently of Mode and AgentMode.
@@ -2959,16 +2963,17 @@ type sessionAbortRequest struct {
 }
 
 type sessionSendRequest struct {
-	SessionID      string            `json:"sessionId"`
-	Prompt         string            `json:"prompt"`
-	Source         MessageSource     `json:"source,omitempty"`
-	DisplayPrompt  string            `json:"displayPrompt,omitempty"`
-	Attachments    []Attachment      `json:"attachments,omitempty"`
-	Mode           string            `json:"mode,omitempty"`
-	AgentMode      AgentMode         `json:"agentMode,omitempty"`
-	Traceparent    string            `json:"traceparent,omitempty"`
-	Tracestate     string            `json:"tracestate,omitempty"`
-	RequestHeaders map[string]string `json:"requestHeaders,omitempty"`
+	ResponseFormat *rpc.ResponseFormat `json:"responseFormat,omitempty"`
+	SessionID      string              `json:"sessionId"`
+	Prompt         string              `json:"prompt"`
+	Source         MessageSource       `json:"source,omitempty"`
+	DisplayPrompt  string              `json:"displayPrompt,omitempty"`
+	Attachments    []Attachment        `json:"attachments,omitempty"`
+	Mode           string              `json:"mode,omitempty"`
+	AgentMode      AgentMode           `json:"agentMode,omitempty"`
+	Traceparent    string              `json:"traceparent,omitempty"`
+	Tracestate     string              `json:"tracestate,omitempty"`
+	RequestHeaders map[string]string   `json:"requestHeaders,omitempty"`
 }
 
 // sessionSendResponse is the response from session.send
