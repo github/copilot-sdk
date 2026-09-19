@@ -124,7 +124,7 @@ class ExtensionLaunchProviderTest {
                 return;
             }
             try {
-                server.sendResponse(Long.parseLong(id), result);
+                server.sendResponse(parseRpcId(id), result);
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to send fake runtime response", e);
             }
@@ -135,9 +135,17 @@ class ExtensionLaunchProviderTest {
                 return;
             }
             try {
-                server.sendErrorResponse(Long.parseLong(id), -32603, error.getMessage());
+                server.sendErrorResponse(parseRpcId(id), -32603, error.getMessage());
             } catch (IOException e) {
                 resolveResultFailure(error, e);
+            }
+        }
+
+        private static Object parseRpcId(String id) {
+            try {
+                return Long.valueOf(id);
+            } catch (NumberFormatException ignored) {
+                return id;
             }
         }
 
