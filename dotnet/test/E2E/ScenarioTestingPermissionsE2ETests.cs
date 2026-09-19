@@ -47,8 +47,6 @@ public class ScenarioTestingPermissionsE2ETests(E2ETestFixture fixture, ITestOut
     [Fact]
     public async Task Should_Report_Managed_Effective_Mode_When_Scenario_Escalation_Fails()
     {
-        var resolved = new TaskCompletionSource<SessionManagedSettingsResolvedEvent>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
         var enforced = new TaskCompletionSource<SessionManagedSettingsEnforcedEvent>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -64,21 +62,17 @@ public class ScenarioTestingPermissionsE2ETests(E2ETestFixture fixture, ITestOut
             },
             OnEvent = evt =>
             {
-                if (evt is SessionManagedSettingsResolvedEvent resolvedEvent)
-                {
-                    resolved.TrySetResult(resolvedEvent);
-                }
-                else if (evt is SessionManagedSettingsEnforcedEvent enforcedEvent)
+                if (evt is SessionManagedSettingsEnforcedEvent enforcedEvent)
                 {
                     enforced.TrySetResult(enforcedEvent);
                 }
             },
         });
 
-        var resolvedEvent = await resolved.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        Assert.True(resolvedEvent.Data.ClientManaged);
-        Assert.True(resolvedEvent.Data.BypassPermissionsDisabled);
-        Assert.Contains("permissions", resolvedEvent.Data.ManagedKeys);
+        var resolved = await session.Rpc.ManagedSettings.GetAsync();
+        Assert.True(resolved.ClientManaged);
+        Assert.True(resolved.BypassPermissionsDisabled);
+        Assert.Contains("permissions", resolved.ManagedKeys);
 
         var set = await session.Rpc.Permissions.SetModeAsync(
             PermissionMode.AllowAll,
