@@ -3231,9 +3231,28 @@ pub struct CapiSessionOptions {
 #[serde(rename_all = "camelCase")]
 pub struct CardDigest {
     /// Digest algorithm and canonical representation
+    #[serde(deserialize_with = "CardDigest::deserialize_algorithm")]
     pub algorithm: CardDigestAlgorithm,
     /// SHA-256 digest of the RFC 8785 canonical UTF-8 bytes, encoded as exactly 64 lowercase hexadecimal characters.
     pub value: String,
+}
+
+impl CardDigest {
+    fn deserialize_algorithm<'de, D>(deserializer: D) -> Result<CardDigestAlgorithm, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "sha256-rfc8785" {
+            return Err(serde::de::Error::unknown_variant(
+                &value,
+                &["sha256-rfc8785"],
+            ));
+        }
+        <CardDigestAlgorithm>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(
+            value,
+        ))
+    }
 }
 
 /// Where and when an Agent Plugin catalog reference was observed. Discovery provenance deliberately carries no descriptor URL, raw data, candidate handle, or content digest.
@@ -3293,6 +3312,7 @@ pub struct CatalogAgentPluginCandidate {
     /// Validated, normalised catalogue resource URN. This identity comes only from the catalog identifier and is never inferred from display text or installed-plugin state.
     pub identity: String,
     /// Discriminator: this candidate describes an Agent Plugin.
+    #[serde(deserialize_with = "CatalogAgentPluginCandidate::deserialize_kind")]
     pub kind: CatalogAgentPluginCandidateKind,
     /// Canonical Agent Plugin media type.
     pub media_type: CatalogAgentPluginMediaType,
@@ -3311,6 +3331,23 @@ pub struct CatalogAgentPluginCandidate {
     pub version: Option<String>,
 }
 
+impl CatalogAgentPluginCandidate {
+    fn deserialize_kind<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogAgentPluginCandidateKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "plugin" {
+            return Err(serde::de::Error::unknown_variant(&value, &["plugin"]));
+        }
+        <CatalogAgentPluginCandidateKind>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
 /// Where and when an AI skill catalog reference was observed. Discovery provenance deliberately carries no content digest because search does not establish the exact validated content a later plan will bind.
 ///
 /// <div class="warning">
@@ -3325,9 +3362,28 @@ pub struct CatalogAiSkillCandidateProvenance {
     /// Host of the catalog authority that advertised the reference, without path, query, or credentials. Inert untrusted data.
     pub authority: String,
     /// Media type advertised for the referenced AI skill card
+    #[serde(deserialize_with = "CatalogAiSkillCandidateProvenance::deserialize_media_type")]
     pub media_type: CatalogAiSkillMediaType,
     /// ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a retrieval or validation timestamp.
     pub observed_at: String,
+}
+
+impl CatalogAiSkillCandidateProvenance {
+    fn deserialize_media_type<'de, D>(deserializer: D) -> Result<CatalogAiSkillMediaType, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "application/ai-skill" {
+            return Err(serde::de::Error::unknown_variant(
+                &value,
+                &["application/ai-skill"],
+            ));
+        }
+        <CatalogAiSkillMediaType>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
 }
 
 /// Candidate whose card is retrieved from a URL through the runtime's hardened fetch boundary.
@@ -3383,10 +3439,13 @@ pub struct CatalogAiSkillCandidate {
     /// ISO 8601 timestamp after which the handle is stale and will be rejected.
     pub handle_expires_at: String,
     /// AI skills are discovery-only and cannot be installed through this surface
+    #[serde(deserialize_with = "CatalogAiSkillCandidate::deserialize_installability")]
     pub installability: CatalogAiSkillInstallability,
     /// Discriminator: this candidate describes an AI skill
+    #[serde(deserialize_with = "CatalogAiSkillCandidate::deserialize_kind")]
     pub kind: CatalogAiSkillCandidateKind,
     /// Media type of the underlying AI skill card
+    #[serde(deserialize_with = "CatalogAiSkillCandidate::deserialize_media_type")]
     pub media_type: CatalogAiSkillMediaType,
     /// Where the catalog reference was observed, without the card itself or any content digest.
     pub provenance: CatalogAiSkillCandidateProvenance,
@@ -3398,6 +3457,55 @@ pub struct CatalogAiSkillCandidate {
     /// Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trust: Option<serde_json::Value>,
+}
+
+impl CatalogAiSkillCandidate {
+    fn deserialize_installability<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogAiSkillInstallability, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "not-installable-kind" {
+            return Err(serde::de::Error::unknown_variant(
+                &value,
+                &["not-installable-kind"],
+            ));
+        }
+        <CatalogAiSkillInstallability>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
+
+    fn deserialize_kind<'de, D>(deserializer: D) -> Result<CatalogAiSkillCandidateKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "ai-skill" {
+            return Err(serde::de::Error::unknown_variant(&value, &["ai-skill"]));
+        }
+        <CatalogAiSkillCandidateKind>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
+
+    fn deserialize_media_type<'de, D>(deserializer: D) -> Result<CatalogAiSkillMediaType, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "application/ai-skill" {
+            return Err(serde::de::Error::unknown_variant(
+                &value,
+                &["application/ai-skill"],
+            ));
+        }
+        <CatalogAiSkillMediaType>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
 }
 
 /// An optional catalog authentication exchange did not establish the caller's identity. Anonymous search remains supported; this refusal is reserved for an operation that cannot continue after the attempted exchange. It is distinct from `policy-rejected` and from a network failure, and the reason identifies the recovery action.
@@ -3461,6 +3569,7 @@ pub struct CatalogMcpServerCandidate {
     /// Whether this MCP server can be planned for installation, and if policy prevents it.
     pub installability: CatalogMcpServerInstallability,
     /// Discriminator: this candidate describes an MCP server
+    #[serde(deserialize_with = "CatalogMcpServerCandidate::deserialize_kind")]
     pub kind: CatalogMcpServerCandidateKind,
     /// JSON MCP media type of the underlying card.
     pub media_type: McpServerCardMediaType,
@@ -3474,6 +3583,21 @@ pub struct CatalogMcpServerCandidate {
     /// Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trust: Option<serde_json::Value>,
+}
+
+impl CatalogMcpServerCandidate {
+    fn deserialize_kind<'de, D>(deserializer: D) -> Result<CatalogMcpServerCandidateKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "mcp-server" {
+            return Err(serde::de::Error::unknown_variant(&value, &["mcp-server"]));
+        }
+        <CatalogMcpServerCandidateKind>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
 }
 
 /// The protocol version and capability set a caller requires, supplied on every catalog request so negotiation cannot be skipped by omission.
@@ -4049,7 +4173,25 @@ pub struct CatalogTrustSnapshotAbsent {
     /// Schema version of this runtime-owned snapshot envelope.
     pub schema_version: CatalogTrustSnapshotSchemaVersion,
     /// Discriminator: the authority omitted trust metadata.
+    #[serde(deserialize_with = "CatalogTrustSnapshotAbsent::deserialize_status")]
     pub status: CatalogTrustSnapshotAbsentStatus,
+}
+
+impl CatalogTrustSnapshotAbsent {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotAbsentStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "absent" {
+            return Err(serde::de::Error::unknown_variant(&value, &["absent"]));
+        }
+        <CatalogTrustSnapshotAbsentStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
 }
 
 /// A recognised current Agent Finder T1 or T2 trust tier.
@@ -4070,9 +4212,27 @@ pub struct CatalogTrustSnapshotCurrent {
     /// Schema version of this runtime-owned snapshot envelope.
     pub schema_version: CatalogTrustSnapshotSchemaVersion,
     /// Discriminator: a recognised current trust tier was observed.
+    #[serde(deserialize_with = "CatalogTrustSnapshotCurrent::deserialize_status")]
     pub status: CatalogTrustSnapshotCurrentStatus,
     /// Service-computed T1 or T2 trust tier.
     pub tier: CatalogTrustTier,
+}
+
+impl CatalogTrustSnapshotCurrent {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotCurrentStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "current" {
+            return Err(serde::de::Error::unknown_variant(&value, &["current"]));
+        }
+        <CatalogTrustSnapshotCurrentStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
 }
 
 /// Discriminator: the authority explicitly reported a downgraded assessment.
@@ -4093,7 +4253,25 @@ pub struct CatalogTrustSnapshotDowngraded {
     /// Schema version of this runtime-owned snapshot envelope.
     pub schema_version: CatalogTrustSnapshotSchemaVersion,
     /// Discriminator: the authority explicitly reported a downgraded assessment.
+    #[serde(deserialize_with = "CatalogTrustSnapshotDowngraded::deserialize_status")]
     pub status: CatalogTrustSnapshotDowngradedStatus,
+}
+
+impl CatalogTrustSnapshotDowngraded {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotDowngradedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "downgraded" {
+            return Err(serde::de::Error::unknown_variant(&value, &["downgraded"]));
+        }
+        <CatalogTrustSnapshotDowngradedStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
 }
 
 /// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
@@ -4114,7 +4292,25 @@ pub struct CatalogTrustSnapshotMalformed {
     /// Schema version of this runtime-owned snapshot envelope.
     pub schema_version: CatalogTrustSnapshotSchemaVersion,
     /// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+    #[serde(deserialize_with = "CatalogTrustSnapshotMalformed::deserialize_status")]
     pub status: CatalogTrustSnapshotMalformedStatus,
+}
+
+impl CatalogTrustSnapshotMalformed {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotMalformedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "malformed" {
+            return Err(serde::de::Error::unknown_variant(&value, &["malformed"]));
+        }
+        <CatalogTrustSnapshotMalformedStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
 }
 
 /// Discriminator: the authority explicitly revoked the assessment.
@@ -4135,7 +4331,25 @@ pub struct CatalogTrustSnapshotRevoked {
     /// Schema version of this runtime-owned snapshot envelope.
     pub schema_version: CatalogTrustSnapshotSchemaVersion,
     /// Discriminator: the authority explicitly revoked the assessment.
+    #[serde(deserialize_with = "CatalogTrustSnapshotRevoked::deserialize_status")]
     pub status: CatalogTrustSnapshotRevokedStatus,
+}
+
+impl CatalogTrustSnapshotRevoked {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotRevokedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "revoked" {
+            return Err(serde::de::Error::unknown_variant(&value, &["revoked"]));
+        }
+        <CatalogTrustSnapshotRevokedStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
 }
 
 /// Discriminator: the authority explicitly marked the assessment stale.
@@ -4156,7 +4370,25 @@ pub struct CatalogTrustSnapshotStale {
     /// Schema version of this runtime-owned snapshot envelope.
     pub schema_version: CatalogTrustSnapshotSchemaVersion,
     /// Discriminator: the authority explicitly marked the assessment stale.
+    #[serde(deserialize_with = "CatalogTrustSnapshotStale::deserialize_status")]
     pub status: CatalogTrustSnapshotStaleStatus,
+}
+
+impl CatalogTrustSnapshotStale {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotStaleStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "stale" {
+            return Err(serde::de::Error::unknown_variant(&value, &["stale"]));
+        }
+        <CatalogTrustSnapshotStaleStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
 }
 
 /// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
@@ -4177,7 +4409,25 @@ pub struct CatalogTrustSnapshotUnsupported {
     /// Schema version of this runtime-owned snapshot envelope.
     pub schema_version: CatalogTrustSnapshotSchemaVersion,
     /// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
+    #[serde(deserialize_with = "CatalogTrustSnapshotUnsupported::deserialize_status")]
     pub status: CatalogTrustSnapshotUnsupportedStatus,
+}
+
+impl CatalogTrustSnapshotUnsupported {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotUnsupportedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "unsupported" {
+            return Err(serde::de::Error::unknown_variant(&value, &["unsupported"]));
+        }
+        <CatalogTrustSnapshotUnsupportedStatus>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
 }
 
 /// No transport this runtime can use is available for the requested server.
@@ -9465,9 +9715,27 @@ pub struct McpPlanInstallSourceCandidate {
     /// Single-use candidate handle. Consumed by this call, so a replay of the same handle is rejected.
     pub candidate_handle: String,
     /// Discriminator: plan from a previously returned candidate
+    #[serde(deserialize_with = "McpPlanInstallSourceCandidate::deserialize_kind")]
     pub kind: McpPlanInstallSourceCandidateKind,
     /// The runtime- or authority-minted `searchId` returned with the search that produced this candidate. Planning verifies the private correlation and atomically consumes a matching candidate before downstream work, including attempts that subsequently fail or report unavailable. A mismatched search does not consume the candidate. It identifies a search rather than a person and must never be joined with user identity to re-identify anyone.
     pub search_id: String,
+}
+
+impl McpPlanInstallSourceCandidate {
+    fn deserialize_kind<'de, D>(
+        deserializer: D,
+    ) -> Result<McpPlanInstallSourceCandidateKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "candidate" {
+            return Err(serde::de::Error::unknown_variant(&value, &["candidate"]));
+        }
+        <McpPlanInstallSourceCandidateKind>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
 }
 
 /// An MCP server card to be retrieved from a URL through the runtime's hardened fetch boundary.
@@ -9482,11 +9750,27 @@ pub struct McpPlanInstallSourceCandidate {
 #[serde(rename_all = "camelCase")]
 pub struct McpServerCardUrl {
     /// Discriminator: the card is URL-backed, and carries no embedded data
+    #[serde(deserialize_with = "McpServerCardUrl::deserialize_kind")]
     pub kind: McpServerCardUrlKind,
     /// Media type the card is expected to conform to.
     pub media_type: McpServerCardMediaType,
     /// Card URL. Retrieved only through the runtime's hardened boundary, with scheme, credential, address-range, redirect, timeout, and response-size controls applied. Never logged.
     pub url: String,
+}
+
+impl McpServerCardUrl {
+    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpServerCardUrlKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "url" {
+            return Err(serde::de::Error::unknown_variant(&value, &["url"]));
+        }
+        <McpServerCardUrlKind>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(
+            value,
+        ))
+    }
 }
 
 /// An MCP server card supplied inline as an inert document.
@@ -9503,9 +9787,25 @@ pub struct McpServerCardEmbedded {
     /// The card document verbatim, treated as inert untrusted bytes. The runtime parses and validates it; the host is not expected to interpret it. Never logged.
     pub data: String,
     /// Discriminator: the card is embedded, and carries no URL
+    #[serde(deserialize_with = "McpServerCardEmbedded::deserialize_kind")]
     pub kind: McpServerCardEmbeddedKind,
     /// Media type the card is expected to conform to.
     pub media_type: McpServerCardMediaType,
+}
+
+impl McpServerCardEmbedded {
+    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpServerCardEmbeddedKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "embedded" {
+            return Err(serde::de::Error::unknown_variant(&value, &["embedded"]));
+        }
+        <McpServerCardEmbeddedKind>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
 }
 
 /// Plan from a card supplied directly by the caller, without a preceding search.
@@ -9522,7 +9822,23 @@ pub struct McpPlanInstallSourceCard {
     /// The card to plan from: exactly one of a URL or embedded data.
     pub card: McpServerCardReference,
     /// Discriminator: plan from a caller-supplied card
+    #[serde(deserialize_with = "McpPlanInstallSourceCard::deserialize_kind")]
     pub kind: McpPlanInstallSourceCardKind,
+}
+
+impl McpPlanInstallSourceCard {
+    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpPlanInstallSourceCardKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "card" {
+            return Err(serde::de::Error::unknown_variant(&value, &["card"]));
+        }
+        <McpPlanInstallSourceCardKind>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
 }
 
 /// A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.
@@ -9569,6 +9885,7 @@ pub struct McpPlanRequiredValueScalar {
     /// Key the value is supplied under. Inert untrusted data.
     pub key: String,
     /// Discriminator: this required value uses a scalar type.
+    #[serde(deserialize_with = "McpPlanRequiredValueScalar::deserialize_kind")]
     pub kind: McpPlanRequiredValueScalarKind,
     /// Whether the value must be present for the plan to be applicable.
     pub required: bool,
@@ -9577,6 +9894,21 @@ pub struct McpPlanRequiredValueScalar {
     pub title: Option<String>,
     /// Scalar type the value must conform to.
     pub value_type: McpPlanScalarValueType,
+}
+
+impl McpPlanRequiredValueScalar {
+    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpPlanRequiredValueScalarKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "scalar" {
+            return Err(serde::de::Error::unknown_variant(&value, &["scalar"]));
+        }
+        <McpPlanRequiredValueScalarKind>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
 }
 
 /// One enumerated non-secret value a transport choice needs before it can be applied. The permitted values are structurally required.
@@ -9605,6 +9937,7 @@ pub struct McpPlanRequiredValueEnum {
     /// Key the value is supplied under. Inert untrusted data.
     pub key: String,
     /// Discriminator: this required value uses a fixed enumeration.
+    #[serde(deserialize_with = "McpPlanRequiredValueEnum::deserialize_kind")]
     pub kind: McpPlanRequiredValueEnumKind,
     /// Whether the value must be present for the plan to be applicable.
     pub required: bool,
@@ -9612,7 +9945,36 @@ pub struct McpPlanRequiredValueEnum {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     /// Discriminator: the value must be one of `enumValues`.
+    #[serde(deserialize_with = "McpPlanRequiredValueEnum::deserialize_value_type")]
     pub value_type: McpPlanEnumValueType,
+}
+
+impl McpPlanRequiredValueEnum {
+    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpPlanRequiredValueEnumKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "enum" {
+            return Err(serde::de::Error::unknown_variant(&value, &["enum"]));
+        }
+        <McpPlanRequiredValueEnumKind>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
+
+    fn deserialize_value_type<'de, D>(deserializer: D) -> Result<McpPlanEnumValueType, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "enum" {
+            return Err(serde::de::Error::unknown_variant(&value, &["enum"]));
+        }
+        <McpPlanEnumValueType>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(
+            value,
+        ))
+    }
 }
 
 /// A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied.
@@ -9649,6 +10011,7 @@ pub struct McpPlanTransportChoicePackage {
     /// Stable identifier for this choice within the plan, used to select it when the plan is applied.
     pub choice_id: String,
     /// Discriminator: this choice runs a local package
+    #[serde(deserialize_with = "McpPlanTransportChoicePackage::deserialize_install_method")]
     pub install_method: McpPlanPackageInstallMethod,
     /// Package identifier. Inert untrusted data.
     pub package_identifier: String,
@@ -9660,6 +10023,23 @@ pub struct McpPlanTransportChoicePackage {
     pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
     /// Local process transport this package choice would use.
     pub transport: McpPlanPackageTransport,
+}
+
+impl McpPlanTransportChoicePackage {
+    fn deserialize_install_method<'de, D>(
+        deserializer: D,
+    ) -> Result<McpPlanPackageInstallMethod, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "package" {
+            return Err(serde::de::Error::unknown_variant(&value, &["package"]));
+        }
+        <McpPlanPackageInstallMethod>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
 }
 
 /// An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented.
@@ -9678,6 +10058,7 @@ pub struct McpPlanTransportChoiceRemote {
     /// Endpoint URL. Inert untrusted data.
     pub endpoint: String,
     /// Discriminator: this choice connects to a remote endpoint
+    #[serde(deserialize_with = "McpPlanTransportChoiceRemote::deserialize_install_method")]
     pub install_method: McpPlanRemoteInstallMethod,
     /// Typed values this choice requires, excluding secrets.
     pub required_values: Vec<McpPlanRequiredValue>,
@@ -9685,6 +10066,23 @@ pub struct McpPlanTransportChoiceRemote {
     pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
     /// Endpoint transport this remote choice would use.
     pub transport: McpPlanRemoteTransport,
+}
+
+impl McpPlanTransportChoiceRemote {
+    fn deserialize_install_method<'de, D>(
+        deserializer: D,
+    ) -> Result<McpPlanRemoteInstallMethod, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "remote" {
+            return Err(serde::de::Error::unknown_variant(&value, &["remote"]));
+        }
+        <McpPlanRemoteInstallMethod>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
 }
 
 /// Registration parameters for an external MCP client.
@@ -20872,9 +21270,23 @@ pub struct TaskClientInfo {
     /// Client task lifecycle status
     pub status: TaskClientStatus,
     /// Task kind
+    #[serde(deserialize_with = "TaskClientInfo::deserialize_type")]
     pub r#type: TaskClientType,
     /// ISO 8601 timestamp of the latest accepted lifecycle change
     pub updated_at: String,
+}
+
+impl TaskClientInfo {
+    fn deserialize_type<'de, D>(deserializer: D) -> Result<TaskClientType, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "client" {
+            return Err(serde::de::Error::unknown_variant(&value, &["client"]));
+        }
+        <TaskClientType>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(value))
+    }
 }
 
 /// Generic progress for a client-owned task.
@@ -20904,9 +21316,23 @@ pub struct TaskClientProgress {
     /// Current client task lifecycle status
     pub status: TaskClientStatus,
     /// Progress kind
+    #[serde(deserialize_with = "TaskClientProgress::deserialize_type")]
     pub r#type: TaskClientType,
     /// ISO 8601 timestamp of the latest accepted lifecycle change
     pub updated_at: String,
+}
+
+impl TaskClientProgress {
+    fn deserialize_type<'de, D>(deserializer: D) -> Result<TaskClientType, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "client" {
+            return Err(serde::de::Error::unknown_variant(&value, &["client"]));
+        }
+        <TaskClientType>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(value))
+    }
 }
 
 /// Publishes nonterminal progress for a running or idle client task.
@@ -21271,7 +21697,21 @@ pub struct TasksRegisterRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expected_sequence: Option<i64>,
     /// Task kind
+    #[serde(deserialize_with = "TasksRegisterRequest::deserialize_type")]
     pub r#type: TaskClientType,
+}
+
+impl TasksRegisterRequest {
+    fn deserialize_type<'de, D>(deserializer: D) -> Result<TaskClientType, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "client" {
+            return Err(serde::de::Error::unknown_variant(&value, &["client"]));
+        }
+        <TaskClientType>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(value))
+    }
 }
 
 /// Result of registering or reclaiming a client-owned task.

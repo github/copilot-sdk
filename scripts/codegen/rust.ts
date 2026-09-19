@@ -1014,10 +1014,50 @@ function emitRustStruct(
 			lines.push(`    #[serde(rename = "${propName}")]`);
 		}
 
+		if (prop.$ref && typeof prop.const === "string") {
+			lines.push(
+				`    #[serde(${isReq ? "" : "default, "}deserialize_with = "${typeName}::deserialize_${snakeField}")]`,
+			);
+		}
+
 		lines.push(`    ${propIsInternal ? "pub(crate)" : "pub"} ${rustField}: ${rustType},`);
 	}
 
 	lines.push("}");
+	const constrainedFields = fields.filter(
+		({ prop }) => prop.$ref && typeof prop.const === "string",
+	);
+	if (constrainedFields.length > 0) {
+		// A referenced enum can accept future values; its containing field must
+		// still enforce an explicit literal constraint before union selection.
+		lines.push("", `impl ${typeName} {`);
+		for (const { propName, prop, isReq, rustType } of constrainedFields) {
+			const literal = JSON.stringify(prop.const);
+			lines.push(
+				`    fn deserialize_${toRustFieldName(propName)}<'de, D>(deserializer: D) -> Result<${rustType}, D::Error>`,
+				"    where",
+				"        D: serde::Deserializer<'de>,",
+				"    {",
+			);
+			if (isReq) {
+				lines.push("        let value = String::deserialize(deserializer)?;");
+			} else {
+				lines.push(
+					"        let Some(value) = Option::<String>::deserialize(deserializer)? else {",
+					"            return Ok(None);",
+					"        };",
+				);
+			}
+			lines.push(
+				`        if value != ${literal} {`,
+				`            return Err(serde::de::Error::unknown_variant(&value, &[${literal}]));`,
+				"        }",
+				`        <${stripOption(rustType)}>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(value))${isReq ? "" : ".map(Some)"}`,
+				"    }",
+			);
+		}
+		lines.push("}");
+	}
 	ctx.structs.push(lines.join("\n"));
 }
 

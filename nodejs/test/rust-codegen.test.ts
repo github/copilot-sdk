@@ -5,6 +5,60 @@ import { describe, expect, it } from "vitest";
 import { generateApiTypesCode, generateSessionEventsCode } from "../../scripts/codegen/rust.ts";
 
 describe("Rust API type codegen", () => {
+    it.each([true, false])(
+        "validates a reference's sibling constant without changing its enum (required: %s)",
+        (required) => {
+            const code = generateApiTypesCode({
+                definitions: {
+                    CandidateKind: {
+                        type: "string",
+                        enum: ["mcp-server", "ai-skill", "unknown"],
+                    },
+                    Candidate: {
+                        type: "object",
+                        required: required ? ["kind", "ordinaryKind"] : ["ordinaryKind"],
+                        properties: {
+                            kind: {
+                                $ref: "#/definitions/CandidateKind",
+                                const: "ai-skill",
+                            },
+                            ordinaryKind: { $ref: "#/definitions/CandidateKind" },
+                        },
+                    },
+                },
+            } as ApiSchema);
+
+            expect(code).toContain(
+                `#[serde(${required ? "" : "default, "}deserialize_with = "Candidate::deserialize_kind")]`
+            );
+            expect(code).toContain(
+                `pub kind: ${required ? "CandidateKind" : "Option<CandidateKind>"},`
+            );
+            expect(code).toContain("pub ordinary_kind: CandidateKind,");
+            expect(code).not.toContain("Candidate::deserialize_ordinary_kind");
+            expect(code).toContain(`if value != "ai-skill" {`);
+            expect(code).toContain(`&["ai-skill"]`);
+            expect(code).toContain(
+                "<CandidateKind>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(value))"
+            );
+            expect(code.match(/fn deserialize_/g)).toHaveLength(1);
+            if (!required) {
+                expect(code).toContain("Option::<String>::deserialize(deserializer)?");
+                expect(code).toContain("return Ok(None);");
+                expect(code).toContain(".map(Some)");
+            }
+            expect(code).toContain(`#[serde(rename = "mcp-server")]
+    McpServer,`);
+            expect(code).toContain(`#[serde(rename = "ai-skill")]
+    AiSkill,`);
+            expect(code).toContain(`#[serde(rename = "unknown")]
+    UnknownValue,`);
+            expect(code).toContain(`#[default]
+    #[serde(other)]
+    Unknown,`);
+        }
+    );
+
     it("distinguishes a protocol-defined unknown value from the forward-compatible fallback", () => {
         const code = generateApiTypesCode({
             definitions: {
