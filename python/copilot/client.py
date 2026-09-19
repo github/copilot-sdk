@@ -2312,6 +2312,7 @@ class CopilotClient:
         skill_directories: list[str] | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
+        custom_agent_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         disabled_mcp_servers: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
@@ -2457,6 +2458,8 @@ class CopilotClient:
             skill_directories: Directories to search for skills.
             instruction_directories: Additional directories to search for custom
                 instruction files.
+            custom_agent_directories: Additional directories to search for custom
+                agent files.
             disabled_skills: Skills to disable.
             disabled_mcp_servers: Exact MCP server names to disable only for this
                 session. Disabled servers are not started or authenticated on
@@ -2797,6 +2800,8 @@ class CopilotClient:
         # Add instruction directories configuration if provided
         if instruction_directories is not None:
             payload["instructionDirectories"] = instruction_directories
+        if custom_agent_directories is not None:
+            payload["customAgentDirectories"] = custom_agent_directories
 
         # Add disabled skills configuration if provided
         if disabled_skills:
@@ -3099,6 +3104,7 @@ class CopilotClient:
         skill_directories: list[str] | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
+        custom_agent_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         disabled_mcp_servers: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
@@ -3245,6 +3251,8 @@ class CopilotClient:
             skill_directories: Directories to search for skills.
             instruction_directories: Additional directories to search for custom
                 instruction files.
+            custom_agent_directories: Additional directories to search for custom
+                agent files.
             disabled_skills: Skills to disable.
             disabled_mcp_servers: Exact MCP server names to disable only for this
                 session. Disabled servers are not started or authenticated on
@@ -3550,6 +3558,8 @@ class CopilotClient:
             payload["pluginDirectories"] = plugin_directories
         if instruction_directories is not None:
             payload["instructionDirectories"] = instruction_directories
+        if custom_agent_directories is not None:
+            payload["customAgentDirectories"] = custom_agent_directories
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
         if disabled_mcp_servers is not None:

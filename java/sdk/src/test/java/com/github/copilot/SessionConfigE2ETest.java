@@ -120,6 +120,62 @@ public class SessionConfigE2ETest {
     }
 
     @Test
+    void testShouldApplyCustomAgentDirectoriesOnCreate() throws Exception {
+        ctx.configureForTest("session_config", "should_apply_customagentdirectories_on_create");
+
+        Path projectDir = ctx.getWorkDir().resolve("agent-create-project");
+        Path agentDir = ctx.getWorkDir().resolve("extra-create-agents");
+        Files.createDirectories(projectDir);
+        Files.createDirectories(agentDir);
+        Files.writeString(agentDir.resolve("reviewer.agent.md"),
+                "---\nname: reviewer\ndescription: Reviews code carefully.\n---\nYou review code carefully.");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig().setWorkingDirectory(projectDir.toString())
+                    .setCustomAgentDirectories(List.of(agentDir.toString()))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+
+            session.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
+
+            List<Map<String, Object>> exchanges = ctx.getExchanges();
+            assertFalse(exchanges.isEmpty(), "Should have at least one exchange");
+            assertTrue(getTaskAgentTypes(exchanges.get(exchanges.size() - 1)).contains("reviewer"),
+                    "Task agent_type enum should contain the discovered custom agent: reviewer");
+        }
+    }
+
+    @Test
+    void testShouldApplyCustomAgentDirectoriesOnResume() throws Exception {
+        ctx.configureForTest("session_config", "should_apply_customagentdirectories_on_resume");
+
+        Path projectDir = ctx.getWorkDir().resolve("agent-resume-project");
+        Path agentDir = ctx.getWorkDir().resolve("extra-resume-agents");
+        Files.createDirectories(projectDir);
+        Files.createDirectories(agentDir);
+        Files.writeString(agentDir.resolve("reviewer.agent.md"),
+                "---\nname: reviewer\ndescription: Reviews code carefully.\n---\nYou review code carefully.");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session1 = client.createSession(new SessionConfig()
+                    .setWorkingDirectory(projectDir.toString()).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+
+            CopilotSession session2 = client.resumeSession(session1.getSessionId(),
+                    new ResumeSessionConfig().setWorkingDirectory(projectDir.toString())
+                            .setCustomAgentDirectories(List.of(agentDir.toString()))
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+
+            session2.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
+
+            List<Map<String, Object>> exchanges = ctx.getExchanges();
+            assertFalse(exchanges.isEmpty(), "Should have at least one exchange");
+            assertTrue(getTaskAgentTypes(exchanges.get(exchanges.size() - 1)).contains("reviewer"),
+                    "Task agent_type enum should contain the discovered custom agent: reviewer");
+        }
+    }
+
+    @Test
     void testShouldForwardProviderWireModel() throws Exception {
         ctx.configureForTest("session_config", "should_forward_provider_wire_model");
 

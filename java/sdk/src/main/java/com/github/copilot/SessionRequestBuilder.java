@@ -158,6 +158,7 @@ final class SessionRequestBuilder {
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setInstructionDirectories(config.getInstructionDirectories());
+        request.setCustomAgentDirectories(config.getCustomAgentDirectories());
         request.setPluginDirectories(config.getPluginDirectories());
         request.setLargeOutput(config.getLargeOutput());
         request.setToolSearch(config.getToolSearch());
@@ -313,6 +314,7 @@ final class SessionRequestBuilder {
         request.setAgent(config.getAgent());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setInstructionDirectories(config.getInstructionDirectories());
+        request.setCustomAgentDirectories(config.getCustomAgentDirectories());
         request.setPluginDirectories(config.getPluginDirectories());
         request.setLargeOutput(config.getLargeOutput());
         request.setToolSearch(config.getToolSearch());
