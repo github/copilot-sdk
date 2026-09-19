@@ -1238,6 +1238,16 @@ try
     var session = await client.CreateSessionAsync();
     await session.SendAsync(new MessageOptions { Prompt = "Hello" });
 }
+catch (IOException ex) when (ex.InnerException is RemoteRpcException)
+{
+    var remote = (RemoteRpcException)ex.InnerException!;
+    Console.Error.WriteLine($"RPC error {remote.ErrorCode}: {remote.Message}");
+    if (remote.ErrorData is { } data)
+    {
+        // Interpret data according to the remote API's contract.
+        Console.Error.WriteLine($"Error data kind: {data.ValueKind}");
+    }
+}
 catch (IOException ex)
 {
     Console.Error.WriteLine($"Communication Error: {ex.Message}");
@@ -1247,6 +1257,15 @@ catch (Exception ex)
     Console.Error.WriteLine($"Error: {ex.Message}");
 }
 ```
+
+`RemoteRpcException` is in the `GitHub.Copilot` namespace. Remote JSON-RPC
+errors remain wrapped in `IOException`; connection failures are not remote errors.
+`ErrorData` is a `JsonElement?` that preserves objects, arrays, strings, numbers,
+booleans, and empty values without converting them to application-specific types.
+Omitted `data` has no nullable value; explicit JSON `null` has a value with
+`ValueKind == JsonValueKind.Null`. The cloned element remains valid after the
+response document or client is disposed. Exception messages and ordinary exception
+formatting do not include the data payload.
 
 ## Development
 

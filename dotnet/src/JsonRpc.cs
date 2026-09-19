@@ -1000,13 +1000,30 @@ internal sealed class ConnectionLostException() : IOException("The JSON-RPC conn
 /// <summary>
 /// Thrown when the remote side returns a JSON-RPC error response.
 /// </summary>
-internal sealed class RemoteRpcException(string message, int errorCode, JsonElement? errorData = null, Exception? innerException = null) : Exception(message, innerException)
+/// <remarks>
+/// Client RPC calls wrap this exception in an <see cref="IOException"/>.
+/// Inspect its <see cref="Exception.InnerException"/> to access the remote error.
+/// </remarks>
+/// <param name="message">The remote error message.</param>
+/// <param name="errorCode">The numeric JSON-RPC error code.</param>
+/// <param name="errorData">The optional JSON error data, cloned to retain its lifetime.</param>
+/// <param name="innerException">The exception that caused this error, if any.</param>
+public sealed class RemoteRpcException(string message, int errorCode, JsonElement? errorData = null, Exception? innerException = null) : Exception(message, innerException)
 {
     /// <summary>JSON-RPC 2.0 reserved error code: requested method does not exist.</summary>
     public const int MethodNotFoundErrorCode = -32601;
 
+    /// <summary>Gets the numeric code from the JSON-RPC error response.</summary>
     public int ErrorCode { get; } = errorCode;
 
+    /// <summary>Gets the unmodified JSON data from the remote error, if provided.</summary>
+    /// <remarks>
+    /// A missing <c>data</c> member produces a nullable value with no value.
+    /// An explicit JSON <c>null</c> produces a present element whose
+    /// <see cref="JsonElement.ValueKind"/> is <see cref="JsonValueKind.Null"/>.
+    /// All other JSON value kinds are preserved. The element is cloned and remains
+    /// valid after the response document and client are disposed.
+    /// </remarks>
     public JsonElement? ErrorData { get; } = errorData.HasValue ? errorData.Value.Clone() : null;
 }
 
