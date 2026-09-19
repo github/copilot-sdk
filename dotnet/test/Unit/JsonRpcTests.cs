@@ -144,7 +144,7 @@ public class JsonRpcTests
         await collector.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(payloads, collector.Payloads);
+        Assert.Equal(payloads, collector.Payloads.Select(payload => payload?.GetRawText() ?? "null"));
     }
 
     [Fact]
@@ -366,13 +366,13 @@ public class JsonRpcTests
         private readonly TaskCompletionSource _completion =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public List<string> Payloads { get; } = [];
+        public List<JsonElement?> Payloads { get; } = [];
 
         public Task Completion => _completion.Task;
 
         public void Handle(JsonElement? payload)
         {
-            Payloads.Add(payload?.GetRawText() ?? "null");
+            Payloads.Add(payload);
             if (Payloads.Count == expectedCount)
             {
                 _completion.TrySetResult();
