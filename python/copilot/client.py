@@ -4748,7 +4748,8 @@ class CopilotClient:
                 event_dict = params["event"]
                 # Convert dict to SessionEvent object
                 event = session_event_from_dict(event_dict)
-                session = self._sessions.get(session_id)
+                with self._sessions_lock:
+                    session = self._sessions.get(session_id)
                 if session:
                     session._dispatch_event(event)
             elif method == "session.lifecycle":
