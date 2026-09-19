@@ -2834,16 +2834,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private class RpcHandler(CopilotClient client)
     {
-        public void OnSessionEvent(string sessionId, JsonElement? @event)
+        public void OnSessionEvent(string sessionId, SessionEvent? @event)
         {
             var session = client.GetSession(sessionId);
             if (session != null && @event != null)
             {
-                var evt = SessionEvent.FromJson(@event.Value.GetRawText());
-                if (evt != null)
-                {
-                    session.DispatchEvent(evt);
-                }
+                session.DispatchEvent(@event);
             }
         }
 
@@ -2863,9 +2859,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             evt.SessionId = sessionId;
             if (metadata is not null)
             {
-                evt.Metadata = JsonSerializer.Deserialize(
-                    metadata.Value.GetRawText(),
-                    TypesJsonContext.Default.SessionLifecycleEventMetadata);
+                evt.Metadata = metadata.Value.Deserialize(TypesJsonContext.Default.SessionLifecycleEventMetadata);
             }
 
             client.DispatchLifecycleEvent(evt);

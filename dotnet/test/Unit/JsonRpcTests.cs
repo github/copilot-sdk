@@ -122,6 +122,88 @@ public class JsonRpcTests
         Assert.InRange(await receiveStream.PostFrameReadBufferSize, 1, 1024 * 1024);
     }
 
+    [Fact]
+    public async Task JsonRpc_JsonElement_Params_Remain_Valid_After_Message_Disposal()
+    {
+        var payloads = new[]
+        {
+            "null",
+            "false",
+            "42",
+            "\"text\"",
+            """[1,{"nested":[null,true]}]""",
+            """{"result":{"rows":[{"content":"preserved"}]}}""",
+        };
+        using var receiveStream = new MemoryStream(CombineFrames(
+            payloads.Select(payload => CreateNotificationFrame("payload", $$"""{"payload":{{payload}}}"""))));
+        using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
+        var collector = new JsonElementCollector(payloads.Length);
+        rpc.SetLocalRpcMethod("payload", (Action<JsonElement?>)collector.Handle);
+
+        rpc.StartListening();
+        await collector.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(payloads, collector.Payloads.Select(payload => payload?.GetRawText() ?? "null"));
+    }
+
+    [Fact]
+    public async Task JsonRpc_Malformed_Session_Event_Does_Not_Block_Unknown_Or_Known_Events()
+    {
+        var malformed = CreateNotificationFrame(
+            "session.event",
+            """{"sessionId":"session-1","event":42}""");
+        var unknown = CreateNotificationFrame(
+            "session.event",
+            """
+            {
+                "sessionId":"session-1",
+                "event":{
+                    "id":"11111111-1111-1111-1111-111111111111",
+                    "timestamp":"2026-09-19T00:00:00Z",
+                    "parentId":null,
+                    "type":"future.event",
+                    "data":{"nested":[null,true,{"value":42}]}
+                }
+            }
+            """);
+        var known = CreateNotificationFrame(
+            "session.event",
+            """
+            {
+                "sessionId":"session-1",
+                "event":{
+                    "id":"22222222-2222-2222-2222-222222222222",
+                    "timestamp":"2026-09-19T00:00:01Z",
+                    "parentId":null,
+                    "type":"tool.execution_start",
+                    "data":{
+                        "toolCallId":"tool-1",
+                        "toolName":"view",
+                        "arguments":{"path":"README.md","nested":[1,{"value":true}]}
+                    }
+                }
+            }
+            """);
+
+        using var receiveStream = new MemoryStream(CombineFrames([malformed, unknown, known]));
+        using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
+        var collector = new SessionEventCollector(expectedCount: 2);
+        rpc.SetLocalRpcMethod("session.event", (Action<string, SessionEvent?>)collector.Handle);
+
+        rpc.StartListening();
+        await collector.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.All(collector.SessionIds, sessionId => Assert.Equal("session-1", sessionId));
+        var unknownEvent = Assert.IsType<SessionEvent>(collector.Events[0]);
+        Assert.Equal("unknown", unknownEvent.Type);
+
+        var toolEvent = Assert.IsType<ToolExecutionStartEvent>(collector.Events[1]);
+        Assert.Equal("README.md", toolEvent.Data.Arguments?.GetProperty("path").GetString());
+        Assert.True(toolEvent.Data.Arguments?.GetProperty("nested")[1].GetProperty("value").GetBoolean());
+    }
+
     private static byte[] CreateResponseFrame(long id, string result, int headerPaddingLength = 0)
     {
         using var bodyStream = new MemoryStream();
@@ -143,6 +225,27 @@ public class JsonRpcTests
         header.CopyTo(frame, 0);
         body.CopyTo(frame, header.Length);
         return frame;
+    }
+
+    private static byte[] CreateNotificationFrame(string method, string paramsJson)
+    {
+        var body = Encoding.UTF8.GetBytes(
+            $$"""{"jsonrpc":"2.0","method":"{{method}}","params":{{paramsJson}}}""");
+        var header = Encoding.ASCII.GetBytes($"Content-Length: {body.Length}\r\n\r\n");
+        var frame = new byte[header.Length + body.Length];
+        header.CopyTo(frame, 0);
+        body.CopyTo(frame, header.Length);
+        return frame;
+    }
+
+    private static byte[] CombineFrames(IEnumerable<byte[]> frames)
+    {
+        using var stream = new MemoryStream();
+        foreach (var frame in frames)
+        {
+            stream.Write(frame);
+        }
+        return stream.ToArray();
     }
 
     private static int GetRemoteErrorCode(Exception exception)
@@ -216,6 +319,7 @@ public class JsonRpcTests
 
         private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
         {
+            AllowOutOfOrderMetadataProperties = true,
             TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
         };
 
@@ -238,6 +342,8 @@ public class JsonRpcTests
 
         public void StartListening() => JsonRpcType.GetMethod(nameof(StartListening))!.Invoke(_instance, null);
 
+        public Task Completion => (Task)JsonRpcType.GetProperty(nameof(Completion))!.GetValue(_instance)!;
+
         public void SetLocalRpcMethod(string methodName, Delegate handler, bool singleObjectParam = false) =>
             JsonRpcType.GetMethod("SetLocalRpcMethod")!.Invoke(_instance, [methodName, handler, singleObjectParam]);
 
@@ -253,6 +359,47 @@ public class JsonRpcTests
         }
 
         public void Dispose() => ((IDisposable)_instance).Dispose();
+    }
+
+    private sealed class JsonElementCollector(int expectedCount)
+    {
+        private readonly TaskCompletionSource _completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public List<JsonElement?> Payloads { get; } = [];
+
+        public Task Completion => _completion.Task;
+
+        public void Handle(JsonElement? payload)
+        {
+            Payloads.Add(payload);
+            if (Payloads.Count == expectedCount)
+            {
+                _completion.TrySetResult();
+            }
+        }
+    }
+
+    private sealed class SessionEventCollector(int expectedCount)
+    {
+        private readonly TaskCompletionSource _completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public List<SessionEvent?> Events { get; } = [];
+
+        public List<string> SessionIds { get; } = [];
+
+        public Task Completion => _completion.Task;
+
+        public void Handle(string sessionId, SessionEvent? @event)
+        {
+            SessionIds.Add(sessionId);
+            Events.Add(@event);
+            if (Events.Count == expectedCount)
+            {
+                _completion.TrySetResult();
+            }
+        }
     }
 
     private sealed class CoalescedFramesThenWaitStream : Stream
