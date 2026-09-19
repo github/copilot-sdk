@@ -14,6 +14,8 @@ const FAKE_STDIO_CLI_SCRIPT = `const fs = require("fs");
 const captureIndex = process.argv.indexOf("--capture-file");
 const captureFile = captureIndex >= 0 ? process.argv[captureIndex + 1] : undefined;
 const requests = [];
+const clientResponses = [];
+let extensionRegistrationId;
 
 function saveCapture() {
   if (!captureFile) {
@@ -24,6 +26,7 @@ function saveCapture() {
     args: process.argv.slice(2),
     cwd: process.cwd(),
     requests,
+    clientResponses,
     env: {
       COPILOT_HOME: process.env.COPILOT_HOME,
       COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
@@ -80,6 +83,16 @@ function handleMessage(message) {
     return;
   }
 
+  if (!message.method) {
+    clientResponses.push(message);
+    saveCapture();
+    if (message.id === 9001 && extensionRegistrationId !== undefined) {
+      writeResponse(extensionRegistrationId, {});
+      extensionRegistrationId = undefined;
+    }
+    return;
+  }
+
   requests.push({ method: message.method, params: message.params });
   saveCapture();
 
@@ -90,6 +103,17 @@ function handleMessage(message) {
 
   if (message.method === "ping") {
     writeResponse(message.id, { message: "pong", protocolVersion: 3 });
+    return;
+  }
+
+  if (message.method === "registerExtensionLaunchProvider") {
+    extensionRegistrationId = message.id;
+    writeRequest(9001, "extensionLaunchProvider.resolve", {
+      id: "project:node-e2e",
+      name: "node-e2e",
+      modulePath: "/extensions/node-e2e.mjs",
+      source: "project"
+    });
     return;
   }
 
@@ -120,6 +144,11 @@ function handleMessage(message) {
 
 function writeResponse(id, result) {
   const body = JSON.stringify({ jsonrpc: "2.0", id, result });
+  process.stdout.write(\`Content-Length: \${Buffer.byteLength(body, "utf8")}\\r\\n\\r\\n\${body}\`);
+}
+
+function writeRequest(id, method, params) {
+  const body = JSON.stringify({ jsonrpc: "2.0", id, method, params });
   process.stdout.write(\`Content-Length: \${Buffer.byteLength(body, "utf8")}\\r\\n\\r\\n\${body}\`);
 }
 `;
@@ -373,6 +402,76 @@ describe("Client options", async () => {
         expect(resumeRequests).toHaveLength(1);
         expect(resumeRequests[0].params.customAgentsLocalOnly).toBe(false);
         await resumed.disconnect();
+    });
+
+    it("should register and invoke an extension launch provider during startup", async () => {
+        const cliPath = path.join(workDir, `fake-cli-extension-provider-${Date.now()}.js`);
+        const capturePath = path.join(workDir, `fake-cli-extension-provider-${Date.now()}.json`);
+        fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
+
+        let observedRequest:
+            | {
+                  id: string;
+                  name: string;
+                  modulePath: string;
+                  source: string;
+              }
+            | undefined;
+        const client = new CopilotClient({
+            workingDirectory: workDir,
+            connection: RuntimeConnection.forStdio({
+                path: cliPath,
+                args: ["--capture-file", capturePath],
+            }),
+            useLoggedInUser: false,
+            extensionLaunchProvider: {
+                resolve: async (request) => {
+                    observedRequest = request;
+                    return {
+                        launch: {
+                            executable: "node",
+                            args: ["extension-host"],
+                            env: { EXTENSION_SOURCE: "node" },
+                        },
+                    };
+                },
+            },
+        });
+        onTestFinished(async () => {
+            await client.forceStop();
+        });
+
+        await client.start();
+
+        expect(observedRequest).toEqual({
+            id: "project:node-e2e",
+            name: "node-e2e",
+            modulePath: "/extensions/node-e2e.mjs",
+            source: "project",
+        });
+        const capture = JSON.parse(fs.readFileSync(capturePath, "utf8")) as {
+            requests: { method: string }[];
+            clientResponses: {
+                id: number;
+                result: {
+                    launch: { executable: string; args: string[]; env: Record<string, string> };
+                };
+            }[];
+        };
+        expect(capture.requests.map((request) => request.method)).toContain(
+            "registerExtensionLaunchProvider"
+        );
+        expect(capture.clientResponses).toContainEqual({
+            jsonrpc: "2.0",
+            id: 9001,
+            result: {
+                launch: {
+                    executable: "node",
+                    args: ["extension-host"],
+                    env: { EXTENSION_SOURCE: "node" },
+                },
+            },
+        });
     });
 
     it("should send empty-mode custom agent locality defaults in initial requests", async () => {

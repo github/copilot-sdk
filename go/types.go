@@ -134,6 +134,10 @@ type ClientOptions struct {
 	// runtime's complete trusted built-in plugin directory set before sessions
 	// can be created.
 	BuiltinPluginDirectories []string
+	// ExtensionLaunchProvider resolves launch profiles for extension entrypoints
+	// discovered by the runtime. When non-nil, Start registers the provider
+	// before any sessions can be created.
+	ExtensionLaunchProvider ExtensionLaunchProvider
 	// LogLevel for the runtime. When empty (the default), the runtime
 	// uses its own default level; the SDK does not pass --log-level.
 	// Recognized values: "none", "error", "warning", "info", "debug", "all".
@@ -210,6 +214,23 @@ type ClientOptions struct {
 	// for session state.
 	Mode ClientMode
 }
+
+// ExtensionLaunchProvider resolves launch profiles for extension entrypoints
+// discovered by the runtime.
+//
+// Experimental: this API may change or be removed.
+type ExtensionLaunchProvider = rpc.ExtensionLaunchProviderHandler
+
+// ExtensionLaunchProviderResolveRequest describes a discovered extension
+// entrypoint that may need a host-provided launch profile.
+type ExtensionLaunchProviderResolveRequest = rpc.ExtensionLaunchProviderResolveRequest
+
+// ExtensionLaunchProviderResolveResult contains the optional host-provided
+// launch profile for an extension entrypoint.
+type ExtensionLaunchProviderResolveResult = rpc.ExtensionLaunchProviderResolveResult
+
+// ExtensionLaunchProfile describes how the runtime should launch an extension.
+type ExtensionLaunchProfile = rpc.ExtensionLaunchProfile
 
 // ClientInfo identifies the integrating application on the `server.connect` handshake.
 //

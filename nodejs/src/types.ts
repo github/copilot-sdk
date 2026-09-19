@@ -23,6 +23,7 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
+    ExtensionLaunchProviderHandler as GeneratedExtensionLaunchProvider,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
@@ -35,6 +36,9 @@ import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
+    ExtensionLaunchProfile,
+    ExtensionLaunchProviderResolveRequest,
+    ExtensionLaunchProviderResolveResult,
     GitHubTokenAcquireReason,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
@@ -387,6 +391,15 @@ export interface CopilotClientOptions {
     builtinPluginDirectories?: readonly string[];
 
     /**
+     * Connection-level extension launch profile provider.
+     * When set, the client registers the provider during startup before any
+     * session can be created.
+     *
+     * @experimental
+     */
+    extensionLaunchProvider?: ExtensionLaunchProvider;
+
+    /**
      * Log level for the Copilot runtime. When omitted, the runtime uses its
      * own default (currently `"info"`).
      */
@@ -531,6 +544,9 @@ export interface CopilotClientOptions {
      */
     _internalConnection?: InternalRuntimeConnection;
 }
+
+/** Resolves launch profiles for extension entrypoints discovered by the runtime. */
+export type ExtensionLaunchProvider = GeneratedExtensionLaunchProvider;
 
 /**
  * Configuration for creating a session

@@ -499,6 +499,19 @@ func (c *Client) Start(ctx context.Context) error {
 		return errors.Join(err, killErr)
 	}
 
+	if c.options.ExtensionLaunchProvider != nil {
+		if _, err := c.RPC.RegisterExtensionLaunchProvider(ctx); err != nil {
+			c.client.Stop()
+			c.client = nil
+			c.conn = nil
+			c.RPC = nil
+			c.internalRPC = nil
+			killErr := c.killProcess()
+			c.state = stateError
+			return errors.Join(err, killErr)
+		}
+	}
+
 	if len(c.options.BuiltinPluginDirectories) > 0 {
 		if _, err := c.client.Request(ctx, "plugins.builtin.set", map[string]any{
 			"paths": c.options.BuiltinPluginDirectories,
@@ -2486,8 +2499,9 @@ func (c *Client) setupNotificationHandler() {
 	// payload's sessionId. Always register the global handlers so the generated
 	// hooks.invoke handler is wired to our dispatcher.
 	handlers := &rpc.ClientGlobalAPIHandlers{
-		Hooks:       &hooksAdapter{client: c},
-		GitHubToken: &gitHubTokenAdapter{client: c},
+		ExtensionLaunchProvider: c.options.ExtensionLaunchProvider,
+		Hooks:                   &hooksAdapter{client: c},
+		GitHubToken:             &gitHubTokenAdapter{client: c},
 	}
 
 	if c.options.RequestHandler != nil {

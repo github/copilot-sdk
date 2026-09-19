@@ -59,6 +59,7 @@ import type {
     CustomAgentConfig,
     ExitPlanModeRequest,
     ExitPlanModeResult,
+    ExtensionLaunchProvider,
     ExtensionJoinOptions,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
@@ -491,6 +492,7 @@ export class CopilotClient {
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
+    private extensionLaunchProvider?: ExtensionLaunchProvider;
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
@@ -689,6 +691,7 @@ export class CopilotClient {
         this.onGetTraceContext = options.onGetTraceContext;
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
+        this.extensionLaunchProvider = options.extensionLaunchProvider;
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
 
@@ -834,6 +837,7 @@ export class CopilotClient {
 
     private setupClientGlobalHandlers(): void {
         const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+        handlers.extensionLaunchProvider = this.extensionLaunchProvider;
         if (this.requestHandler) {
             handlers.llmInference = createCopilotRequestAdapter(this.requestHandler, () => {
                 if (!this.connection) {
@@ -969,6 +973,10 @@ export class CopilotClient {
 
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
+
+            if (this.extensionLaunchProvider) {
+                await this.rpc.registerExtensionLaunchProvider();
+            }
 
             if (this.builtinPluginDirectories.length > 0) {
                 try {
