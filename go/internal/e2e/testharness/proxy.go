@@ -130,8 +130,6 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 		p.proxyURL = ""
 	}()
 
-	PrepareForProcessWait()
-
 	// Send stop request to the server
 	if p.proxyURL != "" {
 		stopURL := p.proxyURL + "/stop"
@@ -148,6 +146,7 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 
 	exited := make(chan struct{}, 1)
 	go func() {
+		PrepareForProcessWait()
 		_ = cmd.Wait()
 		exited <- struct{}{}
 	}()
