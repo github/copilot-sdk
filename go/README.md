@@ -97,6 +97,37 @@ tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
 `mcp:<server-key>-<tool-name>`. For `CustomAgents[].Tools` and
 `DefaultAgent.ExcludedTools`, use `<server-key>-<tool-name>` directly.
 
+## JSON-RPC errors
+
+Use `errors.As` to inspect a runtime error without parsing its message, including
+errors wrapped by SDK operations:
+
+```go
+var rpcErr *copilot.RPCError
+if errors.As(err, &rpcErr) {
+    fmt.Printf("RPC error %d: %s\n", rpcErr.Code, rpcErr.Message)
+    if rpcErr.Data != nil {
+        // Decode into an application-specific type when the payload schema is known.
+        var details map[string]json.RawMessage
+        if err := json.Unmarshal(rpcErr.Data, &details); err != nil {
+            // The payload may be an array or scalar rather than an object.
+            log.Printf("Error data is not an object: %v", err)
+        }
+    }
+}
+```
+
+This example uses the standard `errors` and `encoding/json` packages.
+`RPCError.Data` is a `json.RawMessage` containing the original JSON value:
+objects, arrays, strings, numbers, and booleans are preserved. Omitted `data`
+is `nil`; explicit JSON null is the non-nil JSON text `null`. Empty values,
+zero, and false are not treated as absent. Non-RPC failures do not match
+`*copilot.RPCError`.
+
+`RPCError` aliases the existing transport error, so error identity, wrapping,
+and `Error()` messages are unchanged. The error string does not include the
+payload; accessing or logging it is an explicit application choice.
+
 ## Distributing your application with an embedded GitHub Copilot CLI
 
 The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.

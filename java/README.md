@@ -488,6 +488,59 @@ var resumed = client.resumeSession(sessionId, new ResumeSessionConfig()
 
 When `memory` is left unset, no memory configuration is sent and the runtime default applies. In the default `CopilotClientMode.COPILOT_CLI` the SDK leaves `memory` unset so the runtime applies its own default, while `CopilotClientMode.EMPTY` defaults `memory` to disabled unless you set it explicitly.
 
+## JSON-RPC error handling
+
+Server error responses surface as `com.github.copilot.JsonRpcException`, a
+`RuntimeException` with `getCode()`, `getMessage()`, and `getData()`. The data is a
+Jackson `JsonNode`: objects, arrays, strings, numbers, and booleans retain their
+JSON types, including empty values, zero, and false. Numeric fidelity follows
+Jackson's existing parser. Omitted data returns Java `null`; explicit JSON `null`
+returns a `NullNode` (`data.isNull()` is true).
+
+Future wrapping is unchanged. With `get()`, inspect the cause of
+`ExecutionException`:
+
+```java
+import com.github.copilot.JsonRpcException;
+import java.util.concurrent.ExecutionException;
+
+try {
+    client.ping("hello").get();
+} catch (ExecutionException ex) {
+    if (ex.getCause() instanceof JsonRpcException rpcError) {
+        System.err.println("RPC " + rpcError.getCode() + ": " + rpcError.getMessage());
+        var data = rpcError.getData();
+        if (data != null && !data.isNull()) {
+            // Inspect data according to the server's error contract.
+        }
+    } else {
+        throw ex; // Transport and local failures are not JSON-RPC error responses.
+    }
+}
+```
+
+The enclosing method must also handle or declare `InterruptedException`.
+With `join()`, the wrapper is `CompletionException` instead:
+
+```java
+import java.util.concurrent.CompletionException;
+
+try {
+    client.ping("hello").join();
+} catch (CompletionException ex) {
+    if (ex.getCause() instanceof JsonRpcException rpcError) {
+        System.err.println("RPC " + rpcError.getCode() + ": " + rpcError.getMessage());
+        var data = rpcError.getData();
+        // Java null means omitted; data.isNull() means an explicit JSON null.
+    } else {
+        throw ex;
+    }
+}
+```
+
+Error data is not appended to `getMessage()` or `toString()`. Avoid logging it
+indiscriminately: server-provided data may contain sensitive information.
+
 ## Using experimental APIs
 
 Some SDK APIs are marked as experimental with `@CopilotExperimental`. These APIs may change or be removed in future versions without notice.
