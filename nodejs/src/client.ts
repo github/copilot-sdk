@@ -1682,6 +1682,9 @@ export class CopilotClient {
                     ? { enableGitHubTelemetryForwarding: true }
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
+                ...(config.allowAllMcpServerInstructions !== undefined
+                    ? { allowAllMcpServerInstructions: config.allowAllMcpServerInstructions }
+                    : {}),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",
@@ -1964,6 +1967,9 @@ export class CopilotClient {
                     ? { enableGitHubTelemetryForwarding: true }
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
+                ...(config.allowAllMcpServerInstructions !== undefined
+                    ? { allowAllMcpServerInstructions: config.allowAllMcpServerInstructions }
+                    : {}),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",
