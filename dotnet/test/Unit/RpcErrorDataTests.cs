@@ -113,18 +113,20 @@ public sealed class RpcErrorDataTests
 
         public async ValueTask DisposeAsync()
         {
+            using var cancellation = _cts;
             _cts.Cancel();
-            _listener.Stop();
             try
             {
                 await _serverTask.WaitAsync(TimeSpan.FromSeconds(5));
             }
-            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or IOException or SocketException)
+            catch (OperationCanceledException ex) when (ex.CancellationToken == _cts.Token)
             {
+                // Canceling a pending accept/read/write is the expected shutdown path.
+                return;
             }
             finally
             {
-                _cts.Dispose();
+                _listener.Stop();
             }
         }
 

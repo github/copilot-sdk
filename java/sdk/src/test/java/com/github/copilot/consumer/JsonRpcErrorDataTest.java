@@ -6,6 +6,7 @@ package com.github.copilot.consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -97,6 +98,15 @@ class JsonRpcErrorDataTest {
         assertEquals(withoutData.toString(), withData.toString());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"not-a-number", "2147483648"})
+    void malformedFrameLengthIsAnIoFailure(String length) {
+        var frame = ("Content-Length: " + length + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII);
+        var error = assertThrows(IOException.class, () -> FramedServer.readFrame(new ByteArrayInputStream(frame)));
+        assertEquals("Invalid Content-Length: " + length, error.getMessage());
+        assertInstanceOf(NumberFormatException.class, error.getCause());
+    }
+
     private enum Reply {
         ERROR, SUCCESS
     }
@@ -185,7 +195,12 @@ class JsonRpcErrorDataTest {
             int length = -1;
             for (String line : header.toString().split("\r\n")) {
                 if (line.startsWith("Content-Length:")) {
-                    length = Integer.parseInt(line.substring("Content-Length:".length()).trim());
+                    var value = line.substring("Content-Length:".length()).trim();
+                    try {
+                        length = Integer.parseInt(value);
+                    } catch (NumberFormatException ex) {
+                        throw new IOException("Invalid Content-Length: " + value, ex);
+                    }
                 }
             }
             if (length < 0 || length > 65536) {
