@@ -524,7 +524,7 @@ watch(cwd, { recursive: true }, (eventType, filename) => {
         try { if (!statSync(fullPath).isFile()) return; } catch { return; }
         const relPath = relative(cwd, fullPath);
         session.send({
-            prompt: `The user edited \\`${relPath}\\`.`,
+            prompt: `The user edited \`${relPath}\`.`,
             attachments: [{ type: "file", path: fullPath }],
         });
     }, 500));
