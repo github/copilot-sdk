@@ -40,6 +40,7 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
                 .with_enable_file_hooks(false)
                 .with_enable_host_git_operations(false)
                 .with_enable_session_store(false)
+                .with_enable_cross_session_messaging(false)
                 .with_enable_skills(false)
                 .with_working_directory(working_dir.clone())
                 .with_streaming(true)
@@ -106,6 +107,7 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
             ("enableFileHooks", json!(false)),
             ("enableHostGitOperations", json!(false)),
             ("enableSessionStore", json!(false)),
+            ("enableCrossSessionMessaging", json!(false)),
             ("enableSkills", json!(false)),
             ("workingDirectory", json!(path_string(&working_dir))),
             ("streaming", json!(true)),
@@ -229,6 +231,7 @@ async fn should_forward_advanced_session_resume_options_to_the_cli() {
                 .with_working_directory(working_dir.clone())
                 .with_config_directory(config_dir.clone())
                 .with_enable_config_discovery(false)
+                .with_enable_cross_session_messaging(false)
                 .with_suppress_resume_event(true)
                 .with_continue_pending_work(false)
                 .with_streaming(true)
@@ -282,6 +285,7 @@ async fn should_forward_advanced_session_resume_options_to_the_cli() {
             ("workingDirectory", json!(path_string(&working_dir))),
             ("configDir", json!(path_string(&config_dir))),
             ("enableConfigDiscovery", json!(false)),
+            ("enableCrossSessionMessaging", json!(false)),
             ("disableResume", json!(true)),
             ("continuePendingWork", json!(false)),
             ("streaming", json!(true)),

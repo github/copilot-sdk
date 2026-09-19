@@ -11,7 +11,19 @@
 export { CopilotClient } from "./client.js";
 export { DisableBypassPermissionsModes, RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
-export { CopilotSession, type AssistantMessageEvent } from "./session.js";
+export {
+    CopilotSession,
+    SendSessionMessageError,
+    type AssistantMessageEvent,
+    type ListMessageableSessionsRequest,
+    type ListMessageableSessionsResult,
+    type MessageableSession,
+    type MessageableSessionClientKind,
+    type SendSessionMessageRequest,
+    type SendSessionMessageResult,
+    type SendSessionMessageErrorCode,
+    type SessionMessageDelivery,
+} from "./session.js";
 export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./factory.js";
 export {
     Canvas,
@@ -52,6 +64,7 @@ export {
 // shadow the names arriving via `export type *`, so the hand-authored public API
 // surface for those six identifiers is preserved unchanged.
 export type * from "./generated/session-events.js";
+export type { SendMode } from "./generated/rpc.js";
 export type {
     AskUserVariant,
     CommandContext,

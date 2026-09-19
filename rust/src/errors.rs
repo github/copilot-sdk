@@ -5,6 +5,8 @@ use std::borrow::{Borrow, Cow};
 use std::fmt;
 use std::time::Duration;
 
+use serde_json::Value;
+
 use crate::types::SessionId;
 
 /// Crate-specific [`Result`](std::result::Result).
@@ -112,6 +114,28 @@ impl fmt::Display for ProtocolErrorKind {
 
 // ── SessionErrorKind ───────────────────────────────────────────
 
+/// Stable outcome classification for a failed cross-session message send.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SendSessionMessageErrorCode {
+    /// The runtime refused the request before delivery could be admitted.
+    Refused,
+    /// The runtime established that the message was not delivered.
+    NotDelivered,
+    /// Delivery may have started, so the caller must not retry automatically.
+    Ambiguous,
+}
+
+impl fmt::Display for SendSessionMessageErrorCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Refused => f.write_str("refused"),
+            Self::NotDelivered => f.write_str("not-delivered"),
+            Self::Ambiguous => f.write_str("ambiguous"),
+        }
+    }
+}
+
 /// Session-scoped error kind.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -153,6 +177,14 @@ pub enum SessionErrorKind {
         returned: SessionId,
     },
 
+    /// A cross-session message reached a recognized terminal failure outcome.
+    SendSessionMessage {
+        /// Stable outcome classification.
+        code: SendSessionMessageErrorCode,
+        /// Runtime-assigned message ID, when admission progressed far enough to assign one.
+        message_id: Option<String>,
+    },
+
     /// The CLI could not detach the session.
     DetachFailed,
 }
@@ -189,6 +221,9 @@ impl fmt::Display for SessionErrorKind {
                 f,
                 "CLI returned session ID {returned} after SDK registered {requested}"
             ),
+            SessionErrorKind::SendSessionMessage { code, .. } => {
+                write!(f, "cross-session message {code}")
+            }
             SessionErrorKind::DetachFailed => write!(f, "failed to detach session"),
         }
     }
@@ -252,6 +287,7 @@ impl fmt::Display for ErrorKind {
 /// Errors returned by the SDK.
 pub struct Error {
     repr: Repr<ErrorKind>,
+    rpc_data: Option<Value>,
     // Only `Some` when `RUST_BACKTRACE` is set; boxed so the `Some` variant
     // doesn't inflate `Error` beyond `clippy::result_large_err` limits.
     backtrace: Option<Box<Backtrace>>,
@@ -268,6 +304,7 @@ impl Error {
                 kind,
                 error: error.into(),
             }),
+            rpc_data: None,
             backtrace: capture_backtrace(),
         }
     }
@@ -297,8 +334,21 @@ impl Error {
     {
         Self {
             repr: Repr::SimpleMessage(kind, message.into()),
+            rpc_data: None,
             backtrace: capture_backtrace(),
         }
+    }
+
+    pub(crate) fn from_rpc_error(code: i32, message: String, data: Option<Value>) -> Self {
+        Self {
+            repr: Repr::SimpleMessage(ErrorKind::Rpc { code }, message.into()),
+            rpc_data: data,
+            backtrace: capture_backtrace(),
+        }
+    }
+
+    pub(crate) fn rpc_data(&self) -> Option<&Value> {
+        self.rpc_data.as_ref()
     }
 
     /// Returns `true` if this error indicates the transport is broken — the CLI
@@ -361,6 +411,7 @@ impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Self {
         Self {
             repr: Repr::Simple(kind),
+            rpc_data: None,
             backtrace: capture_backtrace(),
         }
     }

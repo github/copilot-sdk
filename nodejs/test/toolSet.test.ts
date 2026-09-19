@@ -509,6 +509,27 @@ describe("Empty-mode safe defaults", () => {
         expect(payload.organizationCustomInstructions).toBe("Follow org coding standards");
     });
 
+    it("passes cross-session messaging participation through on create and resume", async () => {
+        const { client, spy } = await setupClient("copilot-cli");
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: ["builtin:bash"],
+            enableCrossSessionMessaging: false,
+        });
+        expect(createPayload(spy).enableCrossSessionMessaging).toBe(false);
+
+        spy.mockClear();
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            availableTools: ["builtin:bash"],
+            enableCrossSessionMessaging: false,
+        });
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(resumePayload.enableCrossSessionMessaging).toBe(false);
+    });
+
     it("does NOT apply granular multitenancy flag defaults in copilot-cli mode", async () => {
         const { client, spy } = await setupClient("copilot-cli");
         await client.createSession({

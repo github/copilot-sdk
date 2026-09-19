@@ -2044,6 +2044,9 @@ pub struct SessionConfig {
     pub enable_host_git_operations: Option<bool>,
     /// When true, enables the session store for this session.
     pub enable_session_store: Option<bool>,
+    /// Whether this session participates in local cross-session messaging
+    /// discovery and delivery. Defaults to enabled when unset.
+    pub enable_cross_session_messaging: Option<bool>,
     /// When true, enables skills for this session.
     pub enable_skills: Option<bool>,
     /// **Experimental.** This option is part of an experimental wire-protocol
@@ -2359,6 +2362,10 @@ impl std::fmt::Debug for SessionConfig {
                 &self.enable_host_git_operations,
             )
             .field("enable_session_store", &self.enable_session_store)
+            .field(
+                "enable_cross_session_messaging",
+                &self.enable_cross_session_messaging,
+            )
             .field("enable_skills", &self.enable_skills)
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
@@ -2488,6 +2495,7 @@ impl Default for SessionConfig {
             enable_file_hooks: None,
             enable_host_git_operations: None,
             enable_session_store: None,
+            enable_cross_session_messaging: None,
             enable_skills: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
@@ -2661,6 +2669,7 @@ impl SessionConfig {
             enable_file_hooks: self.enable_file_hooks,
             enable_host_git_operations: self.enable_host_git_operations,
             enable_session_store: self.enable_session_store,
+            enable_cross_session_messaging: self.enable_cross_session_messaging,
             enable_skills: self.enable_skills,
             request_user_input,
             request_permission: permission_active,
@@ -3064,6 +3073,12 @@ impl SessionConfig {
     /// Set [`Self::enable_session_store`].
     pub fn with_enable_session_store(mut self, value: bool) -> Self {
         self.enable_session_store = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_cross_session_messaging`].
+    pub fn with_enable_cross_session_messaging(mut self, value: bool) -> Self {
+        self.enable_cross_session_messaging = Some(value);
         self
     }
 
@@ -3516,6 +3531,9 @@ pub struct ResumeSessionConfig {
     pub enable_host_git_operations: Option<bool>,
     /// When true, enables the session store on resume.
     pub enable_session_store: Option<bool>,
+    /// Whether the resumed session participates in local cross-session
+    /// messaging discovery and delivery. Defaults to enabled when unset.
+    pub enable_cross_session_messaging: Option<bool>,
     /// When true, enables skills on resume.
     pub enable_skills: Option<bool>,
     /// **Experimental.** This option is part of an experimental wire-protocol
@@ -3751,6 +3769,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.enable_host_git_operations,
             )
             .field("enable_session_store", &self.enable_session_store)
+            .field(
+                "enable_cross_session_messaging",
+                &self.enable_cross_session_messaging,
+            )
             .field("enable_skills", &self.enable_skills)
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
@@ -3924,6 +3946,7 @@ impl ResumeSessionConfig {
             enable_file_hooks: self.enable_file_hooks,
             enable_host_git_operations: self.enable_host_git_operations,
             enable_session_store: self.enable_session_store,
+            enable_cross_session_messaging: self.enable_cross_session_messaging,
             enable_skills: self.enable_skills,
             request_user_input,
             request_permission: permission_active,
@@ -4033,6 +4056,7 @@ impl ResumeSessionConfig {
             enable_file_hooks: None,
             enable_host_git_operations: None,
             enable_session_store: None,
+            enable_cross_session_messaging: None,
             enable_skills: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
@@ -4410,6 +4434,12 @@ impl ResumeSessionConfig {
     /// Set [`Self::enable_session_store`].
     pub fn with_enable_session_store(mut self, value: bool) -> Self {
         self.enable_session_store = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_cross_session_messaging`].
+    pub fn with_enable_cross_session_messaging(mut self, value: bool) -> Self {
+        self.enable_cross_session_messaging = Some(value);
         self
     }
 

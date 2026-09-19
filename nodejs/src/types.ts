@@ -2933,6 +2933,12 @@ export interface SessionConfigBase {
     enableSessionStore?: boolean;
 
     /**
+     * Whether this session participates in local cross-session messaging
+     * discovery and delivery. Defaults to true when omitted.
+     */
+    enableCrossSessionMessaging?: boolean;
+
+    /**
      * When true, enables skill loading (including builtin skills and discovered
      * skill directories). When false, no skills are loaded regardless of
      * `skillDirectories` or `enableConfigDiscovery` settings.
