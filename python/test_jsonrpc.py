@@ -29,6 +29,24 @@ class MockProcess:
         return self.returncode
 
 
+@pytest.mark.asyncio
+async def test_send_message_supports_streams_without_process_poll():
+    class StreamProcess:
+        def __init__(self):
+            self.stdin = io.BytesIO()
+            self.stdout = io.BytesIO()
+            self.stderr = None
+
+    process = StreamProcess()
+    client = JsonRpcClient(process)
+
+    await client._send_message({"jsonrpc": "2.0", "method": "ping"})
+
+    assert process.stdin.getvalue() == (
+        b'Content-Length: 33\r\n\r\n{"jsonrpc":"2.0","method":"ping"}'
+    )
+
+
 class ShortReadStream:
     """
     Mock stream that simulates short reads from a pipe.

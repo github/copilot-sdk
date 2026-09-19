@@ -11,6 +11,7 @@ import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
+    AttachmentExtensionContext as GeneratedExtensionContextAttachment,
     AutoTier,
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
@@ -22,6 +23,7 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
+    ExtensionLaunchProviderHandler as GeneratedExtensionLaunchProvider,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
@@ -34,6 +36,9 @@ import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
+    ExtensionLaunchProfile,
+    ExtensionLaunchProviderResolveRequest,
+    ExtensionLaunchProviderResolveResult,
     GitHubTokenAcquireReason,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
@@ -386,6 +391,15 @@ export interface CopilotClientOptions {
     builtinPluginDirectories?: readonly string[];
 
     /**
+     * Connection-level extension launch profile provider.
+     * When set, the client registers the provider during startup before any
+     * session can be created.
+     *
+     * @experimental
+     */
+    extensionLaunchProvider?: ExtensionLaunchProvider;
+
+    /**
      * Log level for the Copilot runtime. When omitted, the runtime uses its
      * own default (currently `"info"`).
      */
@@ -530,6 +544,9 @@ export interface CopilotClientOptions {
      */
     _internalConnection?: InternalRuntimeConnection;
 }
+
+/** Resolves launch profiles for extension entrypoints discovered by the runtime. */
+export type ExtensionLaunchProvider = GeneratedExtensionLaunchProvider;
 
 /**
  * Configuration for creating a session
@@ -3336,6 +3353,9 @@ export interface ProviderModelConfig {
  */
 export type MessageSource = "user" | "system" | `agent-${string}`;
 
+/** Structured context contributed by an extension. */
+export type ExtensionContextAttachment = GeneratedExtensionContextAttachment;
+
 export interface MessageOptions {
     /**
      * The prompt/message to send
@@ -3350,7 +3370,7 @@ export interface MessageOptions {
     source?: MessageSource;
 
     /**
-     * File, directory, selection, or blob attachments
+     * File, directory, selection, blob, or extension context attachments
      */
     attachments?: Array<
         | {
@@ -3379,6 +3399,7 @@ export interface MessageOptions {
               mimeType: string;
               displayName?: string;
           }
+        | ExtensionContextAttachment
     >;
 
     /**

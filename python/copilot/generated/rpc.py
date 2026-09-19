@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import ClassVar, TYPE_CHECKING
 
-from .session_events import AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker, TaskCompletionOutcome, UserToolSessionApproval, Verbosity
+from .session_events import AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker, TaskCompletionOutcome, UserToolSessionApproval, Verbosity, _load_Attachment, _load_PermissionPromptRequest, _load_UserToolSessionApproval
 
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
@@ -3853,7 +3853,7 @@ class FleetStartRequest:
     @staticmethod
     def from_dict(obj: Any) -> 'FleetStartRequest':
         assert isinstance(obj, dict)
-        attachments = from_union([lambda x: from_list(Attachment.from_dict, x), from_none], obj.get("attachments"))
+        attachments = from_union([lambda x: from_list(_load_Attachment, x), from_none], obj.get("attachments"))
         billable = from_union([from_bool, from_none], obj.get("billable"))
         prompt = from_union([from_str, from_none], obj.get("prompt"))
         wait = from_union([from_bool, from_none], obj.get("wait"))
@@ -7902,7 +7902,7 @@ class PendingPermissionRequest:
     @staticmethod
     def from_dict(obj: Any) -> 'PendingPermissionRequest':
         assert isinstance(obj, dict)
-        request = PermissionPromptRequest.from_dict(obj.get("request"))
+        request = _load_PermissionPromptRequest(obj.get("request"))
         request_id = from_str(obj.get("requestId"))
         recovery_episode_id = from_union([from_str, from_none], obj.get("recoveryEpisodeId"))
         return PendingPermissionRequest(request, request_id, recovery_episode_id)
@@ -10982,7 +10982,7 @@ class SendMessageItem:
     def from_dict(obj: Any) -> 'SendMessageItem':
         assert isinstance(obj, dict)
         prompt = from_str(obj.get("prompt"))
-        attachments = from_union([lambda x: from_list(Attachment.from_dict, x), from_none], obj.get("attachments"))
+        attachments = from_union([lambda x: from_list(_load_Attachment, x), from_none], obj.get("attachments"))
         billable = from_union([from_bool, from_none], obj.get("billable"))
         display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
         required_tool = from_union([from_str, from_none], obj.get("requiredTool"))
@@ -23281,7 +23281,7 @@ class PermissionDecisionApprovedForLocation:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApprovedForLocation':
         assert isinstance(obj, dict)
-        approval = UserToolSessionApproval.from_dict(obj.get("approval"))
+        approval = _load_UserToolSessionApproval(obj.get("approval"))
         location_key = from_str(obj.get("locationKey"))
         return PermissionDecisionApprovedForLocation(approval, location_key)
 
@@ -23307,7 +23307,7 @@ class PermissionDecisionApprovedForSession:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApprovedForSession':
         assert isinstance(obj, dict)
-        approval = UserToolSessionApproval.from_dict(obj.get("approval"))
+        approval = _load_UserToolSessionApproval(obj.get("approval"))
         return PermissionDecisionApprovedForSession(approval)
 
     def to_dict(self) -> dict:
@@ -25176,7 +25176,7 @@ class QueueAppendSteeringRequest:
     def from_dict(obj: Any) -> 'QueueAppendSteeringRequest':
         assert isinstance(obj, dict)
         agent_mode = SendAgentMode(obj.get("agentMode"))
-        attachments = from_list(Attachment.from_dict, obj.get("attachments"))
+        attachments = from_list(_load_Attachment, obj.get("attachments"))
         display_prompt = from_str(obj.get("displayPrompt"))
         expected_prompt = from_str(obj.get("expectedPrompt"))
         message_id = from_str(obj.get("messageId"))
@@ -25248,7 +25248,7 @@ class QueueInsertMessage:
         assert isinstance(obj, dict)
         prompt = from_str(obj.get("prompt"))
         agent_mode = from_union([SendAgentMode, from_none], obj.get("agentMode"))
-        attachments = from_union([lambda x: from_list(Attachment.from_dict, x), from_none], obj.get("attachments"))
+        attachments = from_union([lambda x: from_list(_load_Attachment, x), from_none], obj.get("attachments"))
         billable = from_union([from_bool, from_none], obj.get("billable"))
         delivery = from_union([from_str, from_none], obj.get("delivery"))
         display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
@@ -32243,7 +32243,7 @@ class SendRequest:
         assert isinstance(obj, dict)
         prompt = from_str(obj.get("prompt"))
         agent_mode = from_union([SendAgentMode, from_none], obj.get("agentMode"))
-        attachments = from_union([lambda x: from_list(Attachment.from_dict, x), from_none], obj.get("attachments"))
+        attachments = from_union([lambda x: from_list(_load_Attachment, x), from_none], obj.get("attachments"))
         billable = from_union([from_bool, from_none], obj.get("billable"))
         display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
         mode = from_union([SendMode, from_none], obj.get("mode"))

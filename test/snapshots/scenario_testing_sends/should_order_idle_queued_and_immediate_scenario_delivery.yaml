@@ -1,0 +1,46 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly IDLE_ENQUEUE.
+      - role: assistant
+        content: IDLE_ENQUEUE
+      - role: user
+        content: Reply with exactly IDLE_IMMEDIATE.
+      - role: assistant
+        content: IDLE_IMMEDIATE
+      - role: user
+        content: Call scenario_send_blocker, then reply with its result.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: scenario_send_blocker
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: SCENARIO_SEND_BLOCKER_RELEASED
+      - role: user
+        content: Call scenario_send_blocker again, then reply with exactly FIRST_STEERING.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: scenario_send_blocker
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_1
+        content: SCENARIO_SEND_BLOCKER_RELEASED_AGAIN
+      - role: user
+        content: Reply with exactly SECOND_IMMEDIATE.
+      - role: assistant
+        content: SECOND_IMMEDIATE
+      - role: user
+        content: Reply with exactly FINAL_QUEUED.
+      - role: assistant
+        content: FINAL_QUEUED

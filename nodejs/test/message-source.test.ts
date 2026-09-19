@@ -10,7 +10,12 @@ import {
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node.js";
-import type { MessageOptions, MessageSource, SessionEvent } from "../src/index.js";
+import type {
+    ExtensionContextAttachment,
+    MessageOptions,
+    MessageSource,
+    SessionEvent,
+} from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
 
 function sessionPair(traceContextProvider?: ConstructorParameters<typeof CopilotSession>[3]) {
@@ -72,12 +77,21 @@ describe.each(sources)("message source %s", (source) => {
             tracestate: "vendor=source",
         };
         const { session, server } = sessionPair(() => trace);
+        const extensionContext = {
+            type: "extension_context",
+            capturedAt: "2026-09-18T20:00:00Z",
+            extensionId: "scenario-extension",
+            title: "Selected change",
+            canvasId: "diff",
+            instanceId: "diff-17",
+            payload: { selection: "active" },
+        } satisfies ExtensionContextAttachment;
         const options: MessageOptions = {
             prompt: "context updated",
             source,
             mode: "immediate",
             agentMode: "plan",
-            attachments: [{ type: "blob", data: "aGk=", mimeType: "text/plain" }],
+            attachments: [{ type: "blob", data: "aGk=", mimeType: "text/plain" }, extensionContext],
             displayPrompt: "Context updated",
             requestHeaders: { "X-Tag": "context" },
         };

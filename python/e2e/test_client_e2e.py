@@ -212,9 +212,16 @@ class TestClient:
                     on_permission_request=PermissionHandler.approve_all
                 )
                 await session.send("test")
-            # Error message varies by platform (EINVAL on Windows, EPIPE on Linux)
+            # A completed process preserves stderr even if its exit code was not yet
+            # available on the first failure; a broken transport can report EINVAL/EPIPE.
             error_msg = str(exc_info2.value).lower()
-            assert "invalid" in error_msg or "pipe" in error_msg or "closed" in error_msg
+            if "cli process exited with code" in error_msg:
+                assert (
+                    error_msg.partition("stderr:")[2]
+                    == error_message.lower().partition("stderr:")[2]
+                )
+            else:
+                assert "invalid" in error_msg or "pipe" in error_msg or "closed" in error_msg
         finally:
             await client.force_stop()
 

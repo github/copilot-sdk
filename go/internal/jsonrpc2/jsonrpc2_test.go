@@ -77,6 +77,39 @@ func TestOnCloseNotCalledOnIntentionalStop(t *testing.T) {
 	}
 }
 
+func TestRequestReturnsWhenConnectionCloses(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdoutR.Close()
+
+	client := NewClient(stdinW, stdoutR)
+	client.Start()
+	defer client.Stop()
+
+	result := make(chan error, 1)
+	go func() {
+		_, err := client.Request(context.Background(), "test.method", nil)
+		result <- err
+	}()
+
+	if _, err := newHeaderReader(stdinR).Read(); err != nil {
+		t.Fatalf("Read request failed: %v", err)
+	}
+	if err := stdoutW.Close(); err != nil {
+		t.Fatalf("Close response stream failed: %v", err)
+	}
+
+	select {
+	case err := <-result:
+		if err == nil || err.Error() != "connection closed" {
+			t.Fatalf("Request error = %v, want connection closed", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Request did not return when the connection closed")
+	}
+}
+
 // TestSetProcessDone_ErrorAvailableImmediately validates that getProcessError()
 // returns the correct error immediately after processDone is closed.
 // The current implementation stores a pointer to the process error

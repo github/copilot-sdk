@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Remember SCENARIO_LIFECYCLE_MEMORY and reply with exactly SCENARIO_LIFECYCLE_INITIALIZED.
+      - role: assistant
+        content: SCENARIO_LIFECYCLE_INITIALIZED
+      - role: user
+        content: Reply with exactly the scenario lifecycle memory value from the earlier turn.
+      - role: assistant
+        content: SCENARIO_LIFECYCLE_MEMORY

@@ -22,3 +22,8 @@ func waitForInProcessCleanup() error {
 func PrepareForProcessWait() {
 	ffihost.PrepareForChildProcessWait()
 }
+
+// ProtectProcessWait keeps signal handlers compatible while a child exits.
+func ProtectProcessWait() func() {
+	return ffihost.ProtectChildProcessWait()
+}

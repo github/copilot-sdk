@@ -178,6 +178,11 @@ directly.
 
 `CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
 
+`CopilotClientOptions.setExtensionLaunchProvider(...)` configures an experimental
+connection-level resolver for extension launch profiles. The client installs the
+reverse-RPC handler and registers the provider during startup before sessions can
+be created.
+
 `SessionConfig.setAskUserVariant(AskUserVariant.ELICITATION)` selects the
 structured form-based `ask_user` tool when an elicitation handler is also set.
 The default is `AskUserVariant.LEGACY`. Re-supply the option and handler through

@@ -32,22 +32,27 @@ describe("Session workspace checkpoint RPC", async () => {
         }
     });
 
-    it("should return typed workspace diff result", async () => {
-        const session = await client.createSession({ onPermissionRequest: approveAll });
-        try {
-            const result = await session.rpc.workspaces.diff({ mode: "unstaged" });
-            expect(result.requestedMode).toBe("unstaged");
-            expect(["unstaged", "branch"]).toContain(result.mode);
-            expect(Array.isArray(result.changes)).toBe(true);
-            for (const change of result.changes) {
-                expect(change.path.trim()).toBeTruthy();
-                expect(["added", "modified", "deleted", "renamed"]).toContain(change.changeType);
-                expect(typeof change.diff).toBe("string");
+    it.each(["session", "unstaged", "branch"] as const)(
+        "should return typed workspace diff result for %s mode",
+        async (mode) => {
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            try {
+                const result = await session.rpc.workspaces.diff({ mode });
+                expect(result.requestedMode).toBe(mode);
+                expect(["session", "unstaged", "branch"]).toContain(result.mode);
+                expect(Array.isArray(result.changes)).toBe(true);
+                for (const change of result.changes) {
+                    expect(change.path.trim()).toBeTruthy();
+                    expect(["added", "modified", "deleted", "renamed"]).toContain(
+                        change.changeType
+                    );
+                    expect(typeof change.diff).toBe("string");
+                }
+            } finally {
+                await session.disconnect();
             }
-        } finally {
-            await session.disconnect();
         }
-    });
+    );
 
     it("should save large paste and expose readable content", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
