@@ -33,6 +33,7 @@ import {
 } from "./generated/rpc.js";
 import type {
     ConnectClientInfo,
+    ExtensionLaunchProviderHandler,
     GitHubTelemetryNotification,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
@@ -41,6 +42,7 @@ import type {
     TaskKind,
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
+import { ExtensionLaunchProviderConnection } from "./extensionLaunchProvider.js";
 import { CopilotSession } from "./session.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
 import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
@@ -468,6 +470,8 @@ export class CopilotClient {
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
+    private extensionLaunchProvider?: ExtensionLaunchProviderHandler;
+    private extensionLaunchProviderConnection?: ExtensionLaunchProviderConnection;
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
@@ -481,7 +485,7 @@ export class CopilotClient {
      * @throws Error if the client is not connected
      */
     get rpc(): ReturnType<typeof createServerRpc> {
-        if (!this.connection) {
+        if (!this.connection || this.connectionClosed) {
             throw new Error("Client is not connected. Call start() first.");
         }
         if (!this._rpc) {
@@ -666,6 +670,7 @@ export class CopilotClient {
         this.onGetTraceContext = options.onGetTraceContext;
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
+        this.extensionLaunchProvider = options.extensionLaunchProvider;
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
 
@@ -928,6 +933,9 @@ export class CopilotClient {
     }
 
     private async doStart(): Promise<void> {
+        if (this.connectionClosed) {
+            await this.forceStop();
+        }
         this.forceStopping = false;
         this.connectionClosed = false;
         this.processTransportError = null;
@@ -943,6 +951,7 @@ export class CopilotClient {
 
             // Connect to the server
             await this.connectToServer();
+            const launchProviderConnection = this.extensionLaunchProviderConnection;
 
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
@@ -975,6 +984,7 @@ export class CopilotClient {
                 await this.connection!.sendRequest("llmInference.setProvider", {});
             }
 
+            await launchProviderConnection?.register();
             this.state = "connected";
         } catch (error) {
             const startupError = this.processTransportError ?? error;
@@ -1010,6 +1020,7 @@ export class CopilotClient {
      */
     async stop(): Promise<Error[]> {
         const errors: Error[] = [];
+        this.extensionLaunchProviderConnection?.dispose();
 
         // Disconnect all active sessions with retry logic
         const activeSessions = [...this.sessions.values()];
@@ -1195,6 +1206,7 @@ export class CopilotClient {
         this.runtimePort = null;
         this.stderrBuffer = "";
         this.processExitPromise = null;
+        this.extensionLaunchProviderConnection = undefined;
 
         return errors;
     }
@@ -1242,6 +1254,7 @@ export class CopilotClient {
      */
     async forceStop(): Promise<void> {
         this.forceStopping = true;
+        this.extensionLaunchProviderConnection?.dispose();
 
         // Clear sessions immediately without trying to destroy them
         for (const session of this.sessions.values()) {
@@ -1309,6 +1322,7 @@ export class CopilotClient {
         this.runtimePort = null;
         this.stderrBuffer = "";
         this.processExitPromise = null;
+        this.extensionLaunchProviderConnection = undefined;
     }
 
     /**
@@ -1504,7 +1518,7 @@ export class CopilotClient {
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
-        if (!this.connection) {
+        if (!this.connection || this.startPromise || this.connectionClosed) {
             await this.start();
         }
 
@@ -1660,6 +1674,7 @@ export class CopilotClient {
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 enableCitations: config.enableCitations,
                 enableFileChangeTracking: config.enableFileChangeTracking,
+                enableScriptSafety: config.enableScriptSafety,
                 sessionLimits: config.sessionLimits,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
@@ -1812,7 +1827,7 @@ export class CopilotClient {
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
-        if (!this.connection) {
+        if (!this.connection || this.startPromise || this.connectionClosed) {
             await this.start();
         }
 
@@ -1905,6 +1920,7 @@ export class CopilotClient {
                 excludedBuiltinAgents: config.excludedBuiltinAgents,
                 enableCitations: config.enableCitations,
                 enableFileChangeTracking: config.enableFileChangeTracking,
+                enableScriptSafety: config.enableScriptSafety,
                 sessionLimits: config.sessionLimits,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
@@ -2783,8 +2799,13 @@ export class CopilotClient {
             case "inprocess":
                 return this.connectViaFfi();
             case "tcp":
-            case "uri":
                 return this.connectViaTcp();
+            case "uri": {
+                const { host, port } = this.parseCliUrl(this.connectionConfig.url);
+                this.actualHost = host;
+                this.runtimePort = port;
+                return this.connectViaTcp();
+            }
         }
     }
 
@@ -3044,7 +3065,20 @@ export class CopilotClient {
         // Register client *global* API handlers (e.g. LLM inference) on the
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
-        registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
+        const connection = this.connection;
+        const globalHandlers = { ...this.clientGlobalHandlers };
+        this._rpc = createServerRpc(connection);
+        if (this.extensionLaunchProvider) {
+            const provider = new ExtensionLaunchProviderConnection(
+                this.extensionLaunchProvider,
+                this._rpc.registerExtensionLaunchProvider
+            );
+            this.extensionLaunchProviderConnection = provider;
+            this._rpc.registerExtensionLaunchProvider = () => provider.register();
+            globalHandlers.extensionLaunchProvider = provider.handler;
+        }
+        const launchProviderConnection = this.extensionLaunchProviderConnection;
+        registerClientGlobalApiHandlers(connection, globalHandlers);
 
         // `hooks.invoke` is an internal RPC method: the runtime calls it to
         // invoke a hook callback on the client. Route each call to the matching
@@ -3057,8 +3091,8 @@ export class CopilotClient {
             }
         );
 
-        const connection = this.connection;
         const markDisconnected = () => {
+            launchProviderConnection?.dispose();
             if (this.connection !== connection) {
                 return;
             }
@@ -3071,11 +3105,8 @@ export class CopilotClient {
             this.githubTokenProviders.clear();
         };
         this.connection.onClose(markDisconnected);
-        this.connection.onError(() => {
-            if (this.connection === connection) {
-                this.state = "disconnected";
-            }
-        });
+        this.connection.onDispose(markDisconnected);
+        this.connection.onError(markDisconnected);
     }
 
     private handleSessionEventNotification(notification: unknown): void {
