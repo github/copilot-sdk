@@ -268,9 +268,12 @@ pub struct JsonRpcClient {
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
     connection_closed: CancellationToken,
+    server_message_handler: Arc<RwLock<Option<ServerMessageHandler>>>,
     read_task: Mutex<Option<JoinHandle<()>>>,
     write_task: Mutex<Option<JoinHandle<()>>>,
 }
+
+type ServerMessageHandler = Box<dyn Fn(&JsonRpcMessage) -> bool + Send + Sync>;
 
 impl JsonRpcClient {
     /// Create a new client from async read/write streams.
@@ -297,6 +300,7 @@ impl JsonRpcClient {
             notification_tx,
             request_tx,
             connection_closed: CancellationToken::new(),
+            server_message_handler: Arc::new(RwLock::new(None)),
             read_task: Mutex::new(None),
             write_task: Mutex::new(Some(write_task)),
         };
@@ -305,6 +309,7 @@ impl JsonRpcClient {
         let notification_tx_clone = client.notification_tx.clone();
         let request_tx_clone = client.request_tx.clone();
         let connection_closed = client.connection_closed.clone();
+        let server_message_handler = client.server_message_handler.clone();
         let reader_span = tracing::error_span!("jsonrpc_read_loop");
 
         let read_task = tokio::spawn(
@@ -314,6 +319,7 @@ impl JsonRpcClient {
                     pending_requests,
                     notification_tx_clone,
                     request_tx_clone,
+                    server_message_handler,
                 )
                 .await;
                 connection_closed.cancel();
@@ -338,6 +344,12 @@ impl JsonRpcClient {
 
     pub(crate) fn connection_closed_token(&self) -> CancellationToken {
         self.connection_closed.child_token()
+    }
+
+    /// Install nonblocking bookkeeping that must preserve request/notification
+    /// wire order. Return true to consume a message instead of routing it.
+    pub(crate) fn set_server_message_handler(&self, handler: ServerMessageHandler) {
+        *self.server_message_handler.write() = Some(handler);
     }
 
     /// Writer-actor task. Owns the `AsyncWrite`, drains the command queue,
@@ -376,75 +388,85 @@ impl JsonRpcClient {
         pending_requests: Arc<RwLock<HashMap<u64, PendingRequest>>>,
         notification_tx: broadcast::Sender<JsonRpcNotification>,
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
+        server_message_handler: Arc<RwLock<Option<ServerMessageHandler>>>,
     ) {
         let mut reader = BufReader::new(reader);
 
         loop {
             match Self::read_message(&mut reader).await {
-                Ok(Some(message)) => match message {
-                    JsonRpcMessage::Response(mut response) => {
-                        let id = response.id;
-                        let pending = pending_requests.write().remove(&id);
-                        if let Some(PendingRequest {
-                            sender,
-                            inline_callback,
-                        }) = pending
-                        {
-                            // Run the inline callback synchronously on the
-                            // read loop so any state it mutates (e.g.
-                            // registering a server-assigned session id with
-                            // the router) is visible before the loop reads
-                            // and dispatches the next message.
-                            if let Some(cb) = inline_callback
-                                && response.error.is_none()
+                Ok(Some(message)) => {
+                    if !matches!(message, JsonRpcMessage::Response(_))
+                        && server_message_handler
+                            .read()
+                            .as_ref()
+                            .is_some_and(|handler| handler(&message))
+                    {
+                        continue;
+                    }
+                    match message {
+                        JsonRpcMessage::Response(mut response) => {
+                            let id = response.id;
+                            let pending = pending_requests.write().remove(&id);
+                            if let Some(PendingRequest {
+                                sender,
+                                inline_callback,
+                            }) = pending
                             {
-                                let cb_outcome =
-                                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                        cb(&response)
-                                    }));
-                                match cb_outcome {
-                                    Ok(Ok(())) => {}
-                                    Ok(Err(error)) => {
-                                        response.result = None;
-                                        response.error = Some(JsonRpcError {
-                                            code: -32603,
-                                            message: error.to_string(),
-                                            data: None,
-                                        });
-                                    }
-                                    Err(panic) => {
-                                        let message = panic
-                                            .downcast_ref::<&'static str>()
-                                            .map(|s| (*s).to_string())
-                                            .or_else(|| panic.downcast_ref::<String>().cloned())
-                                            .unwrap_or_else(|| {
-                                                "inline response callback panicked".to_string()
+                                // Run the inline callback synchronously on the
+                                // read loop so any state it mutates (e.g.
+                                // registering a server-assigned session id with
+                                // the router) is visible before the loop reads
+                                // and dispatches the next message.
+                                if let Some(cb) = inline_callback
+                                    && response.error.is_none()
+                                {
+                                    let cb_outcome = std::panic::catch_unwind(
+                                        std::panic::AssertUnwindSafe(|| cb(&response)),
+                                    );
+                                    match cb_outcome {
+                                        Ok(Ok(())) => {}
+                                        Ok(Err(error)) => {
+                                            response.result = None;
+                                            response.error = Some(JsonRpcError {
+                                                code: -32603,
+                                                message: error.to_string(),
+                                                data: None,
                                             });
-                                        response.result = None;
-                                        response.error = Some(JsonRpcError {
-                                            code: -32603,
-                                            message,
-                                            data: None,
-                                        });
+                                        }
+                                        Err(panic) => {
+                                            let message = panic
+                                                .downcast_ref::<&'static str>()
+                                                .map(|s| (*s).to_string())
+                                                .or_else(|| panic.downcast_ref::<String>().cloned())
+                                                .unwrap_or_else(|| {
+                                                    "inline response callback panicked".to_string()
+                                                });
+                                            response.result = None;
+                                            response.error = Some(JsonRpcError {
+                                                code: -32603,
+                                                message,
+                                                data: None,
+                                            });
+                                        }
                                     }
                                 }
+                                if sender.send(response).is_err() {
+                                    warn!(request_id = %id, "failed to send response for request");
+                                }
+                            } else {
+                                warn!(request_id = %id, "received response for unknown request id");
                             }
-                            if sender.send(response).is_err() {
-                                warn!(request_id = %id, "failed to send response for request");
+                        }
+                        JsonRpcMessage::Notification(notification) => {
+                            let _ = notification_tx.send(notification);
+                        }
+                        JsonRpcMessage::Request(request) => {
+                            if request_tx.send(request).is_err() {
+                                warn!("failed to forward JSON-RPC request, channel closed");
                             }
-                        } else {
-                            warn!(request_id = %id, "received response for unknown request id");
                         }
                     }
-                    JsonRpcMessage::Notification(notification) => {
-                        let _ = notification_tx.send(notification);
-                    }
-                    JsonRpcMessage::Request(request) => {
-                        if request_tx.send(request).is_err() {
-                            warn!("failed to forward JSON-RPC request, channel closed");
-                        }
-                    }
-                },
+                }
                 Ok(None) => {
                     break;
                 }

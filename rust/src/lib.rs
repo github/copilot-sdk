@@ -3,6 +3,8 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
+/// Transport-neutral native Agent Host Protocol endpoints.
+pub mod ahp;
 #[cfg(not(feature = "bundled-cli"))]
 mod cache_paths;
 /// Canvas declarations, provider callbacks, and host-side canvas RPC types.
@@ -2829,6 +2831,7 @@ impl Client {
         info!(pid = ?pid, "stopping CLI process");
         let mut errors: Vec<Error> = Vec::new();
         self.inner.extension_launch_provider.clear();
+        self.inner.router.ahp.clear();
 
         // Snapshot the registered session IDs without holding the router
         // lock across the detach RPCs.
@@ -3030,6 +3033,7 @@ impl Client {
 
 impl Drop for ClientInner {
     fn drop(&mut self) {
+        self.router.ahp.clear();
         let pid = self.child.lock().as_ref().and_then(Child::id);
         if let Some(process_tree) = self.process_tree.lock().take()
             && let Err(error) = process_tree.terminate()

@@ -1060,7 +1060,8 @@ function emitRustStringEnum(
 			usedVariantNames,
 			"Value",
 			reservedVariantNames,
-			STRING_ENUM_VARIANT_OVERRIDES[enumName]?.[value],
+			STRING_ENUM_VARIANT_OVERRIDES[enumName]?.[value] ??
+				(value === "unknown" ? "UnknownValue" : undefined),
 		);
 		pushRustDoc(lines, enumValueDescriptions?.[value], "    ");
 		if (variantName !== value) {

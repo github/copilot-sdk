@@ -53,6 +53,111 @@ The SDK manages the CLI process lifecycle: spawning, health-checking, and gracef
 
 ## API Reference
 
+### Native AHP endpoints (experimental)
+
+`Client::create_ahp_endpoint()` exposes the existing runtime through an
+application-owned transport. The Rust SDK forwards opaque AHP 0.9 messages; the
+runtime implements the agent protocol. It does not start another runtime or a
+public listener. This requires the matching runtime from
+[copilot-agent-runtime#21650](https://github.com/github/copilot-agent-runtime/pull/21650),
+not an older published CLI without `ahp.*` support.
+
+```rust,no_run
+use std::sync::Arc;
+use github_copilot_sdk::{Client, Error};
+use github_copilot_sdk::ahp::{
+    AhpConnectionOptions, AhpEndpointOptions, AhpSessionIdentity,
+};
+
+# async fn example(client: &Client, authorized_session_id: String) -> Result<(), Error> {
+let endpoint = client.create_ahp_endpoint(AhpEndpointOptions {
+    allow_session_creation: Some(false),
+    on_list_sessions: Some(Arc::new(move |(), _context| {
+        let session_id = authorized_session_id.clone();
+        Box::pin(async move { Ok(vec![AhpSessionIdentity { session_id }]) })
+    })),
+    ..Default::default()
+}).await?;
+
+// For each authenticated physical connection:
+let connection = endpoint.open_connection(AhpConnectionOptions {
+    on_message: Arc::new(|text| Box::pin(async move {
+        // Await the application's socket write/flush here, not an unbounded enqueue.
+        # let _ = text;
+        Ok(())
+    })),
+    on_close: Some(Arc::new(|_error| {
+        // Close the application's physical connection.
+    })),
+}).await?;
+// Forward each incoming text message with connection.send(text).await?.
+connection.close().await?;
+endpoint.dispose().await?;
+# Ok(())
+# }
+```
+
+Create/resume callbacks return `AhpSessionIdentity` for ordinary SDK sessions.
+They can call `client.create_session()` or `client.resume_session()` reentrantly;
+recursive endpoint operations are rejected. Keep those session handles alive as
+usual. Policy futures are cancelled when their request or owning connection,
+endpoint, or client closes; `AhpCallbackContext::cancellation` also lets application
+work observe that lifetime. Cancellation does not undo an already-created session.
+`on_session_control` returns an explicit applied/refused outcome, including an
+optional result for the requesting client.
+
+**`on_list_sessions` is endpoint-wide authorization**, enforced by the runtime
+for subscriptions, history, actions, and disposal, including direct session URIs.
+Use `refresh_exposure()` after policy changes and `set_capabilities()` to replace
+the capability catalogue. Omitted callbacks preserve native runtime defaults.
+The application must authenticate and secure its physical listener.
+
+`send()` acknowledges runtime admission, not the eventual AHP response.
+`on_message` is serialized in wire order per logical connection and acknowledges
+physical delivery. It must complete after the write finishes. Other connections
+and ordinary SDK operations remain independent. Default bounds in each direction
+are 1 MiB per UTF-8 message, 128 outstanding messages, and 8 MiB buffered bytes,
+including in-flight deliveries. `AhpLimits` can tighten these bounds. Overflow or
+delivery failure closes only the affected logical connection; `on_close` fires
+once and should return promptly.
+
+Explicitly close connections and dispose the endpoint when the listener shuts
+down. Dropping a cloned handle alone does not dispose an endpoint. Callbacks can
+retain `Client` clones, so use `dispose()`/`stop()` rather than relying on reference
+counting for cleanup. Disposal leaves application-owned sessions alive; stopping
+the client also disconnects its session handles.
+
+#### Recorded AHP end-to-end coverage
+
+`tests/e2e/ahp.rs` hosts an application-owned Rust WebSocket listener and launches
+the official `@microsoft/agent-host-protocol` client. It covers both an existing
+session and a callback-created session: a real agent turn invokes a Rust tool,
+excluded-session access is rejected, and reconnect restores the response.
+Model exchanges use the ordinary CapiProxy record-replay harness and the existing
+`test/snapshots/tools/invokes_custom_tool.yaml` recording, not fabricated AHP
+responses.
+
+From the repository root, after building the matching runtime:
+
+```sh
+npm --prefix nodejs ci
+npm --prefix test/harness ci
+cd rust
+COPILOT_CLI_PATH=/path/to/copilot-agent-runtime/dist-cli/index.js \
+  cargo test --no-default-features --features test-support --test e2e ahp::
+```
+
+The Rust wire types and RPC methods are generated from that same runtime's
+schemas. To regenerate from a local checkout (paths relative to the SDK root):
+
+```sh
+scripts/codegen/node_modules/.bin/tsx scripts/codegen/rust.ts \
+  ../copilot-agent-runtime/generated/session-events.schema.json \
+  ../copilot-agent-runtime/generated/api.schema.json
+cd rust
+cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml
+```
+
 ### Client
 
 ```rust,ignore

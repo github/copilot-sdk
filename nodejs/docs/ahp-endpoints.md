@@ -13,6 +13,11 @@ methods. Published runtimes without those methods fail with an explicit
 "does not support native AHP endpoints" error. Older AHP versions are not supported
 by this API. Mock-wire tests do **not** establish real native runtime acceptance.
 
+The [Rust SDK](../../rust/README.md#native-ahp-endpoints-experimental) exposes the
+same transport-neutral feature. Its recorded E2E suite hosts a Rust WebSocket
+listener and drives real agent/tool turns with the standard AHP client, using the
+shared CapiProxy record-replay harness.
+
 ## API
 
 ```ts
