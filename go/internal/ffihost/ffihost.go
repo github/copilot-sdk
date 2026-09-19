@@ -217,6 +217,12 @@ func PrepareForChildProcessWait() {
 	rearmForeignSignalHandlers(0)
 }
 
+// ProtectChildProcessWait keeps SIGCHLD compatible with the Go runtime while a
+// child process is being stopped and reaped.
+func ProtectChildProcessWait() func() {
+	return protectChildProcessSignalHandler()
+}
+
 // Create resolves the native library and prepares the host. environment and
 // args contain SDK-managed runtime options.
 func Create(runtimeEntrypoint, cliEntrypoint string, environment map[string]string, args []string) (*Host, error) {

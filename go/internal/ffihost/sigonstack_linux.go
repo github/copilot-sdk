@@ -5,6 +5,7 @@
 package ffihost
 
 import (
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -13,6 +14,7 @@ const (
 	linuxSaOnStack = 0x08000000
 	linuxSigDfl    = 0
 	linuxSigIgn    = 1
+	linuxSigChild  = 17
 	linuxMaxSignal = 31
 )
 
@@ -39,18 +41,52 @@ type linuxSigaction struct {
 // is the pre-existing crash.
 func rearmForeignSignalHandlers(_ uintptr) {
 	for sig := 1; sig <= linuxMaxSignal; sig++ {
-		var action linuxSigaction
-		if !linuxGetSigaction(sig, &action) {
-			continue
+		rearmLinuxSignalHandler(sig)
+	}
+}
+
+func rearmLinuxSignalHandler(sig int) {
+	var action linuxSigaction
+	if !linuxGetSigaction(sig, &action) {
+		return
+	}
+	if action.handler == linuxSigDfl || action.handler == linuxSigIgn {
+		return
+	}
+	if action.flags&linuxSaOnStack != 0 {
+		return
+	}
+	action.flags |= linuxSaOnStack
+	linuxSetSigaction(sig, &action)
+}
+
+func protectChildProcessSignalHandler() func() {
+	return protectLinuxSignalHandler(linuxSigChild)
+}
+
+func protectLinuxSignalHandler(sig int) func() {
+	stop := make(chan struct{})
+	ready := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		rearmLinuxSignalHandler(sig)
+		close(ready)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				rearmLinuxSignalHandler(sig)
+				runtime.Gosched()
+			}
 		}
-		if action.handler == linuxSigDfl || action.handler == linuxSigIgn {
-			continue
-		}
-		if action.flags&linuxSaOnStack != 0 {
-			continue
-		}
-		action.flags |= linuxSaOnStack
-		linuxSetSigaction(sig, &action)
+	}()
+	<-ready
+	return func() {
+		close(stop)
+		<-stopped
+		rearmLinuxSignalHandler(sig)
 	}
 }
 
