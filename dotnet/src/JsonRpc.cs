@@ -465,7 +465,7 @@ internal sealed partial class JsonRpc : IDisposable
 
     private void HandleResponse(JsonElement message, JsonElement idProp)
     {
-        if (!idProp.TryGetInt64(out long id))
+        if (idProp.ValueKind != JsonValueKind.Number || !idProp.TryGetInt64(out long id))
         {
             return;
         }

@@ -122,6 +122,24 @@ public class JsonRpcTests
         Assert.InRange(await receiveStream.PostFrameReadBufferSize, 1, 1024 * 1024);
     }
 
+    [Theory]
+    [InlineData("null")]
+    [InlineData("\"server-id\"")]
+    public async Task JsonRpc_Invalid_Response_Id_Does_Not_End_Read_Loop(string invalidId)
+    {
+        var invalidFrame = CreateFrame(
+            $$"""{"jsonrpc":"2.0","id":{{invalidId}},"result":"ignored"}""");
+        var validFrame = CreateResponseFrame(1, "carried");
+        using var receiveStream = new MemoryStream(CombineFrames([invalidFrame, validFrame]));
+        using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
+
+        var response = rpc.InvokeAsync<string>("pending", args: null);
+        rpc.StartListening();
+
+        Assert.Equal("carried", await response.WaitAsync(TimeSpan.FromSeconds(5)));
+        await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
     [Fact]
     public async Task JsonRpc_JsonElement_Params_Remain_Valid_After_Message_Disposal()
     {
@@ -228,9 +246,11 @@ public class JsonRpcTests
     }
 
     private static byte[] CreateNotificationFrame(string method, string paramsJson)
+        => CreateFrame($$"""{"jsonrpc":"2.0","method":"{{method}}","params":{{paramsJson}}}""");
+
+    private static byte[] CreateFrame(string json)
     {
-        var body = Encoding.UTF8.GetBytes(
-            $$"""{"jsonrpc":"2.0","method":"{{method}}","params":{{paramsJson}}}""");
+        var body = Encoding.UTF8.GetBytes(json);
         var header = Encoding.ASCII.GetBytes($"Content-Length: {body.Length}\r\n\r\n");
         var frame = new byte[header.Length + body.Length];
         header.CopyTo(frame, 0);
