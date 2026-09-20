@@ -799,6 +799,7 @@ class _HttpResponseReader:
                     self._queued += len(frame)
                     self._condition.notify_all()
         except StopAsyncIteration:
+            # Normal source exhaustion.
             pass
         except asyncio.CancelledError:
             raise
@@ -852,6 +853,7 @@ class _HttpResponseReader:
         try:
             await self._producer
         except asyncio.CancelledError:
+            # Producer cancellation is expected during teardown.
             pass
 
 
