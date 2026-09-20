@@ -141,7 +141,13 @@ public class ScenarioTestingEventSubscriptionsE2ETests(E2ETestFixture fixture, I
         });
 
         var newEvents = new List<SessionEvent>();
-        using var newSubscription = secondSession.On<SessionEvent>(newEvents.Add);
+        using var newSubscription = secondSession.On<SessionEvent>(evt =>
+        {
+            lock (newEvents)
+            {
+                newEvents.Add(evt);
+            }
+        });
         var newInfo = new TaskCompletionSource<SessionInfoEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var infoSubscription = secondSession.On<SessionInfoEvent>(evt =>
         {
@@ -154,7 +160,10 @@ public class ScenarioTestingEventSubscriptionsE2ETests(E2ETestFixture fixture, I
         await newInfo.Task.WaitAsync(EventTimeout);
 
         Assert.Equal(countAfterClose, Volatile.Read(ref oldEventCount));
-        Assert.Contains(newEvents, evt => evt is SessionInfoEvent info && info.Data.Message == "SCENARIO_EVENT_SOURCE_TWO");
+        lock (newEvents)
+        {
+            Assert.Contains(newEvents, evt => evt is SessionInfoEvent info && info.Data.Message == "SCENARIO_EVENT_SOURCE_TWO");
+        }
     }
 
     private static bool IsEventChannelClosed(CopilotSession session)
