@@ -37,6 +37,8 @@ public final class SkillInvokedRefEvent extends SessionEvent {
     public record SkillInvokedRefEventData(
         /** Name of the invoked skill */
         @JsonProperty("name") String name,
+        /** Projected chat-message count when the skill was invoked. Preserved from the inline event data when the authored body is deduplicated. */
+        @JsonProperty("invokedAtTurn") Long invokedAtTurn,
         /** Model identifier active when the skill was invoked, when known */
         @JsonProperty("model") String model,
         /** File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity */

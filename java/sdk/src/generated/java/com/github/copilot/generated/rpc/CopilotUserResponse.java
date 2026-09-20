@@ -74,6 +74,16 @@ public record CopilotUserResponse(
     /** Whether cloud session storage is enabled for the user. */
     @JsonProperty("cloud_session_storage_enabled") Boolean cloudSessionStorageEnabled,
     /** Whether CLI remote control is enabled for the user. */
-    @JsonProperty("cli_remote_control_enabled") Boolean cliRemoteControlEnabled
+    @JsonProperty("cli_remote_control_enabled") Boolean cliRemoteControlEnabled,
+    /** Enterprises that provide the user's Copilot license, each with a stable numeric ID. */
+    @JsonProperty("enterprise_list") List<CopilotUserResponseEnterpriseListItem> enterpriseList
 ) {
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record CopilotUserResponseEnterpriseListItem(
+        /** Numeric database ID of the enterprise. */
+        @JsonProperty("id") Long id
+    ) {
+    }
 }

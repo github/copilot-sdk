@@ -711,6 +711,14 @@ export interface ZodSchema<T = unknown> {
 }
 
 /**
+ * A Zod-compatible output schema that both describes and parses a typed result.
+ * TypeScript types are erased at runtime, so typed output requires a schema value.
+ */
+export interface ResponseSchema<T = unknown> extends ZodSchema<T> {
+    parse(value: unknown): T;
+}
+
+/**
  * Tool definition. Parameters can be either:
  * - A Zod schema (provides type inference for handler)
  * - A raw JSON schema object
@@ -3395,6 +3403,20 @@ export interface MessageOptions {
      * If provided, this is shown in the timeline instead of `prompt`.
      */
     displayPrompt?: string;
+
+    /**
+     * JSON Schema or a Zod schema for this run's output, including requests after tool calls.
+     * Independent sends do not inherit it. Ordinary immediate steering retains the active
+     * schema and origin, even when promoted to a follow-up after the model request finishes.
+     * Specifying a schema with mode "immediate" is rejected, even while idle.
+     * This is not a persisted session default and does not survive a context reset.
+     *
+     * sendAndWait still returns an assistant message event. For a typed result, pass a
+     * Zod-compatible schema as sendAndWait's second argument instead.
+     * Streaming events remain text and may include intermediate messages.
+     * Use rpc.send's responseFormat for provider-specific name, description and strict options.
+     */
+    responseSchema?: ZodSchema | Record<string, unknown>;
 }
 
 /**

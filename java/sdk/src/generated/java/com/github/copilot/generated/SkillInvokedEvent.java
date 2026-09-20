@@ -37,6 +37,8 @@ public final class SkillInvokedEvent extends SessionEvent {
     public record SkillInvokedEventData(
         /** Name of the invoked skill */
         @JsonProperty("name") String name,
+        /** Projected chat-message count when the skill was invoked. New writers persist this so replay does not need to reconstruct superseded history; readers derive it for legacy events when absent. */
+        @JsonProperty("invokedAtTurn") Long invokedAtTurn,
         /** Model identifier active when the skill was invoked, when known */
         @JsonProperty("model") String model,
         /** File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity */

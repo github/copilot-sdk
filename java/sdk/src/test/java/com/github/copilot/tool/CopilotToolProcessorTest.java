@@ -53,6 +53,36 @@ class CopilotToolProcessorTest {
     @TempDir
     java.nio.file.Path tempDir;
 
+    @Test
+    void generatesClosedResponseSchemaForNestedRecords() {
+        var result = compileWithProcessor(List.of(inMemorySource("test.Result", """
+                package test;
+                import com.github.copilot.CopilotResponse;
+                import java.util.List;
+                @CopilotResponse
+                public record Result(List<Item> items) {
+                    public record Item(int count, String color) {}
+                }
+                """)));
+        assertNoErrors(result);
+        var generated = result.getGeneratedSource("test.Result$$CopilotResponseMeta");
+        assertNotNull(generated);
+        assertTrue(generated.contains("\"additionalProperties\", false"));
+        assertTrue(generated.contains("\"count\", Map.of(\"type\", \"integer\")"));
+    }
+
+    @Test
+    void reportsRecursiveResponseTypesInsteadOfOverflowing() {
+        var result = compileWithProcessor(List.of(inMemorySource("test.Result", """
+                package test;
+                import com.github.copilot.CopilotResponse;
+                @CopilotResponse
+                public record Result(Result next) {}
+                """)));
+        assertTrue(result.diagnostics.stream().anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR
+                && d.getMessage(null).contains("Recursive response types require an explicit JSON Schema")));
+    }
+
     // ── Test: Basic generation ──────────────────────────────────────────────────
 
     @Test
@@ -1420,7 +1450,8 @@ class CopilotToolProcessorTest {
         String classpath = resolveClasspath();
         List<String> options = new ArrayList<>();
         options.add("-proc:full");
-        options.addAll(List.of("-processor", "com.github.copilot.tool.CopilotToolProcessor"));
+        options.addAll(List.of("-processor",
+                "com.github.copilot.tool.CopilotToolProcessor,com.github.copilot.tool.CopilotResponseProcessor"));
         options.addAll(List.of("-classpath", classpath));
         options.addAll(List.of("-d", tempDir.toString()));
         options.addAll(List.of("-s", tempDir.toString()));

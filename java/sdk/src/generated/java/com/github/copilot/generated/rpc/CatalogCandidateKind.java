@@ -19,7 +19,9 @@ public enum CatalogCandidateKind {
     /** The {@code mcp-server} variant. */
     MCP_SERVER("mcp-server"),
     /** The {@code ai-skill} variant. */
-    AI_SKILL("ai-skill");
+    AI_SKILL("ai-skill"),
+    /** The {@code plugin} variant. */
+    PLUGIN("plugin");
 
     private final String value;
     CatalogCandidateKind(String value) { this.value = value; }

@@ -24,6 +24,8 @@ public record PendingPermissionRequest(
     /** Unique identifier for the pending permission request */
     @JsonProperty("requestId") String requestId,
     /** The user-facing permission prompt details (commands, write, read, mcp, url, memory, custom-tool, path, hook) */
-    @JsonProperty("request") Object request
+    @JsonProperty("request") Object request,
+    /** Permission-recovery episode that authorized this request to surface for interactive attention */
+    @JsonProperty("recoveryEpisodeId") String recoveryEpisodeId
 ) {
 }

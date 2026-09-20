@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * A completed catalog search: inert candidate summaries, each carrying a single-use handle.
+ * A completed catalog search containing inert candidate summaries. MCP server and AI skill variants carry a single-use handle; the Agent Plugin variant is handleless.
  *
  * @since 1.0.0
  */
@@ -37,13 +37,17 @@ public final class CatalogSearchSucceeded extends CatalogSearchResult {
     @JsonProperty("candidates")
     private List<CatalogCandidate> candidates;
 
-    /** Whether further matches existed beyond the requested limit. */
+    /** Legacy indication that the authority returned a page token. Preserved for compatibility; this is not a has-next-page indicator. Use pagination.hasNextPage when pagination metadata is present. */
     @JsonProperty("truncated")
     private Boolean truncated;
 
     /** Protocol version and capabilities the runtime honoured. */
     @JsonProperty("negotiated")
     private CatalogNegotiatedContract negotiated;
+
+    /** Navigation metadata for callers explicitly requiring catalog-search-pagination. Omitted when the authority returns no token, including tokenless first-page and continuation responses. Counts are never substituted from candidates.length. */
+    @JsonProperty("pagination")
+    private CatalogSearchPagination pagination;
 
     public String getSearchId() { return searchId; }
     public void setSearchId(String searchId) { this.searchId = searchId; }
@@ -56,4 +60,7 @@ public final class CatalogSearchSucceeded extends CatalogSearchResult {
 
     public CatalogNegotiatedContract getNegotiated() { return negotiated; }
     public void setNegotiated(CatalogNegotiatedContract negotiated) { this.negotiated = negotiated; }
+
+    public CatalogSearchPagination getPagination() { return pagination; }
+    public void setPagination(CatalogSearchPagination pagination) { this.pagination = pagination; }
 }
