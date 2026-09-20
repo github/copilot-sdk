@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -182,7 +183,7 @@ func (h *CopilotRequestHandler) handleHTTP(rctx *CopilotRequestContext, sink *re
 		return err
 	}
 	defer resp.Body.Close()
-	return streamResponseToSink(resp, sink)
+	return streamResponseToSink(rctx.Context, resp, sink)
 }
 
 func buildHTTPRequest(rctx *CopilotRequestContext) (*http.Request, error) {
@@ -218,28 +219,26 @@ func drainBody(ch <-chan CopilotWebSocketMessage) []byte {
 	return buf.Bytes()
 }
 
-func streamResponseToSink(resp *http.Response, sink *responseSink) error {
+func streamResponseToSink(ctx context.Context, resp *http.Response, sink *responseSink) error {
 	if err := sink.start(resp.StatusCode, statusText(resp), cloneHeader(resp.Header)); err != nil {
 		return err
 	}
-	buf := make([]byte, 32*1024)
+	reader := newHTTPResponseReader(resp.Body)
+	defer reader.Close()
+
+	var chunk []byte
 	for {
-		n, readErr := resp.Body.Read(buf)
-		if n > 0 {
-			// writeText copies eagerly via string(...), so the reused read
-			// buffer can be passed directly without an extra per-chunk alloc.
-			if err := sink.writeText(buf[:n]); err != nil {
-				return err
-			}
+		ok, err := reader.nextChunk(ctx, &chunk)
+		if err != nil {
+			return err
 		}
-		if readErr == io.EOF {
-			break
+		if !ok {
+			return sink.end()
 		}
-		if readErr != nil {
-			return sink.sinkError(readErr.Error(), "")
+		if err := sink.writeBinary(chunk); err != nil {
+			return err
 		}
 	}
-	return sink.end()
 }
 
 func statusText(resp *http.Response) string {
@@ -542,7 +541,7 @@ type pendingExchange struct {
 	mu       sync.Mutex
 	queue    *frameQueue
 	ctx      context.Context
-	cancel   context.CancelFunc
+	cancel   context.CancelCauseFunc
 	started  bool
 	finished bool
 }
@@ -553,13 +552,20 @@ type copilotRequestAdapter struct {
 
 	mu      sync.Mutex
 	pending map[string]*pendingExchange
+	closed  bool
+
+	connectionCtx    context.Context
+	connectionCancel context.CancelCauseFunc
 }
 
-func newCopilotRequestAdapter(handler *CopilotRequestHandler, getRPC func() *rpc.ServerLlmInferenceAPI) rpc.LlmInferenceHandler {
+func newCopilotRequestAdapter(handler *CopilotRequestHandler, getRPC func() *rpc.ServerLlmInferenceAPI) *copilotRequestAdapter {
+	connectionCtx, connectionCancel := context.WithCancelCause(context.Background())
 	return &copilotRequestAdapter{
-		handler: handler,
-		getRPC:  getRPC,
-		pending: make(map[string]*pendingExchange),
+		handler:          handler,
+		getRPC:           getRPC,
+		pending:          make(map[string]*pendingExchange),
+		connectionCtx:    connectionCtx,
+		connectionCancel: connectionCancel,
 	}
 }
 
@@ -576,8 +582,12 @@ func (a *copilotRequestAdapter) getOrCreateExchange(requestID string) *pendingEx
 	if exchange, ok := a.pending[requestID]; ok {
 		return exchange
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancelCause(a.connectionCtx)
 	exchange := &pendingExchange{queue: newFrameQueue(), ctx: ctx, cancel: cancel}
+	if a.closed {
+		exchange.queue.close()
+		return exchange
+	}
 	a.pending[requestID] = exchange
 	return exchange
 }
@@ -645,7 +655,7 @@ func (a *copilotRequestAdapter) HttpRequestChunk(params *rpc.LlmInferenceHTTPReq
 
 func (a *copilotRequestAdapter) routeChunk(exchange *pendingExchange, params *rpc.LlmInferenceHTTPRequestChunkRequest) {
 	if params.Cancel != nil && *params.Cancel {
-		exchange.cancel()
+		exchange.cancel(errRuntimeRequestCancelled)
 		exchange.queue.close()
 		return
 	}
@@ -663,11 +673,25 @@ func (a *copilotRequestAdapter) routeChunk(exchange *pendingExchange, params *rp
 func (a *copilotRequestAdapter) runHandler(rctx *CopilotRequestContext, sink *responseSink, exchange *pendingExchange) {
 	err := a.handler.handle(rctx, sink)
 	if err != nil {
-		if exchange.ctx.Err() != nil {
+		cause := context.Cause(exchange.ctx)
+		if errors.Is(cause, errRuntimeRequestCancelled) {
 			a.finishCancelled(sink, exchange)
 			return
 		}
+		if cause != nil {
+			a.removePending(sink.requestID)
+			return
+		}
 		a.failViaSink(sink, exchange, err.Error())
+		return
+	}
+	cause := context.Cause(exchange.ctx)
+	if errors.Is(cause, errRuntimeRequestCancelled) {
+		a.finishCancelled(sink, exchange)
+		return
+	}
+	if cause != nil {
+		a.removePending(sink.requestID)
 		return
 	}
 	exchange.mu.Lock()
@@ -701,7 +725,7 @@ func (a *copilotRequestAdapter) finishCancelled(sink *responseSink, exchange *pe
 		return
 	}
 	if !started {
-		_ = sink.start(499, "", http.Header{})
+		_ = sink.startWithContext(sink.adapter.connectionCtx, 499, "", http.Header{})
 	}
 	_ = sink.sinkError("Request cancelled by runtime", "cancelled")
 }
@@ -710,6 +734,31 @@ func (a *copilotRequestAdapter) removePending(requestID string) {
 	a.mu.Lock()
 	delete(a.pending, requestID)
 	a.mu.Unlock()
+}
+
+var (
+	errRuntimeRequestCancelled = errors.New("request cancelled by runtime")
+	errRPCConnectionClosed     = errors.New("RPC connection closed")
+)
+
+func (a *copilotRequestAdapter) close() {
+	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		return
+	}
+	a.closed = true
+	exchanges := make([]*pendingExchange, 0, len(a.pending))
+	for _, exchange := range a.pending {
+		exchanges = append(exchanges, exchange)
+	}
+	clear(a.pending)
+	a.mu.Unlock()
+
+	a.connectionCancel(errRPCConnectionClosed)
+	for _, exchange := range exchanges {
+		exchange.queue.close()
+	}
 }
 
 func stringOrEmpty(value *string) string {
@@ -742,6 +791,10 @@ func (s *responseSink) rpcAPI() (*rpc.ServerLlmInferenceAPI, error) {
 }
 
 func (s *responseSink) start(status int, statusTxt string, headers http.Header) error {
+	return s.startWithContext(s.exchange.ctx, status, statusTxt, headers)
+}
+
+func (s *responseSink) startWithContext(ctx context.Context, status int, statusTxt string, headers http.Header) error {
 	s.exchange.mu.Lock()
 	if s.exchange.started {
 		s.exchange.mu.Unlock()
@@ -766,12 +819,15 @@ func (s *responseSink) start(status int, statusTxt string, headers http.Header) 
 	if h == nil {
 		h = map[string][]string{}
 	}
-	_, err = api.HttpResponseStart(context.Background(), &rpc.LlmInferenceHTTPResponseStartRequest{
+	result, err := api.HttpResponseStart(ctx, &rpc.LlmInferenceHTTPResponseStartRequest{
 		RequestID:  s.requestID,
 		Status:     int64(status),
 		StatusText: st,
 		Headers:    h,
 	})
+	if err == nil && !result.Accepted {
+		return fmt.Errorf("llmInference.httpResponseStart was rejected")
+	}
 	return err
 }
 
@@ -808,7 +864,10 @@ func (s *responseSink) writeRaw(data string, binary bool) error {
 		b := true
 		chunk.Binary = &b
 	}
-	_, err = api.HttpResponseChunk(context.Background(), chunk)
+	result, err := api.HttpResponseChunk(s.exchange.ctx, chunk)
+	if err == nil && !result.Accepted {
+		return fmt.Errorf("llmInference.httpResponseChunk was rejected")
+	}
 	return err
 }
 
@@ -826,11 +885,14 @@ func (s *responseSink) end() error {
 		return err
 	}
 	end := true
-	_, err = api.HttpResponseChunk(context.Background(), &rpc.LlmInferenceHTTPResponseChunkRequest{
+	result, err := api.HttpResponseChunk(s.exchange.ctx, &rpc.LlmInferenceHTTPResponseChunkRequest{
 		RequestID: s.requestID,
 		Data:      "",
 		End:       &end,
 	})
+	if err == nil && !result.Accepted {
+		return fmt.Errorf("llmInference.httpResponseChunk was rejected")
+	}
 	return err
 }
 
@@ -853,11 +915,14 @@ func (s *responseSink) sinkError(message string, code string) error {
 		c := code
 		chunkErr.Code = &c
 	}
-	_, err = api.HttpResponseChunk(context.Background(), &rpc.LlmInferenceHTTPResponseChunkRequest{
+	result, err := api.HttpResponseChunk(s.adapter.connectionCtx, &rpc.LlmInferenceHTTPResponseChunkRequest{
 		RequestID: s.requestID,
 		Data:      "",
 		End:       &end,
 		Error:     chunkErr,
 	})
+	if err == nil && !result.Accepted {
+		return fmt.Errorf("llmInference.httpResponseChunk was rejected")
+	}
 	return err
 }

@@ -2788,6 +2788,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             return;
         }
+        if (_clientGlobalApis?.LlmInference is LlmInferenceAdapter llmInferenceAdapter)
+        {
+            llmInferenceAdapter.CancelPending();
+        }
         foreach (var session in _sessions.Values)
         {
             session.CancelPendingExternalTools();

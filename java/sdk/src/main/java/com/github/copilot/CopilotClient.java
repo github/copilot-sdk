@@ -554,7 +554,6 @@ public final class CopilotClient implements AutoCloseable {
             JsonRpcClient connectedRpc = rpc;
             Connection connection = new Connection(connectedRpc, process, new ServerRpc(connectedRpc::invoke),
                     inProcessTransport == null ? null : inProcessTransport.host());
-            connectedRpc.setCloseHandler(() -> sessions.values().forEach(CopilotSession::cancelPendingExternalTools));
 
             // Register handlers for server-to-client calls
             RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor,
@@ -564,11 +563,19 @@ public final class CopilotClient implements AutoCloseable {
             // Register the LLM inference request handler when configured.
             com.github.copilot.CopilotRequestHandler requestHandler = this.options.getRequestHandler();
             boolean hasLlmInference = requestHandler != null;
+            LlmInferenceAdapter llmAdapter = null;
             if (hasLlmInference) {
-                LlmInferenceAdapter llmAdapter = new LlmInferenceAdapter(requestHandler,
-                        () -> connection.serverRpc().llmInference, executor);
+                llmAdapter = new LlmInferenceAdapter(requestHandler, () -> connection.serverRpc().llmInference,
+                        executor);
                 llmAdapter.registerHandlers(connectedRpc);
             }
+            LlmInferenceAdapter connectedLlmAdapter = llmAdapter;
+            connectedRpc.setCloseHandler(() -> {
+                sessions.values().forEach(CopilotSession::cancelPendingExternalTools);
+                if (connectedLlmAdapter != null) {
+                    connectedLlmAdapter.cancelPending();
+                }
+            });
 
             // Register the GitHub telemetry forwarding handler when configured.
             Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry = this.options

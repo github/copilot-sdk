@@ -61,6 +61,7 @@ _FORBIDDEN_REQUEST_HEADERS = frozenset(
 )
 
 _shared_http_client: httpx.AsyncClient | None = None
+_HTTP_RESPONSE_READ_AHEAD_BYTES = 32 * 1024
 
 
 def _get_shared_http_client() -> httpx.AsyncClient:
@@ -559,6 +560,14 @@ class _CopilotRequestAdapterHandler:
         finally:
             self._pending.pop(exchange.request_id, None)
 
+    def cancel_pending(self) -> None:
+        exchanges = tuple(self._pending.values())
+        self._pending.clear()
+        for exchange in exchanges:
+            exchange.cancelled = True
+            exchange.cancel_event.set()
+            exchange._queue.push(_BodyItem(cancel=True, cancel_reason="RPC connection closed"))
+
     def _get_or_create(self, request_id: str) -> _CopilotRequestExchange:
         # The runtime dispatches httpRequestStart and httpRequestChunk frames
         # independently. get-or-create keeps the adapter correct regardless of
@@ -727,15 +736,130 @@ async def _stream_response_to_exchange(
     )
     if response.is_stream_consumed:
         # An in-memory response (built with ``content=``) has already buffered its
-        # body, so its raw stream cannot be iterated; forward the buffered bytes.
-        body = response.content
-        if body:
-            await exchange.write_response(body)
+        # body, so its raw stream cannot be iterated.
+        async def body_stream() -> AsyncIterator[bytes]:
+            if response.content:
+                yield response.content
+
+        source = body_stream()
     else:
-        async for chunk in response.aiter_raw():
-            if chunk:
-                await exchange.write_response(chunk)
-    await exchange.end_response()
+        source = response.aiter_raw()
+
+    reader = _HttpResponseReader(source)
+    try:
+        while True:
+            chunk = await reader.next_chunk()
+            if chunk is None:
+                await exchange.end_response()
+                return
+
+            # Keep exactly one acknowledged data write alive while reading ahead.
+            # The reader owns at most 32 KiB of copied data plus the current source
+            # frame, and a pending source read is reused after a fast ACK.
+            write_task = asyncio.create_task(exchange.write_response(chunk))
+            try:
+                while not write_task.done():
+                    read_task = reader.start_read()
+                    if read_task is None:
+                        break
+                    done, _ = await asyncio.wait(
+                        {write_task, read_task}, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    if read_task in done:
+                        await reader.finish_read(read_task)
+                await write_task
+            except BaseException:
+                if not write_task.done():
+                    write_task.cancel()
+                    try:
+                        await write_task
+                    except (asyncio.CancelledError, Exception):
+                        # Preserve the original failure that triggered cleanup.
+                        pass
+                raise
+    finally:
+        await reader.aclose()
+
+
+class _HttpResponseReader:
+    """Bounded response-body read-ahead with immediate partial flushes."""
+
+    def __init__(self, source: AsyncIterator[bytes]) -> None:
+        self._source = source.__aiter__()
+        self._frames: list[bytes] = []
+        self._queued = 0
+        self._error: Exception | None = None
+        self._done = False
+        self._read_task: asyncio.Task[None] | None = None
+
+    def _can_read(self) -> bool:
+        return self._queued < _HTTP_RESPONSE_READ_AHEAD_BYTES and not self._done
+
+    def start_read(self) -> asyncio.Task[None] | None:
+        if self._read_task is None and self._can_read():
+            self._read_task = asyncio.create_task(self._read_more())
+        return self._read_task
+
+    async def _wait_for_read(self) -> None:
+        task = self.start_read()
+        if task is None:
+            return
+        await self.finish_read(task)
+
+    async def finish_read(self, task: asyncio.Task[None]) -> None:
+        try:
+            _ = await task
+        finally:
+            if task.done() and self._read_task is task:
+                self._read_task = None
+
+    async def _read_more(self) -> None:
+        # Always-ready custom iterators, including ones producing empty chunks,
+        # must still yield to task cancellation.
+        await asyncio.sleep(0)
+        try:
+            frame = await anext(self._source)
+        except StopAsyncIteration:
+            self._done = True
+            return
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self._error = exc
+            self._done = True
+            return
+
+        if frame:
+            self._frames.append(frame)
+            self._queued += len(frame)
+
+    async def next_chunk(self) -> bytes | None:
+        while not self._frames and self._can_read():
+            await self._wait_for_read()
+        if self._frames:
+            # A lone frame is forwarded as-is; joining is only needed once
+            # read-ahead has run past the chunk awaiting acknowledgement.
+            chunk = self._frames[0] if len(self._frames) == 1 else b"".join(self._frames)
+            self._frames.clear()
+            self._queued = 0
+            return chunk
+        if self._error is not None:
+            error = self._error
+            self._error = None
+            raise error
+        return None
+
+    async def aclose(self) -> None:
+        task = self._read_task
+        self._read_task = None
+        if task is not None and not task.done():
+            task.cancel()
+        if task is not None:
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                # Cancellation and source failures are expected during cleanup.
+                pass
 
 
 def _headers_to_multi_map(headers: Any) -> LlmInferenceHeaders:

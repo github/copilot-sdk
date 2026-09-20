@@ -420,6 +420,7 @@ export class CopilotClient {
     private cliProcess: ChildProcess | null = null;
     private ffiHost: FfiRuntimeHost | null = null;
     private connection: MessageConnection | null = null;
+    private requestAdapter: ReturnType<typeof createCopilotRequestAdapter> | null = null;
     private messageWriter: TeardownResilientStreamMessageWriter | null = null;
     private connectionClosed: boolean = false;
     private socket: Socket | null = null;
@@ -816,13 +817,14 @@ export class CopilotClient {
         const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
         handlers.extensionLaunchProvider = this.extensionLaunchProvider;
         if (this.requestHandler) {
-            handlers.llmInference = createCopilotRequestAdapter(this.requestHandler, () => {
+            this.requestAdapter = createCopilotRequestAdapter(this.requestHandler, () => {
                 if (!this.connection) {
                     return undefined;
                 }
                 this._rpc ??= createServerRpc(this.connection);
                 return this._rpc;
             });
+            handlers.llmInference = this.requestAdapter;
         }
         if (this.onGitHubTelemetry) {
             const onGitHubTelemetry = this.onGitHubTelemetry;
@@ -3077,6 +3079,7 @@ export class CopilotClient {
             }
             this.sessions.clear();
             this.githubTokenProviders.clear();
+            this.requestAdapter?.cancelPending();
         };
         this.connection.onClose(markDisconnected);
         this.connection.onError(() => {

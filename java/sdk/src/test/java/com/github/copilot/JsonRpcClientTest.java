@@ -215,6 +215,38 @@ class JsonRpcClientTest {
         }
     }
 
+    @Test
+    void testInvokeFailsAfterRemoteClose() throws Exception {
+        try (var pair = createSocketPair()) {
+            var closed = new CompletableFuture<Void>();
+            pair.client.setCloseHandler(() -> closed.complete(null));
+
+            pair.serverSide.close();
+            closed.get(5, TimeUnit.SECONDS);
+
+            var future = pair.client.invoke("test", Map.of(), JsonNode.class);
+            var ex = assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+            assertInstanceOf(IOException.class, ex.getCause());
+        }
+    }
+
+    @Test
+    void testPendingInvokeFailsBeforeRemoteCloseHandlerRuns() throws Exception {
+        try (var pair = createSocketPair()) {
+            var future = pair.client.invoke("test", Map.of(), JsonNode.class);
+            readRpcMessage(pair.serverSide.getInputStream());
+
+            var closeHandlerObservedFailure = new CompletableFuture<Boolean>();
+            pair.client.setCloseHandler(() -> closeHandlerObservedFailure.complete(future.isCompletedExceptionally()));
+
+            pair.serverSide.close();
+
+            assertTrue(closeHandlerObservedFailure.get(5, TimeUnit.SECONDS));
+            var ex = assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+            assertInstanceOf(IOException.class, ex.getCause());
+        }
+    }
+
     // ---- invoke() edge cases ----
 
     @Test

@@ -156,6 +156,8 @@ type Client struct {
 	sessionsMux             sync.Mutex
 	gitHubTokenProviders    map[string]GitHubTokenProvider
 	gitHubTokenProvidersMux sync.RWMutex
+	requestAdapter          *copilotRequestAdapter
+	requestAdapterMux       sync.Mutex
 	sessionOperations       map[string]*sessionOperation
 	sessionOperationsMux    sync.Mutex
 	isExternalServer        bool
@@ -601,6 +603,7 @@ func (c *Client) Stop() error {
 	c.sessions = make(map[string]*Session)
 	c.sessionsMux.Unlock()
 	c.clearGitHubTokenProviders()
+	c.closeCopilotRequestAdapter()
 
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
@@ -724,6 +727,7 @@ func (c *Client) ForceStop() {
 		session.cancelPendingExternalTools()
 	}
 	c.clearGitHubTokenProviders()
+	c.closeCopilotRequestAdapter()
 
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
@@ -2506,9 +2510,17 @@ func (c *Client) setupNotificationHandler() {
 
 	if c.options.RequestHandler != nil {
 		llmInference := c.RPC.LlmInference
-		handlers.LlmInference = newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
+		adapter := newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
 			return llmInference
 		})
+		c.requestAdapterMux.Lock()
+		previous := c.requestAdapter
+		c.requestAdapter = adapter
+		c.requestAdapterMux.Unlock()
+		if previous != nil {
+			previous.close()
+		}
+		handlers.LlmInference = adapter
 	}
 	if c.options.OnGitHubTelemetry != nil {
 		handlers.GitHubTelemetry = &gitHubTelemetryAdapter{callback: c.options.OnGitHubTelemetry}
@@ -2546,6 +2558,7 @@ func (c *Client) clearGitHubTokenProviders() {
 }
 
 func (c *Client) handleConnectionClose() {
+	c.closeCopilotRequestAdapter()
 	c.clearGitHubTokenProviders()
 	c.sessionsMux.Lock()
 	sessions := make([]*Session, 0, len(c.sessions))
@@ -2563,6 +2576,15 @@ func (c *Client) handleConnectionClose() {
 		defer c.startStopMux.Unlock()
 		c.state = stateDisconnected
 	}()
+}
+
+func (c *Client) closeCopilotRequestAdapter() {
+	c.requestAdapterMux.Lock()
+	adapter := c.requestAdapter
+	c.requestAdapterMux.Unlock()
+	if adapter != nil {
+		adapter.close()
+	}
 }
 
 func (c *Client) lockSessionOperation(sessionID string) func() {
