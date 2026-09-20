@@ -1886,7 +1886,13 @@ function findAssistantIndexAfterPrefix(
     if (prefix.length !== requestMessages.length) continue;
 
     const mismatchIndex = requestMessages.findIndex(
-      (message, i) => JSON.stringify(message) !== JSON.stringify(prefix[i]),
+      (message, i) =>
+        !replayMessagesEqual(
+          message,
+          prefix[i],
+          requestMessages[i - 1],
+          prefix[i - 1],
+        ),
     );
     if (mismatchIndex === -1) {
       log(`MATCH found at index ${nextIndex}`);
@@ -1901,6 +1907,45 @@ function findAssistantIndexAfterPrefix(
 
   log(`no matching assistant boundary, saved.length=${savedMessages.length}`);
   return undefined;
+}
+
+function replayMessagesEqual(
+  request: NormalizedMessage,
+  saved: NormalizedMessage,
+  previousRequest: NormalizedMessage | undefined,
+  previousSaved: NormalizedMessage | undefined,
+): boolean {
+  if (JSON.stringify(request) === JSON.stringify(saved)) return true;
+
+  if (
+    request.role !== "assistant" ||
+    saved.role !== "assistant" ||
+    !isSuccessfulTaskCompletionNotification(previousRequest) ||
+    !isSuccessfulTaskCompletionNotification(previousSaved) ||
+    !request.tool_calls?.some((call) => call.function?.name === "read_agent") ||
+    !saved.tool_calls?.some((call) => call.function?.name === "read_agent")
+  ) {
+    return false;
+  }
+
+  const { content: _requestContent, ...requestWithoutContent } = request;
+  const { content: _savedContent, ...savedWithoutContent } = saved;
+  return (
+    JSON.stringify(requestWithoutContent) ===
+    JSON.stringify(savedWithoutContent)
+  );
+}
+
+function isSuccessfulTaskCompletionNotification(
+  message: NormalizedMessage | undefined,
+): boolean {
+  return (
+    message?.role === "user" &&
+    typeof message.content === "string" &&
+    /<system_notification>[\s\S]*Agent "[^"]+" \([^)]+\) (?:has completed successfully|has finished processing and is now idle)\./.test(
+      message.content,
+    )
+  );
 }
 
 function expandWorkDir(

@@ -264,6 +264,35 @@ for (const timing of ["before", "after"] as const) {
   );
 }
 
+test("replays a contentless read_agent call after early completion", async () => {
+  const proxy = new ReplayingCapiProxy(
+    "http://127.0.0.1:1",
+    snapshotPath,
+    import.meta.dirname,
+  );
+  const url = await proxy.start();
+  const messages = [
+    ...original.slice(0, 5),
+    shortIdleNotification,
+    shortReadAgent,
+    toolResult,
+  ];
+  try {
+    const response = await fetch(`${url}/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: stored.models[0],
+        messages,
+      }),
+    });
+    expect(response.status, await response.clone().text()).toBe(200);
+    expectReply(await readReply(response, false), finalAnswer);
+  } finally {
+    await proxy.stop(true);
+  }
+});
+
 test("timing and wording alternatives retain the full result and final continuation", () => {
   expect(stored.conversations).toHaveLength(7);
   expect(stored.conversations[4].messages).toEqual([
