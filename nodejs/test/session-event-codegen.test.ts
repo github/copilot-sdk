@@ -169,6 +169,28 @@ class ProbeResult:
         expect(processed).not.toContain("class ExternalRefMCPOauthHTTPResponse");
     });
 
+    it("uses external discriminated union loaders for deserialization", () => {
+        const code = `@dataclass
+class PendingRequest:
+    request: PermissionPromptRequest
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PendingRequest':
+        request = PermissionPromptRequest.from_dict(obj.get("request"))
+        return PendingRequest(request)
+`;
+
+        const processed = postProcessExternalRefsForPython(
+            code,
+            new Map([["__ExternalRef_PermissionPromptRequest", "PermissionPromptRequest"]]),
+            new Set(),
+            new Set(["PermissionPromptRequest"])
+        );
+
+        expect(processed).toContain('request = _load_PermissionPromptRequest(obj.get("request"))');
+        expect(processed).not.toContain("PermissionPromptRequest.from_dict");
+    });
+
     it("maps special schema formats to the expected Python types", () => {
         const schema: JSONSchema7 = {
             definitions: {

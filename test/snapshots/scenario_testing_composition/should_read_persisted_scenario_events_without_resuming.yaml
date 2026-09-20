@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly SCENARIO_PERSISTED_HISTORY.
+      - role: assistant
+        content: SCENARIO_PERSISTED_HISTORY

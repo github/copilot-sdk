@@ -7,6 +7,7 @@ package com.github.copilot;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.github.copilot.rpc.Attachment;
 import com.github.copilot.rpc.BlobAttachment;
+import com.github.copilot.rpc.ExtensionContextAttachment;
 import com.github.copilot.rpc.MessageAttachment;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.SendMessageRequest;
@@ -45,6 +47,13 @@ class MessageAttachmentTest {
         assertEquals("blob", blob.getType());
     }
 
+    @Test
+    void extensionContextAttachmentImplementsMessageAttachment() {
+        ExtensionContextAttachment context = extensionContextAttachment();
+        assertInstanceOf(MessageAttachment.class, context);
+        assertEquals("extension_context", context.getType());
+    }
+
     // =========================================================================
     // MessageOptions type safety
     // =========================================================================
@@ -73,12 +82,13 @@ class MessageAttachmentTest {
     void setAttachmentsAcceptsMixedList() {
         MessageOptions options = new MessageOptions();
         List<MessageAttachment> mixed = List.of(new Attachment("file", "/a.java", "A"),
-                new BlobAttachment().setData("ZGF0YQ==").setMimeType("image/png"));
+                new BlobAttachment().setData("ZGF0YQ==").setMimeType("image/png"), extensionContextAttachment());
         options.setAttachments(mixed);
 
-        assertEquals(2, options.getAttachments().size());
+        assertEquals(3, options.getAttachments().size());
         assertInstanceOf(Attachment.class, options.getAttachments().get(0));
         assertInstanceOf(BlobAttachment.class, options.getAttachments().get(1));
+        assertInstanceOf(ExtensionContextAttachment.class, options.getAttachments().get(2));
     }
 
     @Test
@@ -133,14 +143,28 @@ class MessageAttachmentTest {
     }
 
     @Test
+    void serializeExtensionContextAttachmentIncludesContext() throws Exception {
+        String json = MAPPER.writeValueAsString(extensionContextAttachment());
+        assertTrue(json.contains("\"type\":\"extension_context\""));
+        assertTrue(json.contains("\"capturedAt\":\"2026-09-18T20:00:00Z\""));
+        assertTrue(json.contains("\"extensionId\":\"scenario-extension\""));
+        assertTrue(json.contains("\"canvasId\":\"diff\""));
+        assertTrue(json.contains("\"instanceId\":\"diff-17\""));
+        assertTrue(json.contains("\"selection\":\"active\""));
+    }
+
+    @Test
     void serializeMessageOptionsWithMixedAttachments() throws Exception {
         MessageOptions options = new MessageOptions().setPrompt("Describe")
                 .setAttachments(List.of(new Attachment("file", "/a.java", "A"),
-                        new BlobAttachment().setData("ZGF0YQ==").setMimeType("image/png").setDisplayName("img.png")));
+                        new BlobAttachment().setData("ZGF0YQ==").setMimeType("image/png").setDisplayName("img.png"),
+                        extensionContextAttachment()));
 
         String json = MAPPER.writeValueAsString(options);
         assertTrue(json.contains("\"type\":\"file\""));
         assertTrue(json.contains("\"type\":\"blob\""));
+        assertTrue(json.contains("\"type\":\"extension_context\""));
+        assertTrue(json.contains("\"selection\":\"active\""));
     }
 
     @Test
@@ -154,5 +178,11 @@ class MessageAttachmentTest {
         assertInstanceOf(Attachment.class, cloned.getAttachments().get(0));
         // Verify clone is independent
         assertNotSame(original.getAttachments(), cloned.getAttachments());
+    }
+
+    private static ExtensionContextAttachment extensionContextAttachment() {
+        return new ExtensionContextAttachment().setCapturedAt("2026-09-18T20:00:00Z")
+                .setExtensionId("scenario-extension").setTitle("Selected change").setCanvasId("diff")
+                .setInstanceId("diff-17").setPayload(Map.of("selection", "active"));
     }
 }

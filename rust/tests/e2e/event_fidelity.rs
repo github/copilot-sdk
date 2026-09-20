@@ -1,9 +1,18 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use async_trait::async_trait;
 use github_copilot_sdk::session_events::{
     AssistantMessageData, AssistantUsageData, SessionEventType, SessionUsageInfoData,
-    ToolExecutionCompleteData, ToolExecutionStartData, UserMessageData,
+    ToolExecutionCompleteData, ToolExecutionStartData, UserMessageData, UserMessageDelivery,
 };
+use github_copilot_sdk::tool::ToolHandler;
+use github_copilot_sdk::{
+    DeliveryMode, Error, MessageOptions, MessageSource, Tool, ToolInvocation, ToolResult,
+};
+use tokio::sync::{Mutex, mpsc};
 
-use super::support::{collect_until_idle, event_types};
+use super::support::{collect_until_idle, event_types, recv_with_timeout, wait_for_event};
 
 #[tokio::test]
 async fn should_include_valid_fields_on_all_events() {
@@ -373,6 +382,194 @@ async fn should_preserve_message_order_in_getmessages_after_tool_use() {
         },
     )
     .await;
+}
+
+#[tokio::test]
+async fn should_order_idle_queued_and_immediate_delivery_while_busy() {
+    super::support::with_dedicated_e2e_context(
+        "scenario_testing_sends",
+        "should_order_idle_queued_and_immediate_scenario_delivery",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (started_tx, mut started_rx) = mpsc::unbounded_channel();
+                let (release_tx, release_rx) = mpsc::channel(2);
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        ctx.approve_all_session_config().with_tools(vec![
+                            Tool::new("scenario_send_blocker")
+                                .with_description("Blocks the active turn until released")
+                                .with_handler(Arc::new(SequencedBlockingTool {
+                                    started_tx,
+                                    release_rx: Mutex::new(release_rx),
+                                    invocation_count: AtomicUsize::new(0),
+                                })),
+                        ]),
+                    )
+                    .await
+                    .expect("create session");
+
+                let idle_enqueue = tokio::spawn(wait_for_event(
+                    session.subscribe(),
+                    "idle enqueue completion",
+                    |event| event.parsed_type() == SessionEventType::SessionIdle,
+                ));
+                let idle_enqueue_id = session
+                    .send(
+                        MessageOptions::new("Reply with exactly IDLE_ENQUEUE.")
+                            .with_mode(DeliveryMode::Enqueue)
+                            .with_source(MessageSource::Agent("scenario-client".to_string())),
+                    )
+                    .await
+                    .expect("send idle enqueue");
+                idle_enqueue.await.expect("idle enqueue task");
+
+                let idle_immediate = tokio::spawn(wait_for_event(
+                    session.subscribe(),
+                    "idle immediate completion",
+                    |event| event.parsed_type() == SessionEventType::SessionIdle,
+                ));
+                let idle_immediate_id = session
+                    .send(
+                        MessageOptions::new("Reply with exactly IDLE_IMMEDIATE.")
+                            .with_mode(DeliveryMode::Immediate)
+                            .with_source(MessageSource::Agent("scenario-client".to_string())),
+                    )
+                    .await
+                    .expect("send idle immediate");
+                idle_immediate.await.expect("idle immediate task");
+
+                session
+                    .send(
+                        MessageOptions::new(
+                            "Call scenario_send_blocker, then reply with its result.",
+                        )
+                        .with_source(MessageSource::Agent("scenario-client".to_string())),
+                    )
+                    .await
+                    .expect("start blocking turn");
+                assert_eq!(
+                    recv_with_timeout(&mut started_rx, "first blocker invocation").await,
+                    1
+                );
+
+                let steering_id = session
+                    .send(
+                        MessageOptions::new(
+                            "Call scenario_send_blocker again, then reply with exactly FIRST_STEERING.",
+                        )
+                        .with_mode(DeliveryMode::Immediate)
+                        .with_source(MessageSource::Agent("scenario-client".to_string())),
+                    )
+                    .await
+                    .expect("send steering message");
+                release_tx
+                    .send("SCENARIO_SEND_BLOCKER_RELEASED".to_string())
+                    .await
+                    .expect("release first blocker");
+                assert_eq!(
+                    recv_with_timeout(&mut started_rx, "second blocker invocation").await,
+                    2
+                );
+
+                let second_immediate_id = session
+                    .send(
+                        MessageOptions::new("Reply with exactly SECOND_IMMEDIATE.")
+                            .with_mode(DeliveryMode::Immediate)
+                            .with_source(MessageSource::Agent("scenario-client".to_string())),
+                    )
+                    .await
+                    .expect("send second immediate");
+                let queued_id = session
+                    .send(
+                        MessageOptions::new("Reply with exactly FINAL_QUEUED.")
+                            .with_mode(DeliveryMode::Enqueue)
+                            .with_source(MessageSource::Agent("scenario-client".to_string())),
+                    )
+                    .await
+                    .expect("send queued message");
+                let final_queued = tokio::spawn(wait_for_event(
+                    session.subscribe(),
+                    "final queued response",
+                    |event| {
+                        event.parsed_type() == SessionEventType::AssistantMessage
+                            && event
+                                .typed_data::<AssistantMessageData>()
+                                .is_some_and(|data| data.content.contains("FINAL_QUEUED"))
+                    },
+                ));
+                release_tx
+                    .send("SCENARIO_SEND_BLOCKER_RELEASED_AGAIN".to_string())
+                    .await
+                    .expect("release second blocker");
+                final_queued.await.expect("final queued task");
+
+                let events = session.get_events().await.expect("get events");
+                let messages = events
+                    .iter()
+                    .filter_map(|event| {
+                        (event.parsed_type() == SessionEventType::UserMessage)
+                            .then(|| event.typed_data::<UserMessageData>())
+                            .flatten()
+                    })
+                    .collect::<Vec<_>>();
+                let find = |id: &str| {
+                    messages
+                        .iter()
+                        .find(|message| message.message_id.as_deref() == Some(id))
+                        .expect("user message by id")
+                };
+                assert_eq!(
+                    find(&idle_enqueue_id).delivery,
+                    Some(UserMessageDelivery::Idle)
+                );
+                assert_eq!(
+                    find(&idle_immediate_id).delivery,
+                    Some(UserMessageDelivery::Idle)
+                );
+                assert_eq!(
+                    find(&steering_id).delivery,
+                    Some(UserMessageDelivery::Steering)
+                );
+                assert_eq!(
+                    find(&second_immediate_id).delivery,
+                    Some(UserMessageDelivery::Steering)
+                );
+                assert_eq!(find(&queued_id).delivery, Some(UserMessageDelivery::Queued));
+
+                let position = |id: &str| {
+                    messages
+                        .iter()
+                        .position(|message| message.message_id.as_deref() == Some(id))
+                        .expect("message position")
+                };
+                assert!(position(&steering_id) < position(&second_immediate_id));
+                assert!(position(&second_immediate_id) < position(&queued_id));
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+struct SequencedBlockingTool {
+    started_tx: mpsc::UnboundedSender<usize>,
+    release_rx: Mutex<mpsc::Receiver<String>>,
+    invocation_count: AtomicUsize,
+}
+
+#[async_trait]
+impl ToolHandler for SequencedBlockingTool {
+    async fn call(&self, _invocation: ToolInvocation) -> Result<ToolResult, Error> {
+        let mut release_rx = self.release_rx.lock().await;
+        let invocation = self.invocation_count.fetch_add(1, Ordering::SeqCst) + 1;
+        let _ = self.started_tx.send(invocation);
+        let result = release_rx.recv().await.expect("tool release value");
+        Ok(ToolResult::Text(result))
+    }
 }
 static E2E: super::support::SharedE2eGroup =
     super::support::SharedE2eGroup::standard("event_fidelity", 8);

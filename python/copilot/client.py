@@ -70,6 +70,7 @@ from .copilot_request_handler import CopilotRequestHandler, create_copilot_reque
 from .generated.rpc import (
     ClientGlobalApiHandlers,
     ClientSessionApiHandlers,
+    ExtensionLaunchProviderHandler,
     GitHubTelemetryNotification,
     GitHubTokenAcquireReason,
     GitHubTokenAcquireRequest,
@@ -812,6 +813,7 @@ class _CopilotClientOptions:
     github_token: str | None = None
     base_directory: str | None = None
     builtin_plugin_directories: tuple[str, ...] = ()
+    extension_launch_provider: ExtensionLaunchProviderHandler | None = None
     use_logged_in_user: bool | None = None
     telemetry: TelemetryConfig | None = None
     session_fs: SessionFsConfig | None = None
@@ -1567,6 +1569,7 @@ class CopilotClient:
         github_token: str | None = None,
         base_directory: str | None = None,
         builtin_plugin_directories: Sequence[str] | None = None,
+        extension_launch_provider: ExtensionLaunchProviderHandler | None = None,
         use_logged_in_user: bool | None = None,
         telemetry: TelemetryConfig | None = None,
         session_fs: SessionFsConfig | None = None,
@@ -1606,6 +1609,9 @@ class CopilotClient:
             builtin_plugin_directories: Absolute paths to trusted plugin
                 directories bundled by the host. When non-empty, the complete
                 set is registered during startup before sessions can be created.
+            extension_launch_provider: Connection-level extension launch profile
+                provider. When set, it is registered during startup before any
+                session can be created.
             use_logged_in_user: Use the logged-in user for authentication.
                 ``None`` (default) resolves to ``True`` unless ``github_token``
                 is set.
@@ -1659,6 +1665,7 @@ class CopilotClient:
             github_token=github_token,
             base_directory=base_directory,
             builtin_plugin_directories=tuple(builtin_plugin_directories or ()),
+            extension_launch_provider=extension_launch_provider,
             use_logged_in_user=use_logged_in_user,
             telemetry=telemetry,
             session_fs=session_fs,
@@ -1974,6 +1981,9 @@ class CopilotClient:
                 "CopilotClient.start protocol verification complete",
                 start_time,
             )
+
+            if self._options.extension_launch_provider is not None:
+                await self.rpc.register_extension_launch_provider()
 
             if self._options.builtin_plugin_directories:
                 assert self._client is not None
@@ -4865,6 +4875,7 @@ class CopilotClient:
             self._client,
             ClientGlobalApiHandlers(
                 hooks=_HooksAdapter(self._get_session),
+                extension_launch_provider=self._options.extension_launch_provider,
                 llm_inference=llm_inference_adapter,
                 git_hub_telemetry=github_telemetry_adapter,
                 git_hub_token=self._github_token_provider_adapter,

@@ -319,6 +319,7 @@ public sealed class CopilotClientOptions
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
         RequestHandler = other.RequestHandler;
+        ExtensionLaunchProvider = other.ExtensionLaunchProvider;
         OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
@@ -432,6 +433,14 @@ public sealed class CopilotClientOptions
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     public CopilotRequestHandler? RequestHandler { get; set; }
+
+    /// <summary>
+    /// Connection-level extension launch profile provider.
+    /// When set, the SDK registers the provider during <c>StartAsync()</c>
+    /// before any session can be created.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public IExtensionLaunchProviderHandler? ExtensionLaunchProvider { get; set; }
 
     /// <summary>
     /// Experimental. Receives GitHub telemetry events the runtime forwards to this

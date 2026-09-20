@@ -257,13 +257,18 @@ class JsonRpcClient:
         loop = self._loop or asyncio.get_event_loop()
 
         def write():
+            if hasattr(self.process, "poll") and self.process.poll() is not None:
+                raise ProcessExitedError(self._get_process_exit_error())
             content = json.dumps(message, separators=(",", ":"))
             content_bytes = content.encode("utf-8")
             header = f"Content-Length: {len(content_bytes)}\r\n\r\n"
             with self._write_lock:
-                self.process.stdin.write(header.encode("utf-8"))
-                self.process.stdin.write(content_bytes)
-                self.process.stdin.flush()
+                try:
+                    self.process.stdin.write(header.encode("utf-8"))
+                    self.process.stdin.write(content_bytes)
+                    self.process.stdin.flush()
+                except (BrokenPipeError, OSError, ValueError) as exc:
+                    raise ProcessExitedError(self._get_process_exit_error()) from exc
 
         # Run in thread pool to avoid blocking
         await loop.run_in_executor(None, write)

@@ -29,6 +29,7 @@ import com.github.copilot.ffi.FfiRuntimeHost;
 import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.ExtensionLaunchProvider;
 import com.github.copilot.rpc.InProcessRuntimeConnection;
 import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.StdioRuntimeConnection;
@@ -577,10 +578,19 @@ public final class CopilotClient implements AutoCloseable {
                 telemetryAdapter.registerHandlers(connectedRpc);
             }
 
+            ExtensionLaunchProvider extensionLaunchProvider = this.options.getExtensionLaunchProvider();
+            if (extensionLaunchProvider != null) {
+                new ExtensionLaunchProviderAdapter(extensionLaunchProvider).registerHandlers(connectedRpc);
+            }
+
             // Verify protocol version
             verifyProtocolVersion(connection);
             LoggingHelpers.logTiming(LOG, Level.FINE,
                     "CopilotClient.start protocol verification complete. Elapsed={Elapsed}", startNanos);
+
+            if (extensionLaunchProvider != null) {
+                connection.serverRpc().registerExtensionLaunchProvider().join();
+            }
 
             var builtinPluginDirectories = options.getBuiltinPluginDirectories();
             if (builtinPluginDirectories != null && !builtinPluginDirectories.isEmpty()) {

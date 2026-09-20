@@ -95,6 +95,46 @@ public class JsonRpcTests
     }
 
     [Fact]
+    public async Task JsonRpc_Dispose_Completes_Cleanup_When_Cancellation_Callback_Throws()
+    {
+        using var pair = JsonRpcReflectionPair.Create(startServer: false);
+        using var registration = pair.Client.RegisterDisposeCallback(
+            () => throw new InvalidOperationException("callback failed"));
+        var pending = pair.Client.InvokeAsync<string>("stillPending", args: null);
+
+        var exception = Assert.Throws<AggregateException>(() => pair.Client.Dispose());
+
+        Assert.Contains(
+            exception.InnerExceptions,
+            inner => inner is InvalidOperationException { Message: "callback failed" });
+        await Assert.ThrowsAnyAsync<ObjectDisposedException>(() => pending);
+        Assert.True(pair.Client.Completion.IsCompleted);
+        Assert.False(pair.Client.Completion.IsFaulted);
+        Assert.False(pair.Client.Completion.IsCanceled);
+        pair.Client.Dispose();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task JsonRpc_Process_Exit_Reports_Connection_Lost(bool requestBeforeExit)
+    {
+        using var pair = JsonRpcReflectionPair.Create(startServer: false);
+        await using var client = new CopilotClient();
+        var pending = requestBeforeExit
+            ? pair.Client.InvokeAsync<string>("pendingAtExit", args: null)
+            : null;
+
+        pair.Client.NotifyProcessExit(client);
+        pending ??= pair.Client.InvokeAsync<string>("afterExit", args: null);
+
+        var exception = await Assert.ThrowsAnyAsync<IOException>(() => pending);
+        Assert.Equal("ConnectionLostException", exception.GetType().Name);
+        Assert.Equal("The JSON-RPC connection was lost.", exception.Message);
+        Assert.True(pair.Client.Completion.IsCompleted);
+    }
+
+    [Fact]
     public async Task JsonRpc_Does_Not_Retain_Oversized_Receive_Buffer()
     {
         var oversizedFrame = CreateResponseFrame(
@@ -236,10 +276,20 @@ public class JsonRpcTests
                 culture: null)!;
         }
 
+        public Task Completion => (Task)JsonRpcType.GetProperty(nameof(Completion))!.GetValue(_instance)!;
+
         public void StartListening() => JsonRpcType.GetMethod(nameof(StartListening))!.Invoke(_instance, null);
 
         public void SetLocalRpcMethod(string methodName, Delegate handler, bool singleObjectParam = false) =>
             JsonRpcType.GetMethod("SetLocalRpcMethod")!.Invoke(_instance, [methodName, handler, singleObjectParam]);
+
+        public CancellationTokenRegistration RegisterDisposeCallback(Action callback)
+        {
+            var disposeCts = (CancellationTokenSource)JsonRpcType
+                .GetField("_disposeCts", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .GetValue(_instance)!;
+            return disposeCts.Token.Register(callback);
+        }
 
         public async Task<T> InvokeAsync<T>(string methodName, object?[]? args, CancellationToken cancellationToken = default)
         {
@@ -253,6 +303,11 @@ public class JsonRpcTests
         }
 
         public void Dispose() => ((IDisposable)_instance).Dispose();
+
+        public void NotifyProcessExit(CopilotClient client) =>
+            typeof(CopilotClient)
+                .GetMethod("DisposeRpcAfterProcessExit", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(client, [_instance]);
     }
 
     private sealed class CoalescedFramesThenWaitStream : Stream
