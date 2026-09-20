@@ -404,8 +404,6 @@ public class JsonRpcTests
 
         public void StartListening() => JsonRpcType.GetMethod(nameof(StartListening))!.Invoke(_instance, null);
 
-        public Task Completion => (Task)JsonRpcType.GetProperty(nameof(Completion))!.GetValue(_instance)!;
-
         public void SetLocalRpcMethod(string methodName, Delegate handler, bool singleObjectParam = false) =>
             JsonRpcType.GetMethod("SetLocalRpcMethod")!.Invoke(_instance, [methodName, handler, singleObjectParam]);
 
