@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
@@ -127,6 +128,49 @@ class HttpResponseForwardingTest {
             PendingCall error = flow.next("llmInference.httpResponseChunk");
             assertTrue(chunk(error).end());
             assertEquals("upstream failed", chunk(error).error().message());
+            flow.ack(error);
+            flow.awaitComplete();
+            assertTrue(flow.source.closed.get());
+        }
+    }
+
+    @Test
+    void uncheckedUpstreamErrorFollowsBufferedBytesAndOutstandingAck() throws Exception {
+        try (TestFlow flow = new TestFlow()) {
+            flow.source.feed("first");
+            flow.ack(flow.next("llmInference.httpResponseStart"));
+            PendingCall first = flow.nextData();
+
+            flow.source.feed("partial");
+            flow.source.fail(new UncheckedIOException(new IOException("unchecked upstream failed")));
+            flow.source.awaitFailureRead();
+            assertNull(flow.poll(), "Buffered bytes must not overtake the outstanding write");
+
+            flow.ack(first);
+            PendingCall partial = flow.nextData();
+            assertArrayEquals(bytes("partial"), data(partial));
+            assertNull(flow.poll(), "The upstream error must follow the buffered bytes");
+
+            flow.ack(partial);
+            PendingCall error = flow.next("llmInference.httpResponseChunk");
+            assertTrue(chunk(error).end());
+            assertEquals("unchecked upstream failed", chunk(error).error().message());
+            flow.ack(error);
+            flow.awaitComplete();
+            assertTrue(flow.source.closed.get());
+        }
+    }
+
+    @Test
+    void messageLessUncheckedUpstreamErrorHasTerminalMessage() throws Exception {
+        try (TestFlow flow = new TestFlow()) {
+            flow.ack(flow.next("llmInference.httpResponseStart"));
+            flow.source.fail(new IllegalStateException());
+            flow.source.awaitFailureRead();
+
+            PendingCall error = flow.next("llmInference.httpResponseChunk");
+            assertTrue(chunk(error).end());
+            assertTrue(chunk(error).error().message().contains(IllegalStateException.class.getName()));
             flow.ack(error);
             flow.awaitComplete();
             assertTrue(flow.source.closed.get());
@@ -336,6 +380,10 @@ class HttpResponseForwardingTest {
             items.add(error);
         }
 
+        void fail(RuntimeException error) {
+            items.add(error);
+        }
+
         void awaitBytesRead(long expected) throws Exception {
             long deadline = System.nanoTime() + DEADLINE.toNanos();
             while (bytesRead.get() < expected && System.nanoTime() < deadline) {
@@ -389,6 +437,10 @@ class HttpResponseForwardingTest {
                     return -1;
                 }
                 if (item instanceof IOException e) {
+                    failureRead.complete(null);
+                    throw e;
+                }
+                if (item instanceof RuntimeException e) {
                     failureRead.complete(null);
                     throw e;
                 }

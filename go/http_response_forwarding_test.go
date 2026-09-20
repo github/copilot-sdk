@@ -446,6 +446,34 @@ func TestHTTPResponseFlushesPartialBytesImmediately(t *testing.T) {
 	peer.ack(end)
 }
 
+func TestHTTPResponseCompletionReleasesExchangeContext(t *testing.T) {
+	body, writer := newTrackedResponseBody()
+	peer := newResponseProtocolPeer(t, body)
+	peer.startAndAck()
+
+	peer.adapter.mu.Lock()
+	exchange := peer.adapter.pending["test"]
+	peer.adapter.mu.Unlock()
+	if exchange == nil {
+		t.Fatal("pending exchange was not registered")
+	}
+
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	end := peer.nextRequest()
+	if params := responseChunkParams(t, end); params["end"] != true || params["error"] != nil {
+		t.Fatalf("unexpected terminal chunk: %s", end.Params)
+	}
+	peer.ack(end)
+
+	select {
+	case <-exchange.ctx.Done():
+	case <-time.After(responseProtocolTimeout):
+		t.Fatal("completed exchange context was not released")
+	}
+}
+
 func TestHTTPResponseUpstreamErrorFollowsBufferedBytesAndAcknowledgement(t *testing.T) {
 	body, writer := newTrackedResponseBody()
 	peer := newResponseProtocolPeer(t, body)

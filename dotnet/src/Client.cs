@@ -557,6 +557,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public async Task StopAsync()
     {
         List<Exception> errors = [];
+        CancelPendingExternalTools();
 
         foreach (var session in _sessions.Values.ToArray())
         {
@@ -602,10 +603,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task ForceStopAsync()
     {
-        foreach (var session in _sessions.Values)
-        {
-            session.CancelPendingExternalTools();
-        }
+        CancelPendingExternalTools();
         _sessions.Clear();
         ClearGitHubTokenProviders();
 
@@ -2788,6 +2786,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             return;
         }
+        CancelPendingExternalTools();
+    }
+
+    private void CancelPendingExternalTools()
+    {
         if (_clientGlobalApis?.LlmInference is LlmInferenceAdapter llmInferenceAdapter)
         {
             llmInferenceAdapter.CancelPending();

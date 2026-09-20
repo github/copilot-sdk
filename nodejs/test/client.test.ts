@@ -4287,6 +4287,19 @@ describe("CopilotClient", () => {
 
     describe("shutdown", () => {
         it.each(["stop", "forceStop"] as const)(
+            "%s cancels pending inference requests before transport teardown",
+            async (method) => {
+                const client = new CopilotClient({ autoStart: false });
+                const cancelPending = vi.fn();
+                (client as any).requestAdapter = { cancelPending };
+
+                await client[method]();
+
+                expect(cancelPending).toHaveBeenCalledTimes(1);
+            }
+        );
+
+        it.each(["stop", "forceStop"] as const)(
             "%s waits for the initial in-process cleanup attempt",
             async (method) => {
                 const client = new CopilotClient({

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -745,38 +745,14 @@ async def _stream_response_to_exchange(
     else:
         source = response.aiter_raw()
 
-    reader = _HttpResponseReader(source)
+    reader = _HttpResponseReader(source, response.aclose)
     try:
         while True:
             chunk = await reader.next_chunk()
             if chunk is None:
                 await exchange.end_response()
                 return
-
-            # Keep exactly one acknowledged data write alive while reading ahead.
-            # The reader owns at most 32 KiB of copied data plus the current source
-            # frame, and a pending source read is reused after a fast ACK.
-            write_task = asyncio.create_task(exchange.write_response(chunk))
-            try:
-                while not write_task.done():
-                    read_task = reader.start_read()
-                    if read_task is None:
-                        break
-                    done, _ = await asyncio.wait(
-                        {write_task, read_task}, return_when=asyncio.FIRST_COMPLETED
-                    )
-                    if read_task in done:
-                        await reader.finish_read(read_task)
-                await write_task
-            except BaseException:
-                if not write_task.done():
-                    write_task.cancel()
-                    try:
-                        await write_task
-                    except (asyncio.CancelledError, Exception):
-                        # Preserve the original failure that triggered cleanup.
-                        pass
-                raise
+            await exchange.write_response(chunk)
     finally:
         await reader.aclose()
 
@@ -784,82 +760,99 @@ async def _stream_response_to_exchange(
 class _HttpResponseReader:
     """Bounded response-body read-ahead with immediate partial flushes."""
 
-    def __init__(self, source: AsyncIterator[bytes]) -> None:
+    def __init__(
+        self,
+        source: AsyncIterator[bytes],
+        close_response: Callable[[], Awaitable[None]],
+    ) -> None:
         self._source = source.__aiter__()
+        self._close_response = close_response
         self._frames: list[bytes] = []
         self._queued = 0
         self._error: Exception | None = None
         self._done = False
-        self._read_task: asyncio.Task[None] | None = None
+        self._closed = False
+        self._condition = asyncio.Condition()
+        self._producer = asyncio.create_task(self._produce())
 
-    def _can_read(self) -> bool:
-        return self._queued < _HTTP_RESPONSE_READ_AHEAD_BYTES and not self._done
-
-    def start_read(self) -> asyncio.Task[None] | None:
-        if self._read_task is None and self._can_read():
-            self._read_task = asyncio.create_task(self._read_more())
-        return self._read_task
-
-    async def _wait_for_read(self) -> None:
-        task = self.start_read()
-        if task is None:
-            return
-        await self.finish_read(task)
-
-    async def finish_read(self, task: asyncio.Task[None]) -> None:
+    async def _produce(self) -> None:
         try:
-            _ = await task
-        finally:
-            if task.done() and self._read_task is task:
-                self._read_task = None
+            while True:
+                async with self._condition:
+                    await self._condition.wait_for(
+                        lambda: self._closed or self._queued < _HTTP_RESPONSE_READ_AHEAD_BYTES
+                    )
+                    if self._closed:
+                        return
 
-    async def _read_more(self) -> None:
-        # Always-ready custom iterators, including ones producing empty chunks,
-        # must still yield to task cancellation.
-        await asyncio.sleep(0)
-        try:
-            frame = await anext(self._source)
+                # Always-ready custom iterators must yield so an awaiting
+                # consumer can flush the first available frame immediately.
+                await asyncio.sleep(0)
+                frame = await anext(self._source)
+                if not frame:
+                    continue
+
+                async with self._condition:
+                    if self._closed:
+                        return
+                    self._frames.append(frame)
+                    self._queued += len(frame)
+                    self._condition.notify_all()
         except StopAsyncIteration:
-            self._done = True
-            return
+            pass
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            self._error = exc
-            self._done = True
-            return
-
-        if frame:
-            self._frames.append(frame)
-            self._queued += len(frame)
+            async with self._condition:
+                if not self._closed:
+                    self._error = exc
+        finally:
+            close_error: Exception | None = None
+            close = getattr(self._source, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception as exc:
+                    close_error = exc
+            try:
+                await self._close_response()
+            except Exception as exc:
+                close_error = close_error or exc
+            async with self._condition:
+                if not self._closed and self._error is None:
+                    self._error = close_error
+                self._done = True
+                self._condition.notify_all()
 
     async def next_chunk(self) -> bytes | None:
-        while not self._frames and self._can_read():
-            await self._wait_for_read()
-        if self._frames:
-            # A lone frame is forwarded as-is; joining is only needed once
-            # read-ahead has run past the chunk awaiting acknowledgement.
-            chunk = self._frames[0] if len(self._frames) == 1 else b"".join(self._frames)
-            self._frames.clear()
-            self._queued = 0
-            return chunk
-        if self._error is not None:
-            error = self._error
-            self._error = None
-            raise error
-        return None
+        async with self._condition:
+            await self._condition.wait_for(
+                lambda: self._frames or self._error is not None or self._done
+            )
+            if self._frames:
+                # A lone frame is forwarded as-is; joining is only needed once
+                # read-ahead has run past the chunk awaiting acknowledgement.
+                chunk = self._frames[0] if len(self._frames) == 1 else b"".join(self._frames)
+                self._frames.clear()
+                self._queued = 0
+                self._condition.notify_all()
+                return chunk
+            if self._error is not None:
+                error = self._error
+                self._error = None
+                raise error
+            return None
 
     async def aclose(self) -> None:
-        task = self._read_task
-        self._read_task = None
-        if task is not None and not task.done():
-            task.cancel()
-        if task is not None:
-            try:
-                await task
-            except (asyncio.CancelledError, Exception):
-                # Cancellation and source failures are expected during cleanup.
-                pass
+        async with self._condition:
+            self._closed = True
+            self._condition.notify_all()
+        if not self._producer.done():
+            self._producer.cancel()
+        try:
+            await self._producer
+        except asyncio.CancelledError:
+            pass
 
 
 def _headers_to_multi_map(headers: Any) -> LlmInferenceHeaders:

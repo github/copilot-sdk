@@ -6,6 +6,7 @@ package com.github.copilot;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 
 /**
@@ -104,12 +105,27 @@ final class HttpResponseReader implements AutoCloseable {
                     notifyAll();
                 }
             }
+        } catch (RuntimeException e) {
+            synchronized (this) {
+                if (!closed) {
+                    error = toIOException(e);
+                    notifyAll();
+                }
+            }
         } finally {
             synchronized (this) {
                 end = true;
                 notifyAll();
             }
         }
+    }
+
+    private static IOException toIOException(RuntimeException error) {
+        if (error instanceof UncheckedIOException unchecked) {
+            IOException cause = unchecked.getCause();
+            return cause.getMessage() != null ? cause : new IOException(unchecked.toString(), cause);
+        }
+        return new IOException(error.getMessage() != null ? error.getMessage() : error.toString(), error);
     }
 
     void cancel() {

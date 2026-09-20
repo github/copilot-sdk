@@ -60,6 +60,47 @@ class _ControlledStream(httpx.AsyncByteStream):
         self.closed.set()
 
 
+class _TaskAffineStream(httpx.AsyncByteStream):
+    def __init__(self) -> None:
+        self.owner: asyncio.Task[None] | None = None
+        self.closed = asyncio.Event()
+
+    async def __aiter__(self):
+        owner = asyncio.current_task()
+        self.owner = owner
+        yield b"first"
+        if asyncio.current_task() is not owner:
+            raise RuntimeError("response iterator resumed from a different task")
+        yield b"second"
+
+    async def aclose(self) -> None:
+        if self.closed.is_set():
+            return
+        if asyncio.current_task() is not self.owner:
+            raise RuntimeError("response stream closed from a different task")
+        self.closed.set()
+
+
+class _BufferedTaskAffineStream(httpx.AsyncByteStream):
+    def __init__(self) -> None:
+        self.owner: asyncio.Task[None] | None = None
+        self.read_count = 0
+        self.closed = asyncio.Event()
+
+    async def __aiter__(self):
+        self.owner = asyncio.current_task()
+        while True:
+            self.read_count += 1
+            yield b"x" * 1024
+
+    async def aclose(self) -> None:
+        if self.closed.is_set():
+            return
+        if asyncio.current_task() is not self.owner:
+            raise RuntimeError("response stream closed from a different task")
+        self.closed.set()
+
+
 class _WithheldAckRpc:
     def __init__(self) -> None:
         self.starts = []
@@ -152,6 +193,40 @@ async def test_reads_ahead_and_coalesces_with_one_data_rpc_outstanding() -> None
     assert rpc.max_outstanding_data == 1
     assert rpc.chunks[-1].end is True
     assert rpc.chunks[-1].error is None
+    assert stream.closed.is_set()
+
+
+@pytest.mark.asyncio
+async def test_response_iterator_is_advanced_by_one_persistent_task() -> None:
+    stream = _TaskAffineStream()
+    response = _response(stream)
+    rpc = _WithheldAckRpc()
+    exchange = _CopilotRequestExchange("request", lambda: rpc)
+
+    pump = asyncio.create_task(_pump(response, exchange))
+    await _wait_for(lambda: len(rpc.data_chunks) == 1)
+    rpc.acknowledge(0)
+    await _wait_for(lambda: len(rpc.data_chunks) == 2)
+    rpc.acknowledge(1)
+    await asyncio.wait_for(pump, timeout=2)
+
+    assert b"".join(_decoded_data(rpc)) == b"firstsecond"
+    assert stream.closed.is_set()
+
+
+@pytest.mark.asyncio
+async def test_response_stream_is_closed_by_producer_when_read_ahead_is_full() -> None:
+    stream = _BufferedTaskAffineStream()
+    response = _response(stream)
+    rpc = _WithheldAckRpc()
+    exchange = _CopilotRequestExchange("request", lambda: rpc)
+
+    pump = asyncio.create_task(_pump(response, exchange))
+    await _wait_for(lambda: len(rpc.data_chunks) == 1 and stream.read_count == 33)
+    rpc.reject(0, ConnectionError("runtime connection lost"))
+
+    with pytest.raises(ConnectionError, match="runtime connection lost"):
+        await asyncio.wait_for(pump, timeout=2)
     assert stream.closed.is_set()
 
 

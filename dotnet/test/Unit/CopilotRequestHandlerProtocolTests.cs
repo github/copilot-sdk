@@ -179,6 +179,22 @@ public sealed class CopilotRequestHandlerProtocolTests
         await source.Disposed.WaitAsync(s_timeout);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HttpResponse_ClientShutdownDisposesIdleSource(bool force)
+    {
+        var source = new ControlledResponseStream();
+        await using var peer = await ProtocolPeer.StartAsync(new StreamRequestHandler(source));
+
+        await peer.BeginRequestAsync();
+        await peer.AcknowledgeAsync(await peer.NextMethodAsync());
+        await source.ReadStarted.WaitAsync(s_timeout);
+
+        await peer.StopClientAsync(force);
+        await source.Disposed.WaitAsync(s_timeout);
+    }
+
     private static string? Method(JsonElement message) =>
         message.GetProperty("method").GetString();
 
@@ -494,6 +510,9 @@ public sealed class CopilotRequestHandlerProtocolTests
                 _disposeCts.Token);
 
         internal void CloseConnection() => _tcpClient.Dispose();
+
+        internal Task StopClientAsync(bool force) =>
+            force ? _client.ForceStopAsync() : _client.StopAsync();
 
         public async ValueTask DisposeAsync()
         {

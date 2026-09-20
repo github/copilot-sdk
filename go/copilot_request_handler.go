@@ -671,6 +671,8 @@ func (a *copilotRequestAdapter) routeChunk(exchange *pendingExchange, params *rp
 }
 
 func (a *copilotRequestAdapter) runHandler(rctx *CopilotRequestContext, sink *responseSink, exchange *pendingExchange) {
+	defer exchange.cancel(nil)
+
 	err := a.handler.handle(rctx, sink)
 	if err != nil {
 		cause := context.Cause(exchange.ctx)

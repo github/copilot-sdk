@@ -1071,6 +1071,7 @@ export class CopilotClient {
         }
         this.sessions.clear();
         this.githubTokenProviders.clear();
+        this.requestAdapter?.cancelPending();
 
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
@@ -1259,6 +1260,7 @@ export class CopilotClient {
         }
         this.sessions.clear();
         this.githubTokenProviders.clear();
+        this.requestAdapter?.cancelPending();
 
         // Force close connection. Suppress writer failures first so teardown
         // write rejections don't surface as unhandled rejections.

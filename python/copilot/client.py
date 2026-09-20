@@ -2079,6 +2079,8 @@ class CopilotClient:
             ...         print(f"Cleanup error: {error.message}")
         """
         errors: list[StopError] = []
+        if self._llm_inference_adapter is not None:
+            self._llm_inference_adapter.cancel_pending()
 
         # Atomically take ownership of all sessions and clear the dict
         # so no other thread can access them
@@ -2213,6 +2215,9 @@ class CopilotClient:
             ... except asyncio.TimeoutError:
             ...     await client.force_stop()
         """
+        if self._llm_inference_adapter is not None:
+            self._llm_inference_adapter.cancel_pending()
+
         # Clear sessions immediately without trying to destroy them
         with self._sessions_lock:
             sessions = list(self._sessions.values())
