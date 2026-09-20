@@ -111,13 +111,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      - name: Set up JDK 25
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+          cache: "maven"
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@a6fd1787519fd23e68309fad43738e41a6ff2a9d # v4
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
 
+      - name: Build Java
+        if: matrix.language == 'java-kotlin'
+        working-directory: java
+        run: >-
+          ./mvnw clean package -B -V -e
+          -Dfindbugs.skip
+          -Dcheckstyle.skip
+          -Dpmd.skip=true
+          -Dspotbugs.skip
+          -Denforcer.skip
+          -Dmaven.javadoc.skip
+          -DskipTests
+          -Dmaven.test.skip.exec
+          -Dlicense.skip=true
+          -Drat.skip=true
+          -Dspotless.check.skip=true
+
       - name: Autobuild
+        if: matrix.language != 'java-kotlin'
         uses: github/codeql-action/autobuild@a6fd1787519fd23e68309fad43738e41a6ff2a9d # v4
 
       - name: Perform CodeQL Analysis

@@ -210,8 +210,7 @@ function isMusl(): boolean {
         return false;
     }
     const report = process.report?.getReport() as
-        | { header?: { glibcVersionRuntime?: string } }
-        | undefined;
+        { header?: { glibcVersionRuntime?: string } } | undefined;
     return report?.header?.glibcVersionRuntime === undefined;
 }
 

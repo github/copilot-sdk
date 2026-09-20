@@ -134,8 +134,7 @@ const _permissionRequestedEventAlignmentCheck: _PermissionRequestedEventStaysAli
 
 describe("Session event type exports (#1156)", () => {
     it.each(["efficiency", "balance", "intelligence", "fast", undefined] satisfies (
-        | AutoTier
-        | undefined
+        AutoTier | undefined
     )[])("exposes Auto tier %s on start and resume data", (autoTier) => {
         const start: StartData = {
             copilotVersion: "1.0.82-1",

@@ -3477,7 +3477,6 @@ impl CatalogAiSkillCandidate {
             serde::de::value::StringDeserializer::<D::Error>::new(value),
         )
     }
-
     fn deserialize_kind<'de, D>(deserializer: D) -> Result<CatalogAiSkillCandidateKind, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -3490,7 +3489,6 @@ impl CatalogAiSkillCandidate {
             serde::de::value::StringDeserializer::<D::Error>::new(value),
         )
     }
-
     fn deserialize_media_type<'de, D>(deserializer: D) -> Result<CatalogAiSkillMediaType, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -9962,7 +9960,6 @@ impl McpPlanRequiredValueEnum {
             serde::de::value::StringDeserializer::<D::Error>::new(value),
         )
     }
-
     fn deserialize_value_type<'de, D>(deserializer: D) -> Result<McpPlanEnumValueType, D::Error>
     where
         D: serde::Deserializer<'de>,

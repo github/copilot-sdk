@@ -2020,8 +2020,7 @@ export class CopilotSession {
             result.content &&
             Object.fromEntries(
                 Object.entries(result.content).filter(
-                    (entry): entry is [string, ElicitationFieldValue] =>
-                        entry[1] !== undefined
+                    (entry): entry is [string, ElicitationFieldValue] => entry[1] !== undefined
                 )
             );
         return {
