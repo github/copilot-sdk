@@ -307,6 +307,7 @@ export function chatCompletionResponseToResponsesApiMessage(
       input_tokens_details: {
         cached_tokens:
           response.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+        cache_write_tokens: 0,
       },
       output_tokens_details: {
         reasoning_tokens:

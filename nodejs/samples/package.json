@@ -8,7 +8,8 @@
         "@github/copilot-sdk": "file:.."
     },
     "devDependencies": {
-        "tsx": "^4.20.6",
-        "@types/node": "^22.0.0"
+        "@types/node": "^26.5.1",
+        "tsx": "^4.23.13",
+        "zod": "^4.6.4"
     }
 }

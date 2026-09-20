@@ -8,8 +8,8 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
-import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
+import type { MessageConnection } from "vscode-jsonrpc/node";
+import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node";
 import { createInternalSessionRpc, createSessionRpc } from "./generated/rpc.js";
 import type {
     ClientSessionApiHandlers,
@@ -31,6 +31,7 @@ import type {
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
     ElicitationHandler,
+    ElicitationFieldValue,
     ElicitationParams,
     ElicitationResult,
     ElicitationContext,
@@ -2011,10 +2012,22 @@ export class CopilotSession {
 
     private async _elicitation(params: ElicitationParams): Promise<ElicitationResult> {
         this.assertElicitation();
-        return this.rpc.ui.elicitation({
+        const result = await this.rpc.ui.elicitation({
             message: params.message,
             requestedSchema: params.requestedSchema,
         });
+        const content =
+            result.content &&
+            Object.fromEntries(
+                Object.entries(result.content).filter(
+                    (entry): entry is [string, ElicitationFieldValue] =>
+                        entry[1] !== undefined
+                )
+            );
+        return {
+            action: result.action,
+            ...(content ? { content } : {}),
+        };
     }
 
     private async _confirm(message: string): Promise<boolean> {

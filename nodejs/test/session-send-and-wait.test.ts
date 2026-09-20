@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { MessageConnection } from "vscode-jsonrpc/node";
 import { CopilotSession } from "../src/session.js";
 import type { AssistantMessageEvent, SessionEvent } from "../src/generated/session-events.js";
 import { withFinalAssistantMessage } from "./e2e/harness/sdkTestHelper.js";

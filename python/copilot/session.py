@@ -2298,7 +2298,10 @@ class CopilotSession:
                             data.static_client_config.client_secret
                         )
                     if data.static_client_config.grant_type is not None:
-                        static_client_config["grantType"] = data.static_client_config.grant_type
+                        static_client_config["grantType"] = cast(
+                            Literal["client_credentials"],
+                            data.static_client_config.grant_type,
+                        )
                     if data.static_client_config.public_client is not None:
                         static_client_config["publicClient"] = (
                             data.static_client_config.public_client

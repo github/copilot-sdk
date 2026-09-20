@@ -50,12 +50,12 @@ serde_json = "1"
 tokio = { version = "1", features = ["io-util", "sync", "rt", "process", "net", "time", "macros"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", default-features = false }
-tracing = "0.1"
-dirs = "5"
-libloading = { version = "0.8", optional = true }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+dirs = "7"
+libloading = { version = "0.9", optional = true }
 parking_lot = "0.12"
 regex = "1"
-getrandom = "0.2"
+getrandom = "0.4"
 uuid = { version = "1", default-features = false, features = ["v4"] }
 flate2 = { version = "1", optional = true }
 tar = { version = "0.4", optional = true }
@@ -66,10 +66,10 @@ bytes = "1"
 http = "1"
 futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["stream", "http2", "default-tls"] }
-tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "native-tls"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "native-tls"] }
 
 [target.'cfg(windows)'.dependencies]
-zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+zip = { version = "8", default-features = false, features = ["deflate-flate2"], optional = true }
 windows-sys = { version = "0.61", default-features = false, features = [
     "Win32_Foundation",
     "Win32_System_Diagnostics_ToolHelp",
@@ -78,9 +78,9 @@ windows-sys = { version = "0.61", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-rusqlite = { version = "0.35", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 schemars = "1"
-serial_test = "3"
+serial_test = "4"
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 
@@ -122,11 +122,11 @@ bench = false
 name = "prepared_session_test"
 required-features = ["test-support"]
 [build-dependencies]
-dirs = "5"
+dirs = "7"
 flate2 = "1"
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 tar = "0.4"
 ureq = { version = "2", default-features = false, features = ["native-tls"] }
 native-tls = "0.2"
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "8", default-features = false, features = ["deflate-flate2"] }

@@ -134,14 +134,9 @@
                     <version>3.6.0</version>
                 </plugin>
                 <plugin>
-                    <groupId>com.github.spotbugs</groupId>
-                    <artifactId>spotbugs-maven-plugin</artifactId>
-                    <version>4.10.4.1</version>
-                </plugin>
-                <plugin>
                     <groupId>com.diffplug.spotless</groupId>
                     <artifactId>spotless-maven-plugin</artifactId>
-                    <version>2.46.1</version>
+                    <version>3.10.2</version>
                 </plugin>
                 <plugin>
                     <groupId>org.jacoco</groupId>

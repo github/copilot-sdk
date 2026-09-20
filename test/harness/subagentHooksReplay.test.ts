@@ -287,7 +287,7 @@ test("timing and wording alternatives retain the full result and final continuat
         }
         if (
           message.tool_calls?.some(
-            (call) => call.function.name === "read_agent",
+            (call) => call.function?.name === "read_agent",
           )
         ) {
           return { ...message, tool_calls: shortReadAgent.tool_calls };

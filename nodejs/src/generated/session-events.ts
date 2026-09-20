@@ -1287,7 +1287,7 @@ export type ElicitationCompletedAction =
 /**
  * Opaque JSON value submitted for one field in accepted `elicitation.completed` form content.
  */
-export type ElicitationCompletedContent = JsonValue | undefined;
+export type ElicitationCompletedContent = JsonValue;
 /**
  * Reason the runtime is requesting host-provided MCP OAuth credentials
  */
@@ -8874,7 +8874,8 @@ export interface PermissionApprovalEvaluation {
   /**
    * Stage that produced this attribution.
    */
-  evaluationStage: /** The attribution stage is unknown. */
+  evaluationStage:
+    /** The attribution stage is unknown. */
     | "unknown"
     /** The request resolved before assisted-approval evaluation. */
     | "not_reached"
@@ -8891,7 +8892,8 @@ export interface PermissionApprovalEvaluation {
   /**
    * Status of the local judge interface, not proof of a model network call.
    */
-  judgeStatus: /** No authoritative attribution is available. */
+  judgeStatus:
+    /** No authoritative attribution is available. */
     | "unknown"
     /** This evaluation did not invoke the judge interface. */
     | "not_called"
@@ -8906,7 +8908,8 @@ export interface PermissionApprovalEvaluation {
   /**
    * Machine-readable runtime gate reason, never a command, path or human rationale.
    */
-  reasonCode: /** Attribution is missing or outside the supported vocabulary. */
+  reasonCode:
+    /** Attribution is missing or outside the supported vocabulary. */
     | "unknown"
     /** The request resolved before assisted-approval evaluation. */
     | "not-reached"

@@ -1,7 +1,7 @@
 // @ts-check
 
 /** @typedef {ReturnType<typeof import('@actions/github').getOctokit>} GitHub */
-/** @typedef {typeof import('@actions/github').context} Context */
+/** @typedef {{ repo: { owner: string, repo: string }, payload: { client_payload?: any, inputs?: any, sender?: { login?: string } } }} Context */
 /** @typedef {{ number: number, body?: string | null, assignees?: Array<{login: string}> | null }} TrackingIssue */
 
 const TRACKING_LABEL = "triage-agent-tracking";
@@ -206,7 +206,7 @@ async function maybeAssignCCA(github, owner, repo, trackingIssue, correctionCoun
  * Main entrypoint for actions/github-script.
  * @param {{ github: GitHub, context: Context }} params
  */
-module.exports = async ({ github, context }) => {
+const main = async ({ github, context }) => {
   const { owner, repo } = context.repo;
   const payload = context.payload.client_payload ?? context.payload.inputs ?? {};
   const sender = context.payload.sender?.login ?? "unknown";
@@ -227,11 +227,12 @@ module.exports = async ({ github, context }) => {
   await maybeAssignCCA(github, owner, repo, trackingIssue, correctionCount);
 };
 
-// Export internals for testing
-module.exports.truncateTitle = truncateTitle;
-module.exports.sanitizeText = sanitizeText;
-module.exports.escapeForTable = escapeForTable;
-module.exports.resolveContext = resolveContext;
-module.exports.findOrCreateTrackingIssue = findOrCreateTrackingIssue;
-module.exports.appendCorrection = appendCorrection;
-module.exports.maybeAssignCCA = maybeAssignCCA;
+module.exports = Object.assign(main, {
+  truncateTitle,
+  sanitizeText,
+  escapeForTable,
+  resolveContext,
+  findOrCreateTrackingIssue,
+  appendCorrection,
+  maybeAssignCCA,
+});

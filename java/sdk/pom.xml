@@ -114,7 +114,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.14.4</version>
+            <version>6.1.3</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -132,17 +132,6 @@
                 <filtering>true</filtering>
             </resource>
         </resources>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>com.github.spotbugs</groupId>
-                    <artifactId>spotbugs-maven-plugin</artifactId>
-                    <configuration>
-                        <excludeFilterFile>config/spotbugs/spotbugs-exclude.xml</excludeFilterFile>
-                    </configuration>
-                </plugin>
-            </plugins>
-        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -354,7 +343,7 @@
                             <exclude>src/generated/java/**/*.java</exclude>
                         </excludes>
                         <eclipse>
-                            <version>4.33</version>
+                            <version>4.40</version>
                         </eclipse>
                         <removeUnusedImports />
                         <trimTrailingWhitespace />
@@ -432,7 +421,7 @@
                     <dependency>
                         <groupId>com.puppycrawl.tools</groupId>
                         <artifactId>checkstyle</artifactId>
-                        <version>10.26.1</version>
+                        <version>14.1.0</version>
                     </dependency>
                 </dependencies>
             </plugin>

@@ -4556,8 +4556,7 @@ class CopilotClient:
 
         opts = self._options
         args: list[str] = []
-        if opts.log_level:
-            args.extend(["--log-level", opts.log_level])
+        args.extend(["--log-level", opts.log_level])
         if opts.github_token:
             args.extend(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"])
         if not opts.use_logged_in_user:

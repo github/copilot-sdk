@@ -41,12 +41,9 @@
             <property name="allowUnknownTags" value="true"/>
         </module>
 
-        <!-- Ensure Javadoc has proper structure -->
-        <module name="JavadocStyle">
-            <property name="scope" value="public"/>
-            <property name="checkFirstSentence" value="false"/>
-            <property name="checkEmptyJavadoc" value="true"/>
-            <property name="checkHtml" value="false"/>
+        <!-- Ensure Javadoc has descriptive content without enforcing sentence punctuation -->
+        <module name="SummaryJavadoc">
+            <property name="period" value=""/>
         </module>
     </module>
 </module>

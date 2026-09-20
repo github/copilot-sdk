@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { MessageConnection } from "vscode-jsonrpc/node";
 import { z } from "zod";
 import { CopilotSession } from "../src/session.js";
 import type { SessionEvent } from "../src/generated/session-events.js";

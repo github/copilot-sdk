@@ -3,7 +3,7 @@
  * Generated from: api.schema.json
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { MessageConnection } from "vscode-jsonrpc/node";
 
 import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
@@ -40,7 +40,8 @@ export type AuthInfo =
  * via the `definition` "AccountLogoutRequest".
  */
 /** @experimental */
-export type AccountLogoutRequest = {
+export type AccountLogoutRequest = AccountLogoutRequest1 & AccountLogoutRequest2;
+export type AccountLogoutRequest1 = {
   [k: string]: unknown | undefined;
 };
 /**
@@ -1397,8 +1398,7 @@ export type ExternalToolTextResultForLlmContentResourceLinkIconTheme =
  */
 /** @experimental */
 export type ExternalToolTextResultForLlmContentResourceDetails =
-  | EmbeddedTextResourceContents
-  | EmbeddedBlobResourceContents;
+  EmbeddedTextResourceContents | EmbeddedBlobResourceContents;
 /**
  * Execution-critical factory storage operation.
  *
@@ -1618,7 +1618,7 @@ export type FactoryPhaseStatus =
 /** @experimental */
 export type FilterMapping =
   | {
-      [k: string]: ContentFilterMode;
+      [k: string]: ContentFilterMode | undefined;
     }
   | ContentFilterMode;
 /**
@@ -1684,7 +1684,8 @@ export type HistoryCompactRequest =
       /**
        * What initiated this compaction request, recorded as the `trigger` on the persisted `session.compaction_start` / `session.compaction_complete` events. When absent, the compaction is persisted without trigger attribution (initiator unknown).
        */
-      trigger?: /** User-requested compaction, e.g. the /compact command or a direct history.compact call. */
+      trigger?:
+        /** User-requested compaction, e.g. the /compact command or a direct history.compact call. */
         | "manual"
         /** Compaction requested while switching to a model with a smaller context window. */
         | "model_switch";
@@ -1779,10 +1780,7 @@ export type HistoryRewindOutcome =
  */
 /** @experimental */
 export type InstalledPluginSource =
-  | string
-  | InstalledPluginSourceGitHub
-  | InstalledPluginSourceUrl
-  | InstalledPluginSourceLocal;
+  string | InstalledPluginSourceGitHub | InstalledPluginSourceUrl | InstalledPluginSourceLocal;
 /**
  * Which tier this target belongs to
  *
@@ -2459,7 +2457,7 @@ export type McpPlanInstallResult =
  * via the `definition` "McpServerConfig".
  */
 /** @experimental */
-export type McpServerConfig = (McpServerConfigStdio | McpServerConfigHttp) | undefined;
+export type McpServerConfig = McpServerConfigStdio | McpServerConfigHttp;
 /**
  * Outcome of the sampling inference. 'success' produced a response; 'failure' encountered an error (including agent-side rejection by content filter or criteria); 'cancelled' the caller cancelled this execution via cancelSamplingExecution.
  *
@@ -3163,9 +3161,7 @@ export type ProtocolStaticSectionAction =
 
 /** @experimental */
 export type ProtocolSystemMessageConfig =
-  | ProtocolSystemMessageAppendConfig
-  | ProtocolSystemMessageReplaceConfig
-  | ProtocolSystemMessageCustomizeConfig;
+  ProtocolSystemMessageAppendConfig | ProtocolSystemMessageReplaceConfig | ProtocolSystemMessageCustomizeConfig;
 /**
  * Provider family. Matches the `type` field of a BYOK provider config.
  *
@@ -3306,10 +3302,7 @@ export type QueuePendingItemsKind =
  */
 /** @experimental */
 export type RemoteControlStatus =
-  | RemoteControlStatusOff
-  | RemoteControlStatusConnecting
-  | RemoteControlStatusActive
-  | RemoteControlStatusError;
+  RemoteControlStatusOff | RemoteControlStatusConnecting | RemoteControlStatusActive | RemoteControlStatusError;
 /**
  * Per-session remote mode. "off" disables remote, "export" exports session events to GitHub without enabling remote steering, "on" enables both export and remote steering.
  *
@@ -3511,10 +3504,7 @@ export type SessionFsSqliteTransactionErrorClass =
  */
 /** @experimental */
 export type SessionInstalledPluginSource =
-  | string
-  | SessionInstalledPluginSourceGitHub
-  | SessionInstalledPluginSourceUrl
-  | SessionInstalledPluginSourceLocal;
+  string | SessionInstalledPluginSourceGitHub | SessionInstalledPluginSourceUrl | SessionInstalledPluginSourceLocal;
 /**
  * Client population used for the prediction baseline.
  *
@@ -4322,16 +4312,13 @@ export type UIElicitationFieldValue = string | number | boolean | string[];
  */
 /** @experimental */
 export type UIElicitationSchemaProperty =
-  | (
-      | UIElicitationStringEnumField
-      | UIElicitationStringOneOfField
-      | UIElicitationArrayEnumField
-      | UIElicitationArrayAnyOfField
-      | UIElicitationSchemaPropertyBoolean
-      | UIElicitationSchemaPropertyString
-      | UIElicitationSchemaPropertyNumber
-    )
-  | undefined;
+  | UIElicitationStringEnumField
+  | UIElicitationStringOneOfField
+  | UIElicitationArrayEnumField
+  | UIElicitationArrayAnyOfField
+  | UIElicitationSchemaPropertyBoolean
+  | UIElicitationSchemaPropertyString
+  | UIElicitationSchemaPropertyNumber;
 /**
  * Optional format hint that constrains the accepted input.
  *
@@ -4975,7 +4962,7 @@ export interface CopilotUserResponseQuotaSnapshots {
   completions?: CopilotUserResponseQuotaSnapshotsCompletions;
   premium_interactions?: CopilotUserResponseQuotaSnapshotsPremiumInteractions;
   [k: string]:
-    | ({
+    | {
         entitlement?: number;
         overage_count?: number;
         overage_permitted?: boolean;
@@ -4988,7 +4975,11 @@ export interface CopilotUserResponseQuotaSnapshots {
         has_quota?: boolean;
         quota_reset_at?: number;
         token_based_billing?: boolean;
-      } | null)
+      }
+    | null
+    | CopilotUserResponseQuotaSnapshotsChat
+    | CopilotUserResponseQuotaSnapshotsCompletions
+    | CopilotUserResponseQuotaSnapshotsPremiumInteractions
     | undefined;
 }
 /**
@@ -5443,6 +5434,13 @@ export interface AccountLoginResult {
    * Whether the credential was persisted to a secure store (system keychain, or the config file when plaintext storage is enabled). False when no secure store was available and the token was not saved, so the consumer can decide how to proceed.
    */
   storedInVault: boolean;
+}
+export interface AccountLogoutRequest2 {
+  /**
+   * Opaque account identifier returned by `account.getAllUsers`
+   */
+  selectionId?: string;
+  authInfo?: AuthInfo;
 }
 /**
  * Logout result indicating if more users remain
@@ -6070,7 +6068,7 @@ export interface BuiltinToolDescriptor {
 /** @experimental */
 export interface BuiltinToolInputSchema {
   type: BuiltinToolInputSchemaType;
-  [k: string]: JsonValue | undefined;
+  [k: string]: JsonValue | BuiltinToolInputSchemaType | undefined;
 }
 /**
  * Custom grammar input format accepted by a built-in tool.
@@ -6546,9 +6544,7 @@ export interface CatalogAgentPluginCandidate {
    * @maxItems 3
    */
   compatibilityTags:
-    | ({
-        [k: string]: unknown | undefined;
-      } & [])
+    | []
     | [CatalogAgentPluginCompatibilityTag]
     | [CatalogAgentPluginCompatibilityTag, CatalogAgentPluginCompatibilityTag]
     | [CatalogAgentPluginCompatibilityTag, CatalogAgentPluginCompatibilityTag, CatalogAgentPluginCompatibilityTag];
@@ -12079,6 +12075,8 @@ export interface McpServerConfigHttp {
 export interface McpConfigDisableRequest {
   /**
    * Names of MCP servers to disable. Each server is added to the persisted disabled list so new sessions skip it. Already-disabled names are ignored. Active sessions keep their current connections until they end.
+   *
+   * Items: MCP server name used as a configuration key.
    */
   names: string[];
 }
@@ -12092,6 +12090,8 @@ export interface McpConfigDisableRequest {
 export interface McpConfigEnableRequest {
   /**
    * Names of MCP servers to enable. Each server is removed from the persisted disabled list so new sessions spawn it. Unknown or already-enabled names are ignored.
+   *
+   * Items: MCP server name used as a configuration key.
    */
   names: string[];
 }
@@ -12107,7 +12107,7 @@ export interface McpConfigList {
    * All MCP servers from user config, keyed by name
    */
   servers: {
-    [k: string]: McpSerializableServerConfig;
+    [k: string]: McpSerializableServerConfig | undefined;
   };
 }
 /**
@@ -16925,7 +16925,7 @@ export interface ProtocolSystemMessageCustomizeConfig {
    * Named standard-prompt section overrides.
    */
   sections?: {
-    [k: string]: ProtocolSectionOverride;
+    [k: string]: ProtocolSectionOverride | undefined;
   };
   /**
    * Text appended after the customized sections.
@@ -20392,7 +20392,7 @@ export interface SessionOpenOptions {
    * @experimental
    */
   managedMcpServers?: {
-    [k: string]: ManagedMcpServerConfig;
+    [k: string]: ManagedMcpServerConfig | undefined;
   };
   /**
    * Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
@@ -24142,7 +24142,7 @@ export interface UIElicitationResponse {
  */
 /** @experimental */
 export interface UIElicitationResponseContent {
-  [k: string]: UIElicitationFieldValue;
+  [k: string]: UIElicitationFieldValue | undefined;
 }
 /**
  * Indicates whether the elicitation response was accepted; false if it was already resolved by another client.
@@ -24690,7 +24690,7 @@ export interface UserSettingsGetResult {
    * Every known user setting keyed by setting name, each with its effective value, default, and whether it is at the default.
    */
   settings: {
-    [k: string]: UserSettingMetadata;
+    [k: string]: UserSettingMetadata | undefined;
   };
 }
 /**
@@ -26433,7 +26433,8 @@ export interface SessionHistoryCompactRequest {
   /**
    * What initiated this compaction request, recorded as the `trigger` on the persisted `session.compaction_start` / `session.compaction_complete` events. When absent, the compaction is persisted without trigger attribution (initiator unknown).
    */
-  trigger?: /** User-requested compaction, e.g. the /compact command or a direct history.compact call. */
+  trigger?:
+    /** User-requested compaction, e.g. the /compact command or a direct history.compact call. */
     | "manual"
     /** Compaction requested while switching to a model with a smaller context window. */
     | "model_switch";

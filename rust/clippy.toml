@@ -4,5 +4,5 @@ await-holding-invalid-types = [
 ]
 
 disallowed-macros = [
-  { path = "tracing::instrument", reason = "tracing::instrument is error-prone. Use tracing::error_span! in the method body instead." },
+  { path = "tracing::instrument", reason = "tracing::instrument is error-prone. Use tracing::error_span! in the method body instead.", allow-invalid = true },
 ]

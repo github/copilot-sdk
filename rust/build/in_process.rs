@@ -966,5 +966,11 @@ fn archive_zip_entry_size(zip_bytes: &[u8], binary_name: &str) -> Option<u64> {
 fn verify_hash(data: &[u8], expected: &str) -> bool {
     let mut hasher = sha2::Sha256::new();
     hasher.update(data);
-    format!("{:x}", hasher.finalize()) == expected
+    let digest: [u8; 32] = hasher.finalize().into();
+    let mut actual = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        use std::fmt::Write as _;
+        write!(actual, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    actual == expected
 }

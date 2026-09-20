@@ -6,10 +6,9 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "@actions/github": "^9.0.0",
-    "@octokit/rest": "^22.0.1",
-    "@types/node": "^22.0.0",
-    "typescript": "^5.8.0",
-    "vitest": "^4.1.0"
+    "@actions/github": "^9.1.1",
+    "@types/node": "^26.5.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
   }
 }

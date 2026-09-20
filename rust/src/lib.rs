@@ -1072,7 +1072,7 @@ fn validate_session_fs_config(cfg: &SessionFsConfig) -> Result<()> {
 /// this is opaque random data, not an identifier).
 fn generate_connection_token() -> String {
     let mut bytes = [0u8; 16];
-    getrandom::getrandom(&mut bytes)
+    getrandom::fill(&mut bytes)
         .expect("OS CSPRNG (getrandom) is unavailable; cannot generate connection token");
     let mut hex = String::with_capacity(32);
     for byte in bytes {
