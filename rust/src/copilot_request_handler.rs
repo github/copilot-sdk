@@ -40,6 +40,7 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
+use self::http_response_reader::HttpResponseReader;
 use crate::generated::api_types::{
     LlmInferenceHttpRequestChunkRequest, LlmInferenceHttpRequestStartRequest,
     LlmInferenceHttpRequestStartTransport, LlmInferenceHttpResponseChunkError,
@@ -48,8 +49,6 @@ use crate::generated::api_types::{
 use crate::{
     Client, ClientInner, JsonRpcRequest, JsonRpcResponse, RequestId, SessionId, error_codes,
 };
-
-use self::http_response_reader::HttpResponseReader;
 
 mod http_response_reader;
 
