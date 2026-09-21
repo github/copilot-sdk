@@ -5011,37 +5011,51 @@ type HooksDiscoverResult struct {
 	Warnings []string `json:"warnings"`
 }
 
+// Normalized listener settings delivered only to the supervised child.
 // Experimental: HostConfiguration is part of an experimental API and may change or be
 // removed.
 type HostConfiguration struct {
-	Hostname               string  `json:"hostname"`
-	Port                   int32   `json:"port"`
-	RequireConnectionToken bool    `json:"requireConnectionToken"`
-	Token                  *string `json:"token,omitempty"`
+	// Hostname or IP address to bind.
+	Hostname string `json:"hostname"`
+	// Port to bind, with zero requesting OS allocation.
+	Port int32 `json:"port"`
+	// Whether the listener requires token authentication.
+	RequireConnectionToken bool `json:"requireConnectionToken"`
+	// Secret connection token, absent when authentication is disabled.
+	Token *string `json:"token,omitempty"`
 }
 
+// Stops a connection-owned listener and joins its teardown.
 // Experimental: HostDisposeRequest is part of an experimental API and may change or be
 // removed.
 type HostDisposeRequest struct {
+	// Listener UUID. Unknown or successfully stopped IDs are harmless.
 	HostID string `json:"hostId"`
 }
 
+// Empty acknowledgement for a completed host lifecycle operation.
 // Experimental: HostDisposeResult is part of an experimental API and may change or be
 // removed.
 type HostDisposeResult struct {
 }
 
+// Empty acknowledgement for a completed host lifecycle operation.
 // Experimental: HostEmptyResult is part of an experimental API and may change or be removed.
 type HostEmptyResult struct {
 }
 
+// Reports a supervised listener's process termination and cleanup outcome.
 // Experimental: HostExitedNotification is part of an experimental API and may change or be
 // removed.
 type HostExitedNotification struct {
-	Error    *string        `json:"error,omitempty"`
-	ExitCode *int64         `json:"exitCode,omitempty"`
-	HostID   string         `json:"hostId"`
-	Reason   HostExitReason `json:"reason"`
+	// Explicit startup or teardown failure, when present.
+	Error *string `json:"error,omitempty"`
+	// Process exit status, absent for signal termination or unavailable status.
+	ExitCode *int64 `json:"exitCode,omitempty"`
+	// Listener UUID.
+	HostID string `json:"hostId"`
+	// Cause of termination.
+	Reason HostExitReason `json:"reason"`
 }
 
 // Experimental: HostExitedResult is part of an experimental API and may change or be
@@ -5049,34 +5063,46 @@ type HostExitedNotification struct {
 type HostExitedResult struct {
 }
 
+// Normalized listener settings delivered only to the supervised child.
 // Experimental: HostGetConfigurationResult is part of an experimental API and may change or
 // be removed.
 type HostGetConfigurationResult struct {
-	Hostname               string  `json:"hostname"`
-	Port                   int32   `json:"port"`
-	RequireConnectionToken bool    `json:"requireConnectionToken"`
-	Token                  *string `json:"token,omitempty"`
+	// Hostname or IP address to bind.
+	Hostname string `json:"hostname"`
+	// Port to bind, with zero requesting OS allocation.
+	Port int32 `json:"port"`
+	// Whether the listener requires token authentication.
+	RequireConnectionToken bool `json:"requireConnectionToken"`
+	// Secret connection token, absent when authentication is disabled.
+	Token *string `json:"token,omitempty"`
 }
 
+// Readiness reported by the supervised child on its own SDK connection.
 // Experimental: HostReadyRequest is part of an experimental API and may change or be
 // removed.
 type HostReadyRequest struct {
-	Address string  `json:"address"`
-	Token   *string `json:"token,omitempty"`
+	// Actual bound WebSocket URL.
+	Address string `json:"address"`
+	// Configured secret token, absent when authentication is disabled.
+	Token *string `json:"token,omitempty"`
 }
 
+// Empty acknowledgement for a completed host lifecycle operation.
 // Experimental: HostReadyResult is part of an experimental API and may change or be removed.
 type HostReadyResult struct {
 }
 
+// Empty acknowledgement for a completed host lifecycle operation.
 // Experimental: HostShutdownResult is part of an experimental API and may change or be
 // removed.
 type HostShutdownResult struct {
 }
 
+// Starts a supervised AHP listener in the runtime's configured working directory.
 // Experimental: HostStartRequest is part of an experimental API and may change or be
 // removed.
 type HostStartRequest struct {
+	// Caller-generated UUID identifying this connection-owned listener.
 	HostID string `json:"hostId"`
 	// Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed.
 	Hostname *string `json:"hostname,omitempty"`
@@ -5088,12 +5114,17 @@ type HostStartRequest struct {
 	Token *string `json:"token,omitempty"`
 }
 
+// Listener readiness, returned only after binding and the child's SDK handshake.
 // Experimental: HostStartResult is part of an experimental API and may change or be removed.
 type HostStartResult struct {
-	HostID string  `json:"hostId"`
-	Pid    int64   `json:"pid"`
-	Token  *string `json:"token,omitempty"`
-	URL    string  `json:"url"`
+	// Caller-generated listener UUID.
+	HostID string `json:"hostId"`
+	// Operating-system process ID of the supervised child.
+	Pid int64 `json:"pid"`
+	// Secret connection token, absent when authentication is disabled.
+	Token *string `json:"token,omitempty"`
+	// Actual bound WebSocket URL, including the allocated port.
+	URL string `json:"url"`
 }
 
 // Installed plugin record from global state, with marketplace, version, install time,
@@ -19942,10 +19973,14 @@ const (
 type HostExitReason string
 
 const (
-	HostExitReasonDisposed          HostExitReason = "disposed"
-	HostExitReasonExited            HostExitReason = "exited"
+	// The owner requested disposal.
+	HostExitReasonDisposed HostExitReason = "disposed"
+	// The child process or its SDK transport exited.
+	HostExitReasonExited HostExitReason = "exited"
+	// The owning SDK connection disconnected.
 	HostExitReasonOwnerDisconnected HostExitReason = "ownerDisconnected"
-	HostExitReasonRuntimeShutdown   HostExitReason = "runtimeShutdown"
+	// The runtime is shutting down.
+	HostExitReasonRuntimeShutdown HostExitReason = "runtimeShutdown"
 )
 
 // Live indexed-search state for this session activation, never inferred from persisted
@@ -23063,6 +23098,10 @@ type ServerHostAPI serverAPI
 // Dispose stops and reaps a listener owned by this SDK connection without deleting sessions.
 //
 // RPC method: host.dispose.
+//
+// Parameters: Stops a connection-owned listener and joins its teardown.
+//
+// Returns: Empty acknowledgement for a completed host lifecycle operation.
 func (a *ServerHostAPI) Dispose(ctx context.Context, params *HostDisposeRequest) (*HostDisposeResult, error) {
 	raw, err := a.client.Request(ctx, "host.dispose", params)
 	if err != nil {
@@ -23078,6 +23117,11 @@ func (a *ServerHostAPI) Dispose(ctx context.Context, params *HostDisposeRequest)
 // Starts a connection-owned local AHP listener as a supervised SDK participant.
 //
 // RPC method: host.start.
+//
+// Parameters: Starts a supervised AHP listener in the runtime's configured working
+// directory.
+//
+// Returns: Listener readiness, returned only after binding and the child's SDK handshake.
 func (a *ServerHostAPI) Start(ctx context.Context, params *HostStartRequest) (*HostStartResult, error) {
 	raw, err := a.client.Request(ctx, "host.start", params)
 	if err != nil {
@@ -24642,6 +24686,8 @@ type InternalServerHostAPI internalServerAPI
 // connection.
 //
 // RPC method: host.getConfiguration.
+//
+// Returns: Normalized listener settings delivered only to the supervised child.
 // Internal: GetConfiguration is part of the SDK's internal handshake/plumbing; external
 // callers should not use it.
 func (a *InternalServerHostAPI) GetConfiguration(ctx context.Context) (*HostGetConfigurationResult, error) {
@@ -24659,6 +24705,10 @@ func (a *InternalServerHostAPI) GetConfiguration(ctx context.Context) (*HostGetC
 // Ready reports a supervised child's bound AHP endpoint after its SDK handshake.
 //
 // RPC method: host.ready.
+//
+// Parameters: Readiness reported by the supervised child on its own SDK connection.
+//
+// Returns: Empty acknowledgement for a completed host lifecycle operation.
 // Internal: Ready is part of the SDK's internal handshake/plumbing; external callers should
 // not use it.
 func (a *InternalServerHostAPI) Ready(ctx context.Context, params *HostReadyRequest) (*HostReadyResult, error) {
@@ -33825,10 +33875,16 @@ type HostHandler interface {
 	// Exited reports termination of a connection-owned host listener.
 	//
 	// RPC method: host.exited.
+	//
+	// Parameters: Reports a supervised listener's process termination and cleanup outcome.
 	Exited(request *HostExitedNotification) error
 	// Shutdown requests graceful shutdown of a supervised AHP listener and its clients.
 	//
 	// RPC method: host.shutdown.
+	//
+	// Parameters: Empty acknowledgement for a completed host lifecycle operation.
+	//
+	// Returns: Empty acknowledgement for a completed host lifecycle operation.
 	Shutdown(request *HostEmptyResult) (*HostShutdownResult, error)
 }
 

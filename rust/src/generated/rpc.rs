@@ -751,6 +751,14 @@ impl<'a> ClientRpcHost<'a> {
     ///
     /// Wire method: `host.start`.
     ///
+    /// # Parameters
+    ///
+    /// * `params` - Starts a supervised AHP listener in the runtime's configured working directory.
+    ///
+    /// # Returns
+    ///
+    /// Listener readiness, returned only after binding and the child's SDK handshake.
+    ///
     /// <div class="warning">
     ///
     /// **Experimental.** This API is part of an experimental wire-protocol surface
@@ -770,6 +778,14 @@ impl<'a> ClientRpcHost<'a> {
     /// Stops and reaps a listener owned by this SDK connection without deleting sessions.
     ///
     /// Wire method: `host.dispose`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Stops a connection-owned listener and joins its teardown.
+    ///
+    /// # Returns
+    ///
+    /// Empty acknowledgement for a completed host lifecycle operation.
     ///
     /// <div class="warning">
     ///
@@ -791,6 +807,10 @@ impl<'a> ClientRpcHost<'a> {
     ///
     /// Wire method: `host.getConfiguration`.
     ///
+    /// # Returns
+    ///
+    /// Normalized listener settings delivered only to the supervised child.
+    ///
     /// <div class="warning">
     ///
     /// **Experimental.** This API is part of an experimental wire-protocol surface
@@ -810,6 +830,14 @@ impl<'a> ClientRpcHost<'a> {
     /// Reports a supervised child's bound AHP endpoint after its SDK handshake.
     ///
     /// Wire method: `host.ready`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Readiness reported by the supervised child on its own SDK connection.
+    ///
+    /// # Returns
+    ///
+    /// Empty acknowledgement for a completed host lifecycle operation.
     ///
     /// <div class="warning">
     ///

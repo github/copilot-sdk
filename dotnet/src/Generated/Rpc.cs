@@ -107,32 +107,32 @@ internal sealed class ConnectRequest
     public string? Token { get; set; }
 }
 
-/// <summary>RPC data type for HostStart operations.</summary>
+/// <summary>Listener readiness, returned only after binding and the child's SDK handshake.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class HostStartResult
 {
-    /// <summary>Gets or sets the <c>hostId</c> value.</summary>
+    /// <summary>Caller-generated listener UUID.</summary>
     [JsonPropertyName("hostId")]
     public string HostId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>pid</c> value.</summary>
+    /// <summary>Operating-system process ID of the supervised child.</summary>
     [JsonPropertyName("pid")]
     public long Pid { get; set; }
 
-    /// <summary>Gets or sets the <c>token</c> value.</summary>
+    /// <summary>Secret connection token, absent when authentication is disabled.</summary>
     [JsonPropertyName("token")]
     public string? Token { get; set; }
 
-    /// <summary>Gets or sets the <c>url</c> value.</summary>
+    /// <summary>Actual bound WebSocket URL, including the allocated port.</summary>
     [JsonPropertyName("url")]
     public string Url { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for HostStart operations.</summary>
+/// <summary>Starts a supervised AHP listener in the runtime's configured working directory.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class HostStartRequest
 {
-    /// <summary>Gets or sets the <c>hostId</c> value.</summary>
+    /// <summary>Caller-generated UUID identifying this connection-owned listener.</summary>
     [JsonPropertyName("hostId")]
     public string HostId { get; set; } = string.Empty;
 
@@ -153,57 +153,57 @@ internal sealed class HostStartRequest
     public string? Token { get; set; }
 }
 
-/// <summary>RPC data type for HostDispose operations.</summary>
+/// <summary>Empty acknowledgement for a completed host lifecycle operation.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class HostDisposeResult
 {
 }
 
-/// <summary>RPC data type for HostDispose operations.</summary>
+/// <summary>Stops a connection-owned listener and joins its teardown.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class HostDisposeRequest
 {
-    /// <summary>Gets or sets the <c>hostId</c> value.</summary>
+    /// <summary>Listener UUID. Unknown or successfully stopped IDs are harmless.</summary>
     [JsonPropertyName("hostId")]
     public string HostId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for HostGetConfiguration operations.</summary>
+/// <summary>Normalized listener settings delivered only to the supervised child.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class HostGetConfigurationResult
 {
-    /// <summary>Gets or sets the <c>hostname</c> value.</summary>
+    /// <summary>Hostname or IP address to bind.</summary>
     [JsonPropertyName("hostname")]
     public string Hostname { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>port</c> value.</summary>
+    /// <summary>Port to bind, with zero requesting OS allocation.</summary>
     [JsonPropertyName("port")]
     public int Port { get; set; }
 
-    /// <summary>Gets or sets the <c>requireConnectionToken</c> value.</summary>
+    /// <summary>Whether the listener requires token authentication.</summary>
     [JsonPropertyName("requireConnectionToken")]
     public bool RequireConnectionToken { get; set; }
 
-    /// <summary>Gets or sets the <c>token</c> value.</summary>
+    /// <summary>Secret connection token, absent when authentication is disabled.</summary>
     [JsonPropertyName("token")]
     public string? Token { get; set; }
 }
 
-/// <summary>RPC data type for HostReady operations.</summary>
+/// <summary>Empty acknowledgement for a completed host lifecycle operation.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class HostReadyResult
 {
 }
 
-/// <summary>RPC data type for HostReady operations.</summary>
+/// <summary>Readiness reported by the supervised child on its own SDK connection.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class HostReadyRequest
 {
-    /// <summary>Gets or sets the <c>address</c> value.</summary>
+    /// <summary>Actual bound WebSocket URL.</summary>
     [JsonPropertyName("address")]
     public string Address { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>token</c> value.</summary>
+    /// <summary>Configured secret token, absent when authentication is disabled.</summary>
     [JsonPropertyName("token")]
     public string? Token { get; set; }
 }
@@ -22445,22 +22445,22 @@ public sealed class CanvasProviderInvokeActionRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for HostExited operations.</summary>
+/// <summary>Reports a supervised listener's process termination and cleanup outcome.</summary>
 public sealed class HostExitedRequest
 {
-    /// <summary>Gets or sets the <c>error</c> value.</summary>
+    /// <summary>Explicit startup or teardown failure, when present.</summary>
     [JsonPropertyName("error")]
     public string? Error { get; set; }
 
-    /// <summary>Gets or sets the <c>exitCode</c> value.</summary>
+    /// <summary>Process exit status, absent for signal termination or unavailable status.</summary>
     [JsonPropertyName("exitCode")]
     public long? ExitCode { get; set; }
 
-    /// <summary>Gets or sets the <c>hostId</c> value.</summary>
+    /// <summary>Listener UUID.</summary>
     [JsonPropertyName("hostId")]
     public string HostId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>reason</c> value.</summary>
+    /// <summary>Cause of termination.</summary>
     [JsonPropertyName("reason")]
     public HostExitReason Reason { get; set; }
 }
@@ -35724,16 +35724,16 @@ public readonly struct HostExitReason : IEquatable<HostExitReason>
     /// <summary>Gets the value associated with this <see cref="HostExitReason"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>disposed</c> value.</summary>
+    /// <summary>The owner requested disposal.</summary>
     public static HostExitReason Disposed { get; } = new("disposed");
 
-    /// <summary>Gets the <c>exited</c> value.</summary>
+    /// <summary>The child process or its SDK transport exited.</summary>
     public static HostExitReason Exited { get; } = new("exited");
 
-    /// <summary>Gets the <c>ownerDisconnected</c> value.</summary>
+    /// <summary>The owning SDK connection disconnected.</summary>
     public static HostExitReason OwnerDisconnected { get; } = new("ownerDisconnected");
 
-    /// <summary>Gets the <c>runtimeShutdown</c> value.</summary>
+    /// <summary>The runtime is shutting down.</summary>
     public static HostExitReason RuntimeShutdown { get; } = new("runtimeShutdown");
 
     /// <summary>Returns a value indicating whether two <see cref="HostExitReason"/> instances are equivalent.</summary>
@@ -36081,12 +36081,13 @@ public sealed class ServerHostApi
     }
 
     /// <summary>Starts a connection-owned local AHP listener as a supervised SDK participant.</summary>
-    /// <param name="hostId">The hostId parameter.</param>
+    /// <param name="hostId">Caller-generated UUID identifying this connection-owned listener.</param>
     /// <param name="hostname">Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed.</param>
     /// <param name="port">Listener port. Omitted or zero requests an OS-allocated port.</param>
     /// <param name="token">Nonempty connection token. Generated randomly when required and omitted.</param>
     /// <param name="requireConnectionToken">Require token authentication (default true). Cannot be false with a token.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Listener readiness, returned only after binding and the child's SDK handshake.</returns>
     public async Task<HostStartResult> StartAsync(string hostId, string? hostname = null, int? port = null, string? token = null, bool? requireConnectionToken = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(hostId);
@@ -36096,8 +36097,9 @@ public sealed class ServerHostApi
     }
 
     /// <summary>Stops and reaps a listener owned by this SDK connection without deleting sessions.</summary>
-    /// <param name="hostId">The hostId parameter.</param>
+    /// <param name="hostId">Listener UUID. Unknown or successfully stopped IDs are harmless.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Empty acknowledgement for a completed host lifecycle operation.</returns>
     public async Task<HostDisposeResult> DisposeAsync(string hostId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(hostId);
@@ -36108,15 +36110,17 @@ public sealed class ServerHostApi
 
     /// <summary>Returns listener settings only to the supervised child over its SDK connection.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Normalized listener settings delivered only to the supervised child.</returns>
     internal async Task<HostGetConfigurationResult> GetConfigurationAsync(CancellationToken cancellationToken = default)
     {
         return await CopilotClient.InvokeRpcAsync<HostGetConfigurationResult>(_rpc, "host.getConfiguration", [], cancellationToken);
     }
 
     /// <summary>Reports a supervised child's bound AHP endpoint after its SDK handshake.</summary>
-    /// <param name="address">The address parameter.</param>
-    /// <param name="token">The token parameter.</param>
+    /// <param name="address">Actual bound WebSocket URL.</param>
+    /// <param name="token">Configured secret token, absent when authentication is disabled.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Empty acknowledgement for a completed host lifecycle operation.</returns>
     internal async Task<HostReadyResult> ReadyAsync(string address, string? token = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(address);
@@ -42786,7 +42790,7 @@ internal static class ClientSessionApiRegistration
 public interface IHostHandler
 {
     /// <summary>Reports termination of a connection-owned host listener.</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <param name="request">Reports a supervised listener's process termination and cleanup outcome.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task ExitedAsync(HostExitedRequest request, CancellationToken cancellationToken = default);
 }

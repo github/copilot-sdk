@@ -7968,6 +7968,7 @@ pub struct HooksDiscoverResult {
     pub warnings: Vec<String>,
 }
 
+/// Normalized listener settings delivered only to the supervised child.
 ///
 /// <div class="warning">
 ///
@@ -7978,13 +7979,18 @@ pub struct HooksDiscoverResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostConfiguration {
+    /// Hostname or IP address to bind.
     pub hostname: String,
+    /// Port to bind, with zero requesting OS allocation.
     pub port: i32,
+    /// Whether the listener requires token authentication.
     pub require_connection_token: bool,
+    /// Secret connection token, absent when authentication is disabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
 }
 
+/// Stops a connection-owned listener and joins its teardown.
 ///
 /// <div class="warning">
 ///
@@ -7995,9 +8001,11 @@ pub struct HostConfiguration {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostDisposeRequest {
+    /// Listener UUID. Unknown or successfully stopped IDs are harmless.
     pub host_id: String,
 }
 
+/// Empty acknowledgement for a completed host lifecycle operation.
 ///
 /// <div class="warning">
 ///
@@ -8009,17 +8017,23 @@ pub struct HostDisposeRequest {
 #[serde(rename_all = "camelCase")]
 pub struct HostEmptyResult {}
 
+/// Reports a supervised listener's process termination and cleanup outcome.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostExitedNotification {
+    /// Explicit startup or teardown failure, when present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Process exit status, absent for signal termination or unavailable status.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i64>,
+    /// Listener UUID.
     pub host_id: String,
+    /// Cause of termination.
     pub reason: HostExitReason,
 }
 
+/// Readiness reported by the supervised child on its own SDK connection.
 ///
 /// <div class="warning">
 ///
@@ -8030,11 +8044,14 @@ pub struct HostExitedNotification {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostReadyRequest {
+    /// Actual bound WebSocket URL.
     pub address: String,
+    /// Configured secret token, absent when authentication is disabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
 }
 
+/// Starts a supervised AHP listener in the runtime's configured working directory.
 ///
 /// <div class="warning">
 ///
@@ -8045,6 +8062,7 @@ pub struct HostReadyRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostStartRequest {
+    /// Caller-generated UUID identifying this connection-owned listener.
     pub host_id: String,
     /// Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -8060,6 +8078,7 @@ pub struct HostStartRequest {
     pub token: Option<String>,
 }
 
+/// Listener readiness, returned only after binding and the child's SDK handshake.
 ///
 /// <div class="warning">
 ///
@@ -8070,10 +8089,14 @@ pub struct HostStartRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostStartResult {
+    /// Caller-generated listener UUID.
     pub host_id: String,
+    /// Operating-system process ID of the supervised child.
     pub pid: i64,
+    /// Secret connection token, absent when authentication is disabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
+    /// Actual bound WebSocket URL, including the allocated port.
     pub url: String,
 }
 
@@ -25259,6 +25282,7 @@ pub struct WorkspacesWriteAutopilotObjectiveResult {
     pub operation: String,
 }
 
+/// Empty acknowledgement for a completed host lifecycle operation.
 ///
 /// <div class="warning">
 ///
@@ -25270,6 +25294,7 @@ pub struct WorkspacesWriteAutopilotObjectiveResult {
 #[serde(rename_all = "camelCase")]
 pub struct HostDisposeResult {}
 
+/// Normalized listener settings delivered only to the supervised child.
 ///
 /// <div class="warning">
 ///
@@ -25280,13 +25305,18 @@ pub struct HostDisposeResult {}
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostGetConfigurationResult {
+    /// Hostname or IP address to bind.
     pub hostname: String,
+    /// Port to bind, with zero requesting OS allocation.
     pub port: i32,
+    /// Whether the listener requires token authentication.
     pub require_connection_token: bool,
+    /// Secret connection token, absent when authentication is disabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
 }
 
+/// Empty acknowledgement for a completed host lifecycle operation.
 ///
 /// <div class="warning">
 ///
@@ -35521,12 +35551,16 @@ pub enum HistoryRewindOutcome {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostExitReason {
+    /// The owner requested disposal.
     #[serde(rename = "disposed")]
     Disposed,
+    /// The child process or its SDK transport exited.
     #[serde(rename = "exited")]
     Exited,
+    /// The owning SDK connection disconnected.
     #[serde(rename = "ownerDisconnected")]
     OwnerDisconnected,
+    /// The runtime is shutting down.
     #[serde(rename = "runtimeShutdown")]
     RuntimeShutdown,
     /// Unknown variant for forward compatibility.

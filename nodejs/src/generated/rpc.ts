@@ -1884,7 +1884,15 @@ export type HistoryRewindOutcome =
   | "snapshot-prune-failed";
 
 /** @experimental */
-export type HostExitReason = "disposed" | "exited" | "ownerDisconnected" | "runtimeShutdown";
+export type HostExitReason =
+  /** The owner requested disposal. */
+  | "disposed"
+  /** The child process or its SDK transport exited. */
+  | "exited"
+  /** The owning SDK connection disconnected. */
+  | "ownerDisconnected"
+  /** The runtime is shutting down. */
+  | "runtimeShutdown";
 /**
  * Source for direct repo installs (when marketplace is empty)
  *
@@ -11008,39 +11016,102 @@ export interface HooksDiscoverResult {
    */
   errors: string[];
 }
-
+/**
+ * Normalized listener settings delivered only to the supervised child.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostConfiguration".
+ */
 /** @experimental */
 export interface HostConfiguration {
+  /**
+   * Hostname or IP address to bind.
+   */
   hostname: string;
+  /**
+   * Port to bind, with zero requesting OS allocation.
+   */
   port: number;
+  /**
+   * Secret connection token, absent when authentication is disabled.
+   */
   token?: string | null;
+  /**
+   * Whether the listener requires token authentication.
+   */
   requireConnectionToken: boolean;
 }
-
+/**
+ * Stops a connection-owned listener and joins its teardown.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostDisposeRequest".
+ */
 /** @experimental */
 export interface HostDisposeRequest {
+  /**
+   * Listener UUID. Unknown or successfully stopped IDs are harmless.
+   */
   hostId: string;
 }
-
+/**
+ * Empty acknowledgement for a completed host lifecycle operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostEmptyResult".
+ */
 /** @experimental */
 export interface HostEmptyResult {}
-
+/**
+ * Reports a supervised listener's process termination and cleanup outcome.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostExitedNotification".
+ */
 /** @experimental */
 export interface HostExitedNotification {
+  /**
+   * Listener UUID.
+   */
   hostId: string;
   reason: HostExitReason;
+  /**
+   * Process exit status, absent for signal termination or unavailable status.
+   */
   exitCode?: number | null;
+  /**
+   * Explicit startup or teardown failure, when present.
+   */
   error?: string | null;
 }
-
+/**
+ * Readiness reported by the supervised child on its own SDK connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostReadyRequest".
+ */
 /** @experimental */
 export interface HostReadyRequest {
+  /**
+   * Actual bound WebSocket URL.
+   */
   address: string;
+  /**
+   * Configured secret token, absent when authentication is disabled.
+   */
   token?: string | null;
 }
-
+/**
+ * Starts a supervised AHP listener in the runtime's configured working directory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostStartRequest".
+ */
 /** @experimental */
 export interface HostStartRequest {
+  /**
+   * Caller-generated UUID identifying this connection-owned listener.
+   */
   hostId: string;
   /**
    * Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed.
@@ -11059,12 +11130,29 @@ export interface HostStartRequest {
    */
   requireConnectionToken?: boolean | null;
 }
-
+/**
+ * Listener readiness, returned only after binding and the child's SDK handshake.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostStartResult".
+ */
 /** @experimental */
 export interface HostStartResult {
+  /**
+   * Caller-generated listener UUID.
+   */
   hostId: string;
+  /**
+   * Actual bound WebSocket URL, including the allocated port.
+   */
   url: string;
+  /**
+   * Secret connection token, absent when authentication is disabled.
+   */
   token?: string | null;
+  /**
+   * Operating-system process ID of the supervised child.
+   */
   pid: number;
 }
 /**
@@ -26812,18 +26900,45 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
    */
   operation: string;
 }
-
+/**
+ * Empty acknowledgement for a completed host lifecycle operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostDisposeResult".
+ */
 /** @experimental */
 export interface HostDisposeResult {}
-
+/**
+ * Normalized listener settings delivered only to the supervised child.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostGetConfigurationResult".
+ */
 /** @experimental */
 export interface HostGetConfigurationResult {
+  /**
+   * Hostname or IP address to bind.
+   */
   hostname: string;
+  /**
+   * Port to bind, with zero requesting OS allocation.
+   */
   port: number;
+  /**
+   * Secret connection token, absent when authentication is disabled.
+   */
   token?: string | null;
+  /**
+   * Whether the listener requires token authentication.
+   */
   requireConnectionToken: boolean;
 }
-
+/**
+ * Empty acknowledgement for a completed host lifecycle operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostReadyResult".
+ */
 /** @experimental */
 export interface HostReadyResult {}
 
@@ -26976,15 +27091,34 @@ export interface SessionFsSqliteExistsRequest {
    */
   sessionId: string;
 }
-
+/**
+ * Empty acknowledgement for a completed host lifecycle operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostShutdownResult".
+ */
 /** @experimental */
 export interface HostShutdownResult {}
-
+/**
+ * Reports a supervised listener's process termination and cleanup outcome.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostExitedRequest".
+ */
 /** @experimental */
 export interface HostExitedRequest {
+  /**
+   * Listener UUID.
+   */
   hostId: string;
   reason: HostExitReason;
+  /**
+   * Process exit status, absent for signal termination or unavailable status.
+   */
   exitCode?: number | null;
+  /**
+   * Explicit startup or teardown failure, when present.
+   */
   error?: string | null;
 }
 
@@ -26995,11 +27129,19 @@ export function createServerRpc(connection: MessageConnection) {
         host: {
             /**
              * Starts a connection-owned local AHP listener as a supervised SDK participant.
+             *
+             * @param params Starts a supervised AHP listener in the runtime's configured working directory.
+             *
+             * @returns Listener readiness, returned only after binding and the child's SDK handshake.
              */
             start: async (params: HostStartRequest): Promise<HostStartResult> =>
                 connection.sendRequest("host.start", params),
             /**
              * Stops and reaps a listener owned by this SDK connection without deleting sessions.
+             *
+             * @param params Stops a connection-owned listener and joins its teardown.
+             *
+             * @returns Empty acknowledgement for a completed host lifecycle operation.
              */
             dispose: async (params: HostDisposeRequest): Promise<HostDisposeResult> =>
                 connection.sendRequest("host.dispose", params),
@@ -27779,11 +27921,17 @@ export function createInternalServerRpc(connection: MessageConnection) {
         host: {
             /**
              * Returns listener settings only to the supervised child over its SDK connection.
+             *
+             * @returns Normalized listener settings delivered only to the supervised child.
              */
             getConfiguration: async (): Promise<HostGetConfigurationResult> =>
                 connection.sendRequest("host.getConfiguration", {}),
             /**
              * Reports a supervised child's bound AHP endpoint after its SDK handshake.
+             *
+             * @param params Readiness reported by the supervised child on its own SDK connection.
+             *
+             * @returns Empty acknowledgement for a completed host lifecycle operation.
              */
             ready: async (params: HostReadyRequest): Promise<HostReadyResult> =>
                 connection.sendRequest("host.ready", params),
@@ -30930,6 +31078,8 @@ export function registerClientSessionApiHandlers(
 export interface HostHandler {
     /**
      * Reports termination of a connection-owned host listener.
+     *
+     * @param params Reports a supervised listener's process termination and cleanup outcome.
      */
     exited(params: HostExitedRequest): Promise<void>;
 }

@@ -4482,10 +4482,19 @@ class HooksDiscoverRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HostConfiguration:
+    """Normalized listener settings delivered only to the supervised child."""
+
     hostname: str
+    """Hostname or IP address to bind."""
+
     port: int
+    """Port to bind, with zero requesting OS allocation."""
+
     require_connection_token: bool
+    """Whether the listener requires token authentication."""
+
     token: str | None = None
+    """Secret connection token, absent when authentication is disabled."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'HostConfiguration':
@@ -4508,7 +4517,10 @@ class HostConfiguration:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HostDisposeRequest:
+    """Stops a connection-owned listener and joins its teardown."""
+
     host_id: str
+    """Listener UUID. Unknown or successfully stopped IDs are harmless."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'HostDisposeRequest':
@@ -4522,6 +4534,8 @@ class HostDisposeRequest:
         return result
 
 class HostExitReason(Enum):
+    """Cause of termination."""
+
     DISPOSED = "disposed"
     EXITED = "exited"
     OWNER_DISCONNECTED = "ownerDisconnected"
@@ -4530,8 +4544,13 @@ class HostExitReason(Enum):
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HostReadyRequest:
+    """Readiness reported by the supervised child on its own SDK connection."""
+
     address: str
+    """Actual bound WebSocket URL."""
+
     token: str | None = None
+    """Configured secret token, absent when authentication is disabled."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'HostReadyRequest':
@@ -4550,7 +4569,11 @@ class HostReadyRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HostStartRequest:
+    """Starts a supervised AHP listener in the runtime's configured working directory."""
+
     host_id: str
+    """Caller-generated UUID identifying this connection-owned listener."""
+
     hostname: str | None = None
     """Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed."""
 
@@ -4589,10 +4612,19 @@ class HostStartRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HostStartResult:
+    """Listener readiness, returned only after binding and the child's SDK handshake."""
+
     host_id: str
+    """Caller-generated listener UUID."""
+
     pid: int
+    """Operating-system process ID of the supervised child."""
+
     url: str
+    """Actual bound WebSocket URL, including the allocated port."""
+
     token: str | None = None
+    """Secret connection token, absent when authentication is disabled."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'HostStartResult':
@@ -20279,10 +20311,19 @@ class HistoryRewindRequest:
 
 @dataclass
 class HostExitedNotification:
+    """Reports a supervised listener's process termination and cleanup outcome."""
+
     host_id: str
+    """Listener UUID."""
+
     reason: HostExitReason
+    """Cause of termination."""
+
     error: str | None = None
+    """Explicit startup or teardown failure, when present."""
+
     exit_code: int | None = None
+    """Process exit status, absent for signal termination or unavailable status."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'HostExitedNotification':
@@ -45829,12 +45870,12 @@ class ServerHostApi:
         self._client = client
 
     async def start(self, params: HostStartRequest, *, timeout: float | None = None) -> HostStartResult:
-        "Starts a connection-owned local AHP listener as a supervised SDK participant."
+        "Starts a connection-owned local AHP listener as a supervised SDK participant.\n\nArgs:\n    params: Starts a supervised AHP listener in the runtime's configured working directory.\n\nReturns:\n    Listener readiness, returned only after binding and the child's SDK handshake."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return HostStartResult.from_dict(await self._client.request("host.start", params_dict, **_timeout_kwargs(timeout)))
 
     async def dispose(self, params: HostDisposeRequest, *, timeout: float | None = None) -> dict:
-        "Stops and reaps a listener owned by this SDK connection without deleting sessions."
+        "Stops and reaps a listener owned by this SDK connection without deleting sessions.\n\nArgs:\n    params: Stops a connection-owned listener and joins its teardown.\n\nReturns:\n    Empty acknowledgement for a completed host lifecycle operation."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return dict(await self._client.request("host.dispose", params_dict, **_timeout_kwargs(timeout)))
 
@@ -46428,11 +46469,11 @@ class _InternalServerHostApi:
         self._client = client
 
     async def _get_configuration(self, *, timeout: float | None = None) -> HostConfiguration:
-        "Returns listener settings only to the supervised child over its SDK connection.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        "Returns listener settings only to the supervised child over its SDK connection.\n\nReturns:\n    Normalized listener settings delivered only to the supervised child.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         return HostConfiguration.from_dict(await self._client.request("host.getConfiguration", {}, **_timeout_kwargs(timeout)))
 
     async def _ready(self, params: HostReadyRequest, *, timeout: float | None = None) -> dict:
-        "Reports a supervised child's bound AHP endpoint after its SDK handshake.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        "Reports a supervised child's bound AHP endpoint after its SDK handshake.\n\nArgs:\n    params: Readiness reported by the supervised child on its own SDK connection.\n\nReturns:\n    Empty acknowledgement for a completed host lifecycle operation.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return dict(await self._client.request("host.ready", params_dict, **_timeout_kwargs(timeout)))
 
@@ -48891,10 +48932,10 @@ def register_client_session_api_handlers(
 # Experimental: this API group is experimental and may change or be removed.
 class HostHandler(Protocol):
     async def shutdown(self, params: dict) -> dict:
-        "Requests graceful shutdown of a supervised AHP listener and its clients."
+        "Requests graceful shutdown of a supervised AHP listener and its clients.\n\nArgs:\n    params: Empty acknowledgement for a completed host lifecycle operation.\n\nReturns:\n    Empty acknowledgement for a completed host lifecycle operation."
         pass
     async def exited(self, params: HostExitedNotification) -> None:
-        "Reports termination of a connection-owned host listener."
+        "Reports termination of a connection-owned host listener.\n\nArgs:\n    params: Reports a supervised listener's process termination and cleanup outcome."
         pass
 
 # Experimental: this API group is experimental and may change or be removed.
