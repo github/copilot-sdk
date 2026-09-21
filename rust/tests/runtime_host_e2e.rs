@@ -301,6 +301,8 @@ async fn unexpected_exit_notifies_at_most_once_and_preserves_owner_session() {
             assert_eq!(observed.reason, HostExitReason::Exited);
             stopped(&host, &ahp).await;
             sdk.get_events().await.unwrap();
+            host.dispose().await.unwrap();
+            host.dispose().await.unwrap();
             ahp.client.shutdown().await;
             owner.stop().await.unwrap();
             assert_eq!(exits.lock().unwrap().len(), 1);
