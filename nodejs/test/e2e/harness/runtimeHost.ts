@@ -100,7 +100,7 @@ export async function createAhpSession(
         (entry) => entry.provider === "copilot"
     );
     const resource = agent?.protectedResources?.find(
-        (entry) => entry.resource === "https://api.github.com"
+        (entry) => entry.resource_name === "GitHub API"
     );
     assert(resource, "The Copilot agent must advertise its GitHub protected resource");
     await ahp.client.request("authenticate", {
