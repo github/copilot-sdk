@@ -42,8 +42,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 await using client = new CopilotClient();
 await client.start();
-await using host = await client.startAhpHost({
-    requireConnectionToken: true,
+const host = await client.startAhpHost({
     onExit: (exit) => {
         if (exit.error) console.error(exit.error);
     },
@@ -53,8 +52,8 @@ await using host = await client.startAhpHost({
 // Treat host.token as a secret; do not log it.
 
 // Existing SDK sessions and AHP sessions share this runtime.
-// When finished, close the listener and await child cleanup.
-await host.dispose();
+// Keep client alive while the listener is needed. Leaving this scope disposes
+// client, and the runtime stops its listener without a separate host.dispose().
 ```
 
 The runtime launches and supervises `copilotd-lite`; the SDK does not launch a
@@ -66,10 +65,20 @@ The optional `onExit` callback reports exits at most once. If the owner connecti
 is lost, it reports that loss rather than claiming that child termination was
 acknowledged.
 
-The runtime validates `hostname`, `port`, `token`, and `requireConnectionToken`.
-The default listener binds to `127.0.0.1` on an available port. Connection tokens
-are optional; `host.token` is undefined when authentication is not required.
-Each `dispose()` call forwards to the runtime, which owns idempotent cleanup.
+The runtime validates listener options and applies their defaults:
+
+- `hostname` defaults to `127.0.0.1`. Set it explicitly to request a non-loopback
+  listener, such as `hostname: "0.0.0.0"`, and restrict network access appropriately.
+- `port` defaults to `0`, which selects an available port.
+- `requireConnectionToken` defaults to `true`. The runtime generates a random
+  token unless you supply a nonempty `token`.
+- Set `requireConnectionToken: false` to disable token authentication;
+  `host.token` is then undefined. A supplied `token` cannot be combined with
+  `requireConnectionToken: false`.
+
+The listener follows the owning client's lifetime. Call `await host.dispose()`
+only when you want to stop it earlier; `await using host` also supports a shorter
+scope. Each disposal call forwards to the runtime, which owns idempotent cleanup.
 This API does not provide application create/resume callbacks or an
 application-owned AHP transport.
 
