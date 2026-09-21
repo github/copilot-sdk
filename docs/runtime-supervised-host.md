@@ -58,6 +58,17 @@ even after forced process termination. Different effective homes have separate
 catalogs. This does not change standalone `copilotd` defaults or concurrency
 behavior, and does not add standalone/lite shared-writer support.
 
+## Current GHES shell limitation
+
+Lite does not yet provide traditional copilotd's propagation of an AHP session's
+GHES credential to shell `gh` commands. Ordinary per-session authentication is
+unchanged. General support belongs in the runtime's existing per-session shell
+credential capability and is tracked in
+[runtime #22077](https://github.com/github/copilot-agent-runtime/issues/22077).
+The lite-specific credential workaround and new command-target policy have been
+removed. Traditional copilotd retains its existing Enterprise-token subprocess
+seeding and is unaffected.
+
 ## Local-development requirements
 
 Use three local checkouts, including the Rust SDK in `copilot-sdk/rust`.
