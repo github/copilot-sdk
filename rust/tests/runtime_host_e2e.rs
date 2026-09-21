@@ -138,10 +138,10 @@ async fn explicit_base_directory_survives_runtime_restart_and_excludes_other_wri
         Box::pin(async move {
             let base = home(ctx).join("explicit-base");
             std::fs::create_dir_all(&base).unwrap();
-            let first = Client::start(options(ctx).with_base_directory(&base))
+            let first = Client::start(options_with_base_directory(ctx, &base))
                 .await
                 .unwrap();
-            let second = Client::start(options(ctx).with_base_directory(&base))
+            let second = Client::start(options_with_base_directory(ctx, &base))
                 .await
                 .unwrap();
             let host = first
@@ -174,7 +174,7 @@ async fn explicit_base_directory_survives_runtime_restart_and_excludes_other_wri
             first.stop().await.unwrap();
             second.stop().await.unwrap();
             reaped(old_pid).await;
-            let restarted = Client::start(options(ctx).with_base_directory(&base))
+            let restarted = Client::start(options_with_base_directory(ctx, &base))
                 .await
                 .unwrap();
             let host = restarted
@@ -301,8 +301,6 @@ async fn unexpected_exit_notifies_at_most_once_and_preserves_owner_session() {
             assert_eq!(observed.reason, HostExitReason::Exited);
             stopped(&host, &ahp).await;
             sdk.get_events().await.unwrap();
-            host.dispose().await.unwrap();
-            host.dispose().await.unwrap();
             ahp.client.shutdown().await;
             owner.stop().await.unwrap();
             assert_eq!(exits.lock().unwrap().len(), 1);

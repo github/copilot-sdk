@@ -98,7 +98,7 @@ required-features = ["test-support"]
 
 [[test]]
 name = "runtime_host_e2e"
-required-features = ["test-support"]
+required-features = ["runtime", "test-support"]
 
 [[test]]
 name = "protocol_version_test"

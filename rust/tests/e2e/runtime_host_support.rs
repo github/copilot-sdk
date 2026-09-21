@@ -144,6 +144,14 @@ pub async fn start(ctx: &E2eContext) -> Client {
         .expect("start local runtime")
 }
 
+pub fn options_with_base_directory(ctx: &E2eContext, base: &Path) -> ClientOptions {
+    let mut options = options(ctx).with_base_directory(base);
+    // The shared harness sets COPILOT_HOME explicitly; Rust's explicit env
+    // overrides typed defaults. Remove that conflict to exercise base_directory.
+    options.env.retain(|(name, _)| name != "COPILOT_HOME");
+    options
+}
+
 pub fn home(ctx: &E2eContext) -> PathBuf {
     ctx.client_options()
         .env
@@ -448,8 +456,13 @@ pub async fn stopped(host: &AhpHost, ahp: &Ahp) {
 
 pub fn kill(host: &AhpHost) {
     assert!(
-        Command::new("kill")
-            .args(["-KILL", &host.pid.to_string()])
+        Command::new("sh")
+            .args([
+                "-c",
+                "kill -KILL \"$1\"",
+                "kill-host",
+                &host.pid.to_string()
+            ])
             .status()
             .unwrap()
             .success()

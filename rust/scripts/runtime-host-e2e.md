@@ -37,7 +37,7 @@ GITHUB_ACTIONS=true COPILOT_RUNTIME_HOST_E2E=1 \
 COPILOT_CLI_PATH=/absolute/local/runtime/copilot-runtime \
 COPILOT_RUNTIME_PROVIDER_LIB=/absolute/local/runtime/runtime.node \
 COPILOTD_LITE_PATH=/absolute/local/host/copilotd-lite \
-cargo test --locked --no-default-features --features test-support \
+cargo test --locked --no-default-features --features runtime,test-support \
   --test runtime_host_e2e -- --ignored --test-threads=1
 ```
 
@@ -52,7 +52,7 @@ mkdir -p ../.runtime-host-test-work/rust
 TMPDIR="$(cd ../.runtime-host-test-work/rust && pwd)" \
 GITHUB_ACTIONS=true COPILOT_RUNTIME_HOST_E2E=1 \
 COPILOT_RUNTIME_HOST_CANDIDATE_MANIFEST=/absolute/existing/candidate/manifest.json \
-cargo test --locked --no-default-features --features test-support \
+cargo test --locked --no-default-features --features runtime,test-support \
   --test runtime_host_e2e -- --ignored --test-threads=1
 ```
 
@@ -81,7 +81,7 @@ The tests are ignored by ordinary Cargo runs. To compile without running native
 artifacts:
 
 ```sh
-cargo test --locked --no-default-features --features test-support \
+cargo test --locked --no-default-features --features runtime,test-support \
   --test runtime_host_e2e --no-run
 ```
 
