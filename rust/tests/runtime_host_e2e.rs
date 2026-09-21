@@ -254,6 +254,17 @@ async fn same_catalog_and_other_owner_rejected_disconnect_cleans_up_without_stop
             // Abruptly close only the external owner's transport: no host.dispose,
             // runtime.shutdown, or owned child process is involved.
             other.force_stop();
+            let observed = exit(&exits).await;
+            assert_eq!(observed.host_id, host.host_id);
+            assert_eq!(observed.reason, HostExitReason::OwnerDisconnected);
+            assert_eq!(observed.exit_code, None);
+            assert!(
+                observed
+                    .error
+                    .as_deref()
+                    .unwrap()
+                    .contains("runtime cleanup cannot be acknowledged")
+            );
             stopped(&host, &ahp).await;
             ahp.client.shutdown().await;
             sdk.get_events().await.unwrap();
@@ -270,10 +281,7 @@ async fn same_catalog_and_other_owner_rejected_disconnect_cleans_up_without_stop
                 .create_session(ctx.approve_all_session_config())
                 .await
                 .unwrap();
-            assert!(
-                exits.lock().unwrap().is_empty(),
-                "a lost connection cannot report a runtime exit"
-            );
+            assert_eq!(exits.lock().unwrap().len(), 1);
             owner.stop().await.unwrap();
         })
     })

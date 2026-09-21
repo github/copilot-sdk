@@ -10,12 +10,12 @@ use tracing::warn;
 use crate::generated::api_types::{HostDisposeRequest, HostStartRequest};
 use crate::{Client, ClientInner, Error, ErrorKind, ProtocolErrorKind};
 
-/// Experimental AHP host exit reason, as reported by the runtime.
+/// Experimental AHP host exit reason, including local owner disconnection.
 pub use crate::generated::api_types::HostExitReason as AhpHostExitReason;
-/// Experimental AHP host exit payload, as reported by the runtime.
+/// Experimental AHP host exit payload or local owner-disconnection report.
 pub use crate::generated::api_types::HostExitedNotification as AhpHostExit;
 
-/// Experimental local callback for a host's first `host.exited` notification.
+/// Experimental local callback for a host's exit or owner disconnection.
 pub type AhpHostExitCallback = Arc<dyn Fn(AhpHostExit) + Send + Sync>;
 
 /// Options for [`Client::start_ahp_host`].
@@ -35,8 +35,8 @@ pub struct AhpHostOptions {
     pub require_connection_token: Option<bool>,
     /// Local callback, never serialized. Called at most once.
     ///
-    /// Disconnect releases this callback without synthesizing an exit: a
-    /// disconnected transport cannot establish whether the host was reaped.
+    /// Disconnect reports `OwnerDisconnected` without claiming the host was
+    /// reaped. Already-received runtime exit notifications take precedence.
     /// Panics are caught and logged, as for other SDK notification callbacks.
     pub on_exit: Option<AhpHostExitCallback>,
 }
@@ -146,6 +146,12 @@ impl AhpHost {
 
 pub(crate) type ExitCallbacks = Mutex<HashMap<String, AhpHostExitCallback>>;
 
+fn invoke_exit_callback(callback: AhpHostExitCallback, exit: AhpHostExit) {
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| callback(exit))).is_err() {
+        warn!("host.exited callback panicked; continuing notification routing");
+    }
+}
+
 // Removes local registration even if the start future is cancelled. The runtime
 // still owns any host whose start request has already reached the connection.
 struct PendingStart {
@@ -206,6 +212,7 @@ impl Client {
         tokio::spawn(async move {
             loop {
                 let notification = tokio::select! {
+                    // Drain received exits before reporting transport loss.
                     biased;
                     notification = notifications.recv() => notification,
                     _ = closed.cancelled() => break,
@@ -226,13 +233,8 @@ impl Client {
                             return;
                         };
                         let callback = callbacks.lock().remove(&exit.host_id);
-                        if let Some(callback) = callback
-                            && std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                callback(exit);
-                            }))
-                            .is_err()
-                        {
-                            warn!("host.exited callback panicked; continuing notification routing");
+                        if let Some(callback) = callback {
+                            invoke_exit_callback(callback, exit);
                         }
                     }
                     Ok(_) => {}
@@ -244,7 +246,20 @@ impl Client {
             }
             if let Some(callbacks) = callbacks.upgrade() {
                 let callbacks = std::mem::take(&mut *callbacks.lock());
-                drop(callbacks);
+                for (host_id, callback) in callbacks {
+                    invoke_exit_callback(
+                        callback,
+                        AhpHostExit {
+                            host_id,
+                            reason: AhpHostExitReason::OwnerDisconnected,
+                            exit_code: None,
+                            error: Some(
+                                "Owner connection closed; runtime cleanup cannot be acknowledged on this connection."
+                                    .to_owned(),
+                            ),
+                        },
+                    );
+                }
             }
         });
     }

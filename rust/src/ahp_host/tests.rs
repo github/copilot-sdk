@@ -319,7 +319,7 @@ async fn dispose_forwards_concurrent_repeated_calls_and_runtime_errors() {
 }
 
 #[tokio::test]
-async fn disconnect_releases_callback_without_claiming_host_exited() {
+async fn disconnect_notifies_once_without_claiming_reaping() {
     let (client, mut peer) = fixture();
     let (options, mut exits) = callback_options();
     let pending = start(&client, options);
@@ -327,20 +327,26 @@ async fn disconnect_releases_callback_without_claiming_host_exited() {
     peer.started(&request, None).await;
     let host = pending.await.unwrap().unwrap();
     drop(peer);
+    let exit = timeout(TIMEOUT, exits.recv()).await.unwrap().unwrap();
+    assert_owner_disconnected(&exit, &host.host_id);
+    client.force_stop();
     assert!(timeout(TIMEOUT, exits.recv()).await.unwrap().is_none());
     assert!(client.inner.ahp_host_callbacks.lock().is_empty());
     assert!(host.dispose().await.is_err());
 }
 
 #[tokio::test]
-async fn force_stop_releases_callbacks_without_dispose_loop() {
+async fn force_stop_notifies_once_without_dispose_loop() {
     let (client, mut peer) = fixture();
     let (options, mut exits) = callback_options();
     let pending = start(&client, options);
     let request = peer.request().await;
     peer.started(&request, None).await;
-    pending.await.unwrap().unwrap();
+    let host = pending.await.unwrap().unwrap();
     client.force_stop();
+    client.force_stop();
+    let exit = timeout(TIMEOUT, exits.recv()).await.unwrap().unwrap();
+    assert_owner_disconnected(&exit, &host.host_id);
     assert!(timeout(TIMEOUT, exits.recv()).await.unwrap().is_none());
     assert!(client.inner.ahp_host_callbacks.lock().is_empty());
     assert_eq!(
@@ -351,6 +357,113 @@ async fn force_stop_releases_callbacks_without_dispose_loop() {
             .kind(),
         std::io::ErrorKind::UnexpectedEof
     );
+}
+
+fn assert_owner_disconnected(exit: &AhpHostExit, host_id: &str) {
+    assert_eq!(exit.host_id, host_id);
+    assert_eq!(exit.reason, AhpHostExitReason::OwnerDisconnected);
+    assert_eq!(exit.exit_code, None);
+    assert!(
+        exit.error
+            .as_deref()
+            .unwrap()
+            .contains("runtime cleanup cannot be acknowledged")
+    );
+}
+
+#[tokio::test]
+async fn queued_real_exit_precedes_disconnect_and_is_not_duplicated() {
+    let (client, mut peer) = fixture();
+    let (options, mut exits) = callback_options();
+    let pending = start(&client, options);
+    let request = peer.request().await;
+    peer.started(&request, None).await;
+    let host = pending.await.unwrap().unwrap();
+    let (options, mut remaining_exits) = callback_options();
+    let pending = start(&client, options);
+    let request = peer.request().await;
+    peer.started(&request, None).await;
+    let remaining = pending.await.unwrap().unwrap();
+
+    // Queue notifications and close without yielding so both select branches
+    // are ready when the dispatcher next runs.
+    for _ in 0..2 {
+        client
+            .inner
+            .notification_tx
+            .send(
+                serde_json::from_value(json!({
+                    "jsonrpc": "2.0", "method": "host.exited",
+                    "params": {"hostId": host.host_id, "reason": "exited", "exitCode": 17}
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+    }
+    client.force_stop();
+    let exit = timeout(TIMEOUT, exits.recv()).await.unwrap().unwrap();
+    assert_eq!(exit.host_id, host.host_id);
+    assert_eq!(exit.reason, AhpHostExitReason::Exited);
+    assert_eq!(exit.exit_code, Some(17));
+    assert_eq!(exit.error, None);
+    assert!(timeout(TIMEOUT, exits.recv()).await.unwrap().is_none());
+    let exit = timeout(TIMEOUT, remaining_exits.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_owner_disconnected(&exit, &remaining.host_id);
+    assert!(
+        timeout(TIMEOUT, remaining_exits.recv())
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(client.inner.ahp_host_callbacks.lock().is_empty());
+}
+
+#[tokio::test]
+async fn wire_exit_immediately_before_eof_is_not_replaced_by_disconnect() {
+    let (client, mut peer) = fixture();
+    let (options, mut exits) = callback_options();
+    let pending = start(&client, options);
+    let request = peer.request().await;
+    peer.started(&request, None).await;
+    let host = pending.await.unwrap().unwrap();
+    peer.exited(&host.host_id).await;
+    drop(peer);
+    let exit = timeout(TIMEOUT, exits.recv()).await.unwrap().unwrap();
+    assert_eq!(exit.reason, AhpHostExitReason::Exited);
+    assert_eq!(exit.exit_code, Some(17));
+    assert!(timeout(TIMEOUT, exits.recv()).await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn disconnect_notifies_all_callbacks_even_when_they_panic() {
+    let (client, mut peer) = fixture();
+    let (tx, mut exits) = mpsc::unbounded_channel();
+    let mut host_ids = Vec::new();
+    for _ in 0..3 {
+        let tx = tx.clone();
+        let pending = start(
+            &client,
+            AhpHostOptions::new().with_on_exit(move |exit| {
+                tx.send(exit).unwrap();
+                panic!("test disconnect callback panic");
+            }),
+        );
+        let request = peer.request().await;
+        peer.started(&request, None).await;
+        host_ids.push(pending.await.unwrap().unwrap().host_id);
+    }
+    drop(tx);
+    client.force_stop();
+    for _ in 0..3 {
+        let exit = timeout(TIMEOUT, exits.recv()).await.unwrap().unwrap();
+        let index = host_ids.iter().position(|id| id == &exit.host_id).unwrap();
+        assert_owner_disconnected(&exit, &host_ids.remove(index));
+    }
+    assert!(timeout(TIMEOUT, exits.recv()).await.unwrap().is_none());
+    assert!(client.inner.ahp_host_callbacks.lock().is_empty());
 }
 
 #[tokio::test]

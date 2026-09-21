@@ -36,7 +36,10 @@ shutting down the runtime ends the host's participation. Cleanup must not
 independently delete sessions or terminate another owner's work. A new SDK
 connection has no implicit claim on an old host.
 
-The optional `onExit` callback reports exit at most once. An `ownerDisconnected`
+The optional Node `onExit` / Rust `on_exit` callback reports exit at most once.
+On owner connection loss, already-received exits take precedence; remaining
+callbacks receive `ownerDisconnected` (`OwnerDisconnected` in Rust), without an
+exit code and with an explanation that cleanup cannot be acknowledged. That
 report cannot prove reaping through a transport that has already closed.
 End-to-end coverage independently observes listener and process termination.
 The small `AhpHost` handle forwards each `dispose()` call to the runtime, including

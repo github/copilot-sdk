@@ -154,17 +154,20 @@ an available port, and required connection-token authentication. Set
 The returned `AhpHost` exposes `host_id`, `url`, `pid`, and `token`.
 Every explicit asynchronous `dispose()` call forwards `host.dispose`,
 including concurrent or repeated calls, and returns the runtime's result.
-There is no cached disposal, automatic retry, synthetic exit, or closed
+There is no cached disposal, automatic retry, synthetic successful disposal, or closed
 future. Dropping a handle does not dispose it or spawn cleanup work.
 The owning `Client` connection controls runtime host lifetime; the handle
 does not keep that client alive.
 
-`on_exit` receives the generated notification as `AhpHostExit`, whose
+`on_exit` receives an `AhpHostExit`, whose
 `reason` is `AhpHostExitReason`. Registration precedes the start RPC so an
 early exit is observable. Delivery is at most once; callback panics are
 caught and logged. Start failure or cancellation releases registration.
-Disconnect releases outstanding callbacks without claiming that the host
-was reaped or sending additional disposal RPCs.
+On owner connection loss (including `force_stop`), already-received runtime
+exit notifications are drained first. Each remaining callback receives
+`OwnerDisconnected`, no exit code, and an explanation that runtime cleanup
+cannot be acknowledged over the disconnected transport. This matches Node's
+`onExit`: it does not claim the host was reaped or send additional disposal RPCs.
 
 See [Runtime-host integration tests](scripts/runtime-host-e2e.md) for source
 and assembled-candidate validation using the shared replay snapshots.
