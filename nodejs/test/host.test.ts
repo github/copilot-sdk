@@ -64,6 +64,7 @@ describe("CopilotHost", () => {
         const exit: CopilotHostExit = {
             hostId: info.hostId,
             reason: "exited",
+            exitCode: 17,
             error: "copilotd-lite exited unexpectedly",
         };
 

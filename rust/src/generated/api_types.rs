@@ -3523,7 +3523,6 @@ impl CatalogAiSkillCandidate {
             serde::de::value::StringDeserializer::<D::Error>::new(value),
         )
     }
-
     fn deserialize_kind<'de, D>(deserializer: D) -> Result<CatalogAiSkillCandidateKind, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -3536,7 +3535,6 @@ impl CatalogAiSkillCandidate {
             serde::de::value::StringDeserializer::<D::Error>::new(value),
         )
     }
-
     fn deserialize_media_type<'de, D>(deserializer: D) -> Result<CatalogAiSkillMediaType, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -7997,8 +7995,10 @@ pub struct HostEmptyResult {}
 pub struct HostExitedNotification {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i64>,
     pub host_id: String,
-    pub reason: String,
+    pub reason: HostExitReason,
 }
 
 ///
@@ -10365,7 +10365,6 @@ impl McpPlanRequiredValueEnum {
             serde::de::value::StringDeserializer::<D::Error>::new(value),
         )
     }
-
     fn deserialize_value_type<'de, D>(deserializer: D) -> Result<McpPlanEnumValueType, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -35466,6 +35465,22 @@ pub enum HistoryRewindOutcome {
     /// Files and conversation were rewound, but obsolete file snapshots could not be removed; only conversation-and-files rewinds produce this.
     #[serde(rename = "snapshot-prune-failed")]
     SnapshotPruneFailed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HostExitReason {
+    #[serde(rename = "disposed")]
+    Disposed,
+    #[serde(rename = "exited")]
+    Exited,
+    #[serde(rename = "ownerDisconnected")]
+    OwnerDisconnected,
+    #[serde(rename = "runtimeShutdown")]
+    RuntimeShutdown,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

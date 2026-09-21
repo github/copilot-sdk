@@ -1882,6 +1882,9 @@ export type HistoryRewindOutcome =
   | "checkpoint-cleanup-failed"
   /** Files and conversation were rewound, but obsolete file snapshots could not be removed; only conversation-and-files rewinds produce this. */
   | "snapshot-prune-failed";
+
+/** @experimental */
+export type HostExitReason = "disposed" | "exited" | "ownerDisconnected" | "runtimeShutdown";
 /**
  * Source for direct repo installs (when marketplace is empty)
  *
@@ -11017,7 +11020,8 @@ export interface HostEmptyResult {}
 /** @experimental */
 export interface HostExitedNotification {
   hostId: string;
-  reason: string;
+  reason: HostExitReason;
+  exitCode?: number | null;
   error?: string | null;
 }
 
@@ -26946,12 +26950,10 @@ export interface SessionFsSqliteExistsRequest {
 export interface HostShutdownResult {}
 
 /** @experimental */
-export interface HostExitedResult {}
-
-/** @experimental */
 export interface HostExitedRequest {
   hostId: string;
-  reason: string;
+  reason: HostExitReason;
+  exitCode?: number | null;
   error?: string | null;
 }
 
@@ -30893,7 +30895,7 @@ export interface HostHandler {
     /**
      * Reports termination of a connection-owned host listener.
      */
-    exited(params: HostExitedRequest): Promise<HostExitedResult>;
+    exited(params: HostExitedRequest): Promise<void>;
 }
 
 /** Handler for `extensionLaunchProvider` client global API methods. */

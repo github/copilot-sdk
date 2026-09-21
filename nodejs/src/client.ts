@@ -880,7 +880,6 @@ export class CopilotClient {
         handlers.host = {
             exited: async (exit) => {
                 this.handleHostExit(exit);
-                return {};
             },
         };
         handlers.extensionLaunchProvider = this.extensionLaunchProvider;
