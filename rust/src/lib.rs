@@ -1716,17 +1716,31 @@ impl Client {
     /// The handler runs independently of the reader, so it may await ordinary
     /// SDK requests on this connection. Its result is written using the normal
     /// framed writer. Duplicate registrations are rejected.
+    /// Use the supplied request-scoped client for SDK calls instead of capturing
+    /// a client clone, which would create an ownership cycle in the registry.
     ///
     /// This low-level integration hook is used by runtime-supervised hosts.
     #[doc(hidden)]
     pub fn register_request_handler<F, Fut>(&self, method: &str, handler: F) -> Result<()>
     where
-        F: Fn(serde_json::Value) -> Fut + Send + Sync + 'static,
+        F: Fn(serde_json::Value, Client) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = Result<serde_json::Value>> + Send + 'static,
     {
-        self.inner
-            .rpc
-            .register_request_handler(method, Arc::new(move |params| Box::pin(handler(params))))
+        let client = Arc::downgrade(&self.inner);
+        self.inner.rpc.register_request_handler(
+            method,
+            Arc::new(move |params| {
+                let Some(inner) = client.upgrade() else {
+                    return Box::pin(async {
+                        Err(Error::with_message(
+                            ErrorKind::Protocol(ProtocolErrorKind::RequestCancelled),
+                            "Request handler connection is closed",
+                        ))
+                    });
+                };
+                Box::pin(handler(params, Client { inner }))
+            }),
+        )
     }
 
     /// Create a Client from raw async streams (no child process).

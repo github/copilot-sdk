@@ -11,19 +11,19 @@ import { CopilotClient, RuntimeConnection } from "../src/index.js";
 import type { HostStartRequest } from "../src/generated/rpc.js";
 
 // Wire-level SDK unit tests. Real child/listener coverage lives in test/e2e.
-async function fixture(configure: (rpc: MessageConnection, socket: Socket) => void) {
+async function fixture(
+    configure: (rpc: MessageConnection, socket: Socket, writer: StreamMessageWriter) => void
+) {
     const sockets = new Set<Socket>();
     const connections = new Set<MessageConnection>();
     const server = createServer((socket) => {
         sockets.add(socket);
         socket.once("close", () => sockets.delete(socket));
-        const rpc = createMessageConnection(
-            new StreamMessageReader(socket),
-            new StreamMessageWriter(socket)
-        );
+        const writer = new StreamMessageWriter(socket);
+        const rpc = createMessageConnection(new StreamMessageReader(socket), writer);
         connections.add(rpc);
         rpc.onRequest("connect", () => ({ protocolVersion: 3 }));
-        configure(rpc, socket);
+        configure(rpc, socket, writer);
         rpc.listen();
     });
     server.listen(0, "127.0.0.1");
@@ -107,6 +107,50 @@ describe("CopilotClient.startHost", () => {
         });
 
         await expect(client.startHost()).rejects.toThrow();
+    });
+
+    it("drains notifications and successful responses received immediately before EOF", async () => {
+        const client = await fixture((rpc, socket, writer) => {
+            rpc.onRequest("host.start", ({ hostId }: HostStartRequest) => info(hostId));
+            rpc.onRequest("ping", () => new Promise<never>(() => {}));
+            const write = writer.write.bind(writer);
+            vi.spyOn(writer, "write").mockImplementation((message) => {
+                if ("result" in message && message.result?.hostId) {
+                    const hostId = message.result.hostId;
+                    const messages = [
+                        ...Array.from({ length: 16 }, (_, index) => ({
+                            jsonrpc: "2.0",
+                            method: "host.exited",
+                            params: {
+                                hostId: index === 15 ? hostId : `unrelated-${index}`,
+                                reason: "exited",
+                                exitCode: 0,
+                            },
+                        })),
+                        message,
+                    ];
+                    socket.end(
+                        messages
+                            .map((value) => {
+                                const body = JSON.stringify(value);
+                                return `Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`;
+                            })
+                            .join("")
+                    );
+                    return Promise.resolve();
+                }
+                return write(message);
+            });
+        });
+        await client.start();
+        const unanswered = expect(client.ping()).rejects.toThrow();
+        const host = await client.startHost();
+        await expect(host.closed).resolves.toMatchObject({
+            hostId: host.hostId,
+            reason: "exited",
+            exitCode: 0,
+        });
+        await unanswered;
     });
 
     it("keeps concurrent hosts independently disposable", async () => {

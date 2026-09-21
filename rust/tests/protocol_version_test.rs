@@ -8,6 +8,11 @@ async fn dropping_external_client_closes_its_streams() {
     let (client_write, mut server_read) = duplex(8192);
     let (_server_write, client_read) = duplex(8192);
     let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
+    client
+        .register_request_handler("host.shutdown", |_, client| async move {
+            client.call("ping", None).await
+        })
+        .unwrap();
     drop(client);
     let mut byte = [0];
     let count = tokio::time::timeout(
@@ -25,11 +30,9 @@ async fn connection_handler_can_await_sdk_replies_before_responding() {
     let (client_write, mut server_read) = duplex(8192);
     let (mut server_write, client_read) = duplex(8192);
     let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
-    let callback_client = client.clone();
     client
-        .register_request_handler("host.shutdown", move |_| {
-            let client = callback_client.clone();
-            async move { client.call("ping", None).await }
+        .register_request_handler("host.shutdown", |_, client| async move {
+            client.call("ping", None).await
         })
         .unwrap();
     let request = serde_json::json!({"jsonrpc":"2.0","id":41,"method":"host.shutdown","params":{}});
@@ -51,7 +54,18 @@ async fn connection_handler_can_await_sdk_replies_before_responding() {
     .unwrap();
     assert_eq!(shutdown["id"], 41);
     assert_eq!(shutdown["result"], serde_json::json!({"drained":true}));
-    client.force_stop();
+    drop(client);
+    let mut byte = [0];
+    assert_eq!(
+        tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            server_read.read(&mut byte),
+        )
+        .await
+        .unwrap()
+        .unwrap(),
+        0
+    );
 }
 
 #[tokio::test]
@@ -60,7 +74,7 @@ async fn connection_handlers_reject_duplicate_registration_and_report_errors() {
     let (mut server_write, client_read) = duplex(8192);
     let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
     client
-        .register_request_handler("host.shutdown", |_| async {
+        .register_request_handler("host.shutdown", |_, _| async {
             Err(github_copilot_sdk::Error::with_message(
                 github_copilot_sdk::ErrorKind::InvalidConfig,
                 "drain failed",
@@ -69,12 +83,12 @@ async fn connection_handlers_reject_duplicate_registration_and_report_errors() {
         .unwrap();
     assert!(
         client
-            .register_request_handler("host.shutdown", |_| async { Ok(serde_json::json!({})) })
+            .register_request_handler("host.shutdown", |_, _| async { Ok(serde_json::json!({})) })
             .is_err()
     );
     assert!(
         client
-            .register_request_handler("", |_| async { Ok(serde_json::json!({})) })
+            .register_request_handler("", |_, _| async { Ok(serde_json::json!({})) })
             .is_err()
     );
     let request = serde_json::json!({"jsonrpc":"2.0","id":42,"method":"host.shutdown","params":{}});
@@ -110,11 +124,12 @@ async fn connection_eof_cancels_inbound_handlers() {
     let callback_started = started.clone();
     let callback_cancelled = cancelled.clone();
     client
-        .register_request_handler("host.shutdown", move |_| {
+        .register_request_handler("host.shutdown", move |_, client| {
             let started = callback_started.clone();
             let cancelled = callback_cancelled.clone();
             async move {
                 let _guard = OnDrop(cancelled);
+                let _client = client;
                 started.notify_one();
                 std::future::pending().await
             }
@@ -125,11 +140,11 @@ async fn connection_eof_cancels_inbound_handlers() {
     tokio::time::timeout(std::time::Duration::from_secs(2), started.notified())
         .await
         .unwrap();
+    drop(client);
     server_write.shutdown().await.unwrap();
     tokio::time::timeout(std::time::Duration::from_secs(2), cancelled.notified())
         .await
         .unwrap();
-    client.force_stop();
 }
 
 #[cfg(not(feature = "runtime"))]

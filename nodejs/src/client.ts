@@ -17,7 +17,8 @@ import { existsSync } from "node:fs";
 import { isIPv6, Socket } from "node:net";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
-    createMessageConnection,
+    createMessageConnection as createRpcMessageConnection,
+    type DataCallback,
     ErrorCodes,
     type Message,
     MessageConnection,
@@ -102,6 +103,65 @@ import type { FactoryHandle } from "./factory.js";
  */
 const MIN_PROTOCOL_VERSION = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
+
+type DrainingMessageConnection = MessageConnection & { drain: () => Promise<void> };
+
+function createMessageConnection(
+    reader: StreamMessageReader,
+    writer: StreamMessageWriter
+): DrainingMessageConnection {
+    let dispatch: DataCallback | undefined;
+    let finishDrain: (() => void) | undefined;
+    let drained: Promise<void> | undefined;
+    let disposed = false;
+    const barrier = { jsonrpc: "2.0", method: "$/sdkDrain" };
+    const connection = createRpcMessageConnection(
+        {
+            onError: reader.onError,
+            onClose: reader.onClose,
+            onPartialMessage: reader.onPartialMessage,
+            listen: (callback) => {
+                dispatch = callback;
+                return reader.listen(callback);
+            },
+            dispose: () => reader.dispose(),
+        },
+        writer,
+        undefined,
+        {
+            messageStrategy: {
+                handleMessage: (message, next) => {
+                    if (message === barrier) {
+                        finishDrain?.();
+                    } else {
+                        next(message);
+                    }
+                },
+            },
+        }
+    );
+    connection.onDispose(() => {
+        disposed = true;
+        finishDrain?.();
+    });
+    return Object.assign(connection, {
+        drain: () => {
+            if (!drained) {
+                drained = new Promise<void>((resolve) => {
+                    finishDrain = resolve;
+                    if (disposed || !dispatch) {
+                        resolve();
+                    } else {
+                        // A local queue barrier preserves every message parsed before EOF.
+                        // It is never sent on the wire or exposed to notification handlers.
+                        dispatch(barrier);
+                    }
+                });
+            }
+            return drained;
+        },
+    });
+}
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -420,7 +480,7 @@ export class CopilotClient {
     private cliStartTimeout: ReturnType<typeof setTimeout> | null = null;
     private cliProcess: ChildProcess | null = null;
     private ffiHost: FfiRuntimeHost | null = null;
-    private connection: MessageConnection | null = null;
+    private connection: DrainingMessageConnection | null = null;
     private requestAdapter: ReturnType<typeof createCopilotRequestAdapter> | null = null;
     private messageWriter: TeardownResilientStreamMessageWriter | null = null;
     private connectionClosed: boolean = false;
@@ -3135,6 +3195,7 @@ export class CopilotClient {
         const connection = this.connection;
         const markDisconnected = () => {
             if (this.connection !== connection) {
+                connection.dispose();
                 return;
             }
             this.connectionClosed = true;
@@ -3146,11 +3207,13 @@ export class CopilotClient {
             this.sessions.clear();
             this.githubTokenProviders.clear();
             this.requestAdapter?.cancelPending();
-            // A closed reader does not reject vscode-jsonrpc's pending requests
-            // until disposal. In particular, host.start must not hang on EOF.
             connection.dispose();
         };
-        this.connection.onClose(markDisconnected);
+        this.connection.onClose(() => {
+            // jsonrpc dispatches parsed messages asynchronously, one per event-loop
+            // turn. Drain them before clearing callbacks and rejecting unanswered RPCs.
+            void connection.drain().then(markDisconnected);
+        });
         this.connection.onError(() => {
             if (this.connection === connection) {
                 this.state = "disconnected";
