@@ -18,6 +18,7 @@
 //!
 //! [`Instant`]: std::time::Instant
 
+#[cfg(any(feature = "runtime", test))]
 use std::time::Duration;
 
 /// Millisecond breakdown of the phases of [`Client::start`](crate::Client::start).
@@ -73,6 +74,7 @@ pub struct StartupTimings {
 
 impl StartupTimings {
     /// Whole milliseconds of `duration`, saturating at [`u64::MAX`].
+    #[cfg(any(feature = "runtime", test))]
     pub(crate) fn millis(duration: Duration) -> u64 {
         u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
     }

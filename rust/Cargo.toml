@@ -29,7 +29,8 @@ name = "github_copilot_sdk"
 
 [features]
 default = ["bundled-cli"]
-bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
+runtime = []
+bundled-cli = ["runtime", "dep:tar", "dep:flate2", "dep:zip"]
 bundled-in-process = ["bundled-cli", "dep:libloading"]
 derive = ["dep:schemars"]
 test-support = []

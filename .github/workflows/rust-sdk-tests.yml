@@ -53,7 +53,7 @@ jobs:
 
       # Share the bundled-CLI archive cache with the `bundle` job: build.rs
       # now downloads in both modes (embed for `bundle`, extract-to-cache
-      # for this `test` job's `--no-default-features` build).
+      # for this `test` job's unbundled `runtime` feature build).
       - name: Cache bundled CLI archives
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -75,12 +75,12 @@ jobs:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
-        # `--no-default-features` selects dev mode: build.rs still downloads
+        # The `runtime` feature without `bundled-cli` selects dev mode: build.rs downloads
         # + verifies + extracts the CLI to the per-user cache, but doesn't
         # embed it. Tests exec against the setup-copilot CLI via
         # COPILOT_CLI_PATH (the env override wins over the dev cache).
         # The dedicated `bundle` job below exercises the embed pipeline.
-        run: cargo test --no-default-features --features test-support,derive -- --test-threads=4 --nocapture
+        run: cargo test --no-default-features --features runtime,test-support,derive -- --test-threads=4 --nocapture
 
   clippy:
     name: "Rust SDK Format and Clippy"
@@ -140,6 +140,9 @@ jobs:
         env:
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
         run: cargo clippy --all-targets --features test-support,bundled-in-process,derive -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+
+      - name: External-stream-only SDK
+        run: cargo test --no-default-features --features test-support --test protocol_version_test
 
   doc:
     name: "Rust SDK Docs"
@@ -379,5 +382,5 @@ jobs:
               cargo test --no-default-features --features test-support,bundled-in-process,derive --test e2e -- --test-threads=1 --nocapture
             else
               export RUST_E2E_CONCURRENCY=4
-              cargo test --no-default-features --features test-support,derive -- --test-threads=4 --nocapture
+              cargo test --no-default-features --features runtime,test-support,derive -- --test-threads=4 --nocapture
             fi

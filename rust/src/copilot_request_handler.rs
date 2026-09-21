@@ -1060,6 +1060,7 @@ pub(crate) struct CopilotRequestDispatcher {
 }
 
 impl CopilotRequestDispatcher {
+    #[cfg(any(feature = "runtime", test))]
     pub(crate) fn new(handler: Arc<dyn CopilotRequestHandler>) -> Self {
         Self {
             handler,
@@ -1068,6 +1069,7 @@ impl CopilotRequestDispatcher {
         }
     }
 
+    #[cfg(any(feature = "runtime", test))]
     pub(crate) fn set_client(&self, client: Weak<ClientInner>) {
         let _ = self.client.set(client);
     }

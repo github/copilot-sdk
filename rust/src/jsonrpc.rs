@@ -26,6 +26,11 @@ use crate::{Error, ErrorKind, ProtocolErrorKind};
 pub(crate) type InlineResponseCallback =
     Box<dyn FnOnce(&JsonRpcResponse) -> Result<(), Error> + Send + Sync>;
 
+pub(crate) type RequestHandler = Arc<
+    dyn Fn(Value) -> futures_util::future::BoxFuture<'static, Result<Value, Error>> + Send + Sync,
+>;
+type RequestHandlers = Arc<RwLock<HashMap<String, RequestHandler>>>;
+
 /// Internal pairing of the response delivery channel with an optional
 /// inline callback that the read loop runs synchronously before delivery.
 struct PendingRequest {
@@ -285,6 +290,7 @@ pub struct JsonRpcClient {
     pending_requests: Arc<RwLock<HashMap<u64, PendingRequest>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
+    request_handlers: RequestHandlers,
     connection_closed: CancellationToken,
     read_task: Mutex<Option<JoinHandle<()>>>,
     write_task: Mutex<Option<JoinHandle<()>>>,
@@ -314,6 +320,7 @@ impl JsonRpcClient {
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
             notification_tx,
             request_tx,
+            request_handlers: Arc::new(RwLock::new(HashMap::new())),
             connection_closed: CancellationToken::new(),
             read_task: Mutex::new(None),
             write_task: Mutex::new(Some(write_task)),
@@ -323,6 +330,8 @@ impl JsonRpcClient {
         let notification_tx_clone = client.notification_tx.clone();
         let request_tx_clone = client.request_tx.clone();
         let connection_closed = client.connection_closed.clone();
+        let request_handlers = client.request_handlers.clone();
+        let write_tx = client.write_tx.clone();
         let reader_span = tracing::error_span!("jsonrpc_read_loop");
 
         let read_task = tokio::spawn(
@@ -332,9 +341,11 @@ impl JsonRpcClient {
                     pending_requests,
                     notification_tx_clone,
                     request_tx_clone,
+                    request_handlers,
+                    write_tx,
+                    connection_closed,
                 )
                 .await;
-                connection_closed.cancel();
             }
             .instrument(reader_span),
         );
@@ -345,6 +356,8 @@ impl JsonRpcClient {
 
     pub(crate) fn force_close(&self) {
         self.connection_closed.cancel();
+        let handlers = std::mem::take(&mut *self.request_handlers.write());
+        drop(handlers);
         if let Some(task) = self.read_task.lock().take() {
             task.abort();
         }
@@ -356,6 +369,28 @@ impl JsonRpcClient {
 
     pub(crate) fn connection_closed_token(&self) -> CancellationToken {
         self.connection_closed.child_token()
+    }
+
+    pub(crate) fn register_request_handler(
+        &self,
+        method: &str,
+        handler: RequestHandler,
+    ) -> Result<(), Error> {
+        let mut handlers = self.request_handlers.write();
+        if method.is_empty() || self.connection_closed.is_cancelled() {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "Request handlers require a nonempty method and an open connection",
+            ));
+        }
+        if handlers.contains_key(method) {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                format!("A request handler is already registered for {method}"),
+            ));
+        }
+        handlers.insert(method.to_owned(), handler);
+        Ok(())
     }
 
     /// Writer-actor task. Owns the `AsyncWrite`, drains the command queue,
@@ -394,6 +429,9 @@ impl JsonRpcClient {
         pending_requests: Arc<RwLock<HashMap<u64, PendingRequest>>>,
         notification_tx: broadcast::Sender<JsonRpcNotification>,
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
+        request_handlers: RequestHandlers,
+        write_tx: mpsc::UnboundedSender<WriteCommand>,
+        connection_closed: CancellationToken,
     ) {
         let mut reader = BufReader::new(reader);
 
@@ -458,7 +496,39 @@ impl JsonRpcClient {
                         let _ = notification_tx.send(notification);
                     }
                     JsonRpcMessage::Request(request) => {
-                        if request_tx.send(request).is_err() {
+                        let handler = request_handlers.read().get(&request.method).cloned();
+                        if let Some(handler) = handler {
+                            let write_tx = write_tx.clone();
+                            let closed = connection_closed.clone();
+                            tokio::spawn(async move {
+                                let result = tokio::select! {
+                                    biased;
+                                    _ = closed.cancelled() => return,
+                                    result = handler(request.params.unwrap_or(Value::Null)) => result,
+                                };
+                                let (result, error) = match result {
+                                    Ok(value) => (Some(value), None),
+                                    Err(error) => (
+                                        None,
+                                        Some(JsonRpcError {
+                                            code: error_codes::INTERNAL_ERROR,
+                                            message: error.to_string(),
+                                            data: None,
+                                        }),
+                                    ),
+                                };
+                                let response = JsonRpcResponse {
+                                    jsonrpc: "2.0".into(),
+                                    id: request.id,
+                                    result,
+                                    error,
+                                };
+                                if let Err(error) = Self::write_message(&write_tx, &response).await
+                                {
+                                    warn!(%error, "failed to send connection request response");
+                                }
+                            });
+                        } else if request_tx.send(request).is_err() {
                             warn!("failed to forward JSON-RPC request, channel closed");
                         }
                     }
@@ -472,6 +542,11 @@ impl JsonRpcClient {
                 }
             }
         }
+        connection_closed.cancel();
+        // A handler may own the last Client clone, whose drop closes the RPC.
+        // Release the registry lock before dropping those captured values.
+        let handlers = std::mem::take(&mut *request_handlers.write());
+        drop(handlers);
 
         // Drain in-flight requests so callers observe cancellation
         // instead of hanging on a oneshot receiver.
@@ -667,6 +742,13 @@ impl JsonRpcClient {
     /// drops the ack receiver; the actor still completes the frame and
     /// flushes. A partial frame can never appear on the wire.
     pub async fn write<T: serde::Serialize>(&self, message: &T) -> Result<(), Error> {
+        Self::write_message(&self.write_tx, message).await
+    }
+
+    async fn write_message<T: serde::Serialize>(
+        write_tx: &mpsc::UnboundedSender<WriteCommand>,
+        message: &T,
+    ) -> Result<(), Error> {
         let body = serde_json::to_vec(message)?;
         let mut frame = Vec::with_capacity(CONTENT_LENGTH_HEADER.len() + 16 + body.len() + 4);
         frame.extend_from_slice(CONTENT_LENGTH_HEADER.as_bytes());
@@ -675,7 +757,7 @@ impl JsonRpcClient {
         frame.extend_from_slice(&body);
 
         let (ack_tx, ack_rx) = oneshot::channel();
-        self.write_tx
+        write_tx
             .send(WriteCommand { frame, ack: ack_tx })
             .map_err(|_| {
                 Error::from(std::io::Error::new(
@@ -692,6 +774,12 @@ impl JsonRpcClient {
                 "writer actor dropped ack without responding",
             ))),
         }
+    }
+}
+
+impl Drop for JsonRpcClient {
+    fn drop(&mut self) {
+        self.force_close();
     }
 }
 

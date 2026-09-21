@@ -16,6 +16,9 @@ pub(crate) fn main() {
     println!("cargo::rustc-check-cfg=cfg(has_extracted_cli)");
     println!("cargo:rerun-if-changed=cli-version.txt");
     println!("cargo:rerun-if-changed=cli-version-in-process.txt");
+    if std::env::var_os("CARGO_FEATURE_RUNTIME").is_none() {
+        return;
+    }
 
     // Only declare the package metadata rerun when it actually exists.
     // Cargo treats `rerun-if-changed` for a missing path as "always rerun"

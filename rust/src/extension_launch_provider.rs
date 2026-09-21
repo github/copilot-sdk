@@ -58,6 +58,7 @@ impl ExtensionLaunchProviderDispatcher {
         let _ = self.client.set(client);
     }
 
+    #[cfg(feature = "runtime")]
     pub(crate) fn is_configured(&self) -> bool {
         self.handler.read().is_some()
     }

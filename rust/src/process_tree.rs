@@ -7,8 +7,10 @@
 
 use std::io;
 
+#[cfg(feature = "runtime")]
 use tokio::process::{Child, Command};
 
+#[cfg(feature = "runtime")]
 pub(crate) fn spawn(command: &mut Command) -> io::Result<(Child, Option<ProcessTree>)> {
     #[cfg(windows)]
     {
@@ -36,7 +38,7 @@ impl Drop for ProcessTree {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(all(windows, feature = "runtime")))]
 mod platform {
     pub(super) struct Tree;
 
@@ -47,7 +49,7 @@ mod platform {
     }
 }
 
-#[cfg(windows)]
+#[cfg(all(windows, feature = "runtime"))]
 mod platform {
     use std::mem::size_of;
     use std::os::windows::process::CommandExt;

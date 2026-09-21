@@ -47,9 +47,11 @@ use std::fmt;
 
 use async_trait::async_trait;
 
+#[cfg(any(feature = "runtime", test))]
+use crate::generated::api_types::SessionFsSetProviderConventions;
 use crate::generated::api_types::{
     SessionFsError, SessionFsErrorCode, SessionFsReaddirWithTypesEntry,
-    SessionFsReaddirWithTypesEntryType, SessionFsSetProviderConventions, SessionFsStatResult,
+    SessionFsReaddirWithTypesEntryType, SessionFsStatResult,
 };
 pub use crate::generated::api_types::{
     SessionFsSqliteQueryType, SessionFsSqliteTransactionErrorClass,
@@ -134,6 +136,7 @@ pub enum SessionFsConventions {
 }
 
 impl SessionFsConventions {
+    #[cfg(any(feature = "runtime", test))]
     pub(crate) fn into_wire(self) -> SessionFsSetProviderConventions {
         match self {
             Self::Posix => SessionFsSetProviderConventions::Posix,

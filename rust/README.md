@@ -51,6 +51,20 @@ Your Application
 
 The SDK manages the CLI process lifecycle: spawning, health-checking, and graceful shutdown. Communication uses [JSON-RPC 2.0](https://www.jsonrpc.org/specification) over stdin/stdout with `Content-Length` framing (the same protocol used by LSP). TCP transport is also supported.
 
+### Externally supplied streams
+
+`default-features = false` builds an external-stream-only client: no runtime
+download, binary discovery, launch implementation, or native runtime embedding.
+Construct it with `Client::from_streams(reader, writer, cwd)` and explicitly call
+`client.verify_protocol_version().await?` to perform the normal SDK handshake.
+`Client::start` returns a configuration error in this build; it never falls back
+to an installed or cached runtime.
+
+The default `bundled-cli` feature still enables runtime management. To manage a
+runtime without embedding its bundle, use
+`default-features = false, features = ["runtime"]`. Existing users of unbundled
+`Client::start` should select this feature explicitly.
+
 ## API Reference
 
 ### Client

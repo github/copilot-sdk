@@ -3,7 +3,7 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
-#[cfg(not(feature = "bundled-cli"))]
+#[cfg(all(feature = "runtime", not(feature = "bundled-cli")))]
 mod cache_paths;
 /// Canvas declarations, provider callbacks, and host-side canvas RPC types.
 pub mod canvas;
@@ -40,6 +40,7 @@ mod process_tree;
 pub mod provider_token;
 mod provider_token_dispatch;
 /// GitHub Copilot CLI binary resolution (env var, embedded, dev cache).
+#[cfg(feature = "runtime")]
 pub(crate) mod resolve;
 mod router;
 /// Session management — create, resume, send messages, and interact with the agent.
@@ -85,7 +86,10 @@ pub(crate) mod generated;
 pub mod mode;
 
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+#[cfg(feature = "runtime")]
+use std::path::Path;
+use std::path::PathBuf;
+#[cfg(feature = "runtime")]
 use std::process::Stdio;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
@@ -116,11 +120,20 @@ pub mod test_support {
     };
 }
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
+#[cfg(feature = "runtime")]
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncRead, AsyncWrite};
+#[cfg(feature = "runtime")]
 use tokio::net::TcpStream;
-use tokio::process::{Child, Command};
-use tokio::sync::{broadcast, mpsc, oneshot};
-use tracing::{Instrument, debug, error, info, warn};
+use tokio::process::Child;
+#[cfg(feature = "runtime")]
+use tokio::process::Command;
+#[cfg(feature = "runtime")]
+use tokio::sync::oneshot;
+use tokio::sync::{broadcast, mpsc};
+#[cfg(feature = "runtime")]
+use tracing::Instrument;
+use tracing::{debug, error, info, warn};
 pub use types::*;
 
 mod sdk_protocol_version;
@@ -132,6 +145,7 @@ pub use subscription::{EventSubscription, LifecycleSubscription};
 const MIN_PROTOCOL_VERSION: u32 = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 
+#[cfg(feature = "runtime")]
 fn record_optional_millis(span: &tracing::Span, field: &'static str, value: Option<u64>) {
     match value {
         Some(value) => {
@@ -1048,6 +1062,7 @@ impl ClientOptions {
 }
 
 /// Validate a [`SessionFsConfig`] before sending `sessionFs.setProvider`.
+#[cfg(feature = "runtime")]
 fn validate_session_fs_config(cfg: &SessionFsConfig) -> Result<()> {
     if cfg.initial_cwd.trim().is_empty() {
         return Err(Error::with_message(
@@ -1070,6 +1085,7 @@ fn validate_session_fs_config(cfg: &SessionFsConfig) -> Result<()> {
 /// pre-1.0 review consensus, so adopting a `Uuid` type just for SDK-
 /// generated secrets would be inconsistent and semantically misleading;
 /// this is opaque random data, not an identifier).
+#[cfg(any(feature = "runtime", test, feature = "test-support"))]
 fn generate_connection_token() -> String {
     let mut bytes = [0u8; 16];
     getrandom::getrandom(&mut bytes)
@@ -1086,9 +1102,11 @@ fn generate_connection_token() -> String {
 /// leaves [`ClientOptions::transport`] at [`Transport::Default`].
 /// Accepts `"inprocess"` or `"stdio"` (case-insensitive); unset preserves
 /// stdio. Any other value is an error.
+#[cfg(feature = "runtime")]
 const DEFAULT_CONNECTION_ENV_VAR: &str = "COPILOT_SDK_DEFAULT_CONNECTION";
 
 /// Resolve a transport override from [`DEFAULT_CONNECTION_ENV_VAR`].
+#[cfg(feature = "runtime")]
 fn resolve_default_transport(options: &ClientOptions) -> Result<Transport> {
     let configured = options
         .env
@@ -1102,6 +1120,7 @@ fn resolve_default_transport(options: &ClientOptions) -> Result<Transport> {
     resolve_default_transport_value(configured.as_deref().or(process.as_deref()))
 }
 
+#[cfg(feature = "runtime")]
 fn resolve_default_transport_value(value: Option<&str>) -> Result<Transport> {
     match value {
         None => Ok(Transport::Stdio),
@@ -1240,6 +1259,7 @@ impl Client {
     /// When [`ClientOptions::session_fs`] is set, also calls
     /// `sessionFs.setProvider` to register the SDK as the filesystem
     /// backend.
+    #[cfg(feature = "runtime")]
     pub async fn start(options: ClientOptions) -> Result<Self> {
         let start_time = Instant::now();
         let mut timings = StartupTimings::default();
@@ -1679,6 +1699,36 @@ impl Client {
         Ok(client)
     }
 
+    /// Runtime startup is unavailable in an external-stream-only build.
+    ///
+    /// Enable the `runtime` feature to launch or discover a runtime, or use
+    /// [`Client::from_streams`] to attach an externally supplied connection.
+    #[cfg(not(feature = "runtime"))]
+    pub async fn start(_options: ClientOptions) -> Result<Self> {
+        Err(Error::with_message(
+            ErrorKind::InvalidConfig,
+            "Client::start requires the `runtime` Cargo feature; use Client::from_streams",
+        ))
+    }
+
+    /// Register an inbound connection-level SDK JSON-RPC operation.
+    ///
+    /// The handler runs independently of the reader, so it may await ordinary
+    /// SDK requests on this connection. Its result is written using the normal
+    /// framed writer. Duplicate registrations are rejected.
+    ///
+    /// This low-level integration hook is used by runtime-supervised hosts.
+    #[doc(hidden)]
+    pub fn register_request_handler<F, Fut>(&self, method: &str, handler: F) -> Result<()>
+    where
+        F: Fn(serde_json::Value) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = Result<serde_json::Value>> + Send + 'static,
+    {
+        self.inner
+            .rpc
+            .register_request_handler(method, Arc::new(move |params| Box::pin(handler(params))))
+    }
+
     /// Create a Client from raw async streams (no child process).
     ///
     /// Useful for testing or connecting to a server over a custom transport.
@@ -1978,6 +2028,7 @@ impl Client {
         });
     }
 
+    #[cfg(feature = "runtime")]
     fn build_command(program: &Path, options: &ClientOptions, working_directory: &Path) -> Command {
         let mut command = Command::new(program);
         command.kill_on_drop(true);
@@ -2051,6 +2102,7 @@ impl Client {
     /// When the effective `use_logged_in_user` is `false` (either explicitly
     /// or because a token was provided without an override), adds
     /// `--no-auto-login`.
+    #[cfg(feature = "runtime")]
     fn auth_args(options: &ClientOptions) -> Vec<&'static str> {
         let mut args: Vec<&'static str> = Vec::new();
         if options.github_token.is_some() {
@@ -2069,6 +2121,7 @@ impl Client {
     /// Returns `--session-idle-timeout <secs>` when
     /// [`ClientOptions::session_idle_timeout_seconds`] is `Some(n)` with
     /// `n > 0`. Otherwise returns an empty vector.
+    #[cfg(feature = "runtime")]
     fn session_idle_timeout_args(options: &ClientOptions) -> Vec<String> {
         match options.session_idle_timeout_seconds {
             Some(secs) if secs > 0 => {
@@ -2078,6 +2131,7 @@ impl Client {
         }
     }
 
+    #[cfg(feature = "runtime")]
     fn remote_args(options: &ClientOptions) -> Vec<String> {
         if options.enable_remote_sessions {
             vec!["--remote".to_string()]
@@ -2086,6 +2140,7 @@ impl Client {
         }
     }
 
+    #[cfg(feature = "runtime")]
     fn log_level_args(options: &ClientOptions) -> Vec<&'static str> {
         match options.log_level {
             Some(level) => vec!["--log-level", level.as_str()],
@@ -2093,6 +2148,7 @@ impl Client {
         }
     }
 
+    #[cfg(feature = "runtime")]
     fn spawn_stdio(
         program: &Path,
         options: &ClientOptions,
@@ -2118,6 +2174,7 @@ impl Client {
         Ok((child, tree, spawn_elapsed))
     }
 
+    #[cfg(feature = "runtime")]
     async fn spawn_tcp(
         program: &Path,
         options: &ClientOptions,
@@ -2191,6 +2248,7 @@ impl Client {
         Ok((child, tree, actual_port, spawn_elapsed, port_wait_elapsed))
     }
 
+    #[cfg(feature = "runtime")]
     fn drain_stderr(child: &mut Child) {
         if let Some(stderr) = child.stderr.take() {
             let span = tracing::error_span!("copilot_cli");
@@ -3050,7 +3108,7 @@ impl Drop for ClientInner {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "runtime"))]
 mod tests {
     use super::*;
 
