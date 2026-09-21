@@ -68,19 +68,19 @@ inside the checkout. The opt-in flag avoids running a source-build-only suite
 against released artifacts. These tests explicitly use the local runtime's TCP
 transport so dropping one owner connection does not kill the shared runtime.
 
-Four non-model lifecycle tests cover explicit/idempotent disposal, unexpected
-child exit, rejection of a second same-home host followed by owner-disconnect
-recovery with ordinary SDK sessions still usable, and graceful runtime shutdown
+Three non-model lifecycle tests cover explicit/idempotent disposal, unexpected
+child exit, and graceful runtime shutdown
 with an attached AHP session. The shutdown case requires a successful RPC and clean exit notification,
 not just eventual forced termination. To run only those:
 
 ```sh
-npm test -- test/e2e/runtime_host.e2e.test.ts -t 'disposes|reports|rejects|gracefully'
+npm test -- test/e2e/runtime_host.e2e.test.ts -t 'disposes|reports|gracefully'
 ```
 
-The two inference-backed scenarios also prove catalog/history recovery after
-listener disposal, forced child death, and a full runtime restart using an SDK
-`baseDirectory`. A second runtime using that directory can run ordinary SDK
+The three inference-backed scenarios prove rejection of a second same-home host,
+owner-disconnect recovery with ordinary SDK sessions still usable, and
+catalog/history recovery after listener disposal, forced child death, and a full
+runtime restart using an SDK `baseDirectory`. A second runtime using that directory can run ordinary SDK
 sessions but cannot start another lite writer. The catalog excludes ordinary
 SDK sessions. These scenarios use the existing `CapiProxy`, snapshot matcher, and canonical
 `session/sendandwait_blocks_until_session_idle_and_returns_final_assistant_message.yaml`
