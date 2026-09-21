@@ -42,6 +42,7 @@ import type {
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
+import { CopilotHost, type CopilotHostExit, type CopilotHostOptions } from "./host.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
 import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
 import { COPILOT_CLI_VERSION } from "./cliVersion.js";
@@ -430,6 +431,7 @@ export class CopilotClient {
     /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
     private startPromise: Promise<void> | null = null;
     private sessions: Map<string, CopilotSession> = new Map();
+    private hosts = new Map<string, (exit: CopilotHostExit) => void>();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
     private connectionConfig: InternalRuntimeConnection;
@@ -815,6 +817,12 @@ export class CopilotClient {
 
     private setupClientGlobalHandlers(): void {
         const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+        handlers.host = {
+            exited: async (exit) => {
+                this.handleHostExit(exit);
+                return {};
+            },
+        };
         handlers.extensionLaunchProvider = this.extensionLaunchProvider;
         if (this.requestHandler) {
             this.requestAdapter = createCopilotRequestAdapter(this.requestHandler, () => {
@@ -1206,6 +1214,7 @@ export class CopilotClient {
         this.runtimePort = null;
         this.stderrBuffer = "";
         this.processExitPromise = null;
+        this.disconnectHosts();
 
         return errors;
     }
@@ -1253,6 +1262,7 @@ export class CopilotClient {
      */
     async forceStop(): Promise<void> {
         this.forceStopping = true;
+        this.disconnectHosts();
 
         // Clear sessions immediately without trying to destroy them
         for (const session of this.sessions.values()) {
@@ -2056,6 +2066,54 @@ export class CopilotClient {
     }
 
     /**
+     * Start a complete AHP listener in a child supervised by this runtime.
+     *
+     * This connection owns the host. Disposing it or disconnecting the client
+     * stops the listener without deleting sessions. The host uses a separate
+     * SDK connection to the same runtime, not another runtime process.
+     *
+     * @experimental
+     */
+    async startHost(options: CopilotHostOptions = {}): Promise<CopilotHost> {
+        if (this.state !== "connected") {
+            await this.start();
+        }
+        const rpc = this.rpc;
+        const hostId = randomUUID();
+        const closed = new Promise<CopilotHostExit>((resolve) => {
+            this.hosts.set(hostId, resolve);
+        });
+        try {
+            const info = await rpc.host.start({ ...options, hostId });
+            return new CopilotHost(info, closed, async () => {
+                await rpc.host.dispose({ hostId });
+                this.handleHostExit({ hostId, reason: "disposed" });
+            });
+        } catch (error) {
+            this.hosts.delete(hostId);
+            throw error;
+        }
+    }
+
+    private handleHostExit(exit: CopilotHostExit): void {
+        const complete = this.hosts.get(exit.hostId);
+        if (complete) {
+            this.hosts.delete(exit.hostId);
+            complete(exit);
+        }
+    }
+
+    private disconnectHosts(): void {
+        for (const hostId of this.hosts.keys()) {
+            this.handleHostExit({
+                hostId,
+                reason: "ownerDisconnected",
+                error: "Owner connection closed; runtime cleanup cannot be acknowledged on this connection.",
+            });
+        }
+    }
+
+    /**
      * Sends a ping request to the server to verify connectivity.
      *
      * @param message - Optional message to include in the ping
@@ -2795,8 +2853,13 @@ export class CopilotClient {
             case "inprocess":
                 return this.connectViaFfi();
             case "tcp":
-            case "uri":
                 return this.connectViaTcp();
+            case "uri": {
+                const { host, port } = this.parseCliUrl(this.connectionConfig.url);
+                this.actualHost = host;
+                this.runtimePort = port;
+                return this.connectViaTcp();
+            }
         }
     }
 
@@ -3076,12 +3139,16 @@ export class CopilotClient {
             }
             this.connectionClosed = true;
             this.state = "disconnected";
+            this.disconnectHosts();
             for (const session of this.sessions.values()) {
                 session._markDisconnected();
             }
             this.sessions.clear();
             this.githubTokenProviders.clear();
             this.requestAdapter?.cancelPending();
+            // A closed reader does not reject vscode-jsonrpc's pending requests
+            // until disposal. In particular, host.start must not hang on EOF.
+            connection.dispose();
         };
         this.connection.onClose(markDisconnected);
         this.connection.onError(() => {

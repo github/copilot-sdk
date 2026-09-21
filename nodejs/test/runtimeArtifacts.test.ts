@@ -149,9 +149,11 @@ describe("materializeRuntimeBundle", () => {
         const prebuilds = join(sourceDir, "prebuilds", platform);
         const wrapper = join(prebuilds, wrapperName);
         const runtimeNode = join(prebuilds, "runtime.node");
+        const liteName = platform.startsWith("win32") ? "copilotd-lite.exe" : "copilotd-lite";
         mkdirSync(prebuilds, { recursive: true });
         writeFileSync(wrapper, "wrapper");
         writeFileSync(runtimeNode, "runtime");
+        writeFileSync(join(prebuilds, liteName), "runtime-supervised host", { mode: 0o755 });
         mkdirSync(join(sourceDir, "ripgrep", "bin", platform), { recursive: true });
         writeFileSync(join(sourceDir, "ripgrep", "bin", platform, "rg"), "ripgrep");
         mkdirSync(join(sourceDir, "definitions"), { recursive: true });
@@ -187,6 +189,8 @@ describe("materializeRuntimeBundle", () => {
         expect(readFileSync(join(installDir, "prebuilds", platform, "runtime.node"), "utf8")).toBe(
             "runtime"
         );
+        const installedLite = join(installDir, "prebuilds", platform, liteName);
+        expect(readFileSync(installedLite, "utf8")).toBe("runtime-supervised host");
         expect(readFileSync(join(installDir, "ripgrep", "bin", platform, "rg"), "utf8")).toBe(
             "ripgrep"
         );
@@ -204,6 +208,7 @@ describe("materializeRuntimeBundle", () => {
         expect(existsSync(join(installDir, "README.md"))).toBe(false);
         if (process.platform !== "win32") {
             expect(statSync(installedWrapper).mode & 0o111).not.toBe(0);
+            expect(statSync(installedLite).mode & 0o111).not.toBe(0);
         }
     });
 

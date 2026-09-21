@@ -32,6 +32,48 @@ the self-contained SDK platform packages.
 npm install @github/copilot-sdk
 ```
 
+## Runtime-supervised AHP host (experimental)
+
+`startHost()` exposes copilotd's complete Agent Host Protocol server through the
+same runtime used by the SDK:
+
+```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
+await using client = new CopilotClient();
+await client.start();
+await using host = await client.startHost();
+
+// Connect an AHP client using host.url and host.token.
+// Treat host.token as a secret; do not log it.
+const exit = host.closed.then((result) => {
+    if (result.error) console.error(result.error);
+});
+
+// Existing SDK sessions and AHP sessions share this runtime.
+// When finished, close the listener and await child cleanup.
+await host.dispose();
+await exit;
+```
+
+The runtime launches and supervises `copilotd-lite`; the SDK does not launch a
+second runtime or relay the host's traffic. The host has its own SDK connection
+and belongs to the client connection that started it. Explicit disposal,
+connection loss, and runtime shutdown stop the listener and its child process
+without deleting underlying sessions. Reconnecting does not reclaim a host.
+`host.closed` reports unexpected exits. If the owner connection is lost, it
+reports that loss rather than claiming that child termination was acknowledged.
+
+The listener retains loopback binding and token authentication. This API does
+not provide application create/resume callbacks or an application-owned AHP
+transport.
+
+The runtime package supplies the platform's lite executable. During development,
+set `COPILOTD_LITE_PATH` in the **runtime process's environment** to an explicitly
+built local executable. An invalid override is an error, not a fallback to an
+installed executable. Older runtimes without these RPC operations cannot start
+a host.
+
 ## Run the Sample
 
 Try the interactive chat sample (from the repo root):
