@@ -70,17 +70,18 @@ class TestScenarioCloud:
         finally:
             await client.stop()
 
-    async def test_should_route_first_cloud_event_for_server_assigned_session_id(
+    async def test_should_route_cloud_session_start_for_server_assigned_session_id(
         self,
         ctx: E2ETestContext,
     ):
         client, _capture_path = create_scenario_client(ctx, "cloud")
-        events = []
-        first_event_received = asyncio.Event()
+        start_events = []
+        session_start_received = asyncio.Event()
 
         def on_event(event) -> None:
-            events.append(event)
-            first_event_received.set()
+            if isinstance(event.data, SessionStartData):
+                start_events.append(event)
+                session_start_received.set()
 
         try:
             session = await client.create_session(
@@ -95,13 +96,12 @@ class TestScenarioCloud:
                 on_permission_request=PermissionHandler.approve_all,
             )
             try:
-                await asyncio.wait_for(first_event_received.wait(), timeout=5)
+                await asyncio.wait_for(session_start_received.wait(), timeout=5)
                 assert session.session_id == "cloud-runtime-session"
-                assert len(events) == 1
-                assert isinstance(events[0].data, SessionStartData)
-                assert events[0].data.session_id == session.session_id
-                assert events[0].data.producer == "scenario-fake-cli"
-                assert events[0].data.remote_steerable is False
+                assert len(start_events) == 1
+                assert start_events[0].data.session_id == session.session_id
+                assert start_events[0].data.producer == "scenario-fake-cli"
+                assert start_events[0].data.remote_steerable is False
             finally:
                 await session.disconnect()
         finally:

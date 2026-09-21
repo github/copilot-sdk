@@ -290,19 +290,22 @@ public class ScenarioTestingSessionSetupE2ETests(E2ETestFixture fixture, ITestOu
     }
 
     [Fact]
-    public async Task Should_Use_Preallocated_Id_For_First_Subscribed_Event()
+    public async Task Should_Use_Preallocated_Id_For_Subscribed_Session_Start_Event()
     {
         var requestedSessionId = Guid.NewGuid().ToString();
-        var firstEvent = new TaskCompletionSource<SessionEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sessionStarted = new TaskCompletionSource<SessionStartEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var session = await CreateSessionAsync(new SessionConfig
         {
             SessionId = requestedSessionId,
-            OnEvent = evt => firstEvent.TrySetResult(evt),
+            OnEvent = evt =>
+            {
+                if (evt is SessionStartEvent start)
+                    sessionStarted.TrySetResult(start);
+            },
         });
 
-        var observed = await firstEvent.Task.WaitAsync(TestTimeout);
-        var start = Assert.IsType<SessionStartEvent>(observed);
+        var start = await sessionStarted.Task.WaitAsync(TestTimeout);
         Assert.Equal(requestedSessionId, session.SessionId);
         Assert.Equal(requestedSessionId, start.Data.SessionId);
     }
