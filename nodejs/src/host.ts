@@ -2,13 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { HostExitedNotification, HostStartRequest, HostStartResult } from "./generated/rpc.js";
+import type { HostExitedNotification, HostStartResult } from "./generated/rpc.js";
 
-/** The runtime's report that a supervised AHP host has stopped. */
-export type CopilotHostExit = HostExitedNotification;
+/**
+ * A runtime exit report, or an owner disconnect that cannot acknowledge reaping.
+ * @experimental
+ */
+export type AhpHostExit = HostExitedNotification;
 
 /** Options for a runtime-supervised AHP listener. @experimental */
-export type CopilotHostOptions = Omit<HostStartRequest, "hostId">;
+export interface AhpHostOptions {
+    /** Listener hostname. The runtime defaults to 127.0.0.1. */
+    hostname?: string;
+    /** Listener port. Omitted or zero asks the runtime for an available port. */
+    port?: number;
+    /** Connection token. The runtime generates one when required and omitted. */
+    token?: string;
+    /** Whether the listener requires token authentication. */
+    requireConnectionToken?: boolean;
+    /** Called at most once. This callback is local and is never sent to the runtime. */
+    onExit?: (exit: AhpHostExit) => void;
+}
 
 /**
  * A connection-owned AHP listener supervised by the runtime.
@@ -21,49 +35,28 @@ export type CopilotHostOptions = Omit<HostStartRequest, "hostId">;
  *
  * @experimental
  */
-export class CopilotHost {
+export class AhpHost {
     readonly hostId: string;
     readonly url: string;
-    /** Bearer token required by the listener. Treat this value as a secret. */
-    readonly token: string;
+    /** Connection token, when required by the listener. Treat this value as a secret. */
+    readonly token: string | undefined;
     /** Process ID of the runtime's child, not an SDK-owned process. */
     readonly pid: number;
-    /**
-     * Resolves when the runtime reports termination, or the owner connection
-     * is lost. Inspect `reason` and `error` for unexpected failures. On owner
-     * connection loss, runtime cleanup proceeds independently; this promise
-     * cannot acknowledge child reaping over a disconnected transport.
-     */
-    readonly closed: Promise<CopilotHostExit>;
-    private disposePromise?: Promise<void>;
-    private stopped = false;
 
     /** @internal */
     constructor(
         info: HostStartResult,
-        closed: Promise<CopilotHostExit>,
         private readonly disposeHost: () => Promise<void>
     ) {
         this.hostId = info.hostId;
         this.url = info.url;
-        this.token = info.token;
+        this.token = info.token ?? undefined;
         this.pid = info.pid;
-        this.closed = closed;
-        void closed.then(() => {
-            this.stopped = true;
-        });
     }
 
-    /** Stop the listener and await runtime-owned child cleanup. Idempotent. */
+    /** Ask the runtime to stop the listener and await its cleanup, on every call. */
     dispose(): Promise<void> {
-        if (this.stopped) {
-            return Promise.resolve();
-        }
-        this.disposePromise ??= this.disposeHost().catch((error: unknown) => {
-            this.disposePromise = undefined;
-            throw error;
-        });
-        return this.disposePromise;
+        return this.disposeHost();
     }
 
     async [Symbol.asyncDispose](): Promise<void> {

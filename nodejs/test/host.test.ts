@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { CopilotHost, type CopilotHostExit } from "../src/host.js";
+import { AhpHost } from "../src/index.js";
 
 const info = {
     hostId: "host-1",
@@ -8,69 +8,42 @@ const info = {
     pid: 1234,
 };
 
-function deferred<T>() {
-    let resolve!: (value: T) => void;
-    const promise = new Promise<T>((complete) => {
-        resolve = complete;
-    });
-    return { promise, resolve };
-}
-
-describe("CopilotHost", () => {
-    it("exposes connection information without starting a process", () => {
-        const closed = deferred<CopilotHostExit>();
+describe("AhpHost", () => {
+    it("exposes connection information without starting a process or exposing closed", () => {
         const dispose = vi.fn();
-        const host = new CopilotHost(info, closed.promise, dispose);
+        const host = new AhpHost(info, dispose);
 
         expect(host.hostId).toBe(info.hostId);
         expect(host.url).toBe(info.url);
         expect(host.token).toBe(info.token);
         expect(host.pid).toBe(info.pid);
-        expect(host.closed).toBe(closed.promise);
+        expect(host).not.toHaveProperty("closed");
         expect(dispose).not.toHaveBeenCalled();
     });
 
-    it("shares concurrent disposal and supports async disposal", async () => {
-        const closed = deferred<CopilotHostExit>();
-        const stopped = deferred<void>();
-        const dispose = vi.fn(() => stopped.promise);
-        const host = new CopilotHost(info, closed.promise, dispose);
+    it("supports a listener without a connection token", () => {
+        const { token: _token, ...withoutToken } = info;
+        const host = new AhpHost(withoutToken, vi.fn());
+        expect(host.token).toBeUndefined();
+    });
 
-        const first = host.dispose();
-        expect(host.dispose()).toBe(first);
-        stopped.resolve();
-        await first;
+    it("forwards concurrent, repeated, and async disposal calls independently", async () => {
+        const dispose = vi.fn(async () => {});
+        const host = new AhpHost(info, dispose);
+
+        await Promise.all([host.dispose(), host.dispose()]);
+        await host.dispose();
         await host[Symbol.asyncDispose]();
+        expect(dispose).toHaveBeenCalledTimes(4);
+    });
+
+    it("returns the disposal promise without handling or retrying failures", async () => {
+        const failure = Promise.reject(new Error("connection write failed"));
+        const dispose = vi.fn(() => failure);
+        const host = new AhpHost(info, dispose);
+
+        expect(host.dispose()).toBe(failure);
+        await expect(failure).rejects.toThrow("connection write failed");
         expect(dispose).toHaveBeenCalledOnce();
-    });
-
-    it("propagates disposal failures and permits retry", async () => {
-        const closed = deferred<CopilotHostExit>();
-        const dispose = vi
-            .fn<() => Promise<void>>()
-            .mockRejectedValueOnce(new Error("connection write failed"))
-            .mockResolvedValueOnce(undefined);
-        const host = new CopilotHost(info, closed.promise, dispose);
-
-        await expect(host.dispose()).rejects.toThrow("connection write failed");
-        await host.dispose();
-        expect(dispose).toHaveBeenCalledTimes(2);
-    });
-
-    it("reports an unexpected child exit without an unhandled rejection", async () => {
-        const closed = deferred<CopilotHostExit>();
-        const dispose = vi.fn();
-        const host = new CopilotHost(info, closed.promise, dispose);
-        const exit: CopilotHostExit = {
-            hostId: info.hostId,
-            reason: "exited",
-            exitCode: 17,
-            error: "copilotd-lite exited unexpectedly",
-        };
-
-        closed.resolve(exit);
-        await expect(host.closed).resolves.toEqual(exit);
-        await host.dispose();
-        expect(dispose).not.toHaveBeenCalled();
     });
 });

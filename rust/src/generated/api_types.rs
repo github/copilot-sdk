@@ -26,6 +26,8 @@ pub mod rpc_methods {
     pub const HOST_START: &str = "host.start";
     /// `host.dispose`
     pub const HOST_DISPOSE: &str = "host.dispose";
+    /// `host.getConfiguration`
+    pub const HOST_GETCONFIGURATION: &str = "host.getConfiguration";
     /// `host.ready`
     pub const HOST_READY: &str = "host.ready";
     /// `ping`
@@ -7975,6 +7977,23 @@ pub struct HooksDiscoverResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct HostConfiguration {
+    pub hostname: String,
+    pub port: i32,
+    pub require_connection_token: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HostDisposeRequest {
     pub host_id: String,
 }
@@ -8012,7 +8031,8 @@ pub struct HostExitedNotification {
 #[serde(rename_all = "camelCase")]
 pub struct HostReadyRequest {
     pub address: String,
-    pub token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
 }
 
 ///
@@ -8026,8 +8046,18 @@ pub struct HostReadyRequest {
 #[serde(rename_all = "camelCase")]
 pub struct HostStartRequest {
     pub host_id: String,
+    /// Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub working_directory: Option<String>,
+    pub hostname: Option<String>,
+    /// Listener port. Omitted or zero requests an OS-allocated port.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<i32>,
+    /// Require token authentication (default true). Cannot be false with a token.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub require_connection_token: Option<bool>,
+    /// Nonempty connection token. Generated randomly when required and omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
 }
 
 ///
@@ -8042,7 +8072,8 @@ pub struct HostStartRequest {
 pub struct HostStartResult {
     pub host_id: String,
     pub pid: i64,
-    pub token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
     pub url: String,
 }
 
@@ -25238,6 +25269,23 @@ pub struct WorkspacesWriteAutopilotObjectiveResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostDisposeResult {}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostGetConfigurationResult {
+    pub hostname: String,
+    pub port: i32,
+    pub require_connection_token: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+}
 
 ///
 /// <div class="warning">

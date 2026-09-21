@@ -1566,6 +1566,9 @@ function getMethodParamsSchema(method: RpcMethod): JSONSchema7 | undefined {
 }
 
 function pythonResultTypeName(method: RpcMethod, schemaOverride?: JSONSchema7): string {
+    if (!schemaOverride && method.result?.$ref) {
+        return toPascalCase(refTypeName(method.result.$ref, rpcDefinitions));
+    }
     const schema = schemaOverride ?? getMethodResultSchema(method);
     // If schema is a $ref, derive the type name from the ref path
     if (schema?.$ref) {
@@ -1592,6 +1595,9 @@ function pythonParamsTypeName(method: RpcMethod): string {
     const fallback = pythonRequestFallbackName(method);
     if (method.rpcMethod.startsWith("session.") && method.params?.$ref) {
         return fallback;
+    }
+    if (method.params?.$ref) {
+        return toPascalCase(refTypeName(method.params.$ref, rpcDefinitions));
     }
     const schema = getMethodParamsSchema(method);
     if (schema?.$ref) return toPascalCase(refTypeName(schema.$ref, rpcDefinitions));
@@ -3748,7 +3754,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(``);
 }
 
-function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false, groupDeprecated = false): void {
+export function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false, groupDeprecated = false): void {
     const isInternal = method.visibility === "internal";
     const methodName = (isInternal ? "_" : "") + toSnakeCase(name);
     const resultSchema = getMethodResultSchema(method);
@@ -3806,7 +3812,7 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
                 ? `${innerTypeName}.from_dict(${expr}) if ${expr} is not None else None`
                 : `${innerTypeName}(${expr}) if ${expr} is not None else None`;
         }
-        return resultIsObject ? `${innerTypeName}.from_dict(${expr})` : `${innerTypeName}(${expr})`;
+        return resultIsObject && innerTypeName !== "dict" ? `${innerTypeName}.from_dict(${expr})` : `${innerTypeName}(${expr})`;
     };
 
     // Build request body with proper serialization/deserialization
@@ -3989,7 +3995,7 @@ function emitClientSessionRegistrationMethod(
     lines.push(`    client.set_request_handler("${method.rpcMethod}", ${handlerVariableName})`);
 }
 
-function emitClientGlobalApiRegistration(
+export function emitClientGlobalApiRegistration(
     lines: string[],
     node: Record<string, unknown>,
     resolveType: (name: string) => string
@@ -4070,7 +4076,7 @@ function emitClientGlobalRegistrationMethod(
         // notification path (an `id`-less message never reaches a request
         // handler), so register on the method-specific notification registry.
         lines.push(`    async def ${handlerVariableName}(params: dict) -> None:`);
-        lines.push(`        request = ${paramsType}.from_dict(params)`);
+        lines.push(`        request = ${paramsType === "dict" ? "dict(params)" : `${paramsType}.from_dict(params)`}`);
         lines.push(`        handler = handlers.${handlerField}`);
         lines.push(`        if handler is None: return None`);
         lines.push(`        await handler.${handlerMethod}(request)`);
@@ -4080,12 +4086,12 @@ function emitClientGlobalRegistrationMethod(
     }
 
     lines.push(`    async def ${handlerVariableName}(params: dict) -> dict | None:`);
-    lines.push(`        request = ${paramsType}.from_dict(params)`);
+    lines.push(`        request = ${paramsType === "dict" ? "dict(params)" : `${paramsType}.from_dict(params)`}`);
     lines.push(`        handler = handlers.${handlerField}`);
     lines.push(`        if handler is None: raise RuntimeError("No ${handlerField} client-global handler registered")`);
     if (hasResult) {
         lines.push(`        result = await handler.${handlerMethod}(request)`);
-        if (isObjectSchema(resultSchema)) {
+        if (isObjectSchema(resultSchema) && resolveType(pythonResultTypeName(method)) !== "dict") {
             lines.push(`        return result.to_dict()`);
         } else {
             lines.push(`        return result.value if hasattr(result, 'value') else result`);

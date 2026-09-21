@@ -52,6 +52,24 @@ describe("C# root event payload unions", () => {
 });
 
 describe("C# RPC codegen", () => {
+    it("maps nullable host authentication options to nullable booleans", () => {
+        const code = generateRpcCode({
+            server: {
+                host: {
+                    start: {
+                        rpcMethod: "host.start",
+                        params: {
+                            type: "object",
+                            properties: { requireConnectionToken: { type: ["boolean", "null"] } },
+                        },
+                        result: { type: "null" },
+                    },
+                },
+            },
+        } as ApiSchema);
+        expect(code).toContain("bool? RequireConnectionToken");
+    });
+
     it.each(["uninstall", "update"])(
         "separates the session wire envelope from the shared plugins %s request",
         (method) => {

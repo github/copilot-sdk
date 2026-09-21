@@ -448,6 +448,9 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
             if (format === "date-time") return "DateTimeOffset?";
             return "string?";
         }
+        if (nonNullTypes.length === 1 && nonNullTypes[0] === "boolean") {
+            return "bool?";
+        }
         if (nonNullTypes.length === 1 && (nonNullTypes[0] === "number" || nonNullTypes[0] === "integer")) {
             if (format === "duration" && !isSecondsDurationPropertyName(propName)) {
                 return "TimeSpan?";

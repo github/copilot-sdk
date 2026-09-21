@@ -43,7 +43,7 @@ import type {
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
-import { CopilotHost, type CopilotHostExit, type CopilotHostOptions } from "./host.js";
+import { AhpHost, type AhpHostExit, type AhpHostOptions } from "./host.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
 import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
 import { COPILOT_CLI_VERSION } from "./cliVersion.js";
@@ -491,7 +491,7 @@ export class CopilotClient {
     /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
     private startPromise: Promise<void> | null = null;
     private sessions: Map<string, CopilotSession> = new Map();
-    private hosts = new Map<string, (exit: CopilotHostExit) => void>();
+    private hostExitCallbacks = new Map<string, (exit: AhpHostExit) => void>();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
     private connectionConfig: InternalRuntimeConnection;
@@ -2132,40 +2132,56 @@ export class CopilotClient {
      * SDK connection to the same runtime, not another runtime process.
      * Only one lite AHP host may own the catalog in an effective Copilot home
      * at a time. Other SDK clients and sessions remain usable in that home.
+     * The runtime validates listener options and defaults to 127.0.0.1 on an
+     * available port. `onExit` runs at most once; owner disconnection cannot
+     * acknowledge child reaping over the disconnected transport.
      *
      * @experimental
      */
-    async startHost(options: CopilotHostOptions = {}): Promise<CopilotHost> {
+    async startAhpHost(options: AhpHostOptions = {}): Promise<AhpHost> {
         if (this.state !== "connected") {
             await this.start();
         }
         const rpc = this.rpc;
         const hostId = randomUUID();
-        const closed = new Promise<CopilotHostExit>((resolve) => {
-            this.hosts.set(hostId, resolve);
-        });
+        const { hostname, port, token, requireConnectionToken, onExit } = options;
+        if (onExit) {
+            this.hostExitCallbacks.set(hostId, onExit);
+        }
         try {
-            const info = await rpc.host.start({ ...options, hostId });
-            return new CopilotHost(info, closed, async () => {
+            const info = await rpc.host.start({
+                hostId,
+                hostname,
+                port,
+                token,
+                requireConnectionToken,
+            });
+            return new AhpHost(info, async () => {
                 await rpc.host.dispose({ hostId });
-                this.handleHostExit({ hostId, reason: "disposed" });
             });
         } catch (error) {
-            this.hosts.delete(hostId);
+            this.hostExitCallbacks.delete(hostId);
             throw error;
         }
     }
 
-    private handleHostExit(exit: CopilotHostExit): void {
-        const complete = this.hosts.get(exit.hostId);
-        if (complete) {
-            this.hosts.delete(exit.hostId);
-            complete(exit);
+    private handleHostExit(exit: AhpHostExit): void {
+        const onExit = this.hostExitCallbacks.get(exit.hostId);
+        if (onExit) {
+            this.hostExitCallbacks.delete(exit.hostId);
+            const reportError = (error: unknown) => {
+                console.error("AHP host exit callback failed", { hostId: exit.hostId, error });
+            };
+            try {
+                void Promise.resolve(onExit(exit)).catch(reportError);
+            } catch (error) {
+                reportError(error);
+            }
         }
     }
 
     private disconnectHosts(): void {
-        for (const hostId of this.hosts.keys()) {
+        for (const hostId of this.hostExitCallbacks.keys()) {
             this.handleHostExit({
                 hostId,
                 reason: "ownerDisconnected",

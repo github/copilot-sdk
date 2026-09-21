@@ -11010,6 +11010,14 @@ export interface HooksDiscoverResult {
 }
 
 /** @experimental */
+export interface HostConfiguration {
+  hostname: string;
+  port: number;
+  token?: string | null;
+  requireConnectionToken: boolean;
+}
+
+/** @experimental */
 export interface HostDisposeRequest {
   hostId: string;
 }
@@ -11028,20 +11036,35 @@ export interface HostExitedNotification {
 /** @experimental */
 export interface HostReadyRequest {
   address: string;
-  token: string;
+  token?: string | null;
 }
 
 /** @experimental */
 export interface HostStartRequest {
   hostId: string;
-  workingDirectory?: string | null;
+  /**
+   * Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed.
+   */
+  hostname?: string | null;
+  /**
+   * Listener port. Omitted or zero requests an OS-allocated port.
+   */
+  port?: number | null;
+  /**
+   * Nonempty connection token. Generated randomly when required and omitted.
+   */
+  token?: string | null;
+  /**
+   * Require token authentication (default true). Cannot be false with a token.
+   */
+  requireConnectionToken?: boolean | null;
 }
 
 /** @experimental */
 export interface HostStartResult {
   hostId: string;
   url: string;
-  token: string;
+  token?: string | null;
   pid: number;
 }
 /**
@@ -26794,6 +26817,14 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
 export interface HostDisposeResult {}
 
 /** @experimental */
+export interface HostGetConfigurationResult {
+  hostname: string;
+  port: number;
+  token?: string | null;
+  requireConnectionToken: boolean;
+}
+
+/** @experimental */
 export interface HostReadyResult {}
 
 /** @experimental */
@@ -27746,6 +27777,11 @@ export function createInternalServerRpc(connection: MessageConnection) {
     return {
         /** @experimental */
         host: {
+            /**
+             * Returns listener settings only to the supervised child over its SDK connection.
+             */
+            getConfiguration: async (): Promise<HostGetConfigurationResult> =>
+                connection.sendRequest("host.getConfiguration", {}),
             /**
              * Reports a supervised child's bound AHP endpoint after its SDK handshake.
              */

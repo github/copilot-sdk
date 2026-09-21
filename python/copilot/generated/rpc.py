@@ -4479,6 +4479,139 @@ class HooksDiscoverRequest:
             result["projectPaths"] = from_union([lambda x: from_list(from_str, x), from_none], self.project_paths)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class HostConfiguration:
+    hostname: str
+    port: int
+    require_connection_token: bool
+    token: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'HostConfiguration':
+        assert isinstance(obj, dict)
+        hostname = from_str(obj.get("hostname"))
+        port = from_int(obj.get("port"))
+        require_connection_token = from_bool(obj.get("requireConnectionToken"))
+        token = from_union([from_none, from_str], obj.get("token"))
+        return HostConfiguration(hostname, port, require_connection_token, token)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["hostname"] = from_str(self.hostname)
+        result["port"] = from_int(self.port)
+        result["requireConnectionToken"] = from_bool(self.require_connection_token)
+        if self.token is not None:
+            result["token"] = from_union([from_none, from_str], self.token)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class HostDisposeRequest:
+    host_id: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'HostDisposeRequest':
+        assert isinstance(obj, dict)
+        host_id = from_str(obj.get("hostId"))
+        return HostDisposeRequest(host_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["hostId"] = from_str(self.host_id)
+        return result
+
+class HostExitReason(Enum):
+    DISPOSED = "disposed"
+    EXITED = "exited"
+    OWNER_DISCONNECTED = "ownerDisconnected"
+    RUNTIME_SHUTDOWN = "runtimeShutdown"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class HostReadyRequest:
+    address: str
+    token: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'HostReadyRequest':
+        assert isinstance(obj, dict)
+        address = from_str(obj.get("address"))
+        token = from_union([from_none, from_str], obj.get("token"))
+        return HostReadyRequest(address, token)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["address"] = from_str(self.address)
+        if self.token is not None:
+            result["token"] = from_union([from_none, from_str], self.token)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class HostStartRequest:
+    host_id: str
+    hostname: str | None = None
+    """Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed."""
+
+    port: int | None = None
+    """Listener port. Omitted or zero requests an OS-allocated port."""
+
+    require_connection_token: bool | None = None
+    """Require token authentication (default true). Cannot be false with a token."""
+
+    token: str | None = None
+    """Nonempty connection token. Generated randomly when required and omitted."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'HostStartRequest':
+        assert isinstance(obj, dict)
+        host_id = from_str(obj.get("hostId"))
+        hostname = from_union([from_none, from_str], obj.get("hostname"))
+        port = from_union([from_none, from_int], obj.get("port"))
+        require_connection_token = from_union([from_bool, from_none], obj.get("requireConnectionToken"))
+        token = from_union([from_none, from_str], obj.get("token"))
+        return HostStartRequest(host_id, hostname, port, require_connection_token, token)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["hostId"] = from_str(self.host_id)
+        if self.hostname is not None:
+            result["hostname"] = from_union([from_none, from_str], self.hostname)
+        if self.port is not None:
+            result["port"] = from_union([from_none, from_int], self.port)
+        if self.require_connection_token is not None:
+            result["requireConnectionToken"] = from_union([from_bool, from_none], self.require_connection_token)
+        if self.token is not None:
+            result["token"] = from_union([from_none, from_str], self.token)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class HostStartResult:
+    host_id: str
+    pid: int
+    url: str
+    token: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'HostStartResult':
+        assert isinstance(obj, dict)
+        host_id = from_str(obj.get("hostId"))
+        pid = from_int(obj.get("pid"))
+        url = from_str(obj.get("url"))
+        token = from_union([from_none, from_str], obj.get("token"))
+        return HostStartResult(host_id, pid, url, token)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["hostId"] = from_str(self.host_id)
+        result["pid"] = from_int(self.pid)
+        result["url"] = from_str(self.url)
+        if self.token is not None:
+            result["token"] = from_union([from_none, from_str], self.token)
+        return result
+
 class InstalledPluginSourceURLSource(Enum):
     GITHUB = "github"
     LOCAL = "local"
@@ -20142,6 +20275,32 @@ class HistoryRewindRequest:
         result: dict = {}
         result["eventId"] = from_str(self.event_id)
         result["mode"] = to_enum(HistoryRewindMode, self.mode)
+        return result
+
+@dataclass
+class HostExitedNotification:
+    host_id: str
+    reason: HostExitReason
+    error: str | None = None
+    exit_code: int | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'HostExitedNotification':
+        assert isinstance(obj, dict)
+        host_id = from_str(obj.get("hostId"))
+        reason = HostExitReason(obj.get("reason"))
+        error = from_union([from_none, from_str], obj.get("error"))
+        exit_code = from_union([from_int, from_none], obj.get("exitCode"))
+        return HostExitedNotification(host_id, reason, error, exit_code)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["hostId"] = from_str(self.host_id)
+        result["reason"] = to_enum(HostExitReason, self.reason)
+        if self.error is not None:
+            result["error"] = from_union([from_none, from_str], self.error)
+        if self.exit_code is not None:
+            result["exitCode"] = from_union([from_int, from_none], self.exit_code)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -45566,6 +45725,7 @@ FactoryRunFailureKind = RunFailureKind
 FactoryRunStatus = RunStatus
 FilterMapping = dict
 HistoryCompactRequest = Any
+HostEmptyResult = dict
 InstructionDiscoveryPathKind = DebugCollectLogsEntryKind
 InstructionDiscoveryPathLocation = InstructionLocation
 InstructionSourceLocation = InstructionLocation
@@ -45661,6 +45821,22 @@ def _patch_model_capabilities(data: dict) -> dict:
         elif "max_context_window_tokens" not in caps["limits"]:
             caps["limits"]["max_context_window_tokens"] = 0
     return data
+
+
+# Experimental: this API group is experimental and may change or be removed.
+class ServerHostApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def start(self, params: HostStartRequest, *, timeout: float | None = None) -> HostStartResult:
+        "Starts a connection-owned local AHP listener as a supervised SDK participant."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return HostStartResult.from_dict(await self._client.request("host.start", params_dict, **_timeout_kwargs(timeout)))
+
+    async def dispose(self, params: HostDisposeRequest, *, timeout: float | None = None) -> dict:
+        "Stops and reaps a listener owned by this SDK connection without deleting sessions."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return dict(await self._client.request("host.dispose", params_dict, **_timeout_kwargs(timeout)))
 
 
 # Experimental: this API group is experimental and may change or be removed.
@@ -46214,6 +46390,7 @@ class ServerRpc:
     """Typed server-scoped RPC methods."""
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
+        self.host = ServerHostApi(client)
         self.hooks = ServerHooksApi(client)
         self.models = ServerModelsApi(client)
         self.tools = ServerToolsApi(client)
@@ -46243,6 +46420,21 @@ class ServerRpc:
     async def register_extension_launch_provider(self, *, timeout: float | None = None) -> None:
         "Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         await self._client.request("registerExtensionLaunchProvider", {}, **_timeout_kwargs(timeout))
+
+
+# Experimental: this API group is experimental and may change or be removed.
+class _InternalServerHostApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def _get_configuration(self, *, timeout: float | None = None) -> HostConfiguration:
+        "Returns listener settings only to the supervised child over its SDK connection.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        return HostConfiguration.from_dict(await self._client.request("host.getConfiguration", {}, **_timeout_kwargs(timeout)))
+
+    async def _ready(self, params: HostReadyRequest, *, timeout: float | None = None) -> dict:
+        "Reports a supervised child's bound AHP endpoint after its SDK handshake.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return dict(await self._client.request("host.ready", params_dict, **_timeout_kwargs(timeout)))
 
 
 # Experimental: this API group is experimental and may change or be removed.
@@ -46290,6 +46482,7 @@ class _InternalServerRpc:
     """Internal SDK server-scoped RPC methods. Not part of the public API."""
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
+        self.host = _InternalServerHostApi(client)
         self.sessions = _InternalServerSessionsApi(client)
 
     async def _connect(self, params: _ConnectRequest, *, timeout: float | None = None) -> _ConnectResult:
@@ -48696,6 +48889,15 @@ def register_client_session_api_handlers(
     client.set_request_handler("canvas.action.invoke", handle_canvas_action_invoke)
 
 # Experimental: this API group is experimental and may change or be removed.
+class HostHandler(Protocol):
+    async def shutdown(self, params: dict) -> dict:
+        "Requests graceful shutdown of a supervised AHP listener and its clients."
+        pass
+    async def exited(self, params: HostExitedNotification) -> None:
+        "Reports termination of a connection-owned host listener."
+        pass
+
+# Experimental: this API group is experimental and may change or be removed.
 class HooksHandler(Protocol):
     async def invoke(self, params: _HookInvokeRequest) -> _HookInvokeResponse:
         "Dispatches one SDK callback hook from the runtime to the connection that registered it. Internal transport plumbing: clients opt in through session initialization and the Rust hook processor owns ordering, policy, timeout, and callback routing.\n\nArgs:\n    params: Runtime-owned wire payload for a server-to-client hook callback invocation.\n\nReturns:\n    Optional output returned by an SDK callback hook."
@@ -48730,6 +48932,7 @@ class GitHubTokenHandler(Protocol):
 
 @dataclass
 class ClientGlobalApiHandlers:
+    host: HostHandler | None = None
     hooks: HooksHandler | None = None
     extension_launch_provider: ExtensionLaunchProviderHandler | None = None
     llm_inference: LlmInferenceHandler | None = None
@@ -48746,6 +48949,20 @@ def register_client_global_api_handlers(
     session_id dispatch key; a single set of handlers serves the entire
     connection.
     """
+    async def handle_host_shutdown(params: dict) -> dict | None:
+        request = dict(params)
+        handler = handlers.host
+        if handler is None: raise RuntimeError("No host client-global handler registered")
+        result = await handler.shutdown(request)
+        return result.value if hasattr(result, 'value') else result
+    client.set_request_handler("host.shutdown", handle_host_shutdown)
+    async def handle_host_exited(params: dict) -> None:
+        request = HostExitedNotification.from_dict(params)
+        handler = handlers.host
+        if handler is None: return None
+        await handler.exited(request)
+        return None
+    client.set_notification_method_handler("host.exited", handle_host_exited)
     async def handle_hooks_invoke(params: dict) -> dict | None:
         request = _HookInvokeRequest.from_dict(params)
         handler = handlers.hooks
@@ -49230,6 +49447,15 @@ __all__ = [
     "HooksDiscoverResult",
     "HooksHandler",
     "Host",
+    "HostConfiguration",
+    "HostDisposeRequest",
+    "HostEmptyResult",
+    "HostExitReason",
+    "HostExitedNotification",
+    "HostHandler",
+    "HostReadyRequest",
+    "HostStartRequest",
+    "HostStartResult",
     "HostType",
     "InstallMethod",
     "InstalledPlugin",
@@ -49901,6 +50127,7 @@ __all__ = [
     "ServerCommandsApi",
     "ServerExtensionsApi",
     "ServerHooksApi",
+    "ServerHostApi",
     "ServerInstructionSourceList",
     "ServerInstructionsApi",
     "ServerLlmInferenceApi",

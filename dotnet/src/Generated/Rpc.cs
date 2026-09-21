@@ -107,6 +107,107 @@ internal sealed class ConnectRequest
     public string? Token { get; set; }
 }
 
+/// <summary>RPC data type for HostStart operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class HostStartResult
+{
+    /// <summary>Gets or sets the <c>hostId</c> value.</summary>
+    [JsonPropertyName("hostId")]
+    public string HostId { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the <c>pid</c> value.</summary>
+    [JsonPropertyName("pid")]
+    public long Pid { get; set; }
+
+    /// <summary>Gets or sets the <c>token</c> value.</summary>
+    [JsonPropertyName("token")]
+    public string? Token { get; set; }
+
+    /// <summary>Gets or sets the <c>url</c> value.</summary>
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for HostStart operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HostStartRequest
+{
+    /// <summary>Gets or sets the <c>hostId</c> value.</summary>
+    [JsonPropertyName("hostId")]
+    public string HostId { get; set; } = string.Empty;
+
+    /// <summary>Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed.</summary>
+    [JsonPropertyName("hostname")]
+    public string? Hostname { get; set; }
+
+    /// <summary>Listener port. Omitted or zero requests an OS-allocated port.</summary>
+    [JsonPropertyName("port")]
+    public int? Port { get; set; }
+
+    /// <summary>Require token authentication (default true). Cannot be false with a token.</summary>
+    [JsonPropertyName("requireConnectionToken")]
+    public bool? RequireConnectionToken { get; set; }
+
+    /// <summary>Nonempty connection token. Generated randomly when required and omitted.</summary>
+    [JsonPropertyName("token")]
+    public string? Token { get; set; }
+}
+
+/// <summary>RPC data type for HostDispose operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class HostDisposeResult
+{
+}
+
+/// <summary>RPC data type for HostDispose operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HostDisposeRequest
+{
+    /// <summary>Gets or sets the <c>hostId</c> value.</summary>
+    [JsonPropertyName("hostId")]
+    public string HostId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for HostGetConfiguration operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HostGetConfigurationResult
+{
+    /// <summary>Gets or sets the <c>hostname</c> value.</summary>
+    [JsonPropertyName("hostname")]
+    public string Hostname { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the <c>port</c> value.</summary>
+    [JsonPropertyName("port")]
+    public int Port { get; set; }
+
+    /// <summary>Gets or sets the <c>requireConnectionToken</c> value.</summary>
+    [JsonPropertyName("requireConnectionToken")]
+    public bool RequireConnectionToken { get; set; }
+
+    /// <summary>Gets or sets the <c>token</c> value.</summary>
+    [JsonPropertyName("token")]
+    public string? Token { get; set; }
+}
+
+/// <summary>RPC data type for HostReady operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HostReadyResult
+{
+}
+
+/// <summary>RPC data type for HostReady operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HostReadyRequest
+{
+    /// <summary>Gets or sets the <c>address</c> value.</summary>
+    [JsonPropertyName("address")]
+    public string Address { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the <c>token</c> value.</summary>
+    [JsonPropertyName("token")]
+    public string? Token { get; set; }
+}
+
 /// <summary>One server-discovered hook action from user, repository, plugin, or managed-policy configuration.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class DiscoveredHook
@@ -22344,6 +22445,26 @@ public sealed class CanvasProviderInvokeActionRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>RPC data type for HostExited operations.</summary>
+public sealed class HostExitedRequest
+{
+    /// <summary>Gets or sets the <c>error</c> value.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    /// <summary>Gets or sets the <c>exitCode</c> value.</summary>
+    [JsonPropertyName("exitCode")]
+    public long? ExitCode { get; set; }
+
+    /// <summary>Gets or sets the <c>hostId</c> value.</summary>
+    [JsonPropertyName("hostId")]
+    public string HostId { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the <c>reason</c> value.</summary>
+    [JsonPropertyName("reason")]
+    public HostExitReason Reason { get; set; }
+}
+
 /// <summary>Opaque integrator-owned process launch profile for one extension entrypoint.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ExtensionLaunchProfile
@@ -35583,6 +35704,75 @@ public readonly struct SessionFsSqliteTransactionErrorClass : IEquatable<Session
 }
 
 
+/// <summary>Defines the allowed values.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct HostExitReason : IEquatable<HostExitReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="HostExitReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="HostExitReason"/>.</param>
+    [JsonConstructor]
+    public HostExitReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="HostExitReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>disposed</c> value.</summary>
+    public static HostExitReason Disposed { get; } = new("disposed");
+
+    /// <summary>Gets the <c>exited</c> value.</summary>
+    public static HostExitReason Exited { get; } = new("exited");
+
+    /// <summary>Gets the <c>ownerDisconnected</c> value.</summary>
+    public static HostExitReason OwnerDisconnected { get; } = new("ownerDisconnected");
+
+    /// <summary>Gets the <c>runtimeShutdown</c> value.</summary>
+    public static HostExitReason RuntimeShutdown { get; } = new("runtimeShutdown");
+
+    /// <summary>Returns a value indicating whether two <see cref="HostExitReason"/> instances are equivalent.</summary>
+    public static bool operator ==(HostExitReason left, HostExitReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="HostExitReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(HostExitReason left, HostExitReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is HostExitReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(HostExitReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{HostExitReason}"/> for serializing <see cref="HostExitReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<HostExitReason>
+    {
+        /// <inheritdoc />
+        public override HostExitReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, HostExitReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(HostExitReason));
+        }
+    }
+}
+
+
 /// <summary>Transport the runtime would otherwise use for this request. `http` (the default when absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message channel where each body chunk maps to one WebSocket message and the `binary` flag distinguishes text from binary frames. The SDK consumer uses this to decide whether to service the request with an HTTP client or a WebSocket client. It is the one piece of request metadata the consumer cannot reliably infer from the URL or headers alone.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -35752,6 +35942,12 @@ public sealed class ServerRpc
         await CopilotClient.InvokeRpcAsync(_rpc, "registerExtensionLaunchProvider", [], cancellationToken);
     }
 
+    /// <summary>Host APIs.</summary>
+    public ServerHostApi Host =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>Hooks APIs.</summary>
     public ServerHooksApi Hooks =>
         field ??
@@ -35871,6 +36067,63 @@ public sealed class ServerRpc
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
+}
+
+/// <summary>Provides server-scoped Host APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerHostApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerHostApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Starts a connection-owned local AHP listener as a supervised SDK participant.</summary>
+    /// <param name="hostId">The hostId parameter.</param>
+    /// <param name="hostname">Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed.</param>
+    /// <param name="port">Listener port. Omitted or zero requests an OS-allocated port.</param>
+    /// <param name="token">Nonempty connection token. Generated randomly when required and omitted.</param>
+    /// <param name="requireConnectionToken">Require token authentication (default true). Cannot be false with a token.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task<HostStartResult> StartAsync(string hostId, string? hostname = null, int? port = null, string? token = null, bool? requireConnectionToken = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(hostId);
+
+        var request = new HostStartRequest { HostId = hostId, Hostname = hostname, Port = port, Token = token, RequireConnectionToken = requireConnectionToken };
+        return await CopilotClient.InvokeRpcAsync<HostStartResult>(_rpc, "host.start", [request], cancellationToken);
+    }
+
+    /// <summary>Stops and reaps a listener owned by this SDK connection without deleting sessions.</summary>
+    /// <param name="hostId">The hostId parameter.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task<HostDisposeResult> DisposeAsync(string hostId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(hostId);
+
+        var request = new HostDisposeRequest { HostId = hostId };
+        return await CopilotClient.InvokeRpcAsync<HostDisposeResult>(_rpc, "host.dispose", [request], cancellationToken);
+    }
+
+    /// <summary>Returns listener settings only to the supervised child over its SDK connection.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task<HostGetConfigurationResult> GetConfigurationAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<HostGetConfigurationResult>(_rpc, "host.getConfiguration", [], cancellationToken);
+    }
+
+    /// <summary>Reports a supervised child's bound AHP endpoint after its SDK handshake.</summary>
+    /// <param name="address">The address parameter.</param>
+    /// <param name="token">The token parameter.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task<HostReadyResult> ReadyAsync(string address, string? token = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+
+        var request = new HostReadyRequest { Address = address, Token = token };
+        return await CopilotClient.InvokeRpcAsync<HostReadyResult>(_rpc, "host.ready", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides server-scoped Hooks APIs.</summary>
@@ -42528,6 +42781,16 @@ internal static class ClientSessionApiRegistration
     }
 }
 
+/// <summary>Handles `host` client global API methods.</summary>
+[Experimental(Diagnostics.Experimental)]
+public interface IHostHandler
+{
+    /// <summary>Reports termination of a connection-owned host listener.</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    Task ExitedAsync(HostExitedRequest request, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Handles `extensionLaunchProvider` client global API methods.</summary>
 [Experimental(Diagnostics.Experimental)]
 public interface IExtensionLaunchProviderHandler
@@ -42579,6 +42842,9 @@ public interface IGitHubTokenHandler
 /// <summary>Provides all client global API handler groups for a connection.</summary>
 public sealed class ClientGlobalApiHandlers
 {
+    /// <summary>Optional handler for Host client global API methods.</summary>
+    public IHostHandler? Host { get; set; }
+
     /// <summary>Optional handler for ExtensionLaunchProvider client global API methods.</summary>
     public IExtensionLaunchProviderHandler? ExtensionLaunchProvider { get; set; }
 
@@ -42603,6 +42869,11 @@ internal static class ClientGlobalApiRegistration
     /// </summary>
     public static void RegisterClientGlobalApiHandlers(JsonRpc rpc, ClientGlobalApiHandlers handlers)
     {
+        rpc.SetLocalRpcMethod("host.exited", (Func<HostExitedRequest, CancellationToken, ValueTask>)(async (request, cancellationToken) =>
+        {
+            var handler = handlers.Host ?? throw new InvalidOperationException("No host client-global handler registered");
+            await handler.ExitedAsync(request, cancellationToken);
+        }), singleObjectParam: true);
         rpc.SetLocalRpcMethod("extensionLaunchProvider.resolve", (Func<ExtensionLaunchProviderResolveRequest, CancellationToken, ValueTask<ExtensionLaunchProviderResolveResult>>)(async (request, cancellationToken) =>
         {
             var handler = handlers.ExtensionLaunchProvider ?? throw new InvalidOperationException("No extensionLaunchProvider client-global handler registered");
@@ -43306,6 +43577,14 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HistoryTruncateResult))]
 [JsonSerializable(typeof(HooksDiscoverRequest))]
 [JsonSerializable(typeof(HooksDiscoverResult))]
+[JsonSerializable(typeof(HostDisposeRequest))]
+[JsonSerializable(typeof(HostDisposeResult))]
+[JsonSerializable(typeof(HostExitedRequest))]
+[JsonSerializable(typeof(HostGetConfigurationResult))]
+[JsonSerializable(typeof(HostReadyRequest))]
+[JsonSerializable(typeof(HostReadyResult))]
+[JsonSerializable(typeof(HostStartRequest))]
+[JsonSerializable(typeof(HostStartResult))]
 [JsonSerializable(typeof(IDictionary<string, JsonElement>))]
 [JsonSerializable(typeof(IDictionary<string, string>))]
 [JsonSerializable(typeof(IList<AccountAllUsers>))]

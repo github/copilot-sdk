@@ -5011,6 +5011,91 @@ type HooksDiscoverResult struct {
 	Warnings []string `json:"warnings"`
 }
 
+// Experimental: HostConfiguration is part of an experimental API and may change or be
+// removed.
+type HostConfiguration struct {
+	Hostname               string  `json:"hostname"`
+	Port                   int32   `json:"port"`
+	RequireConnectionToken bool    `json:"requireConnectionToken"`
+	Token                  *string `json:"token,omitempty"`
+}
+
+// Experimental: HostDisposeRequest is part of an experimental API and may change or be
+// removed.
+type HostDisposeRequest struct {
+	HostID string `json:"hostId"`
+}
+
+// Experimental: HostDisposeResult is part of an experimental API and may change or be
+// removed.
+type HostDisposeResult struct {
+}
+
+// Experimental: HostEmptyResult is part of an experimental API and may change or be removed.
+type HostEmptyResult struct {
+}
+
+// Experimental: HostExitedNotification is part of an experimental API and may change or be
+// removed.
+type HostExitedNotification struct {
+	Error    *string        `json:"error,omitempty"`
+	ExitCode *int64         `json:"exitCode,omitempty"`
+	HostID   string         `json:"hostId"`
+	Reason   HostExitReason `json:"reason"`
+}
+
+// Experimental: HostExitedResult is part of an experimental API and may change or be
+// removed.
+type HostExitedResult struct {
+}
+
+// Experimental: HostGetConfigurationResult is part of an experimental API and may change or
+// be removed.
+type HostGetConfigurationResult struct {
+	Hostname               string  `json:"hostname"`
+	Port                   int32   `json:"port"`
+	RequireConnectionToken bool    `json:"requireConnectionToken"`
+	Token                  *string `json:"token,omitempty"`
+}
+
+// Experimental: HostReadyRequest is part of an experimental API and may change or be
+// removed.
+type HostReadyRequest struct {
+	Address string  `json:"address"`
+	Token   *string `json:"token,omitempty"`
+}
+
+// Experimental: HostReadyResult is part of an experimental API and may change or be removed.
+type HostReadyResult struct {
+}
+
+// Experimental: HostShutdownResult is part of an experimental API and may change or be
+// removed.
+type HostShutdownResult struct {
+}
+
+// Experimental: HostStartRequest is part of an experimental API and may change or be
+// removed.
+type HostStartRequest struct {
+	HostID string `json:"hostId"`
+	// Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed.
+	Hostname *string `json:"hostname,omitempty"`
+	// Listener port. Omitted or zero requests an OS-allocated port.
+	Port *int32 `json:"port,omitempty"`
+	// Require token authentication (default true). Cannot be false with a token.
+	RequireConnectionToken *bool `json:"requireConnectionToken,omitempty"`
+	// Nonempty connection token. Generated randomly when required and omitted.
+	Token *string `json:"token,omitempty"`
+}
+
+// Experimental: HostStartResult is part of an experimental API and may change or be removed.
+type HostStartResult struct {
+	HostID string  `json:"hostId"`
+	Pid    int64   `json:"pid"`
+	Token  *string `json:"token,omitempty"`
+	URL    string  `json:"url"`
+}
+
 // Installed plugin record from global state, with marketplace, version, install time,
 // enabled state, cache path, and source.
 // Experimental: InstalledPlugin is part of an experimental API and may change or be removed.
@@ -19853,6 +19938,16 @@ const (
 	HookTypeUserPromptTransformed HookType = "userPromptTransformed"
 )
 
+// Experimental: HostExitReason is part of an experimental API and may change or be removed.
+type HostExitReason string
+
+const (
+	HostExitReasonDisposed          HostExitReason = "disposed"
+	HostExitReasonExited            HostExitReason = "exited"
+	HostExitReasonOwnerDisconnected HostExitReason = "ownerDisconnected"
+	HostExitReasonRuntimeShutdown   HostExitReason = "runtimeShutdown"
+)
+
 // Live indexed-search state for this session activation, never inferred from persisted
 // history.
 // Experimental: IndexedSearchState is part of an experimental API and may change or be
@@ -22962,6 +23057,39 @@ func (a *ServerHooksAPI) Discover(ctx context.Context, params *HooksDiscoverRequ
 	return &result, nil
 }
 
+// Experimental: ServerHostAPI contains experimental APIs that may change or be removed.
+type ServerHostAPI serverAPI
+
+// Dispose stops and reaps a listener owned by this SDK connection without deleting sessions.
+//
+// RPC method: host.dispose.
+func (a *ServerHostAPI) Dispose(ctx context.Context, params *HostDisposeRequest) (*HostDisposeResult, error) {
+	raw, err := a.client.Request(ctx, "host.dispose", params)
+	if err != nil {
+		return nil, err
+	}
+	var result HostDisposeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Starts a connection-owned local AHP listener as a supervised SDK participant.
+//
+// RPC method: host.start.
+func (a *ServerHostAPI) Start(ctx context.Context, params *HostStartRequest) (*HostStartResult, error) {
+	raw, err := a.client.Request(ctx, "host.start", params)
+	if err != nil {
+		return nil, err
+	}
+	var result HostStartResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ServerInstructionsAPI contains experimental APIs that may change or be
 // removed.
 type ServerInstructionsAPI serverAPI
@@ -24419,6 +24547,7 @@ type ServerRPC struct {
 	Commands        *ServerCommandsAPI
 	Extensions      *ServerExtensionsAPI
 	Hooks           *ServerHooksAPI
+	Host            *ServerHostAPI
 	Instructions    *ServerInstructionsAPI
 	LlmInference    *ServerLlmInferenceAPI
 	ManagedSettings *ServerManagedSettingsAPI
@@ -24484,6 +24613,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Commands = (*ServerCommandsAPI)(&r.common)
 	r.Extensions = (*ServerExtensionsAPI)(&r.common)
 	r.Hooks = (*ServerHooksAPI)(&r.common)
+	r.Host = (*ServerHostAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
 	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
 	r.ManagedSettings = (*ServerManagedSettingsAPI)(&r.common)
@@ -24502,6 +24632,45 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 
 type internalServerAPI struct {
 	client *jsonrpc2.Client
+}
+
+// Experimental: InternalServerHostAPI contains experimental APIs that may change or be
+// removed.
+type InternalServerHostAPI internalServerAPI
+
+// GetConfiguration returns listener settings only to the supervised child over its SDK
+// connection.
+//
+// RPC method: host.getConfiguration.
+// Internal: GetConfiguration is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerHostAPI) GetConfiguration(ctx context.Context) (*HostGetConfigurationResult, error) {
+	raw, err := a.client.Request(ctx, "host.getConfiguration", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result HostGetConfigurationResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Ready reports a supervised child's bound AHP endpoint after its SDK handshake.
+//
+// RPC method: host.ready.
+// Internal: Ready is part of the SDK's internal handshake/plumbing; external callers should
+// not use it.
+func (a *InternalServerHostAPI) Ready(ctx context.Context, params *HostReadyRequest) (*HostReadyResult, error) {
+	raw, err := a.client.Request(ctx, "host.ready", params)
+	if err != nil {
+		return nil, err
+	}
+	var result HostReadyResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 // Experimental: InternalServerSessionsAPI contains experimental APIs that may change or be
@@ -24676,6 +24845,7 @@ type InternalServerRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common internalServerAPI
 
+	Host     *InternalServerHostAPI
 	Sessions *InternalServerSessionsAPI
 }
 
@@ -24711,6 +24881,7 @@ func (a *InternalServerRPC) Connect(ctx context.Context, params *ConnectRequest)
 func NewInternalServerRPC(client *jsonrpc2.Client) *InternalServerRPC {
 	r := &InternalServerRPC{}
 	r.common = internalServerAPI{client: client}
+	r.Host = (*InternalServerHostAPI)(&r.common)
 	r.Sessions = (*InternalServerSessionsAPI)(&r.common)
 	return r
 }
@@ -33649,6 +33820,18 @@ type HooksHandler interface {
 	Invoke(request *HookInvokeRequest) (*HookInvokeResponse, error)
 }
 
+// Experimental: HostHandler contains experimental APIs that may change or be removed.
+type HostHandler interface {
+	// Exited reports termination of a connection-owned host listener.
+	//
+	// RPC method: host.exited.
+	Exited(request *HostExitedNotification) error
+	// Shutdown requests graceful shutdown of a supervised AHP listener and its clients.
+	//
+	// RPC method: host.shutdown.
+	Shutdown(request *HostEmptyResult) (*HostShutdownResult, error)
+}
+
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
 // removed.
 type LlmInferenceHandler interface {
@@ -33689,6 +33872,7 @@ type ClientGlobalAPIHandlers struct {
 	GitHubTelemetry         GitHubTelemetryHandler
 	GitHubToken             GitHubTokenHandler
 	Hooks                   HooksHandler
+	Host                    HostHandler
 	LlmInference            LlmInferenceHandler
 }
 
@@ -33764,6 +33948,37 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, &jsonrpc2.Error{Code: -32603, Message: "No hooks client-global handler registered"}
 		}
 		result, err := handlers.Hooks.Invoke(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("host.exited", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request HostExitedNotification
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.Host == nil {
+			return nil, nil
+		}
+		if err := handlers.Host.Exited(&request); err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		return nil, nil
+	})
+	client.SetRequestHandler("host.shutdown", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request HostEmptyResult
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.Host == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No host client-global handler registered"}
+		}
+		result, err := handlers.Host.Shutdown(&request)
 		if err != nil {
 			return nil, clientGlobalHandlerError(err)
 		}

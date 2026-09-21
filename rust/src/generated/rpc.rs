@@ -787,6 +787,26 @@ impl<'a> ClientRpcHost<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Returns listener settings only to the supervised child over its SDK connection.
+    ///
+    /// Wire method: `host.getConfiguration`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_configuration(&self) -> Result<HostConfiguration, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::HOST_GETCONFIGURATION, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Reports a supervised child's bound AHP endpoint after its SDK handshake.
     ///
     /// Wire method: `host.ready`.
