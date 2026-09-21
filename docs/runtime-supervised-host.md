@@ -66,11 +66,23 @@ against the real local runtime and host.
 
 ## Companion release order
 
+To bootstrap the accepted cross-repository dependency, the host pins the
+runtime-free Rust SDK implementation to immutable commit
+`956119281f14ac25d1cc8b6bf17cd25a93185028`. This is a source dependency, not
+a claim that a corresponding SDK or runtime release has been published.
+
 The host release must publish runtime-free lite artifacts before a runtime
 release can consume their versioned assets and checksums. The SDK can then pin
 that runtime release through its existing runtime-distribution mechanism.
 Unreleased local candidates must be staged explicitly; substituting a released
 runtime or host does not validate these changes.
+
+The SDK's existing released runtime pin must be advanced only after the
+companion runtime is published. Until then, `startHost()` requires the local
+source-built runtime or an assembled candidate; the currently released runtime
+is not claimed to implement the new host operations. Generated bindings in this
+branch come from the companion runtime's local schema, so release-based code
+generation must use that same companion release when its pin is advanced.
 
 Application create/resume callbacks, application-owned AHP transport,
 projection relocation, general multi-harness composition, and exhaustive AHP
