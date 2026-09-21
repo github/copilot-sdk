@@ -458,6 +458,28 @@ Get all events/messages from this session.
 
 Disconnect the session and free resources. Session data on disk is preserved for later resumption.
 
+##### `registerBlackbirdCredentialProvider(provider): Promise<() => void>` (illustrative)
+
+DO NOT MERGE: this is a Node/TypeScript API proposal for discussion, not a released SDK feature. It requires the matching unmerged runtime callback contract; the bundled CLI does not provide it.
+
+The trusted host supplies its existing approved repository-operation token for native search. This does not create or enable a search tool, renew tokens, or change model authentication, billing, policy identity, Git, or MCP credentials.
+
+```typescript
+const unregister = await session.registerBlackbirdCredentialProvider({
+    host: "github.com",
+    getToken() {
+        return { accessToken: existingJobRepositoryToken };
+    },
+});
+// Keep this registration while the session needs native search.
+// At teardown, remove only this registration's local callback:
+unregister();
+```
+
+Register before the first search and explicitly rebind after resume. Each operation acquires a token from the callback. Omit `expiresIn` unless its positive integer remaining lifetime in seconds is known. Rejected, missing, or invalid credentials fail search without falling back to model authentication. Cleanup removes only this local callback; it does not clear the runtime's credential requirement. The runtime owns child inheritance and the non-secret resume marker.
+
+This proposal does not implement content-exclusion filtering or a production SDK/runtime distribution.
+
 ##### `capabilities: SessionCapabilities`
 
 Host capabilities reported when the session was created or resumed. Use this to check feature support before calling capability-gated APIs.
