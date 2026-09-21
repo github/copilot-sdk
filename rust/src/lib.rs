@@ -3,6 +3,10 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
+/// Experimental runtime-owned Agent Host Protocol listeners.
+pub mod ahp_host;
+pub use ahp_host::{AhpHost, AhpHostExit, AhpHostExitCallback, AhpHostExitReason, AhpHostOptions};
+
 #[cfg(all(feature = "runtime", not(feature = "bundled-cli")))]
 mod cache_paths;
 /// Canvas declarations, provider callbacks, and host-side canvas RPC types.
@@ -1199,6 +1203,7 @@ impl std::fmt::Debug for Client {
 }
 
 struct ClientInner {
+    ahp_host_callbacks: Arc<ahp_host::ExitCallbacks>,
     child: parking_lot::Mutex<Option<Child>>,
     process_tree: parking_lot::Mutex<Option<process_tree::ProcessTree>>,
     #[cfg(feature = "bundled-in-process")]
@@ -1964,6 +1969,7 @@ impl Client {
         );
         let client = Self {
             inner: Arc::new(ClientInner {
+                ahp_host_callbacks: Arc::new(ahp_host::ExitCallbacks::default()),
                 child: parking_lot::Mutex::new(child),
                 process_tree: parking_lot::Mutex::new(process_tree),
                 #[cfg(feature = "bundled-in-process")]
@@ -1994,6 +2000,7 @@ impl Client {
         github_token_registry.set_client(Arc::downgrade(&client.inner));
         extension_launch_provider.set_client(Arc::downgrade(&client.inner));
         client.spawn_lifecycle_dispatcher();
+        client.spawn_ahp_host_dispatcher();
         debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             pid = ?pid,
@@ -3855,6 +3862,7 @@ mod tests {
     fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Client {
         Client {
             inner: Arc::new(ClientInner {
+                ahp_host_callbacks: Arc::new(ahp_host::ExitCallbacks::default()),
                 child: parking_lot::Mutex::new(None),
                 process_tree: parking_lot::Mutex::new(None),
                 #[cfg(feature = "bundled-in-process")]

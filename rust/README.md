@@ -119,6 +119,56 @@ transports.
 
 With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport loads the native runtime library adjacent to that resolved runtime bundle. There is no PATH scanning.
 
+#### AHP listeners (experimental)
+
+`Client::start_ahp_host` is a thin wrapper over the generated `host.start`
+RPC. It is also available with `default-features = false`: the connected
+runtime owns and launches the listener, not the SDK.
+
+```rust,no_run
+use github_copilot_sdk::{AhpHostOptions, Client};
+
+# async fn example(client: &Client) -> Result<(), github_copilot_sdk::Error> {
+let host = client.start_ahp_host(
+    AhpHostOptions::default()
+        .with_hostname("127.0.0.1")
+        .with_port(0)
+        .with_on_exit(|exit| {
+            println!("host {} exited: {:?}", exit.host_id, exit.reason);
+        }),
+).await?;
+println!("{} (pid {})", host.url, host.pid);
+// Supply host.token to AHP clients when present; never log it.
+host.dispose().await?;
+# Ok(())
+# }
+```
+
+`AhpHostOptions` has optional `hostname`, `port`, `token`,
+`require_connection_token`, and local-only `on_exit` fields, with matching
+`with_*` builders. Defaults and validation stay in the runtime: loopback hostname,
+an available port, and required connection-token authentication. Set
+`with_require_connection_token(false)` to disable token authentication; then
+`AhpHost::token` is `None`.
+
+The returned `AhpHost` exposes `host_id`, `url`, `pid`, and `token`.
+Every explicit asynchronous `dispose()` call forwards `host.dispose`,
+including concurrent or repeated calls, and returns the runtime's result.
+There is no cached disposal, automatic retry, synthetic exit, or closed
+future. Dropping a handle does not dispose it or spawn cleanup work.
+The owning `Client` connection controls runtime host lifetime; the handle
+does not keep that client alive.
+
+`on_exit` receives the generated notification as `AhpHostExit`, whose
+`reason` is `AhpHostExitReason`. Registration precedes the start RPC so an
+early exit is observable. Delivery is at most once; callback panics are
+caught and logged. Start failure or cancellation releases registration.
+Disconnect releases outstanding callbacks without claiming that the host
+was reaped or sending additional disposal RPCs.
+
+See [Runtime-host integration tests](scripts/runtime-host-e2e.md) for source
+and assembled-candidate validation using the shared replay snapshots.
+
 #### Extension launch provider
 
 Hosts that own legacy extension process assets can supply a typed, asynchronous
