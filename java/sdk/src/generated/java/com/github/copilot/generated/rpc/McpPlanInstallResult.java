@@ -20,18 +20,18 @@ import javax.annotation.processing.Generated;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = McpPlanInstallPlanned.class, name = "planned"),
-    @JsonSubTypes.Type(value = CatalogNegotiationRefusedError.class, name = "negotiation-refused"),
+    @JsonSubTypes.Type(value = McpPlanInstallResultCatalogNegotiationRefusedError.class, name = "negotiation-refused"),
     @JsonSubTypes.Type(value = CatalogHandleRejectedError.class, name = "handle-rejected"),
-    @JsonSubTypes.Type(value = CatalogInvalidRequestError.class, name = "invalid-request"),
-    @JsonSubTypes.Type(value = CatalogAuthenticationRequiredError.class, name = "authentication-required"),
-    @JsonSubTypes.Type(value = CatalogPolicyRejectedError.class, name = "policy-rejected"),
-    @JsonSubTypes.Type(value = CatalogNetworkFailureError.class, name = "network-failure"),
-    @JsonSubTypes.Type(value = CatalogUnsafeRetrievalError.class, name = "unsafe-retrieval"),
-    @JsonSubTypes.Type(value = CatalogMalformedCardError.class, name = "malformed-card"),
-    @JsonSubTypes.Type(value = CatalogContractViolationError.class, name = "contract-violation"),
+    @JsonSubTypes.Type(value = McpPlanInstallResultCatalogInvalidRequestError.class, name = "invalid-request"),
+    @JsonSubTypes.Type(value = McpPlanInstallResultCatalogAuthenticationRequiredError.class, name = "authentication-required"),
+    @JsonSubTypes.Type(value = McpPlanInstallResultCatalogPolicyRejectedError.class, name = "policy-rejected"),
+    @JsonSubTypes.Type(value = McpPlanInstallResultCatalogNetworkFailureError.class, name = "network-failure"),
+    @JsonSubTypes.Type(value = McpPlanInstallResultCatalogUnsafeRetrievalError.class, name = "unsafe-retrieval"),
+    @JsonSubTypes.Type(value = McpPlanInstallResultCatalogMalformedCardError.class, name = "malformed-card"),
+    @JsonSubTypes.Type(value = McpPlanInstallResultCatalogContractViolationError.class, name = "contract-violation"),
     @JsonSubTypes.Type(value = CatalogUnavailableTransportError.class, name = "unavailable-transport"),
     @JsonSubTypes.Type(value = CatalogNotInstallableError.class, name = "not-installable"),
-    @JsonSubTypes.Type(value = CatalogUnavailableError.class, name = "unavailable")
+    @JsonSubTypes.Type(value = McpPlanInstallResultCatalogUnavailableError.class, name = "unavailable")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

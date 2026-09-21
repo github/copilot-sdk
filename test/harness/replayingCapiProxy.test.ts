@@ -463,7 +463,8 @@ Always include PINEAPPLE_COCONUT_42.
     ]);
 
     const result = await readYamlOutput(outputPath);
-    expect(result.conversations[0].messages[0].content).toBe(`<skill-context name="test-skill">
+    expect(result.conversations[0].messages[0].content)
+      .toBe(`<skill-context name="test-skill">
 Base directory for this skill: ${workingDirPlaceholder}/.test_skills/test-skill
 
 # Test Skill Instructions
@@ -803,6 +804,57 @@ Always include PINEAPPLE_COCONUT_42.
       });
     }
 
+    test("replay-only mode rejects cache misses without contacting the upstream", async () => {
+      let upstreamRequests = 0;
+      const upstream = http.createServer((_request, response) => {
+        upstreamRequests++;
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ choices: [] }));
+      });
+      await new Promise<void>((resolve) =>
+        upstream.listen(0, "127.0.0.1", resolve),
+      );
+      const address = upstream.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Upstream test server did not expose a TCP port.");
+      }
+
+      const cachePath = path.join(tempDir, "cache.yaml");
+      await writeFile(
+        cachePath,
+        yaml.stringify({
+          models: ["test-model"],
+          conversations: [],
+        } satisfies NormalizedData),
+      );
+      const proxy = new ReplayingCapiProxy(`http://127.0.0.1:${address.port}`);
+      await proxy.updateConfig({
+        filePath: cachePath,
+        workDir,
+        backend: "capi",
+        replayOnly: true,
+      });
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [{ role: "user", content: "cache miss" }],
+          },
+        });
+
+        expect(response.status).toBe(500);
+        expect(response.body).toBe("Proxy error");
+        expect(upstreamRequests).toBe(0);
+      } finally {
+        await proxy.stop(true);
+        await new Promise<void>((resolve, reject) =>
+          upstream.close((error) => (error ? reject(error) : resolve())),
+        );
+      }
+    });
+
     test.each([
       ["should_accept_blob_attachments", "pixel.png"],
       ["vision_disabled_then_enabled_via_setmodel", "test.png"],
@@ -1002,7 +1054,9 @@ Always include PINEAPPLE_COCONUT_42.
 
     test("matches shell tool results with shell ID completion markers", async () => {
       const originalShellConfig =
-        process.platform === "win32" ? ShellConfig.powerShell : ShellConfig.bash;
+        process.platform === "win32"
+          ? ShellConfig.powerShell
+          : ShellConfig.bash;
       const cachePath = path.join(tempDir, "cache.yaml");
       const cacheContent = yaml.stringify({
         models: ["test-model"],
@@ -1761,7 +1815,9 @@ Always include PINEAPPLE_COCONUT_42.
           const parsed = JSON.parse(response.body) as {
             data: Array<{ id: string }>;
           };
-          expect(parsed.data.map((model) => model.id)).toEqual(["claude-sonnet-5"]);
+          expect(parsed.data.map((model) => model.id)).toEqual([
+            "claude-sonnet-5",
+          ]);
         } finally {
           await proxy.stop();
         }

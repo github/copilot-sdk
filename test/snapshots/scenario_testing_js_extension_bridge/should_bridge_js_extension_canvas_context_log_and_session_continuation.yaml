@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly JS_EXTENSION_CONTINUATION.
+      - role: assistant
+        content: JS_EXTENSION_CONTINUATION

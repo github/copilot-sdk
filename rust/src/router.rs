@@ -174,12 +174,12 @@ impl SessionRouter {
                         // callback (if any) registered at client construction.
                         if notification.method == "gitHubTelemetry.event" {
                             if let Some(ref callback) = github_telemetry {
-                                let Some(ref params) = notification.params else {
+                                let Some(params) = notification.params else {
                                     continue;
                                 };
                                 match serde_json::from_value::<
                                     crate::github_telemetry::GitHubTelemetryNotification,
-                                >(params.clone())
+                                >(params)
                                 {
                                     Ok(telemetry) => {
                                         if std::panic::catch_unwind(std::panic::AssertUnwindSafe(
@@ -206,7 +206,7 @@ impl SessionRouter {
                         if notification.method != "session.event" {
                             continue;
                         }
-                        let Some(ref params) = notification.params else {
+                        let Some(mut params) = notification.params else {
                             continue;
                         };
                         let Some(session_id) = params.get("sessionId").and_then(|v| v.as_str())
@@ -216,18 +216,28 @@ impl SessionRouter {
 
                         let sender = {
                             let guard = sessions.lock();
-                            guard.get(session_id).map(|s| s.notifications.clone())
+                            guard
+                                .get_key_value(session_id)
+                                .map(|(id, s)| (id.clone(), s.notifications.clone()))
                         };
-                        if let Some(sender) = sender {
-                            match serde_json::from_value::<SessionEventNotification>(params.clone())
-                            {
-                                Ok(event_notification) => {
+                        if let Some((session_id, sender)) = sender {
+                            // Leave null in the existing slot so serde still rejects
+                            // missing data, without rebuilding the owned payload.
+                            let data = params
+                                .get_mut("event")
+                                .and_then(|event| event.get_mut("data"))
+                                .map(serde_json::Value::take);
+                            match serde_json::from_value::<SessionEventNotification>(params) {
+                                Ok(mut event_notification) => {
+                                    if let Some(data) = data {
+                                        event_notification.event.data = data;
+                                    }
                                     let _ = sender.send(event_notification);
                                 }
                                 Err(e) => {
                                     warn!(
                                         error = %e,
-                                        session_id = session_id,
+                                        session_id = %session_id,
                                         "failed to deserialize session event notification"
                                     );
                                 }

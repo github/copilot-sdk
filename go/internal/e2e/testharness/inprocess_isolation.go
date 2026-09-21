@@ -123,6 +123,7 @@ func runIsolatedProcess(ctx context.Context, name, selector string, timeout time
 	command := exec.CommandContext(ctx, executable, isolatedTestArgs(os.Args[1:], selector, false, timeout)...)
 	command.Env = setEnvironmentValue(os.Environ(), isolatedInProcessTestEnv, name)
 	command.WaitDelay = 5 * time.Second
+	PrepareForProcessWait()
 	output, err := command.CombinedOutput()
 	fmt.Print(string(output))
 	if err != nil {

@@ -1,0 +1,25 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly HISTORY_SCENARIO_FIRST.
+      - role: assistant
+        content: HISTORY_SCENARIO_FIRST
+      - role: user
+        content: Reply with exactly HISTORY_SCENARIO_DISCARDED.
+      - role: assistant
+        content: HISTORY_SCENARIO_DISCARDED
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly HISTORY_SCENARIO_FIRST.
+      - role: assistant
+        content: HISTORY_SCENARIO_FIRST
+      - role: user
+        content: Reply with exactly HISTORY_SCENARIO_REPLACEMENT.
+      - role: assistant
+        content: HISTORY_SCENARIO_REPLACEMENT

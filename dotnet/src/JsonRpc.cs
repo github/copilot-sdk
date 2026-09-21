@@ -42,7 +42,8 @@ internal sealed partial class JsonRpc : IDisposable
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly CancellationTokenSource _disposeCts = new();
     private long _nextId;
-    private bool _disposed;
+    private int _disposeStarted;
+    private Exception? _terminalError;
 
     /// <summary>
     /// Initializes a new <see cref="JsonRpc"/>.
@@ -96,6 +97,11 @@ internal sealed partial class JsonRpc : IDisposable
         CancellationTokenRegistration cancelRegistration = default;
         try
         {
+            if (Volatile.Read(ref _terminalError) is { } terminalError)
+            {
+                throw terminalError;
+            }
+
             if (cancellationToken.CanBeCanceled)
             {
                 cancelRegistration = cancellationToken.Register(static state =>
@@ -135,6 +141,11 @@ internal sealed partial class JsonRpc : IDisposable
         {
             LogInvokeTiming(LogLevel.Debug, ex, method, id, "Canceled", timingTimestamp);
             throw;
+        }
+        catch (ObjectDisposedException ex) when (Volatile.Read(ref _terminalError) is ConnectionLostException)
+        {
+            LogInvokeTiming(LogLevel.Warning, ex, method, id, "Failed", timingTimestamp);
+            throw new ConnectionLostException();
         }
         catch (Exception ex)
         {
@@ -183,27 +194,25 @@ internal sealed partial class JsonRpc : IDisposable
     }
 
     /// <inheritdoc />
-    public void Dispose()
+    public void Dispose() => Dispose(new ObjectDisposedException(nameof(JsonRpc)));
+
+    internal void Dispose(Exception reason)
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
         {
             return;
         }
 
-        _disposed = true;
-        _disposeCts.Cancel();
-
-        // Fail all pending requests
-        foreach (var kvp in _pendingRequests)
+        FailPendingRequests(reason);
+        try
         {
-            if (_pendingRequests.TryRemove(kvp.Key, out var pending))
-            {
-                pending.TrySetException(new ObjectDisposedException(nameof(JsonRpc)));
-            }
+            _disposeCts.Cancel();
         }
-
-        _completionSource.TrySetResult();
-        _writeLock.Dispose();
+        finally
+        {
+            _completionSource.TrySetResult();
+            _writeLock.Dispose();
+        }
     }
 
     private async Task SendMessageAsync<T>(T message, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken)
@@ -280,11 +289,22 @@ internal sealed partial class JsonRpc : IDisposable
 
                 // Parse the raw JSON. Body is at buffer[0..contentLength], carried bytes
                 // for the next message are at buffer[contentLength..contentLength+carried].
-                JsonElement? message = null;
                 try
                 {
                     using var doc = JsonDocument.Parse(buffer.AsMemory(0, contentLength));
-                    message = doc.RootElement.Clone();
+                    var parsed = doc.RootElement;
+
+                    // Route while the document is alive. Incoming method arguments are
+                    // materialized synchronously before dispatch can become asynchronous.
+                    if (parsed.TryGetProperty("id", out var idProp) && !parsed.TryGetProperty("method", out _))
+                    {
+                        // It's a response to one of our requests.
+                        HandleResponse(parsed, idProp);
+                    }
+                    else if (parsed.TryGetProperty("method", out var methodProp) && methodProp.GetString() is string methodName)
+                    {
+                        _ = HandleIncomingMethodAsync(methodName, parsed, cancellationToken);
+                    }
                 }
                 catch (JsonException ex)
                 {
@@ -311,21 +331,6 @@ internal sealed partial class JsonRpc : IDisposable
                     buffer = retainedBuffer;
                 }
 
-                if (message is not { } parsed)
-                {
-                    continue;
-                }
-
-                // Route the message
-                if (parsed.TryGetProperty("id", out var idProp) && !parsed.TryGetProperty("method", out _))
-                {
-                    // It's a response to one of our requests
-                    HandleResponse(parsed, idProp);
-                }
-                else if (parsed.TryGetProperty("method", out var methodProp) && methodProp.GetString() is string methodName)
-                {
-                    _ = HandleIncomingMethodAsync(methodName, parsed, cancellationToken);
-                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -338,16 +343,20 @@ internal sealed partial class JsonRpc : IDisposable
         }
         finally
         {
-            // Fail all pending requests
-            foreach (var kvp in _pendingRequests)
-            {
-                if (_pendingRequests.TryRemove(kvp.Key, out var pending))
-                {
-                    pending.TrySetException(new ConnectionLostException());
-                }
-            }
-
+            FailPendingRequests(new ConnectionLostException());
             _completionSource.TrySetResult();
+        }
+    }
+
+    private void FailPendingRequests(Exception reason)
+    {
+        var terminalError = Interlocked.CompareExchange(ref _terminalError, reason, null) ?? reason;
+        foreach (var kvp in _pendingRequests)
+        {
+            if (_pendingRequests.TryRemove(kvp.Key, out var pending))
+            {
+                pending.TrySetException(terminalError);
+            }
         }
     }
 
@@ -469,7 +478,7 @@ internal sealed partial class JsonRpc : IDisposable
 
     private void HandleResponse(JsonElement message, JsonElement idProp)
     {
-        if (!idProp.TryGetInt64(out long id))
+        if (idProp.ValueKind != JsonValueKind.Number || !idProp.TryGetInt64(out long id))
         {
             return;
         }
@@ -528,7 +537,8 @@ internal sealed partial class JsonRpc : IDisposable
             JsonElement? requestId = null;
             if (message.TryGetProperty("id", out var idProp))
             {
-                requestId = idProp;
+                // Requests may outlive the parsed message while an asynchronous handler runs.
+                requestId = idProp.Clone();
             }
 
             if (!_methods.TryGetValue(methodName, out var registration))
@@ -544,7 +554,10 @@ internal sealed partial class JsonRpc : IDisposable
 
             try
             {
-                var result = await InvokeHandlerAsync(registration, paramsProp, cancellationToken).ConfigureAwait(false);
+                // Materialize arguments before the first possible suspension so none of
+                // them borrow from the JsonDocument owned by the read loop.
+                var invokeArgs = DeserializeHandlerArguments(registration, paramsProp, cancellationToken);
+                var result = await InvokeHandlerAsync(registration, invokeArgs).ConfigureAwait(false);
 
                 if (requestId.HasValue)
                 {
@@ -599,11 +612,13 @@ internal sealed partial class JsonRpc : IDisposable
         }
     }
 
-    private async ValueTask<object?> InvokeHandlerAsync(MethodRegistration registration, JsonElement paramsProp, CancellationToken cancellationToken)
+    private object?[] DeserializeHandlerArguments(
+        MethodRegistration registration,
+        JsonElement paramsProp,
+        CancellationToken cancellationToken)
     {
         var parameters = registration.Parameters;
 
-        // Build argument list
         var invokeArgs = new object?[parameters.Length];
 
         if (registration.SingleObjectParam)
@@ -681,7 +696,13 @@ internal sealed partial class JsonRpc : IDisposable
                 $"Unsupported JSON-RPC params shape '{paramsProp.ValueKind}' for handler with positional parameters.");
         }
 
-        // Invoke
+        return invokeArgs;
+    }
+
+    private static async ValueTask<object?> InvokeHandlerAsync(
+        MethodRegistration registration,
+        object?[] invokeArgs)
+    {
         var result = registration.Handler.DynamicInvoke(invokeArgs);
 
         // Handlers return one of: a synchronous value, Task (void async), or ValueTask<T>.

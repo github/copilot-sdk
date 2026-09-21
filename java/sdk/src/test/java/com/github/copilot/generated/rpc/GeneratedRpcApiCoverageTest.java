@@ -10,9 +10,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
@@ -38,6 +44,182 @@ class GeneratedRpcApiCoverageTest {
             calls.add(new Call(method, params, resultType));
             return CompletableFuture.completedFuture((T) nextResult);
         }
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("newRpcDispatches")
+    void newRpcEndpoints_dispatch_expected_method_params_and_result_type(String expectedMethod,
+            Class<?> expectedResultType, String expectedParams,
+            BiFunction<ServerRpc, SessionRpc, CompletableFuture<?>> invoke) throws Exception {
+        var stub = new StubCaller();
+        invoke.apply(new ServerRpc(stub), new SessionRpc(stub, "bound-session")).join();
+
+        assertEquals(1, stub.calls.size());
+        var call = stub.calls.get(0);
+        assertEquals(expectedMethod, call.method());
+        assertEquals(expectedResultType, call.resultType());
+        var mapper = new ObjectMapper();
+        assertEquals(mapper.readTree(expectedParams), mapper.readTree(mapper.writeValueAsString(call.params())));
+    }
+
+    static Stream<Arguments> newRpcDispatches() {
+        return Stream.of(
+                dispatch("catalog.select", CatalogSelectionResult.class, """
+                        {"contract":{"protocolVersion":3,"requiredCapabilities":["catalog-selection"]},
+                         "sessionId":"catalog-session","selectionRef":"selection-1","outcome":"selected"}
+                        """,
+                        (server, session) -> server.catalog.select(
+                                new CatalogSelectParams(new CatalogClientContract(3L, List.of("catalog-selection")),
+                                        "catalog-session", "selection-1", CatalogSelectionDecision.SELECTED))),
+                dispatch("session.managedSettings.get", SessionManagedSettingsGetResult.class, """
+                        {"sessionId":"bound-session"}
+                        """, (server, session) -> session.managedSettings.get()),
+                dispatch("session.plugins.install", SessionPluginsInstallResult.class, """
+                        {"sessionId":"bound-session","source":"plugin@market"}
+                        """,
+                        (server, session) -> session.plugins
+                                .install(new SessionPluginsInstallParams("foreign-session", "plugin@market"))),
+                dispatch("session.plugins.uninstall", Void.class, """
+                        {"sessionId":"bound-session","name":"plugin","directSourceId":"source-1"}
+                        """,
+                        (server, session) -> session.plugins
+                                .uninstall(new SessionPluginsUninstallParams("foreign-session", "plugin", "source-1"))),
+                dispatch("session.plugins.update", SessionPluginsUpdateResult.class, """
+                        {"sessionId":"bound-session","name":"plugin@market"}
+                        """,
+                        (server, session) -> session.plugins
+                                .update(new SessionPluginsUpdateParams("foreign-session", "plugin@market"))),
+                dispatch("session.plugins.enable", Void.class, """
+                        {"sessionId":"bound-session","names":["first@market","second@market"]}
+                        """,
+                        (server, session) -> session.plugins.enable(new SessionPluginsEnableParams("foreign-session",
+                                List.of("first@market", "second@market")))),
+                dispatch("session.plugins.disable", Void.class, """
+                        {"sessionId":"bound-session","names":["plugin@market"]}
+                        """,
+                        (server, session) -> session.plugins
+                                .disable(new SessionPluginsDisableParams("foreign-session", List.of("plugin@market")))),
+                dispatch("session.plugins.marketplaces.list", SessionPluginsMarketplacesListResult.class, """
+                        {"sessionId":"bound-session"}
+                        """, (server, session) -> session.plugins.marketplaces.list()),
+                dispatch("session.plugins.marketplaces.add", SessionPluginsMarketplacesAddResult.class, """
+                        {"sessionId":"bound-session","source":"./market","workingDirectory":"/workspace"}
+                        """,
+                        (server, session) -> session.plugins.marketplaces.add(
+                                new SessionPluginsMarketplacesAddParams("foreign-session", "./market", "/workspace"))),
+                dispatch("session.plugins.marketplaces.remove", SessionPluginsMarketplacesRemoveResult.class, """
+                        {"sessionId":"bound-session","name":"market","force":true}
+                        """,
+                        (server, session) -> session.plugins.marketplaces
+                                .remove(new SessionPluginsMarketplacesRemoveParams("foreign-session", "market", true))),
+                dispatch("session.plugins.marketplaces.browse", SessionPluginsMarketplacesBrowseResult.class, """
+                        {"sessionId":"bound-session","name":"market"}
+                        """,
+                        (server, session) -> session.plugins.marketplaces
+                                .browse(new SessionPluginsMarketplacesBrowseParams("foreign-session", "market"))),
+                dispatch("session.plugins.marketplaces.refresh", SessionPluginsMarketplacesRefreshResult.class, """
+                        {"sessionId":"bound-session","name":"market"}
+                        """,
+                        (server, session) -> session.plugins.marketplaces
+                                .refresh(new SessionPluginsMarketplacesRefreshParams("foreign-session", "market"))),
+                dispatch("session.plugins.marketplaces.refresh", SessionPluginsMarketplacesRefreshResult.class, """
+                        {"sessionId":"bound-session"}
+                        """, (server, session) -> session.plugins.marketplaces.refresh(null)),
+                dispatch("session.queue.withdrawMessage", SessionQueueWithdrawMessageResult.class, """
+                        {"sessionId":"bound-session","messageId":"message-1","expectedPrompt":"original"}
+                        """,
+                        (server, session) -> session.queue.withdrawMessage(
+                                new SessionQueueWithdrawMessageParams("foreign-session", "message-1", "original"))),
+                dispatch("session.queue.appendSteering", SessionQueueAppendSteeringResult.class, """
+                        {"sessionId":"bound-session","messageId":"message-1","expectedPrompt":"original",
+                         "agentMode":"interactive","prompt":"more","displayPrompt":"preview","attachments":[]}
+                        """, (server,
+                        session) -> session.queue.appendSteering(new SessionQueueAppendSteeringParams("foreign-session",
+                                "message-1", "original", SendAgentMode.INTERACTIVE, "more", "preview", List.of()))),
+                dispatch("session.workflow.run", SessionWorkflowRunResult.class, """
+                        {"sessionId":"bound-session","name":"workflow-1","args":{"topic":"input"}}
+                        """,
+                        (server, session) -> session.workflow.run(new SessionWorkflowRunParams("foreign-session",
+                                "workflow-1", Map.of("topic", "input"), null))),
+                dispatch("session.workflow.resume", SessionWorkflowResumeResult.class, """
+                        {"sessionId":"bound-session","runId":"run-1","notifyOnComplete":true,"logPhaseNames":false}
+                        """,
+                        (server, session) -> session.workflow.resume(
+                                new SessionWorkflowResumeParams("foreign-session", "run-1", null, true, false))),
+                dispatch("session.workflow.runFromTool", SessionWorkflowRunFromToolResult.class, """
+                        {"sessionId":"bound-session","name":"workflow-1","args":{"topic":"input"},"toolCallId":"tool-1"}
+                        """,
+                        (server, session) -> session.workflow.runFromTool(new SessionWorkflowRunFromToolParams(
+                                "foreign-session", "workflow-1", Map.of("topic", "input"), null, "tool-1"))),
+                dispatch("session.workflow.resumeFromTool", SessionWorkflowResumeFromToolResult.class, """
+                        {"sessionId":"bound-session","runId":"run-1","toolCallId":"tool-1"}
+                        """,
+                        (server, session) -> session.workflow.resumeFromTool(
+                                new SessionWorkflowResumeFromToolParams("foreign-session", "run-1", null, "tool-1"))),
+                dispatch("session.workflow.getRun", SessionWorkflowGetRunResult.class, """
+                        {"sessionId":"bound-session","runId":"run-1"}
+                        """,
+                        (server, session) -> session.workflow
+                                .getRun(new SessionWorkflowGetRunParams("foreign-session", "run-1"))),
+                dispatch("session.workflow.listRuns", SessionWorkflowListRunsResult.class, """
+                        {"sessionId":"bound-session","afterSeq":2,"limit":5}
+                        """,
+                        (server, session) -> session.workflow
+                                .listRuns(new SessionWorkflowListRunsParams("foreign-session", 2L, null, 5L))),
+                dispatch("session.workflow.getRunDetail", SessionWorkflowGetRunDetailResult.class, """
+                        {"sessionId":"bound-session","runId":"run-1"}
+                        """,
+                        (server, session) -> session.workflow
+                                .getRunDetail(new SessionWorkflowGetRunDetailParams("foreign-session", "run-1"))),
+                dispatch("session.workflow.getRunProgress", SessionWorkflowGetRunProgressResult.class, """
+                        {"sessionId":"bound-session","runId":"run-1","phaseId":"phase-1","afterSeq":2,"limit":5}
+                        """,
+                        (server, session) -> session.workflow.getRunProgress(new SessionWorkflowGetRunProgressParams(
+                                "foreign-session", "run-1", "phase-1", 2L, null, 5L))),
+                dispatch("session.workflow.cancel", SessionWorkflowCancelResult.class, """
+                        {"sessionId":"bound-session","runId":"run-1"}
+                        """,
+                        (server, session) -> session.workflow
+                                .cancel(new SessionWorkflowCancelParams("foreign-session", "run-1"))),
+                dispatch("session.workflow.pause", SessionWorkflowPauseResult.class, """
+                        {"sessionId":"bound-session","runId":"run-1"}
+                        """,
+                        (server, session) -> session.workflow
+                                .pause(new SessionWorkflowPauseParams("foreign-session", "run-1"))),
+                dispatch("session.workflow.pauseAtCheckpoint", SessionWorkflowPauseAtCheckpointResult.class,
+                        """
+                                {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1","key":"checkpoint-1"}
+                                """,
+                        (server, session) -> session.workflow
+                                .pauseAtCheckpoint(new SessionWorkflowPauseAtCheckpointParams("foreign-session",
+                                        "run-1", "execution-1", "checkpoint-1"))),
+                dispatch("session.workflow.log", Void.class, """
+                        {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1",
+                         "lines":[{"seq":1,"kind":"log","text":"progress"}]}
+                        """, (server,
+                        session) -> session.workflow.log(new SessionWorkflowLogParams("foreign-session", "run-1",
+                                "execution-1", List.of(new WorkflowLogLine(1L, WorkflowLogLineKind.LOG, "progress"))))),
+                dispatch("session.workflow.agent", SessionWorkflowAgentResult.class,
+                        """
+                                {"sessionId":"bound-session","workflowRunId":"run-1","executionToken":"execution-1","prompt":"inspect"}
+                                """,
+                        (server, session) -> session.workflow.agent(new SessionWorkflowAgentParams("foreign-session",
+                                "run-1", "execution-1", "inspect", null))),
+                dispatch("session.workflow.journal.get", SessionWorkflowJournalGetResult.class, """
+                        {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1","key":"journal-1"}
+                        """,
+                        (server, session) -> session.workflow.journal.get(new SessionWorkflowJournalGetParams(
+                                "foreign-session", "run-1", "execution-1", "journal-1"))),
+                dispatch("session.workflow.journal.put", Void.class, """
+                        {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1","key":"journal-1",
+                         "resultJson":{"answer":42}}
+                        """, (server, session) -> session.workflow.journal.put(new SessionWorkflowJournalPutParams(
+                        "foreign-session", "run-1", "execution-1", "journal-1", Map.of("answer", 42)))));
+    }
+
+    private static Arguments dispatch(String method, Class<?> resultType, String expectedParams,
+            BiFunction<ServerRpc, SessionRpc, CompletableFuture<?>> invoke) {
+        return Arguments.of(method, resultType, expectedParams, invoke);
     }
 
     // ── ServerRpc additional methods ───────────────────────────────────────

@@ -153,6 +153,21 @@
                     </compilerArgs>
                     <proc>none</proc>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <proc>full</proc>
+                            <annotationProcessors>
+                                <annotationProcessor>com.github.copilot.tool.CopilotResponseProcessor</annotationProcessor>
+                            </annotationProcessors>
+                            <compilerArgs combine.children="append">
+                                <arg>-processorpath</arg>
+                                <arg>${project.build.outputDirectory}</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -687,6 +702,22 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </activation>
             <properties>
                 <copilot.native.classifier>linux-arm64</copilot.native.classifier>
+            </properties>
+        </profile>
+        <profile>
+            <id>native-linuxmusl-x64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>amd64</arch>
+                </os>
+                <property>
+                    <name>copilot.native.libc</name>
+                    <value>musl</value>
+                </property>
+            </activation>
+            <properties>
+                <copilot.native.classifier>linuxmusl-x64</copilot.native.classifier>
             </properties>
         </profile>
         <profile>

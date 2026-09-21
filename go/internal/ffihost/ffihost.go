@@ -208,15 +208,19 @@ type Host struct {
 }
 
 func (h *Host) rearmForeignSignalHandlers() {
-	if h.cliEntrypoint != "" {
-		rearmForeignSignalHandlers(h.lib.handle)
-	}
+	rearmForeignSignalHandlers(h.lib.handle)
 }
 
 // PrepareForChildProcessWait repairs signal handlers that the embedded runtime
 // may have replaced before the Go process stops or waits for its own child.
 func PrepareForChildProcessWait() {
 	rearmForeignSignalHandlers(0)
+}
+
+// ProtectChildProcessWait keeps SIGCHLD compatible with the Go runtime while a
+// child process is being stopped and reaped.
+func ProtectChildProcessWait() func() {
+	return protectChildProcessSignalHandler()
 }
 
 // Create resolves the native library and prepares the host. environment and

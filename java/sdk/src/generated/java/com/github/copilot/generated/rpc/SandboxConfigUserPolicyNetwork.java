@@ -30,7 +30,7 @@ public record SandboxConfigUserPolicyNetwork(
     @JsonProperty("allowOutbound") Boolean allowOutbound,
     /** Whether traffic to local/loopback addresses is allowed. */
     @JsonProperty("allowLocalNetwork") Boolean allowLocalNetwork,
-    /** HTTP(S) proxy for sandboxed traffic. With host rules, this is the built-in local proxy's upstream; credentials stay in the runtime, and Linux and macOS restrict the child to the local listener. Without host rules, Linux restricts egress to this endpoint but rejects credentials, and macOS proxying is cooperative. Windows enforcement depends on the application's networking stack. Configure credentials in the separate username/password fields. The transient local listener URL is never persisted. */
+    /** HTTP(S) proxy for sandboxed traffic. This is the built-in local proxy's upstream: every sandboxed command reaches it through a loopback listener, so credentials stay in the runtime and never reach the child. On Windows the sandbox also needs local network access, because it reaches that listener over host loopback. Configure credentials in the separate username/password fields. The transient local listener URL is never persisted. */
     @JsonProperty("proxy") SandboxConfigUserPolicyNetworkProxy proxy
 ) {
 }

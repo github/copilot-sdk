@@ -17,15 +17,21 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
     private readonly E2ETestFixture _fixture;
     private readonly string _snapshotCategory;
     private readonly string _testName;
+    private readonly bool _replayOnly;
 
     protected E2ETestContext Ctx => _fixture.Ctx;
     protected CopilotClient Client => _fixture.Client;
 
-    protected E2ETestBase(E2ETestFixture fixture, string snapshotCategory, ITestOutputHelper output)
+    protected E2ETestBase(
+        E2ETestFixture fixture,
+        string snapshotCategory,
+        ITestOutputHelper output,
+        bool replayOnly = false)
     {
         _fixture = fixture;
         _snapshotCategory = snapshotCategory;
         _testName = GetTestName(output);
+        _replayOnly = replayOnly;
         Logger = new XunitLogger(output);
 
         // Wire logger into the shared context so all clients created via Ctx.CreateClient get it.
@@ -61,7 +67,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
     {
         Ctx.PrepareForTest();
         await Ctx.CleanupAfterTestAsync();
-        await Ctx.ConfigureForTestAsync(_snapshotCategory, _testName);
+        await Ctx.ConfigureForTestAsync(_snapshotCategory, _testName, _replayOnly);
     }
 
     public Task DisposeAsync()

@@ -238,6 +238,7 @@ All options are kw-only parameters:
 - `env` (dict | None): Environment variables for the CLI process.
 - `github_token` (str | None): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `base_directory` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using a `UriRuntimeConnection`.
+- `extension_launch_provider` (ExtensionLaunchProviderHandler | None): Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `session_fs` (dict | None): Connection-level session filesystem provider configuration.
@@ -541,6 +542,50 @@ Supported image formats include JPG, PNG, GIF, and other common image types. The
 ```python
 await session.send("What does the most recent jpg in this directory portray?")
 ```
+
+## Structured output (experimental)
+
+Use a Pydantic model, just like custom-tool parameter schemas:
+
+```python
+from pydantic import BaseModel, ConfigDict
+
+
+class Inventory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    count: int
+    color: str
+
+
+inventory = await session.send_and_wait_typed(
+    "Call get_inventory, then report the widget count and color.",
+    Inventory,
+)
+print(inventory.count, inventory.color)
+```
+
+The helper derives a JSON Schema using `model_json_schema()` and validates the
+final JSON with `model_validate_json(by_alias=True, by_name=False)` so validation
+uses the schema's alias names, including in nested models, regardless of
+model-level alias settings. This requires Pydantic 2.11 or newer.
+For explicit schemas, use
+`send(prompt, response_schema=schema)` or `send_and_wait(prompt,
+response_schema=schema)`; the latter returns the ordinary message event.
+`response_schema` also accepts a Pydantic model class without parsing the result.
+
+The schema applies to one run, including tools, steering, and stop-hook
+corrections, not subsequent independent sends or subagents. Streaming remains
+text. Structured waits select the last root message without tool requests whose
+`originating_message_id` matches the admitted message, at non-autopilot idle.
+Concurrent structured waits keep their own results; later queued work can delay
+idle. Aborts, session errors after the run starts, or missing final output fail
+the wait. Timeout/cancellation only stops waiting, not agent work. Immediate
+steering cannot specify a schema.
+
+Provider schema restrictions still apply: use closed objects (as above) and
+required fields for strict OpenAI output. Schemas are not rewritten; unsupported
+models/schemas produce errors. Low-level `session.rpc.send` and
+`session.rpc.send_messages` expose the full `ResponseFormat` options.
 
 ## Streaming
 

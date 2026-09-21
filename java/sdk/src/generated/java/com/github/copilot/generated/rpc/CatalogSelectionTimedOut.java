@@ -1,0 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * The host declared that its live selection interaction timed out, and the retained search state was released.
+ *
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+public final class CatalogSelectionTimedOut extends CatalogSelectionResult {
+
+    @JsonProperty("kind")
+    private final String kind = "timed-out";
+
+    @Override
+    public String getKind() { return kind; }
+
+    /** The search identifier privately bound to the released selection group. */
+    @JsonProperty("searchId")
+    private String searchId;
+
+    public String getSearchId() { return searchId; }
+    public void setSearchId(String searchId) { this.searchId = searchId; }
+}

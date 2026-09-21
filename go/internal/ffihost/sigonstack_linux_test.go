@@ -5,8 +5,10 @@ package ffihost
 import (
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -38,7 +40,49 @@ func TestRearmForeignSignalHandlersAddsOnStack(t *testing.T) {
 	}
 }
 
+func TestProtectLinuxSignalHandlerRearmsConcurrentReplacement(t *testing.T) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGUSR1)
+	defer signal.Stop(signals)
+
+	var original linuxSigaction
+	if !linuxGetSigaction(int(syscall.SIGUSR1), &original) {
+		t.Fatal("failed to read SIGUSR1 action")
+	}
+	defer linuxSetSigaction(int(syscall.SIGUSR1), &original)
+
+	release := protectLinuxSignalHandler(int(syscall.SIGUSR1))
+	defer release()
+
+	withoutOnStack := original
+	withoutOnStack.flags &^= linuxSaOnStack
+	if !linuxSetSigaction(int(syscall.SIGUSR1), &withoutOnStack) {
+		t.Fatal("failed to clear SA_ONSTACK")
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		var action linuxSigaction
+		if linuxGetSigaction(int(syscall.SIGUSR1), &action) && action.flags&linuxSaOnStack != 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("signal guard did not restore SA_ONSTACK")
+		}
+		runtime.Gosched()
+	}
+}
+
 func TestHostRearmsSignalHandlersAroundNativeOperations(t *testing.T) {
+	for _, entrypoint := range []string{"", "copilot"} {
+		t.Run("entrypoint="+entrypoint, func(t *testing.T) {
+			testHostRearmsSignalHandlers(t, entrypoint)
+		})
+	}
+}
+
+func testHostRearmsSignalHandlers(t *testing.T, entrypoint string) {
+	t.Helper()
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGUSR1)
 	defer signal.Stop(signals)
@@ -50,7 +94,7 @@ func TestHostRearmsSignalHandlersAroundNativeOperations(t *testing.T) {
 	defer linuxSetSigaction(int(syscall.SIGUSR1), &original)
 
 	host := &Host{
-		cliEntrypoint: "copilot",
+		cliEntrypoint: entrypoint,
 		lib: &ffiLibrary{
 			hostStart: func(unsafe.Pointer, uintptr, unsafe.Pointer, uintptr) uint32 {
 				return 1

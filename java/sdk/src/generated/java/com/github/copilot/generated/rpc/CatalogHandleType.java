@@ -19,7 +19,9 @@ public enum CatalogHandleType {
     /** The {@code candidate} variant. */
     CANDIDATE("candidate"),
     /** The {@code plan} variant. */
-    PLAN("plan");
+    PLAN("plan"),
+    /** The {@code selection} variant. */
+    SELECTION("selection");
 
     private final String value;
     CatalogHandleType(String value) { this.value = value; }

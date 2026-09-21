@@ -110,6 +110,8 @@ mod rpc_shell_and_fleet;
 mod rpc_shell_edge_cases;
 #[path = "e2e/rpc_shell_user_requested.rs"]
 mod rpc_shell_user_requested;
+#[path = "e2e/rpc_surface_coverage.rs"]
+mod rpc_surface_coverage;
 #[path = "e2e/rpc_tasks_and_handlers.rs"]
 mod rpc_tasks_and_handlers;
 #[path = "e2e/rpc_ui_ephemeral_query.rs"]
@@ -132,6 +134,9 @@ mod session_todos_changed;
 mod skills;
 #[path = "e2e/streaming_fidelity.rs"]
 mod streaming_fidelity;
+#[cfg(feature = "derive")]
+#[path = "e2e/structured_output.rs"]
+mod structured_output;
 #[path = "e2e/subagent_hooks.rs"]
 mod subagent_hooks;
 #[path = "e2e/support.rs"]

@@ -72,6 +72,8 @@ type Client struct {
 	requestHandlers        map[string]RequestHandler
 	running                atomic.Bool
 	stopChan               chan struct{}
+	connectionClosed       chan struct{}
+	connectionClosedOnce   sync.Once
 	wg                     sync.WaitGroup
 	processDone            chan struct{} // closed when the underlying process exits
 	processErrorPtr        *error        // points to the process error
@@ -89,6 +91,7 @@ func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
 		pendingInlineCallbacks: make(map[string]func(json.RawMessage) error),
 		requestHandlers:        make(map[string]RequestHandler),
 		stopChan:               make(chan struct{}),
+		connectionClosed:       make(chan struct{}),
 	}
 	c.writer <- newHeaderWriter(stdin)
 	return c
@@ -254,6 +257,12 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 		default:
 			// Process still running, continue
 		}
+	} else {
+		select {
+		case <-c.connectionClosed:
+			return nil, fmt.Errorf("connection closed")
+		default:
+		}
 	}
 
 	var paramsData json.RawMessage
@@ -309,6 +318,8 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 			return nil, response.Error
 		}
 		return response.Result, nil
+	case <-c.connectionClosed:
+		return nil, fmt.Errorf("connection closed")
 	case <-c.stopChan:
 		return nil, fmt.Errorf("client stopped")
 	}
@@ -356,6 +367,7 @@ func (c *Client) readLoop() {
 		if c.onClose != nil && c.running.Load() {
 			c.onClose()
 		}
+		c.connectionClosedOnce.Do(func() { close(c.connectionClosed) })
 	}()
 
 	for c.running.Load() {

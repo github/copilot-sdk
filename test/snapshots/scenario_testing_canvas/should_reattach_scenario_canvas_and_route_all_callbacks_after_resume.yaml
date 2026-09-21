@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly SCENARIO_CANVAS_READY.
+      - role: assistant
+        content: SCENARIO_CANVAS_READY

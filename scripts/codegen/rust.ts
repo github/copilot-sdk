@@ -85,12 +85,6 @@ const STRING_NEWTYPE_OVERRIDES: Record<string, string> = {
 	requestId: "RequestId",
 };
 
-const STRING_ENUM_VARIANT_OVERRIDES: Record<string, Record<string, string>> = {
-	CatalogTrustEligibility: {
-		unknown: "UnknownValue",
-	},
-};
-
 // ── Naming helpers ──────────────────────────────────────────────────────────
 
 function toPascalCase(s: string): string {
@@ -1020,10 +1014,50 @@ function emitRustStruct(
 			lines.push(`    #[serde(rename = "${propName}")]`);
 		}
 
+		if (prop.$ref && typeof prop.const === "string") {
+			lines.push(
+				`    #[serde(${isReq ? "" : "default, "}deserialize_with = "${typeName}::deserialize_${snakeField}")]`,
+			);
+		}
+
 		lines.push(`    ${propIsInternal ? "pub(crate)" : "pub"} ${rustField}: ${rustType},`);
 	}
 
 	lines.push("}");
+	const constrainedFields = fields.filter(
+		({ prop }) => prop.$ref && typeof prop.const === "string",
+	);
+	if (constrainedFields.length > 0) {
+		// A referenced enum can accept future values; its containing field must
+		// still enforce an explicit literal constraint before union selection.
+		lines.push("", `impl ${typeName} {`);
+		for (const { propName, prop, isReq, rustType } of constrainedFields) {
+			const literal = JSON.stringify(prop.const);
+			lines.push(
+				`    fn deserialize_${toRustFieldName(propName)}<'de, D>(deserializer: D) -> Result<${rustType}, D::Error>`,
+				"    where",
+				"        D: serde::Deserializer<'de>,",
+				"    {",
+			);
+			if (isReq) {
+				lines.push("        let value = String::deserialize(deserializer)?;");
+			} else {
+				lines.push(
+					"        let Some(value) = Option::<String>::deserialize(deserializer)? else {",
+					"            return Ok(None);",
+					"        };",
+				);
+			}
+			lines.push(
+				`        if value != ${literal} {`,
+				`            return Err(serde::de::Error::unknown_variant(&value, &[${literal}]));`,
+				"        }",
+				`        <${stripOption(rustType)}>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(value))${isReq ? "" : ".map(Some)"}`,
+				"    }",
+			);
+		}
+		lines.push("}");
+	}
 	ctx.structs.push(lines.join("\n"));
 }
 
@@ -1055,12 +1089,14 @@ function emitRustStringEnum(
 	const usedVariantNames = new Set<string>();
 	const reservedVariantNames = new Set(["Unknown"]);
 	for (const value of values) {
+		// Keep the protocol's explicit "unknown" distinct from the serde fallback,
+		// including anonymous enums whose names depend on their containing type.
 		const variantName = uniqueRustPascalIdentifier(
 			value,
 			usedVariantNames,
 			"Value",
 			reservedVariantNames,
-			STRING_ENUM_VARIANT_OVERRIDES[enumName]?.[value],
+			value === "unknown" ? "UnknownValue" : undefined,
 		);
 		pushRustDoc(lines, enumValueDescriptions?.[value], "    ");
 		if (variantName !== value) {
@@ -1195,8 +1231,30 @@ export function generateSessionEventsCode(schema: JSONSchema7): string {
 		},
 	);
 
-	// Generate per-event data structs
+	// Generate per-event payload types without flattening root unions into empty structs.
 	for (const variant of variants) {
+		if (getUnionVariants(variant.dataSchema)) {
+			const payloadType =
+				tryEmitRustUnion(
+					variant.dataSchema,
+					variant.variantName,
+					"data",
+					ctx,
+				) ?? "serde_json::Value";
+			if (payloadType !== variant.dataClassName) {
+				emitRustTypeAlias(
+					variant.dataClassName,
+					variant.dataSchema,
+					payloadType,
+					ctx,
+					variant.description,
+				);
+				if (ctx.nonDefaultableTypes.has(payloadType)) {
+					ctx.nonDefaultableTypes.add(variant.dataClassName);
+				}
+			}
+			continue;
+		}
 		emitRustStruct(
 			variant.dataClassName,
 			variant.dataSchema,

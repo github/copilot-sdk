@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -50,6 +51,10 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("cacheExpiresAt") OffsetDateTime cacheExpiresAt,
         /** Number of output tokens used for reasoning (e.g., chain-of-thought) */
         @JsonProperty("reasoningTokens") Long reasoningTokens,
+        /** Number of prior thinking blocks the provider dropped while transforming the request */
+        @JsonProperty("thinkingDroppedBlocks") Long thinkingDroppedBlocks,
+        /** Recognized provider-reported reasons for dropped thinking blocks, in response order */
+        @JsonProperty("thinkingDroppedReasons") List<String> thinkingDroppedReasons,
         /** Model multiplier cost for billing purposes */
         @JsonProperty("cost") Double cost,
         /** Duration of the API call in milliseconds */

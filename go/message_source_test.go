@@ -198,6 +198,10 @@ func TestSession_SendAndWaitMessageSource(t *testing.T) {
 }
 
 func captureMessageSourceRequest(t *testing.T, rpcError *jsonrpc2.Error, events []SessionEvent, invoke func(*Session)) map[string]any {
+	return captureSessionSendRequest(t, rpcError, events, false, invoke)
+}
+
+func captureSessionSendRequest(t *testing.T, rpcError *jsonrpc2.Error, events []SessionEvent, beforeResponse bool, invoke func(*Session)) map[string]any {
 	t.Helper()
 
 	stdinR, stdinW := io.Pipe()
@@ -246,12 +250,35 @@ func captureMessageSourceRequest(t *testing.T, rpcError *jsonrpc2.Error, events 
 			errCh <- err
 			return
 		}
+		if beforeResponse && len(events) > 0 {
+			processed := make(chan struct{})
+			count := 0
+			unsubscribe := session.On(func(SessionEvent) {
+				count++
+				if count == len(events) {
+					close(processed)
+				}
+			})
+			for _, event := range events {
+				session.dispatchEvent(event)
+			}
+			select {
+			case <-processed:
+			case <-time.After(time.Second):
+				errCh <- fmt.Errorf("pre-admission events were not dispatched")
+				unsubscribe()
+				return
+			}
+			unsubscribe()
+		}
 		if _, err := fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(data), data); err != nil {
 			errCh <- err
 			return
 		}
-		for _, event := range events {
-			session.dispatchEvent(event)
+		if !beforeResponse {
+			for _, event := range events {
+				session.dispatchEvent(event)
+			}
 		}
 		paramsCh <- request.Params
 	}()
