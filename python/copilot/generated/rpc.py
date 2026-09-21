@@ -4502,7 +4502,7 @@ class HostConfiguration:
         hostname = from_str(obj.get("hostname"))
         port = from_int(obj.get("port"))
         require_connection_token = from_bool(obj.get("requireConnectionToken"))
-        token = from_union([from_none, from_str], obj.get("token"))
+        token = from_union([from_str, from_none], obj.get("token"))
         return HostConfiguration(hostname, port, require_connection_token, token)
 
     def to_dict(self) -> dict:
@@ -4511,7 +4511,7 @@ class HostConfiguration:
         result["port"] = from_int(self.port)
         result["requireConnectionToken"] = from_bool(self.require_connection_token)
         if self.token is not None:
-            result["token"] = from_union([from_none, from_str], self.token)
+            result["token"] = from_union([from_str, from_none], self.token)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -4556,14 +4556,14 @@ class HostReadyRequest:
     def from_dict(obj: Any) -> 'HostReadyRequest':
         assert isinstance(obj, dict)
         address = from_str(obj.get("address"))
-        token = from_union([from_none, from_str], obj.get("token"))
+        token = from_union([from_str, from_none], obj.get("token"))
         return HostReadyRequest(address, token)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["address"] = from_str(self.address)
         if self.token is not None:
-            result["token"] = from_union([from_none, from_str], self.token)
+            result["token"] = from_union([from_str, from_none], self.token)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -4590,23 +4590,23 @@ class HostStartRequest:
     def from_dict(obj: Any) -> 'HostStartRequest':
         assert isinstance(obj, dict)
         host_id = from_str(obj.get("hostId"))
-        hostname = from_union([from_none, from_str], obj.get("hostname"))
-        port = from_union([from_none, from_int], obj.get("port"))
+        hostname = from_union([from_str, from_none], obj.get("hostname"))
+        port = from_union([from_int, from_none], obj.get("port"))
         require_connection_token = from_union([from_bool, from_none], obj.get("requireConnectionToken"))
-        token = from_union([from_none, from_str], obj.get("token"))
+        token = from_union([from_str, from_none], obj.get("token"))
         return HostStartRequest(host_id, hostname, port, require_connection_token, token)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["hostId"] = from_str(self.host_id)
         if self.hostname is not None:
-            result["hostname"] = from_union([from_none, from_str], self.hostname)
+            result["hostname"] = from_union([from_str, from_none], self.hostname)
         if self.port is not None:
-            result["port"] = from_union([from_none, from_int], self.port)
+            result["port"] = from_union([from_int, from_none], self.port)
         if self.require_connection_token is not None:
             result["requireConnectionToken"] = from_union([from_bool, from_none], self.require_connection_token)
         if self.token is not None:
-            result["token"] = from_union([from_none, from_str], self.token)
+            result["token"] = from_union([from_str, from_none], self.token)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -4632,7 +4632,7 @@ class HostStartResult:
         host_id = from_str(obj.get("hostId"))
         pid = from_int(obj.get("pid"))
         url = from_str(obj.get("url"))
-        token = from_union([from_none, from_str], obj.get("token"))
+        token = from_union([from_str, from_none], obj.get("token"))
         return HostStartResult(host_id, pid, url, token)
 
     def to_dict(self) -> dict:
@@ -4641,7 +4641,7 @@ class HostStartResult:
         result["pid"] = from_int(self.pid)
         result["url"] = from_str(self.url)
         if self.token is not None:
-            result["token"] = from_union([from_none, from_str], self.token)
+            result["token"] = from_union([from_str, from_none], self.token)
         return result
 
 class InstalledPluginSourceURLSource(Enum):

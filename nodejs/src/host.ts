@@ -50,7 +50,7 @@ export class AhpHost {
     ) {
         this.hostId = info.hostId;
         this.url = info.url;
-        this.token = info.token ?? undefined;
+        this.token = info.token;
         this.pid = info.pid;
     }
 

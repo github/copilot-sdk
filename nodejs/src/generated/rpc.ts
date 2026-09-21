@@ -11035,7 +11035,7 @@ export interface HostConfiguration {
   /**
    * Secret connection token, absent when authentication is disabled.
    */
-  token?: string | null;
+  token?: string;
   /**
    * Whether the listener requires token authentication.
    */
@@ -11099,7 +11099,7 @@ export interface HostReadyRequest {
   /**
    * Configured secret token, absent when authentication is disabled.
    */
-  token?: string | null;
+  token?: string;
 }
 /**
  * Starts a supervised AHP listener in the runtime's configured working directory.
@@ -11116,19 +11116,19 @@ export interface HostStartRequest {
   /**
    * Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed.
    */
-  hostname?: string | null;
+  hostname?: string;
   /**
    * Listener port. Omitted or zero requests an OS-allocated port.
    */
-  port?: number | null;
+  port?: number;
   /**
    * Nonempty connection token. Generated randomly when required and omitted.
    */
-  token?: string | null;
+  token?: string;
   /**
    * Require token authentication (default true). Cannot be false with a token.
    */
-  requireConnectionToken?: boolean | null;
+  requireConnectionToken?: boolean;
 }
 /**
  * Listener readiness, returned only after binding and the child's SDK handshake.
@@ -11149,7 +11149,7 @@ export interface HostStartResult {
   /**
    * Secret connection token, absent when authentication is disabled.
    */
-  token?: string | null;
+  token?: string;
   /**
    * Operating-system process ID of the supervised child.
    */
@@ -26927,7 +26927,7 @@ export interface HostGetConfigurationResult {
   /**
    * Secret connection token, absent when authentication is disabled.
    */
-  token?: string | null;
+  token?: string;
   /**
    * Whether the listener requires token authentication.
    */

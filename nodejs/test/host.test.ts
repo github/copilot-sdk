@@ -1,5 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { AhpHost } from "../src/index.js";
+import type {
+    HostExitedNotification,
+    HostStartRequest,
+    HostStartResult,
+} from "../src/generated/rpc.js";
 
 const info = {
     hostId: "host-1",
@@ -9,6 +14,22 @@ const info = {
 };
 
 describe("AhpHost", () => {
+    it("keeps generated listener options optional but nonnullable", () => {
+        expectTypeOf<HostStartRequest>().toEqualTypeOf<{
+            hostId: string;
+            hostname?: string;
+            port?: number;
+            token?: string;
+            requireConnectionToken?: boolean;
+        }>();
+        expectTypeOf<HostStartResult["token"]>().toEqualTypeOf<string | undefined>();
+        expectTypeOf<AhpHost["token"]>().toEqualTypeOf<string | undefined>();
+        expectTypeOf<HostExitedNotification["exitCode"]>().toEqualTypeOf<
+            number | null | undefined
+        >();
+        expectTypeOf<HostExitedNotification["error"]>().toEqualTypeOf<string | null | undefined>();
+    });
+
     it("exposes connection information without starting a process or exposing closed", () => {
         const dispose = vi.fn();
         const host = new AhpHost(info, dispose);
