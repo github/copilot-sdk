@@ -1443,6 +1443,21 @@ type CardDigest struct {
 // Experimental: CardDigestValue is part of an experimental API and may change or be removed.
 type CardDigestValue string
 
+// Where and when an Agent Plugin catalog reference was observed. Discovery provenance
+// deliberately carries no descriptor URL, raw data, candidate handle, or content digest.
+// Experimental: CatalogAgentPluginCandidateProvenance is part of an experimental API and
+// may change or be removed.
+type CatalogAgentPluginCandidateProvenance struct {
+	// Host of the catalog authority that advertised the reference, without path, query, or
+	// credentials. Inert untrusted data.
+	Authority string `json:"authority"`
+	// Canonical Agent Plugin media type.
+	MediaType CatalogAgentPluginMediaType `json:"mediaType"`
+	// ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a
+	// retrieval or validation timestamp.
+	ObservedAt string `json:"observedAt"`
+}
+
 // Where and when an AI skill catalog reference was observed. Discovery provenance
 // deliberately carries no content digest because search does not establish the exact
 // validated content a later plan will bind.
@@ -1453,14 +1468,15 @@ type CatalogAiSkillCandidateProvenance struct {
 	// credentials. Inert untrusted data.
 	Authority string `json:"authority"`
 	// Media type advertised for the referenced AI skill card
-	MediaType CatalogAiSkillCandidateProvenanceMediaType `json:"mediaType"`
+	MediaType CatalogAiSkillMediaType `json:"mediaType"`
 	// ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a
 	// retrieval or validation timestamp.
 	ObservedAt string `json:"observedAt"`
 }
 
-// One inert catalog result, represented as an MCP server or discovery-only AI skill variant
-// so kind, media type, provenance, and installability cannot contradict each other.
+// One inert catalog result, represented as an MCP server, discovery-only AI skill, or
+// opt-in Agent Plugin variant so kind, media type, provenance, and available operations
+// cannot contradict each other.
 // Experimental: CatalogCandidate is part of an experimental API and may change or be
 // removed.
 type CatalogCandidate interface {
@@ -1476,6 +1492,48 @@ type RawCatalogCandidateData struct {
 func (RawCatalogCandidateData) catalogCandidate() {}
 func (r RawCatalogCandidateData) Kind() CatalogCandidateKind {
 	return r.Discriminator
+}
+
+// An inert Agent Plugin catalog result. Its canonical catalog identity, declared version,
+// repository source claim, and explicit compatibility tags are safe to correlate, while its
+// descriptor, URL, raw data, and installed-plugin state remain runtime-private. This
+// contract-only variant does not mint or expose a candidate handle.
+// Experimental: CatalogAgentPluginCandidate is part of an experimental API and may change
+// or be removed.
+type CatalogAgentPluginCandidate struct {
+	// Explicit validated compatibility tags, in canonical order. An empty list means the source
+	// declared no recognised compatibility; clients must not infer compatibility from other
+	// fields. `canvas-only` requires both `canvas` and `github-copilot`.
+	CompatibilityTags []CatalogAgentPluginCompatibilityTag `json:"compatibilityTags"`
+	// Description taken verbatim from the card. Inert untrusted text.
+	Description *string `json:"description,omitempty"`
+	// Display name taken verbatim from the card. Inert untrusted text.
+	DisplayName string `json:"displayName"`
+	// Validated, normalised catalogue resource URN. This identity comes only from the catalog
+	// identifier and is never inferred from display text or installed-plugin state.
+	Identity string `json:"identity"`
+	// Canonical Agent Plugin media type.
+	MediaType CatalogAgentPluginMediaType `json:"mediaType"`
+	// Where the Agent Plugin catalog reference was observed, without its descriptor, URL, raw
+	// data, or content digest.
+	Provenance CatalogAgentPluginCandidateProvenance `json:"provenance"`
+	// Publisher taken verbatim from the card. Inert untrusted text.
+	Publisher *string `json:"publisher,omitempty"`
+	// Bounded repository provenance declared through the catalog's sourceSet and repoPath
+	// metadata. It contains no descriptor URL.
+	Source CatalogPluginRepositorySource `json:"source"`
+	// Versioned trust metadata observed from the catalog authority. Optional for protocol-3
+	// compatibility and emitted only when the caller also requires the trust-snapshot
+	// capability.
+	Trust CatalogTrustSnapshot `json:"trust,omitempty"`
+	// Optional version declared by the catalog source. Omitted rather than guessed when the
+	// source supplies no version.
+	Version *string `json:"version,omitempty"`
+}
+
+func (CatalogAgentPluginCandidate) catalogCandidate() {}
+func (CatalogAgentPluginCandidate) Kind() CatalogCandidateKind {
+	return CatalogCandidateKindPlugin
 }
 
 // An inert AI skill catalog result. AI skills are discovery-only and cannot be represented
@@ -1494,9 +1552,9 @@ type CatalogAiSkillCandidate struct {
 	// ISO 8601 timestamp after which the handle is stale and will be rejected.
 	HandleExpiresAt string `json:"handleExpiresAt"`
 	// AI skills are discovery-only and cannot be installed through this surface
-	Installability CatalogAiSkillCandidateInstallability `json:"installability"`
+	Installability CatalogAiSkillInstallability `json:"installability"`
 	// Media type of the underlying AI skill card
-	MediaType CatalogAiSkillCandidateMediaType `json:"mediaType"`
+	MediaType CatalogAiSkillMediaType `json:"mediaType"`
 	// Where the catalog reference was observed, without the card itself or any content digest.
 	Provenance CatalogAiSkillCandidateProvenance `json:"provenance"`
 	// Publisher taken verbatim from the card. Inert untrusted text.
@@ -1646,12 +1704,88 @@ type CatalogMCPServerCandidateProvenance struct {
 // Experimental: CatalogNegotiatedContract is part of an experimental API and may change or
 // be removed.
 type CatalogNegotiatedContract struct {
-	// Wire features the runtime understood for this operation. Always a superset of the
-	// caller's required features, because any shortfall is a refusal instead. Operation
-	// availability remains a separate typed result.
+	// Wire features the runtime understood for this operation. Includes the five original
+	// catalog capabilities and only explicitly requested supported additions, in supported
+	// order without duplicates. Capabilities that introduce new success-union variants or
+	// operations are therefore included only when explicitly required, preserving older
+	// protocol-v3 clients. Always a superset of the caller's required features, because any
+	// shortfall is a refusal instead. Operation availability remains a separate typed result.
 	GrantedCapabilities []CatalogCapability `json:"grantedCapabilities"`
 	// Protocol version of the runtime that served the request.
 	RuntimeProtocolVersion int64 `json:"runtimeProtocolVersion"`
+}
+
+// Syntactically validated GitHub repository provenance declared by catalog metadata. This
+// is a source claim rather than proof that the descriptor URL resolves to the repository.
+// Experimental: CatalogPluginRepositorySource is part of an experimental API and may change
+// or be removed.
+type CatalogPluginRepositorySource struct {
+	// Case-preserving safe relative POSIX path derived from metadata.repoPath.
+	Path string `json:"path"`
+	// Canonical lowercase owner/repository name derived from metadata.sourceSet.
+	Repository string `json:"repository"`
+}
+
+// Canonical catalogue resource identity. The runtime rewrites accepted urn:ai and urn:air
+// identifiers to urn:air, lowercases the authority, and preserves the remaining resource
+// components.
+// Experimental: CatalogResourceIdentity is part of an experimental API and may change or be
+// removed.
+type CatalogResourceIdentity string
+
+// Bounded source-declared resource version, preserved exactly after validation and never
+// inferred.
+// Experimental: CatalogResourceVersion is part of an experimental API and may change or be
+// removed.
+type CatalogResourceVersion string
+
+// An explicit numbered-page request. The SDK treats the token as opaque; only the runtime
+// decodes it and changes its targetPage. Authority validation binds navigation to the
+// original search. No snapshot stability or token TTL is promised.
+// Experimental: CatalogSearchPage is part of an experimental API and may change or be
+// removed.
+type CatalogSearchPage struct {
+	// Requested one-based page. Must not exceed either the token's signed pageCount or the
+	// navigation window ceil(1000 / pageSize). Repeat the search without page to discover newly
+	// available pages beyond that signed pageCount.
+	Number int32 `json:"number"`
+	// Opaque authority-issued pagination token from an earlier response. Never decode, modify
+	// or log it in an SDK consumer.
+	Token string `json:"token"`
+}
+
+// Authority-reported navigation metadata, returned only to callers requiring
+// catalog-search-pagination and only when a supported token is present. Tokenless
+// first-page and continuation responses omit this object; no counts are inferred from
+// candidates. The opaque token may be retained for previous or numbered navigation even
+// when hasNextPage is false.
+// Experimental: CatalogSearchPagination is part of an experimental API and may change or be
+// removed.
+type CatalogSearchPagination struct {
+	// One-based page returned by the authority.
+	CurrentPage int32 `json:"currentPage"`
+	// Whether the authority token advertises a valid next target within the navigation window.
+	// Not inferred from token presence, truncated, or currentPage being less than pageCount.
+	HasNextPage bool `json:"hasNextPage"`
+	// Navigation window ceiling ceil(1000 / pageSize), not the number of existing pages. Legal
+	// targets must not exceed this ceiling or the token's signed pageCount.
+	MaxPage int32 `json:"maxPage"`
+	// Backend-reported page count, which may exceed maxPage. Present pagination metadata always
+	// describes a multi-page result; zero- and single-page responses omit pagination.
+	// Navigation targets must also be within the signed pageCount carried by the supplied token.
+	PageCount int64 `json:"pageCount"`
+	// Page size bound to the search, equal to the effective request limit.
+	PageSize int32 `json:"pageSize"`
+	// Opaque authority-issued pagination token. Only the runtime decodes it or changes
+	// targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created
+	// expiry or cache.
+	Token string `json:"token"`
+	// Backend-reported count for this response, not the number of returned candidates. Its
+	// relationship to the full query result set is unknown.
+	TotalCount int64 `json:"totalCount"`
+	// The relationship of totalCount to the complete query result set is unknown; neither
+	// exactness nor a lower-bound guarantee is implied.
+	TotalCountRelation CatalogSearchTotalCountRelation `json:"totalCountRelation"`
 }
 
 // A bounded catalog search. Both the query length and the result count are capped by the
@@ -1661,11 +1795,17 @@ type CatalogNegotiatedContract struct {
 type CatalogSearchRequest struct {
 	// Protocol version and capabilities the caller requires.
 	Contract CatalogClientContract `json:"contract"`
-	// Restrict results to these candidate kinds. When omitted, every kind the runtime supports
-	// is searched.
+	// Restrict results to these candidate kinds. Agent Plugins are opt-in and require the
+	// `agent-plugin-discovery` capability so protocol-v3 clients generated before that variant
+	// cannot receive an unknown result; when omitted, the backwards-compatible MCP server and
+	// AI skill kinds are searched.
 	Kinds []CatalogCandidateKind `json:"kinds,omitzero"`
 	// Maximum number of candidates to return. Defaults to 10 when omitted.
 	Limit *int32 `json:"limit,omitempty"`
+	// Numbered navigation using metadata from an earlier response. Requires
+	// catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh
+	// first-page search.
+	Page *CatalogSearchPage `json:"page,omitempty"`
 	// Free-text search query. Persisted as tool input for session continuity, but omitted from
 	// telemetry.
 	Query string `json:"query"`
@@ -1728,8 +1868,9 @@ func (CatalogContractViolationError) Kind() CatalogSearchResultKind {
 	return CatalogSearchResultKindContractViolation
 }
 
-// The request was rejected before any work was done, because a bounded field fell outside
-// its permitted range or a required field was unusable.
+// The request was rejected because a bounded field fell outside its permitted range or a
+// required field was unusable. Pagination may also be rejected by the authority after a
+// continuation request; repeat the search without page.
 // Experimental: CatalogInvalidRequestError is part of an experimental API and may change or
 // be removed.
 type CatalogInvalidRequestError struct {
@@ -1832,7 +1973,8 @@ func (CatalogPolicyRejectedError) Kind() CatalogSearchResultKind {
 	return CatalogSearchResultKindPolicyRejected
 }
 
-// A completed catalog search: inert candidate summaries, each carrying a single-use handle.
+// A completed catalog search containing inert candidate summaries. MCP server and AI skill
+// variants carry a single-use handle; the Agent Plugin variant is handleless.
 // Experimental: CatalogSearchSucceeded is part of an experimental API and may change or be
 // removed.
 type CatalogSearchSucceeded struct {
@@ -1841,6 +1983,10 @@ type CatalogSearchSucceeded struct {
 	Candidates []CatalogCandidate `json:"candidates"`
 	// Protocol version and capabilities the runtime honoured.
 	Negotiated CatalogNegotiatedContract `json:"negotiated"`
+	// Navigation metadata for callers explicitly requiring catalog-search-pagination. Omitted
+	// when the authority returns no token, including tokenless first-page and continuation
+	// responses. Counts are never substituted from candidates.length.
+	Pagination *CatalogSearchPagination `json:"pagination,omitempty"`
 	// Pseudonymous identifier for this search, issued by the runtime or by the catalog
 	// authority it queried and never by the caller, so it cannot be forged or replayed to
 	// attribute an install to a search that never happened. Always present on a success, so a
@@ -1848,7 +1994,9 @@ type CatalogSearchSucceeded struct {
 	// person: it is derived from no user, account, device, or query data, and must never be
 	// joined with user identity to re-identify anyone.
 	SearchID string `json:"searchId"`
-	// Whether further matches existed beyond the requested limit.
+	// Legacy indication that the authority returned a page token. Preserved for compatibility;
+	// this is not a has-next-page indicator. Use pagination.hasNextPage when pagination
+	// metadata is present.
 	Truncated bool `json:"truncated"`
 }
 
@@ -1908,6 +2056,182 @@ type CatalogUnsupportedKindError struct {
 func (CatalogUnsupportedKindError) catalogSearchResult() {}
 func (CatalogUnsupportedKindError) Kind() CatalogSearchResultKind {
 	return CatalogSearchResultKindUnsupportedKind
+}
+
+// Terminates one retained catalog selection group through an opaque reference previously
+// returned by the model-safe search projection.
+// Experimental: CatalogSelectionRequest is part of an experimental API and may change or be
+// removed.
+type CatalogSelectionRequest struct {
+	// Protocol version and capabilities the caller requires.
+	Contract CatalogClientContract `json:"contract"`
+	// The terminal outcome declared by the caller. Timed-out means the host's live interaction
+	// deadline elapsed; a reference whose runtime TTL elapsed is rejected separately as stale.
+	Outcome CatalogSelectionDecision `json:"outcome"`
+	// Opaque runtime-instance scoped reference to one visible candidate. For a non-selected
+	// outcome, any candidate reference from the same search closes that search's retained group.
+	SelectionRef string `json:"selectionRef"`
+	// Locally owned root session whose retained search state is being resolved.
+	SessionID string `json:"sessionId"`
+}
+
+// Typed outcome of catalog.select. Only the selected host result carries a fresh candidate
+// handle; the model-facing projection removes both that handle and searchId.
+// Experimental: CatalogSelectionResult is part of an experimental API and may change or be
+// removed.
+type CatalogSelectionResult interface {
+	catalogSelectionResult()
+	catalogSelectionResultKind() CatalogSelectionResultKind
+}
+
+type RawCatalogSelectionResultData struct {
+	Discriminator CatalogSelectionResultKind
+	Raw           json.RawMessage
+}
+
+func (RawCatalogSelectionResultData) catalogSelectionResult() {}
+func (r RawCatalogSelectionResultData) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return r.Discriminator
+}
+func (CatalogInvalidRequestError) catalogSelectionResult() {}
+func (CatalogInvalidRequestError) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindInvalidRequest
+}
+func (CatalogNegotiationRefusedError) catalogSelectionResult() {}
+func (CatalogNegotiationRefusedError) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindNegotiationRefused
+}
+
+// The caller cancelled the selection interaction and the retained search state was released.
+// Experimental: CatalogSelectionCancelled is part of an experimental API and may change or
+// be removed.
+type CatalogSelectionCancelled struct {
+	// The search identifier privately bound to the released selection group.
+	SearchID string `json:"searchId"`
+}
+
+func (CatalogSelectionCancelled) catalogSelectionResult() {}
+func (CatalogSelectionCancelled) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindCancelled
+}
+
+// The caller explicitly declined every candidate and the retained search state was released.
+// Experimental: CatalogSelectionDeclined is part of an experimental API and may change or
+// be removed.
+type CatalogSelectionDeclined struct {
+	// The search identifier privately bound to the released selection group.
+	SearchID string `json:"searchId"`
+}
+
+func (CatalogSelectionDeclined) catalogSelectionResult() {}
+func (CatalogSelectionDeclined) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindDeclined
+}
+
+// The selection reference belongs to another runtime instance or session.
+// Experimental: CatalogSelectionForeign is part of an experimental API and may change or be
+// removed.
+type CatalogSelectionForeign struct {
+	// Human-readable explanation safe to surface. Never contains the presented reference or
+	// private candidate state.
+	Message string `json:"message"`
+}
+
+func (CatalogSelectionForeign) catalogSelectionResult() {}
+func (CatalogSelectionForeign) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindForeign
+}
+
+// The selection reference was malformed or unknown.
+// Experimental: CatalogSelectionInvalid is part of an experimental API and may change or be
+// removed.
+type CatalogSelectionInvalid struct {
+	// Human-readable explanation safe to surface. Never contains the presented reference or
+	// private candidate state.
+	Message string `json:"message"`
+}
+
+func (CatalogSelectionInvalid) catalogSelectionResult() {}
+func (CatalogSelectionInvalid) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindInvalid
+}
+
+// The selection group was already terminated or its pending host hand-off was already
+// claimed.
+// Experimental: CatalogSelectionReplayed is part of an experimental API and may change or
+// be removed.
+type CatalogSelectionReplayed struct {
+	// Human-readable explanation safe to surface. Never contains the presented reference or
+	// private candidate state.
+	Message string `json:"message"`
+}
+
+func (CatalogSelectionReplayed) catalogSelectionResult() {}
+func (CatalogSelectionReplayed) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindReplayed
+}
+
+// The chosen candidate was transferred into a fresh bounded single-use handle for a later
+// explicit planning request.
+// Experimental: CatalogSelectionSelected is part of an experimental API and may change or
+// be removed.
+type CatalogSelectionSelected struct {
+	// Fresh single-use candidate handle accepted by mcp.planInstall. Returned only to the
+	// native host and never included in model-tool output.
+	CandidateHandle string `json:"candidateHandle"`
+	// The exact search identifier privately bound to the selected candidate.
+	SearchID string `json:"searchId"`
+}
+
+func (CatalogSelectionSelected) catalogSelectionResult() {}
+func (CatalogSelectionSelected) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindSelected
+}
+
+// The runtime-enforced selection reference lifetime elapsed before the request arrived.
+// Experimental: CatalogSelectionStale is part of an experimental API and may change or be
+// removed.
+type CatalogSelectionStale struct {
+	// Human-readable explanation safe to surface. Never contains the presented reference or
+	// private candidate state.
+	Message string `json:"message"`
+}
+
+func (CatalogSelectionStale) catalogSelectionResult() {}
+func (CatalogSelectionStale) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindStale
+}
+
+// The host declared that its live selection interaction timed out, and the retained search
+// state was released.
+// Experimental: CatalogSelectionTimedOut is part of an experimental API and may change or
+// be removed.
+type CatalogSelectionTimedOut struct {
+	// The search identifier privately bound to the released selection group.
+	SearchID string `json:"searchId"`
+}
+
+func (CatalogSelectionTimedOut) catalogSelectionResult() {}
+func (CatalogSelectionTimedOut) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindTimedOut
+}
+
+// The presented opaque handle was issued for another catalog operation.
+// Experimental: CatalogSelectionWrongKind is part of an experimental API and may change or
+// be removed.
+type CatalogSelectionWrongKind struct {
+	// Human-readable explanation safe to surface. Never contains the presented reference or
+	// private candidate state.
+	Message string `json:"message"`
+}
+
+func (CatalogSelectionWrongKind) catalogSelectionResult() {}
+func (CatalogSelectionWrongKind) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindWrongKind
+}
+func (CatalogUnavailableError) catalogSelectionResult() {}
+func (CatalogUnavailableError) catalogSelectionResultKind() CatalogSelectionResultKind {
+	return CatalogSelectionResultKindUnavailable
 }
 
 // Where and when the runtime observed the trust metadata. Observation time is not the
@@ -2434,6 +2758,8 @@ type CopilotUserResponse struct {
 	CopilotPlan *string `json:"copilot_plan,omitempty"`
 	// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
 	Endpoints *CopilotUserResponseEndpoints `json:"endpoints,omitempty"`
+	// Enterprises that provide the user's Copilot license, each with a stable numeric ID.
+	EnterpriseList []CopilotUserResponseEnterpriseListItem `json:"enterprise_list,omitzero"`
 	// Whether MCP (Model Context Protocol) support is enabled for the user.
 	IsMCPEnabled *bool `json:"is_mcp_enabled,omitempty"`
 	// Whether the user is a GitHub/Microsoft staff member.
@@ -2482,6 +2808,11 @@ type CopilotUserResponseEndpoints struct {
 	Proxy *string `json:"proxy,omitempty"`
 	// Copilot telemetry endpoint URL.
 	Telemetry *string `json:"telemetry,omitempty"`
+}
+
+type CopilotUserResponseEnterpriseListItem struct {
+	// Numeric database ID of the enterprise.
+	ID int64 `json:"id"`
 }
 
 type CopilotUserResponseOrganizationListItem struct {
@@ -4722,6 +5053,10 @@ type InstalledPluginInfo struct {
 	DirectSourceID *string `json:"directSourceId,omitempty"`
 	// Whether the plugin is currently enabled for new sessions
 	Enabled bool `json:"enabled"`
+	// Whether the managed desired plugin currently has an installed or live record. Set to
+	// false for a managed desired entry retained in the listing after installation or
+	// reconciliation failed.
+	Installed *bool `json:"installed,omitempty"`
 	// Absolute path of the marketplace directory a live plugin was resolved from. Present only
 	// on live, never-persisted records — a plugin belonging to a directory/local marketplace,
 	// which is loaded from its real directory on every pass instead of a copy under the
@@ -4729,6 +5064,11 @@ type InstalledPluginInfo struct {
 	// plugin is always present on disk, so `enabled` is its only meaningful state and it is
 	// never "not installed".
 	InstalledFrom *string `json:"installedFrom,omitempty"`
+	// Whether enterprise managed settings control this plugin's enabled state.
+	Managed *bool `json:"managed,omitempty"`
+	// The enabled state required by enterprise managed settings, when this plugin spec is
+	// managed.
+	ManagedDesiredEnabled *bool `json:"managedDesiredEnabled,omitempty"`
 	// Marketplace the plugin came from. Empty string ("") for direct repo / URL / local
 	// installs.
 	Marketplace string `json:"marketplace"`
@@ -5198,6 +5538,55 @@ type ManagedSettingsReadResult struct {
 	SettingsJSON any `json:"settingsJson,omitempty"`
 }
 
+// Enterprise managed-settings resolution: the effective managed settings the session
+// applied and which channels contributed, so SDK clients can show users what is
+// enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on
+// resume, and on account switch. This is an ephemeral live snapshot (delivered to
+// subscribers but not persisted to the session event log), because at session start it
+// resolves before `session.start` is emitted. Device values take precedence over server
+// values, then the policy helper, per ordinary key, while permissions compose restrictively
+// across device, server, policy-helper, and SDK-client layers. The account-scoped
+// `getManagedSettings()` API does not include session-local client injection. Marked
+// experimental while the managed-settings surface stabilizes.
+// Experimental: ManagedSettingsResolvedData is part of an experimental API and may change
+// or be removed.
+type ManagedSettingsResolvedData struct {
+	// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session.
+	// Deny-wins across layers, and forced on when `failClosed` is true.
+	BypassPermissionsDisabled bool `json:"bypassPermissionsDisabled"`
+	// Whether a session-local permissions layer injected by the SDK host was present
+	ClientManaged *bool `json:"clientManaged,omitempty"`
+	// Whether an actual device MDM/plist/registry/file managed-settings layer was present
+	DeviceManaged bool `json:"deviceManaged"`
+	// Whether managed policy could not be determined (e.g. a failed server fetch) and the
+	// session fell back to the fail-closed restriction. When true, restrictions such as
+	// disabling bypass-permissions are enforced even though `settings` may be absent.
+	FailClosed bool `json:"failClosed"`
+	// The setting keys under enterprise management in the effective managed settings (e.g.
+	// `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
+	ManagedKeys []string `json:"managedKeys"`
+	// Whether at least two managed sources supplied permission allowlists, so enforcement
+	// intersects them and the flattened settings payload omits `permissions.allow`.
+	PermissionsAllowIntersected *bool `json:"permissionsAllowIntersected,omitempty"`
+	// Whether the policy-helper managed-settings layer was present. The policy helper is the
+	// weakest channel: it fills keys no enterprise source set and can never replace one.
+	PolicyHelperManaged *bool `json:"policyHelperManaged,omitempty"`
+	// Whether the effective sandbox policy forces the sandbox on *only* because managed policy
+	// could not be determined, rather than because the policy requires it. Lets clients tell a
+	// user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed
+	// fallback, instead of attributing it to an administrator who set no such policy.
+	SandboxEnabledByUndeterminedPolicy *bool `json:"sandboxEnabledByUndeterminedPolicy,omitempty"`
+	// Whether the server (account/org) managed-settings layer was present
+	ServerManaged bool `json:"serverManaged"`
+	// The effective (resolved) managed settings values, so clients can render exactly what is
+	// enforced. Absent when no managed policy is in force.
+	Settings any `json:"settings,omitempty"`
+	// Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel
+	// contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the
+	// per-channel booleans for exact provenance.
+	Source ManagedSettingsResolvedSource `json:"source"`
+}
+
 // Result of registering a new marketplace.
 // Experimental: MarketplaceAddResult is part of an experimental API and may change or be
 // removed.
@@ -5217,9 +5606,15 @@ type MarketplaceBrowseResult struct {
 // Registered marketplace summary.
 // Experimental: MarketplaceInfo is part of an experimental API and may change or be removed.
 type MarketplaceInfo struct {
+	// Whether the managed marketplace currently resolved into the runtime marketplace registry.
+	// Set to false when the desired managed entry is retained for governance visibility after
+	// loading or reconciliation failed.
+	Available *bool `json:"available,omitempty"`
 	// True when this is a default marketplace shipped with the runtime. Defaults are not
 	// removable.
 	IsDefault *bool `json:"isDefault,omitempty"`
+	// Whether enterprise managed settings provide and control this marketplace entry.
+	Managed *bool `json:"managed,omitempty"`
 	// Marketplace name (matches the @marketplace suffix in plugin specs)
 	Name string `json:"name"`
 	// Human-readable description of where the marketplace data is fetched from (e.g. "GitHub:
@@ -5773,8 +6168,9 @@ type MCPHostState struct {
 // no raw card, no install specification, and no secret value.
 // Experimental: MCPInstallPlan is part of an experimental API and may change or be removed.
 type MCPInstallPlan struct {
-	// The configuration changes installing would make, described rather than serialised, so the
-	// mutable configuration payload stays behind the runtime boundary.
+	// Alternative configuration changes, with exactly one entry for each transportChoices entry
+	// in the same order. Only the entry for the subsequently selected transport applies; these
+	// are not cumulative writes. Payloads remain behind the runtime boundary.
 	ConfigurationChanges []MCPPlanConfigurationChange `json:"configurationChanges"`
 	// Normalised identity of the server the plan would install.
 	Identity MCPPlanResourceIdentity `json:"identity"`
@@ -5796,8 +6192,10 @@ type MCPInstallPlan struct {
 	// Whether applying this plan would require an MCP reload to take effect. Planning itself
 	// never reloads.
 	ReloadRequired bool `json:"reloadRequired"`
-	// Whether the plan cannot be applied without further input, because a required value has no
-	// default or a secret must be supplied.
+	// True only when every eligible transport choice needs additional values or secrets. False
+	// means at least one choice needs no additional configuration, not that every choice is
+	// ready. A later apply operation must validate the selected choice's own inputs, secrets
+	// and policy after explicit confirmation.
 	RequiresInteractiveConfiguration bool `json:"requiresInteractiveConfiguration"`
 	// Configuration scope and key the plan would write to.
 	Target MCPPlanTarget `json:"target"`
@@ -6054,8 +6452,9 @@ type MCPOauthRespondResult struct {
 	Success bool `json:"success"`
 }
 
-// One change applying the plan would make, described rather than serialised so the
-// configuration payload stays behind the runtime boundary.
+// The configuration-change alternative for the transportChoices entry at the same index.
+// Only the selected alternative is applied; entries are not cumulative. The payload stays
+// behind the runtime boundary.
 // Experimental: MCPPlanConfigurationChange is part of an experimental API and may change or
 // be removed.
 type MCPPlanConfigurationChange struct {
@@ -6236,11 +6635,10 @@ type MCPPlanInstallSourceCandidate struct {
 	// rejected.
 	CandidateHandle string `json:"candidateHandle"`
 	// The runtime- or authority-minted `searchId` returned with the search that produced this
-	// candidate. A search implementation binds it to private candidate-handle context; a
-	// planning implementation must verify that context before returning a plan. The unavailable
-	// planning implementation in this contract layer validates presence but does not claim the
-	// verification has occurred. It identifies a search rather than a person and must never be
-	// joined with user identity to re-identify anyone.
+	// candidate. Planning verifies the private correlation and atomically consumes a matching
+	// candidate before downstream work, including attempts that subsequently fail or report
+	// unavailable. A mismatched search does not consume the candidate. It identifies a search
+	// rather than a person and must never be joined with user identity to re-identify anyone.
 	SearchID string `json:"searchId"`
 }
 
@@ -6817,6 +7215,10 @@ type MCPServerConfigHTTP struct {
 	Oidc MCPServerAuthConfig `json:"oidc,omitempty"`
 	// Telemetry-obfuscation policy for this server's tools.
 	SafeForTelemetry MCPSafeForTelemetry `json:"safeForTelemetry,omitempty"`
+	// Milliseconds this server may spend connecting before the CLI warns that it is taking
+	// longer than expected. Presentation only: it does not change how long the connection is
+	// allowed to take.
+	SlowConnectionThresholdMs *int64 `json:"slowConnectionThresholdMs,omitempty"`
 	// The origin of this server configuration.
 	Source *MCPServerSource `json:"source,omitempty"`
 	// Source file path recorded while loading the config.
@@ -6881,6 +7283,10 @@ type MCPServerConfigStdio struct {
 	Oidc MCPServerAuthConfig `json:"oidc,omitempty"`
 	// Telemetry-obfuscation policy for this server's tools.
 	SafeForTelemetry MCPSafeForTelemetry `json:"safeForTelemetry,omitempty"`
+	// Milliseconds this server may spend connecting before the CLI warns that it is taking
+	// longer than expected. Presentation only: it does not change how long the connection is
+	// allowed to take.
+	SlowConnectionThresholdMs *int64 `json:"slowConnectionThresholdMs,omitempty"`
 	// The origin of this server configuration.
 	Source *MCPServerSource `json:"source,omitempty"`
 	// Source file path recorded while loading the config.
@@ -7044,6 +7450,10 @@ type MCPServerConfigMemory struct {
 	// Internal: ServerInstance is part of the SDK's internal API surface and is not intended
 	// for external use.
 	ServerInstance any `json:"serverInstance"`
+	// Milliseconds this server may spend connecting before the CLI warns that it is taking
+	// longer than expected. Presentation only: it does not change how long the connection is
+	// allowed to take.
+	SlowConnectionThresholdMs *int64 `json:"slowConnectionThresholdMs,omitempty"`
 	// The origin of this server configuration.
 	Source *MCPServerSource `json:"source,omitempty"`
 	// Source file path recorded while loading the config.
@@ -7470,6 +7880,9 @@ type Model struct {
 // Experimental: ModelApplyStartupOverlayRequest is part of an experimental API and may
 // change or be removed.
 type ModelApplyStartupOverlayRequest struct {
+	// Effective default Auto routing preference from user and managed settings. Applies only to
+	// fresh sessions and never replaces a per-session selection.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Model explicitly selected by the CLI, when provided.
 	CLIModel *string `json:"cliModel,omitempty"`
 	// Whether the overlay is being applied while resuming a deferred session.
@@ -7922,6 +8335,9 @@ type ModelSwitchToResult struct {
 	ModelState *CurrentModel `json:"modelState,omitempty"`
 	// Persistence failure encountered after applying the model switch.
 	PersistenceError *string `json:"persistenceError,omitempty"`
+	// Stable queue item identifier when this request was enqueued. Remains present if the item
+	// drains before the response is returned.
+	QueueID *string `json:"queueId,omitempty"`
 	// Lifecycle result for the requested switch
 	Status *string `json:"status,omitempty"`
 	// User-facing warning produced while applying the model switch.
@@ -8132,6 +8548,9 @@ type OptionsUpdateAdditionalContentExclusionPolicyRuleSource struct {
 // Experimental: PendingPermissionRequest is part of an experimental API and may change or
 // be removed.
 type PendingPermissionRequest struct {
+	// Permission-recovery episode that authorized this request to surface for interactive
+	// attention
+	RecoveryEpisodeID *string `json:"recoveryEpisodeId,omitempty"`
 	// The user-facing permission prompt details (commands, write, read, mcp, url, memory,
 	// custom-tool, path, hook)
 	Request PermissionPromptRequest `json:"request"`
@@ -8913,6 +9332,47 @@ type PermissionPromptShownNotification struct {
 	Message string `json:"message"`
 }
 
+// Experimental: PermissionRecoveryAttempt is part of an experimental API and may change or
+// be removed.
+type PermissionRecoveryAttempt struct {
+	// Unique identifier for this attempt record
+	AttemptID string `json:"attemptId"`
+	// How the runtime handled this attempt
+	Disposition PermissionRecoveryAttemptDisposition `json:"disposition"`
+	// One-based position of this attempt in the episode
+	Ordinal int64 `json:"ordinal"`
+	// Controlled permission request kind, such as shell, path, URL, or tool
+	PermissionKind string `json:"permissionKind"`
+	// Controlled reason for the attempt disposition
+	Reason PermissionRecoveryAttemptReason `json:"reason"`
+	// Relationship between this attempt and earlier attempts in the episode
+	Relation PermissionRecoveryAttemptRelation `json:"relation"`
+	// SHA-256 fingerprint of normalized request data; raw permission arguments are not included
+	RequestFingerprint string `json:"requestFingerprint"`
+	// Tool-call identifier associated with this attempt, when available
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+// Authoritative snapshot of an Autopilot permission-recovery episode
+// Experimental: PermissionRecoveryData is part of an experimental API and may change or be
+// removed.
+type PermissionRecoveryData struct {
+	// Ordered privacy-safe record of permission attempts and the successful alternative, when
+	// any
+	Attempts []PermissionRecoveryAttempt `json:"attempts"`
+	// Stable identifier shared by every transition in this recovery episode
+	EpisodeID string `json:"episodeId"`
+	// Maximum number of distinct autonomous permission attempts allowed before escalation
+	MaxAttempts int64 `json:"maxAttempts"`
+	// Policy selected from the current client's response capability; mode or client changes may
+	// update it during recovery
+	OnBlocked PermissionRecoveryOnBlocked `json:"onBlocked"`
+	// Controlled reason for the latest episode transition
+	Reason PermissionRecoveryReason `json:"reason"`
+	// Current lifecycle state of the recovery episode
+	Status PermissionRecoveryStatus `json:"status"`
+}
+
 // Indicates whether the permission decision was applied; false when the request was already
 // resolved.
 // Experimental: PermissionRequestResult is part of an experimental API and may change or be
@@ -9489,12 +9949,24 @@ type PlanUpdateRequest struct {
 // Session plugin metadata, with name, marketplace, optional version, and enabled state.
 // Experimental: Plugin is part of an experimental API and may change or be removed.
 type Plugin struct {
+	// Opaque stable identity for a direct plugin source.
+	DirectSourceID *string `json:"directSourceId,omitempty"`
 	// Whether the plugin is currently enabled
 	Enabled bool `json:"enabled"`
+	// Whether this managed desired plugin has an installed or live record.
+	Installed *bool `json:"installed,omitempty"`
+	// Absolute marketplace directory for a live plugin.
+	InstalledFrom *string `json:"installedFrom,omitempty"`
+	// Whether enterprise managed settings control this plugin.
+	Managed *bool `json:"managed,omitempty"`
+	// Enabled state required by enterprise managed settings.
+	ManagedDesiredEnabled *bool `json:"managedDesiredEnabled,omitempty"`
 	// Marketplace the plugin came from
 	Marketplace string `json:"marketplace"`
 	// Plugin name
 	Name string `json:"name"`
+	// Runtime plugin provenance, such as "builtin".
+	Source *string `json:"source,omitempty"`
 	// Installed version
 	Version *string `json:"version,omitempty"`
 }
@@ -10392,6 +10864,27 @@ type PushGitHubRepoRef struct {
 	Owner string `json:"owner"`
 }
 
+// Append to one pending steering message without changing its identity or delivery position.
+// Experimental: QueueAppendSteeringRequest is part of an experimental API and may change or
+// be removed.
+type QueueAppendSteeringRequest struct {
+	// Mode captured at submission. Only steering messages in the same mode may be combined.
+	AgentMode SendAgentMode `json:"agentMode"`
+	// Attachments to add after the message's existing attachments. An empty list preserves the
+	// existing attachments.
+	Attachments []Attachment `json:"attachments"`
+	// Display text to append to the existing preview after a blank line.
+	DisplayPrompt string `json:"displayPrompt"`
+	// Expected current prompt, including any previous appends. The runtime applies plan-mode
+	// normalization before comparing and refuses a changed message.
+	ExpectedPrompt string `json:"expectedPrompt"`
+	// Message identity returned by send, not the queue item id. Only unclaimed user steering
+	// messages are eligible.
+	MessageID string `json:"messageId"`
+	// Text to append after a blank line.
+	Prompt string `json:"prompt"`
+}
+
 // Inputs for starting a deferred-idle drain.
 // Experimental: QueueBeginDeferredIdleDrainRequest is part of an experimental API and may
 // change or be removed.
@@ -10679,6 +11172,8 @@ type QueueSetDrainPausedRequest struct {
 // Experimental: QueueSnapshotResult is part of an experimental API and may change or be
 // removed.
 type QueueSnapshotResult struct {
+	// Queue item identifier of a model switch that has been dequeued but not yet applied.
+	InFlightModelChangeID *string `json:"inFlightModelChangeId,omitempty"`
 	// Insertion orders for queued items, aligned with `items`.
 	ItemOrders []int64 `json:"itemOrders,omitzero"`
 	// User-facing pending items in FIFO order.
@@ -10707,6 +11202,18 @@ type QueueUpdateTextRequest struct {
 type QueueUpdateTextResult struct {
 	// True when the stored text changed.
 	Updated bool `json:"updated"`
+}
+
+// Conditional withdrawal of a single user message, before the runtime claims it for
+// delivery.
+// Experimental: QueueWithdrawMessageRequest is part of an experimental API and may change
+// or be removed.
+type QueueWithdrawMessageRequest struct {
+	// The prompt originally sent. A message edited since submission is not withdrawn, so an
+	// obsolete draft cannot replace the edit.
+	ExpectedPrompt string `json:"expectedPrompt"`
+	// Message identity returned by send, not the queue item id. Batch messages are not eligible.
+	MessageID string `json:"messageId"`
 }
 
 // Event type to register consumer interest for, used by runtime gating logic.
@@ -11129,12 +11636,11 @@ type SandboxConfigUserPolicyNetwork struct {
 	// A domain also denies all its subdomains. IP addresses match exactly; *.example.com
 	// matches strict subdomains, and * denies every host.
 	BlockedHosts []string `json:"blockedHosts,omitzero"`
-	// HTTP(S) proxy for sandboxed traffic. With host rules, this is the built-in local proxy's
-	// upstream; credentials stay in the runtime, and Linux and macOS restrict the child to the
-	// local listener. Without host rules, Linux restricts egress to this endpoint but rejects
-	// credentials, and macOS proxying is cooperative. Windows enforcement depends on the
-	// application's networking stack. Configure credentials in the separate username/password
-	// fields. The transient local listener URL is never persisted.
+	// HTTP(S) proxy for sandboxed traffic. This is the built-in local proxy's upstream: every
+	// sandboxed command reaches it through a loopback listener, so credentials stay in the
+	// runtime and never reach the child. On Windows the sandbox also needs local network
+	// access, because it reaches that listener over host loopback. Configure credentials in the
+	// separate username/password fields. The transient local listener URL is never persisted.
 	Proxy *SandboxConfigUserPolicyNetworkProxy `json:"proxy,omitempty"`
 }
 
@@ -12080,7 +12586,12 @@ type SessionFSSetProviderCapabilities struct {
 }
 
 // Initial working directory, session-state path layout, and path conventions used to
-// register the calling SDK client as the session filesystem provider.
+// register the calling SDK client as the session filesystem provider. A registered provider
+// is authoritative for path interpretation and filesystem facts used by workspace
+// permission validation. Paths are interpreted lexically; home-relative paths (`~` and
+// `~/...`) and Windows drive-relative paths such as `C:foo` are unsupported. Until
+// provider-side canonicalization is supported, providers must not expose symlinks inside
+// allowed roots that escape those roots.
 // Experimental: SessionFSSetProviderRequest is part of an experimental API and may change
 // or be removed.
 type SessionFSSetProviderRequest struct {
@@ -12088,7 +12599,9 @@ type SessionFSSetProviderRequest struct {
 	Capabilities *SessionFSSetProviderCapabilities `json:"capabilities,omitempty"`
 	// Path conventions used by this filesystem
 	Conventions SessionFSSetProviderConventions `json:"conventions"`
-	// Initial working directory for sessions
+	// Absolute initial working directory for sessions. Registering the provider establishes
+	// this path as the root of its virtual namespace; the runtime does not require the provider
+	// to materialize or stat it before creating a session.
 	InitialCwd string `json:"initialCwd"`
 	// Path within each session's SessionFs where the runtime stores files for that session
 	SessionStatePath string `json:"sessionStatePath"`
@@ -12579,8 +13092,8 @@ type SessionManagedPermissions struct {
 	Ask []string `json:"ask,omitzero"`
 	// Permission rules that block matching operations. Deny has highest precedence.
 	Deny []string `json:"deny,omitzero"`
-	// When set to `disable`, prevents bypass/allow-all permission modes. `allow-auto-only`
-	// blocks full allow-all but permits advisory auto-approval. Any other value is accepted
+	// When set to `disable`, prevents bypass/allow-all permission modes. Advisory auto-approval
+	// remains available because normal prompt paths stay active. Any other value is accepted
 	// rather than failing the session, but is enforced as `disable`: the key is only present to
 	// restrict something, so a mode this runtime cannot interpret fails closed to the most
 	// restrictive one it knows. Omit the key entirely to impose no restriction.
@@ -12663,6 +13176,9 @@ type SessionMetadataSnapshot struct {
 	ClientName *string `json:"clientName,omitempty"`
 	// The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
 	CurrentMode MetadataSnapshotCurrentMode `json:"currentMode"`
+	// Live indexed-search state for this session activation. Omitted by runtimes that do not
+	// expose indexed-search status; absence does not indicate enablement.
+	IndexedSearch *IndexedSearchState `json:"indexedSearch,omitempty"`
 	// User-provided name supplied at session construction (via `--name`), if any. Immutable
 	// after construction.
 	InitialName *string `json:"initialName,omitempty"`
@@ -13197,6 +13713,54 @@ type SessionPlanDeleteResult struct {
 type SessionPlanUpdateResult struct {
 }
 
+// Plugin names (or specs) to disable in the session's authoritative working directory.
+// Experimental: SessionPluginsDisableRequest is part of an experimental API and may change
+// or be removed.
+type SessionPluginsDisableRequest struct {
+	// Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored.
+	// Non-marketplace direct installs cannot be disabled via this API; uninstall them instead.
+	// Plugin-owned MCP servers are stopped in active sessions immediately; other plugin
+	// contributions remain available until each session reloads plugins.
+	Names []string `json:"names"`
+}
+
+// Experimental: SessionPluginsDisableResult is part of an experimental API and may change
+// or be removed.
+type SessionPluginsDisableResult struct {
+}
+
+// Plugin names (or specs) to enable in the session's authoritative working directory.
+// Experimental: SessionPluginsEnableRequest is part of an experimental API and may change
+// or be removed.
+type SessionPluginsEnableRequest struct {
+	// Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored.
+	// Non-marketplace direct installs are always enabled and cannot be toggled via this API.
+	Names []string `json:"names"`
+}
+
+// Experimental: SessionPluginsEnableResult is part of an experimental API and may change or
+// be removed.
+type SessionPluginsEnableResult struct {
+}
+
+// Plugin source resolved relative to the session's authoritative working directory.
+// Experimental: SessionPluginsInstallRequest is part of an experimental API and may change
+// or be removed.
+type SessionPluginsInstallRequest struct {
+	// Plugin install spec. Accepts the same forms as the CLI: "plugin@marketplace" (marketplace
+	// install), "owner/repo" or "owner/repo:subpath" (GitHub direct), an http/https/ssh URL, or
+	// a local path. Direct (non-marketplace) installs are deprecated and will produce a
+	// deprecationWarning in the result.
+	Source string `json:"source"`
+}
+
+// Experimental: SessionPluginsMarketplacesRefreshRequest is part of an experimental API and
+// may change or be removed.
+type SessionPluginsMarketplacesRefreshRequest struct {
+	// Marketplace name to refresh. When omitted, every registered marketplace is refreshed.
+	Name *string `json:"name,omitempty"`
+}
+
 // Experimental: SessionPluginsReloadRequest is part of an experimental API and may change
 // or be removed.
 type SessionPluginsReloadRequest struct {
@@ -13219,6 +13783,11 @@ type SessionPluginsReloadRequest struct {
 // Experimental: SessionPluginsReloadResult is part of an experimental API and may change or
 // be removed.
 type SessionPluginsReloadResult struct {
+}
+
+// Experimental: SessionPluginsUninstallResult is part of an experimental API and may change
+// or be removed.
+type SessionPluginsUninstallResult struct {
 }
 
 // Experimental: SessionProviderGetEndpointRequest is part of an experimental API and may
@@ -14176,6 +14745,13 @@ type SessionUpdateOptionsResult struct {
 	Success bool `json:"success"`
 }
 
+// Experimental: SessionWorkflowPauseAtCheckpointResult is part of an experimental API and
+// may change or be removed.
+type SessionWorkflowPauseAtCheckpointResult struct {
+	// Whether this execution attempt must pause or may continue.
+	Action WorkflowPauseCheckpointAction `json:"action"`
+}
+
 // Updated working directory and git context. Emitted as the new payload of
 // `session.context_changed`.
 // Experimental: SessionWorkingDirectoryContext is part of an experimental API and may
@@ -14980,6 +15556,19 @@ type SystemMessageBlock struct {
 	IsStatic *bool `json:"isStatic,omitempty"`
 }
 
+// Structured reason that the task cannot continue without intervention
+// Experimental: TaskBlocker is part of an experimental API and may change or be removed.
+type TaskBlocker struct {
+	// Category of intervention that blocked the task
+	Kind TaskBlockerKind `json:"kind"`
+	// Permission-recovery episode that produced this blocker
+	PermissionRecovery PermissionRecoveryData `json:"permissionRecovery"`
+	// Controlled reason for the current blocked state
+	Reason PermissionRecoveryReason `json:"reason"`
+	// Whether a later user response or steering message can resume the task
+	Resumable bool `json:"resumable"`
+}
+
 // Public owner attribution for a client-owned task. Identifiers are opaque and never
 // authorize requests.
 // Experimental: TaskClientOwner is part of an experimental API and may change or be removed.
@@ -15080,6 +15669,8 @@ func (TaskClientUpdateProgress) Kind() TaskClientUpdateKind {
 // Experimental: TaskCompleteData is part of an experimental API and may change or be
 // removed.
 type TaskCompleteData struct {
+	// Structured blocker details when outcome is blocked
+	Blocker *TaskBlocker `json:"blocker,omitempty"`
 	// Active autopilot objective ID evaluated by the completion reviewer
 	ObjectiveID *int64 `json:"objectiveId,omitempty"`
 	// Semantic completion decision. Absent on legacy events and invalid tool calls
@@ -16645,6 +17236,745 @@ type VisibilitySetResult struct {
 	Synced bool `json:"synced"`
 }
 
+// Parameters for cooperatively aborting a workflow body.
+// Experimental: WorkflowAbortRequest is part of an experimental API and may change or be
+// removed.
+type WorkflowAbortRequest struct {
+	// Opaque token identifying the execution attempt to abort.
+	ExecutionToken string `json:"executionToken"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Acknowledgement that a workflow request was accepted.
+// Experimental: WorkflowAckResult is part of an experimental API and may change or be
+// removed.
+type WorkflowAckResult struct {
+}
+
+// Options for one workflow-scoped subagent call.
+// Experimental: WorkflowAgentOptions is part of an experimental API and may change or be
+// removed.
+type WorkflowAgentOptions struct {
+	// Optional built-in or custom agent name whose definition configures the subagent.
+	Agent *string `json:"agent,omitempty"`
+	// Optional context tier override for the subagent.
+	ContextTier *ContextTier `json:"contextTier,omitempty"`
+	// Optional label distinguishing otherwise identical memoized agent calls.
+	Label *string `json:"label,omitempty"`
+	// Optional model identifier for the subagent.
+	Model *string `json:"model,omitempty"`
+	// Optional reasoning effort override for the subagent.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+	// Optional JSON Schema for structured agent output.
+	Schema any `json:"schema,omitempty"`
+}
+
+// Parameters for one workflow-scoped subagent call.
+// Experimental: WorkflowAgentRequest is part of an experimental API and may change or be
+// removed.
+type WorkflowAgentRequest struct {
+	// Opaque token identifying the current workflow execution attempt.
+	ExecutionToken string `json:"executionToken"`
+	// Subagent execution options.
+	Opts WorkflowAgentOptions `json:"opts"`
+	// Prompt to send to the subagent.
+	Prompt string `json:"prompt"`
+	// Workflow run identifier that owns the subagent.
+	WorkflowRunID string `json:"workflowRunId"`
+}
+
+// Result of one workflow-scoped subagent call.
+// Experimental: WorkflowAgentResult is part of an experimental API and may change or be
+// removed.
+type WorkflowAgentResult struct {
+	// Agent result, omitted when the agent produced no result.
+	Result any `json:"result,omitempty"`
+}
+
+// Prompt-safe durable identity and live status for a direct workflow agent.
+// Experimental: WorkflowAgentSummary is part of an experimental API and may change or be
+// removed.
+type WorkflowAgentSummary struct {
+	// Accumulated active agent time in milliseconds.
+	ActiveMs int64 `json:"activeMs"`
+	// Prompt-safe live activity text.
+	Activity *string `json:"activity,omitempty"`
+	// Stable direct-agent identifier.
+	AgentID string `json:"agentId"`
+	// Registered agent type.
+	AgentType string `json:"agentType"`
+	// Epoch milliseconds when the agent completed.
+	CompletedAt *int64 `json:"completedAt,omitempty"`
+	// Friendly, non-unique name intended for display
+	DisplayName *string `json:"displayName,omitempty"`
+	// Friendly, non-unique name intended for display
+	Label string `json:"label"`
+	// Phase identifier active when the agent was launched, or null.
+	PhaseID *string `json:"phaseId"`
+	// Model requested when the agent was launched.
+	RequestedModel *string `json:"requestedModel,omitempty"`
+	// Concrete model resolved for the agent.
+	ResolvedModel *string `json:"resolvedModel,omitempty"`
+	// Owning workflow run identifier.
+	RunID string `json:"runId"`
+	// Epoch milliseconds when the agent started.
+	StartedAt *int64 `json:"startedAt,omitempty"`
+	// Current durable or live agent status.
+	Status string `json:"status"`
+	// Tool-call identifier that launched the agent.
+	ToolCallID string `json:"toolCallId"`
+}
+
+// Parameters for cancelling a workflow run.
+// Experimental: WorkflowCancelRequest is part of an experimental API and may change or be
+// removed.
+type WorkflowCancelRequest struct {
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+// Current workflow phase identity.
+// Experimental: WorkflowCurrentPhase is part of an experimental API and may change or be
+// removed.
+type WorkflowCurrentPhase struct {
+	// Current phase identifier.
+	ID string `json:"id"`
+	// Zero-based declared phase ordinal, or null for an undeclared phase.
+	Ordinal *int64 `json:"ordinal"`
+}
+
+// Declared or approved workflow resource ceilings.
+// Experimental: WorkflowDeclaredLimits is part of an experimental API and may change or be
+// removed.
+type WorkflowDeclaredLimits struct {
+	// Maximum AI credits consumed by subagents and descendants.
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
+	// Maximum concurrently active subagents.
+	MaxConcurrentSubagents *int64 `json:"maxConcurrentSubagents,omitempty"`
+	// Maximum total subagents spawned by the run.
+	MaxTotalSubagents *int64 `json:"maxTotalSubagents,omitempty"`
+	// Maximum accumulated active execution time in seconds.
+	TimeoutSeconds *float64 `json:"timeoutSeconds,omitempty"`
+}
+
+// Parameters sent to the owning extension to execute a workflow closure.
+// Experimental: WorkflowExecuteRequest is part of an experimental API and may change or be
+// removed.
+type WorkflowExecuteRequest struct {
+	// Workflow input value.
+	Args any `json:"args"`
+	// Opaque token identifying this workflow execution attempt.
+	ExecutionToken string `json:"executionToken"`
+	// Registered workflow name.
+	Name string `json:"name"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Result returned by an extension workflow closure.
+// Experimental: WorkflowExecuteResult is part of an experimental API and may change or be
+// removed.
+type WorkflowExecuteResult struct {
+	// Workflow result value.
+	Result any `json:"result,omitempty"`
+}
+
+// Parameters for paging workflow progress.
+// Experimental: WorkflowGetRunProgressRequest is part of an experimental API and may change
+// or be removed.
+type WorkflowGetRunProgressRequest struct {
+	// Exclusive forward cursor.
+	AfterSeq *int64 `json:"afterSeq,omitempty"`
+	// Exclusive backward cursor.
+	BeforeSeq *int64 `json:"beforeSeq,omitempty"`
+	// Maximum records to return. Defaults to 200 and is capped at 500.
+	Limit *int32 `json:"limit,omitempty"`
+	// Optional phase identifier used to scope records and cursors.
+	PhaseID *string `json:"phaseId,omitempty"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+// Parameters for retrieving a workflow run.
+// Experimental: WorkflowGetRunRequest is part of an experimental API and may change or be
+// removed.
+type WorkflowGetRunRequest struct {
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+// Parameters for reading a workflow journal entry.
+// Experimental: WorkflowJournalGetRequest is part of an experimental API and may change or
+// be removed.
+type WorkflowJournalGetRequest struct {
+	// Opaque token identifying the current workflow execution attempt.
+	ExecutionToken string `json:"executionToken"`
+	// Namespaced journal key.
+	Key string `json:"key"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+// Result of reading a workflow journal entry.
+// Experimental: WorkflowJournalGetResult is part of an experimental API and may change or
+// be removed.
+type WorkflowJournalGetResult struct {
+	// Whether the journal contained the requested key.
+	Hit bool `json:"hit"`
+	// Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
+	ResultJSON any `json:"resultJson,omitempty"`
+}
+
+// Parameters for storing a workflow journal entry.
+// Experimental: WorkflowJournalPutRequest is part of an experimental API and may change or
+// be removed.
+type WorkflowJournalPutRequest struct {
+	// Opaque token identifying the current workflow execution attempt.
+	ExecutionToken string `json:"executionToken"`
+	// Namespaced journal key.
+	Key string `json:"key"`
+	// JSON result to memoize.
+	ResultJSON any `json:"resultJson"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+// Parameters for paging workflow runs.
+// Experimental: WorkflowListRunsRequest is part of an experimental API and may change or be
+// removed.
+type WorkflowListRunsRequest struct {
+	// Exclusive forward cursor.
+	AfterSeq *int64 `json:"afterSeq,omitempty"`
+	// Exclusive backward cursor.
+	BeforeSeq *int64 `json:"beforeSeq,omitempty"`
+	// Maximum terminal runs to return. Defaults to 200 and is capped at 500.
+	Limit *int32 `json:"limit,omitempty"`
+}
+
+// A page of workflow runs in durable creation order.
+// Experimental: WorkflowListRunsResult is part of an experimental API and may change or be
+// removed.
+type WorkflowListRunsResult struct {
+	// Whether terminal runs newer than this page exist.
+	HasMoreNewer *bool `json:"hasMoreNewer,omitempty"`
+	// Newest terminal-run cursor in this page, or null when the terminal window is empty.
+	NewestSeq *int64 `json:"newestSeq,omitempty"`
+	// Oldest terminal-run cursor in this page, or null when the terminal window is empty.
+	OldestSeq *int64 `json:"oldestSeq,omitempty"`
+	// Number of terminal runs older than this page.
+	OmittedOlder *int64 `json:"omittedOlder,omitempty"`
+	// Workflow run summaries in durable creation order.
+	Runs []WorkflowRunSummary `json:"runs"`
+}
+
+// One ordered workflow progress line.
+// Experimental: WorkflowLogLine is part of an experimental API and may change or be removed.
+type WorkflowLogLine struct {
+	// Progress line kind.
+	Kind WorkflowLogLineKind `json:"kind"`
+	// Monotonic sequence number within the workflow run.
+	Seq int64 `json:"seq"`
+	// Progress text.
+	Text string `json:"text"`
+}
+
+// Parameters for recording workflow progress.
+// Experimental: WorkflowLogRequest is part of an experimental API and may change or be
+// removed.
+type WorkflowLogRequest struct {
+	// Opaque token identifying the current workflow execution attempt.
+	ExecutionToken string `json:"executionToken"`
+	// Ordered progress lines to append.
+	Lines []WorkflowLogLine `json:"lines"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+// Parameters for an owned durable pause checkpoint.
+// Experimental: WorkflowPauseCheckpointRequest is part of an experimental API and may
+// change or be removed.
+type WorkflowPauseCheckpointRequest struct {
+	// Opaque token identifying the execution attempt that reached the checkpoint.
+	ExecutionToken string `json:"executionToken"`
+	// Stable author-defined checkpoint key.
+	Key string `json:"key"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+// Experimental: WorkflowPauseCheckpointResult is part of an experimental API and may change
+// or be removed.
+type WorkflowPauseCheckpointResult struct {
+	// Whether this execution attempt must pause or may continue.
+	Action WorkflowPauseCheckpointAction `json:"action"`
+}
+
+// Durable metadata describing who initiated a workflow pause.
+// Experimental: WorkflowPauseInfo is part of an experimental API and may change or be
+// removed.
+type WorkflowPauseInfo interface {
+	workflowPauseInfo()
+	Type() WorkflowPauseInfoType
+}
+
+type RawWorkflowPauseInfoData struct {
+	Discriminator WorkflowPauseInfoType
+	Raw           json.RawMessage
+}
+
+func (RawWorkflowPauseInfoData) workflowPauseInfo() {}
+func (r RawWorkflowPauseInfoData) Type() WorkflowPauseInfoType {
+	return r.Discriminator
+}
+
+type WorkflowPauseInfoCheckpoint struct {
+	// Stable author-defined checkpoint key that initiated the pause.
+	Key string `json:"key"`
+}
+
+func (WorkflowPauseInfoCheckpoint) workflowPauseInfo() {}
+func (WorkflowPauseInfoCheckpoint) Type() WorkflowPauseInfoType {
+	return WorkflowPauseInfoTypeCheckpoint
+}
+
+type WorkflowPauseInfoUser struct {
+}
+
+func (WorkflowPauseInfoUser) workflowPauseInfo() {}
+func (WorkflowPauseInfoUser) Type() WorkflowPauseInfoType {
+	return WorkflowPauseInfoTypeUser
+}
+
+// Parameters for pausing a running workflow.
+// Experimental: WorkflowPauseRequest is part of an experimental API and may change or be
+// removed.
+type WorkflowPauseRequest struct {
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+// Durable lifecycle and timing for one workflow phase.
+// Experimental: WorkflowPhaseObservation is part of an experimental API and may change or
+// be removed.
+type WorkflowPhaseObservation struct {
+	// Completed active time accumulated by this phase in milliseconds.
+	AccumulatedActiveMs int64 `json:"accumulatedActiveMs"`
+	// Epoch milliseconds when this phase completed; for a skipped phase, the synthetic skip
+	// timestamp (equal to `startedAt`).
+	CompletedAt *int64 `json:"completedAt,omitempty"`
+	// Current live active time for this phase in milliseconds.
+	CurrentActiveMs int64 `json:"currentActiveMs"`
+	// Optional human-readable phase detail.
+	Detail *string `json:"detail,omitempty"`
+	// Number of times execution entered this phase.
+	EntryCount int64 `json:"entryCount"`
+	// Phase identifier.
+	ID string `json:"id"`
+	// Most recent run attempt that entered this phase, or `0` if the phase has never been
+	// entered.
+	LastEnteredRunAttempt int64 `json:"lastEnteredRunAttempt"`
+	// Direct agents in this phase that are currently live.
+	LiveAgentCount int64 `json:"liveAgentCount"`
+	// Zero-based declared phase ordinal, or null for an undeclared phase.
+	Ordinal *int64 `json:"ordinal"`
+	// Epoch milliseconds when this phase first started; for a skipped phase, the synthetic skip
+	// timestamp (equal to `completedAt`).
+	StartedAt *int64 `json:"startedAt,omitempty"`
+	// Derived lifecycle state of the phase.
+	Status WorkflowPhaseStatus `json:"status"`
+	// Human-readable phase title.
+	Title string `json:"title"`
+	// Total direct agents associated with this phase.
+	TotalAgentCount int64 `json:"totalAgentCount"`
+}
+
+// One durable workflow progress record.
+// Experimental: WorkflowProgressLine is part of an experimental API and may change or be
+// removed.
+type WorkflowProgressLine struct {
+	// Resume attempt that emitted this record.
+	Attempt int64 `json:"attempt"`
+	// Progress record kind.
+	Kind WorkflowLogLineKind `json:"kind"`
+	// Phase active when the record was emitted, or null before any phase.
+	PhaseID *string `json:"phaseId"`
+	// Epoch milliseconds when the record was persisted.
+	RecordedAt int64 `json:"recordedAt"`
+	// Global monotonic sequence number within the run.
+	Seq int64 `json:"seq"`
+	// Prompt-safe progress text.
+	Text string `json:"text"`
+}
+
+// A bidirectional page of workflow progress.
+// Experimental: WorkflowProgressPage is part of an experimental API and may change or be
+// removed.
+type WorkflowProgressPage struct {
+	// Whether progress records newer than this page exist.
+	HasMoreNewer bool `json:"hasMoreNewer"`
+	// Whether progress records older than this page exist.
+	HasMoreOlder bool `json:"hasMoreOlder"`
+	// Newest sequence number in this page, or null when empty.
+	NewestSeq *int64 `json:"newestSeq"`
+	// Oldest sequence number in this page, or null when empty.
+	OldestSeq *int64 `json:"oldestSeq"`
+	// Progress records in sequence order.
+	Records []WorkflowProgressLine `json:"records"`
+	// Run revision reflected by this page.
+	Revision int64 `json:"revision"`
+}
+
+// Parameters for resuming a workflow run from its persisted identity.
+// Experimental: WorkflowResumeRequest is part of an experimental API and may change or be
+// removed.
+type WorkflowResumeRequest struct {
+	// Optional per-invocation resource ceiling overrides.
+	Limits *WorkflowRunLimits `json:"limits,omitempty"`
+	// Whether to emit workflow phase names to the session transcript.
+	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
+	// Whether to notify the originating session when the workflow completes.
+	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+// Resolved persisted workflow identity and resumed run envelope.
+// Experimental: WorkflowResumeResult is part of an experimental API and may change or be
+// removed.
+type WorkflowResumeResult struct {
+	// Terminal resumed run envelope.
+	Run WorkflowRunResult `json:"run"`
+	// Persisted workflow name resolved for the resumed run.
+	WorkflowName string `json:"workflowName"`
+}
+
+// Durable workflow resource consumption.
+// Experimental: WorkflowRunConsumed is part of an experimental API and may change or be
+// removed.
+type WorkflowRunConsumed struct {
+	// Accumulated active execution time in milliseconds.
+	ActiveMs int64 `json:"activeMs"`
+	// AI usage consumed by the run in nano-AIU.
+	NanoAiu int64 `json:"nanoAiu"`
+	// Total subagents spawned by the run.
+	Subagents int64 `json:"subagents"`
+}
+
+// Full workflow run observability detail.
+// Experimental: WorkflowRunDetail is part of an experimental API and may change or be
+// removed.
+type WorkflowRunDetail struct {
+	// Epoch milliseconds when the current active segment started, or null while inactive.
+	ActiveSegmentStartedAt *int64 `json:"activeSegmentStartedAt"`
+	// Durable identities and live statuses for direct workflow agents.
+	Agents []WorkflowAgentSummary `json:"agents"`
+	// Approved effective resource ceilings, or null until approved.
+	Approved *WorkflowDeclaredLimits `json:"approved"`
+	// Whether the durable run state currently passes runtime resume eligibility checks.
+	CanResume bool `json:"canResume"`
+	// Epoch milliseconds when the run completed, or null while nonterminal.
+	CompletedAt *int64 `json:"completedAt"`
+	// Durable resource consumption.
+	Consumed WorkflowRunConsumed `json:"consumed"`
+	// Epoch milliseconds when the run was created.
+	CreatedAt int64 `json:"createdAt"`
+	// Current phase identity, or null before any phase is entered.
+	CurrentPhase *WorkflowCurrentPhase `json:"currentPhase"`
+	// Resource ceilings declared by the workflow.
+	DeclaredLimits WorkflowDeclaredLimits `json:"declaredLimits"`
+	// Number of phases declared by the workflow.
+	DeclaredPhaseCount int64 `json:"declaredPhaseCount"`
+	// Human-readable workflow description.
+	Description string `json:"description"`
+	// Number of direct workflow agents currently live.
+	LiveAgentCount int64 `json:"liveAgentCount"`
+	// Epoch milliseconds when this live-overlay snapshot was observed.
+	ObservedAt int64 `json:"observedAt"`
+	// Lifecycle and timing observations for each workflow phase.
+	Phases []WorkflowPhaseObservation `json:"phases"`
+	// Bidirectional page of durable workflow progress.
+	Progress WorkflowProgressPage `json:"progress"`
+	// Monotonic durable run revision.
+	Revision int64 `json:"revision"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+	// Epoch milliseconds when execution first started, or null before start.
+	StartedAt *int64 `json:"startedAt"`
+	// Current workflow run status.
+	Status WorkflowRunStatus `json:"status"`
+	// Terminal run outcome, or null while nonterminal.
+	Terminal *WorkflowRunTerminal `json:"terminal"`
+	// Total direct workflow agents spawned across all attempts.
+	TotalSpawnedAgentCount int64 `json:"totalSpawnedAgentCount"`
+	// Epoch milliseconds when the durable run was last updated.
+	UpdatedAt int64 `json:"updatedAt"`
+	// Registered workflow name.
+	WorkflowName string `json:"workflowName"`
+}
+
+// Machine-readable workflow run failure.
+// Experimental: WorkflowRunFailure is part of an experimental API and may change or be
+// removed.
+type WorkflowRunFailure interface {
+	workflowRunFailure()
+	Type() WorkflowRunFailureType
+}
+
+type RawWorkflowRunFailureData struct {
+	Discriminator WorkflowRunFailureType
+	Raw           json.RawMessage
+}
+
+func (RawWorkflowRunFailureData) workflowRunFailure() {}
+func (r RawWorkflowRunFailureData) Type() WorkflowRunFailureType {
+	return r.Discriminator
+}
+
+// The run stopped because its usage accounting could not be completed.
+type WorkflowRunFailureWorkflowAccountingIncomplete struct {
+	// Confirmed usage in nano-AIU, representing the floor of what the run spent.
+	DrainedNanoAiu int64 `json:"drainedNanoAiu"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+func (WorkflowRunFailureWorkflowAccountingIncomplete) workflowRunFailure() {}
+func (WorkflowRunFailureWorkflowAccountingIncomplete) Type() WorkflowRunFailureType {
+	return WorkflowRunFailureTypeWorkflowAccountingIncomplete
+}
+
+type WorkflowRunFailureWorkflowDurableFailure struct {
+	// Stable failure code.
+	Code string `json:"code"`
+	// Execution-critical durable operation that failed.
+	Operation WorkflowDurableOperation `json:"operation"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+func (WorkflowRunFailureWorkflowDurableFailure) workflowRunFailure() {}
+func (WorkflowRunFailureWorkflowDurableFailure) Type() WorkflowRunFailureType {
+	return WorkflowRunFailureTypeWorkflowDurableFailure
+}
+
+type WorkflowRunFailureWorkflowLimitReached struct {
+	// Resource ceiling that stopped the run.
+	Kind WorkflowRunFailureKind `json:"kind"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+	// Suggested larger ceiling when the runtime can derive one safely.
+	SuggestedValue *float64 `json:"suggestedValue,omitempty"`
+	// Approved effective ceiling that was reached.
+	Value float64 `json:"value"`
+}
+
+func (WorkflowRunFailureWorkflowLimitReached) workflowRunFailure() {}
+func (WorkflowRunFailureWorkflowLimitReached) Type() WorkflowRunFailureType {
+	return WorkflowRunFailureTypeWorkflowLimitReached
+}
+
+// The extension that owns the workflow disconnected while the run was executing, so the
+// host halted it. The run's journaled subagent results are preserved so a resume can reuse
+// them.
+type WorkflowRunFailureWorkflowProviderDisconnected struct {
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+}
+
+func (WorkflowRunFailureWorkflowProviderDisconnected) workflowRunFailure() {}
+func (WorkflowRunFailureWorkflowProviderDisconnected) Type() WorkflowRunFailureType {
+	return WorkflowRunFailureTypeWorkflowProviderDisconnected
+}
+
+type WorkflowRunFailureWorkflowResumeDeclined struct {
+	// Human-readable reason the resume did not proceed.
+	Reason string `json:"reason"`
+	// Workflow run identifier whose changed limits were declined.
+	RunID string `json:"runId"`
+}
+
+func (WorkflowRunFailureWorkflowResumeDeclined) workflowRunFailure() {}
+func (WorkflowRunFailureWorkflowResumeDeclined) Type() WorkflowRunFailureType {
+	return WorkflowRunFailureTypeWorkflowResumeDeclined
+}
+
+// Wire-only per-invocation workflow resource ceiling overrides.
+// Experimental: WorkflowRunLimits is part of an experimental API and may change or be
+// removed.
+type WorkflowRunLimits struct {
+	// Maximum AI credits consumed by workflow subagents and their descendants. The post-paid
+	// ceiling is soft: parallel turns can settle beyond it before the run stops.
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
+	// Maximum number of workflow subagents that may run concurrently.
+	MaxConcurrentSubagents *int64 `json:"maxConcurrentSubagents,omitempty"`
+	// Maximum total number of workflow subagents that may be admitted.
+	MaxTotalSubagents *int64 `json:"maxTotalSubagents,omitempty"`
+	// Maximum accumulated active-execution time in seconds. Active execution includes the
+	// entire extension body, subprocess waits, queued-agent waits, and sleeps; time between
+	// resumed attempts is not counted.
+	TimeoutSeconds *float64 `json:"timeoutSeconds,omitempty"`
+}
+
+// Options controlling workflow invocation.
+// Experimental: WorkflowRunOptions is part of an experimental API and may change or be
+// removed.
+type WorkflowRunOptions struct {
+	// Per-invocation resource ceiling overrides.
+	Limits *WorkflowRunLimits `json:"limits,omitempty"`
+	// Whether to emit workflow phase names to the session transcript.
+	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
+	// Whether to notify the originating session when the workflow completes.
+	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
+	// Run identifier whose journal and progress should seed this resumed run.
+	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
+}
+
+// Parameters for invoking a registered workflow.
+// Experimental: WorkflowRunRequest is part of an experimental API and may change or be
+// removed.
+type WorkflowRunRequest struct {
+	// Workflow input value.
+	Args any `json:"args"`
+	// Registered workflow name.
+	Name string `json:"name"`
+	// Workflow invocation options.
+	Options *WorkflowRunOptions `json:"options,omitempty"`
+}
+
+// Complete current or terminal workflow run envelope.
+// Experimental: WorkflowRunResult is part of an experimental API and may change or be
+// removed.
+type WorkflowRunResult struct {
+	// One-based execution attempt represented by this envelope. Absent before the first attempt
+	// starts or when returned by an older runtime.
+	Attempt *int64 `json:"attempt,omitempty"`
+	// Error message for an errored run.
+	Error *string `json:"error,omitempty"`
+	// Machine-readable failure details for a halted or errored run.
+	Failure WorkflowRunFailure `json:"failure,omitempty"`
+	// Structured pause initiator metadata for a paused attempt.
+	PauseInfo WorkflowPauseInfo `json:"pauseInfo,omitempty"`
+	// Reason for a halted or cancelled run.
+	Reason *string `json:"reason,omitempty"`
+	// Completed workflow result.
+	Result any `json:"result,omitempty"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+	// Partial journal and progress snapshot for a halted, cancelled, or errored run.
+	Snapshot any `json:"snapshot,omitempty"`
+	// Current or terminal workflow run status.
+	Status WorkflowRunStatus `json:"status"`
+}
+
+// Durable workflow run summary with read-time live overlays.
+// Experimental: WorkflowRunSummary is part of an experimental API and may change or be
+// removed.
+type WorkflowRunSummary struct {
+	// Epoch milliseconds when the current active segment started, or null while inactive.
+	ActiveSegmentStartedAt *int64 `json:"activeSegmentStartedAt"`
+	// Approved effective resource ceilings, or null until approved.
+	Approved *WorkflowDeclaredLimits `json:"approved"`
+	// Whether the durable run state currently passes runtime resume eligibility checks.
+	CanResume bool `json:"canResume"`
+	// Epoch milliseconds when the run completed, or null while nonterminal.
+	CompletedAt *int64 `json:"completedAt"`
+	// Durable resource consumption.
+	Consumed WorkflowRunConsumed `json:"consumed"`
+	// Epoch milliseconds when the run was created.
+	CreatedAt int64 `json:"createdAt"`
+	// Current phase identity, or null before any phase is entered.
+	CurrentPhase *WorkflowCurrentPhase `json:"currentPhase"`
+	// Resource ceilings declared by the workflow.
+	DeclaredLimits WorkflowDeclaredLimits `json:"declaredLimits"`
+	// Number of phases declared by the workflow.
+	DeclaredPhaseCount int64 `json:"declaredPhaseCount"`
+	// Human-readable workflow description.
+	Description string `json:"description"`
+	// Number of direct workflow agents currently live.
+	LiveAgentCount int64 `json:"liveAgentCount"`
+	// Epoch milliseconds when this live-overlay snapshot was observed.
+	ObservedAt int64 `json:"observedAt"`
+	// Monotonic durable run revision.
+	Revision int64 `json:"revision"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+	// Epoch milliseconds when execution first started, or null before start.
+	StartedAt *int64 `json:"startedAt"`
+	// Current workflow run status.
+	Status WorkflowRunStatus `json:"status"`
+	// Terminal run outcome, or null while nonterminal.
+	Terminal *WorkflowRunTerminal `json:"terminal"`
+	// Total direct workflow agents spawned across all attempts.
+	TotalSpawnedAgentCount int64 `json:"totalSpawnedAgentCount"`
+	// Epoch milliseconds when the durable run was last updated.
+	UpdatedAt int64 `json:"updatedAt"`
+	// Registered workflow name.
+	WorkflowName string `json:"workflowName"`
+}
+
+// Prompt-safe terminal workflow outcome.
+// Experimental: WorkflowRunTerminal is part of an experimental API and may change or be
+// removed.
+type WorkflowRunTerminal struct {
+	// Human-readable terminal error.
+	Error *string `json:"error,omitempty"`
+	// Machine-readable terminal failure.
+	Failure WorkflowRunFailure `json:"failure,omitempty"`
+	// Pause initiator metadata, or null when the run did not pause.
+	PauseInfo WorkflowPauseInfo `json:"pauseInfo"`
+	// Human-readable terminal reason.
+	Reason *string `json:"reason,omitempty"`
+	// Prompt-safe preview of the completed result.
+	ResultPreview *string `json:"resultPreview,omitempty"`
+}
+
+// Internal parameters for resuming a workflow run from a tool.
+// Experimental: WorkflowToolResumeRequest is part of an experimental API and may change or
+// be removed.
+// Internal: WorkflowToolResumeRequest is an internal SDK API and is not part of the public
+// surface.
+type WorkflowToolResumeRequest struct {
+	// Optional per-invocation resource ceiling overrides.
+	Limits *WorkflowRunLimits `json:"limits,omitempty"`
+	// Workflow run identifier.
+	RunID string `json:"runId"`
+	// Opaque identifier of the originating tool call.
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+// Options for an internal tool-originated workflow invocation.
+// Experimental: WorkflowToolRunOptions is part of an experimental API and may change or be
+// removed.
+// Internal: WorkflowToolRunOptions is an internal SDK API and is not part of the public
+// surface.
+type WorkflowToolRunOptions struct {
+	// Per-invocation resource ceiling overrides.
+	Limits *WorkflowRunLimits `json:"limits,omitempty"`
+	// Run identifier whose journal and progress should seed this resumed run.
+	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
+}
+
+// Internal parameters for invoking a registered workflow from a tool.
+// Experimental: WorkflowToolRunRequest is part of an experimental API and may change or be
+// removed.
+// Internal: WorkflowToolRunRequest is an internal SDK API and is not part of the public
+// surface.
+type WorkflowToolRunRequest struct {
+	// Workflow input value.
+	Args any `json:"args"`
+	// Registered workflow name.
+	Name string `json:"name"`
+	// Tool-originated workflow invocation options.
+	Options *WorkflowToolRunOptions `json:"options,omitempty"`
+	// Opaque identifier of the originating tool call.
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
 // A single changed file and its unified diff.
 // Experimental: WorkspaceDiffFileChange is part of an experimental API and may change or be
 // removed.
@@ -17336,25 +18666,69 @@ const (
 	CardDigestAlgorithmSha256Rfc8785 CardDigestAlgorithm = "sha256-rfc8785"
 )
 
-// AI skills are discovery-only and cannot be installed through this surface
-type CatalogAiSkillCandidateInstallability string
+// Discriminator for an Agent Plugin candidate
+// Experimental: CatalogAgentPluginCandidateKind is part of an experimental API and may
+// change or be removed.
+type CatalogAgentPluginCandidateKind string
 
 const (
-	CatalogAiSkillCandidateInstallabilityNotInstallableKind CatalogAiSkillCandidateInstallability = "not-installable-kind"
+	// An Agent Plugin.
+	CatalogAgentPluginCandidateKindPlugin CatalogAgentPluginCandidateKind = "plugin"
 )
 
-// Media type of the underlying AI skill card
-type CatalogAiSkillCandidateMediaType string
+// Explicit Agent Plugin compatibility declared by exact catalog tags. Clients must not
+// infer these values from display text or other metadata.
+// Experimental: CatalogAgentPluginCompatibilityTag is part of an experimental API and may
+// change or be removed.
+type CatalogAgentPluginCompatibilityTag string
 
 const (
-	CatalogAiSkillCandidateMediaTypeApplicationAiSkill CatalogAiSkillCandidateMediaType = "application/ai-skill"
+	// The plugin contributes at least one GitHub Copilot Canvas.
+	CatalogAgentPluginCompatibilityTagCanvas CatalogAgentPluginCompatibilityTag = "canvas"
+	// The plugin depends on Canvas for its intended functionality.
+	CatalogAgentPluginCompatibilityTagCanvasOnly CatalogAgentPluginCompatibilityTag = "canvas-only"
+	// The plugin targets GitHub Copilot.
+	CatalogAgentPluginCompatibilityTagGitHubCopilot CatalogAgentPluginCompatibilityTag = "github-copilot"
 )
 
-// Media type advertised for the referenced AI skill card
-type CatalogAiSkillCandidateProvenanceMediaType string
+// Canonical Agent Plugin media type
+// Experimental: CatalogAgentPluginMediaType is part of an experimental API and may change
+// or be removed.
+type CatalogAgentPluginMediaType string
 
 const (
-	CatalogAiSkillCandidateProvenanceMediaTypeApplicationAiSkill CatalogAiSkillCandidateProvenanceMediaType = "application/ai-skill"
+	// A GitHub Copilot Agent Plugin descriptor.
+	CatalogAgentPluginMediaTypeApplicationVndGitHubCopilotPlugin CatalogAgentPluginMediaType = "application/vnd.github.copilot-plugin"
+)
+
+// Discriminator for an AI skill candidate
+// Experimental: CatalogAiSkillCandidateKind is part of an experimental API and may change
+// or be removed.
+type CatalogAiSkillCandidateKind string
+
+const (
+	// An AI skill.
+	CatalogAiSkillCandidateKindAiSkill CatalogAiSkillCandidateKind = "ai-skill"
+)
+
+// Typed non-installable state for an AI skill candidate
+// Experimental: CatalogAiSkillInstallability is part of an experimental API and may change
+// or be removed.
+type CatalogAiSkillInstallability string
+
+const (
+	// AI skills are discovery-only on this surface.
+	CatalogAiSkillInstallabilityNotInstallableKind CatalogAiSkillInstallability = "not-installable-kind"
+)
+
+// Canonical AI skill media type
+// Experimental: CatalogAiSkillMediaType is part of an experimental API and may change or be
+// removed.
+type CatalogAiSkillMediaType string
+
+const (
+	// An AI skill card.
+	CatalogAiSkillMediaTypeApplicationAiSkill CatalogAiSkillMediaType = "application/ai-skill"
 )
 
 // Why the catalog authority did not accept the caller's identity
@@ -17382,6 +18756,7 @@ type CatalogCandidateKind string
 const (
 	CatalogCandidateKindAiSkill   CatalogCandidateKind = "ai-skill"
 	CatalogCandidateKindMCPServer CatalogCandidateKind = "mcp-server"
+	CatalogCandidateKindPlugin    CatalogCandidateKind = "plugin"
 )
 
 // Kind discriminator for CatalogCandidateSource.
@@ -17400,8 +18775,17 @@ const (
 type CatalogCapability string
 
 const (
+	// Understands opt-in `application/vnd.github.copilot-plugin` candidates and their typed
+	// identity, version, source, and compatibility fields.
+	CatalogCapabilityAgentPluginDiscovery CatalogCapability = "agent-plugin-discovery"
 	// Understands `application/ai-skill` candidates as discovery-only and typed non-installable.
 	CatalogCapabilityAiSkillDiscovery CatalogCapability = "ai-skill-discovery"
+	// Understands explicit numbered navigation and authority-reported pagination metadata with
+	// opaque tokens. Advertised and granted only when requested.
+	CatalogCapabilityCatalogSearchPagination CatalogCapability = "catalog-search-pagination"
+	// Understands exact candidate selection through model-safe opaque references and host-only
+	// candidate-handle hand-off.
+	CatalogCapabilityCatalogSelection CatalogCapability = "catalog-selection"
 	// Understands the legacy `application/mcp-server+json` media type.
 	CatalogCapabilityLegacyMCPServerCard CatalogCapability = "legacy-mcp-server-card"
 	// Understands side-effect-free MCP install-plan requests, results, and plan handles;
@@ -17425,7 +18809,8 @@ type CatalogContractViolationReason string
 const (
 	// A result carried both a URL and embedded data, when exactly one is permitted.
 	CatalogContractViolationReasonBothURLAndData CatalogContractViolationReason = "both-url-and-data"
-	// Two results claimed the same normalised identity.
+	// Two results claimed the same collision key: normalised identity for existing kinds, or
+	// normalised identity and declared version for Agent Plugins.
 	CatalogContractViolationReasonDuplicateIdentity CatalogContractViolationReason = "duplicate-identity"
 	// A result carried neither a URL nor embedded data, when exactly one is required.
 	CatalogContractViolationReasonNeitherURLNorData CatalogContractViolationReason = "neither-url-nor-data"
@@ -17439,14 +18824,18 @@ const (
 type CatalogHandleRejectionReason string
 
 const (
-	// The handle was issued by a different runtime instance.
+	// The handle was issued by a different runtime instance or session.
 	CatalogHandleRejectionReasonForeign CatalogHandleRejectionReason = "foreign"
-	// The handle is unparseable, unknown, or was issued for a different operation.
+	// The handle is unparseable or unknown.
 	CatalogHandleRejectionReasonInvalid CatalogHandleRejectionReason = "invalid"
 	// The handle has already been used, and handles are single-use.
 	CatalogHandleRejectionReasonReplayed CatalogHandleRejectionReason = "replayed"
+	// The supplied search identifier does not match the retained candidate.
+	CatalogHandleRejectionReasonSearchMismatch CatalogHandleRejectionReason = "search-mismatch"
 	// The handle's time to live has elapsed.
 	CatalogHandleRejectionReasonStale CatalogHandleRejectionReason = "stale"
+	// The handle was issued for another catalog operation.
+	CatalogHandleRejectionReasonWrongKind CatalogHandleRejectionReason = "wrong-kind"
 )
 
 // Which kind of opaque handle was presented
@@ -17459,9 +18848,11 @@ const (
 	CatalogHandleTypeCandidate CatalogHandleType = "candidate"
 	// An install plan handle.
 	CatalogHandleTypePlan CatalogHandleType = "plan"
+	// A model-safe reference to one retained search candidate.
+	CatalogHandleTypeSelection CatalogHandleType = "selection"
 )
 
-// Which request field was rejected before any work was done
+// Which request field was rejected locally or by the catalog authority
 // Experimental: CatalogInvalidRequestField is part of an experimental API and may change or
 // be removed.
 type CatalogInvalidRequestField string
@@ -17475,10 +18866,19 @@ const (
 	CatalogInvalidRequestFieldKinds CatalogInvalidRequestField = "kinds"
 	// The requested result count fell outside its permitted range.
 	CatalogInvalidRequestFieldLimit CatalogInvalidRequestField = "limit"
+	// The terminal selection outcome was missing or unsupported.
+	CatalogInvalidRequestFieldOutcome CatalogInvalidRequestField = "outcome"
+	// The pagination token or target was invalid, or the authority rejected the continuation.
+	// Repeat the search without page.
+	CatalogInvalidRequestFieldPage CatalogInvalidRequestField = "page"
 	// The search query was empty or longer than permitted.
 	CatalogInvalidRequestFieldQuery CatalogInvalidRequestField = "query"
 	// The requested configuration scope is not one this runtime writes.
 	CatalogInvalidRequestFieldScope CatalogInvalidRequestField = "scope"
+	// The opaque selection reference was missing or malformed.
+	CatalogInvalidRequestFieldSelectionRef CatalogInvalidRequestField = "selectionRef"
+	// The locally owned session identifier was missing or malformed.
+	CatalogInvalidRequestFieldSessionID CatalogInvalidRequestField = "sessionId"
 	// The plan source was missing or malformed.
 	CatalogInvalidRequestFieldSource CatalogInvalidRequestField = "source"
 )
@@ -17499,6 +18899,16 @@ const (
 	CatalogMalformedCardReasonSizeLimitExceeded CatalogMalformedCardReason = "size-limit-exceeded"
 	// The declared media type is not one this runtime understands.
 	CatalogMalformedCardReasonUnsupportedMediaType CatalogMalformedCardReason = "unsupported-media-type"
+)
+
+// Discriminator for an MCP server candidate
+// Experimental: CatalogMCPServerCandidateKind is part of an experimental API and may change
+// or be removed.
+type CatalogMCPServerCandidateKind string
+
+const (
+	// An MCP server.
+	CatalogMCPServerCandidateKindMCPServer CatalogMCPServerCandidateKind = "mcp-server"
 )
 
 // Whether an MCP server candidate can be planned for installation
@@ -17525,6 +18935,8 @@ const (
 	CatalogMediaTypeApplicationMCPServerCardJSON CatalogMediaType = "application/mcp-server-card+json"
 	// The legacy MCP server card media type, accepted for compatibility.
 	CatalogMediaTypeApplicationMCPServerJSON CatalogMediaType = "application/mcp-server+json"
+	// An inert Agent Plugin descriptor.
+	CatalogMediaTypeApplicationVndGitHubCopilotPlugin CatalogMediaType = "application/vnd.github.copilot-plugin"
 )
 
 // Why capability and protocol-version negotiation refused a caller
@@ -17599,6 +19011,51 @@ const (
 	CatalogSearchResultKindUnavailable            CatalogSearchResultKind = "unavailable"
 	CatalogSearchResultKindUnsafeRetrieval        CatalogSearchResultKind = "unsafe-retrieval"
 	CatalogSearchResultKindUnsupportedKind        CatalogSearchResultKind = "unsupported-kind"
+)
+
+// Relationship of the backend-reported count to the complete query result set.
+// Experimental: CatalogSearchTotalCountRelation is part of an experimental API and may
+// change or be removed.
+type CatalogSearchTotalCountRelation string
+
+const (
+	// No exact/full-query or lower-bound guarantee is available.
+	CatalogSearchTotalCountRelationUnknown CatalogSearchTotalCountRelation = "unknown"
+)
+
+// Terminal outcome declared for a retained catalog selection group
+// Experimental: CatalogSelectionDecision is part of an experimental API and may change or
+// be removed.
+type CatalogSelectionDecision string
+
+const (
+	// Cancel the selection interaction without choosing a candidate.
+	CatalogSelectionDecisionCancelled CatalogSelectionDecision = "cancelled"
+	// Explicitly decline every candidate in the search.
+	CatalogSelectionDecisionDeclined CatalogSelectionDecision = "declined"
+	// Choose the candidate named by selectionRef.
+	CatalogSelectionDecisionSelected CatalogSelectionDecision = "selected"
+	// Declare that the host's live interaction deadline elapsed while the reference remained
+	// valid.
+	CatalogSelectionDecisionTimedOut CatalogSelectionDecision = "timed-out"
+)
+
+// Kind discriminator for CatalogSelectionResult.
+type CatalogSelectionResultKind string
+
+const (
+	CatalogSelectionResultKindCancelled          CatalogSelectionResultKind = "cancelled"
+	CatalogSelectionResultKindDeclined           CatalogSelectionResultKind = "declined"
+	CatalogSelectionResultKindForeign            CatalogSelectionResultKind = "foreign"
+	CatalogSelectionResultKindInvalid            CatalogSelectionResultKind = "invalid"
+	CatalogSelectionResultKindInvalidRequest     CatalogSelectionResultKind = "invalid-request"
+	CatalogSelectionResultKindNegotiationRefused CatalogSelectionResultKind = "negotiation-refused"
+	CatalogSelectionResultKindReplayed           CatalogSelectionResultKind = "replayed"
+	CatalogSelectionResultKindSelected           CatalogSelectionResultKind = "selected"
+	CatalogSelectionResultKindStale              CatalogSelectionResultKind = "stale"
+	CatalogSelectionResultKindTimedOut           CatalogSelectionResultKind = "timed-out"
+	CatalogSelectionResultKindUnavailable        CatalogSelectionResultKind = "unavailable"
+	CatalogSelectionResultKindWrongKind          CatalogSelectionResultKind = "wrong-kind"
 )
 
 // Authority-computed exposure eligibility, kept separate from tier. The current tier-only
@@ -17734,6 +19191,8 @@ const (
 	CatalogUnavailableReasonPlanningUnavailable CatalogUnavailableReason = "planning-unavailable"
 	// Bounded search is not wired up on this runtime build.
 	CatalogUnavailableReasonSearchUnavailable CatalogUnavailableReason = "search-unavailable"
+	// Exact candidate selection is not available in this session or runtime.
+	CatalogUnavailableReasonSelectionUnavailable CatalogUnavailableReason = "selection-unavailable"
 )
 
 // Why no usable transport could be offered
@@ -18394,6 +19853,25 @@ const (
 	HookTypeUserPromptTransformed HookType = "userPromptTransformed"
 )
 
+// Live indexed-search state for this session activation, never inferred from persisted
+// history.
+// Experimental: IndexedSearchState is part of an experimental API and may change or be
+// removed.
+type IndexedSearchState string
+
+const (
+	// Indexed search is not active for this session.
+	IndexedSearchStateDisabled IndexedSearchState = "disabled"
+	// The indexed-search server started successfully; its index may still be warming.
+	IndexedSearchStateEnabled IndexedSearchState = "enabled"
+	// Indexed-search startup or the active server failed.
+	IndexedSearchStateFailed IndexedSearchState = "failed"
+	// The indexed-search server and its index are ready.
+	IndexedSearchStateReady IndexedSearchState = "ready"
+	// Indexed-search startup is in progress.
+	IndexedSearchStateStarting IndexedSearchState = "starting"
+)
+
 // Constant value. Always "github".
 type InstalledPluginSourceGitHubSource string
 
@@ -18499,6 +19977,29 @@ const (
 	// the `binary` flag distinguishes text from binary frames; request and response chunks flow
 	// concurrently.
 	LlmInferenceHTTPRequestStartTransportWebsocket LlmInferenceHTTPRequestStartTransport = "websocket"
+)
+
+// Summary of which managed-settings channels contributed to the effective session policy.
+// Use the per-channel booleans for exact provenance.
+// Experimental: ManagedSettingsResolvedSource is part of an experimental API and may change
+// or be removed.
+type ManagedSettingsResolvedSource string
+
+const (
+	// Only session-local SDK-host injection contributed.
+	ManagedSettingsResolvedSourceClient ManagedSettingsResolvedSource = "client"
+	// Only the device MDM/plist/registry/file channel contributed.
+	ManagedSettingsResolvedSourceDevice ManagedSettingsResolvedSource = "device"
+	// More than one channel contributed. Ordinary keys resolve device over server over policy
+	// helper per key, while permissions compose restrictively across all present layers.
+	ManagedSettingsResolvedSourceMixed ManagedSettingsResolvedSource = "mixed"
+	// No managed policy is in force (no channel contributed).
+	ManagedSettingsResolvedSourceNone ManagedSettingsResolvedSource = "none"
+	// A policy helper registered by device or server policy contributed. Device registration
+	// takes priority when present.
+	ManagedSettingsResolvedSourcePolicyHelper ManagedSettingsResolvedSource = "policyHelper"
+	// Only the server/account channel contributed.
+	ManagedSettingsResolvedSourceServer ManagedSettingsResolvedSource = "server"
 )
 
 // Allowed values for the `McpAppsHostContextDetailsAvailableDisplayMode` enumeration.
@@ -19120,6 +20621,9 @@ const (
 	// The runtime selected the model automatically, such as rate-limit recovery or refusal
 	// fallback.
 	ModelChangeSourceAutomatic ModelChangeSource = "automatic"
+	// The user selected the promoted model from the changeboarding card or its keyboard
+	// shortcut.
+	ModelChangeSourceChangeboardingShortcut ModelChangeSource = "changeboarding_shortcut"
 	// The user selected the model with the `/config` alias.
 	ModelChangeSourceConfigCommand ModelChangeSource = "config_command"
 	// Organization-managed settings selected the model.
@@ -19437,6 +20941,112 @@ const (
 	PermissionModeSourceSlashCommand PermissionModeSource = "slash_command"
 	// The mode was set at startup by the `defaultPermissionMode` user setting.
 	PermissionModeSourceUserSetting PermissionModeSource = "user_setting"
+)
+
+// Runtime handling applied to a recovery attempt
+// Experimental: PermissionRecoveryAttemptDisposition is part of an experimental API and may
+// change or be removed.
+type PermissionRecoveryAttemptDisposition string
+
+const (
+	// The interactive responder approved the request.
+	PermissionRecoveryAttemptDispositionApproved PermissionRecoveryAttemptDisposition = "approved"
+	// The request exhausted unattended recovery and produced a blocked outcome.
+	PermissionRecoveryAttemptDispositionBlocked PermissionRecoveryAttemptDisposition = "blocked"
+	// The request was denied without prompting so the agent could try an alternative.
+	PermissionRecoveryAttemptDispositionDeferred PermissionRecoveryAttemptDisposition = "deferred"
+	// The interactive responder denied the request or became unavailable.
+	PermissionRecoveryAttemptDispositionDenied PermissionRecoveryAttemptDisposition = "denied"
+	// The request was surfaced to an interactive responder.
+	PermissionRecoveryAttemptDispositionPrompted PermissionRecoveryAttemptDisposition = "prompted"
+	// A tool call succeeded as an equivalent alternative.
+	PermissionRecoveryAttemptDispositionSucceeded PermissionRecoveryAttemptDisposition = "succeeded"
+)
+
+// Controlled reason for an individual attempt disposition
+// Experimental: PermissionRecoveryAttemptReason is part of an experimental API and may
+// change or be removed.
+type PermissionRecoveryAttemptReason string
+
+const (
+	// The request exceeded the bounded number of distinct attempts.
+	PermissionRecoveryAttemptReasonAttemptsExhausted PermissionRecoveryAttemptReason = "attempts_exhausted"
+	// The tool call succeeded without the blocked permission.
+	PermissionRecoveryAttemptReasonEquivalentAlternativeSucceeded PermissionRecoveryAttemptReason = "equivalent_alternative_succeeded"
+	// The interactive responder approved the request.
+	PermissionRecoveryAttemptReasonPermissionApproved PermissionRecoveryAttemptReason = "permission_approved"
+	// The interactive responder denied the request.
+	PermissionRecoveryAttemptReasonPermissionDenied PermissionRecoveryAttemptReason = "permission_denied"
+	// The attempt required permission that Assisted Permissions could not grant.
+	PermissionRecoveryAttemptReasonPermissionRequired PermissionRecoveryAttemptReason = "permission_required"
+	// The request repeated an earlier attempt.
+	PermissionRecoveryAttemptReasonRepeatedAttempt PermissionRecoveryAttemptReason = "repeated_attempt"
+	// The interactive responder became unavailable.
+	PermissionRecoveryAttemptReasonResponderUnavailable PermissionRecoveryAttemptReason = "responder_unavailable"
+)
+
+// Relationship of an attempt to earlier permission requests
+// Experimental: PermissionRecoveryAttemptRelation is part of an experimental API and may
+// change or be removed.
+type PermissionRecoveryAttemptRelation string
+
+const (
+	// A distinct request or a successful alternative tool call.
+	PermissionRecoveryAttemptRelationAlternative PermissionRecoveryAttemptRelation = "alternative"
+	// The first denied permission request in the episode.
+	PermissionRecoveryAttemptRelationInitial PermissionRecoveryAttemptRelation = "initial"
+	// A request equivalent to an earlier attempt.
+	PermissionRecoveryAttemptRelationRetry PermissionRecoveryAttemptRelation = "retry"
+)
+
+// Action selected when autonomous recovery cannot continue
+// Experimental: PermissionRecoveryOnBlocked is part of an experimental API and may change
+// or be removed.
+type PermissionRecoveryOnBlocked string
+
+const (
+	// Surface the existing permission prompt to a response-capable client.
+	PermissionRecoveryOnBlockedAsk PermissionRecoveryOnBlocked = "ask"
+	// Return a structured unsuccessful blocked outcome because no responder is available.
+	PermissionRecoveryOnBlockedFail PermissionRecoveryOnBlocked = "fail"
+)
+
+// Controlled reason for a permission-recovery episode transition
+// Experimental: PermissionRecoveryReason is part of an experimental API and may change or
+// be removed.
+type PermissionRecoveryReason string
+
+const (
+	// The bounded number of distinct permission attempts was exhausted.
+	PermissionRecoveryReasonAttemptsExhausted PermissionRecoveryReason = "attempts_exhausted"
+	// A later tool call succeeded without requiring the blocked permission.
+	PermissionRecoveryReasonEquivalentAlternativeSucceeded PermissionRecoveryReason = "equivalent_alternative_succeeded"
+	// A responder approved the escalated permission request.
+	PermissionRecoveryReasonPermissionApproved PermissionRecoveryReason = "permission_approved"
+	// A responder denied the escalated permission request.
+	PermissionRecoveryReasonPermissionDenied PermissionRecoveryReason = "permission_denied"
+	// An action required permission that Assisted Permissions could not grant.
+	PermissionRecoveryReasonPermissionRequired PermissionRecoveryReason = "permission_required"
+	// The agent repeated an equivalent permission request instead of making progress.
+	PermissionRecoveryReasonRepeatedAttempt PermissionRecoveryReason = "repeated_attempt"
+	// The response-capable client became unavailable while escalation was pending.
+	PermissionRecoveryReasonResponderUnavailable PermissionRecoveryReason = "responder_unavailable"
+)
+
+// Lifecycle state of a permission-recovery episode
+// Experimental: PermissionRecoveryStatus is part of an experimental API and may change or
+// be removed.
+type PermissionRecoveryStatus string
+
+const (
+	// An interactive permission response is required.
+	PermissionRecoveryStatusAwaitingApproval PermissionRecoveryStatus = "awaiting_approval"
+	// No autonomous path remains and the task requires intervention.
+	PermissionRecoveryStatusBlocked PermissionRecoveryStatus = "blocked"
+	// Autopilot may try a bounded equivalent alternative.
+	PermissionRecoveryStatusRecovering PermissionRecoveryStatus = "recovering"
+	// The episode ended through approval or a successful equivalent alternative.
+	PermissionRecoveryStatusResolved PermissionRecoveryStatus = "resolved"
 )
 
 // Response capability available to the client when it settled a permission request.
@@ -20488,6 +22098,15 @@ const (
 	SubagentSettingsEntryContextTierLongContext SubagentSettingsEntryContextTier = "long_context"
 )
 
+// Category of structured task blocker
+// Experimental: TaskBlockerKind is part of an experimental API and may change or be removed.
+type TaskBlockerKind string
+
+const (
+	// Autopilot permission recovery requires intervention or has no safe autonomous path.
+	TaskBlockerKindPermissionRecovery TaskBlockerKind = "permission_recovery"
+)
+
 // Active status a client owner may publish with a progress update.
 // Experimental: TaskClientActiveStatus is part of an experimental API and may change or be
 // removed.
@@ -20820,6 +22439,133 @@ const (
 	VerbosityMedium Verbosity = "medium"
 )
 
+// Execution-critical workflow storage operation.
+// Experimental: WorkflowDurableOperation is part of an experimental API and may change or
+// be removed.
+type WorkflowDurableOperation string
+
+const (
+	// Persisting active execution time.
+	WorkflowDurableOperationAddElapsed WorkflowDurableOperation = "addElapsed"
+	// Persisting an idempotent model-usage charge.
+	WorkflowDurableOperationChargeCredit WorkflowDurableOperation = "chargeCredit"
+	// Creating the durable run and declared phases.
+	WorkflowDurableOperationCreateRun WorkflowDurableOperation = "createRun"
+	// Persisting the terminal run envelope.
+	WorkflowDurableOperationFinishRun WorkflowDurableOperation = "finishRun"
+	// Reading a journal entry without treating storage failure as a cache miss.
+	WorkflowDurableOperationJournalGet WorkflowDurableOperation = "journalGet"
+	// Persisting a journal entry before reporting success.
+	WorkflowDurableOperationJournalPut WorkflowDurableOperation = "journalPut"
+	// Persisting the transition to running.
+	WorkflowDurableOperationMarkRunStarted WorkflowDurableOperation = "markRunStarted"
+	// Reading the authoritative AI-credit total.
+	WorkflowDurableOperationReconcileCreditTotal WorkflowDurableOperation = "reconcileCreditTotal"
+	// Renewing the durable owner lease that proves this process still owns the run.
+	WorkflowDurableOperationRefreshLease WorkflowDurableOperation = "refreshLease"
+	// Rolling back an uncommitted subagent admission.
+	WorkflowDurableOperationReleaseAgent WorkflowDurableOperation = "releaseAgent"
+	// Persisting subagent admission accounting.
+	WorkflowDurableOperationReserveAgent WorkflowDurableOperation = "reserveAgent"
+)
+
+// Kind of workflow progress line.
+// Experimental: WorkflowLogLineKind is part of an experimental API and may change or be
+// removed.
+type WorkflowLogLineKind string
+
+const (
+	// A narrator log line.
+	WorkflowLogLineKindLog WorkflowLogLineKind = "log"
+	// A named workflow phase marker.
+	WorkflowLogLineKindPhase WorkflowLogLineKind = "phase"
+)
+
+// Action the runtime selected for a durable workflow pause checkpoint.
+// Experimental: WorkflowPauseCheckpointAction is part of an experimental API and may change
+// or be removed.
+type WorkflowPauseCheckpointAction string
+
+const (
+	// The checkpoint was committed by a prior paused attempt, so execution may continue.
+	WorkflowPauseCheckpointActionContinue WorkflowPauseCheckpointAction = "continue"
+	// This attempt claimed the checkpoint and must cooperatively stop.
+	WorkflowPauseCheckpointActionPause WorkflowPauseCheckpointAction = "pause"
+)
+
+// Type discriminator for WorkflowPauseInfo.
+type WorkflowPauseInfoType string
+
+const (
+	WorkflowPauseInfoTypeCheckpoint WorkflowPauseInfoType = "checkpoint"
+	WorkflowPauseInfoTypeUser       WorkflowPauseInfoType = "user"
+)
+
+// Derived lifecycle state of a workflow phase.
+// Experimental: WorkflowPhaseStatus is part of an experimental API and may change or be
+// removed.
+type WorkflowPhaseStatus string
+
+const (
+	// The phase is currently entered and accumulating active time.
+	WorkflowPhaseStatusActive WorkflowPhaseStatus = "active"
+	// The phase was entered and has since been closed.
+	WorkflowPhaseStatusCompleted WorkflowPhaseStatus = "completed"
+	// The phase has not been entered yet.
+	WorkflowPhaseStatusPending WorkflowPhaseStatus = "pending"
+	// The phase was never entered because a later phase was entered or the run reached a
+	// terminal state.
+	WorkflowPhaseStatusSkipped WorkflowPhaseStatus = "skipped"
+)
+
+// Cumulative resource ceiling that stopped a workflow run.
+// Experimental: WorkflowRunFailureKind is part of an experimental API and may change or be
+// removed.
+type WorkflowRunFailureKind string
+
+const (
+	// The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no
+	// headroom remained for another subagent.
+	WorkflowRunFailureKindMaxAiCredits WorkflowRunFailureKind = "maxAiCredits"
+	// The run admitted the approved maximum total number of subagents.
+	WorkflowRunFailureKindMaxTotalSubagents WorkflowRunFailureKind = "maxTotalSubagents"
+	// The run reached the approved accumulated active-execution time in seconds.
+	WorkflowRunFailureKindTimeoutSeconds WorkflowRunFailureKind = "timeoutSeconds"
+)
+
+// Type discriminator for WorkflowRunFailure.
+type WorkflowRunFailureType string
+
+const (
+	WorkflowRunFailureTypeWorkflowAccountingIncomplete WorkflowRunFailureType = "workflow_accounting_incomplete"
+	WorkflowRunFailureTypeWorkflowDurableFailure       WorkflowRunFailureType = "workflow_durable_failure"
+	WorkflowRunFailureTypeWorkflowLimitReached         WorkflowRunFailureType = "workflow_limit_reached"
+	WorkflowRunFailureTypeWorkflowProviderDisconnected WorkflowRunFailureType = "workflow_provider_disconnected"
+	WorkflowRunFailureTypeWorkflowResumeDeclined       WorkflowRunFailureType = "workflow_resume_declined"
+)
+
+// Current or terminal state of a workflow run.
+// Experimental: WorkflowRunStatus is part of an experimental API and may change or be
+// removed.
+type WorkflowRunStatus string
+
+const (
+	// The run was cancelled before completion.
+	WorkflowRunStatusCancelled WorkflowRunStatus = "cancelled"
+	// The run completed successfully.
+	WorkflowRunStatusCompleted WorkflowRunStatus = "completed"
+	// The workflow body failed or reached a cumulative resource ceiling.
+	WorkflowRunStatusError WorkflowRunStatus = "error"
+	// The run was interrupted while resource budget remained.
+	WorkflowRunStatusHalted WorkflowRunStatus = "halted"
+	// The current attempt stopped intentionally and the run may be resumed.
+	WorkflowRunStatusPaused WorkflowRunStatus = "paused"
+	// The run was minted and is awaiting approval.
+	WorkflowRunStatusPending WorkflowRunStatus = "pending"
+	// The run is executing.
+	WorkflowRunStatusRunning WorkflowRunStatus = "running"
+)
+
 // Type of change represented by this file diff.
 // Experimental: WorkspaceDiffFileChangeType is part of an experimental API and may change
 // or be removed.
@@ -21074,6 +22820,32 @@ func (a *ServerCatalogAPI) Search(ctx context.Context, params *CatalogSearchRequ
 		return nil, err
 	}
 	result, err := unmarshalCatalogSearchResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Select terminates one retained catalog selection group. A selected outcome returns the
+// native host a fresh single-use candidate handle plus the original searchId for a later
+// explicit mcp.planInstall call; non-selected outcomes release the group without producing
+// a planning input. Candidate state, cards, URLs, credentials and private identifiers
+// remain inside the runtime. The model-facing catalog_select tool projects the result
+// separately and never exposes the candidate handle or searchId.
+//
+// RPC method: catalog.select.
+//
+// Parameters: Terminates one retained catalog selection group through an opaque reference
+// previously returned by the model-safe search projection.
+//
+// Returns: Typed outcome of catalog.select. Only the selected host result carries a fresh
+// candidate handle; the model-facing projection removes both that handle and searchId.
+func (a *ServerCatalogAPI) Select(ctx context.Context, params *CatalogSelectionRequest) (CatalogSelectionResult, error) {
+	raw, err := a.client.Request(ctx, "catalog.select", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalCatalogSelectionResult(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -21881,7 +23653,12 @@ type ServerSessionFSAPI serverAPI
 // RPC method: sessionFs.setProvider.
 //
 // Parameters: Initial working directory, session-state path layout, and path conventions
-// used to register the calling SDK client as the session filesystem provider.
+// used to register the calling SDK client as the session filesystem provider. A registered
+// provider is authoritative for path interpretation and filesystem facts used by workspace
+// permission validation. Paths are interpreted lexically; home-relative paths (`~` and
+// `~/...`) and Windows drive-relative paths such as `C:foo` are unsupported. Until
+// provider-side canonicalization is supported, providers must not expose symlinks inside
+// allowed roots that escape those roots.
 //
 // Returns: Indicates whether the calling client was registered as the session filesystem
 // provider.
@@ -24473,6 +26250,39 @@ func (a *LspAPI) Initialize(ctx context.Context, params *LspInitializeRequest) (
 	return &result, nil
 }
 
+// Experimental: ManagedSettingsAPI contains experimental APIs that may change or be removed.
+type ManagedSettingsAPI sessionAPI
+
+// Get waits for the live session's in-flight managed-settings application, then returns the
+// retained effective snapshot used by runtime enforcement and by
+// `session.managed_settings_resolved`. It does not perform another account, device, or
+// server resolution, and rejects when resolution has not produced a snapshot.
+//
+// RPC method: session.managedSettings.get.
+//
+// Returns: Enterprise managed-settings resolution: the effective managed settings the
+// session applied and which channels contributed, so SDK clients can show users what is
+// enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on
+// resume, and on account switch. This is an ephemeral live snapshot (delivered to
+// subscribers but not persisted to the session event log), because at session start it
+// resolves before `session.start` is emitted. Device values take precedence over server
+// values, then the policy helper, per ordinary key, while permissions compose restrictively
+// across device, server, policy-helper, and SDK-client layers. The account-scoped
+// `getManagedSettings()` API does not include session-local client injection. Marked
+// experimental while the managed-settings surface stabilizes.
+func (a *ManagedSettingsAPI) Get(ctx context.Context) (*ManagedSettingsResolvedData, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.managedSettings.get", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ManagedSettingsResolvedData
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: MCPAPI contains experimental APIs that may change or be removed.
 type MCPAPI sessionAPI
 
@@ -26776,7 +28586,77 @@ func (a *PlanAPI) Update(ctx context.Context, params *PlanUpdateRequest) (*Sessi
 // Experimental: PluginsAPI contains experimental APIs that may change or be removed.
 type PluginsAPI sessionAPI
 
-// Lists plugins installed for the session.
+// Disables installed plugins when permitted by the live session's retained managed policy.
+//
+// RPC method: session.plugins.disable.
+//
+// Parameters: Plugin names (or specs) to disable in the session's authoritative working
+// directory.
+func (a *PluginsAPI) Disable(ctx context.Context, params *SessionPluginsDisableRequest) (*SessionPluginsDisableResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["names"] = params.Names
+	}
+	raw, err := a.client.Request(ctx, "session.plugins.disable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPluginsDisableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Enables installed plugins when permitted by the live session's retained managed policy.
+//
+// RPC method: session.plugins.enable.
+//
+// Parameters: Plugin names (or specs) to enable in the session's authoritative working
+// directory.
+func (a *PluginsAPI) Enable(ctx context.Context, params *SessionPluginsEnableRequest) (*SessionPluginsEnableResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["names"] = params.Names
+	}
+	raw, err := a.client.Request(ctx, "session.plugins.enable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPluginsEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Installs a plugin using the live session's authoritative account, working directory, and
+// retained managed policy.
+//
+// RPC method: session.plugins.install.
+//
+// Parameters: Plugin source resolved relative to the session's authoritative working
+// directory.
+//
+// Returns: Result of installing a plugin.
+func (a *PluginsAPI) Install(ctx context.Context, params *SessionPluginsInstallRequest) (*PluginInstallResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["source"] = params.Source
+	}
+	raw, err := a.client.Request(ctx, "session.plugins.install", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PluginInstallResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Lists globally installed, live, built-in, and enterprise-managed desired plugins using
+// the live session's authoritative account, working directory, and retained managed policy.
 //
 // RPC method: session.plugins.list.
 //
@@ -26832,6 +28712,189 @@ func (a *PluginsAPI) Reload(ctx context.Context, params ...*SessionPluginsReload
 		return nil, err
 	}
 	return &result, nil
+}
+
+// Uninstalls a plugin when permitted by the live session's retained managed policy.
+//
+// RPC method: session.plugins.uninstall.
+//
+// Parameters: Name (or spec) of the plugin to uninstall.
+func (a *PluginsAPI) Uninstall(ctx context.Context, params *PluginsUninstallRequest) (*SessionPluginsUninstallResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.DirectSourceID != nil {
+			req["directSourceId"] = *params.DirectSourceID
+		}
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request(ctx, "session.plugins.uninstall", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPluginsUninstallResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Updates an installed plugin using the live session's authoritative account, working
+// directory, and retained managed policy.
+//
+// RPC method: session.plugins.update.
+//
+// Parameters: Name (or spec) of the plugin to update.
+//
+// Returns: Result of updating a single plugin.
+func (a *PluginsAPI) Update(ctx context.Context, params *PluginsUpdateRequest) (*PluginUpdateResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request(ctx, "session.plugins.update", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PluginUpdateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: PluginsMarketplacesAPI contains experimental APIs that may change or be
+// removed.
+type PluginsMarketplacesAPI sessionAPI
+
+// Adds a marketplace when permitted by the live session's retained managed policy.
+//
+// RPC method: session.plugins.marketplaces.add.
+//
+// Parameters: Marketplace source and optional working directory for relative-path
+// resolution.
+//
+// Returns: Result of registering a new marketplace.
+func (a *PluginsMarketplacesAPI) Add(ctx context.Context, params *PluginsMarketplacesAddRequest) (*MarketplaceAddResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["source"] = params.Source
+		if params.WorkingDirectory != nil {
+			req["workingDirectory"] = *params.WorkingDirectory
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.plugins.marketplaces.add", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MarketplaceAddResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Browses a marketplace resolved through the live session's working directory and retained
+// managed policy.
+//
+// RPC method: session.plugins.marketplaces.browse.
+//
+// Parameters: Name of the marketplace whose plugin catalog to fetch.
+//
+// Returns: Plugins advertised by the marketplace.
+func (a *PluginsMarketplacesAPI) Browse(ctx context.Context, params *PluginsMarketplacesBrowseRequest) (*MarketplaceBrowseResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request(ctx, "session.plugins.marketplaces.browse", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MarketplaceBrowseResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Lists registered and enterprise-managed desired marketplaces using the live session's
+// retained policy.
+//
+// RPC method: session.plugins.marketplaces.list.
+//
+// Returns: All registered marketplaces, including built-in defaults.
+func (a *PluginsMarketplacesAPI) List(ctx context.Context) (*MarketplaceListResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.plugins.marketplaces.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MarketplaceListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Refreshes marketplaces resolved through the live session's working directory and retained
+// managed policy.
+//
+// RPC method: session.plugins.marketplaces.refresh.
+//
+// Parameters: Optional marketplace name; omit to refresh all.
+//
+// Returns: Result of refreshing one or more marketplace catalogs.
+func (a *PluginsMarketplacesAPI) Refresh(ctx context.Context, params ...*SessionPluginsMarketplacesRefreshRequest) (*MarketplaceRefreshResult, error) {
+	var requestParams *SessionPluginsMarketplacesRefreshRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
+	req := map[string]any{"sessionId": a.sessionID}
+	if requestParams != nil {
+		if requestParams.Name != nil {
+			req["name"] = *requestParams.Name
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.plugins.marketplaces.refresh", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MarketplaceRefreshResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Removes a marketplace when permitted by the live session's retained managed policy.
+//
+// RPC method: session.plugins.marketplaces.remove.
+//
+// Parameters: Name of the marketplace to remove and an optional force flag.
+//
+// Returns: Outcome of the remove attempt, including dependent-plugin info when applicable.
+func (a *PluginsMarketplacesAPI) Remove(ctx context.Context, params *PluginsMarketplacesRemoveRequest) (*MarketplaceRemoveResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Force != nil {
+			req["force"] = *params.Force
+		}
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request(ctx, "session.plugins.marketplaces.remove", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MarketplaceRemoveResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Marketplaces returns experimental APIs that may change or be removed.
+func (s *PluginsAPI) Marketplaces() *PluginsMarketplacesAPI {
+	return (*PluginsMarketplacesAPI)(s)
 }
 
 // Experimental: ProviderAPI contains experimental APIs that may change or be removed.
@@ -26907,6 +28970,37 @@ func (a *ProviderAPI) GetEndpoint(ctx context.Context, params ...*SessionProvide
 
 // Experimental: QueueAPI contains experimental APIs that may change or be removed.
 type QueueAPI sessionAPI
+
+// AppendSteering atomically appends text and attachments to an unchanged, unconsumed local
+// steering message. Returns updated=false if delivery or withdrawal already claimed the
+// message.
+//
+// RPC method: session.queue.appendSteering.
+//
+// Parameters: Append to one pending steering message without changing its identity or
+// delivery position.
+//
+// Returns: Result of editing a queued message.
+func (a *QueueAPI) AppendSteering(ctx context.Context, params *QueueAppendSteeringRequest) (*QueueUpdateTextResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["agentMode"] = params.AgentMode
+		req["attachments"] = params.Attachments
+		req["displayPrompt"] = params.DisplayPrompt
+		req["expectedPrompt"] = params.ExpectedPrompt
+		req["messageId"] = params.MessageID
+		req["prompt"] = params.Prompt
+	}
+	raw, err := a.client.Request(ctx, "session.queue.appendSteering", req)
+	if err != nil {
+		return nil, err
+	}
+	var result QueueUpdateTextResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // Clears all pending queued items on the local session.
 //
@@ -27125,6 +29219,33 @@ func (a *QueueAPI) UpdateText(ctx context.Context, params *QueueUpdateTextReques
 		return nil, err
 	}
 	var result QueueUpdateTextResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// WithdrawMessage atomically withdraws an unchanged, unconsumed user message from the local
+// queued or steering lane. A client retaining the original draft may restore it only when
+// removed is true. Does not interrupt the running turn.
+//
+// RPC method: session.queue.withdrawMessage.
+//
+// Parameters: Conditional withdrawal of a single user message, before the runtime claims it
+// for delivery.
+//
+// Returns: Result of removing a queued item.
+func (a *QueueAPI) WithdrawMessage(ctx context.Context, params *QueueWithdrawMessageRequest) (*QueueRemoveAtResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["expectedPrompt"] = params.ExpectedPrompt
+		req["messageId"] = params.MessageID
+	}
+	raw, err := a.client.Request(ctx, "session.queue.withdrawMessage", req)
+	if err != nil {
+		return nil, err
+	}
+	var result QueueRemoveAtResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -28467,6 +30588,337 @@ func (a *VisibilityAPI) Set(ctx context.Context, params *VisibilitySetRequest) (
 	return &result, nil
 }
 
+// Experimental: WorkflowAPI contains experimental APIs that may change or be removed.
+type WorkflowAPI sessionAPI
+
+// Agent runs one dynamic-workflow-scoped subagent and returns its result.
+//
+// RPC method: session.workflow.agent.
+//
+// Parameters: Parameters for one workflow-scoped subagent call.
+//
+// Returns: Result of one workflow-scoped subagent call.
+func (a *WorkflowAPI) Agent(ctx context.Context, params *WorkflowAgentRequest) (*WorkflowAgentResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["executionToken"] = params.ExecutionToken
+		req["opts"] = params.Opts
+		req["prompt"] = params.Prompt
+		req["workflowRunId"] = params.WorkflowRunID
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.agent", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowAgentResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Cancel requests cancellation of a dynamic workflow run and returns its run envelope.
+//
+// RPC method: session.workflow.cancel.
+//
+// Parameters: Parameters for cancelling a workflow run.
+//
+// Returns: Complete current or terminal workflow run envelope.
+func (a *WorkflowAPI) Cancel(ctx context.Context, params *WorkflowCancelRequest) (*WorkflowRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.cancel", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowRunResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetRun gets the current or settled envelope for a dynamic workflow run.
+//
+// RPC method: session.workflow.getRun.
+//
+// Parameters: Parameters for retrieving a workflow run.
+//
+// Returns: Complete current or terminal workflow run envelope.
+func (a *WorkflowAPI) GetRun(ctx context.Context, params *WorkflowGetRunRequest) (*WorkflowRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.getRun", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowRunResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetRunDetail gets durable and live observability detail for one dynamic workflow run.
+//
+// RPC method: session.workflow.getRunDetail.
+//
+// Parameters: Parameters for retrieving a workflow run.
+//
+// Returns: Full workflow run observability detail.
+func (a *WorkflowAPI) GetRunDetail(ctx context.Context, params *WorkflowGetRunRequest) (*WorkflowRunDetail, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.getRunDetail", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowRunDetail
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetRunProgress pages durable progress for one dynamic workflow run.
+//
+// RPC method: session.workflow.getRunProgress.
+//
+// Parameters: Parameters for paging workflow progress.
+//
+// Returns: A bidirectional page of workflow progress.
+func (a *WorkflowAPI) GetRunProgress(ctx context.Context, params *WorkflowGetRunProgressRequest) (*WorkflowProgressPage, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.AfterSeq != nil {
+			req["afterSeq"] = *params.AfterSeq
+		}
+		if params.BeforeSeq != nil {
+			req["beforeSeq"] = *params.BeforeSeq
+		}
+		if params.Limit != nil {
+			req["limit"] = *params.Limit
+		}
+		if params.PhaseID != nil {
+			req["phaseId"] = *params.PhaseID
+		}
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.getRunProgress", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowProgressPage
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ListRuns lists durable dynamic workflow runs for this session in creation order.
+//
+// RPC method: session.workflow.listRuns.
+//
+// Parameters: Parameters for paging workflow runs.
+//
+// Returns: A page of workflow runs in durable creation order.
+func (a *WorkflowAPI) ListRuns(ctx context.Context, params *WorkflowListRunsRequest) (*WorkflowListRunsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.AfterSeq != nil {
+			req["afterSeq"] = *params.AfterSeq
+		}
+		if params.BeforeSeq != nil {
+			req["beforeSeq"] = *params.BeforeSeq
+		}
+		if params.Limit != nil {
+			req["limit"] = *params.Limit
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.listRuns", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowListRunsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Log records a batch of ordered dynamic workflow progress lines.
+//
+// RPC method: session.workflow.log.
+//
+// Parameters: Parameters for recording workflow progress.
+//
+// Returns: Acknowledgement that a workflow request was accepted.
+func (a *WorkflowAPI) Log(ctx context.Context, params *WorkflowLogRequest) (*WorkflowAckResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["executionToken"] = params.ExecutionToken
+		req["lines"] = params.Lines
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.log", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowAckResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Pauses a running dynamic workflow and returns its settled run envelope.
+//
+// RPC method: session.workflow.pause.
+//
+// Parameters: Parameters for pausing a running workflow.
+//
+// Returns: Complete current or terminal workflow run envelope.
+func (a *WorkflowAPI) Pause(ctx context.Context, params *WorkflowPauseRequest) (*WorkflowRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.pause", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowRunResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Resumes a dynamic workflow run using its persisted name, arguments, journal, and
+// accounting.
+//
+// RPC method: session.workflow.resume.
+//
+// Parameters: Parameters for resuming a workflow run from its persisted identity.
+//
+// Returns: Resolved persisted workflow identity and resumed run envelope.
+func (a *WorkflowAPI) Resume(ctx context.Context, params *WorkflowResumeRequest) (*WorkflowResumeResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Limits != nil {
+			req["limits"] = *params.Limits
+		}
+		if params.LogPhaseNames != nil {
+			req["logPhaseNames"] = *params.LogPhaseNames
+		}
+		if params.NotifyOnComplete != nil {
+			req["notifyOnComplete"] = *params.NotifyOnComplete
+		}
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.resume", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowResumeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Runs a registered dynamic workflow by name at the top level.
+//
+// RPC method: session.workflow.run.
+//
+// Parameters: Parameters for invoking a registered workflow.
+//
+// Returns: Complete current or terminal workflow run envelope.
+func (a *WorkflowAPI) Run(ctx context.Context, params *WorkflowRunRequest) (*WorkflowRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["args"] = params.Args
+		req["name"] = params.Name
+		if params.Options != nil {
+			req["options"] = *params.Options
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.run", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowRunResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: WorkflowJournalAPI contains experimental APIs that may change or be removed.
+type WorkflowJournalAPI sessionAPI
+
+// Get reads a memoized dynamic workflow journal entry.
+//
+// RPC method: session.workflow.journal.get.
+//
+// Parameters: Parameters for reading a workflow journal entry.
+//
+// Returns: Result of reading a workflow journal entry.
+func (a *WorkflowJournalAPI) Get(ctx context.Context, params *WorkflowJournalGetRequest) (*WorkflowJournalGetResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["executionToken"] = params.ExecutionToken
+		req["key"] = params.Key
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.journal.get", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowJournalGetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Put stores a memoized dynamic workflow journal entry.
+//
+// RPC method: session.workflow.journal.put.
+//
+// Parameters: Parameters for storing a workflow journal entry.
+//
+// Returns: Acknowledgement that a workflow request was accepted.
+func (a *WorkflowJournalAPI) Put(ctx context.Context, params *WorkflowJournalPutRequest) (*WorkflowAckResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["executionToken"] = params.ExecutionToken
+		req["key"] = params.Key
+		req["resultJson"] = params.ResultJSON
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.journal.put", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowAckResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Journal returns experimental APIs that may change or be removed.
+func (s *WorkflowAPI) Journal() *WorkflowJournalAPI {
+	return (*WorkflowJournalAPI)(s)
+}
+
 // Experimental: WorkspacesAPI contains experimental APIs that may change or be removed.
 type WorkspacesAPI sessionAPI
 
@@ -28950,6 +31402,7 @@ type SessionRPC struct {
 	Instructions       *InstructionsAPI
 	LimitPrediction    *LimitPredictionAPI
 	Lsp                *LspAPI
+	ManagedSettings    *ManagedSettingsAPI
 	MCP                *MCPAPI
 	Metadata           *MetadataAPI
 	Mode               *ModeAPI
@@ -28972,6 +31425,7 @@ type SessionRPC struct {
 	UI                 *UIAPI
 	Usage              *UsageAPI
 	Visibility         *VisibilityAPI
+	Workflow           *WorkflowAPI
 	Workspaces         *WorkspacesAPI
 }
 
@@ -29282,6 +31736,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Instructions = (*InstructionsAPI)(&r.common)
 	r.LimitPrediction = (*LimitPredictionAPI)(&r.common)
 	r.Lsp = (*LspAPI)(&r.common)
+	r.ManagedSettings = (*ManagedSettingsAPI)(&r.common)
 	r.MCP = (*MCPAPI)(&r.common)
 	r.Metadata = (*MetadataAPI)(&r.common)
 	r.Mode = (*ModeAPI)(&r.common)
@@ -29304,6 +31759,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.UI = (*UIAPI)(&r.common)
 	r.Usage = (*UsageAPI)(&r.common)
 	r.Visibility = (*VisibilityAPI)(&r.common)
+	r.Workflow = (*WorkflowAPI)(&r.common)
 	r.Workspaces = (*WorkspacesAPI)(&r.common)
 	return r
 }
@@ -29815,6 +32271,9 @@ type InternalModelAPI internalSessionAPI
 func (a *InternalModelAPI) ApplyStartupOverlay(ctx context.Context, params *ModelApplyStartupOverlayRequest) (*ModelSwitchToResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.AutoTier != nil {
+			req["autoTier"] = *params.AutoTier
+		}
 		if params.CLIModel != nil {
 			req["cliModel"] = *params.CLIModel
 		}
@@ -30293,6 +32752,99 @@ func (a *InternalSettingsAPI) Snapshot(ctx context.Context) (*SessionSettingsSna
 	return &result, nil
 }
 
+// Experimental: InternalWorkflowAPI contains experimental APIs that may change or be
+// removed.
+type InternalWorkflowAPI internalSessionAPI
+
+// PauseAtCheckpoint atomically pauses an owned dynamic workflow attempt at a durable
+// checkpoint.
+//
+// RPC method: session.workflow.pauseAtCheckpoint.
+//
+// Parameters: Parameters for an owned durable pause checkpoint.
+// Internal: PauseAtCheckpoint is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalWorkflowAPI) PauseAtCheckpoint(ctx context.Context, params *WorkflowPauseCheckpointRequest) (*SessionWorkflowPauseAtCheckpointResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["executionToken"] = params.ExecutionToken
+		req["key"] = params.Key
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.pauseAtCheckpoint", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionWorkflowPauseAtCheckpointResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ResumeFromTool internal tool-originated dynamic workflow resume.
+//
+// RPC method: session.workflow.resumeFromTool.
+//
+// Parameters: Internal parameters for resuming a workflow run from a tool.
+//
+// Returns: Resolved persisted workflow identity and resumed run envelope.
+// Internal: ResumeFromTool is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalWorkflowAPI) ResumeFromTool(ctx context.Context, params *WorkflowToolResumeRequest) (*WorkflowResumeResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Limits != nil {
+			req["limits"] = *params.Limits
+		}
+		req["runId"] = params.RunID
+		if params.ToolCallID != nil {
+			req["toolCallId"] = *params.ToolCallID
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.resumeFromTool", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowResumeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RunFromTool internal tool-originated dynamic workflow invocation.
+//
+// RPC method: session.workflow.runFromTool.
+//
+// Parameters: Internal parameters for invoking a registered workflow from a tool.
+//
+// Returns: Complete current or terminal workflow run envelope.
+// Internal: RunFromTool is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalWorkflowAPI) RunFromTool(ctx context.Context, params *WorkflowToolRunRequest) (*WorkflowRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["args"] = params.Args
+		req["name"] = params.Name
+		if params.Options != nil {
+			req["options"] = *params.Options
+		}
+		if params.ToolCallID != nil {
+			req["toolCallId"] = *params.ToolCallID
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.workflow.runFromTool", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkflowRunResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // InternalSessionRPC provides internal SDK session-scoped RPC methods (handshake helpers
 // etc.). Not part of the public API.
 type InternalSessionRPC struct {
@@ -30308,6 +32860,7 @@ type InternalSessionRPC struct {
 	Queue      *InternalQueueAPI
 	Schedule   *InternalScheduleAPI
 	Settings   *InternalSettingsAPI
+	Workflow   *InternalWorkflowAPI
 }
 
 // SendSystemNotification queues or sends an internal system notification to the session
@@ -30354,6 +32907,7 @@ func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalS
 	r.Queue = (*InternalQueueAPI)(&r.common)
 	r.Schedule = (*InternalScheduleAPI)(&r.common)
 	r.Settings = (*InternalSettingsAPI)(&r.common)
+	r.Workflow = (*InternalWorkflowAPI)(&r.common)
 	return r
 }
 
@@ -30568,6 +33122,27 @@ type TasksHandler interface {
 	Cancel(request *ClientTaskCancelRequest) (*ClientTaskCancelResult, error)
 }
 
+// Experimental: WorkflowHandler contains experimental APIs that may change or be removed.
+type WorkflowHandler interface {
+	// Abort asks the owning extension connection to abort a running dynamic workflow
+	// cooperatively.
+	//
+	// RPC method: workflow.abort.
+	//
+	// Parameters: Parameters for cooperatively aborting a workflow body.
+	//
+	// Returns: Acknowledgement that a workflow request was accepted.
+	Abort(request *WorkflowAbortRequest) (*WorkflowAckResult, error)
+	// Execute asks the owning extension connection to execute a registered dynamic workflow.
+	//
+	// RPC method: workflow.execute.
+	//
+	// Parameters: Parameters sent to the owning extension to execute a workflow closure.
+	//
+	// Returns: Result returned by an extension workflow closure.
+	Execute(request *WorkflowExecuteRequest) (*WorkflowExecuteResult, error)
+}
+
 // ClientSessionAPIHandlers provides all client session API handler groups for a session.
 type ClientSessionAPIHandlers struct {
 	Canvas        CanvasHandler
@@ -30575,6 +33150,7 @@ type ClientSessionAPIHandlers struct {
 	ProviderToken ProviderTokenHandler
 	SessionFS     SessionFSHandler
 	Tasks         TasksHandler
+	Workflow      WorkflowHandler
 }
 
 func clientSessionHandlerError(err error) *jsonrpc2.Error {
@@ -30962,6 +33538,44 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No tasks handler registered for session: %s", request.SessionID)}
 		}
 		result, err := handlers.Tasks.Cancel(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("workflow.abort", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request WorkflowAbortRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.Workflow == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No workflow handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.Workflow.Abort(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("workflow.execute", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request WorkflowExecuteRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.Workflow == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No workflow handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.Workflow.Execute(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}

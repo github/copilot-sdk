@@ -21,7 +21,9 @@ public enum CatalogMediaType {
     /** The {@code application/mcp-server+json} variant. */
     APPLICATION_MCP_SERVER_JSON("application/mcp-server+json"),
     /** The {@code application/ai-skill} variant. */
-    APPLICATION_AI_SKILL("application/ai-skill");
+    APPLICATION_AI_SKILL("application/ai-skill"),
+    /** The {@code application/vnd.github.copilot-plugin} variant. */
+    APPLICATION_VND_GITHUB_COPILOT_PLUGIN("application/vnd.github.copilot-plugin");
 
     private final String value;
     CatalogMediaType(String value) { this.value = value; }

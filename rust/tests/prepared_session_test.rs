@@ -92,12 +92,26 @@ impl FakeServer {
     }
 
     async fn respond_error(&mut self, request: &Value, code: i64, message: &str) {
+        self.respond_error_with_data(request, code, message, None)
+            .await;
+    }
+
+    async fn respond_error_with_data(
+        &mut self,
+        request: &Value,
+        code: i64,
+        message: &str,
+        data: Option<Value>,
+    ) {
         let id = request["id"].as_u64().unwrap();
-        let response = json!({
+        let mut response = json!({
             "jsonrpc": "2.0",
             "id": id,
             "error": { "code": code, "message": message },
         });
+        if let Some(data) = data {
+            response["error"]["data"] = data;
+        }
         write_framed(&mut self.write, &serde_json::to_vec(&response).unwrap()).await;
     }
 
@@ -176,6 +190,99 @@ fn make_client() -> (Client, FakeServer) {
 
 fn cloud_options() -> CloudSessionOptions {
     CloudSessionOptions::with_repository(CloudSessionRepository::new("octocat", "hello-world"))
+}
+
+#[tokio::test]
+async fn client_call_preserves_structured_rpc_error_data() {
+    let (client, mut server) = make_client();
+    let call = tokio::spawn({
+        let client = client.clone();
+        async move { client.call("session.raw", None).await }
+    });
+
+    let request = server.read_request().await;
+    let data = json!({
+        "code": "managed_policy_blocked",
+        "setting": "extensions",
+        "message": "Extensions are disabled by policy",
+    });
+    server
+        .respond_error_with_data(
+            &request,
+            -32001,
+            "managed policy blocked",
+            Some(data.clone()),
+        )
+        .await;
+
+    let error = timeout(TIMEOUT, call).await.unwrap().unwrap().unwrap_err();
+    assert_eq!(error.kind(), &ErrorKind::Rpc { code: -32001 });
+    assert_eq!(error.rpc_code(), Some(-32001));
+    assert_eq!(error.message(), Some("managed policy blocked"));
+    assert_eq!(error.rpc_data(), Some(&data));
+    assert!(std::error::Error::source(&error).is_none());
+    assert_eq!(
+        error.to_string(),
+        "RPC error -32001: managed policy blocked"
+    );
+    for debug in [format!("{error:?}"), format!("{error:#?}")] {
+        assert!(debug.contains("context"));
+        assert!(debug.contains("Rpc"));
+        assert!(debug.contains("managed policy blocked"));
+        assert!(!debug.contains("rpc_data"));
+        assert!(
+            !debug.contains("managed_policy_blocked"),
+            "RPC payloads must be accessed explicitly, not included in Debug"
+        );
+    }
+}
+
+#[tokio::test]
+async fn client_call_preserves_non_object_rpc_error_data() {
+    let (client, mut server) = make_client();
+    for data in [
+        json!([{"detail": "example"}, null, false, 42]),
+        json!("detail"),
+        json!(0),
+        json!(false),
+    ] {
+        let call = tokio::spawn({
+            let client = client.clone();
+            async move { client.call("session.raw", None).await }
+        });
+
+        let request = server.read_request().await;
+        server
+            .respond_error_with_data(&request, -32001, "request failed", Some(data.clone()))
+            .await;
+
+        let error = timeout(TIMEOUT, call).await.unwrap().unwrap().unwrap_err();
+        assert_eq!(error.rpc_data(), Some(&data));
+    }
+}
+
+#[tokio::test]
+async fn client_call_handles_rpc_error_without_data() {
+    let (client, mut server) = make_client();
+    for data in [None, Some(Value::Null)] {
+        let call = tokio::spawn({
+            let client = client.clone();
+            async move { client.call("session.raw", None).await }
+        });
+
+        let request = server.read_request().await;
+        server
+            .respond_error_with_data(&request, -32002, "request failed", data)
+            .await;
+
+        let error = timeout(TIMEOUT, call).await.unwrap().unwrap().unwrap_err();
+        assert_eq!(error.kind(), &ErrorKind::Rpc { code: -32002 });
+        assert_eq!(error.rpc_code(), Some(-32002));
+        assert_eq!(error.message(), Some("request failed"));
+        assert_eq!(error.rpc_data(), None);
+        assert!(std::error::Error::source(&error).is_none());
+        assert_eq!(error.to_string(), "RPC error -32002: request failed");
+    }
 }
 
 fn create_result(session_id: &str) -> Value {

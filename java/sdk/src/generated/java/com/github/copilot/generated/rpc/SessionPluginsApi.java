@@ -24,10 +24,14 @@ public final class SessionPluginsApi {
     private final RpcCaller caller;
     private final String sessionId;
 
+    /** API methods for the {@code plugins.marketplaces} sub-namespace. */
+    public final SessionPluginsMarketplacesApi marketplaces;
+
     /** @param caller the RPC transport function */
     SessionPluginsApi(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
+        this.marketplaces = new SessionPluginsMarketplacesApi(caller, sessionId);
     }
 
     /**
@@ -39,6 +43,86 @@ public final class SessionPluginsApi {
     @CopilotExperimental
     public CompletableFuture<SessionPluginsListResult> list() {
         return caller.invoke("session.plugins.list", java.util.Map.of("sessionId", this.sessionId), SessionPluginsListResult.class);
+    }
+
+    /**
+     * Plugin source resolved relative to the session's authoritative working directory.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionPluginsInstallResult> install(SessionPluginsInstallParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.plugins.install", _p, SessionPluginsInstallResult.class);
+    }
+
+    /**
+     * Name (or spec) of the plugin to uninstall.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> uninstall(SessionPluginsUninstallParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.plugins.uninstall", _p, Void.class);
+    }
+
+    /**
+     * Name (or spec) of the plugin to update.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionPluginsUpdateResult> update(SessionPluginsUpdateParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.plugins.update", _p, SessionPluginsUpdateResult.class);
+    }
+
+    /**
+     * Plugin names (or specs) to enable in the session's authoritative working directory.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> enable(SessionPluginsEnableParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.plugins.enable", _p, Void.class);
+    }
+
+    /**
+     * Plugin names (or specs) to disable in the session's authoritative working directory.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> disable(SessionPluginsDisableParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.plugins.disable", _p, Void.class);
     }
 
     /**

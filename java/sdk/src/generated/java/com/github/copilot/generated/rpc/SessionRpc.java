@@ -39,6 +39,8 @@ public final class SessionRpc {
     public final SessionCanvasApi canvas;
     /** API methods for the {@code factory} namespace. */
     public final SessionFactoryApi factory;
+    /** API methods for the {@code workflow} namespace. */
+    public final SessionWorkflowApi workflow;
     /** API methods for the {@code model} namespace. */
     public final SessionModelApi model;
     /** API methods for the {@code mode} namespace. */
@@ -65,6 +67,8 @@ public final class SessionRpc {
     public final SessionSkillsApi skills;
     /** API methods for the {@code mcp} namespace. */
     public final SessionMcpApi mcp;
+    /** API methods for the {@code managedSettings} namespace. */
+    public final SessionManagedSettingsApi managedSettings;
     /** API methods for the {@code plugins} namespace. */
     public final SessionPluginsApi plugins;
     /** API methods for the {@code provider} namespace. */
@@ -124,6 +128,7 @@ public final class SessionRpc {
         this.debug = new SessionDebugApi(caller, sessionId);
         this.canvas = new SessionCanvasApi(caller, sessionId);
         this.factory = new SessionFactoryApi(caller, sessionId);
+        this.workflow = new SessionWorkflowApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);
         this.name = new SessionNameApi(caller, sessionId);
@@ -137,6 +142,7 @@ public final class SessionRpc {
         this.tasks = new SessionTasksApi(caller, sessionId);
         this.skills = new SessionSkillsApi(caller, sessionId);
         this.mcp = new SessionMcpApi(caller, sessionId);
+        this.managedSettings = new SessionManagedSettingsApi(caller, sessionId);
         this.plugins = new SessionPluginsApi(caller, sessionId);
         this.provider = new SessionProviderApi(caller, sessionId);
         this.options = new SessionOptionsApi(caller, sessionId);

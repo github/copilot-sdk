@@ -1566,6 +1566,59 @@ public sealed partial class ClientSessionLifetimeTests
         AssertMessageSource(Assert.Single(server.Requests, request => request.Method == "session.send").Params, source);
     }
 
+    [Fact]
+    public async Task SessionEvents_Recover_From_Malformed_Input_And_Isolate_Multiple_Handlers()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var firstHandlerEvents = new List<string>();
+        var secondHandlerEvents = new List<SessionEvent>();
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var firstSubscription = session.On<SessionEvent>(@event =>
+        {
+            firstHandlerEvents.Add(@event.Type);
+            throw new InvalidOperationException("Expected test handler failure.");
+        });
+        using var secondSubscription = session.On<SessionEvent>(@event =>
+        {
+            secondHandlerEvents.Add(@event);
+            if (secondHandlerEvents.Count == 2)
+            {
+                received.TrySetResult();
+            }
+        });
+
+        await server.SendSessionEventPayloadAsync(session.SessionId, 42);
+        await server.SendSessionEventPayloadAsync(session.SessionId, new Dictionary<string, object?>
+        {
+            ["id"] = Guid.NewGuid().ToString(),
+            ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
+            ["parentId"] = null,
+            ["type"] = "future.event",
+            ["data"] = new object?[] { null, false, 42, "text", new Dictionary<string, object?> { ["nested"] = true } }
+        });
+        await server.SendSessionEventAsync(session.SessionId, "tool.execution_start", new()
+        {
+            ["toolCallId"] = "tool-1",
+            ["toolName"] = "view",
+            ["arguments"] = new Dictionary<string, object?>
+            {
+                ["path"] = "README.md",
+                ["nested"] = new object?[] { null, false, 42, "text", new Dictionary<string, object?> { ["value"] = true } }
+            }
+        });
+
+        await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(["unknown", "tool.execution_start"], firstHandlerEvents);
+        Assert.IsType<SessionEvent>(secondHandlerEvents[0]);
+        var toolEvent = Assert.IsType<ToolExecutionStartEvent>(secondHandlerEvents[1]);
+        Assert.Equal("README.md", toolEvent.Data.Arguments?.GetProperty("path").GetString());
+        Assert.True(toolEvent.Data.Arguments?.GetProperty("nested")[4].GetProperty("value").GetBoolean());
+    }
+
     public static IEnumerable<object?[]> MessageSourcesAndOutcomes
     {
         get
@@ -2506,6 +2559,21 @@ public sealed partial class ClientSessionLifetimeTests
                 {
                     ["sessionId"] = sessionId,
                     ["event"] = evt
+                }
+            }, _cts.Token);
+        }
+
+        public Task SendSessionEventPayloadAsync(string sessionId, object? @event)
+        {
+            var stream = _stream ?? throw new InvalidOperationException("Client is not connected.");
+            return WriteMessageAsync(stream, new Dictionary<string, object?>
+            {
+                ["jsonrpc"] = "2.0",
+                ["method"] = "session.event",
+                ["params"] = new Dictionary<string, object?>
+                {
+                    ["sessionId"] = sessionId,
+                    ["event"] = @event
                 }
             }, _cts.Token);
         }

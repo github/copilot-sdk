@@ -38,11 +38,11 @@ public final class CatalogAiSkillCandidate extends CatalogCandidate {
 
     /** Media type of the underlying AI skill card */
     @JsonProperty("mediaType")
-    private String mediaType;
+    private CatalogAiSkillMediaType mediaType;
 
     /** AI skills are discovery-only and cannot be installed through this surface */
     @JsonProperty("installability")
-    private String installability;
+    private CatalogAiSkillInstallability installability;
 
     /** Display name taken verbatim from the card. Inert untrusted text. */
     @JsonProperty("displayName")
@@ -74,11 +74,11 @@ public final class CatalogAiSkillCandidate extends CatalogCandidate {
     public String getHandleExpiresAt() { return handleExpiresAt; }
     public void setHandleExpiresAt(String handleExpiresAt) { this.handleExpiresAt = handleExpiresAt; }
 
-    public String getMediaType() { return mediaType; }
-    public void setMediaType(String mediaType) { this.mediaType = mediaType; }
+    public CatalogAiSkillMediaType getMediaType() { return mediaType; }
+    public void setMediaType(CatalogAiSkillMediaType mediaType) { this.mediaType = mediaType; }
 
-    public String getInstallability() { return installability; }
-    public void setInstallability(String installability) { this.installability = installability; }
+    public CatalogAiSkillInstallability getInstallability() { return installability; }
+    public void setInstallability(CatalogAiSkillInstallability installability) { this.installability = installability; }
 
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }

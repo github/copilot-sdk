@@ -3846,15 +3846,58 @@ async fn permission_result_forwards_context_beside_result() {
 }
 
 #[tokio::test]
-async fn session_event_notification_reaches_handler() {
+async fn session_event_notification_reaches_subscribers() {
     let (session, mut server) = create_session_pair().await;
-    let mut sub = session.subscribe();
+    let mut first = session.subscribe();
+    let mut second = session.subscribe();
+    let data = serde_json::json!({"deltaContent": "hello"});
+
     server
-        .send_event("session.idle", serde_json::json!({}))
+        .send_notification(
+            "session.event",
+            serde_json::json!({"sessionId": server.session_id, "event": null}),
+        )
+        .await;
+    server
+        .send_event("assistant.message_delta", data.clone())
         .await;
 
-    let event = timeout(TIMEOUT, sub.recv()).await.unwrap().unwrap();
-    assert_eq!(event.event_type, "session.idle");
+    let mut first_event = timeout(TIMEOUT, first.recv()).await.unwrap().unwrap();
+    assert_eq!(first_event.data, data);
+    first_event.data["deltaContent"] = serde_json::json!("changed");
+
+    let second_event = timeout(TIMEOUT, second.recv()).await.unwrap().unwrap();
+    assert_eq!(second_event.id, first_event.id);
+    assert_eq!(second_event.event_type, "assistant.message_delta");
+    assert_eq!(second_event.data, data);
+}
+
+#[tokio::test]
+async fn session_event_notification_preserves_unknown_event_payloads() {
+    let (session, mut server) = create_session_pair().await;
+    let mut events = session.subscribe();
+    server
+        .send_notification(
+            "session.event",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "event": {"id": "invalid", "timestamp": "now", "type": "future.event"}
+            }),
+        )
+        .await;
+
+    for data in [
+        Value::Null,
+        serde_json::json!("text"),
+        serde_json::json!(false),
+        serde_json::json!([1, {"nested": [null, true]}]),
+        serde_json::json!({"result": {"rows": [{"content": "preserved"}]}}),
+    ] {
+        server.send_event("future.event", data.clone()).await;
+        let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+        assert_eq!(event.event_type, "future.event");
+        assert_eq!(event.data, data);
+    }
 }
 
 #[tokio::test]

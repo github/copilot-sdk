@@ -5,8 +5,10 @@ package ffihost
 import (
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -35,6 +37,39 @@ func TestRearmForeignSignalHandlersAddsOnStack(t *testing.T) {
 	}
 	if rearmed.flags&linuxSaOnStack == 0 {
 		t.Fatal("SA_ONSTACK was not restored")
+	}
+}
+
+func TestProtectLinuxSignalHandlerRearmsConcurrentReplacement(t *testing.T) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGUSR1)
+	defer signal.Stop(signals)
+
+	var original linuxSigaction
+	if !linuxGetSigaction(int(syscall.SIGUSR1), &original) {
+		t.Fatal("failed to read SIGUSR1 action")
+	}
+	defer linuxSetSigaction(int(syscall.SIGUSR1), &original)
+
+	release := protectLinuxSignalHandler(int(syscall.SIGUSR1))
+	defer release()
+
+	withoutOnStack := original
+	withoutOnStack.flags &^= linuxSaOnStack
+	if !linuxSetSigaction(int(syscall.SIGUSR1), &withoutOnStack) {
+		t.Fatal("failed to clear SA_ONSTACK")
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		var action linuxSigaction
+		if linuxGetSigaction(int(syscall.SIGUSR1), &action) && action.flags&linuxSaOnStack != 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("signal guard did not restore SA_ONSTACK")
+		}
+		runtime.Gosched()
 	}
 }
 

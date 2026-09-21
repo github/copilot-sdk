@@ -1388,6 +1388,21 @@ function resolveSessionPropertyType(
 }
 
 function generateDataClass(variant: EventVariant, knownTypes: Map<string, string>, nestedClasses: Map<string, string>, enumOutput: string[]): string {
+    const unionMembers = variant.dataSchema.anyOf ?? variant.dataSchema.oneOf;
+    if (unionMembers) {
+        const members = unionMembers
+            .filter((member): member is JSONSchema7 => typeof member === "object")
+            .map((member) => resolveObjectSchema(member, sessionDefinitions) ?? member)
+            .filter((member) => member.type !== "null");
+        const discriminator = findDiscriminator(members);
+        if (!discriminator) {
+            failUnmappable(`event payload union (${variant.dataClassName})`, variant.dataSchema);
+        }
+        return generateDiscriminatedUnionClass(
+            variant.dataClassName, discriminator, members, knownTypes, nestedClasses, enumOutput,
+            variant.dataDescription, undefined, variant.dataExperimental, { sealLeafTypes: true }
+        );
+    }
     const dataVisibility = isSchemaInternal(variant.dataSchema) ? "internal" : "public";
     const lines: string[] = [];
     if (variant.dataDescription) {
@@ -1580,6 +1595,7 @@ export async function generateSessionEvents(schemaPath?: string): Promise<void> 
 // ══════════════════════════════════════════════════════════════════════════════
 
 let emittedRpcClassSchemas = new Map<string, string>();
+const nonSessionRequestTypeNames = new Set<string>();
 let emittedRpcEnumResultTypes = new Set<string>();
 let experimentalRpcTypes = new Set<string>();
 let nonExperimentalRpcTypes = new Set<string>();
@@ -2201,6 +2217,25 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
     return result;
 }
 
+function hasSessionRequestEnvelope(schema: JSONSchema7 | undefined): boolean {
+    if (!schema?.title || !schema.properties?.sessionId) return false;
+    if (!nonSessionRequestTypeNames.has(schema.title)) return false;
+    const definition = rpcDefinitions.definitions?.[schema.title] ?? rpcDefinitions.$defs?.[schema.title];
+    if (!definition || typeof definition !== "object") return false;
+    const canonical = resolveObjectSchema(definition, rpcDefinitions);
+    if (!canonical?.properties || canonical.properties.sessionId) return false;
+
+    // Runtime session params can inherit the canonical request's title while
+    // adding only the transport sessionId. Separate shared envelopes without
+    // renaming existing session-only wire types used by handwritten SDK code.
+    const withoutSession: JSONSchema7 = {
+        ...schema,
+        properties: Object.fromEntries(Object.entries(schema.properties).filter(([name]) => name !== "sessionId")),
+        required: schema.required?.filter((name) => name !== "sessionId"),
+    };
+    return stableStringify(withoutSession) === stableStringify(canonical);
+}
+
 function emitSessionMethod(key: string, method: RpcMethod, lines: string[], classes: string[], indent: string, groupExperimental: boolean, groupDeprecated: boolean): void {
     const methodName = toPascalCase(key);
     const isInternal = method.visibility === "internal";
@@ -2230,10 +2265,12 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     });
 
     const requestClassName = paramsTypeName(method);
-    const wireRequestClassName = useRequestParameter ? `${requestClassName}WithSession` : requestClassName;
+    const wireRequestClassName = useRequestParameter || hasSessionRequestEnvelope(effectiveParams)
+        ? `${requestClassName}WithSession`
+        : requestClassName;
     if (method.stability === "experimental" && !nonExperimentalRpcTypes.has(requestClassName)) {
         experimentalRpcTypes.add(requestClassName);
-        if (useRequestParameter && !nonExperimentalRpcTypes.has(wireRequestClassName)) {
+        if (wireRequestClassName !== requestClassName && !nonExperimentalRpcTypes.has(wireRequestClassName)) {
             experimentalRpcTypes.add(wireRequestClassName);
         }
     }
@@ -2258,7 +2295,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
             );
             if (wireReqClass) classes.push(wireReqClass);
         } else {
-            const reqClass = emitRpcClass(requestClassName, effectiveParams, "internal", classes, requestClassName, true);
+            const reqClass = emitRpcClass(wireRequestClassName, effectiveParams, "internal", classes, requestClassName, true);
             if (reqClass) classes.push(reqClass);
         }
     }
@@ -2672,6 +2709,7 @@ export function generateRpcCode(
     schema = cloneSchemaForCodegen(schema);
     omitUnrepresentableInternalProperties(schema);
     emittedRpcClassSchemas.clear();
+    nonSessionRequestTypeNames.clear();
     emittedRpcEnumResultTypes.clear();
     experimentalRpcTypes.clear();
     nonExperimentalRpcTypes.clear();
@@ -2681,6 +2719,13 @@ export function generateRpcCode(
     generatedEnums.clear(); // Clear shared enum deduplication map
     externalRpcValueTypes = new Set([...externalValueTypes].map(typeToClassName));
     rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
+    for (const method of [
+        ...collectRpcMethods(schema.server || {}),
+        ...collectRpcMethods(filterNodeByVisibility(schema.clientSession || {}, "public") || {}),
+        ...collectRpcMethods(filterNodeByVisibility(schema.clientGlobal || {}, "public") || {}),
+    ]) {
+        nonSessionRequestTypeNames.add(paramsTypeName(method));
+    }
     const allMethods = [
         ...collectRpcMethods(schema.server || {}),
         ...collectRpcMethods(schema.session || {}),

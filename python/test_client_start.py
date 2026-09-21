@@ -1,7 +1,7 @@
 """Startup concurrency regressions without a live CLI runtime."""
 
 import asyncio
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -83,3 +83,13 @@ async def test_cancelling_waiting_start_does_not_cancel_active_start(client):
     await client.start()
     client._start_cli_server.assert_awaited_once()
     client._verify_protocol_version.assert_awaited_once()
+
+
+@pytest.mark.parametrize("method", ["stop", "force_stop"])
+async def test_shutdown_cancels_pending_inference_requests(client, method):
+    adapter = Mock()
+    client._llm_inference_adapter = adapter
+
+    await getattr(client, method)()
+
+    adapter.cancel_pending.assert_called_once_with()

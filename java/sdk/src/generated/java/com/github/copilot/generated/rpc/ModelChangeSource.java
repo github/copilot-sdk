@@ -36,6 +36,8 @@ public enum ModelChangeSource {
     PLAN_MODE("plan_mode"),
     /** The {@code automatic} variant. */
     AUTOMATIC("automatic"),
+    /** The {@code changeboarding_shortcut} variant. */
+    CHANGEBOARDING_SHORTCUT("changeboarding_shortcut"),
     /** The {@code sdk} variant. */
     SDK("sdk");
 

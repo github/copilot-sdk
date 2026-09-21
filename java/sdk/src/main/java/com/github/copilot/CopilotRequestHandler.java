@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /**
  * The base class for SDK consumers who want to observe or replace the LLM
@@ -37,8 +38,6 @@ public class CopilotRequestHandler {
 
     private static final HttpClient SHARED_HTTP_CLIENT = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NEVER).build();
-
-    private static final int RESPONSE_CHUNK_SIZE = 32 * 1024;
 
     static boolean isForbiddenRequestHeader(String name) {
         String lower = name.toLowerCase(Locale.ROOT);
@@ -137,20 +136,57 @@ public class CopilotRequestHandler {
 
     private static void streamResponse(HttpResponse<InputStream> response, LlmInferenceExchange exchange)
             throws IOException {
-        exchange.startResponse(response.statusCode(), null, response.headers().map());
-        try (InputStream body = response.body()) {
-            byte[] buffer = new byte[RESPONSE_CHUNK_SIZE];
-            int n;
-            while ((n = body.read(buffer)) != -1) {
-                if (n > 0) {
-                    exchange.writeResponseBinary(buffer, 0, n);
+        try (HttpResponseReader reader = new HttpResponseReader(response.body())) {
+            exchange.cancellation().thenRun(reader::cancel);
+            if (!awaitRpc(exchange.startResponseAsync(response.statusCode(), null, response.headers().map()),
+                    exchange.cancellation())) {
+                exchange.errorResponse("Request cancelled by runtime", "cancelled");
+                return;
+            }
+
+            while (true) {
+                HttpResponseReader.Result result;
+                try {
+                    result = reader.next();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while reading HTTP response", e);
+                }
+                if (exchange.cancellation().isDone()) {
+                    exchange.errorResponse("Request cancelled by runtime", "cancelled");
+                    return;
+                }
+                if (result.data() != null) {
+                    if (!awaitRpc(exchange.writeResponseBinaryAsync(result.data()), exchange.cancellation())) {
+                        exchange.errorResponse("Request cancelled by runtime", "cancelled");
+                        return;
+                    }
+                } else if (result.error() != null) {
+                    exchange.errorResponse(result.error().getMessage(), null);
+                    return;
+                } else if (result.end()) {
+                    exchange.endResponse();
+                    return;
                 }
             }
         } catch (IOException e) {
             exchange.errorResponse(e.getMessage(), null);
-            return;
         }
-        exchange.endResponse();
+    }
+
+    private static boolean awaitRpc(CompletableFuture<Void> rpc, CompletableFuture<Void> cancellation)
+            throws IOException {
+        try {
+            CompletableFuture.anyOf(rpc, cancellation).join();
+            if (cancellation.isDone()) {
+                return false;
+            }
+            rpc.join();
+            return true;
+        } catch (CompletionException | CancellationException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            throw new IOException(cause.getMessage(), cause);
+        }
     }
 
     private void handleWebSocket(LlmInferenceExchange exchange) throws Exception {

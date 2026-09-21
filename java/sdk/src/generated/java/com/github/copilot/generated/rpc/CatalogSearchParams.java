@@ -31,7 +31,9 @@ public record CatalogSearchParams(
     @JsonProperty("query") String query,
     /** Maximum number of candidates to return. Defaults to 10 when omitted. */
     @JsonProperty("limit") Long limit,
-    /** Restrict results to these candidate kinds. When omitted, every kind the runtime supports is searched. */
-    @JsonProperty("kinds") List<CatalogCandidateKind> kinds
+    /** Restrict results to these candidate kinds. Agent Plugins are opt-in and require the `agent-plugin-discovery` capability so protocol-v3 clients generated before that variant cannot receive an unknown result; when omitted, the backwards-compatible MCP server and AI skill kinds are searched. */
+    @JsonProperty("kinds") List<CatalogCandidateKind> kinds,
+    /** Numbered navigation using metadata from an earlier response. Requires catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh first-page search. */
+    @JsonProperty("page") CatalogSearchPage page
 ) {
 }
