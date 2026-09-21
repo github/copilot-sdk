@@ -70,6 +70,7 @@
         "zod": "4.3.6"
     },
     "devDependencies": {
+        "@microsoft/agent-host-protocol": "0.9.0",
         "@platformatic/vfs": "^0.3.0",
         "@types/node": "^25.2.0",
         "@types/semver": "7.8.0",
