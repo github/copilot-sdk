@@ -23,10 +23,18 @@ if (process.platform !== "linux")
   throw new Error("This source-build topology smoke requires Linux");
 const artifacts = localHostArtifacts();
 const workDir = resolve(process.argv[2] ?? ".");
+const githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+assert(githubToken, "Set GITHUB_TOKEN or GH_TOKEN for the live smoke");
 const owner = new CopilotClient({
   connection: RuntimeConnection.forTcp({ path: artifacts.runtimePath }),
   workingDirectory: workDir,
-  env: { ...process.env, ...artifacts.env },
+  gitHubToken: githubToken,
+  env: {
+    ...process.env,
+    ...artifacts.env,
+    GITHUB_TOKEN: githubToken,
+    GH_TOKEN: githubToken,
+  },
 });
 try {
   await using sdkSession = await owner.createSession({
@@ -36,7 +44,7 @@ try {
   await using host = await owner.startHost();
   const ahp = await connectAhp(host);
   try {
-    const session = await createAhpSession(ahp, workDir);
+    const session = await createAhpSession(ahp, workDir, githubToken);
     const runtime = (owner as unknown as { cliProcess: ChildProcess })
       .cliProcess;
     assert(runtime.pid);

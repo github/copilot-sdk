@@ -17,6 +17,7 @@ import {
     MessageKind,
     PROTOCOL_VERSION,
     ResponsePartKind,
+    type RootState,
     type SessionState,
 } from "@microsoft/agent-host-protocol";
 import { AhpClient, type Subscription } from "@microsoft/agent-host-protocol/client";
@@ -92,8 +93,23 @@ export async function connectAhp(host: Pick<CopilotHost, "url" | "token">) {
 
 export async function createAhpSession(
     ahp: Awaited<ReturnType<typeof connectAhp>>,
-    workDir: string
+    workDir: string,
+    githubToken: string
 ) {
+    assert(githubToken, "Session creation requires a GitHub credential");
+    const { result: root } = await ahp.client.subscribe("ahp-root://");
+    const agent = (root.snapshot?.state as RootState | undefined)?.agents.find(
+        (entry) => entry.provider === "copilot"
+    );
+    const resource = agent?.protectedResources?.find(
+        (entry) => entry.resource === "https://api.github.com"
+    );
+    assert(resource, "The Copilot agent must advertise its GitHub protected resource");
+    await ahp.client.request("authenticate", {
+        channel: "ahp-root://",
+        resource: resource.resource,
+        token: githubToken,
+    });
     const sessionId = randomUUID();
     const sessionUri = `ahp-session:/${sessionId}`;
     await ahp.client.request("createSession", {

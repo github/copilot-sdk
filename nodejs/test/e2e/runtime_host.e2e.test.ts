@@ -151,7 +151,7 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
         await using host = await owner.startHost();
         const ahp = await connectAhp(host);
         try {
-            const session = await createAhpSession(ahp, ctx.workDir);
+            const session = await createAhpSession(ahp, ctx.workDir, ctx.env.GITHUB_TOKEN);
             await assertRuntimeChild(host, runtimeDetails().pid, artifacts);
             const [response, sdkResponse] = await Promise.all([
                 streamedTurn(ahp.client, session.chatUri, session.subscription, "What is 2+2?"),

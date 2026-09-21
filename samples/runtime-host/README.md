@@ -44,6 +44,10 @@ This sends one ordinary arithmetic turn through AHP and one through the SDK,
 checks streamed AHP deltas and runtime session coexistence, then verifies
 disposal. It never prints the listener's bearer token. The smoke intentionally
 uses the same small standard-client helper as the automated tests.
+Before creating the AHP session, the client discovers the agent's advertised
+GitHub protected resource and sends the standard `authenticate` command with
+the GitHub credential. Listener authentication and GitHub authentication remain
+separate; no protected-resource checks are bypassed.
 
 ## Focused E2Es with the existing record/replay harness
 
