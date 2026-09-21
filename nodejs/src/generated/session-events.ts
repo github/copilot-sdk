@@ -24,6 +24,7 @@ export type SessionEvent =
   | IndexedSearchEvent
   | WarningEvent
   | ModelChangeEvent
+  | ModelDeselectedEvent
   | AutoTierRecommendationEvent
   | AutoTierSwitchFailedEvent
   | ModeChangedEvent
@@ -443,6 +444,12 @@ export type ModelChangeSource =
   | "changeboarding_shortcut"
   /** An SDK or RPC caller selected the model. */
   | "sdk";
+/**
+ * Why the session no longer has an explicitly selected model.
+ */
+export type ModelDeselectedReason =
+  /** A host-managed provider snapshot no longer publishes the selected model. */
+  "provider_withdrawn";
 /**
  * Auto preferences that Copilot API can recommend.
  */
@@ -2334,6 +2341,46 @@ export interface ModelChangeData {
   reasoningSummary?: ReasoningSummary;
   source?: ModelChangeSource;
   verbosity?: Verbosity;
+}
+/**
+ * Session event "session.model_deselected". The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model.
+ */
+export interface ModelDeselectedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ModelDeselectedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.model_deselected".
+   */
+  type: "session.model_deselected";
+}
+/**
+ * The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model.
+ */
+export interface ModelDeselectedData {
+  /**
+   * Model that was selected before the host withdrew it.
+   */
+  previousModel: string;
+  reason: ModelDeselectedReason;
 }
 /**
  * Session event "session.auto_tier_recommendation". Live-only Auto preference recommendation from Copilot API after a successful Auto model call.
@@ -6685,6 +6732,10 @@ export interface ToolExecutionStartData {
    * Name of the tool being executed
    */
   toolName: string;
+  /**
+   * Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
+   */
+  toolTitle?: string;
   /**
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
    */

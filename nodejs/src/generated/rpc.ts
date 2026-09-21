@@ -171,7 +171,7 @@ export type AgentRegistryLiveTargetEntryLastTerminalEvent =
   /** Last turn was aborted (e.g. user interrupted) */
   | "abort";
 /**
- * Categorized reason for log-open failure
+ * Categorized reason no canonical process log could be opened
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AgentRegistryLogCaptureOpenErrorReason".
@@ -1053,6 +1053,109 @@ export type ConnectedRemoteSessionMetadataKind =
   /** GitHub Copilot coding agent session. */
   | "coding-agent";
 /**
+ * Stable OAuth scope whose absence prevents Connector management.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorAuthorizationScope".
+ */
+/** @experimental */
+export type ConnectorAuthorizationScope =
+  /** Allows Copilot to manage Connector connections and use their tools. */
+  "write_plugin_gateway_connections";
+/**
+ * Availability of the EXPERIMENTAL session connector API.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorAvailability".
+ */
+/** @experimental */
+export type ConnectorAvailability =
+  /** The resolved Connector feature is enabled and Connector requests are permitted. */
+  | "enabled"
+  /** The resolved Connector feature is off. No Connector service request is made while disabled. */
+  | "disabled"
+  /** The session has no eligible host-owned GitHub account or does not support local Connector projection. */
+  | "unavailable";
+/**
+ * Authoritative service connection state for one Connector.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorCatalogStatus".
+ */
+/** @experimental */
+export type ConnectorCatalogStatus =
+  /** The Connector is available but not connected. */
+  | "not_connected"
+  /** The Connector service is still completing connection or consent. */
+  | "pending"
+  /** The Connector is connected and may contribute MCP servers. */
+  | "connected"
+  /** The Connector service reports an unusable connection. */
+  | "error"
+  /** The service returned a future or unrecognized state. */
+  | "unknown";
+/**
+ * Typed result of initiating or continuing a Connector connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorConnectResult".
+ */
+/** @experimental */
+export type ConnectorConnectResult =
+  | {
+      /**
+       * The service is connected and the session MCP graph was reconciled.
+       */
+      kind: "connected";
+      status: ConnectorStatus;
+    }
+  | {
+      /**
+       * Host-owned consent is required before bounded continuation can complete.
+       */
+      kind: "consent_required";
+      /**
+       * Validated HTTPS consent URL. The runtime does not open it.
+       */
+      consentUrl: string;
+      /**
+       * Opaque ID accepted by continueConnection.
+       */
+      continuationId: string;
+    }
+  | {
+      /**
+       * The service is still completing the connection without a consent URL.
+       */
+      kind: "pending";
+      /**
+       * Opaque ID accepted by continueConnection.
+       */
+      continuationId: string;
+    };
+/**
+ * Live MCP status of one Connector-owned runtime server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorMcpStatus".
+ */
+/** @experimental */
+export type ConnectorMcpStatus =
+  /** The server is connected and its tools are available. */
+  | "connected"
+  /** The server connection is still being established. */
+  | "pending"
+  /** The server requires refreshed GitHub authorization. */
+  | "needs_auth"
+  /** The server failed to connect or initialize. */
+  | "failed"
+  /** The server is intentionally stopped, including when managed policy blocks it. */
+  | "stopped"
+  /** The server is configured but explicitly disabled. */
+  | "disabled"
+  /** The Connector currently has no live server configuration. */
+  | "not_configured";
+/**
  * Closed set of public task kinds a connection can negotiate.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1266,6 +1369,14 @@ export type DiscoveredMcpServerType =
   | "sse"
   /** Server is backed by an in-memory runtime implementation. */
   | "memory";
+/**
+ * Indicates whether the command was accepted into the local execution queue.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "EnqueueCommandResult".
+ */
+/** @experimental */
+export type EnqueueCommandResult = AcceptedEnqueueCommandResult | UnsupportedEnqueueCommandResult;
 /**
  * Either '*' to receive all event types, or a non-empty list of event types to receive
  *
@@ -4726,6 +4837,18 @@ export interface AbortResult {
    */
   error?: string;
 }
+
+/** @experimental */
+export interface AcceptedEnqueueCommandResult {
+  /**
+   * True because the command was accepted into the local execution queue.
+   */
+  queued: true;
+  /**
+   * Stable opaque ID of the queued command.
+   */
+  queueId: string;
+}
 /**
  * Authenticated account entry returned by `account.getAllUsers`.
  *
@@ -4857,6 +4980,17 @@ export interface CopilotUserResponse {
       )
     | null;
   /**
+   * Enterprises that provide the user's Copilot license; malformed entries are normalized to null or ID-less shapes.
+   */
+  enterprise_list?:
+    | ({
+        /**
+         * JavaScript-safe numeric database ID of the enterprise.
+         */
+        id?: number;
+      } | null)[]
+    | null;
+  /**
    * Whether the Codex agent is enabled for the user.
    */
   codex_agent_enabled?: boolean;
@@ -4924,15 +5058,6 @@ export interface CopilotUserResponse {
    * Whether CLI remote control is enabled for the user.
    */
   cli_remote_control_enabled?: boolean;
-  /**
-   * Enterprises that provide the user's Copilot license, each with a stable numeric ID.
-   */
-  enterprise_list?: {
-    /**
-     * Numeric database ID of the enterprise.
-     */
-    id: number;
-  }[];
 }
 /**
  * Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
@@ -5506,7 +5631,7 @@ export interface AgentGetCurrentResult {
   agent?: AgentInfo | null;
 }
 /**
- * Agent metadata, including identifiers, display details, source, tools, model, models, MCP servers, skills, and file path.
+ * Agent metadata, including identifiers, display details, source, tools, model, models, reasoning effort, MCP servers, skills, and file path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AgentInfo".
@@ -5555,6 +5680,10 @@ export interface AgentInfo {
    */
   models?: string[];
   modelPolicy?: AgentModelPolicy;
+  /**
+   * Authored reasoning effort for this agent. Applied on selection to models that support it; omitted means no authored preference.
+   */
+  reasoningEffort?: string;
   /**
    * MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.
    *
@@ -5657,7 +5786,7 @@ export interface AgentRegistryLiveTargetEntry {
   token?: string | null;
 }
 /**
- * Per-spawn log-capture outcome; populated from spawnLiveTarget.
+ * Canonical process-log discovery outcome; populated from spawnLiveTarget.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AgentRegistryLogCapture".
@@ -5665,15 +5794,15 @@ export interface AgentRegistryLiveTargetEntry {
 /** @experimental */
 export interface AgentRegistryLogCapture {
   /**
-   * Whether per-spawn log capture is on (false when env-disabled or open failed)
+   * Whether a canonical process log was discovered for this managed spawn
    */
   enabled: boolean;
   /**
-   * Absolute path to the per-spawn log file (only set when enabled)
+   * Absolute path to the managed spawn's process-<timestamp>-<pid>.log file (only set when enabled)
    */
   path?: string;
   /**
-   * Human-readable open failure message (only set when enabled === false AND the env-disable opt-out was NOT used)
+   * Why no canonical process log could be opened for this managed spawn (set only when enabled is false)
    */
   openError?: string;
   openErrorReason?: AgentRegistryLogCaptureOpenErrorReason;
@@ -7893,6 +8022,233 @@ export interface ConnectedRemoteSessionMetadataRepository {
   branch: string;
 }
 /**
+ * Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorAccountRequest".
+ */
+/** @experimental */
+export interface ConnectorAccountRequest {
+  /**
+   * Opaque account selection ID previously returned by an account discovery API.
+   */
+  accountId: string;
+}
+/**
+ * Account-targeted authorization update required by the Connector service. The account ID is an opaque host routing identifier; no credential is included.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorAuthorizationRequirement".
+ */
+/** @experimental */
+export interface ConnectorAuthorizationRequirement {
+  /**
+   * Exact opaque account selection that made the Connector request.
+   */
+  accountId: string;
+  scope: ConnectorAuthorizationScope;
+}
+/**
+ * Feature detection and hard polling limits for the EXPERIMENTAL session connector API.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorCapabilities".
+ */
+/** @experimental */
+export interface ConnectorCapabilities {
+  /**
+   * Connector API contract version.
+   */
+  apiVersion: number;
+  availability: ConnectorAvailability;
+  /**
+   * Whether connect and reconnect can return an opaque continuation for bounded consent polling.
+   */
+  consentContinuation: boolean;
+  /**
+   * Whether callers select a host-owned GitHub account through an opaque selection ID rather than supplying a provider token.
+   */
+  opaqueAccountSelection: boolean;
+  /**
+   * Maximum accepted polling attempts for one continuation call.
+   */
+  maxPollAttempts: number;
+  /**
+   * Maximum accepted delay in milliseconds between polling attempts.
+   */
+  maxPollIntervalMs: number;
+  /**
+   * Maximum accepted wall-clock deadline in milliseconds for one continuation call.
+   */
+  maxDeadlineMs: number;
+}
+/**
+ * Credential-free Connector catalog entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorCatalogEntry".
+ */
+/** @experimental */
+export interface ConnectorCatalogEntry {
+  /**
+   * Canonical Connector name used by lifecycle methods.
+   */
+  name: string;
+  /**
+   * Untrusted display label from the service.
+   */
+  displayName: string;
+  /**
+   * Untrusted service description, when present.
+   */
+  description?: string;
+  status: ConnectorCatalogStatus;
+  /**
+   * Opaque stable runtime IDs currently projected into the session for this Connector.
+   */
+  runtimeServerIds: string[];
+}
+/**
+ * Validated Connector catalog snapshot cached by the session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorCatalogResult".
+ */
+/** @experimental */
+export interface ConnectorCatalogResult {
+  /**
+   * Monotonically increasing session-local catalog revision.
+   */
+  revision: number;
+  /**
+   * Unix epoch milliseconds when this snapshot was accepted.
+   */
+  refreshedAtMs: number;
+  /**
+   * Validated catalog entries in service order.
+   */
+  connectors: ConnectorCatalogEntry[];
+}
+/**
+ * Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorConnectRequest".
+ */
+/** @experimental */
+export interface ConnectorConnectRequest {
+  /**
+   * Opaque account selection ID. It must match the account already pinned to the session, if any.
+   */
+  accountId: string;
+  /**
+   * Canonical Connector name from the current catalog.
+   */
+  connectorName: string;
+}
+/**
+ * Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorStatus".
+ */
+/** @experimental */
+export interface ConnectorStatus {
+  /**
+   * Connector API contract version.
+   */
+  apiVersion: number;
+  availability: ConnectorAvailability;
+  /**
+   * Opaque account selection pinned to this session, when one has been selected.
+   */
+  accountId?: string;
+  catalog?: ConnectorCatalogResult;
+  authorizationRequirement?: ConnectorAuthorizationRequirement;
+  /**
+   * Live MCP status for every Connector-owned runtime server.
+   */
+  runtimeServers: ConnectorRuntimeStatus[];
+  /**
+   * Number of active opaque connection continuations.
+   */
+  pendingConnections: number;
+}
+/**
+ * Live status of one session-owned MCP projection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorRuntimeStatus".
+ */
+/** @experimental */
+export interface ConnectorRuntimeStatus {
+  /**
+   * Opaque runtime server ID.
+   */
+  runtimeServerId: string;
+  /**
+   * Canonical Connector name that owns this server.
+   */
+  connectorName: string;
+  status: ConnectorMcpStatus;
+}
+/**
+ * Explicitly bounded continuation of a pending Connector connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorContinueRequest".
+ */
+/** @experimental */
+export interface ConnectorContinueRequest {
+  /**
+   * Opaque continuation ID returned by connect, reconnect, or an earlier continuation.
+   */
+  continuationId: string;
+  /**
+   * Maximum catalog requests made by this call. Must be between one and the capability limit.
+   */
+  maxAttempts: number;
+  /**
+   * Delay in milliseconds between attempts. Must not exceed the capability limit.
+   */
+  pollIntervalMs: number;
+  /**
+   * Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit.
+   */
+  deadlineMs: number;
+}
+/**
+ * Authoritative result after disconnect and MCP reconciliation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorDisconnectResult".
+ */
+/** @experimental */
+export interface ConnectorDisconnectResult {
+  /**
+   * Whether the service accepted the idempotent disconnect.
+   */
+  disconnected: boolean;
+  status: ConnectorStatus;
+}
+/**
+ * Requests authoritative Connector-to-MCP reconciliation for the pinned account.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectorReconcileRequest".
+ */
+/** @experimental */
+export interface ConnectorReconcileRequest {
+  /**
+   * Opaque account selection ID. It must match the account already pinned to the session, if any.
+   */
+  accountId: string;
+  /**
+   * When true, refresh the catalog before reconciling. A disabled Connector API performs no service request.
+   */
+  refreshCatalog?: boolean;
+}
+/**
  * Remote session connection parameters.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7915,7 +8271,7 @@ export interface ConnectRemoteSessionParams {
 /** @internal */
 export interface ConnectRequest {
   /**
-   * Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.
+   * Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards this host's telemetry across all its sessions, its sessionless events, and explicitly process-wide events over the `gitHubTelemetry.event` notification. Connections intentionally sharing one server receive that server's events; independently embedded runtime hosts do not receive each other's host-owned events. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.
    */
   enableGitHubTelemetryForwarding?: boolean;
   clientInfo?: ConnectClientInfo;
@@ -8445,18 +8801,17 @@ export interface EnqueueCommandParams {
    */
   displayText?: string | null;
 }
-/**
- * Indicates whether the command was accepted into the local execution queue.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "EnqueueCommandResult".
- */
+
 /** @experimental */
-export interface EnqueueCommandResult {
+export interface UnsupportedEnqueueCommandResult {
   /**
-   * True when the command was accepted into the local execution queue. False when the call targets a session that does not support local command queueing (e.g. remote sessions).
+   * False because the target session does not support local command queueing (e.g. remote sessions).
    */
-  queued: boolean;
+  queued: false;
+  /**
+   * Legacy null queue ID accepted for compatibility with older runtimes.
+   */
+  queueId?: null;
 }
 /**
  * Cursor, batch size, and optional long-poll/filter parameters for reading session events.
@@ -10649,6 +11004,41 @@ export interface HooksDiscoverResult {
    * Errors for hook sources or actions that could not be loaded, making the result partially incomplete. Other valid actions are still returned. Project-resolution and repository-settings errors are prefixed with their project path.
    */
   errors: string[];
+}
+
+/** @experimental */
+export interface HostDisposeRequest {
+  hostId: string;
+}
+
+/** @experimental */
+export interface HostEmptyResult {}
+
+/** @experimental */
+export interface HostExitedNotification {
+  hostId: string;
+  reason: string;
+  error?: string | null;
+}
+
+/** @experimental */
+export interface HostReadyRequest {
+  address: string;
+  token: string;
+}
+
+/** @experimental */
+export interface HostStartRequest {
+  hostId: string;
+  workingDirectory?: string | null;
+}
+
+/** @experimental */
+export interface HostStartResult {
+  hostId: string;
+  url: string;
+  token: string;
+  pid: number;
 }
 /**
  * Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
@@ -13986,6 +14376,10 @@ export interface ModelCapabilitiesSupports {
    */
   vision?: boolean;
   /**
+   * Whether this model supports canonical tool calling
+   */
+  toolCalls?: boolean;
+  /**
    * Whether this model supports reasoning effort configuration
    */
   reasoningEffort?: boolean;
@@ -14287,6 +14681,10 @@ export interface ModelCapabilitiesOverrideSupports {
    */
   vision?: boolean;
   /**
+   * Whether this model supports canonical tool calling
+   */
+  toolCalls?: boolean;
+  /**
    * Whether this model supports reasoning effort configuration
    */
   reasoningEffort?: boolean;
@@ -14528,9 +14926,9 @@ export interface ModelSwitchToRequest {
    */
   autoTier?: AutoTier | null;
   /**
-   * Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied.
+   * Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. Pass null to clear any session effort override and fall back to the model's default. When omitted, the session's current effort is kept.
    */
-  reasoningEffort?: string;
+  reasoningEffort?: string | null;
   reasoningSummary?: ReasoningSummary;
   verbosity?: Verbosity;
   modelCapabilities?: ModelCapabilitiesOverride;
@@ -16991,6 +17389,12 @@ export interface ProviderModelConfig {
   maxOutputTokens?: number;
   capabilities?: ModelCapabilitiesOverride;
   systemMessage?: ProtocolSystemMessageConfig;
+  /**
+   * Provider-published model metadata, preserved verbatim as the public Model.metadata object.
+   */
+  metadata?: {
+    [k: string]: JsonValue | undefined;
+  };
 }
 /**
  * The selectable model entries synthesized for the models added by this call.
@@ -17116,6 +17520,44 @@ export interface ProviderSessionToken {
    * When the token expires, if known. Callers should refresh by calling `getEndpoint` again before this time, or reactively on any 401/403 response from `baseUrl`.
    */
   expiresAt?: string;
+}
+/**
+ * Authoritative BYOK provider and model registry snapshot to apply atomically to the session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderSyncRequest".
+ */
+/** @experimental */
+export interface ProviderSyncRequest {
+  /**
+   * Named BYOK provider connection snapshot. Providers absent from this list are removed.
+   */
+  providers?: NamedProviderConfig[];
+  /**
+   * BYOK model definition snapshot. Models absent from this list are removed.
+   */
+  models?: ProviderModelConfig[];
+}
+/**
+ * The selectable model entries and selection ids synthesized for the synchronized BYOK models.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderSyncResult".
+ */
+/** @experimental */
+export interface ProviderSyncResult {
+  /**
+   * Synthesized selectable model entries for the synchronized BYOK models.
+   */
+  models: JsonValue[];
+  /**
+   * Provider-qualified model selection ids present after synchronization.
+   */
+  selectionIds: string[];
+  /**
+   * True when synchronization withdrew the selected host-managed model, leaving the session with no explicit selection, so ordinary model resolution picks the session default. Synchronization never promotes a surviving host model in its place: publishing a model offers it, and the choice of which model to use stays with the user.
+   */
+  modelDeselected?: boolean;
 }
 /**
  * Asks the SDK client to acquire a bearer token for a BYOK provider whose config set `hasBearerTokenProvider: true`. Issued by the runtime before each outbound model request; the runtime does no caching, so this is sent once per request.
@@ -20403,6 +20845,10 @@ export interface SessionOpenOptions {
    */
   skillDirectories?: string[];
   /**
+   * Skill scan directories and descendants excluded from discovery. Supports `~`-relative paths.
+   */
+  ignoredSkillsLocations?: string[];
+  /**
    * Whether skill loading is enabled. When omitted, an SDK skill provider enables skills by default.
    */
   enableSkills?: boolean;
@@ -21918,6 +22364,10 @@ export interface SessionUpdateOptionsParams {
    */
   skillDirectories?: string[];
   /**
+   * Skill scan directories and descendants excluded from discovery. Supports `~`-relative paths.
+   */
+  ignoredSkillsLocations?: string[];
+  /**
    * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.
    */
   includedBuiltinSkills?: string[] | null;
@@ -22394,6 +22844,10 @@ export interface SkillsDiscoverRequest {
    */
   skillDirectories?: string[];
   /**
+   * Optional skill scan paths to exclude from discovery.
+   */
+  ignoredSkillsLocations?: string[];
+  /**
    * When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments.
    */
   excludeHostSkills?: boolean;
@@ -22423,6 +22877,10 @@ export interface SkillsGetDiscoveryPathsRequest {
    * Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned.
    */
   projectPaths?: string[];
+  /**
+   * Optional skill scan paths to exclude from discovery.
+   */
+  ignoredSkillsLocations?: string[];
   /**
    * When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments.
    */
@@ -26329,6 +26787,12 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
 }
 
 /** @experimental */
+export interface HostDisposeResult {}
+
+/** @experimental */
+export interface HostReadyResult {}
+
+/** @experimental */
 export interface SessionFactoryPauseAtCheckpointResult {
   action: FactoryPauseCheckpointAction;
 }
@@ -26478,9 +26942,35 @@ export interface SessionFsSqliteExistsRequest {
   sessionId: string;
 }
 
+/** @experimental */
+export interface HostShutdownResult {}
+
+/** @experimental */
+export interface HostExitedResult {}
+
+/** @experimental */
+export interface HostExitedRequest {
+  hostId: string;
+  reason: string;
+  error?: string | null;
+}
+
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
+        /** @experimental */
+        host: {
+            /**
+             * Starts a connection-owned local AHP listener as a supervised SDK participant.
+             */
+            start: async (params: HostStartRequest): Promise<HostStartResult> =>
+                connection.sendRequest("host.start", params),
+            /**
+             * Stops and reaps a listener owned by this SDK connection without deleting sessions.
+             */
+            dispose: async (params: HostDisposeRequest): Promise<HostDisposeResult> =>
+                connection.sendRequest("host.dispose", params),
+        },
         /**
          * Checks server responsiveness and returns protocol information.
          *
@@ -27252,6 +27742,14 @@ export function createServerRpc(connection: MessageConnection) {
  */
 export function createInternalServerRpc(connection: MessageConnection) {
     return {
+        /** @experimental */
+        host: {
+            /**
+             * Reports a supervised child's bound AHP endpoint after its SDK handshake.
+             */
+            ready: async (params: HostReadyRequest): Promise<HostReadyResult> =>
+                connection.sendRequest("host.ready", params),
+        },
         /**
          * Performs the SDK server connection handshake and validates the optional connection token. Marked internal because this is JSON-RPC transport plumbing invoked automatically by an SDK client's own `connect()` wrapper, not a user-facing method. Stays internal as long as the SDK client owns the handshake; would only become public if the SDK ever exposed the raw schema surface to consumers without a connection wrapper.
          *
@@ -28524,6 +29022,86 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             },
         },
         /** @experimental */
+        connectors: {
+            /**
+             * Returns feature availability and bounded polling limits for the EXPERIMENTAL session connector API. This method never performs a Connector service request.
+             *
+             * @returns Feature detection and hard polling limits for the EXPERIMENTAL session connector API.
+             */
+            getCapabilities: async (): Promise<ConnectorCapabilities> =>
+                connection.sendRequest("session.connectors.getCapabilities", { sessionId }),
+            /**
+             * Returns authoritative session Connector state from current availability, pinned account selection, cached catalog, and live MCP projection without performing a Connector service request.
+             *
+             * @returns Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+             */
+            getStatus: async (): Promise<ConnectorStatus> =>
+                connection.sendRequest("session.connectors.getStatus", { sessionId }),
+            /**
+             * Returns the cached Connector catalog for the pinned opaque account selection, fetching it only when this session has no cached catalog.
+             *
+             * @param params Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
+             *
+             * @returns Validated Connector catalog snapshot cached by the session.
+             */
+            list: async (params: ConnectorAccountRequest): Promise<ConnectorCatalogResult> =>
+                connection.sendRequest("session.connectors.list", { sessionId, ...params }),
+            /**
+             * Refreshes and validates the Connector catalog for the pinned opaque account selection.
+             *
+             * @param params Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
+             *
+             * @returns Validated Connector catalog snapshot cached by the session.
+             */
+            refresh: async (params: ConnectorAccountRequest): Promise<ConnectorCatalogResult> =>
+                connection.sendRequest("session.connectors.refresh", { sessionId, ...params }),
+            /**
+             * Initiates an idempotent Connector connection request without opening a browser. Returns connected when the service is immediately authoritative, consent_required with a validated URL, or pending with an opaque continuation ID.
+             *
+             * @param params Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+             *
+             * @returns Typed result of initiating or continuing a Connector connection.
+             */
+            connect: async (params: ConnectorConnectRequest): Promise<ConnectorConnectResult> =>
+                connection.sendRequest("session.connectors.connect", { sessionId, ...params }),
+            /**
+             * Re-initiates an idempotent Connector connection request without browser or UI effects, with the same typed outcomes as connect.
+             *
+             * @param params Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+             *
+             * @returns Typed result of initiating or continuing a Connector connection.
+             */
+            reconnect: async (params: ConnectorConnectRequest): Promise<ConnectorConnectResult> =>
+                connection.sendRequest("session.connectors.reconnect", { sessionId, ...params }),
+            /**
+             * Continues a pending Connector connection with caller-supplied attempt, interval, and deadline bounds. The runtime never opens the returned consent URL.
+             *
+             * @param params Explicitly bounded continuation of a pending Connector connection.
+             *
+             * @returns Typed result of initiating or continuing a Connector connection.
+             */
+            continueConnection: async (params: ConnectorContinueRequest): Promise<ConnectorConnectResult> =>
+                connection.sendRequest("session.connectors.continueConnection", { sessionId, ...params }),
+            /**
+             * Disconnects one Connector for the pinned opaque account selection, refreshes the authoritative catalog, and removes its session-owned MCP projection.
+             *
+             * @param params Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
+             *
+             * @returns Authoritative result after disconnect and MCP reconciliation.
+             */
+            disconnect: async (params: ConnectorConnectRequest): Promise<ConnectorDisconnectResult> =>
+                connection.sendRequest("session.connectors.disconnect", { sessionId, ...params }),
+            /**
+             * Reconciles the authoritative cached or freshly requested Connector catalog into the session Connector MCP projection and returns live status.
+             *
+             * @param params Requests authoritative Connector-to-MCP reconciliation for the pinned account.
+             *
+             * @returns Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+             */
+            reconcile: async (params: ConnectorReconcileRequest): Promise<ConnectorStatus> =>
+                connection.sendRequest("session.connectors.reconcile", { sessionId, ...params }),
+        },
+        /** @experimental */
         managedSettings: {
             /**
              * Waits for the live session's in-flight managed-settings application, then returns the retained effective snapshot used by runtime enforcement and by `session.managed_settings_resolved`. It does not perform another account, device, or server resolution, and rejects when resolution has not produced a snapshot.
@@ -28655,6 +29233,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             add: async (params: ProviderAddRequest): Promise<ProviderAddResult> =>
                 connection.sendRequest("session.provider.add", { sessionId, ...params }),
+            /**
+             * Atomically updates the session's BYOK provider and model registry by applying the supplied snapshot, replacing existing entries, updating models, or removing entries absent from the snapshot.
+             *
+             * @param params Authoritative BYOK provider and model registry snapshot to apply atomically to the session.
+             *
+             * @returns The selectable model entries and selection ids synthesized for the synchronized BYOK models.
+             */
+            sync: async (params: ProviderSyncRequest): Promise<ProviderSyncResult> =>
+                connection.sendRequest("session.provider.sync", { sessionId, ...params }),
         },
         /** @experimental */
         options: {
@@ -30300,6 +30887,15 @@ export function registerClientSessionApiHandlers(
     });
 }
 
+/** Handler for `host` client global API methods. */
+/** @experimental */
+export interface HostHandler {
+    /**
+     * Reports termination of a connection-owned host listener.
+     */
+    exited(params: HostExitedRequest): Promise<HostExitedResult>;
+}
+
 /** Handler for `extensionLaunchProvider` client global API methods. */
 /** @experimental */
 export interface ExtensionLaunchProviderHandler {
@@ -30338,7 +30934,7 @@ export interface LlmInferenceHandler {
 /** @experimental */
 export interface GitHubTelemetryHandler {
     /**
-     * Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding during the `server.connect` handshake. Opted-in connections receive every event the runtime emits after the handshake — across all sessions, plus sessionless events (for example, `server.sendTelemetry` calls with no session id).
+     * Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding during the `server.connect` handshake. Opted-in connections receive their runtime host's events across all its sessions, its sessionless events (for example, `server.sendTelemetry`), and explicitly process-wide events. Events owned by another independently embedded runtime host are not forwarded to this connection.
      *
      * @param params Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding during the `server.connect` handshake.
      */
@@ -30360,6 +30956,7 @@ export interface GitHubTokenHandler {
 
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
+    host?: HostHandler;
     extensionLaunchProvider?: ExtensionLaunchProviderHandler;
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
@@ -30377,6 +30974,11 @@ export function registerClientGlobalApiHandlers(
     connection: MessageConnection,
     handlers: ClientGlobalApiHandlers,
 ): void {
+    connection.onNotification("host.exited", async (params: HostExitedRequest) => {
+        const handler = handlers.host;
+        if (!handler) return;
+        await handler.exited(params);
+    });
     connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest) => {
         const handler = handlers.extensionLaunchProvider;
         if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");

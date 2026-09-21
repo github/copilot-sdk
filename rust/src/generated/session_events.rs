@@ -39,6 +39,8 @@ pub enum SessionEventType {
     SessionWarning,
     #[serde(rename = "session.model_change")]
     SessionModelChange,
+    #[serde(rename = "session.model_deselected")]
+    SessionModelDeselected,
     ///
     /// <div class="warning">
     ///
@@ -585,6 +587,8 @@ pub enum SessionEventData {
     SessionWarning(SessionWarningData),
     #[serde(rename = "session.model_change")]
     SessionModelChange(SessionModelChangeData),
+    #[serde(rename = "session.model_deselected")]
+    SessionModelDeselected(SessionModelDeselectedData),
     ///
     /// <div class="warning">
     ///
@@ -1535,6 +1539,16 @@ pub struct SessionModelChangeData {
     /// Output verbosity level after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verbosity: Option<Verbosity>,
+}
+
+/// Session event "session.model_deselected". The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModelDeselectedData {
+    /// Model that was selected before the host withdrew it.
+    pub previous_model: String,
+    /// Low-cardinality reason the selection was cleared.
+    pub reason: ModelDeselectedReason,
 }
 
 /// Session event "session.auto_tier_recommendation". Live-only Auto preference recommendation from Copilot API after a successful Auto model call.
@@ -3909,6 +3923,9 @@ pub struct ToolExecutionStartData {
     pub tool_description: Option<ToolExecutionStartToolDescription>,
     /// Name of the tool being executed
     pub tool_name: String,
+    /// Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_title: Option<String>,
     /// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
     #[serde(skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
@@ -8172,6 +8189,18 @@ pub enum ModelChangeSource {
     /// An SDK or RPC caller selected the model.
     #[serde(rename = "sdk")]
     Sdk,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Why the session no longer has an explicitly selected model.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelDeselectedReason {
+    /// A host-managed provider snapshot no longer publishes the selected model.
+    #[serde(rename = "provider_withdrawn")]
+    ProviderWithdrawn,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
