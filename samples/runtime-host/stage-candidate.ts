@@ -65,6 +65,10 @@ const sources = Object.fromEntries(
 );
 
 const sdkOverride = `patch."https://github.com/github/copilot-sdk".github-copilot-sdk.path=${JSON.stringify(join(sdk, "rust"))}`;
+const rustHost = /^host: (.+)$/m.exec(
+  execFileSync("rustc", ["-vV"], { encoding: "utf8" }),
+)?.[1];
+assert(rustHost, "rustc must report its native host target");
 // Resolve in a committed-source snapshot: Cargo's local patch may rewrite its
 // lockfile, which must never dirty the original pinned host checkout.
 await mkdir(output);
@@ -76,7 +80,16 @@ await extract({ file: hostArchive, cwd: hostSnapshot, strict: true });
 const cargo = JSON.parse(
   execFileSync(
     "cargo",
-    ["metadata", "--offline", "--format-version", "1", "--config", sdkOverride],
+    [
+      "metadata",
+      "--offline",
+      "--format-version",
+      "1",
+      "--filter-platform",
+      rustHost,
+      "--config",
+      sdkOverride,
+    ],
     {
       cwd: hostSnapshot,
       encoding: "utf8",
