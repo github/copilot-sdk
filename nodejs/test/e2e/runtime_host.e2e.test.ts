@@ -10,6 +10,7 @@ import { approveAll, CopilotClient, RuntimeConnection } from "../../src/index.js
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import {
     assertHostStopped,
+    assertProcessStopped,
     assertRuntimeChild,
     connectAhp,
     createAhpSession,
@@ -180,6 +181,31 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
             expect(
                 (await sdkSession.getEvents()).some((event) => event.type === "assistant.message")
             ).toBe(true);
+        } finally {
+            await ahp.client.shutdown();
+        }
+    });
+
+    it("gracefully shuts down the runtime with an attached AHP session", async () => {
+        await using host = await owner.startHost();
+        const ahp = await connectAhp(host);
+        const runtimePid = runtimeDetails().pid;
+        try {
+            await createAhpSession(ahp, ctx.workDir, ctx.env.GITHUB_TOKEN);
+            await assertRuntimeChild(host, runtimePid, artifacts);
+
+            // Prove the actual shutdown RPC succeeds before allowing SDK stop
+            // to reap its process. Eventual forced cleanup is not success.
+            await withDeadline(owner.rpc.runtime.shutdown(), "runtime shutdown response");
+            const exit = await withDeadline(host.closed, "runtime shutdown host notification");
+            expect(exit.hostId).toBe(host.hostId);
+            expect(exit.reason).toBe("runtimeShutdown");
+            expect(exit.error).toBeUndefined();
+            expect(exit.exitCode).toBe(0);
+            await assertHostStopped(host, ahp);
+
+            await owner.stop();
+            await assertProcessStopped(runtimePid, "SDK-owned runtime");
         } finally {
             await ahp.client.shutdown();
         }

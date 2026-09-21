@@ -203,22 +203,26 @@ export async function assertRuntimeChild(
     assert.equal(children.trim(), "", "Idle copilotd-lite must not spawn a second runtime");
 }
 
-export async function assertHostStopped(
-    host: CopilotHost,
-    ahp: Awaited<ReturnType<typeof connectAhp>>
-) {
+export async function assertProcessStopped(pid: number, label: string) {
     await waitForCondition(
         () => {
             try {
-                process.kill(host.pid, 0);
+                process.kill(pid, 0);
                 return false;
             } catch (error) {
                 if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
                 return true;
             }
         },
-        { timeoutMessage: "Runtime did not reap copilotd-lite" }
+        { timeoutMessage: `${label} was not reaped` }
     );
+}
+
+export async function assertHostStopped(
+    host: CopilotHost,
+    ahp: Awaited<ReturnType<typeof connectAhp>>
+) {
+    await assertProcessStopped(host.pid, "copilotd-lite");
     await waitForCondition(() => ahp.transport.lastClose !== null, {
         timeoutMessage: "Existing AHP client was not disconnected",
     });
