@@ -69,11 +69,13 @@ shared runtime session visibility, durable list/resume after disposal and
 SIGKILL, explicit base-directory persistence across runtime restarts, catalog
 writer exclusion, owner disconnect cleanup, cross-owner disposal rejection,
 unexpected-exit callbacks, concurrent/repeated direct disposal, listener
-hostname/ports/tokens and invalid combinations, protected-resource
+hostname/ports/tokens (including IPv6, DNS names, missing/wrong tokens, and
+fractional ports through raw RPC) and invalid combinations, protected-resource
 authentication when connection-token checks are disabled, and graceful runtime
 shutdown. OS checks assert the runtime is the actual host parent, the expected
 provider is loaded, no second runtime is spawned, the child is reaped, existing
-AHP clients disconnect, and the TCP listener closes.
+AHP clients disconnect, the TCP listener closes, and tokens do not leak in child
+arguments.
 
 The tests are ignored by ordinary Cargo runs. To compile without running native
 artifacts:

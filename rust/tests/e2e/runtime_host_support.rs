@@ -381,6 +381,12 @@ pub fn topology(host: &AhpHost, owner: &Client, catalog: &Path) {
     let command = std::fs::read_to_string(format!("/proc/{pid}/cmdline")).unwrap();
     let args: Vec<_> = command.split('\0').collect();
     assert_eq!(Path::new(args[0]), ARTIFACTS.lite_path);
+    if let Some(token) = &host.token {
+        assert!(
+            !args.iter().any(|argument| argument.contains(token)),
+            "listener tokens must use framed RPC, not child argv"
+        );
+    }
     let index = args
         .iter()
         .position(|arg| *arg == "--catalog-path")
@@ -430,7 +436,7 @@ pub async fn stopped(host: &AhpHost, ahp: &Ahp) {
     );
     let url = reqwest::Url::parse(&host.url).unwrap();
     let result = deadline(tokio::net::TcpStream::connect((
-        url.host_str().unwrap(),
+        url.host_str().unwrap().trim_matches(['[', ']']),
         url.port().unwrap(),
     )))
     .await;

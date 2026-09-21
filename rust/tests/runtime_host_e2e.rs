@@ -11,7 +11,7 @@ mod support;
 use std::time::Duration;
 
 use ahp_ws::WebSocketTransport;
-use github_copilot_sdk::rpc::{HostDisposeRequest, HostExitReason, HostStartRequest};
+use github_copilot_sdk::rpc::{HostDisposeRequest, HostExitReason};
 use github_copilot_sdk::{
     AhpHostOptions, Client, ClientOptions, ResumeSessionConfig, SessionId, Transport,
 };
@@ -379,21 +379,44 @@ async fn listener_defaults_explicit_ports_tokens_and_invalid_combinations() {
             host.dispose().await.unwrap();
             stopped(&host, &ahp).await;
             ahp.client.shutdown().await;
-            for port in [0, unused_port()] {
+            for (hostname, port) in [("0.0.0.0", unused_port()), ("localhost", 0), ("::1", 0)] {
                 let options = AhpHostOptions::default()
-                    .with_hostname("0.0.0.0")
+                    .with_hostname(hostname)
                     .with_port(port.into())
-                    .with_token("rust-supplied-token");
+                    .with_token("rust-supplied-token")
+                    .with_require_connection_token(true);
                 let host = owner.start_ahp_host(options).await.unwrap();
                 let mut url = reqwest::Url::parse(&host.url).unwrap();
-                assert_eq!(url.host_str(), Some("0.0.0.0"));
+                match hostname {
+                    "0.0.0.0" => assert_eq!(url.host_str(), Some("0.0.0.0")),
+                    "::1" => assert_eq!(url.host_str(), Some("[::1]")),
+                    _ => assert!(matches!(url.host_str(), Some("127.0.0.1" | "[::1]"))),
+                }
+                assert!(url.port().unwrap() > 0);
                 if port != 0 {
                     assert_eq!(url.port(), Some(port));
                 }
                 assert_eq!(host.token.as_deref(), Some("rust-supplied-token"));
-                url.set_host(Some("127.0.0.1")).unwrap();
+                if hostname == "0.0.0.0" {
+                    url.set_host(Some("127.0.0.1")).unwrap();
+                }
+                assert!(
+                    deadline(WebSocketTransport::connect(url.as_str()))
+                        .await
+                        .is_err()
+                );
+                let mut wrong_token = url.clone();
+                wrong_token
+                    .query_pairs_mut()
+                    .append_pair("tkn", "wrong-token");
+                assert!(
+                    deadline(WebSocketTransport::connect(wrong_token.as_str()))
+                        .await
+                        .is_err()
+                );
                 let ahp = connect_url(url.as_str(), host.token.as_deref()).await;
                 ahp.client.ping().await.unwrap();
+                topology(&host, &owner, &home(ctx).join("ahp/sessions"));
                 host.dispose().await.unwrap();
                 stopped(&host, &ahp).await;
                 ahp.client.shutdown().await;
@@ -403,12 +426,14 @@ async fn listener_defaults_explicit_ports_tokens_and_invalid_combinations() {
                 json!({"token": "token", "requireConnectionToken": false}),
                 json!({"port": -1}),
                 json!({"port": 65536}),
+                json!({"port": 1.5}),
                 json!({"hostname": ""}),
             ] {
                 let mut request = invalid;
                 request["hostId"] = json!(uuid::Uuid::new_v4().to_string());
-                let request: HostStartRequest = serde_json::from_value(request).unwrap();
-                assert!(owner.rpc().host().start(request).await.is_err());
+                // The raw RPC entry point also reaches runtime validation for
+                // fractional ports, which the generated Rust integer rejects.
+                assert!(owner.call("host.start", Some(request)).await.is_err());
             }
             let host = owner
                 .start_ahp_host(AhpHostOptions::default())
