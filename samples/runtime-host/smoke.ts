@@ -41,7 +41,9 @@ try {
     onPermissionRequest: approveAll,
     model: "claude-sonnet-5",
   });
-  await using host = await owner.startHost();
+  await using host = await owner.startAhpHost({
+    onExit: (exit) => console.log(`AHP host stopped: ${exit.reason}`),
+  });
   const ahp = await connectAhp(host);
   try {
     const session = await createAhpSession(ahp, workDir, githubToken);

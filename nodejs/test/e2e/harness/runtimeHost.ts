@@ -21,7 +21,7 @@ import {
 import { AhpClient, type Subscription } from "@microsoft/agent-host-protocol/client";
 import { WebSocketTransport } from "@microsoft/agent-host-protocol/ws";
 import WebSocket from "ws";
-import type { CopilotHost } from "../../../src/index.js";
+import type { AhpHost } from "../../../src/index.js";
 import { waitForCondition } from "./sdkTestHelper.js";
 import { candidateHostArtifacts } from "./runtimeHostCandidate.js";
 
@@ -65,9 +65,9 @@ export async function withDeadline<T>(promise: Promise<T>, label: string, ms = 3
     }
 }
 
-export async function connectAhp(host: Pick<CopilotHost, "url" | "token">) {
+export async function connectAhp(host: Pick<AhpHost, "url" | "token">) {
     const url = new URL(host.url);
-    url.searchParams.set("tkn", host.token);
+    if (host.token !== undefined) url.searchParams.set("tkn", host.token);
     const socket = new WebSocket(url, {
         handshakeTimeout: 10_000,
     });
@@ -175,7 +175,7 @@ export async function streamedTurn(
 
 /** Check the actual OS parent and executable, not merely the PID in an RPC response. */
 export async function assertRuntimeChild(
-    host: CopilotHost,
+    host: AhpHost,
     runtimePid: number,
     artifacts: ReturnType<typeof localHostArtifacts>,
     catalogPath?: string
@@ -191,6 +191,12 @@ export async function assertRuntimeChild(
     assert.equal(Number(parent[1]), runtimePid, "copilotd-lite must be the runtime's child");
     const hostCommand = (await readFile(`/proc/${host.pid}/cmdline`, "utf8")).split("\0");
     assert.equal(hostCommand[0], artifacts.litePath);
+    if (host.token !== undefined) {
+        assert(
+            !hostCommand.some((argument) => argument.includes(host.token!)),
+            "Listener tokens must travel over framed RPC, never child argv"
+        );
+    }
     if (catalogPath) {
         const option = hostCommand.indexOf("--catalog-path");
         assert(option > 0, "Runtime must pass its resolved AHP catalog path");
@@ -232,7 +238,7 @@ export async function assertProcessStopped(pid: number, label: string) {
 }
 
 export async function assertHostStopped(
-    host: CopilotHost,
+    host: AhpHost,
     ahp: Awaited<ReturnType<typeof connectAhp>>
 ) {
     await assertProcessStopped(host.pid, "copilotd-lite");
@@ -241,7 +247,10 @@ export async function assertHostStopped(
     });
     const url = new URL(host.url);
     const refusal = await new Promise<string | undefined>((resolve, reject) => {
-        const socket = connect({ host: url.hostname, port: Number(url.port) });
+        const socket = connect({
+            host: url.hostname.replace(/^\[|\]$/g, ""),
+            port: Number(url.port),
+        });
         socket.setTimeout(5_000, () => {
             socket.destroy();
             reject(new Error("Timed out probing stopped listener"));

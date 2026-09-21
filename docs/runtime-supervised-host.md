@@ -25,7 +25,7 @@ application-factory callbacks are not the target architecture.
 
 ## Ownership and transport
 
-The application connects to a runtime in the usual way. `client.startHost()`
+The application connects to a runtime in the usual way. `client.startAhpHost()`
 asks that runtime to start a child. The child's stdin and stdout carry ordinary
 SDK JSON-RPC on a separate connection to that same runtime. They are not AHP
 transport streams and must not carry startup banners or diagnostics.
@@ -36,10 +36,42 @@ shutting down the runtime ends the host's participation. Cleanup must not
 independently delete sessions or terminate another owner's work. A new SDK
 connection has no implicit claim on an old host.
 
-The high-level handle's `closed` promise distinguishes reported child exit from
-owner connection loss. The latter cannot prove reaping through a transport that
-has already closed. End-to-end coverage must independently observe listener and
-process termination.
+The optional `onExit` callback reports exit at most once. An `ownerDisconnected`
+report cannot prove reaping through a transport that has already closed.
+End-to-end coverage independently observes listener and process termination.
+The small `AhpHost` handle forwards each `dispose()` call to the runtime, including
+concurrent and repeated calls; the runtime owns idempotence and teardown outcomes.
+A successful disposal means the listener is closed, session participation is
+detached, and the child is reaped, not merely that shutdown was requested.
+
+```ts
+await client.start();
+const host = await client.startAhpHost({
+    onExit: (exit) => console.log(`AHP host stopped: ${exit.reason}`),
+});
+// Connect an AHP client using host.url and, when defined, host.token.
+// Hosting lasts for this SDK client's connection; dispose early only if needed.
+await client.stop();
+```
+
+`AhpHostOptions` also accepts `hostname`, `port`, `token`, and
+`requireConnectionToken`. The hostname defaults to `127.0.0.1`; explicit
+non-loopback addresses are allowed. An omitted or zero port selects an available
+port; other values must be integers from 1 through 65535. The returned URL contains
+the actual bound address, including IPv6 brackets where needed. The host always
+uses the runtime's configured working directory, with no per-host override.
+
+Connection-token authentication defaults on: supply a nonempty token or let the
+listener generate one. `requireConnectionToken: false` disables only that
+connection gate and returns `token: undefined`; supplying any token alongside
+`false` is invalid. An empty token is always invalid. AHP resource authentication
+and authorization remain in effect independently. Explicit public binding or
+disabling the connection gate is the application's choice; the default remains
+loopback with a generated token. Tokens travel over framed SDK RPC, not argv.
+
+Both Node and Rust expose experimental thin handles over the generated host RPCs.
+`onExit` is a local callback, not part of the serialized start request. There is no
+`closed` promise and no public generic notification-registration API.
 
 ## Durable catalog and single lite owner
 
@@ -106,7 +138,7 @@ Unreleased local candidates must be staged explicitly; substituting a released
 runtime or host does not validate these changes.
 
 The SDK's existing released runtime pin must be advanced only after the
-companion runtime is published. Until then, `startHost()` requires the local
+companion runtime is published. Until then, `startAhpHost()` requires the local
 source-built runtime or an assembled candidate; the currently released runtime
 is not claimed to implement the new host operations. Generated bindings in this
 branch come from the companion runtime's local schema, so release-based code

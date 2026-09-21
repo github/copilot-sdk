@@ -1,6 +1,6 @@
 # Runtime-supervised AHP host: source-build smoke
 
-This Linux-only smoke uses the Node SDK's `startHost()` and the **standard**
+This Linux-only smoke uses the Node SDK's `startAhpHost()` and the **standard**
 `@microsoft/agent-host-protocol` TypeScript client. There is no application-side
 AHP relay, custom protocol implementation, or prototype callback adapter.
 
@@ -68,13 +68,13 @@ inside the checkout. The opt-in flag avoids running a source-build-only suite
 against released artifacts. These tests explicitly use the local runtime's TCP
 transport so dropping one owner connection does not kill the shared runtime.
 
-Three non-model lifecycle tests cover explicit/idempotent disposal, unexpected
-child exit, and graceful runtime shutdown
+Five non-model scenarios cover direct-RPC concurrent/repeated disposal, unexpected
+child exit, listener endpoint/token settings and validation, and graceful runtime shutdown
 with an attached AHP session. The shutdown case requires a successful RPC and clean exit notification,
 not just eventual forced termination. To run only those:
 
 ```sh
-npm test -- test/e2e/runtime_host.e2e.test.ts -t 'disposes|reports|gracefully'
+npm test -- test/e2e/runtime_host.e2e.test.ts -t 'disposes|reports|honors|disables|gracefully'
 ```
 
 The three inference-backed scenarios prove rejection of a second same-home host,
@@ -90,6 +90,12 @@ an incompatible request fails rather than silently contacting live inference.
 Do not overwrite that shared recording to accommodate a different request. If
 the host changes its request shape, record a separate scenario using the existing
 harness and a real credential, then review the resulting traffic before use.
+
+Exit assertions use the optional `onExit` callback, not a handle-owned promise.
+The tests independently inspect process reaping and listener closure. The
+connection-token-disabled case still requires normal AHP resource authentication.
+Listener tests also cover supplied/generated tokens, hostname resolution, explicit
+non-loopback binding, IPv6 endpoints, and omitted/zero/fixed ports.
 
 These AHP tests remain opt-in until the coordinated host artifact publication,
 private release credential provisioning, runtime acquisition/pin, and SDK runtime
