@@ -20,6 +20,8 @@ public enum CatalogUnavailableReason {
     SEARCH_UNAVAILABLE("search-unavailable"),
     /** The {@code planning-unavailable} variant. */
     PLANNING_UNAVAILABLE("planning-unavailable"),
+    /** The {@code selection-unavailable} variant. */
+    SELECTION_UNAVAILABLE("selection-unavailable"),
     /** The {@code authority-not-configured} variant. */
     AUTHORITY_NOT_CONFIGURED("authority-not-configured"),
     /** The {@code disabled-by-policy} variant. */

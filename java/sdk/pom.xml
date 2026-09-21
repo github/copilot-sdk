@@ -705,6 +705,22 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </properties>
         </profile>
         <profile>
+            <id>native-linuxmusl-x64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>amd64</arch>
+                </os>
+                <property>
+                    <name>copilot.native.libc</name>
+                    <value>musl</value>
+                </property>
+            </activation>
+            <properties>
+                <copilot.native.classifier>linuxmusl-x64</copilot.native.classifier>
+            </properties>
+        </profile>
+        <profile>
             <id>native-win32-x64</id>
             <activation>
                 <os>

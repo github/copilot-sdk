@@ -37,4 +37,15 @@ public final class ServerCatalogApi {
         return caller.invoke("catalog.search", params, CatalogSearchResult.class);
     }
 
+    /**
+     * Terminates one retained catalog selection group through an opaque reference previously returned by the model-safe search projection.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<CatalogSelectionResult> select(CatalogSelectParams params) {
+        return caller.invoke("catalog.select", params, CatalogSelectionResult.class);
+    }
+
 }

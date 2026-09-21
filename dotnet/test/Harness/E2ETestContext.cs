@@ -207,7 +207,10 @@ public sealed class E2ETestContext : IAsyncDisposable
         return cliPath;
     }
 
-    public async Task ConfigureForTestAsync(string testFile, [CallerMemberName] string? testName = null)
+    public async Task ConfigureForTestAsync(
+        string testFile,
+        [CallerMemberName] string? testName = null,
+        bool replayOnly = false)
     {
         // Convert test method names to lowercase snake_case for snapshot filenames
         // to avoid case collisions on case-insensitive filesystems (macOS/Windows)
@@ -216,7 +219,8 @@ public sealed class E2ETestContext : IAsyncDisposable
         await _proxy.ConfigureAsync(
             snapshotPath,
             WorkDir,
-            E2ETestBackendConfiguration.Current.ToWireName());
+            E2ETestBackendConfiguration.Current.ToWireName(),
+            replayOnly);
     }
 
     public Task<List<ParsedHttpExchange>> GetExchangesAsync()

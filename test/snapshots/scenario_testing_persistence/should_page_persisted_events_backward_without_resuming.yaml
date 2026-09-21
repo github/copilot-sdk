@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly PERSISTED_SCENARIO_FIRST.
+      - role: assistant
+        content: PERSISTED_SCENARIO_FIRST
+      - role: user
+        content: Reply with exactly PERSISTED_SCENARIO_SECOND.
+      - role: assistant
+        content: PERSISTED_SCENARIO_SECOND

@@ -150,19 +150,19 @@ public sealed partial class ReplayProxy : IAsyncDisposable
         _startupTask = null;
     }
 
-    public async Task ConfigureAsync(string filePath, string workDir, string backend)
+    public async Task ConfigureAsync(string filePath, string workDir, string backend, bool replayOnly = false)
     {
         var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
 
         using var client = new HttpClient();
         var response = await client.PostAsJsonAsync(
             $"{url}/config",
-            new ConfigureRequest(filePath, workDir, backend),
+            new ConfigureRequest(filePath, workDir, backend, replayOnly),
             ReplayProxyJsonContext.Default.ConfigureRequest);
         response.EnsureSuccessStatusCode();
     }
 
-    private record ConfigureRequest(string FilePath, string WorkDir, string Backend);
+    private record ConfigureRequest(string FilePath, string WorkDir, string Backend, bool ReplayOnly);
 
     private record ProxyStartupMetadata(string? ConnectProxyUrl, string? CaFilePath);
 

@@ -66,6 +66,13 @@ func rearmForeignSignalHandlers(_ uintptr) {
 	}
 }
 
+func protectChildProcessSignalHandler() func() {
+	rearmForeignSignalHandlers(0)
+	return func() {
+		rearmForeignSignalHandlers(0)
+	}
+}
+
 // bindSigaction resolves libc's sigaction into fn, converting the panic
 // RegisterLibFunc raises on a missing symbol into a false return.
 func bindSigaction(handle uintptr, fn *func(sig int32, act, oact unsafe.Pointer) int32) (ok bool) {

@@ -124,25 +124,43 @@ impl<'de> Deserialize<'de> for JsonRpcMessage {
     where
         D: serde::Deserializer<'de>,
     {
-        let value = Value::deserialize(deserializer)?;
+        let mut value = Value::deserialize(deserializer)?;
         let obj = value
-            .as_object()
+            .as_object_mut()
             .ok_or_else(|| serde::de::Error::custom("expected a JSON object"))?;
 
         let has_id = obj.contains_key("id");
         let has_method = obj.contains_key("method");
 
+        // Preserve the owned payload instead of rebuilding its JSON containers
+        // while serde validates the envelope. Optional null payloads remain None.
+        let payload_key = if has_id && !has_method {
+            "result"
+        } else {
+            "params"
+        };
+        let payload = obj.remove(payload_key).filter(|value| !value.is_null());
+
         if has_id && has_method {
             JsonRpcRequest::deserialize(value)
-                .map(JsonRpcMessage::Request)
+                .map(|mut request| {
+                    request.params = payload;
+                    JsonRpcMessage::Request(request)
+                })
                 .map_err(serde::de::Error::custom)
         } else if has_id {
             JsonRpcResponse::deserialize(value)
-                .map(JsonRpcMessage::Response)
+                .map(|mut response| {
+                    response.result = payload;
+                    JsonRpcMessage::Response(response)
+                })
                 .map_err(serde::de::Error::custom)
         } else {
             JsonRpcNotification::deserialize(value)
-                .map(JsonRpcMessage::Notification)
+                .map(|mut notification| {
+                    notification.params = payload;
+                    JsonRpcMessage::Notification(notification)
+                })
                 .map_err(serde::de::Error::custom)
         }
     }
@@ -730,8 +748,7 @@ mod tests {
 
     #[test]
     fn deserialize_error_response() {
-        let json =
-            r#"{"jsonrpc":"2.0","id":7,"error":{"code":-32600,"message":"Invalid Request"}}"#;
+        let json = r#"{"jsonrpc":"2.0","id":7,"error":{"code":-32600,"message":"Invalid Request","data":{"nested":[1,{"reason":"invalid"}]}}}"#;
         let msg: JsonRpcMessage = serde_json::from_str(json).unwrap();
         match msg {
             JsonRpcMessage::Response(r) => {
@@ -739,6 +756,10 @@ mod tests {
                 let err = r.error.unwrap();
                 assert_eq!(err.code, -32600);
                 assert_eq!(err.message, "Invalid Request");
+                assert_eq!(
+                    err.data,
+                    Some(serde_json::json!({"nested": [1, {"reason": "invalid"}]}))
+                );
             }
             other => panic!("expected Response, got {other:?}"),
         }
@@ -748,6 +769,59 @@ mod tests {
     fn deserialize_rejects_non_object() {
         let result = serde_json::from_str::<JsonRpcMessage>(r#""not an object""#);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn deserialize_preserves_optional_payloads() {
+        for payload in [
+            None,
+            Some(Value::Null),
+            Some(serde_json::json!(false)),
+            Some(serde_json::json!(42)),
+            Some(serde_json::json!("text")),
+            Some(serde_json::json!([{"nested": [1, null, true]}])),
+            Some(serde_json::json!({"rows": [{"content": "result"}]})),
+        ] {
+            for mut envelope in [
+                serde_json::json!({"jsonrpc": "2.0", "method": "notify"}),
+                serde_json::json!({"jsonrpc": "2.0", "id": 1, "method": "request"}),
+                serde_json::json!({"jsonrpc": "2.0", "id": 1}),
+            ] {
+                let (payload_key, ignored_key) = if envelope.get("method").is_some() {
+                    ("params", "result")
+                } else {
+                    ("result", "params")
+                };
+                envelope[ignored_key] = serde_json::json!({"ignored": "opposite payload"});
+                if let Some(payload) = &payload {
+                    envelope[payload_key] = payload.clone();
+                }
+                let actual = match serde_json::from_value::<JsonRpcMessage>(envelope).unwrap() {
+                    JsonRpcMessage::Request(request) => request.params,
+                    JsonRpcMessage::Response(response) => response.result,
+                    JsonRpcMessage::Notification(notification) => notification.params,
+                };
+                assert_eq!(actual, payload.clone().filter(|value| !value.is_null()));
+            }
+        }
+    }
+
+    #[test]
+    fn deserialize_rejects_invalid_metadata() {
+        for json in [
+            r#"{"jsonrpc":null,"method":"notify","params":{"nested":[1]}}"#,
+            r#"{"jsonrpc":"2.0","method":42,"params":{"nested":[1]}}"#,
+            r#"{"jsonrpc":"2.0","id":null,"result":{}}"#,
+            r#"{"jsonrpc":"2.0","id":"1","result":{}}"#,
+            r#"{"jsonrpc":"2.0","id":-1,"result":{}}"#,
+            r#"{"jsonrpc":"2.0","id":1,"method":null,"params":{}}"#,
+            r#"{"jsonrpc":"2.0","id":1,"result":{},"error":{"code":"bad","message":"error"}}"#,
+        ] {
+            assert!(
+                serde_json::from_str::<JsonRpcMessage>(json).is_err(),
+                "{json}"
+            );
+        }
     }
 
     #[test]

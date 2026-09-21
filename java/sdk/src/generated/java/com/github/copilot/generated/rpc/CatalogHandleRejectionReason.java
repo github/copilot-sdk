@@ -23,7 +23,11 @@ public enum CatalogHandleRejectionReason {
     /** The {@code replayed} variant. */
     REPLAYED("replayed"),
     /** The {@code foreign} variant. */
-    FOREIGN("foreign");
+    FOREIGN("foreign"),
+    /** The {@code wrong-kind} variant. */
+    WRONG_KIND("wrong-kind"),
+    /** The {@code search-mismatch} variant. */
+    SEARCH_MISMATCH("search-mismatch");
 
     private final String value;
     CatalogHandleRejectionReason(String value) { this.value = value; }

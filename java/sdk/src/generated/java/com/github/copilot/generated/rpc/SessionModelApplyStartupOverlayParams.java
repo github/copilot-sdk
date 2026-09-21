@@ -32,6 +32,8 @@ public record SessionModelApplyStartupOverlayParams(
     @JsonProperty("serverManagedModel") String serverManagedModel,
     /** Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins. */
     @JsonProperty("policyHelperModel") String policyHelperModel,
+    /** Effective default Auto routing preference from user and managed settings. Applies only to fresh sessions and never replaces a per-session selection. */
+    @JsonProperty("autoTier") AutoTier autoTier,
     /** Model selected by repository settings, when configured. */
     @JsonProperty("repoModel") String repoModel,
     /** Reasoning effort selected by repository settings, when configured. */

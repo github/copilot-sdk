@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -61,6 +61,7 @@ _FORBIDDEN_REQUEST_HEADERS = frozenset(
 )
 
 _shared_http_client: httpx.AsyncClient | None = None
+_HTTP_RESPONSE_READ_AHEAD_BYTES = 32 * 1024
 
 
 def _get_shared_http_client() -> httpx.AsyncClient:
@@ -559,6 +560,14 @@ class _CopilotRequestAdapterHandler:
         finally:
             self._pending.pop(exchange.request_id, None)
 
+    def cancel_pending(self) -> None:
+        exchanges = tuple(self._pending.values())
+        self._pending.clear()
+        for exchange in exchanges:
+            exchange.cancelled = True
+            exchange.cancel_event.set()
+            exchange._queue.push(_BodyItem(cancel=True, cancel_reason="RPC connection closed"))
+
     def _get_or_create(self, request_id: str) -> _CopilotRequestExchange:
         # The runtime dispatches httpRequestStart and httpRequestChunk frames
         # independently. get-or-create keeps the adapter correct regardless of
@@ -727,15 +736,125 @@ async def _stream_response_to_exchange(
     )
     if response.is_stream_consumed:
         # An in-memory response (built with ``content=``) has already buffered its
-        # body, so its raw stream cannot be iterated; forward the buffered bytes.
-        body = response.content
-        if body:
-            await exchange.write_response(body)
+        # body, so its raw stream cannot be iterated.
+        async def body_stream() -> AsyncIterator[bytes]:
+            if response.content:
+                yield response.content
+
+        source = body_stream()
     else:
-        async for chunk in response.aiter_raw():
-            if chunk:
-                await exchange.write_response(chunk)
-    await exchange.end_response()
+        source = response.aiter_raw()
+
+    reader = _HttpResponseReader(source, response.aclose)
+    try:
+        while True:
+            chunk = await reader.next_chunk()
+            if chunk is None:
+                await exchange.end_response()
+                return
+            await exchange.write_response(chunk)
+    finally:
+        await reader.aclose()
+
+
+class _HttpResponseReader:
+    """Bounded response-body read-ahead with immediate partial flushes."""
+
+    def __init__(
+        self,
+        source: AsyncIterator[bytes],
+        close_response: Callable[[], Awaitable[None]],
+    ) -> None:
+        self._source = source.__aiter__()
+        self._close_response = close_response
+        self._frames: list[bytes] = []
+        self._queued = 0
+        self._error: Exception | None = None
+        self._done = False
+        self._closed = False
+        self._condition = asyncio.Condition()
+        self._producer = asyncio.create_task(self._produce())
+
+    async def _produce(self) -> None:
+        try:
+            while True:
+                async with self._condition:
+                    await self._condition.wait_for(
+                        lambda: self._closed or self._queued < _HTTP_RESPONSE_READ_AHEAD_BYTES
+                    )
+                    if self._closed:
+                        return
+
+                # Always-ready custom iterators must yield so an awaiting
+                # consumer can flush the first available frame immediately.
+                await asyncio.sleep(0)
+                frame = await anext(self._source)
+                if not frame:
+                    continue
+
+                async with self._condition:
+                    if self._closed:
+                        return
+                    self._frames.append(frame)
+                    self._queued += len(frame)
+                    self._condition.notify_all()
+        except StopAsyncIteration:
+            # Normal source exhaustion.
+            pass
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            async with self._condition:
+                if not self._closed:
+                    self._error = exc
+        finally:
+            close_error: Exception | None = None
+            close = getattr(self._source, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception as exc:
+                    close_error = exc
+            try:
+                await self._close_response()
+            except Exception as exc:
+                close_error = close_error or exc
+            async with self._condition:
+                if not self._closed and self._error is None:
+                    self._error = close_error
+                self._done = True
+                self._condition.notify_all()
+
+    async def next_chunk(self) -> bytes | None:
+        async with self._condition:
+            await self._condition.wait_for(
+                lambda: self._frames or self._error is not None or self._done
+            )
+            if self._frames:
+                # A lone frame is forwarded as-is; joining is only needed once
+                # read-ahead has run past the chunk awaiting acknowledgement.
+                chunk = self._frames[0] if len(self._frames) == 1 else b"".join(self._frames)
+                self._frames.clear()
+                self._queued = 0
+                self._condition.notify_all()
+                return chunk
+            if self._error is not None:
+                error = self._error
+                self._error = None
+                raise error
+            return None
+
+    async def aclose(self) -> None:
+        async with self._condition:
+            self._closed = True
+            self._condition.notify_all()
+        if not self._producer.done():
+            self._producer.cancel()
+        try:
+            await self._producer
+        except asyncio.CancelledError:
+            # Producer cancellation is expected during teardown.
+            pass
 
 
 def _headers_to_multi_map(headers: Any) -> LlmInferenceHeaders:

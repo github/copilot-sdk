@@ -52,6 +52,11 @@ final class LlmInferenceAdapter {
                 (rpcId, params) -> handleRequestChunk(rpc, rpcId, params));
     }
 
+    void cancelPending() {
+        pending.values().forEach(LlmInferenceExchange::pushCancel);
+        pending.clear();
+    }
+
     private LlmInferenceExchange getOrCreateExchange(String requestId) {
         // The runtime dispatches httpRequestStart and httpRequestChunk frames
         // independently. Even though the current reader dispatches them in

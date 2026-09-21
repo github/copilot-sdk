@@ -8,6 +8,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading.Channels;
 
@@ -462,6 +463,7 @@ public class CopilotWebSocketForwarder : CopilotWebSocketHandler
 [Experimental(Diagnostics.Experimental)]
 public class CopilotRequestHandler
 {
+    private const int HttpResponseReadAheadSize = 32 * 1024;
     private static readonly HttpClient s_sharedHttpClient = new();
 
     private readonly HttpClient _httpClient;
@@ -554,21 +556,43 @@ public class CopilotRequestHandler
 
     private static async Task StreamResponseAsync(HttpResponseMessage response, LlmInferenceExchange exchange)
     {
-        await exchange.StartResponseAsync(
-            (int)response.StatusCode,
-            response.ReasonPhrase,
-            HeadersToMultiMap(response)).ConfigureAwait(false);
-
         var ct = exchange.Context.CancellationToken;
-        using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        var buffer = new byte[16 * 1024];
+        await AwaitRpcAsync(
+            exchange.StartResponseAsync(
+                (int)response.StatusCode,
+                response.ReasonPhrase,
+                HeadersToMultiMap(response)),
+            ct).ConfigureAwait(false);
+
+        var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        await using var reader = new BoundedHttpResponseReader(stream, HttpResponseReadAheadSize, ct);
+        var buffer = new byte[HttpResponseReadAheadSize];
         int read;
-        while ((read = await stream.ReadAsync(buffer.AsMemory(), ct).ConfigureAwait(false)) > 0)
+        while ((read = await reader.ReadChunkAsync(buffer, ct).ConfigureAwait(false)) > 0)
         {
-            await exchange.WriteResponseAsync(new ReadOnlyMemory<byte>(buffer, 0, read)).ConfigureAwait(false);
+            await AwaitRpcAsync(
+                exchange.WriteResponseAsync(new ReadOnlyMemory<byte>(buffer, 0, read)),
+                ct).ConfigureAwait(false);
         }
 
         await exchange.EndResponseAsync().ConfigureAwait(false);
+    }
+
+    private static async Task AwaitRpcAsync(Task rpcTask, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await rpcTask.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _ = rpcTask.ContinueWith(
+                static completed => _ = completed.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default);
+            throw;
+        }
     }
 
     private async Task HandleWebSocketAsync(LlmInferenceExchange exchange)
@@ -656,6 +680,191 @@ public class CopilotRequestHandler
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Reads an HTTP response into a fixed-size ring while the current response
+    /// chunk waits for its runtime acknowledgement. The producer reserves ring
+    /// space before every read, so committed bytes plus an in-flight read never
+    /// exceed the configured read-ahead bound.
+    /// </summary>
+    private sealed class BoundedHttpResponseReader : IAsyncDisposable
+    {
+        private readonly Stream _stream;
+        private readonly byte[] _buffer;
+        private readonly CancellationTokenSource _disposeCts;
+        private readonly object _gate = new();
+        private TaskCompletionSource<bool> _changed = CreateSignal();
+        private readonly Task _pump;
+
+        private long _head;
+        private long _committedTail;
+        private long _reservedTail;
+        private bool _completed;
+        private ExceptionDispatchInfo? _error;
+
+        internal BoundedHttpResponseReader(Stream stream, int capacity, CancellationToken cancellationToken)
+        {
+            _stream = stream;
+            _buffer = new byte[capacity];
+            _disposeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _pump = PumpAsync(_disposeCts.Token);
+        }
+
+        internal async Task<int> ReadChunkAsync(byte[] destination, CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                Task waitTask;
+                ExceptionDispatchInfo? error;
+                lock (_gate)
+                {
+                    var count = checked((int)(_committedTail - _head));
+                    if (count > 0)
+                    {
+                        var headIndex = (int)(_head % _buffer.Length);
+                        var firstCount = Math.Min(count, _buffer.Length - headIndex);
+                        Buffer.BlockCopy(_buffer, headIndex, destination, 0, firstCount);
+                        if (firstCount < count)
+                        {
+                            Buffer.BlockCopy(_buffer, 0, destination, firstCount, count - firstCount);
+                        }
+
+                        _head += count;
+                        PulseLocked();
+                        return count;
+                    }
+
+                    error = _error;
+                    if (error is null)
+                    {
+                        if (_completed)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            return 0;
+                        }
+
+                        waitTask = _changed.Task;
+                    }
+                    else
+                    {
+                        waitTask = Task.CompletedTask;
+                    }
+                }
+
+                if (error is not null)
+                {
+                    error.Throw();
+                }
+
+                await waitTask.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            _disposeCts.Cancel();
+            _stream.Dispose();
+            try
+            {
+                await _pump.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_disposeCts.IsCancellationRequested)
+            {
+                // Cancellation is the expected result of disposing an active pump.
+            }
+            finally
+            {
+                _disposeCts.Dispose();
+            }
+        }
+
+        private async Task PumpAsync(CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                Task? waitTask = null;
+                long reservationStart = 0;
+                int reservationLength = 0;
+                int reservationIndex = 0;
+
+                lock (_gate)
+                {
+                    var used = checked((int)(_reservedTail - _head));
+                    if (used == _buffer.Length)
+                    {
+                        waitTask = _changed.Task;
+                    }
+                    else
+                    {
+                        reservationStart = _reservedTail;
+                        reservationIndex = (int)(reservationStart % _buffer.Length);
+                        reservationLength = Math.Min(_buffer.Length - used, _buffer.Length - reservationIndex);
+                        _reservedTail += reservationLength;
+                    }
+                }
+
+                if (waitTask is not null)
+                {
+                    await waitTask.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                int read;
+                try
+                {
+                    read = await _stream.ReadAsync(
+                        _buffer.AsMemory(reservationIndex, reservationLength),
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    lock (_gate)
+                    {
+                        _reservedTail = reservationStart;
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            _completed = true;
+                        }
+                        else
+                        {
+                            _error = ExceptionDispatchInfo.Capture(ex);
+                        }
+
+                        PulseLocked();
+                    }
+
+                    return;
+                }
+
+                lock (_gate)
+                {
+                    _committedTail = reservationStart + read;
+                    _reservedTail = _committedTail;
+                    if (read == 0)
+                    {
+                        _completed = true;
+                    }
+
+                    PulseLocked();
+                }
+
+                if (read == 0)
+                {
+                    return;
+                }
+            }
+        }
+
+        private void PulseLocked()
+        {
+            var changed = _changed;
+            _changed = CreateSignal();
+            changed.TrySetResult(true);
+        }
+
+        private static TaskCompletionSource<bool> CreateSignal() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }
 
@@ -915,6 +1124,17 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
         RouteChunk(exchange, request);
 
         return Task.FromResult(new LlmInferenceHttpRequestChunkResult());
+    }
+
+    internal void CancelPending()
+    {
+        foreach (var (requestId, exchange) in _pending)
+        {
+            if (_pending.TryRemove(requestId, out _))
+            {
+                exchange.PushCancel("RPC connection closed");
+            }
+        }
     }
 
     private async Task RunAsync(LlmInferenceExchange exchange)

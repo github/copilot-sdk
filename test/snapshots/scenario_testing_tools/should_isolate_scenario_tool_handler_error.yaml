@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call scenario_failing_lookup. If it fails, reply with exactly SCENARIO_LOOKUP_UNAVAILABLE.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: scenario_failing_lookup
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "Failed to execute `scenario_failing_lookup` tool with arguments: {} due to error: Error: Tool execution failed"
+      - role: assistant
+        content: SCENARIO_LOOKUP_UNAVAILABLE

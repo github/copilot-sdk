@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -349,13 +349,53 @@ export type CardDigestAlgorithm = /** SHA-256 over RFC 8785 canonical JSON encod
 /** @experimental */
 export type CardDigestValue = string;
 /**
- * Where a candidate's card came from. Exactly one of a URL or embedded data: the union has no variant carrying both, and no variant carrying neither, so the rule holds structurally rather than by validation.
+ * Discriminator for an Agent Plugin candidate
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CatalogCandidateSource".
+ * via the `definition` "CatalogAgentPluginCandidateKind".
  */
 /** @experimental */
-export type CatalogCandidateSource = CatalogCandidateSourceUrl | CatalogCandidateSourceEmbedded;
+export type CatalogAgentPluginCandidateKind = /** An Agent Plugin. */ "plugin";
+/**
+ * Canonical Agent Plugin media type
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogAgentPluginMediaType".
+ */
+/** @experimental */
+export type CatalogAgentPluginMediaType =
+  /** A GitHub Copilot Agent Plugin descriptor. */
+  "application/vnd.github.copilot-plugin";
+/**
+ * Canonical catalogue resource identity. The runtime rewrites accepted urn:ai and urn:air identifiers to urn:air, lowercases the authority, and preserves the remaining resource components.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogResourceIdentity".
+ */
+/** @experimental */
+export type CatalogResourceIdentity = string;
+/**
+ * Bounded source-declared resource version, preserved exactly after validation and never inferred.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogResourceVersion".
+ */
+/** @experimental */
+export type CatalogResourceVersion = string;
+/**
+ * Explicit Agent Plugin compatibility declared by exact catalog tags. Clients must not infer these values from display text or other metadata.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogAgentPluginCompatibilityTag".
+ */
+/** @experimental */
+export type CatalogAgentPluginCompatibilityTag =
+  /** The plugin contributes at least one GitHub Copilot Canvas. */
+  | "canvas"
+  /** The plugin depends on Canvas for its intended functionality. */
+  | "canvas-only"
+  /** The plugin targets GitHub Copilot. */
+  | "github-copilot";
 /**
  * A versioned, bounded trust observation carried unchanged with a catalog candidate and its private handle context. Current observations require a recognised T1/T2 tier; every non-current state structurally forbids a tier. Eligibility remains `unknown` while Agent Finder supplies no exposure decision, and states absent from its current wire are never inferred from age, relevance, popularity, or a tier transition.
  *
@@ -482,6 +522,38 @@ export type CatalogTrustSnapshotMalformedStatus =
   /** The trust field was empty, unbounded, or had the wrong JSON type. */
   "malformed";
 /**
+ * Discriminator for an AI skill candidate
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogAiSkillCandidateKind".
+ */
+/** @experimental */
+export type CatalogAiSkillCandidateKind = /** An AI skill. */ "ai-skill";
+/**
+ * Canonical AI skill media type
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogAiSkillMediaType".
+ */
+/** @experimental */
+export type CatalogAiSkillMediaType = /** An AI skill card. */ "application/ai-skill";
+/**
+ * Typed non-installable state for an AI skill candidate
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogAiSkillInstallability".
+ */
+/** @experimental */
+export type CatalogAiSkillInstallability = /** AI skills are discovery-only on this surface. */ "not-installable-kind";
+/**
+ * Where a candidate's card came from. Exactly one of a URL or embedded data: the union has no variant carrying both, and no variant carrying neither, so the rule holds structurally rather than by validation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogCandidateSource".
+ */
+/** @experimental */
+export type CatalogCandidateSource = CatalogCandidateSourceUrl | CatalogCandidateSourceEmbedded;
+/**
  * Why the catalog authority did not accept the caller's identity
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -496,13 +568,21 @@ export type CatalogAuthenticationRequiredReason =
   /** A credential was presented and the authority refused it, for example because it was revoked, malformed, or issued for another audience. Refreshing the same rejected credential is not useful; the caller must sign in again. */
   | "credential-rejected";
 /**
- * One inert catalog result, represented as an MCP server or discovery-only AI skill variant so kind, media type, provenance, and installability cannot contradict each other.
+ * One inert catalog result, represented as an MCP server, discovery-only AI skill, or opt-in Agent Plugin variant so kind, media type, provenance, and available operations cannot contradict each other.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogCandidate".
  */
 /** @experimental */
-export type CatalogCandidate = CatalogMcpServerCandidate | CatalogAiSkillCandidate;
+export type CatalogCandidate = CatalogMcpServerCandidate | CatalogAiSkillCandidate | CatalogAgentPluginCandidate;
+/**
+ * Discriminator for an MCP server candidate
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogMcpServerCandidateKind".
+ */
+/** @experimental */
+export type CatalogMcpServerCandidateKind = /** An MCP server. */ "mcp-server";
 /**
  * JSON MCP card media type accepted for install planning
  *
@@ -538,7 +618,9 @@ export type CatalogCandidateKind =
   /** An MCP server, which can be planned for installation. */
   | "mcp-server"
   /** An AI skill, which is discoverable but not installable through this surface. */
-  | "ai-skill";
+  | "ai-skill"
+  /** An inert Agent Plugin candidate, available only when explicitly requested. */
+  | "plugin";
 /**
  * A wire feature a caller can require of the catalog surface, negotiated per request. A grant means the runtime understands the feature's contract, not that the deployment has enabled the operation; typed unavailable results report availability separately.
  *
@@ -553,12 +635,18 @@ export type CatalogCapability =
   | "legacy-mcp-server-card"
   /** Understands `application/ai-skill` candidates as discovery-only and typed non-installable. */
   | "ai-skill-discovery"
+  /** Understands opt-in `application/vnd.github.copilot-plugin` candidates and their typed identity, version, source, and compatibility fields. */
+  | "agent-plugin-discovery"
   /** Understands side-effect-free MCP install-plan requests, results, and plan handles; `planning-unavailable` separately reports that planning is not enabled. */
   | "mcp-install-planning"
   /** Understands plans that enumerate every eligible transport rather than a single preferred one. */
   | "multiple-transport-choice"
+  /** Understands explicit numbered navigation and authority-reported pagination metadata with opaque tokens. Advertised and granted only when requested. */
+  | "catalog-search-pagination"
   /** Understands versioned candidate trust snapshots. Protocol-3 callers must require this capability before the runtime adds the optional snapshot field. */
-  | "trust-snapshot";
+  | "trust-snapshot"
+  /** Understands exact candidate selection through model-safe opaque references and host-only candidate-handle hand-off. */
+  | "catalog-selection";
 /**
  * Bounded extensible wire-feature identifier. Known values are described by `CatalogCapability`; newer callers may send future identifiers so an older runtime can return a typed negotiation refusal instead of failing schema validation. Capability negotiation establishes contract understanding, while each operation's result separately reports runtime availability.
  *
@@ -579,7 +667,7 @@ export type CatalogContractViolationReason =
   | "both-url-and-data"
   /** A result carried neither a URL nor embedded data, when exactly one is required. */
   | "neither-url-nor-data"
-  /** Two results claimed the same normalised identity. */
+  /** Two results claimed the same collision key: normalised identity for existing kinds, or normalised identity and declared version for Agent Plugins. */
   | "duplicate-identity"
   /** A result declared no media type, or one this contract does not model. */
   | "unknown-media-type";
@@ -594,7 +682,9 @@ export type CatalogHandleType =
   /** A search candidate handle. */
   | "candidate"
   /** An install plan handle. */
-  | "plan";
+  | "plan"
+  /** A model-safe reference to one retained search candidate. */
+  | "selection";
 /**
  * Why a presented handle was rejected
  *
@@ -603,16 +693,20 @@ export type CatalogHandleType =
  */
 /** @experimental */
 export type CatalogHandleRejectionReason =
-  /** The handle is unparseable, unknown, or was issued for a different operation. */
+  /** The handle is unparseable or unknown. */
   | "invalid"
   /** The handle's time to live has elapsed. */
   | "stale"
   /** The handle has already been used, and handles are single-use. */
   | "replayed"
-  /** The handle was issued by a different runtime instance. */
-  | "foreign";
+  /** The handle was issued by a different runtime instance or session. */
+  | "foreign"
+  /** The handle was issued for another catalog operation. */
+  | "wrong-kind"
+  /** The supplied search identifier does not match the retained candidate. */
+  | "search-mismatch";
 /**
- * Which request field was rejected before any work was done
+ * Which request field was rejected locally or by the catalog authority
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogInvalidRequestField".
@@ -632,7 +726,15 @@ export type CatalogInvalidRequestField =
   /** The supplied card was missing its media type, URL, or data. */
   | "card"
   /** The requested configuration scope is not one this runtime writes. */
-  | "scope";
+  | "scope"
+  /** The pagination token or target was invalid, or the authority rejected the continuation. Repeat the search without page. */
+  | "page"
+  /** The locally owned session identifier was missing or malformed. */
+  | "sessionId"
+  /** The opaque selection reference was missing or malformed. */
+  | "selectionRef"
+  /** The terminal selection outcome was missing or unsupported. */
+  | "outcome";
 /**
  * How a card failed validation
  *
@@ -664,7 +766,9 @@ export type CatalogMediaType =
   /** The legacy MCP server card media type, accepted for compatibility. */
   | "application/mcp-server+json"
   /** An AI skill card. Representable and searchable, but typed non-installable. */
-  | "application/ai-skill";
+  | "application/ai-skill"
+  /** An inert Agent Plugin descriptor. */
+  | "application/vnd.github.copilot-plugin";
 /**
  * Why capability and protocol-version negotiation refused a caller
  *
@@ -738,6 +842,16 @@ export type McpPlanPolicySource =
   /** Local trust settings evaluated the server. */
   | "local-trust";
 /**
+ * Relationship of the backend-reported count to the complete query result set.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSearchTotalCountRelation".
+ */
+/** @experimental */
+export type CatalogSearchTotalCountRelation =
+  /** No exact/full-query or lower-bound guarantee is available. */
+  "unknown";
+/**
  * Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -788,10 +902,48 @@ export type CatalogUnavailableReason =
   | "search-unavailable"
   /** Install planning is not wired up on this runtime build. */
   | "planning-unavailable"
+  /** Exact candidate selection is not available in this session or runtime. */
+  | "selection-unavailable"
   /** No catalog authority is configured for this runtime. */
   | "authority-not-configured"
   /** The surface is disabled by policy on this runtime. */
   | "disabled-by-policy";
+/**
+ * Terminal outcome declared for a retained catalog selection group
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionDecision".
+ */
+/** @experimental */
+export type CatalogSelectionDecision =
+  /** Choose the candidate named by selectionRef. */
+  | "selected"
+  /** Explicitly decline every candidate in the search. */
+  | "declined"
+  /** Cancel the selection interaction without choosing a candidate. */
+  | "cancelled"
+  /** Declare that the host's live interaction deadline elapsed while the reference remained valid. */
+  | "timed-out";
+/**
+ * Typed outcome of catalog.select. Only the selected host result carries a fresh candidate handle; the model-facing projection removes both that handle and searchId.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionResult".
+ */
+/** @experimental */
+export type CatalogSelectionResult =
+  | CatalogSelectionSelected
+  | CatalogSelectionDeclined
+  | CatalogSelectionCancelled
+  | CatalogSelectionTimedOut
+  | CatalogSelectionInvalid
+  | CatalogSelectionStale
+  | CatalogSelectionReplayed
+  | CatalogSelectionForeign
+  | CatalogSelectionWrongKind
+  | CatalogNegotiationRefusedError
+  | CatalogInvalidRequestError
+  | CatalogUnavailableError;
 /**
  * Why no usable transport could be offered
  *
@@ -4255,6 +4407,216 @@ export type UISessionLimitsExhaustedResponseAction =
   /** Leave the limit unchanged and cancel the blocked model request. */
   | "cancel";
 /**
+ * Execution-critical workflow storage operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowDurableOperation".
+ */
+/** @experimental */
+export type WorkflowDurableOperation =
+  /** Creating the durable run and declared phases. */
+  | "createRun"
+  /** Persisting the transition to running. */
+  | "markRunStarted"
+  /** Persisting the terminal run envelope. */
+  | "finishRun"
+  /** Persisting subagent admission accounting. */
+  | "reserveAgent"
+  /** Rolling back an uncommitted subagent admission. */
+  | "releaseAgent"
+  /** Persisting an idempotent model-usage charge. */
+  | "chargeCredit"
+  /** Persisting active execution time. */
+  | "addElapsed"
+  /** Reading the authoritative AI-credit total. */
+  | "reconcileCreditTotal"
+  /** Reading a journal entry without treating storage failure as a cache miss. */
+  | "journalGet"
+  /** Persisting a journal entry before reporting success. */
+  | "journalPut"
+  /** Renewing the durable owner lease that proves this process still owns the run. */
+  | "refreshLease";
+/**
+ * Current or terminal state of a workflow run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunStatus".
+ */
+/** @experimental */
+export type WorkflowRunStatus =
+  /** The run was minted and is awaiting approval. */
+  | "pending"
+  /** The run is executing. */
+  | "running"
+  /** The run completed successfully. */
+  | "completed"
+  /** The run was interrupted while resource budget remained. */
+  | "halted"
+  /** The current attempt stopped intentionally and the run may be resumed. */
+  | "paused"
+  /** The run was cancelled before completion. */
+  | "cancelled"
+  /** The workflow body failed or reached a cumulative resource ceiling. */
+  | "error";
+/**
+ * Machine-readable workflow run failure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunFailure".
+ */
+/** @experimental */
+export type WorkflowRunFailure =
+  | {
+      kind: WorkflowRunFailureKind;
+      /**
+       * Approved effective ceiling that was reached.
+       */
+      value: number;
+      /**
+       * Suggested larger ceiling when the runtime can derive one safely.
+       */
+      suggestedValue?: number;
+      /**
+       * Workflow run identifier.
+       */
+      runId: string;
+      /**
+       * Workflow failure variant discriminator.
+       */
+      type: "workflow_limit_reached";
+    }
+  | {
+      /**
+       * Workflow run identifier whose changed limits were declined.
+       */
+      runId: string;
+      /**
+       * Human-readable reason the resume did not proceed.
+       */
+      reason: string;
+      /**
+       * Workflow failure variant discriminator.
+       */
+      type: "workflow_resume_declined";
+    }
+  | {
+      /**
+       * Stable failure code.
+       */
+      code: string;
+      operation: WorkflowDurableOperation;
+      /**
+       * Workflow run identifier.
+       */
+      runId: string;
+      /**
+       * Workflow failure variant discriminator.
+       */
+      type: "workflow_durable_failure";
+    }
+  | {
+      /**
+       * Workflow run identifier.
+       */
+      runId: string;
+      /**
+       * Confirmed usage in nano-AIU, representing the floor of what the run spent.
+       */
+      drainedNanoAiu: number;
+      /**
+       * Workflow failure variant discriminator.
+       */
+      type: "workflow_accounting_incomplete";
+    }
+  | {
+      /**
+       * Workflow run identifier.
+       */
+      runId: string;
+      /**
+       * Workflow failure variant discriminator.
+       */
+      type: "workflow_provider_disconnected";
+    };
+/**
+ * Cumulative resource ceiling that stopped a workflow run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunFailureKind".
+ */
+/** @experimental */
+export type WorkflowRunFailureKind =
+  /** The run admitted the approved maximum total number of subagents. */
+  | "maxTotalSubagents"
+  /** The run reached the approved accumulated active-execution time in seconds. */
+  | "timeoutSeconds"
+  /** The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no headroom remained for another subagent. */
+  | "maxAiCredits";
+/**
+ * Durable metadata describing who initiated a workflow pause.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowPauseInfo".
+ */
+/** @experimental */
+export type WorkflowPauseInfo =
+  | {
+      /**
+       * Workflow pause initiator discriminator.
+       */
+      type: "user";
+    }
+  | {
+      /**
+       * Stable author-defined checkpoint key that initiated the pause.
+       */
+      key: string;
+      /**
+       * Workflow pause initiator discriminator.
+       */
+      type: "checkpoint";
+    };
+/**
+ * Kind of workflow progress line.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowLogLineKind".
+ */
+/** @experimental */
+export type WorkflowLogLineKind =
+  /** A narrator log line. */
+  | "log"
+  /** A named workflow phase marker. */
+  | "phase";
+/**
+ * Action the runtime selected for a durable workflow pause checkpoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowPauseCheckpointAction".
+ */
+/** @experimental */
+export type WorkflowPauseCheckpointAction =
+  /** The checkpoint was committed by a prior paused attempt, so execution may continue. */
+  | "continue"
+  /** This attempt claimed the checkpoint and must cooperatively stop. */
+  | "pause";
+/**
+ * Derived lifecycle state of a workflow phase.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowPhaseStatus".
+ */
+/** @experimental */
+export type WorkflowPhaseStatus =
+  /** The phase has not been entered yet. */
+  | "pending"
+  /** The phase is currently entered and accumulating active time. */
+  | "active"
+  /** The phase was entered and has since been closed. */
+  | "completed"
+  /** The phase was never entered because a later phase was entered or the run reached a terminal state. */
+  | "skipped";
+/**
  * Type of change represented by this file diff.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4655,6 +5017,15 @@ export interface CopilotUserResponse {
    * Whether CLI remote control is enabled for the user.
    */
   cli_remote_control_enabled?: boolean;
+  /**
+   * Enterprises that provide the user's Copilot license, each with a stable numeric ID.
+   */
+  enterprise_list?: {
+    /**
+     * Numeric database ID of the enterprise.
+     */
+    id: number;
+  }[];
 }
 /**
  * Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
@@ -6238,33 +6609,17 @@ export interface CardDigest {
   value: CardDigestValue;
 }
 /**
- * An inert AI skill catalog result. AI skills are discovery-only and cannot be represented as installable through this surface.
+ * An inert Agent Plugin catalog result. Its canonical catalog identity, declared version, repository source claim, and explicit compatibility tags are safe to correlate, while its descriptor, URL, raw data, and installed-plugin state remain runtime-private. This contract-only variant does not mint or expose a candidate handle.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CatalogAiSkillCandidate".
+ * via the `definition` "CatalogAgentPluginCandidate".
  */
 /** @experimental */
-export interface CatalogAiSkillCandidate {
-  /**
-   * Opaque, runtime-instance scoped, TTL-bound, single-use handle for this candidate. Carries no readable information and is rejected when stale, replayed, or presented to a different runtime instance. Never logged.
-   */
-  handle: string;
-  /**
-   * ISO 8601 timestamp after which the handle is stale and will be rejected.
-   */
-  handleExpiresAt: string;
-  /**
-   * Discriminator: this candidate describes an AI skill
-   */
-  kind: "ai-skill";
-  /**
-   * Media type of the underlying AI skill card
-   */
-  mediaType: "application/ai-skill";
-  /**
-   * AI skills are discovery-only and cannot be installed through this surface
-   */
-  installability: "not-installable-kind";
+export interface CatalogAgentPluginCandidate {
+  kind: CatalogAgentPluginCandidateKind;
+  mediaType: CatalogAgentPluginMediaType;
+  identity: CatalogResourceIdentity;
+  version?: CatalogResourceVersion;
   /**
    * Display name taken verbatim from the card. Inert untrusted text.
    */
@@ -6277,48 +6632,47 @@ export interface CatalogAiSkillCandidate {
    * Publisher taken verbatim from the card. Inert untrusted text.
    */
   publisher?: string;
-  source: CatalogCandidateSource;
-  provenance: CatalogAiSkillCandidateProvenance;
+  source: CatalogPluginRepositorySource;
+  /**
+   * Explicit validated compatibility tags, in canonical order. An empty list means the source declared no recognised compatibility; clients must not infer compatibility from other fields. `canvas-only` requires both `canvas` and `github-copilot`.
+   *
+   * @maxItems 3
+   */
+  compatibilityTags:
+    | ({
+        [k: string]: unknown | undefined;
+      } & [])
+    | [CatalogAgentPluginCompatibilityTag]
+    | [CatalogAgentPluginCompatibilityTag, CatalogAgentPluginCompatibilityTag]
+    | [CatalogAgentPluginCompatibilityTag, CatalogAgentPluginCompatibilityTag, CatalogAgentPluginCompatibilityTag];
+  provenance: CatalogAgentPluginCandidateProvenance;
   trust?: CatalogTrustSnapshot;
 }
 /**
- * Candidate whose card is retrieved from a URL through the runtime's hardened fetch boundary.
+ * Syntactically validated GitHub repository provenance declared by catalog metadata. This is a source claim rather than proof that the descriptor URL resolves to the repository.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CatalogCandidateSourceUrl".
+ * via the `definition` "CatalogPluginRepositorySource".
  */
 /** @experimental */
-export interface CatalogCandidateSourceUrl {
+export interface CatalogPluginRepositorySource {
   /**
-   * Discriminator: the card is URL-backed, and carries no embedded data
+   * Canonical lowercase owner/repository name derived from metadata.sourceSet.
    */
-  kind: "url";
+  repository: string;
   /**
-   * Card URL as advertised. Inert untrusted data: the runtime retrieves it only through its own hardened boundary, and it is never logged.
+   * Case-preserving safe relative POSIX path derived from metadata.repoPath.
    */
-  url: string;
+  path: string;
 }
 /**
- * Candidate whose card reference arrived inline. The document and its content-derived properties stay behind the runtime boundary.
+ * Where and when an Agent Plugin catalog reference was observed. Discovery provenance deliberately carries no descriptor URL, raw data, candidate handle, or content digest.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CatalogCandidateSourceEmbedded".
+ * via the `definition` "CatalogAgentPluginCandidateProvenance".
  */
 /** @experimental */
-export interface CatalogCandidateSourceEmbedded {
-  /**
-   * Discriminator: the card is embedded, and carries no URL
-   */
-  kind: "embedded";
-}
-/**
- * Where and when an AI skill catalog reference was observed. Discovery provenance deliberately carries no content digest because search does not establish the exact validated content a later plan will bind.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CatalogAiSkillCandidateProvenance".
- */
-/** @experimental */
-export interface CatalogAiSkillCandidateProvenance {
+export interface CatalogAgentPluginCandidateProvenance {
   /**
    * Host of the catalog authority that advertised the reference, without path, query, or credentials. Inert untrusted data.
    */
@@ -6327,10 +6681,7 @@ export interface CatalogAiSkillCandidateProvenance {
    * ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a retrieval or validation timestamp.
    */
   observedAt: string;
-  /**
-   * Media type advertised for the referenced AI skill card
-   */
-  mediaType: "application/ai-skill";
+  mediaType: CatalogAgentPluginMediaType;
 }
 /**
  * A recognised current Agent Finder T1 or T2 trust tier.
@@ -6439,6 +6790,89 @@ export interface CatalogTrustSnapshotMalformed {
   provenance: CatalogTrustProvenance;
 }
 /**
+ * An inert AI skill catalog result. AI skills are discovery-only and cannot be represented as installable through this surface.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogAiSkillCandidate".
+ */
+/** @experimental */
+export interface CatalogAiSkillCandidate {
+  /**
+   * Opaque, runtime-instance scoped, TTL-bound, single-use handle for this candidate. Carries no readable information and is rejected when stale, replayed, or presented to a different runtime instance. Never logged.
+   */
+  handle: string;
+  /**
+   * ISO 8601 timestamp after which the handle is stale and will be rejected.
+   */
+  handleExpiresAt: string;
+  kind: CatalogAiSkillCandidateKind;
+  mediaType: CatalogAiSkillMediaType;
+  installability: CatalogAiSkillInstallability;
+  /**
+   * Display name taken verbatim from the card. Inert untrusted text.
+   */
+  displayName: string;
+  /**
+   * Description taken verbatim from the card. Inert untrusted text.
+   */
+  description?: string;
+  /**
+   * Publisher taken verbatim from the card. Inert untrusted text.
+   */
+  publisher?: string;
+  source: CatalogCandidateSource;
+  provenance: CatalogAiSkillCandidateProvenance;
+  trust?: CatalogTrustSnapshot;
+}
+/**
+ * Candidate whose card is retrieved from a URL through the runtime's hardened fetch boundary.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogCandidateSourceUrl".
+ */
+/** @experimental */
+export interface CatalogCandidateSourceUrl {
+  /**
+   * Discriminator: the card is URL-backed, and carries no embedded data
+   */
+  kind: "url";
+  /**
+   * Card URL as advertised. Inert untrusted data: the runtime retrieves it only through its own hardened boundary, and it is never logged.
+   */
+  url: string;
+}
+/**
+ * Candidate whose card reference arrived inline. The document and its content-derived properties stay behind the runtime boundary.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogCandidateSourceEmbedded".
+ */
+/** @experimental */
+export interface CatalogCandidateSourceEmbedded {
+  /**
+   * Discriminator: the card is embedded, and carries no URL
+   */
+  kind: "embedded";
+}
+/**
+ * Where and when an AI skill catalog reference was observed. Discovery provenance deliberately carries no content digest because search does not establish the exact validated content a later plan will bind.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogAiSkillCandidateProvenance".
+ */
+/** @experimental */
+export interface CatalogAiSkillCandidateProvenance {
+  /**
+   * Host of the catalog authority that advertised the reference, without path, query, or credentials. Inert untrusted data.
+   */
+  authority: string;
+  /**
+   * ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a retrieval or validation timestamp.
+   */
+  observedAt: string;
+  mediaType: CatalogAiSkillMediaType;
+}
+/**
  * An optional catalog authentication exchange did not establish the caller's identity. Anonymous search remains supported; this refusal is reserved for an operation that cannot continue after the attempted exchange. It is distinct from `policy-rejected` and from a network failure, and the reason identifies the recovery action.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6472,10 +6906,7 @@ export interface CatalogMcpServerCandidate {
    * ISO 8601 timestamp after which the handle is stale and will be rejected.
    */
   handleExpiresAt: string;
-  /**
-   * Discriminator: this candidate describes an MCP server
-   */
-  kind: "mcp-server";
+  kind: CatalogMcpServerCandidateKind;
   mediaType: McpServerCardMediaType;
   installability: CatalogMcpServerInstallability;
   /**
@@ -6569,7 +7000,7 @@ export interface CatalogHandleRejectedError {
   message: string;
 }
 /**
- * The request was rejected before any work was done, because a bounded field fell outside its permitted range or a required field was unusable.
+ * The request was rejected because a bounded field fell outside its permitted range or a required field was unusable. Pagination may also be rejected by the authority after a continuation request; repeat the search without page.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogInvalidRequestError".
@@ -6618,7 +7049,7 @@ export interface CatalogNegotiatedContract {
    */
   runtimeProtocolVersion: number;
   /**
-   * Wire features the runtime understood for this operation. Always a superset of the caller's required features, because any shortfall is a refusal instead. Operation availability remains a separate typed result.
+   * Wire features the runtime understood for this operation. Includes the five original catalog capabilities and only explicitly requested supported additions, in supported order without duplicates. Capabilities that introduce new success-union variants or operations are therefore included only when explicitly required, preserving older protocol-v3 clients. Always a superset of the caller's required features, because any shortfall is a refusal instead. Operation availability remains a separate typed result.
    */
   grantedCapabilities: CatalogCapability[];
 }
@@ -6723,6 +7154,61 @@ export interface CatalogPolicyRejectedError {
   message: string;
 }
 /**
+ * An explicit numbered-page request. The SDK treats the token as opaque; only the runtime decodes it and changes its targetPage. Authority validation binds navigation to the original search. No snapshot stability or token TTL is promised.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSearchPage".
+ */
+/** @experimental */
+export interface CatalogSearchPage {
+  /**
+   * Opaque authority-issued pagination token from an earlier response. Never decode, modify or log it in an SDK consumer.
+   */
+  token: string;
+  /**
+   * Requested one-based page. Must not exceed either the token's signed pageCount or the navigation window ceil(1000 / pageSize). Repeat the search without page to discover newly available pages beyond that signed pageCount.
+   */
+  number: number;
+}
+/**
+ * Authority-reported navigation metadata, returned only to callers requiring catalog-search-pagination and only when a supported token is present. Tokenless first-page and continuation responses omit this object; no counts are inferred from candidates. The opaque token may be retained for previous or numbered navigation even when hasNextPage is false.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSearchPagination".
+ */
+/** @experimental */
+export interface CatalogSearchPagination {
+  /**
+   * Opaque authority-issued pagination token. Only the runtime decodes it or changes targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created expiry or cache.
+   */
+  token: string;
+  /**
+   * One-based page returned by the authority.
+   */
+  currentPage: number;
+  /**
+   * Page size bound to the search, equal to the effective request limit.
+   */
+  pageSize: number;
+  /**
+   * Backend-reported count for this response, not the number of returned candidates. Its relationship to the full query result set is unknown.
+   */
+  totalCount: number;
+  totalCountRelation: CatalogSearchTotalCountRelation;
+  /**
+   * Backend-reported page count, which may exceed maxPage. Present pagination metadata always describes a multi-page result; zero- and single-page responses omit pagination. Navigation targets must also be within the signed pageCount carried by the supplied token.
+   */
+  pageCount: number;
+  /**
+   * Navigation window ceiling ceil(1000 / pageSize), not the number of existing pages. Legal targets must not exceed this ceiling or the token's signed pageCount.
+   */
+  maxPage: number;
+  /**
+   * Whether the authority token advertises a valid next target within the navigation window. Not inferred from token presence, truncated, or currentPage being less than pageCount.
+   */
+  hasNextPage: boolean;
+}
+/**
  * A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6740,15 +7226,19 @@ export interface CatalogSearchRequest {
    */
   limit?: number;
   /**
-   * Restrict results to these candidate kinds. When omitted, every kind the runtime supports is searched.
+   * Restrict results to these candidate kinds. Agent Plugins are opt-in and require the `agent-plugin-discovery` capability so protocol-v3 clients generated before that variant cannot receive an unknown result; when omitted, the backwards-compatible MCP server and AI skill kinds are searched.
    *
    * @minItems 1
-   * @maxItems 2
+   * @maxItems 3
    */
-  kinds?: [CatalogCandidateKind] | [CatalogCandidateKind, CatalogCandidateKind];
+  kinds?:
+    | [CatalogCandidateKind]
+    | [CatalogCandidateKind, CatalogCandidateKind]
+    | [CatalogCandidateKind, CatalogCandidateKind, CatalogCandidateKind];
+  page?: CatalogSearchPage;
 }
 /**
- * A completed catalog search: inert candidate summaries, each carrying a single-use handle.
+ * A completed catalog search containing inert candidate summaries. MCP server and AI skill variants carry a single-use handle; the Agent Plugin variant is handleless.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogSearchSucceeded".
@@ -6770,10 +7260,11 @@ export interface CatalogSearchSucceeded {
    */
   candidates: CatalogCandidate[];
   /**
-   * Whether further matches existed beyond the requested limit.
+   * Legacy indication that the authority returned a page token. Preserved for compatibility; this is not a has-next-page indicator. Use pagination.hasNextPage when pagination metadata is present.
    */
   truncated: boolean;
   negotiated: CatalogNegotiatedContract;
+  pagination?: CatalogSearchPagination;
 }
 /**
  * The request asked for a candidate kind this runtime does not serve.
@@ -6833,6 +7324,182 @@ export interface CatalogUnavailableError {
   reason: CatalogUnavailableReason;
   /**
    * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * The caller cancelled the selection interaction and the retained search state was released.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionCancelled".
+ */
+/** @experimental */
+export interface CatalogSelectionCancelled {
+  /**
+   * Discriminator: selection was cancelled
+   */
+  kind: "cancelled";
+  /**
+   * The search identifier privately bound to the released selection group.
+   */
+  searchId: string;
+}
+/**
+ * The caller explicitly declined every candidate and the retained search state was released.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionDeclined".
+ */
+/** @experimental */
+export interface CatalogSelectionDeclined {
+  /**
+   * Discriminator: the candidates were declined
+   */
+  kind: "declined";
+  /**
+   * The search identifier privately bound to the released selection group.
+   */
+  searchId: string;
+}
+/**
+ * The selection reference belongs to another runtime instance or session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionForeign".
+ */
+/** @experimental */
+export interface CatalogSelectionForeign {
+  /**
+   * Discriminator for this typed selection rejection
+   */
+  kind: "foreign";
+  /**
+   * Human-readable explanation safe to surface. Never contains the presented reference or private candidate state.
+   */
+  message: string;
+}
+/**
+ * The selection reference was malformed or unknown.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionInvalid".
+ */
+/** @experimental */
+export interface CatalogSelectionInvalid {
+  /**
+   * Discriminator for this typed selection rejection
+   */
+  kind: "invalid";
+  /**
+   * Human-readable explanation safe to surface. Never contains the presented reference or private candidate state.
+   */
+  message: string;
+}
+/**
+ * The selection group was already terminated or its pending host hand-off was already claimed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionReplayed".
+ */
+/** @experimental */
+export interface CatalogSelectionReplayed {
+  /**
+   * Discriminator for this typed selection rejection
+   */
+  kind: "replayed";
+  /**
+   * Human-readable explanation safe to surface. Never contains the presented reference or private candidate state.
+   */
+  message: string;
+}
+/**
+ * Terminates one retained catalog selection group through an opaque reference previously returned by the model-safe search projection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionRequest".
+ */
+/** @experimental */
+export interface CatalogSelectionRequest {
+  contract: CatalogClientContract;
+  /**
+   * Locally owned root session whose retained search state is being resolved.
+   */
+  sessionId: string;
+  /**
+   * Opaque runtime-instance scoped reference to one visible candidate. For a non-selected outcome, any candidate reference from the same search closes that search's retained group.
+   */
+  selectionRef: string;
+  outcome: CatalogSelectionDecision;
+}
+/**
+ * The chosen candidate was transferred into a fresh bounded single-use handle for a later explicit planning request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionSelected".
+ */
+/** @experimental */
+export interface CatalogSelectionSelected {
+  /**
+   * Discriminator: one candidate was selected
+   */
+  kind: "selected";
+  /**
+   * Fresh single-use candidate handle accepted by mcp.planInstall. Returned only to the native host and never included in model-tool output.
+   */
+  candidateHandle: string;
+  /**
+   * The exact search identifier privately bound to the selected candidate.
+   */
+  searchId: string;
+}
+/**
+ * The host declared that its live selection interaction timed out, and the retained search state was released.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionTimedOut".
+ */
+/** @experimental */
+export interface CatalogSelectionTimedOut {
+  /**
+   * Discriminator: the host's live interaction timed out
+   */
+  kind: "timed-out";
+  /**
+   * The search identifier privately bound to the released selection group.
+   */
+  searchId: string;
+}
+/**
+ * The runtime-enforced selection reference lifetime elapsed before the request arrived.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionStale".
+ */
+/** @experimental */
+export interface CatalogSelectionStale {
+  /**
+   * Discriminator for this typed selection rejection
+   */
+  kind: "stale";
+  /**
+   * Human-readable explanation safe to surface. Never contains the presented reference or private candidate state.
+   */
+  message: string;
+}
+/**
+ * The presented opaque handle was issued for another catalog operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSelectionWrongKind".
+ */
+/** @experimental */
+export interface CatalogSelectionWrongKind {
+  /**
+   * Discriminator for this typed selection rejection
+   */
+  kind: "wrong-kind";
+  /**
+   * Human-readable explanation safe to surface. Never contains the presented reference or private candidate state.
    */
   message: string;
 }
@@ -10229,6 +10896,18 @@ export interface InstalledPluginInfo {
    * Runtime-reported plugin provenance. Currently set to "builtin" only for plugins registered through the trusted host built-in boundary; absent for installed, marketplace, direct, and live plugins.
    */
   source?: string;
+  /**
+   * Whether enterprise managed settings control this plugin's enabled state.
+   */
+  managed?: boolean;
+  /**
+   * The enabled state required by enterprise managed settings, when this plugin spec is managed.
+   */
+  managedDesiredEnabled?: boolean;
+  /**
+   * Whether the managed desired plugin currently has an installed or live record. Set to false for a managed desired entry retained in the listing after installation or reconciliation failed.
+   */
+  installed?: boolean;
 }
 /**
  * Canonical file or directory where custom instructions can be discovered or created, with location, kind, preference, and project path.
@@ -10862,6 +11541,14 @@ export interface MarketplaceInfo {
    * True when this is a default marketplace shipped with the runtime. Defaults are not removable.
    */
   isDefault?: boolean;
+  /**
+   * Whether enterprise managed settings provide and control this marketplace entry.
+   */
+  managed?: boolean;
+  /**
+   * Whether the managed marketplace currently resolved into the runtime marketplace registry. Set to false when the desired managed entry is retained for governance visibility after loading or reconciliation failed.
+   */
+  available?: boolean;
 }
 /**
  * All registered marketplaces, including built-in defaults.
@@ -11278,6 +11965,10 @@ export interface McpServerConfigStdio {
    * Timeout in milliseconds for tool discovery and tool calls.
    */
   timeout?: number;
+  /**
+   * Milliseconds this server may spend connecting before the CLI warns that it is taking longer than expected. Presentation only: it does not change how long the connection is allowed to take.
+   */
+  slowConnectionThresholdMs?: number;
   oidc?: McpServerAuthConfig;
   auth?: McpServerAuthConfig;
   deferTools?: McpServerConfigDeferTools;
@@ -11399,6 +12090,10 @@ export interface McpServerConfigHttp {
    * Timeout in milliseconds for tool discovery and tool calls.
    */
   timeout?: number;
+  /**
+   * Milliseconds this server may spend connecting before the CLI warns that it is taking longer than expected. Presentation only: it does not change how long the connection is allowed to take.
+   */
+  slowConnectionThresholdMs?: number;
   oidc?: McpServerAuthConfig;
   auth?: McpServerAuthConfig;
   deferTools?: McpServerConfigDeferTools;
@@ -11839,7 +12534,7 @@ export interface McpInstallPlan {
   target: McpPlanTarget;
   policy: McpPlanPolicyResult;
   /**
-   * The configuration changes installing would make, described rather than serialised, so the mutable configuration payload stays behind the runtime boundary.
+   * Alternative configuration changes, with exactly one entry for each transportChoices entry in the same order. Only the entry for the subsequently selected transport applies; these are not cumulative writes. Payloads remain behind the runtime boundary.
    */
   configurationChanges: McpPlanConfigurationChange[];
   /**
@@ -11847,7 +12542,7 @@ export interface McpInstallPlan {
    */
   reloadRequired: boolean;
   /**
-   * Whether the plan cannot be applied without further input, because a required value has no default or a secret must be supplied.
+   * True only when every eligible transport choice needs additional values or secrets. False means at least one choice needs no additional configuration, not that every choice is ready. A later apply operation must validate the selected choice's own inputs, secrets and policy after explicit confirmation.
    */
   requiresInteractiveConfiguration: boolean;
 }
@@ -12079,7 +12774,7 @@ export interface McpPlanPolicyResult {
   reason?: string;
 }
 /**
- * One change applying the plan would make, described rather than serialised so the configuration payload stays behind the runtime boundary.
+ * The configuration-change alternative for the transportChoices entry at the same index. Only the selected alternative is applied; entries are not cumulative. The payload stays behind the runtime boundary.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpPlanConfigurationChange".
@@ -12363,7 +13058,7 @@ export interface McpPlanInstallSourceCandidate {
    */
   candidateHandle: string;
   /**
-   * The runtime- or authority-minted `searchId` returned with the search that produced this candidate. A search implementation binds it to private candidate-handle context; a planning implementation must verify that context before returning a plan. The unavailable planning implementation in this contract layer validates presence but does not claim the verification has occurred. It identifies a search rather than a person and must never be joined with user identity to re-identify anyone.
+   * The runtime- or authority-minted `searchId` returned with the search that produced this candidate. Planning verifies the private correlation and atomically consumes a matching candidate before downstream work, including attempts that subsequently fail or report unavailable. A mismatched search does not consume the candidate. It identifies a search rather than a person and must never be joined with user identity to re-identify anyone.
    */
   searchId: string;
 }
@@ -12870,6 +13565,10 @@ export interface McpServerConfigMemory {
    * Timeout in milliseconds for tool discovery and tool calls.
    */
   timeout?: number;
+  /**
+   * Milliseconds this server may spend connecting before the CLI warns that it is taking longer than expected. Presentation only: it does not change how long the connection is allowed to take.
+   */
+  slowConnectionThresholdMs?: number;
   oidc?: McpServerAuthConfig;
   deferTools?: McpServerConfigDeferTools;
   /**
@@ -13631,6 +14330,7 @@ export interface ModelApplyStartupOverlayRequest {
    * Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins.
    */
   policyHelperModel?: string;
+  autoTier?: AutoTier;
   /**
    * Model selected by repository settings, when configured.
    */
@@ -13964,6 +14664,10 @@ export interface ModelSwitchToRequest {
 /** @experimental */
 export interface ModelSwitchToResult {
   /**
+   * Stable queue item identifier when this request was enqueued. Remains present if the item drains before the response is returned.
+   */
+  queueId?: string;
+  /**
    * Currently active model identifier after the switch
    */
   modelId?: string;
@@ -14271,6 +14975,10 @@ export interface PendingPermissionRequest {
    */
   requestId: string;
   request: PermissionPromptRequest;
+  /**
+   * Permission-recovery episode that authorized this request to surface for interactive attention
+   */
+  recoveryEpisodeId?: string;
 }
 /**
  * List of pending permission requests reconstructed from event history.
@@ -15917,6 +16625,30 @@ export interface Plugin {
    * Whether the plugin is currently enabled
    */
   enabled: boolean;
+  /**
+   * Opaque stable identity for a direct plugin source.
+   */
+  directSourceId?: string;
+  /**
+   * Absolute marketplace directory for a live plugin.
+   */
+  installedFrom?: string;
+  /**
+   * Runtime plugin provenance, such as "builtin".
+   */
+  source?: string;
+  /**
+   * Whether enterprise managed settings control this plugin.
+   */
+  managed?: boolean;
+  /**
+   * Enabled state required by enterprise managed settings.
+   */
+  managedDesiredEnabled?: boolean;
+  /**
+   * Whether this managed desired plugin has an installed or live record.
+   */
+  installed?: boolean;
 }
 /**
  * Result of installing a plugin.
@@ -16968,6 +17700,36 @@ export interface PushAttachmentBlob {
   displayName?: string;
 }
 /**
+ * Append to one pending steering message without changing its identity or delivery position.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "QueueAppendSteeringRequest".
+ */
+/** @experimental */
+export interface QueueAppendSteeringRequest {
+  /**
+   * Message identity returned by send, not the queue item id. Only unclaimed user steering messages are eligible.
+   */
+  messageId: string;
+  /**
+   * Expected current prompt, including any previous appends. The runtime applies plan-mode normalization before comparing and refuses a changed message.
+   */
+  expectedPrompt: string;
+  agentMode: SendAgentMode;
+  /**
+   * Text to append after a blank line.
+   */
+  prompt: string;
+  /**
+   * Display text to append to the existing preview after a blank line.
+   */
+  displayPrompt: string;
+  /**
+   * Attachments to add after the message's existing attachments. An empty list preserves the existing attachments.
+   */
+  attachments: Attachment[];
+}
+/**
  * Inputs for starting a deferred-idle drain.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17346,6 +18108,10 @@ export interface QueueSetDrainPausedRequest {
 /** @experimental */
 export interface QueueSnapshotResult {
   /**
+   * Queue item identifier of a model switch that has been dequeued but not yet applied.
+   */
+  inFlightModelChangeId?: string;
+  /**
    * User-facing pending items in FIFO order.
    */
   items: QueuePendingItems[];
@@ -17395,6 +18161,23 @@ export interface QueueUpdateTextResult {
    * True when the stored text changed.
    */
   updated: boolean;
+}
+/**
+ * Conditional withdrawal of a single user message, before the runtime claims it for delivery.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "QueueWithdrawMessageRequest".
+ */
+/** @experimental */
+export interface QueueWithdrawMessageRequest {
+  /**
+   * Message identity returned by send, not the queue item id. Batch messages are not eligible.
+   */
+  messageId: string;
+  /**
+   * The prompt originally sent. A message edited since submission is not withdrawn, so an obsolete draft cannot replace the edit.
+   */
+  expectedPrompt: string;
 }
 /**
  * Event type to register consumer interest for, used by runtime gating logic.
@@ -18930,7 +19713,7 @@ export interface SessionFsSetProviderCapabilities {
   sqlite?: boolean;
 }
 /**
- * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
+ * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider. A registered provider is authoritative for path interpretation and filesystem facts used by workspace permission validation. Paths are interpreted lexically; home-relative paths (`~` and `~/...`) and Windows drive-relative paths such as `C:foo` are unsupported. Until provider-side canonicalization is supported, providers must not expose symlinks inside allowed roots that escape those roots.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSetProviderRequest".
@@ -18938,7 +19721,7 @@ export interface SessionFsSetProviderCapabilities {
 /** @experimental */
 export interface SessionFsSetProviderRequest {
   /**
-   * Initial working directory for sessions
+   * Absolute initial working directory for sessions. Registering the provider establishes this path as the root of its virtual namespace; the runtime does not require the provider to materialize or stat it before creating a session.
    */
   initialCwd: string;
   /**
@@ -19408,7 +20191,7 @@ export interface SessionLoadDeferredRepoHooksResult {
 /** @experimental */
 export interface SessionManagedPermissions {
   /**
-   * When set to `disable`, prevents bypass/allow-all permission modes. `allow-auto-only` blocks full allow-all but permits advisory auto-approval. Any other value is accepted rather than failing the session, but is enforced as `disable`: the key is only present to restrict something, so a mode this runtime cannot interpret fails closed to the most restrictive one it knows. Omit the key entirely to impose no restriction.
+   * When set to `disable`, prevents bypass/allow-all permission modes. Advisory auto-approval remains available because normal prompt paths stay active. Any other value is accepted rather than failing the session, but is enforced as `disable`: the key is only present to restrict something, so a mode this runtime cannot interpret fails closed to the most restrictive one it knows. Omit the key entirely to impose no restriction.
    */
   disableBypassPermissionsMode?: string;
   /**
@@ -19492,6 +20275,7 @@ export interface SessionMetadataSnapshot {
    * Current session limits, or null when no limits are active
    */
   sessionLimits: SessionLimitsConfig | null;
+  indexedSearch?: IndexedSearchState;
   /**
    * Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags).
    */
@@ -20168,6 +20952,45 @@ export interface SessionsOpenProgress {
    * Optional step message.
    */
   message?: string;
+}
+/**
+ * Plugin names (or specs) to disable in the session's authoritative working directory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionPluginsDisableRequest".
+ */
+/** @experimental */
+export interface SessionPluginsDisableRequest {
+  /**
+   * Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.
+   */
+  names: string[];
+}
+/**
+ * Plugin names (or specs) to enable in the session's authoritative working directory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionPluginsEnableRequest".
+ */
+/** @experimental */
+export interface SessionPluginsEnableRequest {
+  /**
+   * Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.
+   */
+  names: string[];
+}
+/**
+ * Plugin source resolved relative to the session's authoritative working directory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionPluginsInstallRequest".
+ */
+/** @experimental */
+export interface SessionPluginsInstallRequest {
+  /**
+   * Plugin install spec. Accepts the same forms as the CLI: "plugin@marketplace" (marketplace install), "owner/repo" or "owner/repo:subpath" (GitHub direct), an http/https/ssh URL, or a local path. Direct (non-marketplace) installs are deprecated and will produce a deprecationWarning in the result.
+   */
+  source: string;
 }
 /**
  * Outcome of the prune operation: deleted IDs, dry-run candidates, skipped IDs, total bytes freed, and the dry-run flag.
@@ -24036,6 +24859,1026 @@ export interface VisibilitySetResult {
   shareUrl?: string;
 }
 /**
+ * Parameters for cooperatively aborting a workflow body.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAbortRequest".
+ */
+/** @experimental */
+export interface WorkflowAbortRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Opaque token identifying the execution attempt to abort.
+   */
+  executionToken: string;
+}
+/**
+ * Acknowledgement that a workflow request was accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAckResult".
+ */
+/** @experimental */
+export interface WorkflowAckResult {}
+/**
+ * Options for one workflow-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAgentOptions".
+ */
+/** @experimental */
+export interface WorkflowAgentOptions {
+  /**
+   * Optional label distinguishing otherwise identical memoized agent calls.
+   */
+  label?: string;
+  /**
+   * Optional JSON Schema for structured agent output.
+   */
+  schema?: JsonValue;
+  /**
+   * Optional model identifier for the subagent.
+   */
+  model?: string;
+  /**
+   * Optional reasoning effort override for the subagent.
+   */
+  reasoningEffort?: string;
+  contextTier?: ContextTier;
+  /**
+   * Optional built-in or custom agent name whose definition configures the subagent.
+   */
+  agent?: string;
+}
+/**
+ * Parameters for one workflow-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAgentRequest".
+ */
+/** @experimental */
+export interface WorkflowAgentRequest {
+  /**
+   * Workflow run identifier that owns the subagent.
+   */
+  workflowRunId: string;
+  /**
+   * Opaque token identifying the current workflow execution attempt.
+   */
+  executionToken: string;
+  /**
+   * Prompt to send to the subagent.
+   */
+  prompt: string;
+  opts: WorkflowAgentOptions;
+}
+/**
+ * Result of one workflow-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAgentResult".
+ */
+/** @experimental */
+export interface WorkflowAgentResult {
+  /**
+   * Agent result, omitted when the agent produced no result.
+   */
+  result?: JsonValue;
+}
+/**
+ * Prompt-safe durable identity and live status for a direct workflow agent.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAgentSummary".
+ */
+/** @experimental */
+export interface WorkflowAgentSummary {
+  /**
+   * Stable direct-agent identifier.
+   */
+  agentId: string;
+  /**
+   * Tool-call identifier that launched the agent.
+   */
+  toolCallId: string;
+  /**
+   * Owning workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Phase identifier active when the agent was launched, or null.
+   */
+  phaseId: string | null;
+  /**
+   * Friendly, non-unique name intended for display
+   */
+  label: string;
+  /**
+   * Friendly, non-unique name intended for display
+   */
+  displayName?: string;
+  /**
+   * Registered agent type.
+   */
+  agentType: string;
+  /**
+   * Current durable or live agent status.
+   */
+  status: string;
+  /**
+   * Model requested when the agent was launched.
+   */
+  requestedModel?: string;
+  /**
+   * Concrete model resolved for the agent.
+   */
+  resolvedModel?: string;
+  /**
+   * Epoch milliseconds when the agent started.
+   */
+  startedAt?: number;
+  /**
+   * Epoch milliseconds when the agent completed.
+   */
+  completedAt?: number;
+  /**
+   * Accumulated active agent time in milliseconds.
+   */
+  activeMs: number;
+  /**
+   * Prompt-safe live activity text.
+   */
+  activity?: string;
+}
+/**
+ * Parameters for cancelling a workflow run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowCancelRequest".
+ */
+/** @experimental */
+export interface WorkflowCancelRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+}
+/**
+ * Current workflow phase identity.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowCurrentPhase".
+ */
+/** @experimental */
+export interface WorkflowCurrentPhase {
+  /**
+   * Current phase identifier.
+   */
+  id: string;
+  /**
+   * Zero-based declared phase ordinal, or null for an undeclared phase.
+   */
+  ordinal: number | null;
+}
+/**
+ * Declared or approved workflow resource ceilings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowDeclaredLimits".
+ */
+/** @experimental */
+export interface WorkflowDeclaredLimits {
+  /**
+   * Maximum concurrently active subagents.
+   */
+  maxConcurrentSubagents?: number;
+  /**
+   * Maximum total subagents spawned by the run.
+   */
+  maxTotalSubagents?: number;
+  /**
+   * Maximum accumulated active execution time in seconds.
+   */
+  timeoutSeconds?: number;
+  /**
+   * Maximum AI credits consumed by subagents and descendants.
+   */
+  maxAiCredits?: number;
+}
+/**
+ * Parameters sent to the owning extension to execute a workflow closure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowExecuteRequest".
+ */
+/** @experimental */
+export interface WorkflowExecuteRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Registered workflow name.
+   */
+  name: string;
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Opaque token identifying this workflow execution attempt.
+   */
+  executionToken: string;
+  /**
+   * Workflow input value.
+   */
+  args: JsonValue;
+}
+/**
+ * Result returned by an extension workflow closure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowExecuteResult".
+ */
+/** @experimental */
+export interface WorkflowExecuteResult {
+  /**
+   * Workflow result value.
+   */
+  result?: JsonValue;
+}
+/**
+ * Parameters for paging workflow progress.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowGetRunProgressRequest".
+ */
+/** @experimental */
+export interface WorkflowGetRunProgressRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Optional phase identifier used to scope records and cursors.
+   */
+  phaseId?: string;
+  /**
+   * Exclusive forward cursor.
+   */
+  afterSeq?: number;
+  /**
+   * Exclusive backward cursor.
+   */
+  beforeSeq?: number;
+  /**
+   * Maximum records to return. Defaults to 200 and is capped at 500.
+   */
+  limit?: number;
+}
+/**
+ * Parameters for retrieving a workflow run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowGetRunRequest".
+ */
+/** @experimental */
+export interface WorkflowGetRunRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+}
+/**
+ * Parameters for reading a workflow journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowJournalGetRequest".
+ */
+/** @experimental */
+export interface WorkflowJournalGetRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Opaque token identifying the current workflow execution attempt.
+   */
+  executionToken: string;
+  /**
+   * Namespaced journal key.
+   */
+  key: string;
+}
+/**
+ * Result of reading a workflow journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowJournalGetResult".
+ */
+/** @experimental */
+export interface WorkflowJournalGetResult {
+  /**
+   * Whether the journal contained the requested key.
+   */
+  hit: boolean;
+  /**
+   * Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
+   */
+  resultJson?: JsonValue;
+}
+/**
+ * Parameters for storing a workflow journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowJournalPutRequest".
+ */
+/** @experimental */
+export interface WorkflowJournalPutRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Opaque token identifying the current workflow execution attempt.
+   */
+  executionToken: string;
+  /**
+   * Namespaced journal key.
+   */
+  key: string;
+  /**
+   * JSON result to memoize.
+   */
+  resultJson: JsonValue;
+}
+/**
+ * Parameters for paging workflow runs.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowListRunsRequest".
+ */
+/** @experimental */
+export interface WorkflowListRunsRequest {
+  /**
+   * Exclusive forward cursor.
+   */
+  afterSeq?: number;
+  /**
+   * Exclusive backward cursor.
+   */
+  beforeSeq?: number;
+  /**
+   * Maximum terminal runs to return. Defaults to 200 and is capped at 500.
+   */
+  limit?: number;
+}
+/**
+ * A page of workflow runs in durable creation order.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowListRunsResult".
+ */
+/** @experimental */
+export interface WorkflowListRunsResult {
+  /**
+   * Workflow run summaries in durable creation order.
+   */
+  runs: WorkflowRunSummary[];
+  /**
+   * Oldest terminal-run cursor in this page, or null when the terminal window is empty.
+   */
+  oldestSeq?: number | null;
+  /**
+   * Newest terminal-run cursor in this page, or null when the terminal window is empty.
+   */
+  newestSeq?: number | null;
+  /**
+   * Whether terminal runs newer than this page exist.
+   */
+  hasMoreNewer?: boolean;
+  /**
+   * Number of terminal runs older than this page.
+   */
+  omittedOlder?: number;
+}
+/**
+ * Durable workflow run summary with read-time live overlays.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunSummary".
+ */
+/** @experimental */
+export interface WorkflowRunSummary {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Registered workflow name.
+   */
+  workflowName: string;
+  /**
+   * Human-readable workflow description.
+   */
+  description: string;
+  status: WorkflowRunStatus;
+  /**
+   * Monotonic durable run revision.
+   */
+  revision: number;
+  /**
+   * Epoch milliseconds when the run was created.
+   */
+  createdAt: number;
+  /**
+   * Epoch milliseconds when execution first started, or null before start.
+   */
+  startedAt: number | null;
+  /**
+   * Epoch milliseconds when the durable run was last updated.
+   */
+  updatedAt: number;
+  /**
+   * Epoch milliseconds when the run completed, or null while nonterminal.
+   */
+  completedAt: number | null;
+  /**
+   * Current phase identity, or null before any phase is entered.
+   */
+  currentPhase: WorkflowCurrentPhase | null;
+  /**
+   * Number of phases declared by the workflow.
+   */
+  declaredPhaseCount: number;
+  /**
+   * Number of direct workflow agents currently live.
+   */
+  liveAgentCount: number;
+  /**
+   * Total direct workflow agents spawned across all attempts.
+   */
+  totalSpawnedAgentCount: number;
+  consumed: WorkflowRunConsumed;
+  declaredLimits: WorkflowDeclaredLimits;
+  /**
+   * Approved effective resource ceilings, or null until approved.
+   */
+  approved: WorkflowDeclaredLimits | null;
+  /**
+   * Epoch milliseconds when this live-overlay snapshot was observed.
+   */
+  observedAt: number;
+  /**
+   * Epoch milliseconds when the current active segment started, or null while inactive.
+   */
+  activeSegmentStartedAt: number | null;
+  /**
+   * Terminal run outcome, or null while nonterminal.
+   */
+  terminal: WorkflowRunTerminal | null;
+  /**
+   * Whether the durable run state currently passes runtime resume eligibility checks.
+   */
+  canResume: boolean;
+}
+/**
+ * Durable workflow resource consumption.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunConsumed".
+ */
+/** @experimental */
+export interface WorkflowRunConsumed {
+  /**
+   * Accumulated active execution time in milliseconds.
+   */
+  activeMs: number;
+  /**
+   * Total subagents spawned by the run.
+   */
+  subagents: number;
+  /**
+   * AI usage consumed by the run in nano-AIU.
+   */
+  nanoAiu: number;
+}
+/**
+ * Prompt-safe terminal workflow outcome.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunTerminal".
+ */
+/** @experimental */
+export interface WorkflowRunTerminal {
+  /**
+   * Human-readable terminal reason.
+   */
+  reason?: string;
+  failure?: WorkflowRunFailure;
+  /**
+   * Human-readable terminal error.
+   */
+  error?: string;
+  /**
+   * Prompt-safe preview of the completed result.
+   */
+  resultPreview?: string;
+  /**
+   * Pause initiator metadata, or null when the run did not pause.
+   */
+  pauseInfo: WorkflowPauseInfo | null;
+}
+/**
+ * One ordered workflow progress line.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowLogLine".
+ */
+/** @experimental */
+export interface WorkflowLogLine {
+  /**
+   * Monotonic sequence number within the workflow run.
+   */
+  seq: number;
+  kind: WorkflowLogLineKind;
+  /**
+   * Progress text.
+   */
+  text: string;
+}
+/**
+ * Parameters for recording workflow progress.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowLogRequest".
+ */
+/** @experimental */
+export interface WorkflowLogRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Opaque token identifying the current workflow execution attempt.
+   */
+  executionToken: string;
+  /**
+   * Ordered progress lines to append.
+   */
+  lines: WorkflowLogLine[];
+}
+/**
+ * Parameters for an owned durable pause checkpoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowPauseCheckpointRequest".
+ */
+/** @experimental */
+export interface WorkflowPauseCheckpointRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Opaque token identifying the execution attempt that reached the checkpoint.
+   */
+  executionToken: string;
+  /**
+   * Stable author-defined checkpoint key.
+   */
+  key: string;
+}
+
+/** @experimental */
+export interface WorkflowPauseCheckpointResult {
+  action: WorkflowPauseCheckpointAction;
+}
+/**
+ * Parameters for pausing a running workflow.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowPauseRequest".
+ */
+/** @experimental */
+export interface WorkflowPauseRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+}
+/**
+ * Durable lifecycle and timing for one workflow phase.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowPhaseObservation".
+ */
+/** @experimental */
+export interface WorkflowPhaseObservation {
+  /**
+   * Phase identifier.
+   */
+  id: string;
+  /**
+   * Zero-based declared phase ordinal, or null for an undeclared phase.
+   */
+  ordinal: number | null;
+  /**
+   * Human-readable phase title.
+   */
+  title: string;
+  /**
+   * Optional human-readable phase detail.
+   */
+  detail?: string;
+  status: WorkflowPhaseStatus;
+  /**
+   * Most recent run attempt that entered this phase, or `0` if the phase has never been entered.
+   */
+  lastEnteredRunAttempt: number;
+  /**
+   * Number of times execution entered this phase.
+   */
+  entryCount: number;
+  /**
+   * Epoch milliseconds when this phase first started; for a skipped phase, the synthetic skip timestamp (equal to `completedAt`).
+   */
+  startedAt?: number;
+  /**
+   * Epoch milliseconds when this phase completed; for a skipped phase, the synthetic skip timestamp (equal to `startedAt`).
+   */
+  completedAt?: number;
+  /**
+   * Completed active time accumulated by this phase in milliseconds.
+   */
+  accumulatedActiveMs: number;
+  /**
+   * Current live active time for this phase in milliseconds.
+   */
+  currentActiveMs: number;
+  /**
+   * Total direct agents associated with this phase.
+   */
+  totalAgentCount: number;
+  /**
+   * Direct agents in this phase that are currently live.
+   */
+  liveAgentCount: number;
+}
+/**
+ * One durable workflow progress record.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowProgressLine".
+ */
+/** @experimental */
+export interface WorkflowProgressLine {
+  /**
+   * Global monotonic sequence number within the run.
+   */
+  seq: number;
+  /**
+   * Resume attempt that emitted this record.
+   */
+  attempt: number;
+  /**
+   * Phase active when the record was emitted, or null before any phase.
+   */
+  phaseId: string | null;
+  /**
+   * Epoch milliseconds when the record was persisted.
+   */
+  recordedAt: number;
+  kind: WorkflowLogLineKind;
+  /**
+   * Prompt-safe progress text.
+   */
+  text: string;
+}
+/**
+ * A bidirectional page of workflow progress.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowProgressPage".
+ */
+/** @experimental */
+export interface WorkflowProgressPage {
+  /**
+   * Progress records in sequence order.
+   */
+  records: WorkflowProgressLine[];
+  /**
+   * Oldest sequence number in this page, or null when empty.
+   */
+  oldestSeq: number | null;
+  /**
+   * Newest sequence number in this page, or null when empty.
+   */
+  newestSeq: number | null;
+  /**
+   * Whether progress records older than this page exist.
+   */
+  hasMoreOlder: boolean;
+  /**
+   * Whether progress records newer than this page exist.
+   */
+  hasMoreNewer: boolean;
+  /**
+   * Run revision reflected by this page.
+   */
+  revision: number;
+}
+/**
+ * Parameters for resuming a workflow run from its persisted identity.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowResumeRequest".
+ */
+/** @experimental */
+export interface WorkflowResumeRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  limits?: WorkflowRunLimits;
+  /**
+   * Whether to notify the originating session when the workflow completes.
+   */
+  notifyOnComplete?: boolean;
+  /**
+   * Whether to emit workflow phase names to the session transcript.
+   */
+  logPhaseNames?: boolean;
+}
+/**
+ * Wire-only per-invocation workflow resource ceiling overrides.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunLimits".
+ */
+/** @experimental */
+export interface WorkflowRunLimits {
+  /**
+   * Maximum number of workflow subagents that may run concurrently.
+   */
+  maxConcurrentSubagents?: number | null;
+  /**
+   * Maximum total number of workflow subagents that may be admitted.
+   */
+  maxTotalSubagents?: number | null;
+  /**
+   * Maximum accumulated active-execution time in seconds. Active execution includes the entire extension body, subprocess waits, queued-agent waits, and sleeps; time between resumed attempts is not counted.
+   */
+  timeoutSeconds?: number | null;
+  /**
+   * Maximum AI credits consumed by workflow subagents and their descendants. The post-paid ceiling is soft: parallel turns can settle beyond it before the run stops.
+   */
+  maxAiCredits?: number | null;
+}
+/**
+ * Resolved persisted workflow identity and resumed run envelope.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowResumeResult".
+ */
+/** @experimental */
+export interface WorkflowResumeResult {
+  /**
+   * Persisted workflow name resolved for the resumed run.
+   */
+  workflowName: string;
+  run: WorkflowRunResult;
+}
+/**
+ * Complete current or terminal workflow run envelope.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunResult".
+ */
+/** @experimental */
+export interface WorkflowRunResult {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.
+   */
+  attempt?: number;
+  status: WorkflowRunStatus;
+  /**
+   * Completed workflow result.
+   */
+  result?: JsonValue;
+  /**
+   * Error message for an errored run.
+   */
+  error?: string;
+  failure?: WorkflowRunFailure;
+  /**
+   * Reason for a halted or cancelled run.
+   */
+  reason?: string;
+  /**
+   * Partial journal and progress snapshot for a halted, cancelled, or errored run.
+   */
+  snapshot?: JsonValue;
+  pauseInfo?: WorkflowPauseInfo;
+}
+/**
+ * Full workflow run observability detail.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunDetail".
+ */
+/** @experimental */
+export interface WorkflowRunDetail {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Registered workflow name.
+   */
+  workflowName: string;
+  /**
+   * Human-readable workflow description.
+   */
+  description: string;
+  status: WorkflowRunStatus;
+  /**
+   * Monotonic durable run revision.
+   */
+  revision: number;
+  /**
+   * Epoch milliseconds when the run was created.
+   */
+  createdAt: number;
+  /**
+   * Epoch milliseconds when execution first started, or null before start.
+   */
+  startedAt: number | null;
+  /**
+   * Epoch milliseconds when the durable run was last updated.
+   */
+  updatedAt: number;
+  /**
+   * Epoch milliseconds when the run completed, or null while nonterminal.
+   */
+  completedAt: number | null;
+  /**
+   * Current phase identity, or null before any phase is entered.
+   */
+  currentPhase: WorkflowCurrentPhase | null;
+  /**
+   * Number of phases declared by the workflow.
+   */
+  declaredPhaseCount: number;
+  /**
+   * Number of direct workflow agents currently live.
+   */
+  liveAgentCount: number;
+  /**
+   * Total direct workflow agents spawned across all attempts.
+   */
+  totalSpawnedAgentCount: number;
+  consumed: WorkflowRunConsumed;
+  declaredLimits: WorkflowDeclaredLimits;
+  /**
+   * Approved effective resource ceilings, or null until approved.
+   */
+  approved: WorkflowDeclaredLimits | null;
+  /**
+   * Epoch milliseconds when this live-overlay snapshot was observed.
+   */
+  observedAt: number;
+  /**
+   * Epoch milliseconds when the current active segment started, or null while inactive.
+   */
+  activeSegmentStartedAt: number | null;
+  /**
+   * Terminal run outcome, or null while nonterminal.
+   */
+  terminal: WorkflowRunTerminal | null;
+  /**
+   * Whether the durable run state currently passes runtime resume eligibility checks.
+   */
+  canResume: boolean;
+  /**
+   * Lifecycle and timing observations for each workflow phase.
+   */
+  phases: WorkflowPhaseObservation[];
+  /**
+   * Durable identities and live statuses for direct workflow agents.
+   */
+  agents: WorkflowAgentSummary[];
+  progress: WorkflowProgressPage;
+}
+/**
+ * Options controlling workflow invocation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunOptions".
+ */
+/** @experimental */
+export interface WorkflowRunOptions {
+  limits?: WorkflowRunLimits;
+  /**
+   * Whether to notify the originating session when the workflow completes.
+   */
+  notifyOnComplete?: boolean;
+  /**
+   * Whether to emit workflow phase names to the session transcript.
+   */
+  logPhaseNames?: boolean;
+  /**
+   * Run identifier whose journal and progress should seed this resumed run.
+   */
+  resumeFromRunId?: string;
+}
+/**
+ * Parameters for invoking a registered workflow.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunRequest".
+ */
+/** @experimental */
+export interface WorkflowRunRequest {
+  /**
+   * Registered workflow name.
+   */
+  name: string;
+  /**
+   * Workflow input value.
+   */
+  args: JsonValue;
+  options?: WorkflowRunOptions;
+}
+/**
+ * Internal parameters for resuming a workflow run from a tool.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowToolResumeRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface WorkflowToolResumeRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  limits?: WorkflowRunLimits;
+  /**
+   * Opaque identifier of the originating tool call.
+   */
+  toolCallId?: string;
+}
+/**
+ * Options for an internal tool-originated workflow invocation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowToolRunOptions".
+ */
+/** @experimental */
+/** @internal */
+export interface WorkflowToolRunOptions {
+  limits?: WorkflowRunLimits;
+  /**
+   * Run identifier whose journal and progress should seed this resumed run.
+   */
+  resumeFromRunId?: string;
+}
+/**
+ * Internal parameters for invoking a registered workflow from a tool.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowToolRunRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface WorkflowToolRunRequest {
+  /**
+   * Registered workflow name.
+   */
+  name: string;
+  /**
+   * Workflow input value.
+   */
+  args: JsonValue;
+  options?: WorkflowToolRunOptions;
+  /**
+   * Opaque identifier of the originating tool call.
+   */
+  toolCallId?: string;
+}
+/**
  * A single changed file and its unified diff.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -24796,6 +26639,11 @@ export interface SessionFactoryPauseAtCheckpointResult {
 }
 
 /** @experimental */
+export interface SessionWorkflowPauseAtCheckpointResult {
+  action: WorkflowPauseCheckpointAction;
+}
+
+/** @experimental */
 export interface SessionModelListRequest {
   /**
    * If true, bypasses the per-session model list cache and re-fetches from CAPI.
@@ -24823,6 +26671,14 @@ export interface SessionAgentListRequest {
 /** @experimental */
 export interface SessionMcpAppsCallToolResult {
   [k: string]: JsonValue | undefined;
+}
+
+/** @experimental */
+export interface SessionPluginsMarketplacesRefreshRequest {
+  /**
+   * Marketplace name to refresh. When omitted, every registered marketplace is refreshed.
+   */
+  name?: string;
 }
 
 /** @experimental */
@@ -25153,6 +27009,15 @@ export function createServerRpc(connection: MessageConnection) {
              */
             search: async (params: CatalogSearchRequest): Promise<CatalogSearchResult> =>
                 connection.sendRequest("catalog.search", params),
+            /**
+             * Terminates one retained catalog selection group. A selected outcome returns the native host a fresh single-use candidate handle plus the original searchId for a later explicit mcp.planInstall call; non-selected outcomes release the group without producing a planning input. Candidate state, cards, URLs, credentials and private identifiers remain inside the runtime. The model-facing catalog_select tool projects the result separately and never exposes the candidate handle or searchId.
+             *
+             * @param params Terminates one retained catalog selection group through an opaque reference previously returned by the model-safe search projection.
+             *
+             * @returns Typed outcome of catalog.select. Only the selected host result carries a fresh candidate handle; the model-facing projection removes both that handle and searchId.
+             */
+            select: async (params: CatalogSelectionRequest): Promise<CatalogSelectionResult> =>
+                connection.sendRequest("catalog.select", params),
         },
         /** @experimental */
         plugins: {
@@ -25411,7 +27276,7 @@ export function createServerRpc(connection: MessageConnection) {
             /**
              * Registers an SDK client as the session filesystem provider.
              *
-             * @param params Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
+             * @param params Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider. A registered provider is authoritative for path interpretation and filesystem facts used by workspace permission validation. Paths are interpreted lexically; home-relative paths (`~` and `~/...`) and Windows drive-relative paths such as `C:foo` are unsupported. Until provider-side canonicalization is supported, providers must not expose symlinks inside allowed roots that escape those roots.
              *
              * @returns Indicates whether the calling client was registered as the session filesystem provider.
              */
@@ -26047,6 +27912,120 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                  */
                 put: async (params: FactoryJournalPutRequest): Promise<FactoryAckResult> =>
                     connection.sendRequest("session.factory.journal.put", { sessionId, ...params }),
+            },
+        },
+        /** @experimental */
+        workflow: {
+            /**
+             * Runs a registered dynamic workflow by name at the top level.
+             *
+             * @param params Parameters for invoking a registered workflow.
+             *
+             * @returns Complete current or terminal workflow run envelope.
+             */
+            run: async (params: WorkflowRunRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.run", { sessionId, ...params }),
+            /**
+             * Resumes a dynamic workflow run using its persisted name, arguments, journal, and accounting.
+             *
+             * @param params Parameters for resuming a workflow run from its persisted identity.
+             *
+             * @returns Resolved persisted workflow identity and resumed run envelope.
+             */
+            resume: async (params: WorkflowResumeRequest): Promise<WorkflowResumeResult> =>
+                connection.sendRequest("session.workflow.resume", { sessionId, ...params }),
+            /**
+             * Gets the current or settled envelope for a dynamic workflow run.
+             *
+             * @param params Parameters for retrieving a workflow run.
+             *
+             * @returns Complete current or terminal workflow run envelope.
+             */
+            getRun: async (params: WorkflowGetRunRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.getRun", { sessionId, ...params }),
+            /**
+             * Lists durable dynamic workflow runs for this session in creation order.
+             *
+             * @param params Parameters for paging workflow runs.
+             *
+             * @returns A page of workflow runs in durable creation order.
+             */
+            listRuns: async (params: WorkflowListRunsRequest): Promise<WorkflowListRunsResult> =>
+                connection.sendRequest("session.workflow.listRuns", { sessionId, ...params }),
+            /**
+             * Gets durable and live observability detail for one dynamic workflow run.
+             *
+             * @param params Parameters for retrieving a workflow run.
+             *
+             * @returns Full workflow run observability detail.
+             */
+            getRunDetail: async (params: WorkflowGetRunRequest): Promise<WorkflowRunDetail> =>
+                connection.sendRequest("session.workflow.getRunDetail", { sessionId, ...params }),
+            /**
+             * Pages durable progress for one dynamic workflow run.
+             *
+             * @param params Parameters for paging workflow progress.
+             *
+             * @returns A bidirectional page of workflow progress.
+             */
+            getRunProgress: async (params: WorkflowGetRunProgressRequest): Promise<WorkflowProgressPage> =>
+                connection.sendRequest("session.workflow.getRunProgress", { sessionId, ...params }),
+            /**
+             * Requests cancellation of a dynamic workflow run and returns its run envelope.
+             *
+             * @param params Parameters for cancelling a workflow run.
+             *
+             * @returns Complete current or terminal workflow run envelope.
+             */
+            cancel: async (params: WorkflowCancelRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.cancel", { sessionId, ...params }),
+            /**
+             * Pauses a running dynamic workflow and returns its settled run envelope.
+             *
+             * @param params Parameters for pausing a running workflow.
+             *
+             * @returns Complete current or terminal workflow run envelope.
+             */
+            pause: async (params: WorkflowPauseRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.pause", { sessionId, ...params }),
+            /**
+             * Records a batch of ordered dynamic workflow progress lines.
+             *
+             * @param params Parameters for recording workflow progress.
+             *
+             * @returns Acknowledgement that a workflow request was accepted.
+             */
+            log: async (params: WorkflowLogRequest): Promise<WorkflowAckResult> =>
+                connection.sendRequest("session.workflow.log", { sessionId, ...params }),
+            /**
+             * Runs one dynamic-workflow-scoped subagent and returns its result.
+             *
+             * @param params Parameters for one workflow-scoped subagent call.
+             *
+             * @returns Result of one workflow-scoped subagent call.
+             */
+            agent: async (params: WorkflowAgentRequest): Promise<WorkflowAgentResult> =>
+                connection.sendRequest("session.workflow.agent", { sessionId, ...params }),
+            /** @experimental */
+            journal: {
+                /**
+                 * Reads a memoized dynamic workflow journal entry.
+                 *
+                 * @param params Parameters for reading a workflow journal entry.
+                 *
+                 * @returns Result of reading a workflow journal entry.
+                 */
+                get: async (params: WorkflowJournalGetRequest): Promise<WorkflowJournalGetResult> =>
+                    connection.sendRequest("session.workflow.journal.get", { sessionId, ...params }),
+                /**
+                 * Stores a memoized dynamic workflow journal entry.
+                 *
+                 * @param params Parameters for storing a workflow journal entry.
+                 *
+                 * @returns Acknowledgement that a workflow request was accepted.
+                 */
+                put: async (params: WorkflowJournalPutRequest): Promise<WorkflowAckResult> =>
+                    connection.sendRequest("session.workflow.journal.put", { sessionId, ...params }),
             },
         },
         /** @experimental */
@@ -26850,14 +28829,109 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             },
         },
         /** @experimental */
+        managedSettings: {
+            /**
+             * Waits for the live session's in-flight managed-settings application, then returns the retained effective snapshot used by runtime enforcement and by `session.managed_settings_resolved`. It does not perform another account, device, or server resolution, and rejects when resolution has not produced a snapshot.
+             *
+             * @returns Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
+             */
+            get: async (): Promise<ManagedSettingsResolvedData> =>
+                connection.sendRequest("session.managedSettings.get", { sessionId }),
+        },
+        /** @experimental */
         plugins: {
             /**
-             * Lists plugins installed for the session.
+             * Lists globally installed, live, built-in, and enterprise-managed desired plugins using the live session's authoritative account, working directory, and retained managed policy.
              *
              * @returns Plugins installed for the session, with their enabled state and version metadata.
              */
             list: async (): Promise<PluginList> =>
                 connection.sendRequest("session.plugins.list", { sessionId }),
+            /**
+             * Installs a plugin using the live session's authoritative account, working directory, and retained managed policy.
+             *
+             * @param params Plugin source resolved relative to the session's authoritative working directory.
+             *
+             * @returns Result of installing a plugin.
+             */
+            install: async (params: SessionPluginsInstallRequest): Promise<PluginInstallResult> =>
+                connection.sendRequest("session.plugins.install", { sessionId, ...params }),
+            /**
+             * Uninstalls a plugin when permitted by the live session's retained managed policy.
+             *
+             * @param params Name (or spec) of the plugin to uninstall.
+             */
+            uninstall: async (params: PluginsUninstallRequest): Promise<void> =>
+                connection.sendRequest("session.plugins.uninstall", { sessionId, ...params }),
+            /**
+             * Updates an installed plugin using the live session's authoritative account, working directory, and retained managed policy.
+             *
+             * @param params Name (or spec) of the plugin to update.
+             *
+             * @returns Result of updating a single plugin.
+             */
+            update: async (params: PluginsUpdateRequest): Promise<PluginUpdateResult> =>
+                connection.sendRequest("session.plugins.update", { sessionId, ...params }),
+            /**
+             * Enables installed plugins when permitted by the live session's retained managed policy.
+             *
+             * @param params Plugin names (or specs) to enable in the session's authoritative working directory.
+             */
+            enable: async (params: SessionPluginsEnableRequest): Promise<void> =>
+                connection.sendRequest("session.plugins.enable", { sessionId, ...params }),
+            /**
+             * Disables installed plugins when permitted by the live session's retained managed policy.
+             *
+             * @param params Plugin names (or specs) to disable in the session's authoritative working directory.
+             */
+            disable: async (params: SessionPluginsDisableRequest): Promise<void> =>
+                connection.sendRequest("session.plugins.disable", { sessionId, ...params }),
+            /** @experimental */
+            marketplaces: {
+                /**
+                 * Lists registered and enterprise-managed desired marketplaces using the live session's retained policy.
+                 *
+                 * @returns All registered marketplaces, including built-in defaults.
+                 */
+                list: async (): Promise<MarketplaceListResult> =>
+                    connection.sendRequest("session.plugins.marketplaces.list", { sessionId }),
+                /**
+                 * Adds a marketplace when permitted by the live session's retained managed policy.
+                 *
+                 * @param params Marketplace source and optional working directory for relative-path resolution.
+                 *
+                 * @returns Result of registering a new marketplace.
+                 */
+                add: async (params: PluginsMarketplacesAddRequest): Promise<MarketplaceAddResult> =>
+                    connection.sendRequest("session.plugins.marketplaces.add", { sessionId, ...params }),
+                /**
+                 * Removes a marketplace when permitted by the live session's retained managed policy.
+                 *
+                 * @param params Name of the marketplace to remove and an optional force flag.
+                 *
+                 * @returns Outcome of the remove attempt, including dependent-plugin info when applicable.
+                 */
+                remove: async (params: PluginsMarketplacesRemoveRequest): Promise<MarketplaceRemoveResult> =>
+                    connection.sendRequest("session.plugins.marketplaces.remove", { sessionId, ...params }),
+                /**
+                 * Browses a marketplace resolved through the live session's working directory and retained managed policy.
+                 *
+                 * @param params Name of the marketplace whose plugin catalog to fetch.
+                 *
+                 * @returns Plugins advertised by the marketplace.
+                 */
+                browse: async (params: PluginsMarketplacesBrowseRequest): Promise<MarketplaceBrowseResult> =>
+                    connection.sendRequest("session.plugins.marketplaces.browse", { sessionId, ...params }),
+                /**
+                 * Refreshes marketplaces resolved through the live session's working directory and retained managed policy.
+                 *
+                 * @param params Optional marketplace name; omit to refresh all.
+                 *
+                 * @returns Result of refreshing one or more marketplace catalogs.
+                 */
+                refresh: async (params?: SessionPluginsMarketplacesRefreshRequest): Promise<MarketplaceRefreshResult> =>
+                    connection.sendRequest("session.plugins.marketplaces.refresh", { sessionId, ...params }),
+            },
             /**
              * Reloads the session's plugin set, refreshing MCP servers, custom agents, hooks, and skills cache so SDK-driven changes via `server.plugins.*` take effect immediately.
              *
@@ -27655,6 +29729,24 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             updateText: async (params: QueueUpdateTextRequest): Promise<QueueUpdateTextResult> =>
                 connection.sendRequest("session.queue.updateText", { sessionId, ...params }),
             /**
+             * Atomically withdraws an unchanged, unconsumed user message from the local queued or steering lane. A client retaining the original draft may restore it only when removed is true. Does not interrupt the running turn.
+             *
+             * @param params Conditional withdrawal of a single user message, before the runtime claims it for delivery.
+             *
+             * @returns Result of removing a queued item.
+             */
+            withdrawMessage: async (params: QueueWithdrawMessageRequest): Promise<QueueRemoveAtResult> =>
+                connection.sendRequest("session.queue.withdrawMessage", { sessionId, ...params }),
+            /**
+             * Atomically appends text and attachments to an unchanged, unconsumed local steering message. Returns updated=false if delivery or withdrawal already claimed the message.
+             *
+             * @param params Append to one pending steering message without changing its identity or delivery position.
+             *
+             * @returns Result of editing a queued message.
+             */
+            appendSteering: async (params: QueueAppendSteeringRequest): Promise<QueueUpdateTextResult> =>
+                connection.sendRequest("session.queue.appendSteering", { sessionId, ...params }),
+            /**
              * Duplicates an addressable queued item immediately after its source.
              *
              * @param params Parameters for duplicating a queued item.
@@ -28026,6 +30118,34 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
                 connection.sendRequest("session.factory.pauseAtCheckpoint", { sessionId, ...params }),
         },
         /** @experimental */
+        workflow: {
+            /**
+             * Internal tool-originated dynamic workflow invocation.
+             *
+             * @param params Internal parameters for invoking a registered workflow from a tool.
+             *
+             * @returns Complete current or terminal workflow run envelope.
+             */
+            runFromTool: async (params: WorkflowToolRunRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.runFromTool", { sessionId, ...params }),
+            /**
+             * Internal tool-originated dynamic workflow resume.
+             *
+             * @param params Internal parameters for resuming a workflow run from a tool.
+             *
+             * @returns Resolved persisted workflow identity and resumed run envelope.
+             */
+            resumeFromTool: async (params: WorkflowToolResumeRequest): Promise<WorkflowResumeResult> =>
+                connection.sendRequest("session.workflow.resumeFromTool", { sessionId, ...params }),
+            /**
+             * Atomically pauses an owned dynamic workflow attempt at a durable checkpoint.
+             *
+             * @param params Parameters for an owned durable pause checkpoint.
+             */
+            pauseAtCheckpoint: async (params: WorkflowPauseCheckpointRequest): Promise<SessionWorkflowPauseAtCheckpointResult> =>
+                connection.sendRequest("session.workflow.pauseAtCheckpoint", { sessionId, ...params }),
+        },
+        /** @experimental */
         model: {
             /**
              * Resolves and applies organization-managed and repository model overlays.
@@ -28263,6 +30383,27 @@ export interface FactoryHandler {
     abort(params: FactoryAbortRequest): Promise<FactoryAckResult>;
 }
 
+/** Handler for `workflow` client session API methods. */
+/** @experimental */
+export interface WorkflowHandler {
+    /**
+     * Asks the owning extension connection to execute a registered dynamic workflow.
+     *
+     * @param params Parameters sent to the owning extension to execute a workflow closure.
+     *
+     * @returns Result returned by an extension workflow closure.
+     */
+    execute(params: WorkflowExecuteRequest): Promise<WorkflowExecuteResult>;
+    /**
+     * Asks the owning extension connection to abort a running dynamic workflow cooperatively.
+     *
+     * @param params Parameters for cooperatively aborting a workflow body.
+     *
+     * @returns Acknowledgement that a workflow request was accepted.
+     */
+    abort(params: WorkflowAbortRequest): Promise<WorkflowAckResult>;
+}
+
 /** Handler for `tasks` client session API methods. */
 /** @experimental */
 export interface TasksHandler {
@@ -28416,6 +30557,7 @@ export interface CanvasHandler {
 export interface ClientSessionApiHandlers {
     providerToken?: ProviderTokenHandler;
     factory?: FactoryHandler;
+    workflow?: WorkflowHandler;
     tasks?: TasksHandler;
     sessionFs?: SessionFsHandler;
     canvas?: CanvasHandler;
@@ -28444,6 +30586,16 @@ export function registerClientSessionApiHandlers(
     connection.onRequest("factory.abort", async (params: FactoryAbortRequest) => {
         const handler = getHandlers(params.sessionId).factory;
         if (!handler) throw new Error(`No factory handler registered for session: ${params.sessionId}`);
+        return handler.abort(params);
+    });
+    connection.onRequest("workflow.execute", async (params: WorkflowExecuteRequest) => {
+        const handler = getHandlers(params.sessionId).workflow;
+        if (!handler) throw new Error(`No workflow handler registered for session: ${params.sessionId}`);
+        return handler.execute(params);
+    });
+    connection.onRequest("workflow.abort", async (params: WorkflowAbortRequest) => {
+        const handler = getHandlers(params.sessionId).workflow;
+        if (!handler) throw new Error(`No workflow handler registered for session: ${params.sessionId}`);
         return handler.abort(params);
     });
     connection.onRequest("tasks.cancel", async (params: ClientTaskCancelRequest) => {

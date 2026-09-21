@@ -13,14 +13,15 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import javax.annotation.processing.Generated;
 
 /**
- * One inert catalog result, represented as an MCP server or discovery-only AI skill variant so kind, media type, provenance, and installability cannot contradict each other.
+ * One inert catalog result, represented as an MCP server, discovery-only AI skill, or opt-in Agent Plugin variant so kind, media type, provenance, and available operations cannot contradict each other.
  *
  * @since 1.0.0
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "kind", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CatalogMcpServerCandidate.class, name = "mcp-server"),
-    @JsonSubTypes.Type(value = CatalogAiSkillCandidate.class, name = "ai-skill")
+    @JsonSubTypes.Type(value = CatalogAiSkillCandidate.class, name = "ai-skill"),
+    @JsonSubTypes.Type(value = CatalogAgentPluginCandidate.class, name = "plugin")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
