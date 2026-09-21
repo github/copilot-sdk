@@ -16,6 +16,8 @@ export type CopilotHostOptions = Omit<HostStartRequest, "hostId">;
  * The runtime, not this SDK, launches and reaps copilotd-lite. Disconnecting
  * the owning client also stops the host; reconnecting does not reclaim it.
  * Stopping a host does not delete its underlying sessions.
+ * Its durable AHP catalog is shared by successive lite hosts in the runtime's
+ * effective Copilot home; a concurrent lite host for that catalog is rejected.
  *
  * @experimental
  */

@@ -41,6 +41,23 @@ owner connection loss. The latter cannot prove reaping through a transport that
 has already closed. End-to-end coverage must independently observe listener and
 process termination.
 
+## Durable catalog and single lite owner
+
+The runtime passes its actual resolved data directory to lite; the single AHP
+catalog lives at `<effective Copilot home>/ahp/sessions`. It follows the same
+default `~/.copilot`, `COPILOT_HOME`, and SDK `baseDirectory` resolution as that
+runtime. The catalog contains sessions previously created through AHP, not all
+SDK/CLI sessions. Listener disposal, owner disconnect, and restart retain it.
+A replacement listener can list and resume these sessions after authenticating.
+
+Only one **lite AHP server** may own a catalog at a time. A second start for the
+same location fails, including from another runtime. Ordinary runtimes, SDK
+clients, and sessions do not acquire this lock and remain usable. The lock is
+kernel-managed, non-blocking, held until shutdown writes finish, and released
+even after forced process termination. Different effective homes have separate
+catalogs. This does not change standalone `copilotd` defaults or concurrency
+behavior, and does not add standalone/lite shared-writer support.
+
 ## Local-development requirements
 
 Use three local checkouts, including the Rust SDK in `copilot-sdk/rust`.
@@ -83,6 +100,14 @@ source-built runtime or an assembled candidate; the currently released runtime
 is not claimed to implement the new host operations. Generated bindings in this
 branch come from the companion runtime's local schema, so release-based code
 generation must use that same companion release when its pin is advanced.
+
+The coordinated follow-up is: publish host lite artifacts, provision private
+release-read credentials, update and publish the runtime acquisition pin,
+advance the SDK runtime pin, **then enable the opt-in AHP E2Es in CI**.
+CI activation is not a prerequisite for these implementation drafts; local
+source and assembled-candidate runs provide current integration evidence.
+Actual platform ABI/signing/notarization release jobs still need to execute.
+Unsigned debug candidates do not establish signed-release behavior.
 
 Application create/resume callbacks, application-owned AHP transport,
 projection relocation, general multi-harness composition, and exhaustive AHP

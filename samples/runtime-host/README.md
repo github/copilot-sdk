@@ -69,16 +69,20 @@ against released artifacts. These tests explicitly use the local runtime's TCP
 transport so dropping one owner connection does not kill the shared runtime.
 
 Four non-model lifecycle tests cover explicit/idempotent disposal, unexpected
-child exit, unexpected owner connection loss with an unrelated owner's host
-and session still alive, and graceful runtime shutdown with an attached AHP
-session. The shutdown case requires a successful RPC and clean exit notification,
+child exit, rejection of a second same-home host followed by owner-disconnect
+recovery with ordinary SDK sessions still usable, and graceful runtime shutdown
+with an attached AHP session. The shutdown case requires a successful RPC and clean exit notification,
 not just eventual forced termination. To run only those:
 
 ```sh
-npm test -- test/e2e/runtime_host.e2e.test.ts -t 'disposes|reports|cleans up|gracefully'
+npm test -- test/e2e/runtime_host.e2e.test.ts -t 'disposes|reports|rejects|gracefully'
 ```
 
-The inference test uses the existing `CapiProxy`, snapshot matcher, and canonical
+The two inference-backed scenarios also prove catalog/history recovery after
+listener disposal, forced child death, and a full runtime restart using an SDK
+`baseDirectory`. A second runtime using that directory can run ordinary SDK
+sessions but cannot start another lite writer. The catalog excludes ordinary
+SDK sessions. These scenarios use the existing `CapiProxy`, snapshot matcher, and canonical
 `session/sendandwait_blocks_until_session_idle_and_returns_final_assistant_message.yaml`
 conversation: model `claude-sonnet-5`, prompt `What is 2+2?`. No recordings or
 responses are fabricated. `GITHUB_ACTIONS=true` enforces replay-only matching;
@@ -86,6 +90,12 @@ an incompatible request fails rather than silently contacting live inference.
 Do not overwrite that shared recording to accommodate a different request. If
 the host changes its request shape, record a separate scenario using the existing
 harness and a real credential, then review the resulting traffic before use.
+
+These AHP tests remain opt-in until the coordinated host artifact publication,
+private release credential provisioning, runtime acquisition/pin, and SDK runtime
+pin updates land. Enable AHP CI in that later update, not against unpublished
+artifacts. Local unsigned/debug candidates do not verify macOS notarization or
+the other platform release executions.
 
 ## Assembled local candidate package
 

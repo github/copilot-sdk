@@ -2130,6 +2130,8 @@ export class CopilotClient {
      * This connection owns the host. Disposing it or disconnecting the client
      * stops the listener without deleting sessions. The host uses a separate
      * SDK connection to the same runtime, not another runtime process.
+     * Only one lite AHP host may own the catalog in an effective Copilot home
+     * at a time. Other SDK clients and sessions remain usable in that home.
      *
      * @experimental
      */

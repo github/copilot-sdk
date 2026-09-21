@@ -3,8 +3,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ChildProcess } from "node:child_process";
+import { mkdir } from "node:fs/promises";
 import type { Socket } from "node:net";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+    ResponsePartKind,
+    TurnState,
+    type ChatState,
+    type SessionState,
+} from "@microsoft/agent-host-protocol";
 import { describe, expect, it } from "vitest";
 import { approveAll, CopilotClient, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
@@ -12,6 +20,7 @@ import {
     assertHostStopped,
     assertProcessStopped,
     assertRuntimeChild,
+    authenticateAhp,
     connectAhp,
     createAhpSession,
     localHostArtifacts,
@@ -38,6 +47,53 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
         },
     });
     const owner = ctx.copilotClient;
+    const catalogPath = join(ctx.env.COPILOT_HOME, "ahp", "sessions");
+
+    async function configureReplay() {
+        if (process.env.GITHUB_ACTIONS !== "true") {
+            throw new Error("Set GITHUB_ACTIONS=true for read-only canonical inference replay");
+        }
+        await ctx.openAiEndpoint.updateConfig({
+            filePath: fileURLToPath(
+                new URL(
+                    "../../../test/snapshots/session/sendandwait_blocks_until_session_idle_and_returns_final_assistant_message.yaml",
+                    import.meta.url
+                )
+            ),
+            workDir: ctx.workDir,
+        });
+    }
+
+    async function resumeAhp(
+        ahp: Awaited<ReturnType<typeof connectAhp>>,
+        sessionUri: string,
+        excludedSdkSessionId?: string
+    ) {
+        await authenticateAhp(ahp, ctx.env.GITHUB_TOKEN);
+        const listed = await ahp.client.request("listSessions", { channel: "ahp-root://" });
+        const resources = listed.items.map((item) => item.resource);
+        expect(resources).toContain(sessionUri);
+        if (excludedSdkSessionId) {
+            expect(resources).not.toContain(`ahp-session:/${excludedSdkSessionId}`);
+        }
+        // Subscribing a dormant catalog URI is the standard AHP resume path.
+        const { result } = await ahp.client.subscribe(sessionUri);
+        const session = result.snapshot?.state as SessionState | undefined;
+        expect(session?.lifecycle).toBe("ready");
+        expect(session?.defaultChat).toBeTruthy();
+        const chat = await ahp.client.subscribe(session!.defaultChat!);
+        expect(chat.result.snapshot).toBeDefined();
+        const state = chat.result.snapshot?.state as ChatState;
+        const turn = state.turns.find((entry) => entry.message.text === "What is 2+2?");
+        expect(turn?.state).toBe(TurnState.Complete);
+        expect(
+            turn?.responseParts
+                .filter((part) => part.kind === ResponsePartKind.Markdown)
+                .map((part) => part.content)
+                .join("")
+        ).toContain("4");
+        return state;
+    }
 
     function runtimeDetails() {
         const internals = owner as unknown as {
@@ -55,7 +111,7 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
         const ahp = await connectAhp(host);
         try {
             await ahp.client.ping();
-            await assertRuntimeChild(host, runtimeDetails().pid, artifacts);
+            await assertRuntimeChild(host, runtimeDetails().pid, artifacts, catalogPath);
             await Promise.all([host.dispose(), host.dispose()]);
             const exit = await withDeadline(host.closed, "disposed host notification");
             expect(exit.hostId).toBe(host.hostId);
@@ -90,12 +146,11 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
         }
     });
 
-    it("cleans up a lost owner connection without stopping another owner's host or session", async () => {
+    it("rejects a second same-home host and releases ownership on disconnect without stopping SDK sessions", async () => {
+        await configureReplay();
         await using survivingSession = await owner.createSession({
             onPermissionRequest: approveAll,
         });
-        await using survivingHost = await owner.startHost();
-        const survivingAhp = await connectAhp(survivingHost);
         const otherOwner = new CopilotClient({
             connection: RuntimeConnection.forUri(`localhost:${runtimeDetails().port}`, {
                 connectionToken,
@@ -105,7 +160,27 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
             await using abandonedHost = await otherOwner.startHost();
             const abandonedAhp = await connectAhp(abandonedHost);
             try {
-                await assertRuntimeChild(abandonedHost, runtimeDetails().pid, artifacts);
+                const session = await createAhpSession(
+                    abandonedAhp,
+                    ctx.workDir,
+                    ctx.env.GITHUB_TOKEN
+                );
+                const response = await streamedTurn(
+                    abandonedAhp.client,
+                    session.chatUri,
+                    session.subscription,
+                    "What is 2+2?"
+                );
+                expect(response.text).toContain("4");
+                await assertRuntimeChild(
+                    abandonedHost,
+                    runtimeDetails().pid,
+                    artifacts,
+                    catalogPath
+                );
+                await expect(owner.startHost()).rejects.toThrow("catalog already in use");
+                await abandonedAhp.client.ping();
+                await expect(survivingSession.getEvents()).resolves.toEqual(expect.any(Array));
                 const socket = (otherOwner as unknown as { socket: Socket }).socket;
                 expect(socket.destroyed).toBe(false);
                 // Lose only this owner transport, without calling host.dispose or
@@ -114,9 +189,14 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
                 const exit = await withDeadline(abandonedHost.closed, "owner connection loss");
                 expect(exit.reason).toBe("ownerDisconnected");
                 await assertHostStopped(abandonedHost, abandonedAhp);
-                await survivingAhp.client.ping();
-                await assertRuntimeChild(survivingHost, runtimeDetails().pid, artifacts);
                 await expect(survivingSession.getEvents()).resolves.toEqual(expect.any(Array));
+                await using replacement = await owner.startHost();
+                const replacementAhp = await connectAhp(replacement);
+                try {
+                    await resumeAhp(replacementAhp, session.sessionUri, survivingSession.sessionId);
+                } finally {
+                    await replacementAhp.client.shutdown();
+                }
                 await using additionalSession = await owner.createSession({
                     onPermissionRequest: approveAll,
                 });
@@ -126,26 +206,14 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
             }
         } finally {
             await otherOwner.stop();
-            await survivingAhp.client.shutdown();
         }
     });
 
-    it("streams a standard AHP turn alongside an SDK session on the same runtime", async () => {
-        if (process.env.GITHUB_ACTIONS !== "true") {
-            throw new Error("Set GITHUB_ACTIONS=true for read-only canonical inference replay");
-        }
+    it("streams beside an SDK session and recovers its catalog after disposal and forced child death", async () => {
         // Reuse the existing canonical 2+2 conversation through the existing
         // matcher. AHP and SDK both send this exact prompt/model; incompatible
         // requests still fail in replay-only mode rather than inventing replies.
-        await ctx.openAiEndpoint.updateConfig({
-            filePath: fileURLToPath(
-                new URL(
-                    "../../../test/snapshots/session/sendandwait_blocks_until_session_idle_and_returns_final_assistant_message.yaml",
-                    import.meta.url
-                )
-            ),
-            workDir: ctx.workDir,
-        });
+        await configureReplay();
         await using sdkSession = await owner.createSession({
             model: "claude-sonnet-5",
             onPermissionRequest: approveAll,
@@ -181,8 +249,99 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
             expect(
                 (await sdkSession.getEvents()).some((event) => event.type === "assistant.message")
             ).toBe(true);
+
+            await using replacement = await owner.startHost();
+            const replacementAhp = await connectAhp(replacement);
+            try {
+                const resumed = await resumeAhp(
+                    replacementAhp,
+                    session.sessionUri,
+                    sdkSession.sessionId
+                );
+                expect(resumed.turns.length).toBeGreaterThan(0);
+                process.kill(replacement.pid, "SIGKILL");
+                expect(
+                    (await withDeadline(replacement.closed, "forced catalog owner exit")).reason
+                ).toBe("exited");
+                await assertHostStopped(replacement, replacementAhp);
+            } finally {
+                await replacementAhp.client.shutdown();
+            }
+            await using recovered = await owner.startHost();
+            const recoveredAhp = await connectAhp(recovered);
+            try {
+                const resumed = await resumeAhp(
+                    recoveredAhp,
+                    session.sessionUri,
+                    sdkSession.sessionId
+                );
+                expect(resumed.turns.length).toBeGreaterThan(0);
+                await expect(sdkSession.getEvents()).resolves.toEqual(expect.any(Array));
+            } finally {
+                await recoveredAhp.client.shutdown();
+            }
         } finally {
             await ahp.client.shutdown();
+        }
+    });
+
+    it("uses SDK baseDirectory for a durable catalog across runtime restart and rejects another runtime's writer", async () => {
+        await configureReplay();
+        const baseDirectory = join(ctx.env.COPILOT_HOME, "explicit-base");
+        await mkdir(baseDirectory, { recursive: true });
+        const first = ctx.createClient({ baseDirectory });
+        const second = ctx.createClient({ baseDirectory });
+        let sessionUri: string;
+        try {
+            await using host = await first.startHost();
+            const ahp = await connectAhp(host);
+            try {
+                const runtime = (first as unknown as { cliProcess: ChildProcess }).cliProcess;
+                await assertRuntimeChild(
+                    host,
+                    runtime.pid!,
+                    artifacts,
+                    join(baseDirectory, "ahp", "sessions")
+                );
+                const session = await createAhpSession(ahp, ctx.workDir, ctx.env.GITHUB_TOKEN);
+                sessionUri = session.sessionUri;
+                const response = await streamedTurn(
+                    ahp.client,
+                    session.chatUri,
+                    session.subscription,
+                    "What is 2+2?"
+                );
+                expect(response.text).toContain("4");
+                // Independent ordinary SDK runtimes may use this home; only a
+                // second AHP server is excluded from the catalog.
+                await using ordinary = await second.createSession({
+                    onPermissionRequest: approveAll,
+                });
+                await expect(second.startHost()).rejects.toThrow("catalog already in use");
+                await expect(ordinary.getEvents()).resolves.toEqual(expect.any(Array));
+                await ahp.client.ping();
+                await host.dispose();
+                await assertHostStopped(host, ahp);
+            } finally {
+                await ahp.client.shutdown();
+            }
+        } finally {
+            await first.stop();
+            await second.stop();
+        }
+
+        const restarted = ctx.createClient({ baseDirectory });
+        try {
+            await using host = await restarted.startHost();
+            const ahp = await connectAhp(host);
+            try {
+                const resumed = await resumeAhp(ahp, sessionUri!);
+                expect(resumed.turns.length).toBeGreaterThan(0);
+            } finally {
+                await ahp.client.shutdown();
+            }
+        } finally {
+            await restarted.stop();
         }
     });
 

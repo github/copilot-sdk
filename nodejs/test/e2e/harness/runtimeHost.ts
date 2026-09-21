@@ -89,9 +89,8 @@ export async function connectAhp(host: Pick<CopilotHost, "url" | "token">) {
     }
 }
 
-export async function createAhpSession(
+export async function authenticateAhp(
     ahp: Awaited<ReturnType<typeof connectAhp>>,
-    workDir: string,
     githubToken: string
 ) {
     assert(githubToken, "Session creation requires a GitHub credential");
@@ -108,6 +107,14 @@ export async function createAhpSession(
         resource: resource.resource,
         token: githubToken,
     });
+}
+
+export async function createAhpSession(
+    ahp: Awaited<ReturnType<typeof connectAhp>>,
+    workDir: string,
+    githubToken: string
+) {
+    await authenticateAhp(ahp, githubToken);
     const sessionId = randomUUID();
     const sessionUri = `ahp-session:/${sessionId}`;
     await ahp.client.request("createSession", {
@@ -170,7 +177,8 @@ export async function streamedTurn(
 export async function assertRuntimeChild(
     host: CopilotHost,
     runtimePid: number,
-    artifacts: ReturnType<typeof localHostArtifacts>
+    artifacts: ReturnType<typeof localHostArtifacts>,
+    catalogPath?: string
 ) {
     assert.notEqual(
         runtimePid,
@@ -183,6 +191,11 @@ export async function assertRuntimeChild(
     assert.equal(Number(parent[1]), runtimePid, "copilotd-lite must be the runtime's child");
     const hostCommand = (await readFile(`/proc/${host.pid}/cmdline`, "utf8")).split("\0");
     assert.equal(hostCommand[0], artifacts.litePath);
+    if (catalogPath) {
+        const option = hostCommand.indexOf("--catalog-path");
+        assert(option > 0, "Runtime must pass its resolved AHP catalog path");
+        assert.equal(hostCommand[option + 1], catalogPath);
+    }
     // Lite intentionally disables dumpability when receiving its private
     // bootstrap stream. Do not weaken that protection just to inspect its maps.
     await assert.rejects(readlink(`/proc/${host.pid}/exe`), { code: "EACCES" });
