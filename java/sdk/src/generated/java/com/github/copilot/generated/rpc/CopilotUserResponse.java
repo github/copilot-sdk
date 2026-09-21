@@ -45,8 +45,6 @@ public record CopilotUserResponse(
     @JsonProperty("organization_login_list") List<String> organizationLoginList,
     /** Organizations the user belongs to, each with an optional ID, login, and display name. */
     @JsonProperty("organization_list") Object organizationList,
-    /** Enterprises that provide the user's Copilot license; malformed entries are normalized to null or ID-less shapes. */
-    @JsonProperty("enterprise_list") List<CopilotUserResponseEnterpriseListItem> enterpriseList,
     /** Whether the Codex agent is enabled for the user. */
     @JsonProperty("codex_agent_enabled") Boolean codexAgentEnabled,
     /** Whether MCP (Model Context Protocol) support is enabled for the user. */
@@ -76,13 +74,15 @@ public record CopilotUserResponse(
     /** Whether cloud session storage is enabled for the user. */
     @JsonProperty("cloud_session_storage_enabled") Boolean cloudSessionStorageEnabled,
     /** Whether CLI remote control is enabled for the user. */
-    @JsonProperty("cli_remote_control_enabled") Boolean cliRemoteControlEnabled
+    @JsonProperty("cli_remote_control_enabled") Boolean cliRemoteControlEnabled,
+    /** Enterprises that provide the user's Copilot license, each with a stable numeric ID. */
+    @JsonProperty("enterprise_list") List<CopilotUserResponseEnterpriseListItem> enterpriseList
 ) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record CopilotUserResponseEnterpriseListItem(
-        /** JavaScript-safe numeric database ID of the enterprise. */
+        /** Numeric database ID of the enterprise. */
         @JsonProperty("id") Long id
     ) {
     }

@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -37,8 +36,6 @@ public final class SystemMessageEvent extends SessionEvent {
     public record SystemMessageEventData(
         /** The system or developer prompt text sent as model input */
         @JsonProperty("content") String content,
-        /** Optional ordered structured blocks corresponding to content, retained for prompt-cache layout restoration. */
-        @JsonProperty("contentBlocks") List<SystemMessageContentBlock> contentBlocks,
         /** Logical interaction identifier for the model run receiving this prompt */
         @JsonProperty("interactionId") String interactionId,
         /** Message role: "system" for system prompts, "developer" for developer-injected instructions */

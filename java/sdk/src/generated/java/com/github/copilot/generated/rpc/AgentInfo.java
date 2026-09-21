@@ -15,7 +15,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Agent metadata, including identifiers, display details, source, tools, model, models, reasoning effort, MCP servers, skills, and file path.
+ * Agent metadata, including identifiers, display details, source, tools, model, models, MCP servers, skills, and file path.
  *
  * @since 1.0.0
  */
@@ -47,8 +47,6 @@ public record AgentInfo(
     @JsonProperty("models") List<String> models,
     /** Whether authored models are preferences or required constraints. */
     @JsonProperty("modelPolicy") AgentModelPolicy modelPolicy,
-    /** Authored reasoning effort for this agent. Applied on selection to models that support it; omitted means no authored preference. */
-    @JsonProperty("reasoningEffort") String reasoningEffort,
     /** MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema. */
     @JsonProperty("mcpServers") Map<String, Object> mcpServers,
     /** Skill names preloaded into this agent's context. Omitted means none. */

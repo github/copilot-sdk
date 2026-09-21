@@ -133,10 +133,10 @@ public final class SessionCommandsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<EnqueueCommandResult> enqueue(SessionCommandsEnqueueParams params) {
+    public CompletableFuture<SessionCommandsEnqueueResult> enqueue(SessionCommandsEnqueueParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.commands.enqueue", _p, EnqueueCommandResult.class);
+        return caller.invoke("session.commands.enqueue", _p, SessionCommandsEnqueueResult.class);
     }
 
     /**

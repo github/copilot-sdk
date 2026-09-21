@@ -27,8 +27,6 @@ import javax.annotation.processing.Generated;
 public record SkillsGetDiscoveryPathsParams(
     /** Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned. */
     @JsonProperty("projectPaths") List<String> projectPaths,
-    /** Optional skill scan paths to exclude from discovery. */
-    @JsonProperty("ignoredSkillsLocations") List<String> ignoredSkillsLocations,
     /** When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments. */
     @JsonProperty("excludeHostSkills") Boolean excludeHostSkills
 ) {

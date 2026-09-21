@@ -29,8 +29,6 @@ public record SkillsDiscoverParams(
     @JsonProperty("projectPaths") List<String> projectPaths,
     /** Optional list of additional skill directory paths to include */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
-    /** Optional skill scan paths to exclude from discovery. */
-    @JsonProperty("ignoredSkillsLocations") List<String> ignoredSkillsLocations,
     /** When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments. */
     @JsonProperty("excludeHostSkills") Boolean excludeHostSkills
 ) {

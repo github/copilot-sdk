@@ -10,7 +10,6 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -41,8 +40,6 @@ public record ProviderModelConfig(
     /** Optional capability overrides (vision, tool_calls, reasoning, etc.). */
     @JsonProperty("capabilities") ModelCapabilitiesOverride capabilities,
     /** System-message configuration used when the runtime builds the standard prompt for this provider-qualified model, including general-purpose subagents. It uses the same object hierarchy as session-level systemMessage configuration, except transform actions are rejected because the current callback protocol is not model-scoped. When present, it overrides the session-wide configuration on those prompt paths. Selected custom-agent and specialized-subagent prompts remain authoritative. */
-    @JsonProperty("systemMessage") Object systemMessage,
-    /** Provider-published model metadata, preserved verbatim as the public Model.metadata object. */
-    @JsonProperty("metadata") Map<String, Object> metadata
+    @JsonProperty("systemMessage") Object systemMessage
 ) {
 }

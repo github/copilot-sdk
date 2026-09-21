@@ -38,8 +38,6 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("toolCallId") String toolCallId,
         /** Name of the tool being executed */
         @JsonProperty("toolName") String toolName,
-        /** Human-readable display title for the tool, when the selected tool descriptor has a non-empty title. */
-        @JsonProperty("toolTitle") String toolTitle,
         /** Arguments passed to the tool */
         @JsonProperty("arguments") Object arguments,
         /** Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools. */

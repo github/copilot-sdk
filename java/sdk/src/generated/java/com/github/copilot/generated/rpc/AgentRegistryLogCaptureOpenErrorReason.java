@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Categorized reason no canonical process log could be opened
+ * Categorized reason for log-open failure
  *
  * @since 1.0.0
  */
