@@ -5,9 +5,12 @@ This Linux-only smoke uses the Node SDK's `startHost()` and the **standard**
 AHP relay, custom protocol implementation, or prototype callback adapter.
 
 The runtime launches `copilotd-lite`; lite uses the full host AHP listener and
-connects as another SDK participant to that same runtime. `/proc` and `ps` verify
-the actual executables and parent PID, including that idle lite has no child
-runtime. Disposing the host closes its listener and connected AHP client and
+connects as another SDK participant to that same runtime. `/proc` verifies
+the runtime executable, loaded provider, lite command line and parent PID,
+including that idle lite has no child runtime. Lite deliberately disables
+dumpability while receiving its private bootstrap stream: the smoke verifies
+that its executable link and memory maps are inaccessible, rather than weakening
+that protection for a test. Disposing the host closes its listener and connected AHP client and
 reaps lite, without stopping the owner's SDK session.
 
 Both source-build and assembled local-candidate modes run the same tests and
@@ -83,6 +86,39 @@ the host changes its request shape, record a separate scenario using the existin
 harness and a real credential, then review the resulting traffic before use.
 
 ## Assembled local candidate package
+
+After building the local runtime's `dist-cli` assets and the three native
+artifacts, commit all source changes in all three repositories, then assemble
+an unpublished local platform package:
+
+```sh
+# Keep the three source artifact overrides from the prerequisites for staging.
+nodejs/node_modules/.bin/tsx samples/runtime-host/stage-candidate.ts \
+  /absolute/copilot-agent-runtime /absolute/copilot-host \
+  "$PWD/.runtime-host-test-work/candidate"
+export COPILOT_RUNTIME_HOST_CANDIDATE_MANIFEST="$PWD/.runtime-host-test-work/candidate/candidate.json"
+unset COPILOT_CLI_PATH COPILOT_RUNTIME_PROVIDER_LIB COPILOTD_LITE_PATH
+cd nodejs
+npm test -- test/e2e/runtime_host.e2e.test.ts
+```
+
+The output directory must not already exist. Staging uses the SDK's actual
+platform asset materializer over local `dist-cli`, the runtime's package metadata
+and verification helpers, and its `installCopilotdLite` local-candidate installer.
+It then runs `npm pack` and extracts that archive as the candidate package.
+The manifest records full source commits, original paths, binary hashes, archive
+hash, and the Cargo local-SDK override. Cargo metadata must resolve that override
+to this SDK's Rust crate; the host must have been built with the same override:
+
+```sh
+cargo build -p copilotd-lite \
+  --config 'patch."https://github.com/github/copilot-sdk".github-copilot-sdk.path="/absolute/copilot-sdk/rust"'
+```
+
+The private package's `0.0.0-canary.r1.g<SHA>.unsigned` version satisfies the
+runtime metadata helper's grammar; `r1` is a local placeholder, not release
+provenance. Nothing is downloaded or published. Rebuild and restage after changing
+sources; do not relabel old binaries as a new build.
 
 Set `COPILOT_RUNTIME_HOST_CANDIDATE_MANIFEST` to an absolute local manifest path
 instead of setting the three development artifact overrides. Keep

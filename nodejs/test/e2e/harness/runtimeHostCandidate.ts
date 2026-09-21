@@ -5,7 +5,15 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { accessSync, constants, readFileSync, realpathSync } from "node:fs";
+import {
+    accessSync,
+    closeSync,
+    constants,
+    openSync,
+    readFileSync,
+    readSync,
+    realpathSync,
+} from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getRuntimePlatform, materializeRuntimeBundle } from "../../../src/runtimeArtifacts.js";
@@ -34,7 +42,18 @@ function inside(root: string, path: string): boolean {
 }
 
 function sha256(path: string): string {
-    return createHash("sha256").update(readFileSync(path)).digest("hex");
+    const hash = createHash("sha256");
+    const descriptor = openSync(path, "r");
+    try {
+        const buffer = Buffer.alloc(1024 * 1024);
+        let length: number;
+        while ((length = readSync(descriptor, buffer, 0, buffer.length, null)) !== 0) {
+            hash.update(buffer.subarray(0, length));
+        }
+        return hash.digest("hex");
+    } finally {
+        closeSync(descriptor);
+    }
 }
 
 export function candidateHostArtifacts(manifestPath: string) {

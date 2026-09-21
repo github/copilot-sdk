@@ -3,7 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { accessSync, constants, realpathSync } from "node:fs";
@@ -11,7 +10,6 @@ import { readFile, readlink } from "node:fs/promises";
 import { connect } from "node:net";
 import { isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
-import { promisify } from "node:util";
 import {
     ActionType,
     MessageKind,
@@ -179,14 +177,19 @@ export async function assertRuntimeChild(
         process.pid,
         "Use an out-of-process runtime for this topology test"
     );
-    const { stdout } = await promisify(execFile)("ps", ["-o", "ppid=", "-p", String(host.pid)]);
-    assert.equal(Number(stdout.trim()), runtimePid, "copilotd-lite must be the runtime's child");
-    assert.equal(await readlink(`/proc/${host.pid}/exe`), artifacts.litePath);
+    const status = await readFile(`/proc/${host.pid}/status`, "utf8");
+    const parent = /^PPid:\s+(\d+)$/m.exec(status);
+    assert(parent, "Linux process status must report the host parent PID");
+    assert.equal(Number(parent[1]), runtimePid, "copilotd-lite must be the runtime's child");
+    const hostCommand = (await readFile(`/proc/${host.pid}/cmdline`, "utf8")).split("\0");
+    assert.equal(hostCommand[0], artifacts.litePath);
+    // Lite intentionally disables dumpability when receiving its private
+    // bootstrap stream. Do not weaken that protection just to inspect its maps.
+    await assert.rejects(readlink(`/proc/${host.pid}/exe`), { code: "EACCES" });
+    await assert.rejects(readFile(`/proc/${host.pid}/maps`, "utf8"), { code: "EACCES" });
     assert.equal(await readlink(`/proc/${runtimePid}/exe`), artifacts.runtimePath);
     const runtimeMaps = await readFile(`/proc/${runtimePid}/maps`, "utf8");
     assert(runtimeMaps.includes(artifacts.providerPath), "Runtime must load the local provider");
-    const liteMaps = await readFile(`/proc/${host.pid}/maps`, "utf8");
-    assert(!liteMaps.includes(artifacts.providerPath), "Lite must not embed another runtime");
     if (artifacts.bundled) {
         const environment = (await readFile(`/proc/${runtimePid}/environ`, "utf8")).split("\0");
         for (const name of ["COPILOTD_LITE_PATH", "COPILOT_RUNTIME_PROVIDER_LIB"]) {

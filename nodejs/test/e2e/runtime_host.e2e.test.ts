@@ -61,9 +61,11 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
             expect(exit.reason).toBe("disposed");
             await assertHostStopped(host, ahp);
             await expect(session.getEvents()).resolves.toEqual(expect.any(Array));
-            expect((await owner.listSessions()).map((item) => item.sessionId)).toContain(
-                session.sessionId
-            );
+            // Empty sessions are not persisted/listed until their first turn.
+            await using additionalSession = await owner.createSession({
+                onPermissionRequest: approveAll,
+            });
+            expect(additionalSession.sessionId).not.toBe(session.sessionId);
             await host.dispose();
         } finally {
             await ahp.client.shutdown();
