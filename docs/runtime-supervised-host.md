@@ -67,8 +67,8 @@ against the real local runtime and host.
 ## Companion release order
 
 To bootstrap the accepted cross-repository dependency, the host pins the
-runtime-free Rust SDK implementation to immutable commit
-`956119281f14ac25d1cc8b6bf17cd25a93185028`. This is a source dependency, not
+runtime-free Rust SDK implementation to an immutable companion commit recorded
+in its Cargo manifest and lockfile. This is a source dependency, not
 a claim that a corresponding SDK or runtime release has been published.
 
 The host release must publish runtime-free lite artifacts before a runtime
