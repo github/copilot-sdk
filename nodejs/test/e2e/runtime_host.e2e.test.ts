@@ -33,7 +33,7 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
                 path: artifacts.runtimePath,
                 connectionToken,
             }),
-            env: { COPILOTD_LITE_PATH: artifacts.litePath },
+            env: artifacts.env,
         },
     });
     const owner = ctx.copilotClient;

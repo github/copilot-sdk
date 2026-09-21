@@ -24,8 +24,11 @@ import { WebSocketTransport } from "@microsoft/agent-host-protocol/ws";
 import WebSocket from "ws";
 import type { CopilotHost } from "../../../src/index.js";
 import { waitForCondition } from "./sdkTestHelper.js";
+import { candidateHostArtifacts } from "./runtimeHostCandidate.js";
 
 export function localHostArtifacts() {
+    const candidate = process.env.COPILOT_RUNTIME_HOST_CANDIDATE_MANIFEST;
+    if (candidate) return candidateHostArtifacts(candidate);
     function artifact(name: string, executable = true): string {
         const value = process.env[name];
         assert(value && isAbsolute(value), `${name} must name an absolute, locally built artifact`);
@@ -34,10 +37,18 @@ export function localHostArtifacts() {
         accessSync(path, executable ? constants.X_OK : constants.R_OK);
         return path;
     }
-    return {
+    const artifacts = {
         runtimePath: artifact("COPILOT_CLI_PATH"),
         providerPath: artifact("COPILOT_RUNTIME_PROVIDER_LIB", false),
         litePath: artifact("COPILOTD_LITE_PATH"),
+    };
+    return {
+        ...artifacts,
+        bundled: false,
+        env: {
+            COPILOTD_LITE_PATH: artifacts.litePath,
+            COPILOT_RUNTIME_PROVIDER_LIB: artifacts.providerPath,
+        },
     };
 }
 
@@ -160,6 +171,15 @@ export async function assertRuntimeChild(
     assert(runtimeMaps.includes(artifacts.providerPath), "Runtime must load the local provider");
     const liteMaps = await readFile(`/proc/${host.pid}/maps`, "utf8");
     assert(!liteMaps.includes(artifacts.providerPath), "Lite must not embed another runtime");
+    if (artifacts.bundled) {
+        const environment = (await readFile(`/proc/${runtimePid}/environ`, "utf8")).split("\0");
+        for (const name of ["COPILOTD_LITE_PATH", "COPILOT_RUNTIME_PROVIDER_LIB"]) {
+            assert(
+                !environment.some((entry) => entry.startsWith(`${name}=`)),
+                `Candidate runtime must not receive the ${name} development override`
+            );
+        }
+    }
     const children = await readFile(`/proc/${host.pid}/task/${host.pid}/children`, "utf8");
     assert.equal(children.trim(), "", "Idle copilotd-lite must not spawn a second runtime");
 }

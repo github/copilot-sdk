@@ -26,7 +26,7 @@ const workDir = resolve(process.argv[2] ?? ".");
 const owner = new CopilotClient({
   connection: RuntimeConnection.forTcp({ path: artifacts.runtimePath }),
   workingDirectory: workDir,
-  env: { ...process.env, COPILOTD_LITE_PATH: artifacts.litePath },
+  env: { ...process.env, ...artifacts.env },
 });
 try {
   await using sdkSession = await owner.createSession({
