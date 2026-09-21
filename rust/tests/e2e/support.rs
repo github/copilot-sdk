@@ -423,8 +423,19 @@ pub struct E2eContext {
 
 impl E2eContext {
     async fn new(category: &str, snapshot_name: &str) -> std::io::Result<Self> {
+        Self::new_with_cli(category, snapshot_name, None).await
+    }
+
+    pub async fn new_with_cli(
+        category: &str,
+        snapshot_name: &str,
+        cli_override: Option<PathBuf>,
+    ) -> std::io::Result<Self> {
         let repo_root = repo_root();
-        let cli_path = cli_path(&repo_root)?;
+        let cli_path = match cli_override {
+            Some(path) => path,
+            None => cli_path(&repo_root)?,
+        };
         let home_dir = tempfile::tempdir()?;
         let work_dir = tempfile::tempdir()?;
         let proxy_root = repo_root.clone();

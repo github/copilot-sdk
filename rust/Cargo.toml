@@ -79,6 +79,9 @@ windows-sys = { version = "0.61", default-features = false, features = [
 ] }
 
 [dev-dependencies]
+ahp = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0" }
+ahp-types = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0" }
+ahp-ws = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0", default-features = false }
 rusqlite = { version = "0.35", features = ["bundled"] }
 schemars = "1"
 serial_test = "3"
@@ -91,6 +94,10 @@ tokio = { version = "1", features = ["rt-multi-thread"] }
 # library when Cargo compiles it for integration tests.
 [[test]]
 name = "session_test"
+required-features = ["test-support"]
+
+[[test]]
+name = "runtime_host_e2e"
 required-features = ["test-support"]
 
 [[test]]
