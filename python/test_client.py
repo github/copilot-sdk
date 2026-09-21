@@ -3358,7 +3358,7 @@ class TestGitHubTelemetry:
         class _FakeClient:
             async def request(self, method, params, **kwargs):
                 captured[method] = params
-                return {"ok": True, "protocolVersion": 3, "version": "test"}
+                return {"ok": True, "protocolVersion": 4, "version": "test"}
 
         client._client = _FakeClient()
         await client._verify_protocol_version()
@@ -3372,7 +3372,7 @@ class TestGitHubTelemetry:
         class _FakeClient:
             async def request(self, method, params, **kwargs):
                 captured[method] = params
-                return {"ok": True, "protocolVersion": 3, "version": "test"}
+                return {"ok": True, "protocolVersion": 4, "version": "test"}
 
         client._client = _FakeClient()
         await client._verify_protocol_version()
@@ -3395,7 +3395,7 @@ class TestGitHubTelemetry:
         class _FakeClient:
             async def request(self, method, params, **kwargs):
                 captured[method] = params
-                return {"ok": True, "protocolVersion": 3, "version": "test"}
+                return {"ok": True, "protocolVersion": 4, "version": "test"}
 
         client._client = _FakeClient()
         await client._verify_protocol_version()
@@ -3414,7 +3414,7 @@ class TestGitHubTelemetry:
         class _FakeClient:
             async def request(self, method, params, **kwargs):
                 captured[method] = params
-                return {"ok": True, "protocolVersion": 3, "version": "test"}
+                return {"ok": True, "protocolVersion": 4, "version": "test"}
 
         client._client = _FakeClient()
         await client._verify_protocol_version()
@@ -3432,7 +3432,7 @@ class TestGitHubTelemetry:
         class _FakeClient:
             async def request(self, method, params, **kwargs):
                 captured[method] = params
-                return {"ok": True, "protocolVersion": 3, "version": "test"}
+                return {"ok": True, "protocolVersion": 4, "version": "test"}
 
         client._client = _FakeClient()
         await client._verify_protocol_version()
@@ -3450,7 +3450,7 @@ class TestGitHubTelemetry:
         class _FakeClient:
             async def request(self, method, params, **kwargs):
                 captured[method] = params
-                return {"ok": True, "protocolVersion": 3, "version": "test"}
+                return {"ok": True, "protocolVersion": 4, "version": "test"}
 
         client._client = _FakeClient()
         await client._verify_protocol_version()
@@ -3472,7 +3472,7 @@ class TestGitHubTelemetry:
         class _FakeClient:
             async def request(self, method, params, **kwargs):
                 captured[method] = params
-                return {"ok": True, "protocolVersion": 3, "version": "test"}
+                return {"ok": True, "protocolVersion": 4, "version": "test"}
 
         client._client = _FakeClient()
         await client._verify_protocol_version()

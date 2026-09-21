@@ -116,6 +116,13 @@ func (c *Client) systemMessageForMode(supplied *SystemMessageConfig) *SystemMess
 	}
 }
 
+func (c *Client) enableHostUserHooksForMode(supplied *bool) bool {
+	if supplied != nil {
+		return *supplied
+	}
+	return c.options.Mode != ModeEmpty
+}
+
 // applyConfigDefaultsForMode fills in empty-mode defaults on the session
 // config in place. App-supplied values win.
 func (c *Client) applyConfigDefaultsForMode(config *SessionConfig) {

@@ -1043,12 +1043,12 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
           saveCapture();
 
           if (message.method === "connect") {
-            writeResponse(message.id, { ok: true, protocolVersion: 3, version: "fake" });
+            writeResponse(message.id, { ok: true, protocolVersion: 4, version: "fake" });
             return;
           }
 
           if (message.method === "ping") {
-            writeResponse(message.id, { message: "pong", protocolVersion: 3 });
+            writeResponse(message.id, { message: "pong", protocolVersion: 4 });
             return;
           }
 

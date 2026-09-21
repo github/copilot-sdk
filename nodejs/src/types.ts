@@ -2936,6 +2936,15 @@ export interface SessionConfigBase {
     enableFileHooks?: boolean;
 
     /**
+     * Loads user hooks from the runtime host OS account's Copilot settings/home.
+     * Defaults to false in "empty" mode and true in "copilot-cli" mode.
+     * Resolved anew for every create/resume; explicit false is preserved.
+     * Separate from repository enableFileHooks, SDK hooks callbacks, plugin hooks,
+     * and enterprise policy hooks. Enabled host hooks are not sandboxed by sessionFs.
+     */
+    enableHostUserHooks?: boolean;
+
+    /**
      * When true, enables git operations on the host filesystem (branch detection,
      * file status, commit history). When false, no git context is surfaced in
      * the system prompt.

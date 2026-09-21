@@ -92,7 +92,7 @@ class BuiltinPluginDirectoriesTest {
                 Socket socket = serverSocket.accept();
                 JsonRpcClient server = JsonRpcClient.fromSocket(socket);
                 server.registerMethodHandler("connect", (id, params) -> respond(server, id,
-                        Map.of("ok", true, "protocolVersion", 3, "version", "test")));
+                        Map.of("ok", true, "protocolVersion", 4, "version", "test")));
                 server.registerMethodHandler("plugins.builtin.set", (id, params) -> {
                     builtinSetCount.incrementAndGet();
                     builtinParams.complete(params);

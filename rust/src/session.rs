@@ -1367,6 +1367,9 @@ impl Client {
             inject_transform_sections(&mut config, transforms.as_ref());
         }
         let mode = self.inner.mode;
+        config
+            .enable_host_user_hooks
+            .get_or_insert(mode != crate::ClientMode::Empty);
         if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
             return Err(Error::with_message(
                 ErrorKind::InvalidConfig,
@@ -1686,6 +1689,9 @@ impl Client {
             inject_transform_sections_resume(&mut config, transforms.as_ref());
         }
         let mode = self.inner.mode;
+        config
+            .enable_host_user_hooks
+            .get_or_insert(mode != crate::ClientMode::Empty);
         if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
             return Err(Error::with_message(
                 ErrorKind::InvalidConfig,
@@ -3435,6 +3441,119 @@ fn inject_transform_sections_resume(
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+
+    #[test]
+    fn host_user_hooks_generated_options_preserve_explicit_false() {
+        let options: crate::generated::api_types::SessionUpdateOptionsParams =
+            serde_json::from_value(json!({
+                "sessionId": "host-hooks",
+                "enableHostUserHooks": false
+            }))
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(options).unwrap()["enableHostUserHooks"],
+            false
+        );
+    }
+
+    #[tokio::test]
+    async fn host_user_hooks_resolve_on_initial_create_and_resume() {
+        use crate::types::{ResumeSessionConfig, SessionConfig};
+        use crate::{Client, ClientMode};
+        use tokio::io::AsyncReadExt;
+
+        struct Hooks;
+        #[async_trait::async_trait]
+        impl crate::hooks::SessionHooks for Hooks {
+            async fn on_hook(&self, _: crate::hooks::HookEvent) -> crate::hooks::HookOutput {
+                crate::hooks::HookOutput::None
+            }
+        }
+
+        for mode in [ClientMode::Empty, ClientMode::CopilotCli] {
+            for supplied in [None, Some(false), Some(true)] {
+                for resume in [false, true] {
+                    let (client_write, mut server_read) = tokio::io::duplex(65536);
+                    let (_server_write, client_read) = tokio::io::duplex(65536);
+                    let client = Client::from_transport(
+                        client_read,
+                        client_write,
+                        None,
+                        None,
+                        std::env::current_dir().unwrap(),
+                        None,
+                        None,
+                        false,
+                        false,
+                        None,
+                        None,
+                        None,
+                        mode,
+                        None,
+                    )
+                    .unwrap();
+                    let mut create_config = SessionConfig::default();
+                    let mut resume_config = ResumeSessionConfig::new("host-hooks".into());
+                    create_config.available_tools = Some(vec![]);
+                    resume_config.available_tools = Some(vec![]);
+                    create_config.hooks_handler = Some(std::sync::Arc::new(Hooks));
+                    resume_config.hooks_handler = Some(std::sync::Arc::new(Hooks));
+                    if let Some(value) = supplied {
+                        create_config = create_config.with_enable_host_user_hooks(value);
+                        resume_config = resume_config.with_enable_host_user_hooks(value);
+                    }
+                    let original_create = create_config.clone();
+                    let original_resume = resume_config.clone();
+                    let task = tokio::spawn({
+                        let client = client.clone();
+                        async move {
+                            if resume {
+                                client.resume_session(resume_config).await
+                            } else {
+                                client.create_session(create_config).await
+                            }
+                        }
+                    });
+                    let request = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                        let mut header = Vec::new();
+                        while !header.ends_with(b"\r\n\r\n") {
+                            header.push(server_read.read_u8().await.unwrap());
+                        }
+                        let length: usize = String::from_utf8(header)
+                            .unwrap()
+                            .trim()
+                            .strip_prefix("Content-Length: ")
+                            .unwrap()
+                            .parse()
+                            .unwrap();
+                        let mut body = vec![0; length];
+                        server_read.read_exact(&mut body).await.unwrap();
+                        serde_json::from_slice::<serde_json::Value>(&body).unwrap()
+                    })
+                    .await
+                    .unwrap();
+                    assert_eq!(
+                        request["method"],
+                        if resume {
+                            "session.resume"
+                        } else {
+                            "session.create"
+                        }
+                    );
+                    assert_eq!(
+                        request["params"]["enableHostUserHooks"],
+                        json!(supplied.unwrap_or(mode != ClientMode::Empty))
+                    );
+                    assert_eq!(request["params"]["hooks"], true);
+                    assert_eq!(original_create.enable_host_user_hooks, supplied);
+                    assert_eq!(original_resume.enable_host_user_hooks, supplied);
+                    task.abort();
+                    let _ = task.await;
+                    client.force_stop();
+                }
+            }
+        }
+    }
 
     use super::{
         build_mode_post_create_patch, has_managed_settings, is_autopilot_continuation_idle,

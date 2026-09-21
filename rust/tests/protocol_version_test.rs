@@ -31,12 +31,9 @@ async fn read_framed(reader: &mut (impl tokio::io::AsyncRead + Unpin)) -> serde_
     serde_json::from_slice(&buf).unwrap()
 }
 
-/// Verify protocol version against a fake server. Mimics a legacy server
-/// that lacks the `connect` JSON-RPC method (-32601 MethodNotFound),
-/// forcing the client to fall back to `ping` — the canonical
-/// backward-compatibility path documented on `verify_protocol_version`.
+/// Verify protocol version using the mandatory connect handshake.
 async fn verify_with_result(
-    result: serde_json::Value,
+    mut result: serde_json::Value,
 ) -> (Result<(), github_copilot_sdk::Error>, Option<u32>) {
     let (client_write, server_read) = duplex(8192);
     let (server_write, client_read) = duplex(8192);
@@ -50,20 +47,10 @@ async fn verify_with_result(
         async move { client.verify_protocol_version().await }
     });
 
-    // 1. Client sends `connect` first; respond with MethodNotFound so the
-    //    client falls back to `ping` (the legacy-server compatibility path).
-    let connect_req = read_framed(&mut server_read).await;
-    assert_eq!(connect_req["method"], "connect");
-    let not_found = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": connect_req["id"],
-        "error": { "code": -32601, "message": "Method not found" },
-    });
-    write_framed(&mut server_write, &serde_json::to_vec(&not_found).unwrap()).await;
-
-    // 2. Client falls back to `ping`; respond with the requested result.
     let req = read_framed(&mut server_read).await;
-    assert_eq!(req["method"], "ping");
+    assert_eq!(req["method"], "connect");
+    result["ok"] = serde_json::json!(true);
+    result["version"] = serde_json::json!("test");
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": req["id"],
@@ -81,28 +68,72 @@ async fn verify_with_result(
 
 #[tokio::test]
 async fn accepted_when_version_in_range() {
-    let (res, version) = verify_with_result(serde_json::json!({ "protocolVersion": 3 })).await;
+    let (res, version) = verify_with_result(serde_json::json!({ "protocolVersion": 4 })).await;
     assert!(res.is_ok());
-    assert_eq!(version, Some(3));
+    assert_eq!(version, Some(4));
+}
+
+#[tokio::test]
+async fn missing_connect_is_rejected_without_ping_fallback() {
+    let (client_write, mut server_read) = duplex(8192);
+    let (mut server_write, client_read) = duplex(8192);
+    let client =
+        Client::from_streams(client_read, client_write, std::env::current_dir().unwrap()).unwrap();
+    let verification = tokio::spawn({
+        let client = client.clone();
+        async move { client.verify_protocol_version().await }
+    });
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "connect");
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": request["id"],
+        "error": { "code": -32601, "message": "Method not found" }
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    let error = tokio::time::timeout(std::time::Duration::from_secs(2), verification)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(error.rpc_code(), Some(-32601));
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(50),
+            read_framed(&mut server_read),
+        )
+        .await
+        .is_err()
+    );
+    client.force_stop();
 }
 
 #[tokio::test]
 async fn rejected_when_version_out_of_range() {
-    let (res, version) = verify_with_result(serde_json::json!({ "protocolVersion": 1 })).await;
+    let (res, version) = verify_with_result(serde_json::json!({ "protocolVersion": 3 })).await;
     let err = res.unwrap_err();
     assert!(matches!(
         err.kind(),
         github_copilot_sdk::ErrorKind::Protocol(
-            github_copilot_sdk::ProtocolErrorKind::VersionMismatch { server: 1, .. }
+            github_copilot_sdk::ProtocolErrorKind::VersionMismatch {
+                server: 3,
+                min: 4,
+                max: 4
+            }
         )
     ));
     assert_eq!(version, None);
 }
 
 #[tokio::test]
-async fn succeeds_when_version_missing() {
+async fn rejects_when_version_missing() {
     let (res, version) = verify_with_result(serde_json::json!({ "message": "pong" })).await;
-    assert!(res.is_ok());
+    assert!(matches!(
+        res.unwrap_err().kind(),
+        github_copilot_sdk::ErrorKind::Protocol(
+            github_copilot_sdk::ProtocolErrorKind::MissingProtocolVersion
+        )
+    ));
     assert_eq!(version, None);
 }
 
@@ -131,7 +162,7 @@ async fn connect_handshake_supplies_protocol_version() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
+        "result": { "ok": true, "protocolVersion": 4, "version": "test-1.0.0" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
@@ -140,7 +171,7 @@ async fn connect_handshake_supplies_protocol_version() {
         .unwrap()
         .unwrap();
     assert!(res.is_ok());
-    assert_eq!(client.protocol_version(), Some(3));
+    assert_eq!(client.protocol_version(), Some(4));
 }
 
 /// Positive coverage for token forwarding on the `connect` handshake. A
@@ -175,7 +206,7 @@ async fn connect_handshake_forwards_explicit_token() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
+        "result": { "ok": true, "protocolVersion": 4, "version": "test-1.0.0" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
@@ -229,7 +260,7 @@ async fn connect_handshake_forwards_auto_generated_token() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
+        "result": { "ok": true, "protocolVersion": 4, "version": "test-1.0.0" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
@@ -281,7 +312,7 @@ async fn connect_handshake_forwards_client_info() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
+        "result": { "ok": true, "protocolVersion": 4, "version": "test-1.0.0" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
@@ -330,7 +361,7 @@ async fn connect_handshake_omits_empty_client_info_fields() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
+        "result": { "ok": true, "protocolVersion": 4, "version": "test-1.0.0" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
@@ -379,7 +410,7 @@ async fn connect_handshake_omits_all_empty_client_info() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
+        "result": { "ok": true, "protocolVersion": 4, "version": "test-1.0.0" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 

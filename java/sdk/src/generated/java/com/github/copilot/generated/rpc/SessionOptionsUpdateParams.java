@@ -84,6 +84,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
     /** Additional directories to search for skills. */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
+    /** Skill scan directories and descendants excluded from discovery. Supports `~`-relative paths. */
+    @JsonProperty("ignoredSkillsLocations") List<String> ignoredSkillsLocations,
     /** Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction. */
     @JsonProperty("includedBuiltinSkills") List<String> includedBuiltinSkills,
     /** Skill IDs that should be excluded from this session. */
@@ -136,6 +138,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("organizationCustomInstructions") String organizationCustomInstructions,
     /** Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK callback hook mechanism. */
     @JsonProperty("enableFileHooks") Boolean enableFileHooks,
+    /** Whether to load and execute host-user settings and home-directory hooks. Does not control repository, callback, plugin, or managed hooks. */
+    @JsonProperty("enableHostUserHooks") Boolean enableHostUserHooks,
     /** Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt). */
     @JsonProperty("enableHostGitOperations") Boolean enableHostGitOperations,
     /** Whether to enable cross-session store writes and reads. */

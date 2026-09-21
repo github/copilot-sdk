@@ -364,7 +364,7 @@ func (f *assignedCloudSessionFixture) serve() {
 				"id":      request.ID,
 				"result": map[string]any{
 					"ok":              true,
-					"protocolVersion": 3,
+					"protocolVersion": 4,
 					"version":         "fake",
 				},
 			}); err != nil {

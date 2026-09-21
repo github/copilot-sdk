@@ -404,7 +404,7 @@ public sealed class CopilotRequestHandlerProtocolTests
                 {
                     writer.WriteStartObject();
                     writer.WriteBoolean("ok", true);
-                    writer.WriteNumber("protocolVersion", 3);
+                    writer.WriteNumber("protocolVersion", 4);
                     writer.WriteString("version", "test");
                     writer.WriteEndObject();
                 },

@@ -55,6 +55,9 @@ pub enum ProtocolErrorKind {
     /// The CLI process exited before reporting a listening port.
     CliStartupFailed,
 
+    /// The CLI server did not report its protocol version.
+    MissingProtocolVersion,
+
     /// The CLI server's protocol version is outside the SDK's supported range.
     VersionMismatch {
         /// Version reported by the server.
@@ -83,6 +86,9 @@ pub enum ProtocolErrorKind {
 impl fmt::Display for ProtocolErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            ProtocolErrorKind::MissingProtocolVersion => {
+                write!(f, "CLI server did not report protocolVersion")
+            }
             ProtocolErrorKind::MissingContentLength => {
                 write!(f, "missing Content-Length header")
             }

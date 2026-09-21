@@ -18,10 +18,8 @@ import { isIPv6, Socket } from "node:net";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
     createMessageConnection,
-    ErrorCodes,
     type Message,
     MessageConnection,
-    ResponseError,
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node.js";
@@ -99,7 +97,7 @@ import type { FactoryHandle } from "./factory.js";
  * Minimum protocol version this SDK can communicate with.
  * Servers reporting a version below this are rejected.
  */
-const MIN_PROTOCOL_VERSION = 3;
+const MIN_PROTOCOL_VERSION = 4;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -1708,6 +1706,7 @@ export class CopilotClient {
                 organizationCustomInstructions: config.organizationCustomInstructions,
                 enableOnDemandInstructionDiscovery: config.enableOnDemandInstructionDiscovery,
                 enableFileHooks: config.enableFileHooks,
+                enableHostUserHooks: config.enableHostUserHooks ?? this.options.mode !== "empty",
                 enableHostGitOperations: config.enableHostGitOperations,
                 enableSessionStore: config.enableSessionStore,
                 enableSkills: config.enableSkills,
@@ -1801,7 +1800,10 @@ export class CopilotClient {
      * });
      * ```
      */
-    async resumeSession(sessionId: string, config: ResumeSessionConfig): Promise<CopilotSession> {
+    async resumeSession(
+        sessionId: string,
+        config: ResumeSessionConfig = {}
+    ): Promise<CopilotSession> {
         return this.resumeSessionInternal(sessionId, config);
     }
 
@@ -1967,6 +1969,7 @@ export class CopilotClient {
                 organizationCustomInstructions: config.organizationCustomInstructions,
                 enableOnDemandInstructionDiscovery: config.enableOnDemandInstructionDiscovery,
                 enableFileHooks: config.enableFileHooks,
+                enableHostUserHooks: config.enableHostUserHooks ?? this.options.mode !== "empty",
                 enableHostGitOperations: config.enableHostGitOperations,
                 enableSessionStore: config.enableSessionStore,
                 enableSkills: config.enableSkills,
@@ -2178,8 +2181,7 @@ export class CopilotClient {
 
     /**
      * Send the `connect` handshake (carrying the optional token) and verify the
-     * server's protocol version. Falls back to `ping` against legacy servers
-     * that don't implement `connect`.
+     * server's protocol version.
      */
     private async verifyProtocolVersion(): Promise<void> {
         if (!this.connection) {
@@ -2189,47 +2191,26 @@ export class CopilotClient {
         const raceAgainstExit = <T>(p: Promise<T>): Promise<T> =>
             this.processExitPromise ? Promise.race([p, this.processExitPromise]) : p;
 
-        let serverVersion: number | undefined;
-        try {
-            const connectParams: {
-                token?: string;
-                enableGitHubTelemetryForwarding?: boolean;
-                clientInfo?: ConnectClientInfo;
-                supportedTaskKinds?: TaskKind[];
-            } = {
-                token: this.effectiveConnectionToken,
-                supportedTaskKinds: ["agent", "client", "shell"],
-            };
-            // Opt in to GitHub telemetry forwarding at the connection level when a
-            // handler is registered (mirrors the runtime, which reads this flag on the
-            // `connect` handshake so the first session's un-replayable `session.start`
-            // event is forwarded). Also sent on session.create/resume for older CLIs.
-            if (this.onGitHubTelemetry != null) {
-                connectParams.enableGitHubTelemetryForwarding = true;
-            }
-            // Declare the integrating application's identity so the runtime attributes
-            // the telemetry it emits on this connection to a consistent surface
-            // instead of its own build. Empty fields are dropped, and an
-            // all-empty identity is omitted entirely.
-            const clientInfo = clientInfoToWire(this.options.clientInfo);
-            if (clientInfo != null) {
-                connectParams.clientInfo = clientInfo;
-            }
-            const result = await raceAgainstExit(this.internalRpc.connect(connectParams));
-            serverVersion = result.protocolVersion;
-        } catch (err) {
-            if (
-                err instanceof ResponseError &&
-                (err.code === ErrorCodes.MethodNotFound ||
-                    err.message === "Unhandled method connect")
-            ) {
-                // Legacy server without `connect`; fall back to `ping`. A token, if any,
-                // is silently dropped — the legacy server can't enforce one.
-                serverVersion = (await raceAgainstExit(this.ping())).protocolVersion;
-            } else {
-                throw err;
-            }
+        const connectParams: {
+            token?: string;
+            enableGitHubTelemetryForwarding?: boolean;
+            clientInfo?: ConnectClientInfo;
+            supportedTaskKinds?: TaskKind[];
+        } = {
+            token: this.effectiveConnectionToken,
+            supportedTaskKinds: ["agent", "client", "shell"],
+        };
+        // Opt in before the first session's un-replayable session.start event.
+        if (this.onGitHubTelemetry != null) {
+            connectParams.enableGitHubTelemetryForwarding = true;
         }
+        // Attribute telemetry to the integrating application, omitting empty identities.
+        const clientInfo = clientInfoToWire(this.options.clientInfo);
+        if (clientInfo != null) {
+            connectParams.clientInfo = clientInfo;
+        }
+        const result = await raceAgainstExit(this.internalRpc.connect(connectParams));
+        const serverVersion = result.protocolVersion;
 
         if (serverVersion === undefined) {
             throw new Error(

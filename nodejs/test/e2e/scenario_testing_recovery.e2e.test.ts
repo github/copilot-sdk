@@ -41,7 +41,7 @@ function handle(message) {
   saveCapture();
 
   if (message.method === "connect") {
-    writeResponse(message.id, { ok: true, protocolVersion: 3, version: "fake-recovery" });
+    writeResponse(message.id, { ok: true, protocolVersion: 4, version: "fake-recovery" });
     return;
   }
 

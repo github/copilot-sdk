@@ -60,7 +60,7 @@ async fn run_start(paths: Option<Vec<PathBuf>>) -> Vec<serde_json::Value> {
         write_result(
             &mut writer,
             &connect,
-            serde_json::json!({ "ok": true, "protocolVersion": 3, "version": "test" }),
+            serde_json::json!({ "ok": true, "protocolVersion": 4, "version": "test" }),
         )
         .await;
         requests.push(connect);

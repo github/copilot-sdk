@@ -241,7 +241,7 @@ class McpAuthInterestRegistrationTest {
             switch (method) {
                 case "connect" -> {
                     result.put("ok", true);
-                    result.put("protocolVersion", 3);
+                    result.put("protocolVersion", 4);
                     result.put("version", "test");
                 }
                 case "session.create", "session.resume" -> {

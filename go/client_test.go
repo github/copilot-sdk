@@ -440,7 +440,7 @@ func newStartupRPCServerWithBuiltinFailure(t *testing.T, failFirstBuiltin bool) 
 			}
 			server.SetRequestHandler("connect", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 				record("connect", params)
-				return []byte(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
+				return []byte(`{"ok":true,"protocolVersion":4,"version":"test"}`), nil
 			})
 			server.SetRequestHandler("plugins.builtin.set", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 				record("plugins.builtin.set", params)
@@ -3990,7 +3990,7 @@ func TestClient_ForwardsGitHubTelemetryForwardingOnConnect(t *testing.T) {
 	connectParams := make(chan json.RawMessage, 1)
 	server.SetRequestHandler("connect", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		connectParams <- append(json.RawMessage(nil), params...)
-		return []byte(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
+		return []byte(`{"ok":true,"protocolVersion":4,"version":"test"}`), nil
 	})
 
 	if err := client.verifyProtocolVersion(t.Context()); err != nil {
@@ -4015,7 +4015,7 @@ func TestClient_OmitsGitHubTelemetryForwardingOnConnectWhenNoHandler(t *testing.
 	connectParams := make(chan json.RawMessage, 1)
 	server.SetRequestHandler("connect", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		connectParams <- append(json.RawMessage(nil), params...)
-		return []byte(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
+		return []byte(`{"ok":true,"protocolVersion":4,"version":"test"}`), nil
 	})
 
 	if err := client.verifyProtocolVersion(t.Context()); err != nil {

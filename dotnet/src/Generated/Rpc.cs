@@ -94,7 +94,7 @@ internal sealed class ConnectRequest
     [JsonPropertyName("clientInfo")]
     public ConnectClientInfo? ClientInfo { get; set; }
 
-    /// <summary>Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</summary>
+    /// <summary>Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards this host's telemetry across all its sessions, its sessionless events, and explicitly process-wide events over the `gitHubTelemetry.event` notification. Connections intentionally sharing one server receive that server's events; independently embedded runtime hosts do not receive each other's host-owned events. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</summary>
     [JsonPropertyName("enableGitHubTelemetryForwarding")]
     public bool? EnableGitHubTelemetryForwarding { get; set; }
 
@@ -363,6 +363,10 @@ public sealed class ModelCapabilitiesSupports
     /// <summary>Whether this model supports reasoning effort configuration.</summary>
     [JsonPropertyName("reasoningEffort")]
     public bool? ReasoningEffort { get; set; }
+
+    /// <summary>Whether this model supports canonical tool calling.</summary>
+    [JsonPropertyName("toolCalls")]
+    public bool? ToolCalls { get; set; }
 
     /// <summary>Whether this model supports vision/image input.</summary>
     [JsonPropertyName("vision")]
@@ -667,12 +671,12 @@ public sealed class CopilotUserResponseEndpoints
     public string? Telemetry { get; set; }
 }
 
-/// <summary>RPC data type for CopilotUserResponseEnterpriseList operations.</summary>
-public sealed class CopilotUserResponseEnterpriseList
+/// <summary>RPC data type for CopilotUserResponseEnterpriseListItem operations.</summary>
+public sealed class CopilotUserResponseEnterpriseListItem
 {
-    /// <summary>Numeric database ID of the enterprise.</summary>
+    /// <summary>JavaScript-safe numeric database ID of the enterprise.</summary>
     [JsonPropertyName("id")]
-    public long Id { get; set; }
+    public long? Id { get; set; }
 }
 
 /// <summary>RPC data type for CopilotUserResponseOrganizationListItem operations.</summary>
@@ -919,9 +923,9 @@ public sealed class CopilotUserResponse
     [JsonPropertyName("endpoints")]
     public CopilotUserResponseEndpoints? Endpoints { get; set; }
 
-    /// <summary>Enterprises that provide the user's Copilot license, each with a stable numeric ID.</summary>
+    /// <summary>Enterprises that provide the user's Copilot license; malformed entries are normalized to null or ID-less shapes.</summary>
     [JsonPropertyName("enterprise_list")]
-    public IList<CopilotUserResponseEnterpriseList>? EnterpriseList { get; set; }
+    public IList<CopilotUserResponseEnterpriseListItem?>? EnterpriseList { get; set; }
 
     /// <summary>Whether MCP (Model Context Protocol) support is enabled for the user.</summary>
     [JsonPropertyName("is_mcp_enabled")]
@@ -4029,6 +4033,10 @@ internal sealed class SkillsDiscoverRequest
     [JsonPropertyName("excludeHostSkills")]
     public bool? ExcludeHostSkills { get; set; }
 
+    /// <summary>Optional skill scan paths to exclude from discovery.</summary>
+    [JsonPropertyName("ignoredSkillsLocations")]
+    public IList<string>? IgnoredSkillsLocations { get; set; }
+
     /// <summary>Optional list of project directory paths to scan for project-scoped skills.</summary>
     [JsonPropertyName("projectPaths")]
     public IList<string>? ProjectPaths { get; set; }
@@ -4076,6 +4084,10 @@ internal sealed class SkillsGetDiscoveryPathsRequest
     [JsonPropertyName("excludeHostSkills")]
     public bool? ExcludeHostSkills { get; set; }
 
+    /// <summary>Optional skill scan paths to exclude from discovery.</summary>
+    [JsonPropertyName("ignoredSkillsLocations")]
+    public IList<string>? IgnoredSkillsLocations { get; set; }
+
     /// <summary>Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned.</summary>
     [JsonPropertyName("projectPaths")]
     public IList<string>? ProjectPaths { get; set; }
@@ -4103,7 +4115,7 @@ internal sealed class SkillsConfigSetSkillDisabledRequest
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>Agent metadata, including identifiers, display details, source, tools, model, models, MCP servers, skills, and file path.</summary>
+/// <summary>Agent metadata, including identifiers, display details, source, tools, model, models, reasoning effort, MCP servers, skills, and file path.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentInfo
 {
@@ -4151,6 +4163,10 @@ public sealed class AgentInfo
     /// <summary>Authored base prompt for the agent. Runtime prompt assembly may add dynamic context at invocation time. Omitted from `session.agent.list` unless `includePrompt` is true.</summary>
     [JsonPropertyName("prompt")]
     public string? Prompt { get; set; }
+
+    /// <summary>Authored reasoning effort for this agent. Applied on selection to models that support it; omitted means no authored preference.</summary>
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
 
     /// <summary>Skill names preloaded into this agent's context. Omitted means none.</summary>
     [JsonPropertyName("skills")]
@@ -5965,23 +5981,23 @@ public sealed class AgentRegistryLiveTargetEntry
     internal string? Token { get; set; }
 }
 
-/// <summary>Per-spawn log-capture outcome; populated from spawnLiveTarget.</summary>
+/// <summary>Canonical process-log discovery outcome; populated from spawnLiveTarget.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentRegistryLogCapture
 {
-    /// <summary>Whether per-spawn log capture is on (false when env-disabled or open failed).</summary>
+    /// <summary>Whether a canonical process log was discovered for this managed spawn.</summary>
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
 
-    /// <summary>Human-readable open failure message (only set when enabled === false AND the env-disable opt-out was NOT used).</summary>
+    /// <summary>Why no canonical process log could be opened for this managed spawn (set only when enabled is false).</summary>
     [JsonPropertyName("openError")]
     public string? OpenError { get; set; }
 
-    /// <summary>Categorized reason for log-open failure.</summary>
+    /// <summary>Categorized reason no canonical process log could be opened (set only when enabled is false).</summary>
     [JsonPropertyName("openErrorReason")]
     public AgentRegistryLogCaptureOpenErrorReason? OpenErrorReason { get; set; }
 
-    /// <summary>Absolute path to the per-spawn log file (only set when enabled).</summary>
+    /// <summary>Absolute path to the managed spawn's process-&lt;timestamp&gt;-&lt;pid&gt;.log file (only set when enabled).</summary>
     [JsonPropertyName("path")]
     public string? Path { get; set; }
 }
@@ -9706,6 +9722,10 @@ public sealed class ModelCapabilitiesOverrideSupports
     [JsonPropertyName("reasoningEffort")]
     public bool? ReasoningEffort { get; set; }
 
+    /// <summary>Whether this model supports canonical tool calling.</summary>
+    [JsonPropertyName("toolCalls")]
+    public bool? ToolCalls { get; set; }
+
     /// <summary>Whether this model supports vision/image input.</summary>
     [JsonPropertyName("vision")]
     public bool? Vision { get; set; }
@@ -9799,7 +9819,7 @@ internal sealed class ModelSwitchToRequest
     [JsonPropertyName("pickerPersistence")]
     public ModelPickerPersistenceRequest? PickerPersistence { get; set; }
 
-    /// <summary>Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied.</summary>
+    /// <summary>Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. Pass null to clear any session effort override and fall back to the model's default. When omitted, the session's current effort is kept.</summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
 
@@ -13753,6 +13773,310 @@ internal sealed class McpResourcesListTemplatesRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Feature detection and hard polling limits for the EXPERIMENTAL session connector API.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorCapabilities
+{
+    /// <summary>Connector API contract version.</summary>
+    [JsonPropertyName("apiVersion")]
+    public long ApiVersion { get; set; }
+
+    /// <summary>Current session availability. Disabled availability is reported without making a Connector request.</summary>
+    [JsonPropertyName("availability")]
+    public ConnectorAvailability Availability { get; set; }
+
+    /// <summary>Whether connect and reconnect can return an opaque continuation for bounded consent polling.</summary>
+    [JsonPropertyName("consentContinuation")]
+    public bool ConsentContinuation { get; set; }
+
+    /// <summary>Maximum accepted wall-clock deadline in milliseconds for one continuation call.</summary>
+    [JsonPropertyName("maxDeadlineMs")]
+    public long MaxDeadlineMs { get; set; }
+
+    /// <summary>Maximum accepted polling attempts for one continuation call.</summary>
+    [JsonPropertyName("maxPollAttempts")]
+    public long MaxPollAttempts { get; set; }
+
+    /// <summary>Maximum accepted delay in milliseconds between polling attempts.</summary>
+    [JsonPropertyName("maxPollIntervalMs")]
+    public long MaxPollIntervalMs { get; set; }
+
+    /// <summary>Whether callers select a host-owned GitHub account through an opaque selection ID rather than supplying a provider token.</summary>
+    [JsonPropertyName("opaqueAccountSelection")]
+    public bool OpaqueAccountSelection { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionConnectorsGetCapabilitiesRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Account-targeted authorization update required by the Connector service. The account ID is an opaque host routing identifier; no credential is included.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorAuthorizationRequirement
+{
+    /// <summary>Exact opaque account selection that made the Connector request.</summary>
+    [JsonPropertyName("accountId")]
+    public string AccountId { get; set; } = string.Empty;
+
+    /// <summary>Stable OAuth scope the selected account must grant.</summary>
+    [JsonPropertyName("scope")]
+    public ConnectorAuthorizationScope Scope { get; set; }
+}
+
+/// <summary>Credential-free Connector catalog entry.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorCatalogEntry
+{
+    /// <summary>Untrusted service description, when present.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Untrusted display label from the service.</summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Canonical Connector name used by lifecycle methods.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Opaque stable runtime IDs currently projected into the session for this Connector.</summary>
+    [JsonPropertyName("runtimeServerIds")]
+    public IList<string> RuntimeServerIds { get => field ??= []; set; }
+
+    /// <summary>Current authoritative service connection state.</summary>
+    [JsonPropertyName("status")]
+    public ConnectorCatalogStatus Status { get; set; }
+}
+
+/// <summary>Validated Connector catalog snapshot cached by the session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorCatalogResult
+{
+    /// <summary>Validated catalog entries in service order.</summary>
+    [JsonPropertyName("connectors")]
+    public IList<ConnectorCatalogEntry> Connectors { get => field ??= []; set; }
+
+    /// <summary>Unix epoch milliseconds when this snapshot was accepted.</summary>
+    [JsonPropertyName("refreshedAtMs")]
+    public long RefreshedAtMs { get; set; }
+
+    /// <summary>Monotonically increasing session-local catalog revision.</summary>
+    [JsonPropertyName("revision")]
+    public long Revision { get; set; }
+}
+
+/// <summary>Live status of one session-owned MCP projection.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorRuntimeStatus
+{
+    /// <summary>Canonical Connector name that owns this server.</summary>
+    [JsonPropertyName("connectorName")]
+    public string ConnectorName { get; set; } = string.Empty;
+
+    /// <summary>Opaque runtime server ID.</summary>
+    [JsonPropertyName("runtimeServerId")]
+    public string RuntimeServerId { get; set; } = string.Empty;
+
+    /// <summary>Current live MCP host status.</summary>
+    [JsonPropertyName("status")]
+    public ConnectorMcpStatus Status { get; set; }
+}
+
+/// <summary>Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorStatus
+{
+    /// <summary>Opaque account selection pinned to this session, when one has been selected.</summary>
+    [JsonPropertyName("accountId")]
+    public string? AccountId { get; set; }
+
+    /// <summary>Connector API contract version.</summary>
+    [JsonPropertyName("apiVersion")]
+    public long ApiVersion { get; set; }
+
+    /// <summary>Exact selected account and stable scope requiring an authorization update, when proven by the Connector service.</summary>
+    [JsonPropertyName("authorizationRequirement")]
+    public ConnectorAuthorizationRequirement? AuthorizationRequirement { get; set; }
+
+    /// <summary>Current feature and session availability.</summary>
+    [JsonPropertyName("availability")]
+    public ConnectorAvailability Availability { get; set; }
+
+    /// <summary>Latest validated catalog snapshot, when available.</summary>
+    [JsonPropertyName("catalog")]
+    public ConnectorCatalogResult? Catalog { get; set; }
+
+    /// <summary>Number of active opaque connection continuations.</summary>
+    [JsonPropertyName("pendingConnections")]
+    public long PendingConnections { get; set; }
+
+    /// <summary>Live MCP status for every Connector-owned runtime server.</summary>
+    [JsonPropertyName("runtimeServers")]
+    public IList<ConnectorRuntimeStatus> RuntimeServers { get => field ??= []; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionConnectorsGetStatusRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ConnectorAccountRequest
+{
+    /// <summary>Opaque account selection ID previously returned by an account discovery API.</summary>
+    [JsonPropertyName("accountId")]
+    public string AccountId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Typed result of initiating or continuing a Connector connection.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(ConnectorConnectResultConnected), "connected")]
+[JsonDerivedType(typeof(ConnectorConnectResultConsentRequired), "consent_required")]
+[JsonDerivedType(typeof(ConnectorConnectResultPending), "pending")]
+public partial class ConnectorConnectResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The service is connected and the session MCP graph was reconciled.</summary>
+/// <remarks>The <c>connected</c> variant of <see cref="ConnectorConnectResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class ConnectorConnectResultConnected : ConnectorConnectResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "connected";
+
+    /// <summary>Fresh authoritative Connector state after MCP reconciliation.</summary>
+    [JsonPropertyName("status")]
+    public required ConnectorStatus Status { get; set; }
+}
+
+/// <summary>Host-owned consent is required before bounded continuation can complete.</summary>
+/// <remarks>The <c>consent_required</c> variant of <see cref="ConnectorConnectResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class ConnectorConnectResultConsentRequired : ConnectorConnectResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "consent_required";
+
+    /// <summary>Validated HTTPS consent URL. The runtime does not open it.</summary>
+    [JsonPropertyName("consentUrl")]
+    public required string ConsentUrl { get; set; }
+
+    /// <summary>Opaque ID accepted by continueConnection.</summary>
+    [JsonPropertyName("continuationId")]
+    public required string ContinuationId { get; set; }
+}
+
+/// <summary>The service is still completing the connection without a consent URL.</summary>
+/// <remarks>The <c>pending</c> variant of <see cref="ConnectorConnectResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class ConnectorConnectResultPending : ConnectorConnectResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "pending";
+
+    /// <summary>Opaque ID accepted by continueConnection.</summary>
+    [JsonPropertyName("continuationId")]
+    public required string ContinuationId { get; set; }
+}
+
+/// <summary>Selects one Connector and the pinned host-owned account used for its service and MCP authorization.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ConnectorConnectRequest
+{
+    /// <summary>Opaque account selection ID. It must match the account already pinned to the session, if any.</summary>
+    [JsonPropertyName("accountId")]
+    public string AccountId { get; set; } = string.Empty;
+
+    /// <summary>Canonical Connector name from the current catalog.</summary>
+    [JsonPropertyName("connectorName")]
+    public string ConnectorName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Explicitly bounded continuation of a pending Connector connection.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ConnectorContinueRequest
+{
+    /// <summary>Opaque continuation ID returned by connect, reconnect, or an earlier continuation.</summary>
+    [JsonPropertyName("continuationId")]
+    public string ContinuationId { get; set; } = string.Empty;
+
+    /// <summary>Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit.</summary>
+    [JsonPropertyName("deadlineMs")]
+    public int DeadlineMs { get; set; }
+
+    /// <summary>Maximum catalog requests made by this call. Must be between one and the capability limit.</summary>
+    [JsonPropertyName("maxAttempts")]
+    public int MaxAttempts { get; set; }
+
+    /// <summary>Delay in milliseconds between attempts. Must not exceed the capability limit.</summary>
+    [JsonPropertyName("pollIntervalMs")]
+    public int PollIntervalMs { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Authoritative result after disconnect and MCP reconciliation.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorDisconnectResult
+{
+    /// <summary>Whether the service accepted the idempotent disconnect.</summary>
+    [JsonPropertyName("disconnected")]
+    public bool Disconnected { get; set; }
+
+    /// <summary>Fresh authoritative session state after removing Connector-owned MCP servers.</summary>
+    [JsonPropertyName("status")]
+    public ConnectorStatus Status { get => field ??= new(); set; }
+}
+
+/// <summary>Requests authoritative Connector-to-MCP reconciliation for the pinned account.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ConnectorReconcileRequest
+{
+    /// <summary>Opaque account selection ID. It must match the account already pinned to the session, if any.</summary>
+    [JsonPropertyName("accountId")]
+    public string AccountId { get; set; } = string.Empty;
+
+    /// <summary>When true, refresh the catalog before reconciling. A disabled Connector API performs no service request.</summary>
+    [JsonPropertyName("refreshCatalog")]
+    public bool? RefreshCatalog { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ManagedSettingsResolvedData
@@ -14179,6 +14503,10 @@ public sealed class ProtocolSystemMessageAppendConfig
 [Experimental(Diagnostics.Experimental)]
 public sealed class SystemMessageBlock
 {
+    /// <summary>Whether providers with explicit prompt caching should place a cache breakpoint after this block.</summary>
+    [JsonPropertyName("cacheBreakpoint")]
+    public bool? CacheBreakpoint { get; set; }
+
     /// <summary>Text content for this system-message block.</summary>
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
@@ -14471,6 +14799,10 @@ public sealed class ProviderModelConfig
     [JsonPropertyName("maxPromptTokens")]
     public double? MaxPromptTokens { get; set; }
 
+    /// <summary>Provider-published model metadata, preserved verbatim as the public Model.metadata object.</summary>
+    [JsonPropertyName("metadata")]
+    public IDictionary<string, JsonElement>? Metadata { get; set; }
+
     /// <summary>Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.</summary>
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
@@ -14555,6 +14887,40 @@ internal sealed class ProviderAddRequest
     public IList<ProviderModelConfig>? Models { get; set; }
 
     /// <summary>Named BYOK provider connections to register, additive to any providers already in the registry. Each name must be unique across the registry and must not contain '/'.</summary>
+    [JsonPropertyName("providers")]
+    public IList<NamedProviderConfig>? Providers { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>The selectable model entries and selection ids synthesized for the synchronized BYOK models.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ProviderSyncResult
+{
+    /// <summary>True when synchronization withdrew the selected host-managed model, leaving the session with no explicit selection, so ordinary model resolution picks the session default. Synchronization never promotes a surviving host model in its place: publishing a model offers it, and the choice of which model to use stays with the user.</summary>
+    [JsonPropertyName("modelDeselected")]
+    public bool? ModelDeselected { get; set; }
+
+    /// <summary>Synthesized selectable model entries for the synchronized BYOK models.</summary>
+    [JsonPropertyName("models")]
+    public IList<JsonElement> Models { get => field ??= []; set; }
+
+    /// <summary>Provider-qualified model selection ids present after synchronization.</summary>
+    [JsonPropertyName("selectionIds")]
+    public IList<string> SelectionIds { get => field ??= []; set; }
+}
+
+/// <summary>Authoritative BYOK provider and model registry snapshot to apply atomically to the session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ProviderSyncRequest
+{
+    /// <summary>BYOK model definition snapshot. Models absent from this list are removed.</summary>
+    [JsonPropertyName("models")]
+    public IList<ProviderModelConfig>? Models { get; set; }
+
+    /// <summary>Named BYOK provider connection snapshot. Providers absent from this list are removed.</summary>
     [JsonPropertyName("providers")]
     public IList<NamedProviderConfig>? Providers { get; set; }
 
@@ -15085,6 +15451,10 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("enableHostGitOperations")]
     public bool? EnableHostGitOperations { get; set; }
 
+    /// <summary>Whether to load and execute host-user settings and home-directory hooks. Does not control repository, callback, plugin, or managed hooks.</summary>
+    [JsonPropertyName("enableHostUserHooks")]
+    public bool? EnableHostUserHooks { get; set; }
+
     /// <summary>Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions`.</summary>
     [JsonPropertyName("enableOnDemandInstructionDiscovery")]
     public bool? EnableOnDemandInstructionDiscovery { get; set; }
@@ -15132,6 +15502,10 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Map of feature-flag IDs to their boolean enabled state.</summary>
     [JsonPropertyName("featureFlags")]
     public IDictionary<string, bool>? FeatureFlags { get; set; }
+
+    /// <summary>Skill scan directories and descendants excluded from discovery. Supports `~`-relative paths.</summary>
+    [JsonPropertyName("ignoredSkillsLocations")]
+    public IList<string>? IgnoredSkillsLocations { get; set; }
 
     /// <summary>Built-in subagent names to include in this session. When specified, only these built-ins are available, subject to runtime availability and exclusions. Custom agents with the same name remain available. Set to null to remove the allowlist restriction.</summary>
     [JsonPropertyName("includedBuiltinAgents")]
@@ -17137,12 +17511,18 @@ internal sealed class ExecuteCommandParams
 }
 
 /// <summary>Indicates whether the command was accepted into the local execution queue.</summary>
+/// <remarks>Data type discriminated by <c>queued</c>.</remarks>
 [Experimental(Diagnostics.Experimental)]
-public sealed class EnqueueCommandResult
+public partial class EnqueueCommandResult
 {
-    /// <summary>True when the command was accepted into the local execution queue. False when the call targets a session that does not support local command queueing (e.g. remote sessions).</summary>
+    /// <summary>The boolean discriminator.</summary>
     [JsonPropertyName("queued")]
     public bool Queued { get; set; }
+
+    /// <summary>Stable opaque ID of the queued command.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("queueId")]
+    public string? QueueId { get; set; }
 }
 
 /// <summary>Slash-prefixed command string to enqueue for FIFO processing.</summary>
@@ -27529,7 +27909,7 @@ public readonly struct AgentRegistryLiveTargetEntryStatus : IEquatable<AgentRegi
 }
 
 
-/// <summary>Categorized reason for log-open failure.</summary>
+/// <summary>Categorized reason no canonical process log could be opened.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -31220,6 +31600,282 @@ public readonly struct McpAppsHostContextDetailsTheme : IEquatable<McpAppsHostCo
         public override void Write(Utf8JsonWriter writer, McpAppsHostContextDetailsTheme value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpAppsHostContextDetailsTheme));
+        }
+    }
+}
+
+
+/// <summary>Availability of the EXPERIMENTAL session connector API.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ConnectorAvailability : IEquatable<ConnectorAvailability>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ConnectorAvailability"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ConnectorAvailability"/>.</param>
+    [JsonConstructor]
+    public ConnectorAvailability(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ConnectorAvailability"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The resolved Connector feature is enabled and Connector requests are permitted.</summary>
+    public static ConnectorAvailability Enabled { get; } = new("enabled");
+
+    /// <summary>The resolved Connector feature is off. No Connector service request is made while disabled.</summary>
+    public static ConnectorAvailability Disabled { get; } = new("disabled");
+
+    /// <summary>The session has no eligible host-owned GitHub account or does not support local Connector projection.</summary>
+    public static ConnectorAvailability Unavailable { get; } = new("unavailable");
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorAvailability"/> instances are equivalent.</summary>
+    public static bool operator ==(ConnectorAvailability left, ConnectorAvailability right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorAvailability"/> instances are not equivalent.</summary>
+    public static bool operator !=(ConnectorAvailability left, ConnectorAvailability right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ConnectorAvailability other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ConnectorAvailability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ConnectorAvailability}"/> for serializing <see cref="ConnectorAvailability"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ConnectorAvailability>
+    {
+        /// <inheritdoc />
+        public override ConnectorAvailability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ConnectorAvailability value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectorAvailability));
+        }
+    }
+}
+
+
+/// <summary>Stable OAuth scope whose absence prevents Connector management.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ConnectorAuthorizationScope : IEquatable<ConnectorAuthorizationScope>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ConnectorAuthorizationScope"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ConnectorAuthorizationScope"/>.</param>
+    [JsonConstructor]
+    public ConnectorAuthorizationScope(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ConnectorAuthorizationScope"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Allows Copilot to manage Connector connections and use their tools.</summary>
+    public static ConnectorAuthorizationScope WritePluginGatewayConnections { get; } = new("write_plugin_gateway_connections");
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorAuthorizationScope"/> instances are equivalent.</summary>
+    public static bool operator ==(ConnectorAuthorizationScope left, ConnectorAuthorizationScope right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorAuthorizationScope"/> instances are not equivalent.</summary>
+    public static bool operator !=(ConnectorAuthorizationScope left, ConnectorAuthorizationScope right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ConnectorAuthorizationScope other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ConnectorAuthorizationScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ConnectorAuthorizationScope}"/> for serializing <see cref="ConnectorAuthorizationScope"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ConnectorAuthorizationScope>
+    {
+        /// <inheritdoc />
+        public override ConnectorAuthorizationScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ConnectorAuthorizationScope value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectorAuthorizationScope));
+        }
+    }
+}
+
+
+/// <summary>Authoritative service connection state for one Connector.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ConnectorCatalogStatus : IEquatable<ConnectorCatalogStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ConnectorCatalogStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ConnectorCatalogStatus"/>.</param>
+    [JsonConstructor]
+    public ConnectorCatalogStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ConnectorCatalogStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The Connector is available but not connected.</summary>
+    public static ConnectorCatalogStatus NotConnected { get; } = new("not_connected");
+
+    /// <summary>The Connector service is still completing connection or consent.</summary>
+    public static ConnectorCatalogStatus Pending { get; } = new("pending");
+
+    /// <summary>The Connector is connected and may contribute MCP servers.</summary>
+    public static ConnectorCatalogStatus Connected { get; } = new("connected");
+
+    /// <summary>The Connector service reports an unusable connection.</summary>
+    public static ConnectorCatalogStatus Error { get; } = new("error");
+
+    /// <summary>The service returned a future or unrecognized state.</summary>
+    public static ConnectorCatalogStatus Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorCatalogStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(ConnectorCatalogStatus left, ConnectorCatalogStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorCatalogStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(ConnectorCatalogStatus left, ConnectorCatalogStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ConnectorCatalogStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ConnectorCatalogStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ConnectorCatalogStatus}"/> for serializing <see cref="ConnectorCatalogStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ConnectorCatalogStatus>
+    {
+        /// <inheritdoc />
+        public override ConnectorCatalogStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ConnectorCatalogStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectorCatalogStatus));
+        }
+    }
+}
+
+
+/// <summary>Live MCP status of one Connector-owned runtime server.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ConnectorMcpStatus : IEquatable<ConnectorMcpStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ConnectorMcpStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ConnectorMcpStatus"/>.</param>
+    [JsonConstructor]
+    public ConnectorMcpStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ConnectorMcpStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The server is connected and its tools are available.</summary>
+    public static ConnectorMcpStatus Connected { get; } = new("connected");
+
+    /// <summary>The server connection is still being established.</summary>
+    public static ConnectorMcpStatus Pending { get; } = new("pending");
+
+    /// <summary>The server requires refreshed GitHub authorization.</summary>
+    public static ConnectorMcpStatus NeedsAuth { get; } = new("needs_auth");
+
+    /// <summary>The server failed to connect or initialize.</summary>
+    public static ConnectorMcpStatus Failed { get; } = new("failed");
+
+    /// <summary>The server is intentionally stopped, including when managed policy blocks it.</summary>
+    public static ConnectorMcpStatus Stopped { get; } = new("stopped");
+
+    /// <summary>The server is configured but explicitly disabled.</summary>
+    public static ConnectorMcpStatus Disabled { get; } = new("disabled");
+
+    /// <summary>The Connector currently has no live server configuration.</summary>
+    public static ConnectorMcpStatus NotConfigured { get; } = new("not_configured");
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorMcpStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(ConnectorMcpStatus left, ConnectorMcpStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorMcpStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(ConnectorMcpStatus left, ConnectorMcpStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ConnectorMcpStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ConnectorMcpStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ConnectorMcpStatus}"/> for serializing <see cref="ConnectorMcpStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ConnectorMcpStatus>
+    {
+        /// <inheritdoc />
+        public override ConnectorMcpStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ConnectorMcpStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectorMcpStatus));
         }
     }
 }
@@ -35731,7 +36387,7 @@ public sealed class ServerRpc
     }
 
     /// <summary>Performs the SDK server connection handshake and validates the optional connection token. Marked internal because this is JSON-RPC transport plumbing invoked automatically by an SDK client's own `connect()` wrapper, not a user-facing method. Stays internal as long as the SDK client owns the handshake; would only become public if the SDK ever exposed the raw schema surface to consumers without a connection wrapper.</summary>
-    /// <param name="enableGitHubTelemetryForwarding">Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</param>
+    /// <param name="enableGitHubTelemetryForwarding">Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards this host's telemetry across all its sessions, its sessionless events, and explicitly process-wide events over the `gitHubTelemetry.event` notification. Connections intentionally sharing one server receive that server's events; independently embedded runtime hosts do not receive each other's host-owned events. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</param>
     /// <param name="clientInfo">Identity of the integrating host. Optional; omit it to keep the default attribution.</param>
     /// <param name="supportedTaskKinds">Task kinds this connection can decode when observing session tasks. Omit to retain agent and shell compatibility.</param>
     /// <param name="token">Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</param>
@@ -36463,23 +37119,25 @@ public sealed class ServerSkillsApi
     /// <summary>Discovers skills across global and project sources.</summary>
     /// <param name="projectPaths">Optional list of project directory paths to scan for project-scoped skills.</param>
     /// <param name="skillDirectories">Optional list of additional skill directory paths to include.</param>
+    /// <param name="ignoredSkillsLocations">Optional skill scan paths to exclude from discovery.</param>
     /// <param name="excludeHostSkills">When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Skills discovered across global and project sources.</returns>
-    public async Task<ServerSkillList> DiscoverAsync(IList<string>? projectPaths = null, IList<string>? skillDirectories = null, bool? excludeHostSkills = null, CancellationToken cancellationToken = default)
+    public async Task<ServerSkillList> DiscoverAsync(IList<string>? projectPaths = null, IList<string>? skillDirectories = null, IList<string>? ignoredSkillsLocations = null, bool? excludeHostSkills = null, CancellationToken cancellationToken = default)
     {
-        var request = new SkillsDiscoverRequest { ProjectPaths = projectPaths, SkillDirectories = skillDirectories, ExcludeHostSkills = excludeHostSkills };
+        var request = new SkillsDiscoverRequest { ProjectPaths = projectPaths, SkillDirectories = skillDirectories, IgnoredSkillsLocations = ignoredSkillsLocations, ExcludeHostSkills = excludeHostSkills };
         return await CopilotClient.InvokeRpcAsync<ServerSkillList>(_rpc, "skills.discover", [request], cancellationToken);
     }
 
     /// <summary>Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.</summary>
     /// <param name="projectPaths">Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned.</param>
+    /// <param name="ignoredSkillsLocations">Optional skill scan paths to exclude from discovery.</param>
     /// <param name="excludeHostSkills">When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Canonical locations where skills can be created so the runtime will recognize them.</returns>
-    public async Task<SkillDiscoveryPathList> GetDiscoveryPathsAsync(IList<string>? projectPaths = null, bool? excludeHostSkills = null, CancellationToken cancellationToken = default)
+    public async Task<SkillDiscoveryPathList> GetDiscoveryPathsAsync(IList<string>? projectPaths = null, IList<string>? ignoredSkillsLocations = null, bool? excludeHostSkills = null, CancellationToken cancellationToken = default)
     {
-        var request = new SkillsGetDiscoveryPathsRequest { ProjectPaths = projectPaths, ExcludeHostSkills = excludeHostSkills };
+        var request = new SkillsGetDiscoveryPathsRequest { ProjectPaths = projectPaths, IgnoredSkillsLocations = ignoredSkillsLocations, ExcludeHostSkills = excludeHostSkills };
         return await CopilotClient.InvokeRpcAsync<SkillDiscoveryPathList>(_rpc, "skills.getDiscoveryPaths", [request], cancellationToken);
     }
 
@@ -37337,6 +37995,12 @@ public sealed class SessionRpc
 
     /// <summary>Mcp APIs.</summary>
     public McpApi Mcp =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
+    /// <summary>Connectors APIs.</summary>
+    public ConnectorsApi Connectors =>
         field ??
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
@@ -38522,7 +39186,7 @@ public sealed class ModelApi
     /// <summary>Switches the session to a model and optional reasoning configuration.</summary>
     /// <param name="modelId">Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.</param>
     /// <param name="autoTier">Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.</param>
-    /// <param name="reasoningEffort">Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied.</param>
+    /// <param name="reasoningEffort">Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. Pass null to clear any session effort override and fall back to the model's default. When omitted, the session's current effort is kept.</param>
     /// <param name="reasoningSummary">Reasoning summary mode to request for supported model clients.</param>
     /// <param name="verbosity">Output verbosity level to request for supported models.</param>
     /// <param name="modelCapabilities">Override individual model capabilities resolved by the runtime.</param>
@@ -40022,6 +40686,141 @@ public sealed class McpResourcesApi
     }
 }
 
+/// <summary>Provides session-scoped Connectors APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ConnectorsApi
+{
+    private readonly CopilotSession _session;
+
+    internal ConnectorsApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Returns feature availability and bounded polling limits for the EXPERIMENTAL session connector API. This method never performs a Connector service request.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Feature detection and hard polling limits for the EXPERIMENTAL session connector API.</returns>
+    public async Task<ConnectorCapabilities> GetCapabilitiesAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionConnectorsGetCapabilitiesRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<ConnectorCapabilities>(_session.Rpc, "session.connectors.getCapabilities", [request], cancellationToken);
+    }
+
+    /// <summary>Returns authoritative session Connector state from current availability, pinned account selection, cached catalog, and live MCP projection without performing a Connector service request.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.</returns>
+    public async Task<ConnectorStatus> GetStatusAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionConnectorsGetStatusRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<ConnectorStatus>(_session.Rpc, "session.connectors.getStatus", [request], cancellationToken);
+    }
+
+    /// <summary>Returns the cached Connector catalog for the pinned opaque account selection, fetching it only when this session has no cached catalog.</summary>
+    /// <param name="accountId">Opaque account selection ID previously returned by an account discovery API.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Validated Connector catalog snapshot cached by the session.</returns>
+    public async Task<ConnectorCatalogResult> ListAsync(string accountId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorAccountRequest { SessionId = _session.SessionId, AccountId = accountId };
+        return await CopilotClient.InvokeRpcAsync<ConnectorCatalogResult>(_session.Rpc, "session.connectors.list", [request], cancellationToken);
+    }
+
+    /// <summary>Refreshes and validates the Connector catalog for the pinned opaque account selection.</summary>
+    /// <param name="accountId">Opaque account selection ID previously returned by an account discovery API.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Validated Connector catalog snapshot cached by the session.</returns>
+    public async Task<ConnectorCatalogResult> RefreshAsync(string accountId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorAccountRequest { SessionId = _session.SessionId, AccountId = accountId };
+        return await CopilotClient.InvokeRpcAsync<ConnectorCatalogResult>(_session.Rpc, "session.connectors.refresh", [request], cancellationToken);
+    }
+
+    /// <summary>Initiates an idempotent Connector connection request without opening a browser. Returns connected when the service is immediately authoritative, consent_required with a validated URL, or pending with an opaque continuation ID.</summary>
+    /// <param name="accountId">Opaque account selection ID. It must match the account already pinned to the session, if any.</param>
+    /// <param name="connectorName">Canonical Connector name from the current catalog.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Typed result of initiating or continuing a Connector connection.</returns>
+    public async Task<ConnectorConnectResult> ConnectAsync(string accountId, string connectorName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        ArgumentNullException.ThrowIfNull(connectorName);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorConnectRequest { SessionId = _session.SessionId, AccountId = accountId, ConnectorName = connectorName };
+        return await CopilotClient.InvokeRpcAsync<ConnectorConnectResult>(_session.Rpc, "session.connectors.connect", [request], cancellationToken);
+    }
+
+    /// <summary>Re-initiates an idempotent Connector connection request without browser or UI effects, with the same typed outcomes as connect.</summary>
+    /// <param name="accountId">Opaque account selection ID. It must match the account already pinned to the session, if any.</param>
+    /// <param name="connectorName">Canonical Connector name from the current catalog.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Typed result of initiating or continuing a Connector connection.</returns>
+    public async Task<ConnectorConnectResult> ReconnectAsync(string accountId, string connectorName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        ArgumentNullException.ThrowIfNull(connectorName);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorConnectRequest { SessionId = _session.SessionId, AccountId = accountId, ConnectorName = connectorName };
+        return await CopilotClient.InvokeRpcAsync<ConnectorConnectResult>(_session.Rpc, "session.connectors.reconnect", [request], cancellationToken);
+    }
+
+    /// <summary>Continues a pending Connector connection with caller-supplied attempt, interval, and deadline bounds. The runtime never opens the returned consent URL.</summary>
+    /// <param name="continuationId">Opaque continuation ID returned by connect, reconnect, or an earlier continuation.</param>
+    /// <param name="maxAttempts">Maximum catalog requests made by this call. Must be between one and the capability limit.</param>
+    /// <param name="pollIntervalMs">Delay in milliseconds between attempts. Must not exceed the capability limit.</param>
+    /// <param name="deadlineMs">Maximum wall-clock duration in milliseconds for this call. Must be between one and the capability limit.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Typed result of initiating or continuing a Connector connection.</returns>
+    public async Task<ConnectorConnectResult> ContinueConnectionAsync(string continuationId, int maxAttempts, int pollIntervalMs, int deadlineMs, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(continuationId);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorContinueRequest { SessionId = _session.SessionId, ContinuationId = continuationId, MaxAttempts = maxAttempts, PollIntervalMs = pollIntervalMs, DeadlineMs = deadlineMs };
+        return await CopilotClient.InvokeRpcAsync<ConnectorConnectResult>(_session.Rpc, "session.connectors.continueConnection", [request], cancellationToken);
+    }
+
+    /// <summary>Disconnects one Connector for the pinned opaque account selection, refreshes the authoritative catalog, and removes its session-owned MCP projection.</summary>
+    /// <param name="accountId">Opaque account selection ID. It must match the account already pinned to the session, if any.</param>
+    /// <param name="connectorName">Canonical Connector name from the current catalog.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Authoritative result after disconnect and MCP reconciliation.</returns>
+    public async Task<ConnectorDisconnectResult> DisconnectAsync(string accountId, string connectorName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        ArgumentNullException.ThrowIfNull(connectorName);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorConnectRequest { SessionId = _session.SessionId, AccountId = accountId, ConnectorName = connectorName };
+        return await CopilotClient.InvokeRpcAsync<ConnectorDisconnectResult>(_session.Rpc, "session.connectors.disconnect", [request], cancellationToken);
+    }
+
+    /// <summary>Reconciles the authoritative cached or freshly requested Connector catalog into the session Connector MCP projection and returns live status.</summary>
+    /// <param name="accountId">Opaque account selection ID. It must match the account already pinned to the session, if any.</param>
+    /// <param name="refreshCatalog">When true, refresh the catalog before reconciling. A disabled Connector API performs no service request.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.</returns>
+    public async Task<ConnectorStatus> ReconcileAsync(string accountId, bool? refreshCatalog = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        _session.ThrowIfDisposed();
+
+        var request = new ConnectorReconcileRequest { SessionId = _session.SessionId, AccountId = accountId, RefreshCatalog = refreshCatalog };
+        return await CopilotClient.InvokeRpcAsync<ConnectorStatus>(_session.Rpc, "session.connectors.reconcile", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides session-scoped ManagedSettings APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ManagedSettingsApi
@@ -40259,6 +41058,19 @@ public sealed class ProviderApi
         var request = new ProviderAddRequest { SessionId = _session.SessionId, Providers = providers, Models = models };
         return await CopilotClient.InvokeRpcAsync<ProviderAddResult>(_session.Rpc, "session.provider.add", [request], cancellationToken);
     }
+
+    /// <summary>Atomically updates the session's BYOK provider and model registry by applying the supplied snapshot, replacing existing entries, updating models, or removing entries absent from the snapshot.</summary>
+    /// <param name="providers">Named BYOK provider connection snapshot. Providers absent from this list are removed.</param>
+    /// <param name="models">BYOK model definition snapshot. Models absent from this list are removed.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The selectable model entries and selection ids synthesized for the synchronized BYOK models.</returns>
+    public async Task<ProviderSyncResult> SyncAsync(IList<NamedProviderConfig>? providers = null, IList<ProviderModelConfig>? models = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new ProviderSyncRequest { SessionId = _session.SessionId, Providers = providers, Models = models };
+        return await CopilotClient.InvokeRpcAsync<ProviderSyncResult>(_session.Rpc, "session.provider.sync", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped Options APIs.</summary>
@@ -40301,6 +41113,7 @@ public sealed class OptionsApi
     /// <param name="envValueMode">How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch).</param>
     /// <param name="allowAllMcpServerInstructions">Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.</param>
     /// <param name="skillDirectories">Additional directories to search for skills.</param>
+    /// <param name="ignoredSkillsLocations">Skill scan directories and descendants excluded from discovery. Supports `~`-relative paths.</param>
     /// <param name="includedBuiltinSkills">Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.</param>
     /// <param name="disabledSkills">Skill IDs that should be excluded from this session.</param>
     /// <param name="enableOnDemandInstructionDiscovery">Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions`.</param>
@@ -40327,6 +41140,7 @@ public sealed class OptionsApi
     /// <param name="skipEmbeddingRetrieval">Whether to skip embedding retrieval pipeline initialization and execution.</param>
     /// <param name="organizationCustomInstructions">Organization-level custom instructions to inject into the system prompt.</param>
     /// <param name="enableFileHooks">Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK callback hook mechanism.</param>
+    /// <param name="enableHostUserHooks">Whether to load and execute host-user settings and home-directory hooks. Does not control repository, callback, plugin, or managed hooks.</param>
     /// <param name="enableHostGitOperations">Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt).</param>
     /// <param name="enableSessionStore">Whether to enable cross-session store writes and reads.</param>
     /// <param name="enableSkills">Whether skill loading is enabled. Explicit false disables every source, including a bound SDK provider; changing the value invalidates the loaded skill snapshot. When omitted, creation falls back to enableConfigDiscovery unless an SDK skill provider is registered.</param>
@@ -40334,11 +41148,11 @@ public sealed class OptionsApi
     /// <param name="sessionLimits">Optional session limits. Pass null to clear the session limits.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, IList<string>? includedBuiltinAgents = null, IList<string>? excludedBuiltinAgents = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, ShellOptions? shell = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, SandboxConfigSource? sandboxConfigSource = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, bool? allowAllMcpServerInstructions = null, IList<string>? skillDirectories = null, IList<string>? includedBuiltinSkills = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, bool? eventsLogIncludesSubagents = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, SessionLimitsConfig? sessionLimits = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, IList<string>? includedBuiltinAgents = null, IList<string>? excludedBuiltinAgents = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, ShellOptions? shell = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, SandboxConfigSource? sandboxConfigSource = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, bool? allowAllMcpServerInstructions = null, IList<string>? skillDirectories = null, IList<string>? ignoredSkillsLocations = null, IList<string>? includedBuiltinSkills = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, bool? eventsLogIncludesSubagents = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostUserHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, SessionLimitsConfig? sessionLimits = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, IncludedBuiltinAgents = includedBuiltinAgents, ExcludedBuiltinAgents = excludedBuiltinAgents, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, Shell = shell, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, SandboxConfigSource = sandboxConfigSource, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, AllowAllMcpServerInstructions = allowAllMcpServerInstructions, SkillDirectories = skillDirectories, IncludedBuiltinSkills = includedBuiltinSkills, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, EventsLogIncludesSubagents = eventsLogIncludesSubagents, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier, SessionLimits = sessionLimits };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, IncludedBuiltinAgents = includedBuiltinAgents, ExcludedBuiltinAgents = excludedBuiltinAgents, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, Shell = shell, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, SandboxConfigSource = sandboxConfigSource, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, AllowAllMcpServerInstructions = allowAllMcpServerInstructions, SkillDirectories = skillDirectories, IgnoredSkillsLocations = ignoredSkillsLocations, IncludedBuiltinSkills = includedBuiltinSkills, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, EventsLogIncludesSubagents = eventsLogIncludesSubagents, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostUserHooks = enableHostUserHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier, SessionLimits = sessionLimits };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }
@@ -42559,7 +43373,7 @@ public interface ILlmInferenceHandler
 [Experimental(Diagnostics.Experimental)]
 public interface IGitHubTelemetryHandler
 {
-    /// <summary>Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding during the `server.connect` handshake. Opted-in connections receive every event the runtime emits after the handshake — across all sessions, plus sessionless events (for example, `server.sendTelemetry` calls with no session id).</summary>
+    /// <summary>Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding during the `server.connect` handshake. Opted-in connections receive their runtime host's events across all its sessions, its sessionless events (for example, `server.sendTelemetry`), and explicitly process-wide events. Events owned by another independently embedded runtime host are not forwarded to this connection.</summary>
     /// <param name="request">Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding during the `server.connect` handshake.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task EventAsync(GitHubTelemetryNotification request, CancellationToken cancellationToken = default);
@@ -42865,6 +43679,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallStartData), TypeInfoPropertyName = "SessionEventsModelCallStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallStartEvent), TypeInfoPropertyName = "SessionEventsModelCallStartEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelChangeSource), TypeInfoPropertyName = "SessionEventsModelChangeSource")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelDeselectedReason), TypeInfoPropertyName = "SessionEventsModelDeselectedReason")]
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryOmittedReason), TypeInfoPropertyName = "SessionEventsOmittedBinaryOmittedReason")]
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryResult), TypeInfoPropertyName = "SessionEventsOmittedBinaryResult")]
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryType), TypeInfoPropertyName = "SessionEventsOmittedBinaryType")]
@@ -43008,6 +43823,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.SubagentStartedData), TypeInfoPropertyName = "SessionEventsSubagentStartedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentStartedEvent), TypeInfoPropertyName = "SessionEventsSubagentStartedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentTaskModelSource), TypeInfoPropertyName = "SessionEventsSubagentTaskModelSource")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemMessageContentBlock), TypeInfoPropertyName = "SessionEventsSystemMessageContentBlock")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemMessageData), TypeInfoPropertyName = "SessionEventsSystemMessageData")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemMessageEvent), TypeInfoPropertyName = "SessionEventsSystemMessageEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemMessageMetadata), TypeInfoPropertyName = "SessionEventsSystemMessageMetadata")]
@@ -43189,13 +44005,25 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ConnectResult))]
 [JsonSerializable(typeof(ConnectedRemoteSessionMetadata))]
 [JsonSerializable(typeof(ConnectedRemoteSessionMetadataRepository))]
+[JsonSerializable(typeof(ConnectorAccountRequest))]
+[JsonSerializable(typeof(ConnectorAuthorizationRequirement))]
+[JsonSerializable(typeof(ConnectorCapabilities))]
+[JsonSerializable(typeof(ConnectorCatalogEntry))]
+[JsonSerializable(typeof(ConnectorCatalogResult))]
+[JsonSerializable(typeof(ConnectorConnectRequest))]
+[JsonSerializable(typeof(ConnectorConnectResult))]
+[JsonSerializable(typeof(ConnectorContinueRequest))]
+[JsonSerializable(typeof(ConnectorDisconnectResult))]
+[JsonSerializable(typeof(ConnectorReconcileRequest))]
+[JsonSerializable(typeof(ConnectorRuntimeStatus))]
+[JsonSerializable(typeof(ConnectorStatus))]
 [JsonSerializable(typeof(ContentExclusionCheckPathsRequest))]
 [JsonSerializable(typeof(ContentExclusionCheckPathsResult))]
 [JsonSerializable(typeof(ContentExclusionPathCheck))]
 [JsonSerializable(typeof(ContextHeaviestMessage))]
 [JsonSerializable(typeof(CopilotUserResponse))]
 [JsonSerializable(typeof(CopilotUserResponseEndpoints))]
-[JsonSerializable(typeof(CopilotUserResponseEnterpriseList))]
+[JsonSerializable(typeof(CopilotUserResponseEnterpriseListItem))]
 [JsonSerializable(typeof(CopilotUserResponseOrganizationListItem))]
 [JsonSerializable(typeof(CopilotUserResponseQuotaSnapshots))]
 [JsonSerializable(typeof(CopilotUserResponseQuotaSnapshotsChat))]
@@ -43603,6 +44431,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ProviderEndpoint))]
 [JsonSerializable(typeof(ProviderModelConfig))]
 [JsonSerializable(typeof(ProviderSessionToken))]
+[JsonSerializable(typeof(ProviderSyncRequest))]
+[JsonSerializable(typeof(ProviderSyncResult))]
 [JsonSerializable(typeof(ProviderTokenAcquireRequest))]
 [JsonSerializable(typeof(ProviderTokenAcquireResult))]
 [JsonSerializable(typeof(PushAttachment))]
@@ -43715,6 +44545,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionCommandsListRequestWithSession))]
 [JsonSerializable(typeof(SessionCompletionItem))]
 [JsonSerializable(typeof(SessionCompletionsGetTriggerCharactersRequest))]
+[JsonSerializable(typeof(SessionConnectorsGetCapabilitiesRequest))]
+[JsonSerializable(typeof(SessionConnectorsGetStatusRequest))]
 [JsonSerializable(typeof(SessionContext))]
 [JsonSerializable(typeof(SessionEnrichMetadataResult))]
 [JsonSerializable(typeof(SessionEventLogTailRequest))]

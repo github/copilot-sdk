@@ -1192,7 +1192,7 @@ describe("CopilotClient", () => {
         onTestFinished(() => stopClient(client));
 
         const sendRequest = vi.fn(async (method: string) => {
-            if (method === "connect") return { ok: true, protocolVersion: 3, version: "test" };
+            if (method === "connect") return { ok: true, protocolVersion: 4, version: "test" };
             throw new Error(`Unexpected method: ${method}`);
         });
         (client as any).connection = { sendRequest };
@@ -1209,7 +1209,7 @@ describe("CopilotClient", () => {
         onTestFinished(() => stopClient(client));
 
         const sendRequest = vi.fn(async (method: string) => {
-            if (method === "connect") return { ok: true, protocolVersion: 3, version: "test" };
+            if (method === "connect") return { ok: true, protocolVersion: 4, version: "test" };
             throw new Error(`Unexpected method: ${method}`);
         });
         (client as any).connection = { sendRequest };
@@ -4535,7 +4535,7 @@ describe("connect handshake clientInfo", () => {
             ...options,
         });
         const sendRequest = vi.fn(async (method: string, _params?: unknown) => {
-            if (method === "connect") return { protocolVersion: 3 };
+            if (method === "connect") return { protocolVersion: 4 };
             throw new Error(`Unexpected method: ${method}`);
         });
         (client as any).connection = { sendRequest };

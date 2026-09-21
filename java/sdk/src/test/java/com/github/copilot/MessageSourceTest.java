@@ -310,7 +310,7 @@ class MessageSourceTest {
                     String method = request.path("method").asText();
                     JsonNode params = request.path("params");
                     Object result = switch (method) {
-                        case "connect" -> Map.of("ok", true, "protocolVersion", 3, "version", "test");
+                        case "connect" -> Map.of("ok", true, "protocolVersion", 4, "version", "test");
                         case "session.create" -> Map.of("sessionId", params.path("sessionId").asText());
                         case "session.send" -> Map.of("messageId", "message-1");
                         case "session.detach" -> Map.of("success", true);

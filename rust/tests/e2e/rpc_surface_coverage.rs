@@ -1448,7 +1448,7 @@ function handleMessage(message) {
   saveCapture();
 
   if (message.method === "connect") {
-    writeResult(message.id, { ok: true, protocolVersion: 3, version: "offline-fixture" });
+    writeResult(message.id, { ok: true, protocolVersion: 4, version: "offline-fixture" });
     return;
   }
   if (message.method === "session.create") {

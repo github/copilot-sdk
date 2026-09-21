@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Indicates whether the command was accepted into the local execution queue.
+ * Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,8 +23,10 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionCommandsEnqueueResult(
-    /** True when the command was accepted into the local execution queue. False when the call targets a session that does not support local command queueing (e.g. remote sessions). */
-    @JsonProperty("queued") Boolean queued
+public record SessionConnectorsListParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** Opaque account selection ID previously returned by an account discovery API. */
+    @JsonProperty("accountId") String accountId
 ) {
 }

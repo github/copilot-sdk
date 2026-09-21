@@ -301,7 +301,7 @@ async fn respond_to_connect(
             "id": request["id"],
             "result": {
                 "ok": true,
-                "protocolVersion": 3,
+                "protocolVersion": 4,
                 "version": "test"
             }
         }),

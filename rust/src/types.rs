@@ -2040,6 +2040,11 @@ pub struct SessionConfig {
     pub enable_on_demand_instruction_discovery: Option<bool>,
     /// When true, enables file hooks for this session.
     pub enable_file_hooks: Option<bool>,
+    /// Host OS user-settings/home hooks. Defaults to false in Empty mode and true in
+    /// CopilotCli mode on each create/resume. Explicit values win. This enables host
+    /// capabilities, not a SessionFs sandbox; repo, SDK callback, plugin, and managed hooks
+    /// are independent.
+    pub enable_host_user_hooks: Option<bool>,
     /// When true, allows host Git operations for this session.
     pub enable_host_git_operations: Option<bool>,
     /// When true, enables the session store for this session.
@@ -2354,6 +2359,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.enable_on_demand_instruction_discovery,
             )
             .field("enable_file_hooks", &self.enable_file_hooks)
+            .field("enable_host_user_hooks", &self.enable_host_user_hooks)
             .field(
                 "enable_host_git_operations",
                 &self.enable_host_git_operations,
@@ -2486,6 +2492,7 @@ impl Default for SessionConfig {
             organization_custom_instructions: None,
             enable_on_demand_instruction_discovery: None,
             enable_file_hooks: None,
+            enable_host_user_hooks: None,
             enable_host_git_operations: None,
             enable_session_store: None,
             enable_skills: None,
@@ -2659,6 +2666,7 @@ impl SessionConfig {
             organization_custom_instructions: self.organization_custom_instructions,
             enable_on_demand_instruction_discovery: self.enable_on_demand_instruction_discovery,
             enable_file_hooks: self.enable_file_hooks,
+            enable_host_user_hooks: self.enable_host_user_hooks.unwrap_or(true),
             enable_host_git_operations: self.enable_host_git_operations,
             enable_session_store: self.enable_session_store,
             enable_skills: self.enable_skills,
@@ -3052,6 +3060,12 @@ impl SessionConfig {
     /// Set [`Self::enable_file_hooks`].
     pub fn with_enable_file_hooks(mut self, value: bool) -> Self {
         self.enable_file_hooks = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_host_user_hooks`].
+    pub fn with_enable_host_user_hooks(mut self, value: bool) -> Self {
+        self.enable_host_user_hooks = Some(value);
         self
     }
 
@@ -3512,6 +3526,10 @@ pub struct ResumeSessionConfig {
     pub enable_on_demand_instruction_discovery: Option<bool>,
     /// When true, enables file hooks on resume.
     pub enable_file_hooks: Option<bool>,
+    /// Host OS user-settings/home hooks. Defaults to false in Empty mode and true in
+    /// CopilotCli mode on each resume. Explicit values win. This enables host capabilities,
+    /// not a SessionFs sandbox; repo, SDK callback, plugin, and managed hooks are independent.
+    pub enable_host_user_hooks: Option<bool>,
     /// When true, allows host Git operations on resume.
     pub enable_host_git_operations: Option<bool>,
     /// When true, enables the session store on resume.
@@ -3746,6 +3764,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.enable_on_demand_instruction_discovery,
             )
             .field("enable_file_hooks", &self.enable_file_hooks)
+            .field("enable_host_user_hooks", &self.enable_host_user_hooks)
             .field(
                 "enable_host_git_operations",
                 &self.enable_host_git_operations,
@@ -3922,6 +3941,7 @@ impl ResumeSessionConfig {
             organization_custom_instructions: self.organization_custom_instructions,
             enable_on_demand_instruction_discovery: self.enable_on_demand_instruction_discovery,
             enable_file_hooks: self.enable_file_hooks,
+            enable_host_user_hooks: self.enable_host_user_hooks.unwrap_or(true),
             enable_host_git_operations: self.enable_host_git_operations,
             enable_session_store: self.enable_session_store,
             enable_skills: self.enable_skills,
@@ -4031,6 +4051,7 @@ impl ResumeSessionConfig {
             organization_custom_instructions: None,
             enable_on_demand_instruction_discovery: None,
             enable_file_hooks: None,
+            enable_host_user_hooks: None,
             enable_host_git_operations: None,
             enable_session_store: None,
             enable_skills: None,
@@ -4398,6 +4419,12 @@ impl ResumeSessionConfig {
     /// Set [`Self::enable_file_hooks`].
     pub fn with_enable_file_hooks(mut self, value: bool) -> Self {
         self.enable_file_hooks = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_host_user_hooks`].
+    pub fn with_enable_host_user_hooks(mut self, value: bool) -> Self {
+        self.enable_host_user_hooks = Some(value);
         self
     }
 

@@ -235,7 +235,7 @@ public class ScenarioTestingCloudE2ETests(E2ETestFixture fixture, ITestOutputHel
           saveCapture();
 
           if (message.method === "connect") {
-            respond(message.id, { ok: true, protocolVersion: 3, version: "fake" });
+            respond(message.id, { ok: true, protocolVersion: 4, version: "fake" });
             return;
           }
 

@@ -22,7 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SystemMessageMetadata(
-    /** Version identifier of the prompt template used */
+    /** Version identifier of the prompt template or structured prompt layout used */
     @JsonProperty("promptVersion") String promptVersion,
     /** Template variables used when constructing the prompt */
     @JsonProperty("variables") Map<String, Object> variables

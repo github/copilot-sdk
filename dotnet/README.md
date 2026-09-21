@@ -1248,6 +1248,25 @@ catch (Exception ex)
 }
 ```
 
+## Host user hooks
+
+`SessionConfig.EnableHostUserHooks` and `ResumeSessionConfig.EnableHostUserHooks`
+are nullable booleans. On every create and resume, an explicit value wins;
+otherwise `Empty` mode resolves to `false` and `CopilotCli` mode to `true`.
+The resolved boolean is sent in the initial RPC, per session even when clients
+share a runtime. Resume uses the current client's mode and configuration, not
+the setting saved when the session was created.
+
+This controls only hooks discovered in host OS user settings and home directories.
+Repository `.github/hooks/` use `EnableFileHooks`; SDK hook callbacks, plugin hooks,
+and managed hooks remain independent. Setting `true` enables host capabilities;
+it does not make them a `SessionFs` sandbox.
+
+```csharp
+var config = new SessionConfig { EnableHostUserHooks = false };
+var resumeConfig = new ResumeSessionConfig { EnableHostUserHooks = true };
+```
+
 ## Development
 
 Development requires [.NET SDK 10+](https://dotnet.microsoft.com/download) and a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:

@@ -95,6 +95,7 @@ public class SessionConfig {
     private String organizationCustomInstructions;
     private Boolean enableOnDemandInstructionDiscovery;
     private Boolean enableFileHooks;
+    private Boolean enableHostUserHooks;
     private Boolean enableHostGitOperations;
     private Boolean enableSessionStore;
     private Boolean enableSkills;
@@ -1569,6 +1570,40 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the host OS user-settings/home hook override. Empty mode defaults to
+     * false; CopilotCli mode defaults to true per session. Repository file hooks,
+     * SDK callbacks, plugin hooks, and managed hooks are independent.
+     *
+     * @return the override, or empty to use the current client's mode
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableHostUserHooks() {
+        return Optional.ofNullable(enableHostUserHooks);
+    }
+
+    /**
+     * Enables host user hooks, a host capability rather than a SessionFs sandbox.
+     *
+     * @param enableHostUserHooks
+     *            whether to enable host user hooks
+     * @return this config for chaining
+     */
+    public SessionConfig setEnableHostUserHooks(boolean enableHostUserHooks) {
+        this.enableHostUserHooks = enableHostUserHooks;
+        return this;
+    }
+
+    /**
+     * Restores mode-based host user hook defaults.
+     *
+     * @return this config for chaining
+     */
+    public SessionConfig clearEnableHostUserHooks() {
+        this.enableHostUserHooks = null;
+        return this;
+    }
+
+    /**
      * Sets whether file-based hooks from {@code .github/hooks/} are enabled.
      *
      * @param enableFileHooks
@@ -2297,6 +2332,7 @@ public class SessionConfig {
         copy.organizationCustomInstructions = this.organizationCustomInstructions;
         copy.enableOnDemandInstructionDiscovery = this.enableOnDemandInstructionDiscovery;
         copy.enableFileHooks = this.enableFileHooks;
+        copy.enableHostUserHooks = this.enableHostUserHooks;
         copy.enableHostGitOperations = this.enableHostGitOperations;
         copy.enableSessionStore = this.enableSessionStore;
         copy.enableSkills = this.enableSkills;

@@ -451,7 +451,7 @@ class RpcServerE2ETest {
             assertNotNull(mcp.servers());
 
             var skills = client.getRpc().skills
-                    .discover(new SkillsDiscoverParams(null, List.of(skillDirectory.toString()), null))
+                    .discover(new SkillsDiscoverParams(null, List.of(skillDirectory.toString()), null, null))
                     .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             var discoveredSkill = findSkill(skills.skills(), skillName);
             assertEquals("Skill discovered by server-scoped RPC tests.", discoveredSkill.description());
@@ -459,7 +459,7 @@ class RpcServerE2ETest {
             assertTrue(discoveredSkill.path().replace('\\', '/').endsWith(skillName + "/SKILL.md"));
 
             var skillPaths = client.getRpc().skills
-                    .getDiscoveryPaths(new SkillsGetDiscoveryPathsParams(List.of(workDir), true))
+                    .getDiscoveryPaths(new SkillsGetDiscoveryPathsParams(List.of(workDir), null, true))
                     .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             var projectSkillPath = skillPaths.paths().stream().filter(
                     path -> pathsEqual(workDir, path.projectPath()) && Boolean.TRUE.equals(path.preferredForCreation()))
@@ -501,7 +501,7 @@ class RpcServerE2ETest {
                         .setDisabledSkills(new SkillsConfigSetDisabledSkillsParams(List.of(skillName)))
                         .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 var disabledSkills = client.getRpc().skills
-                        .discover(new SkillsDiscoverParams(null, List.of(skillDirectory.toString()), null))
+                        .discover(new SkillsDiscoverParams(null, List.of(skillDirectory.toString()), null, null))
                         .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 var disabledSkill = findSkill(disabledSkills.skills(), skillName);
                 assertFalse(disabledSkill.enabled());

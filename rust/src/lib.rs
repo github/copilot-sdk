@@ -129,7 +129,7 @@ pub use startup_timings::StartupTimings;
 pub use subscription::{EventSubscription, LifecycleSubscription};
 
 /// Minimum protocol version this SDK can communicate with.
-const MIN_PROTOCOL_VERSION: u32 = 3;
+const MIN_PROTOCOL_VERSION: u32 = 4;
 const RUNTIME_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 
 fn record_optional_millis(span: &tracing::Span, field: &'static str, value: Option<u64>) {
@@ -2451,33 +2451,19 @@ impl Client {
     ///    is the canonical handshake used by all SDK languages and is
     ///    what the CLI uses to enforce loopback authentication when
     ///    started with `COPILOT_CONNECTION_TOKEN`.
-    /// 2. If the server returns `-32601` (`MethodNotFound`), falls back
-    ///    to the legacy `ping` RPC. This preserves compatibility with
-    ///    older CLI versions that predate `connect`.
     ///
     /// # Result
     ///
     /// Returns an error if the negotiated `protocolVersion` is outside
-    /// `MIN_PROTOCOL_VERSION`..=[`SDK_PROTOCOL_VERSION`]. If the server
-    /// doesn't report a version, logs a warning and succeeds.
+    /// `MIN_PROTOCOL_VERSION`..=[`SDK_PROTOCOL_VERSION`] or the server
+    /// doesn't report a version. No legacy handshake fallback is performed.
     pub async fn verify_protocol_version(&self) -> Result<()> {
         let handshake_start = Instant::now();
-        let mut used_fallback_ping = false;
-        // Try the new `connect` handshake first (sends the connection
-        // token, if any). Fall back to `ping` for legacy CLI servers
-        // that don't expose `connect` (-32601 MethodNotFound).
-        let server_version = match self.connect_handshake().await {
-            Ok(v) => v,
-            Err(ref e) if e.rpc_code() == Some(error_codes::METHOD_NOT_FOUND) => {
-                used_fallback_ping = true;
-                self.ping(None).await?.protocol_version
-            }
-            Err(e) => return Err(e),
-        };
+        let server_version = self.connect_handshake().await?;
 
         match server_version {
             None => {
-                warn!("CLI server did not report protocolVersion; skipping version check");
+                return Err(ErrorKind::Protocol(ProtocolErrorKind::MissingProtocolVersion).into());
             }
             Some(v) if !(MIN_PROTOCOL_VERSION..=SDK_PROTOCOL_VERSION).contains(&v) => {
                 return Err(ErrorKind::Protocol(ProtocolErrorKind::VersionMismatch {
@@ -2505,7 +2491,6 @@ impl Client {
         debug!(
             elapsed_ms = handshake_start.elapsed().as_millis(),
             protocol_version = ?server_version,
-            used_fallback_ping,
             "Client::verify_protocol_version protocol handshake complete"
         );
         Ok(())
@@ -2546,6 +2531,9 @@ impl Client {
                 Some(serde_json::to_value(params)?),
             )
             .await?;
+        if value.get("protocolVersion").is_none() {
+            return Err(ErrorKind::Protocol(ProtocolErrorKind::MissingProtocolVersion).into());
+        }
         let result: crate::generated::api_types::ConnectResult = serde_json::from_value(value)?;
         Ok(Some(u32::try_from(result.protocol_version).map_err(
             |_| ProtocolErrorKind::InvalidProtocolVersion {

@@ -515,7 +515,7 @@ public sealed class GitHubTelemetryTests
             return new Dictionary<string, object?>
             {
                 ["ok"] = true,
-                ["protocolVersion"] = 3,
+                ["protocolVersion"] = 4,
                 ["version"] = "test",
             };
         }

@@ -268,7 +268,7 @@ func newCompletionFixture(t *testing.T, ctx context.Context, history []copilot.S
 		server := jsonrpc2.NewClient(conn, conn)
 		t.Cleanup(server.Stop)
 		for method, result := range map[string]string{
-			"connect":                `{"ok":true,"protocolVersion":3,"version":"test"}`,
+			"connect":                `{"ok":true,"protocolVersion":4,"version":"test"}`,
 			"plugins.builtin.set":    `{}`,
 			"session.create":         `{"sessionId":"completion-session"}`,
 			"session.options.update": `{"success":true}`,

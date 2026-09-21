@@ -3305,6 +3305,7 @@ public abstract class SessionConfigBase
         OrganizationCustomInstructions = other.OrganizationCustomInstructions;
         EnableOnDemandInstructionDiscovery = other.EnableOnDemandInstructionDiscovery;
         EnableFileHooks = other.EnableFileHooks;
+        EnableHostUserHooks = other.EnableHostUserHooks;
         EnableHostGitOperations = other.EnableHostGitOperations;
         EnableSessionStore = other.EnableSessionStore;
         EnableSkills = other.EnableSkills;
@@ -3489,6 +3490,14 @@ public abstract class SessionConfigBase
     /// controls SDK hook callback registration.
     /// </summary>
     public bool? EnableFileHooks { get; set; }
+
+    /// <summary>
+    /// Enables hooks from host OS user settings and home directories. Defaults to false
+    /// in Empty mode and true in CopilotCli mode, independently for each create or resume.
+    /// Explicit values override the mode. This enables host capabilities, not a SessionFs
+    /// sandbox, and does not control repository file hooks, SDK callbacks, plugins, or managed hooks.
+    /// </summary>
+    public bool? EnableHostUserHooks { get; set; }
 
     /// <summary>
     /// When <see langword="true"/>, enables git operations on the host filesystem

@@ -110,6 +110,7 @@ pub(crate) struct SessionCreateWire {
     pub enable_on_demand_instruction_discovery: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_file_hooks: Option<bool>,
+    pub enable_host_user_hooks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_host_git_operations: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -273,6 +274,7 @@ pub(crate) struct SessionResumeWire {
     pub enable_on_demand_instruction_discovery: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_file_hooks: Option<bool>,
+    pub enable_host_user_hooks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_host_git_operations: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

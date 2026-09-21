@@ -453,7 +453,7 @@ class RpcSurfaceParityE2ETest {
         try (var runtime = new RpcSurfaceTestCli(request -> {
             if ("connect".equals(request.path("method").asText())) {
                 return json("""
-                        {"ok":true,"protocolVersion":3,"version":"rpc-surface-test"}
+                        {"ok":true,"protocolVersion":4,"version":"rpc-surface-test"}
                         """);
             }
             if ("runtime.shutdown".equals(request.path("method").asText())) {
@@ -834,7 +834,7 @@ class RpcSurfaceParityE2ETest {
         String method = request.path("method").asText();
         return switch (method) {
             case "connect" -> json("""
-                    {"ok":true,"protocolVersion":3,"version":"rpc-surface-test"}
+                    {"ok":true,"protocolVersion":4,"version":"rpc-surface-test"}
                     """);
             case "session.create" -> sessionCreate(request);
             case "session.detach" -> json("""

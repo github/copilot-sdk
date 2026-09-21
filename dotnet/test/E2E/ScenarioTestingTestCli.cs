@@ -86,7 +86,7 @@ internal static class ScenarioTestingTestCli
           saveCapture();
 
           if (message.method === "connect") {
-            writeResponse(message.id, { ok: true, protocolVersion: 3, version: "scenario-client-test" });
+            writeResponse(message.id, { ok: true, protocolVersion: 4, version: "scenario-client-test" });
             return;
           }
 

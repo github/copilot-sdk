@@ -42,7 +42,7 @@ function handle(message) {
   saveCapture();
 
   if (message.method === "connect") {
-    writeResponse(message.id, { ok: true, protocolVersion: 3, version: "fake-rpc-surface" });
+    writeResponse(message.id, { ok: true, protocolVersion: 4, version: "fake-rpc-surface" });
     return;
   }
 
@@ -67,7 +67,7 @@ function handle(message) {
     writeResponse(message.id, {
       message: \`pong: \${message.params?.message ?? ""}\`,
       timestamp: "2026-09-18T15:00:00.000Z",
-      protocolVersion: 3
+      protocolVersion: 4
     });
     return;
   }
@@ -368,7 +368,7 @@ describe("Generated RPC surface coverage", () => {
         expect(ping).toEqual({
             message: "pong: typed projection",
             timestamp: "2026-09-18T15:00:00.000Z",
-            protocolVersion: 3,
+            protocolVersion: 4,
         });
 
         const models = await client.rpc.models.list({});

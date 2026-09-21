@@ -128,6 +128,9 @@ public final class ResumeSessionRequest {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableFileHooks;
 
+    @JsonProperty("enableHostUserHooks")
+    private Boolean enableHostUserHooks;
+
     @JsonProperty("enableHostGitOperations")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableHostGitOperations;
@@ -655,6 +658,18 @@ public final class ResumeSessionRequest {
     /** Gets enable file hooks flag. @return the flag */
     public Boolean getEnableFileHooks() {
         return enableFileHooks;
+    }
+
+    /** Gets the resolved host user hooks flag. @return the flag */
+    public Boolean getEnableHostUserHooks() {
+        return enableHostUserHooks;
+    }
+
+    /**
+     * Sets the resolved host user hooks flag. @param enableHostUserHooks the flag
+     */
+    public void setEnableHostUserHooks(boolean enableHostUserHooks) {
+        this.enableHostUserHooks = enableHostUserHooks;
     }
 
     /** Sets enable file hooks flag. @param enableFileHooks the flag */

@@ -643,57 +643,34 @@ public final class CopilotClient implements AutoCloseable {
         }
     }
 
-    private static final int MIN_PROTOCOL_VERSION = 2;
-    private static final int METHOD_NOT_FOUND_ERROR_CODE = -32601;
+    private static final int MIN_PROTOCOL_VERSION = 4;
 
     private void verifyProtocolVersion(Connection connection) throws Exception {
         int expectedVersion = SdkProtocolVersion.get();
         Integer serverVersion;
 
-        try {
-            // Try the new 'connect' RPC which supports connection tokens.
-            var connectParams = new HashMap<String, Object>();
-            if (effectiveConnectionToken != null) {
-                connectParams.put("token", effectiveConnectionToken);
-            }
-            connectParams.put("supportedTaskKinds", List.of("agent", "client", "shell"));
-            // Opt into GitHub telemetry forwarding at the connection level when a handler
-            // is registered, so the runtime can forward the first session's un-replayable
-            // start event. Also sent on session create/resume for backward compatibility
-            // with servers that read the flag there instead.
-            if (this.options.getOnGitHubTelemetry() != null) {
-                connectParams.put("enableGitHubTelemetryForwarding", true);
-            }
-            // Declare the integrating application's identity so the runtime attributes the
-            // telemetry it emits on this connection to a consistent surface instead of
-            // its own build. Omitted when the app didn't supply it (or supplied no fields).
-            var clientInfo = this.options.getClientInfo();
-            if (clientInfo != null && !clientInfo.isEmpty()) {
-                connectParams.put("clientInfo", clientInfo);
-            }
-            var connectResponse = connection.rpc.invoke("connect", connectParams, ConnectResult.class).get(30,
-                    TimeUnit.SECONDS);
-            serverVersion = connectResponse.protocolVersion() != null
-                    ? connectResponse.protocolVersion().intValue()
-                    : null;
-        } catch (Exception e) {
-            // Unwrap CompletionException/ExecutionException to check inner cause
-            Throwable cause = e;
-            while (cause instanceof java.util.concurrent.ExecutionException || cause instanceof CompletionException) {
-                cause = cause.getCause();
-            }
-            if (cause instanceof JsonRpcException rpcEx && isUnsupportedConnectMethod(rpcEx)) {
-                // Legacy server without 'connect'; fall back to 'ping'.
-                // A token, if any, is silently dropped — the legacy server can't enforce one.
-                var params = new HashMap<String, Object>();
-                params.put("message", null);
-                PingResponse pingResponse = connection.rpc.invoke("ping", params, PingResponse.class).get(30,
-                        TimeUnit.SECONDS);
-                serverVersion = pingResponse.protocolVersion();
-            } else {
-                throw e;
-            }
+        var connectParams = new HashMap<String, Object>();
+        if (effectiveConnectionToken != null) {
+            connectParams.put("token", effectiveConnectionToken);
         }
+        connectParams.put("supportedTaskKinds", List.of("agent", "client", "shell"));
+        // Opt into GitHub telemetry forwarding at the connection level when a handler
+        // is registered, so the runtime can forward the first session's un-replayable
+        // start event. Also sent on session create/resume for backward compatibility
+        // with servers that read the flag there instead.
+        if (this.options.getOnGitHubTelemetry() != null) {
+            connectParams.put("enableGitHubTelemetryForwarding", true);
+        }
+        // Declare the integrating application's identity so the runtime attributes the
+        // telemetry it emits on this connection to a consistent surface instead of
+        // its own build. Omitted when the app didn't supply it (or supplied no fields).
+        var clientInfo = this.options.getClientInfo();
+        if (clientInfo != null && !clientInfo.isEmpty()) {
+            connectParams.put("clientInfo", clientInfo);
+        }
+        var connectResponse = connection.rpc.invoke("connect", connectParams, ConnectResult.class).get(30,
+                TimeUnit.SECONDS);
+        serverVersion = connectResponse.protocolVersion() != null ? connectResponse.protocolVersion().intValue() : null;
 
         if (serverVersion == null) {
             throw new RuntimeException("SDK protocol version mismatch: SDK supports versions " + MIN_PROTOCOL_VERSION
@@ -706,10 +683,6 @@ public final class CopilotClient implements AutoCloseable {
                     + "-" + expectedVersion + ", but server reports version " + serverVersion + ". "
                     + "Please update your SDK or server to ensure compatibility.");
         }
-    }
-
-    private static boolean isUnsupportedConnectMethod(JsonRpcException ex) {
-        return ex.getCode() == METHOD_NOT_FOUND_ERROR_CODE || "Unhandled method connect".equals(ex.getMessage());
     }
 
     /**
@@ -1382,6 +1355,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // envValueMode
                 null, // allowAllMcpServerInstructions
                 null, // skillDirectories
+                null, // ignoredSkillsLocations
                 patchSkills, // includedBuiltinSkills
                 null, // disabledSkills
                 null, // enableOnDemandInstructionDiscovery
@@ -1408,6 +1382,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // skipEmbeddingRetrieval
                 null, // organizationCustomInstructions
                 null, // enableFileHooks
+                null, // enableHostUserHooks
                 null, // enableHostGitOperations
                 null, // enableSessionStore
                 null, // enableSkills

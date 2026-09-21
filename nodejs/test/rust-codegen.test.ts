@@ -5,6 +5,39 @@ import { describe, expect, it } from "vitest";
 import { generateApiTypesCode, generateSessionEventsCode } from "../../scripts/codegen/rust.ts";
 
 describe("Rust API type codegen", () => {
+    it("emits the boolean-discriminated enqueue result referenced by RPC methods", () => {
+        const code = generateApiTypesCode({
+            definitions: {
+                EnqueueCommandResult: {
+                    title: "EnqueueCommandResult",
+                    anyOf: [
+                        { $ref: "#/definitions/AcceptedEnqueueCommandResult" },
+                        { $ref: "#/definitions/UnsupportedEnqueueCommandResult" },
+                    ],
+                },
+                AcceptedEnqueueCommandResult: {
+                    type: "object",
+                    required: ["queued", "queueId"],
+                    properties: {
+                        queued: { type: "boolean", const: true },
+                        queueId: { type: "string" },
+                    },
+                },
+                UnsupportedEnqueueCommandResult: {
+                    type: "object",
+                    required: ["queued"],
+                    properties: {
+                        queued: { type: "boolean", const: false },
+                    },
+                },
+            },
+        } as ApiSchema);
+
+        expect(code).toContain("pub enum EnqueueCommandResult {");
+        expect(code).toContain("True(AcceptedEnqueueCommandResult)");
+        expect(code).toContain("False(UnsupportedEnqueueCommandResult)");
+    });
+
     it.each([true, false])(
         "validates a reference's sibling constant without changing its enum (required: %s)",
         (required) => {

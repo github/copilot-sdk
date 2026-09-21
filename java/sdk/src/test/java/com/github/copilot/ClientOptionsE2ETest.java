@@ -256,7 +256,7 @@ class ClientOptionsE2ETest {
             function resultFor(message) {
               switch (message.method) {
                 case 'connect':
-                  return { ok: true, protocolVersion: 3, version: 'fake' };
+                  return { ok: true, protocolVersion: 4, version: 'fake' };
                 case 'llmInference.setProvider':
                   return {};
                 case 'session.create':

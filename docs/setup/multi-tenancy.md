@@ -20,6 +20,7 @@ This guide is a sister to [Scaling and multi-tenancy](./scaling.md). Use that gu
 | Option | Use it for | Notes |
 |--------|------------|-------|
 | `mode: "empty"` | Disabling ambient OS tools and CLI defaults | Required for multi-user or shared scenarios. |
+| `enableHostUserHooks` | Admitting host OS account hooks per session | Defaults to `false` in Empty mode and `true` in Copilot CLI mode; an explicit value wins on create and resume. |
 | `sessionIdleTimeoutSeconds` | Cleaning idle sessions | Set a server-side timeout for long-running processes. |
 | `baseDirectory` | Isolating `COPILOT_HOME` per runtime instance | Ignored when connecting to an existing runtime. |
 | `sessionFs` | Routing session filesystem storage off local disk | Pair with per-session filesystem providers. |
@@ -33,6 +34,43 @@ For callback-backed credentials, see [Rotating session-scoped GitHub tokens](../
 `mode: "empty"` disables optional Copilot CLI behavior by default. In multi-user server mode, this is the safe baseline because your application must explicitly decide which tools, MCP servers, skills, and workspace paths a session can access.
 
 Do not use the default `mode: "copilot-cli"` for shared servers. That mode is intended for CLI-like coding agents and can expose ambient host filesystem capabilities.
+
+### Host-user hooks
+
+Every SDK resolves `enableHostUserHooks` before sending a create or resume request.
+An unset value becomes `false` in Empty mode and `true` in Copilot CLI mode.
+Explicit `false` and `true` override either default. On resume, the caller's current
+configuration and mode are authoritative, not the value used when the conversation
+was created. Each session makes its own decision, including sessions sharing an
+already-running runtime.
+Use matching protocol 4 SDK and runtime versions; older runtimes do not enforce
+this option.
+
+| SDK | Create and resume option |
+|-----|--------------------------|
+| TypeScript | `enableHostUserHooks` |
+| Python | `enable_host_user_hooks` |
+| Go | `EnableHostUserHooks` |
+| .NET | `EnableHostUserHooks` |
+| Java | `enableHostUserHooks` |
+| Rust | `enable_host_user_hooks` |
+
+"Host user" means the OS account running the runtime, not a user or tenant of your
+application. The option controls hook definitions in that account's settings
+(including supported legacy locations) and its resolved Copilot home hooks
+directory. When disabled, those hook sources are not discovered or admitted,
+including their startup prompts and executable or HTTP actions.
+
+Repository `.github/hooks/` hooks remain controlled by `enableFileHooks`.
+Explicit SDK callback hooks remain registered. Plugin hooks and enterprise-managed
+policy hooks retain their independent controls: `false` does not disable managed
+hooks, and `true` cannot override an enterprise restriction.
+
+> [!WARNING]
+> Setting `enableHostUserHooks` to `true`, including in Empty mode, opts into
+> host-account capabilities. SessionFs routes session filesystem operations; it
+> does not sandbox hook commands or HTTP requests. This option does not disable
+> every source of host-executed hooks or isolate all host settings.
 
 <details open>
 <summary><strong>TypeScript</strong></summary>

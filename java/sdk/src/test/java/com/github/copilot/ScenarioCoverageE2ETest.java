@@ -159,10 +159,10 @@ class ScenarioCoverageE2ETest {
         JsonNode params = request.path("params");
         return switch (method) {
             case "connect" -> json("""
-                    {"ok":true,"protocolVersion":3,"version":"scenario-parity-test"}
+                    {"ok":true,"protocolVersion":4,"version":"scenario-parity-test"}
                     """);
             case "ping" -> json("""
-                    {"message":"scenario-ping","timestamp":"2026-09-18T12:00:00Z","protocolVersion":3}
+                    {"message":"scenario-ping","timestamp":"2026-09-18T12:00:00Z","protocolVersion":4}
                     """);
             case "session.create" -> sessionResult(params.path("sessionId").asText());
             case "session.resume" -> sessionResult(params.path("sessionId").asText());

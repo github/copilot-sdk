@@ -1887,7 +1887,7 @@ async fn connect_sends_github_telemetry_forwarding_when_callback_registered() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": id,
-        "result": { "ok": true, "protocolVersion": 3, "version": "test" },
+        "result": { "ok": true, "protocolVersion": 4, "version": "test" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
     timeout(TIMEOUT, handle).await.unwrap().unwrap();
@@ -1915,7 +1915,7 @@ async fn connect_omits_github_telemetry_forwarding_without_callback() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": id,
-        "result": { "ok": true, "protocolVersion": 3, "version": "test" },
+        "result": { "ok": true, "protocolVersion": 4, "version": "test" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
     timeout(TIMEOUT, handle).await.unwrap().unwrap();

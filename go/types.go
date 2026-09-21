@@ -1383,6 +1383,13 @@ type SessionConfig struct {
 	// .github/hooks/. This is separate from the Hooks callback parameter which
 	// gates SDK hook event registration.
 	EnableFileHooks *bool
+
+	// EnableHostUserHooks loads user hooks from the runtime host OS account's
+	// Copilot settings/home. Nil defaults to false in ModeEmpty and true in
+	// ModeCopilotCli, independently on every create/resume. Separate from
+	// EnableFileHooks, SDK Hooks callbacks, plugin hooks, and enterprise policy
+	// hooks. Enabled host hooks are not sandboxed by SessionFS.
+	EnableHostUserHooks *bool
 	// EnableHostGitOperations, when non-nil, controls git operations on the host
 	// filesystem (branch detection, file status, commit history). When false, no
 	// git context is surfaced in the system prompt.
@@ -2052,6 +2059,13 @@ type ResumeSessionConfig struct {
 	// .github/hooks/. This is separate from the Hooks callback parameter which
 	// gates SDK hook event registration.
 	EnableFileHooks *bool
+
+	// EnableHostUserHooks loads user hooks from the runtime host OS account's
+	// Copilot settings/home. Nil defaults to false in ModeEmpty and true in
+	// ModeCopilotCli, independently on every create/resume. Separate from
+	// EnableFileHooks, SDK Hooks callbacks, plugin hooks, and enterprise policy
+	// hooks. Enabled host hooks are not sandboxed by SessionFS.
+	EnableHostUserHooks *bool
 	// EnableHostGitOperations, when non-nil, controls git operations on the host
 	// filesystem.
 	EnableHostGitOperations *bool
@@ -2688,6 +2702,7 @@ type createSessionRequest struct {
 	OrganizationCustomInstructions     *string                                `json:"organizationCustomInstructions,omitempty"`
 	EnableOnDemandInstructionDiscovery *bool                                  `json:"enableOnDemandInstructionDiscovery,omitempty"`
 	EnableFileHooks                    *bool                                  `json:"enableFileHooks,omitempty"`
+	EnableHostUserHooks                bool                                   `json:"enableHostUserHooks"`
 	EnableHostGitOperations            *bool                                  `json:"enableHostGitOperations,omitempty"`
 	EnableSessionStore                 *bool                                  `json:"enableSessionStore,omitempty"`
 	EnableSkills                       *bool                                  `json:"enableSkills,omitempty"`
@@ -2778,6 +2793,7 @@ type resumeSessionRequest struct {
 	OrganizationCustomInstructions     *string                                `json:"organizationCustomInstructions,omitempty"`
 	EnableOnDemandInstructionDiscovery *bool                                  `json:"enableOnDemandInstructionDiscovery,omitempty"`
 	EnableFileHooks                    *bool                                  `json:"enableFileHooks,omitempty"`
+	EnableHostUserHooks                bool                                   `json:"enableHostUserHooks"`
 	EnableHostGitOperations            *bool                                  `json:"enableHostGitOperations,omitempty"`
 	EnableSessionStore                 *bool                                  `json:"enableSessionStore,omitempty"`
 	EnableSkills                       *bool                                  `json:"enableSkills,omitempty"`

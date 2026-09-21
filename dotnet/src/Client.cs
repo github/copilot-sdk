@@ -59,7 +59,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <summary>
     /// Minimum protocol version this SDK can communicate with.
     /// </summary>
-    private const int MinProtocolVersion = 3;
+    private const int MinProtocolVersion = 4;
     private static readonly TimeSpan s_stderrPumpShutdownTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan s_runtimeShutdownTimeout = TimeSpan.FromSeconds(10);
 
@@ -1267,6 +1267,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.OrganizationCustomInstructions,
                 config.EnableOnDemandInstructionDiscovery,
                 config.EnableFileHooks,
+                config.EnableHostUserHooks ?? _options.Mode != CopilotClientMode.Empty,
                 config.EnableHostGitOperations,
                 config.EnableSessionStore,
                 config.EnableSkills,
@@ -1499,6 +1500,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.OrganizationCustomInstructions,
                 config.EnableOnDemandInstructionDiscovery,
                 config.EnableFileHooks,
+                config.EnableHostUserHooks ?? _options.Mode != CopilotClientMode.Empty,
                 config.EnableHostGitOperations,
                 config.EnableSessionStore,
                 config.EnableSkills,
@@ -2175,47 +2177,29 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private async Task VerifyProtocolVersionAsync(Connection connection, CancellationToken cancellationToken)
     {
         var handshakeTimestamp = Stopwatch.GetTimestamp();
-        var usedFallbackPing = false;
         var maxVersion = SdkProtocolVersion.GetVersion();
         int? serverVersion;
-        try
-        {
-            var token = _ffiHost is not null
-                ? null // FFI hosting is an ungated in-process connection; no token.
-                : _connection switch
-                {
-                    TcpRuntimeConnection tcp => tcp.ConnectionToken,
-                    UriRuntimeConnection uri => uri.ConnectionToken,
-                    _ => null,
-                };
-            var connectResponse = await InvokeRpcAsync<ConnectResult>(
-                connection.Rpc,
-                "connect",
-                [new ConnectHandshakeRequest(
-                    token,
-                    // Opt in to GitHub telemetry forwarding at the connection level when a
-                    // handler is registered (mirrors the runtime, which reads this flag on the
-                    // `connect` handshake so the first session's un-replayable `session.start`
-                    // event is forwarded). Also sent on session.create/resume for older CLIs.
-                    _options.OnGitHubTelemetry != null ? true : null,
-                    // Declare the integrating application's identity so the runtime attributes the
-                    // telemetry it emits on this connection to a consistent surface instead
-                    // of its own build. Null when the app didn't supply it.
-                    ConnectHandshakeClientInfo.From(_options.ClientInfo),
-                    SupportedTaskKinds: [TaskKind.Agent, TaskKind.Client, TaskKind.Shell])],
-                connection.StderrBuffer,
-                cancellationToken);
-            serverVersion = (int)connectResponse.ProtocolVersion;
-        }
-        catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))
-        {
-            // Legacy server without `connect`; fall back to `ping`. A token, if any,
-            // is silently dropped — the legacy server can't enforce one.
-            usedFallbackPing = true;
-            var pingResponse = await InvokeRpcAsync<PingResponse>(
-                connection.Rpc, "ping", [new PingRequest()], connection.StderrBuffer, cancellationToken);
-            serverVersion = pingResponse.ProtocolVersion;
-        }
+        var token = _ffiHost is not null
+            ? null // FFI hosting is an ungated in-process connection; no token.
+            : _connection switch
+            {
+                TcpRuntimeConnection tcp => tcp.ConnectionToken,
+                UriRuntimeConnection uri => uri.ConnectionToken,
+                _ => null,
+            };
+        var connectResponse = await InvokeRpcAsync<ConnectResult>(
+            connection.Rpc,
+            "connect",
+            [new ConnectHandshakeRequest(
+                token,
+                // Opt in before the first session's un-replayable session.start event.
+                _options.OnGitHubTelemetry != null ? true : null,
+                // Declare the integrating application's identity for runtime telemetry.
+                ConnectHandshakeClientInfo.From(_options.ClientInfo),
+                SupportedTaskKinds: [TaskKind.Agent, TaskKind.Client, TaskKind.Shell])],
+            connection.StderrBuffer,
+            cancellationToken);
+        serverVersion = (int)connectResponse.ProtocolVersion;
 
         if (!serverVersion.HasValue)
         {
@@ -2235,16 +2219,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         _negotiatedProtocolVersion = serverVersion.Value;
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
-            "CopilotClient.VerifyProtocolVersionAsync protocol handshake complete. Elapsed={Elapsed}, ProtocolVersion={ProtocolVersion}, UsedFallbackPing={UsedFallbackPing}",
+            "CopilotClient.VerifyProtocolVersionAsync protocol handshake complete. Elapsed={Elapsed}, ProtocolVersion={ProtocolVersion}",
             handshakeTimestamp,
-            serverVersion.Value,
-            usedFallbackPing);
-    }
-
-    private static bool IsUnsupportedConnectMethod(RemoteRpcException ex)
-    {
-        return ex.ErrorCode == RemoteRpcException.MethodNotFoundErrorCode
-            || string.Equals(ex.Message, "Unhandled method connect", StringComparison.Ordinal);
+            serverVersion.Value);
     }
 
     // Applies the telemetry-derived environment variables the runtime reads to
@@ -3087,6 +3064,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? OrganizationCustomInstructions,
         bool? EnableOnDemandInstructionDiscovery,
         bool? EnableFileHooks,
+        bool EnableHostUserHooks,
         bool? EnableHostGitOperations,
         bool? EnableSessionStore,
         bool? EnableSkills,
@@ -3196,6 +3174,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? OrganizationCustomInstructions,
         bool? EnableOnDemandInstructionDiscovery,
         bool? EnableFileHooks,
+        bool EnableHostUserHooks,
         bool? EnableHostGitOperations,
         bool? EnableSessionStore,
         bool? EnableSkills,

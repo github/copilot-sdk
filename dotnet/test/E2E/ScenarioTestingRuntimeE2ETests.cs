@@ -384,7 +384,7 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
 
           if (message.method === "connect") {
             if (behavior !== "hang-connect") {
-              respond(message.id, { ok: true, protocolVersion: 3, version: "fake" });
+              respond(message.id, { ok: true, protocolVersion: 4, version: "fake" });
             }
             return;
           }
@@ -409,7 +409,7 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
             respond(message.id, {
               message: `pong: ${message.params?.message ?? ""}`,
               timestamp: new Date().toISOString(),
-              protocolVersion: 3
+              protocolVersion: 4
             });
             return;
           }

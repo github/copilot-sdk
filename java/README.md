@@ -611,6 +611,26 @@ The gate also applies to individual methods annotated with `@CopilotExperimental
 
 > Want to add your project? Open a PR!
 
+### Host user hooks
+
+`SessionConfig` and `ResumeSessionConfig` expose the nullable
+`enableHostUserHooks` override through `setEnableHostUserHooks(boolean)`,
+`getEnableHostUserHooks()` (`Optional<Boolean>`), and `clearEnableHostUserHooks()`.
+Every create and resume sends a concrete boolean in its initial RPC: an explicit
+value wins, otherwise `EMPTY` resolves to `false` and `COPILOT_CLI` to `true`.
+Defaults are per session even on a shared runtime. Resume uses the current
+client's mode and configuration, not a saved creation-time value.
+
+This controls only hooks discovered in host OS user settings and home directories.
+Repository `.github/hooks/` use `enableFileHooks`; SDK callbacks, plugin hooks,
+and managed hooks are independent. Setting `true` enables host capabilities,
+not a `SessionFs` sandbox.
+
+```java
+var config = new SessionConfig().setEnableHostUserHooks(false);
+var resumeConfig = new ResumeSessionConfig().setEnableHostUserHooks(true);
+```
+
 ### Development Setup
 
 Requires JDK 25 or later and a supported [Node.js version](../nodejs/README.md#prerequisites) for development. The following steps validate the artifact built with JDK 25 runs on both 25 and 17, preserving the MR-JAR behavior.

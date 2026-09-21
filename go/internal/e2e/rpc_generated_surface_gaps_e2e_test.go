@@ -481,7 +481,7 @@ func newGeneratedRPCFixture(t *testing.T, ctx context.Context) *generatedRPCFixt
 		server := jsonrpc2.NewClient(conn, conn)
 		t.Cleanup(server.Stop)
 		for method, result := range map[string]string{
-			"connect":                `{"ok":true,"protocolVersion":3,"version":"test"}`,
+			"connect":                `{"ok":true,"protocolVersion":4,"version":"test"}`,
 			"plugins.builtin.set":    `{}`,
 			"session.create":         `{"sessionId":"generated-rpc-surface"}`,
 			"session.options.update": `{"success":true}`,

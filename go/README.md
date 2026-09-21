@@ -232,6 +232,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
 - `WorkingDirectory` (string): Working directory for the session (default: runtime process working directory)
 - `EnableSessionStore` (\*bool): Enables the cross-session store for search and retrieval across sessions. When unset in `ModeCopilotCli`, the runtime default applies (enabled). In `ModeEmpty`, defaults to disabled.
+- `EnableHostUserHooks` (\*bool): Loads user hooks from the runtime host OS account's Copilot settings/home. `nil` defaults to `false` in `ModeEmpty` and `true` in `ModeCopilotCli`; an explicit pointer to `false` is preserved. See [Host user hooks](#host-user-hooks).
 - `GitHubTokenProvider` (GitHubTokenProvider): Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenResult` with a positive `ExpiresIn` value (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenCancelled`. Cannot be combined with `GitHubToken`.
 - `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. `copilot.PermissionHandler.ApproveAll` approves requests when managed settings are disabled and returns an error when `EnableManagedSettings` is true. Custom handlers can inspect `RequiresManagedApproval()` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
@@ -242,6 +243,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 **ResumeSessionConfig:**
 
+- `EnableHostUserHooks` (\*bool): Same mode defaults as creation. The current configuration and client mode apply, even if host hooks were enabled previously.
 - `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
 - `Tools` ([]Tool): Tools to expose when resuming
 - `ReasoningEffort` (string): Reasoning effort level for models that support it
@@ -1092,6 +1094,37 @@ Communicates with CLI via TCP socket. Useful for distributed scenarios.
 ## Environment Variables
 
 - `COPILOT_CLI_PATH` - Path to the Copilot CLI executable
+
+## Host user hooks
+
+Requires a protocol 4 runtime. Older runtimes are rejected without a legacy handshake fallback.
+
+`EnableHostUserHooks` is a per-session admission setting, including when clients
+share a runtime. Every initial create/resume request sends the resolved boolean:
+an explicit value wins; `nil` means `false` in `ModeEmpty` and `true` in
+`ModeCopilotCli`. Resume applies the current configuration and client mode rather
+than inheriting the previous session's setting.
+
+These hooks come from the **runtime host OS account's Copilot settings/home**,
+not the SDK application's user or a SessionFs virtual home. Enabling them grants
+host capabilities: their commands are **not sandboxed by `SessionFS`**.
+Keep them disabled for untrusted or multi-tenant sessions unless that host access
+is intentional. This does not control repository `.github/hooks/` hooks
+(`EnableFileHooks`), SDK `Hooks` callbacks, plugin hooks, or enterprise policy
+hooks; those remain separate controls and sources.
+
+```go
+disabled := false
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    EnableHostUserHooks: &disabled,
+})
+if err != nil {
+    return err
+}
+_, err = client.ResumeSession(ctx, session.SessionID, &copilot.ResumeSessionConfig{
+    EnableHostUserHooks: &disabled,
+})
+```
 
 ## Development
 

@@ -1533,7 +1533,7 @@ export function generateApiTypesCode(
 	);
 	const ctx = makeCtx(defCollections, {
 		nonDefaultableTypes,
-		allowedUnionTypeNames: ["AuthInfo", "McpOauthProbeResult", "SettableAuthInfo", "ToolResult"],
+		allowedUnionTypeNames: ["AuthInfo", "EnqueueCommandResult", "McpOauthProbeResult", "SettableAuthInfo", "ToolResult"],
 	});
 
 	// Collect all RPC methods before emitting shared definitions so method stability

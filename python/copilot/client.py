@@ -1417,7 +1417,7 @@ HandlerUnsubcribe = Callable[[], None]
 
 # Minimum protocol version this SDK can communicate with.
 # Servers reporting a version below this are rejected.
-_MIN_PROTOCOL_VERSION = 3
+_MIN_PROTOCOL_VERSION = 4
 _RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
 _CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
 
@@ -2325,6 +2325,7 @@ class CopilotClient:
         organization_custom_instructions: str | None = None,
         enable_on_demand_instruction_discovery: bool | None = None,
         enable_file_hooks: bool | None = None,
+        enable_host_user_hooks: bool | None = None,
         enable_host_git_operations: bool | None = None,
         enable_session_store: bool | None = None,
         enable_skills: bool | None = None,
@@ -2471,6 +2472,11 @@ class CopilotClient:
             enable_on_demand_instruction_discovery: Enables on-demand instruction file
                 discovery.
             enable_file_hooks: Enables file-based hooks from ``.github/hooks/``.
+            enable_host_user_hooks: Loads user hooks from the runtime host OS account's
+                Copilot settings/home. None defaults to False in empty mode and True
+                in copilot-cli mode, independently on every create/resume. Separate
+                from repository file hooks, SDK callbacks, plugin hooks, and enterprise
+                policy hooks. Enabled host hooks are not sandboxed by session_fs.
             enable_host_git_operations: Enables git operations on the host filesystem.
             enable_session_store: Enables the cross-session store.
             enable_skills: Enables skill loading.
@@ -2799,6 +2805,9 @@ class CopilotClient:
             payload["enableOnDemandInstructionDiscovery"] = enable_on_demand_instruction_discovery
         if enable_file_hooks is not None:
             payload["enableFileHooks"] = enable_file_hooks
+        payload["enableHostUserHooks"] = (
+            enable_host_user_hooks if enable_host_user_hooks is not None else mode != "empty"
+        )
         if enable_host_git_operations is not None:
             payload["enableHostGitOperations"] = enable_host_git_operations
         if enable_session_store is not None:
@@ -3112,6 +3121,7 @@ class CopilotClient:
         organization_custom_instructions: str | None = None,
         enable_on_demand_instruction_discovery: bool | None = None,
         enable_file_hooks: bool | None = None,
+        enable_host_user_hooks: bool | None = None,
         enable_host_git_operations: bool | None = None,
         enable_session_store: bool | None = None,
         enable_skills: bool | None = None,
@@ -3259,6 +3269,11 @@ class CopilotClient:
             enable_on_demand_instruction_discovery: Enables on-demand instruction file
                 discovery.
             enable_file_hooks: Enables file-based hooks from ``.github/hooks/``.
+            enable_host_user_hooks: Loads user hooks from the runtime host OS account's
+                Copilot settings/home. None defaults to False in empty mode and True
+                in copilot-cli mode, independently on every create/resume. Separate
+                from repository file hooks, SDK callbacks, plugin hooks, and enterprise
+                policy hooks. Enabled host hooks are not sandboxed by session_fs.
             enable_host_git_operations: Enables git operations on the host filesystem.
             enable_session_store: Enables the cross-session store.
             enable_skills: Enables skill loading.
@@ -3527,6 +3542,9 @@ class CopilotClient:
             payload["enableOnDemandInstructionDiscovery"] = enable_on_demand_instruction_discovery
         if enable_file_hooks is not None:
             payload["enableFileHooks"] = enable_file_hooks
+        payload["enableHostUserHooks"] = (
+            enable_host_user_hooks if enable_host_user_hooks is not None else mode != "empty"
+        )
         if enable_host_git_operations is not None:
             payload["enableHostGitOperations"] = enable_host_git_operations
         if enable_session_store is not None:
@@ -4138,46 +4156,28 @@ class CopilotClient:
 
     async def _verify_protocol_version(self) -> None:
         """Send the ``connect`` handshake (with the optional token) and verify
-        the server's protocol version. Falls back to ``ping`` for legacy servers
-        that don't implement ``connect``."""
+        the server's protocol version."""
         if not self._client:
             raise RuntimeError("Client not connected")
         handshake_start = time.perf_counter()
-        used_fallback_ping = False
         max_version = get_sdk_protocol_version()
 
-        server_version: int | None
-        try:
-            connect_params: dict[str, Any] = {
-                "supportedTaskKinds": ["agent", "client", "shell"],
-            }
-            if self._effective_connection_token is not None:
-                connect_params["token"] = self._effective_connection_token
-            # Opt in to GitHub telemetry forwarding at the connection level when a
-            # handler is registered (mirrors the runtime, which reads this flag on the
-            # `connect` handshake so the first session's un-replayable `session.start`
-            # event is forwarded). Also sent on session.create/resume for older CLIs.
-            if self._on_github_telemetry is not None:
-                connect_params["enableGitHubTelemetryForwarding"] = True
-            # Declare the integrating application's identity so the runtime attributes
-            # the telemetry it emits on this connection to a consistent surface
-            # instead of its own build. Omitted when the app didn't supply it.
-            client_info = _client_info_to_wire(self._options.client_info)
-            if client_info is not None:
-                connect_params["clientInfo"] = client_info
-            connect_result = _ConnectResult.from_dict(
-                await self._client.request("connect", connect_params)
-            )
-            server_version = connect_result.protocol_version
-        except JsonRpcError as err:
-            if err.code == -32601 or err.message == "Unhandled method connect":
-                # Legacy server without `connect`; fall back to `ping`. A token, if any,
-                # is silently dropped — the legacy server can't enforce one.
-                used_fallback_ping = True
-                ping_result = await self.ping()
-                server_version = ping_result.protocol_version
-            else:
-                raise
+        connect_params: dict[str, Any] = {
+            "supportedTaskKinds": ["agent", "client", "shell"],
+        }
+        if self._effective_connection_token is not None:
+            connect_params["token"] = self._effective_connection_token
+        # Opt in before the first session's un-replayable session.start event.
+        if self._on_github_telemetry is not None:
+            connect_params["enableGitHubTelemetryForwarding"] = True
+        # Attribute telemetry to the integrating application, omitting empty identities.
+        client_info = _client_info_to_wire(self._options.client_info)
+        if client_info is not None:
+            connect_params["clientInfo"] = client_info
+        connect_result = _ConnectResult.from_dict(
+            await self._client.request("connect", connect_params)
+        )
+        server_version = connect_result.protocol_version
 
         if server_version is None:
             raise RuntimeError(
@@ -4202,7 +4202,6 @@ class CopilotClient:
             "CopilotClient._verify_protocol_version protocol handshake complete",
             handshake_start,
             protocol_version=server_version,
-            used_fallback_ping=used_fallback_ping,
         )
 
     def _convert_provider_to_wire_format(

@@ -354,7 +354,7 @@ class GitHubTelemetryTest {
                 JsonRpcClient server = JsonRpcClient.fromSocket(socket, rpc -> {
                     rpc.registerMethodHandler("connect", (id, params) -> {
                         connectParams.complete(params);
-                        respond(rpc, id, Map.of("protocolVersion", 2));
+                        respond(rpc, id, Map.of("protocolVersion", 4));
                     });
                     rpc.registerMethodHandler("session.create", (id, params) -> {
                         createParams.complete(params);

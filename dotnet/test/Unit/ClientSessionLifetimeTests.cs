@@ -23,6 +23,114 @@ public sealed partial class ClientSessionLifetimeTests
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
 
     [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(5)]
+    public async Task HostUserHooks_Requires_Protocol_Four(int protocolVersion)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.ProtocolVersion = protocolVersion;
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+        });
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => client.StartAsync());
+        Assert.Contains("protocol version mismatch", error.Message);
+        Assert.DoesNotContain(server.Requests, request =>
+            request.Method is "ping" or "session.create" or "session.resume");
+    }
+
+    [Fact]
+    public async Task HostUserHooks_Generated_Options_Preserve_Explicit_False()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+        });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        server.ClearRequests();
+        await session.Rpc.Options.UpdateAsync(enableHostUserHooks: false);
+        var request = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        Assert.False(request.Params.GetProperty("enableHostUserHooks").GetBoolean());
+    }
+
+    [Fact]
+    public async Task HostUserHooks_Config_Reuse_Uses_Current_Client_Mode()
+    {
+        var create = new SessionConfig { AvailableTools = [] };
+        var resume = new ResumeSessionConfig { AvailableTools = [] };
+        foreach (var mode in new[] { CopilotClientMode.Empty, CopilotClientMode.CopilotCli })
+        {
+            await using var server = await FakeCopilotServer.StartAsync();
+            await using var client = new CopilotClient(new CopilotClientOptions
+            {
+                Connection = RuntimeConnection.ForUri(server.Url),
+                Mode = mode,
+                BaseDirectory = Directory.GetCurrentDirectory(),
+            });
+            await using var session = await client.CreateSessionAsync(create);
+            await session.DisposeAsync();
+            await using var resumed = await client.ResumeSessionAsync(session.SessionId, resume);
+            foreach (var method in new[] { "session.create", "session.resume" })
+            {
+                var request = Assert.Single(server.Requests, request => request.Method == method);
+                Assert.Equal(mode == CopilotClientMode.CopilotCli,
+                    request.Params.GetProperty("enableHostUserHooks").GetBoolean());
+            }
+        }
+        Assert.Null(create.EnableHostUserHooks);
+        Assert.Null(resume.EnableHostUserHooks);
+    }
+
+    [Theory]
+    [InlineData(CopilotClientMode.Empty, null, false)]
+    [InlineData(CopilotClientMode.Empty, false, false)]
+    [InlineData(CopilotClientMode.Empty, true, true)]
+    [InlineData(CopilotClientMode.CopilotCli, null, true)]
+    [InlineData(CopilotClientMode.CopilotCli, false, false)]
+    [InlineData(CopilotClientMode.CopilotCli, true, true)]
+    public async Task HostUserHooks_Resolve_On_Initial_Create_And_Resume(
+        CopilotClientMode mode, bool? supplied, bool expected)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = mode,
+            BaseDirectory = Directory.GetCurrentDirectory(),
+        });
+        var hooks = new SessionHooks
+        {
+            OnPreToolUse = (_, _) => Task.FromResult<PreToolUseHookOutput?>(null),
+        };
+        var create = new SessionConfig
+        {
+            AvailableTools = [],
+            EnableHostUserHooks = supplied,
+            Hooks = hooks,
+        };
+        var resume = new ResumeSessionConfig
+        {
+            AvailableTools = [],
+            EnableHostUserHooks = supplied,
+            Hooks = hooks,
+        };
+        Assert.Equal(supplied, create.Clone().EnableHostUserHooks);
+        Assert.Equal(supplied, resume.Clone().EnableHostUserHooks);
+        await using var session = await client.CreateSessionAsync(create);
+        await using var resumed = await client.ResumeSessionAsync("host-hooks-resume", resume);
+        foreach (var method in new[] { "session.create", "session.resume" })
+        {
+            var request = Assert.Single(server.Requests, request => request.Method == method);
+            Assert.Equal(expected, request.Params.GetProperty("enableHostUserHooks").GetBoolean());
+            Assert.True(request.Params.GetProperty("hooks").GetBoolean());
+        }
+        Assert.Equal(supplied, create.EnableHostUserHooks);
+        Assert.Equal(supplied, resume.EnableHostUserHooks);
+    }
+
+    [Theory]
     [InlineData("static")]
     [InlineData("")]
     public async Task GitHubTokenProvider_Is_Mutually_Exclusive_With_Static_Token(string staticToken)
@@ -2460,6 +2568,7 @@ public sealed partial class ClientSessionLifetimeTests
         public Task DestroyStarted => _destroyStarted.Task;
 
         public int RuntimeShutdownCount { get; private set; }
+        public int ProtocolVersion { get; set; } = 4;
 
         public Func<RpcRequestRecord, CancellationToken, Task>? BeforeResponseAsync { get; set; }
 
@@ -2726,7 +2835,7 @@ public sealed partial class ClientSessionLifetimeTests
                 "connect" => new Dictionary<string, object?>
                 {
                     ["ok"] = true,
-                    ["protocolVersion"] = 3,
+                    ["protocolVersion"] = ProtocolVersion,
                     ["version"] = "test"
                 },
                 "session.create" => CreateSessionResult(request),

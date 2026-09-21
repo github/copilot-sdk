@@ -886,6 +886,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.OrganizationCustomInstructions = config.OrganizationCustomInstructions
 	req.EnableOnDemandInstructionDiscovery = config.EnableOnDemandInstructionDiscovery
 	req.EnableFileHooks = config.EnableFileHooks
+	req.EnableHostUserHooks = c.enableHostUserHooksForMode(config.EnableHostUserHooks)
 	req.EnableHostGitOperations = config.EnableHostGitOperations
 	req.EnableSessionStore = config.EnableSessionStore
 	req.EnableSkills = config.EnableSkills
@@ -1331,6 +1332,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.OrganizationCustomInstructions = config.OrganizationCustomInstructions
 	req.EnableOnDemandInstructionDiscovery = config.EnableOnDemandInstructionDiscovery
 	req.EnableFileHooks = config.EnableFileHooks
+	req.EnableHostUserHooks = c.enableHostUserHooksForMode(config.EnableHostUserHooks)
 	req.EnableHostGitOperations = config.EnableHostGitOperations
 	req.EnableSessionStore = config.EnableSessionStore
 	req.EnableSkills = config.EnableSkills
@@ -1979,20 +1981,18 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 }
 
 // minProtocolVersion is the minimum protocol version this SDK can communicate with.
-const minProtocolVersion = 3
+const minProtocolVersion = 4
 const runtimeShutdownTimeout = 10 * time.Second
 const processExitTimeout = 10 * time.Second
 
 // verifyProtocolVersion sends the `connect` handshake (carrying the optional token) and
-// verifies the server's protocol version. Falls back to `ping` against legacy servers
-// that don't implement `connect`.
+// verifies the server's protocol version.
 func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	if c.client == nil {
 		return fmt.Errorf("client not connected")
 	}
 	maxVersion := GetSDKProtocolVersion()
 
-	var serverVersion *int
 	tokenPtr := (*string)(nil)
 	if c.effectiveConnectionToken != "" {
 		t := c.effectiveConnectionToken
@@ -2008,8 +2008,7 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	}
 	// Opt in to GitHub telemetry forwarding at the connection level when a handler is
 	// registered (mirrors the runtime, which reads this flag on the `connect` handshake
-	// so the first session's un-replayable `session.start` event is forwarded). Also
-	// sent on session.create/resume for older CLIs.
+	// so the first session's un-replayable `session.start` event is forwarded).
 	if c.options.OnGitHubTelemetry != nil {
 		connectReq.EnableGitHubTelemetryForwarding = Bool(true)
 	}
@@ -2019,36 +2018,19 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	connectReq.ClientInfo = c.options.ClientInfo.toWire()
 	rawConnectResult, err := c.client.Request(ctx, "connect", connectReq)
 	if err != nil {
-		var rpcErr *jsonrpc2.Error
-		if errors.As(err, &rpcErr) && (rpcErr.Code == jsonrpc2.ErrMethodNotFound.Code || rpcErr.Message == "Unhandled method connect") {
-			// Legacy server without `connect`; fall back to `ping`. A token, if any,
-			// is silently dropped — the legacy server can't enforce one.
-			pingResult, perr := c.Ping(ctx, "")
-			if perr != nil {
-				return perr
-			}
-			serverVersion = pingResult.ProtocolVersion
-		} else {
-			return err
-		}
-	} else {
-		var connectResult rpc.ConnectResult
-		if err := json.Unmarshal(rawConnectResult, &connectResult); err != nil {
-			return err
-		}
-		v := int(connectResult.ProtocolVersion)
-		serverVersion = &v
+		return err
+	}
+	var connectResult rpc.ConnectResult
+	if err := json.Unmarshal(rawConnectResult, &connectResult); err != nil {
+		return err
+	}
+	serverVersion := int(connectResult.ProtocolVersion)
+
+	if serverVersion < minProtocolVersion || serverVersion > maxVersion {
+		return fmt.Errorf("SDK protocol version mismatch: SDK supports versions %d-%d, but server reports version %d. Please update your SDK or server to ensure compatibility", minProtocolVersion, maxVersion, serverVersion)
 	}
 
-	if serverVersion == nil {
-		return fmt.Errorf("SDK protocol version mismatch: SDK supports versions %d-%d, but server does not report a protocol version. Please update your server to ensure compatibility", minProtocolVersion, maxVersion)
-	}
-
-	if *serverVersion < minProtocolVersion || *serverVersion > maxVersion {
-		return fmt.Errorf("SDK protocol version mismatch: SDK supports versions %d-%d, but server reports version %d. Please update your SDK or server to ensure compatibility", minProtocolVersion, maxVersion, *serverVersion)
-	}
-
-	c.negotiatedProtocolVersion = *serverVersion
+	c.negotiatedProtocolVersion = serverVersion
 	return nil
 }
 

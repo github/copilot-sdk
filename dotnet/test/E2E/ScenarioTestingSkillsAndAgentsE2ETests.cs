@@ -168,11 +168,11 @@ public class ScenarioTestingSkillsAndAgentsE2ETests(E2ETestFixture fixture, ITes
         function handleMessage(message) {
           if (!Object.prototype.hasOwnProperty.call(message, "id")) return;
           if (message.method === "connect") {
-            writeResult(message.id, { ok: true, protocolVersion: 3, version: "fake" });
+            writeResult(message.id, { ok: true, protocolVersion: 4, version: "fake" });
             return;
           }
           if (message.method === "ping") {
-            writeResult(message.id, { message: "pong", protocolVersion: 3 });
+            writeResult(message.id, { message: "pong", protocolVersion: 4 });
             return;
           }
           if (message.method === "session.create") {

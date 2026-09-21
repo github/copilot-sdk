@@ -317,6 +317,7 @@ These are passed as keyword arguments to `create_session()`:
 - `infinite_sessions` (InfiniteSessionConfig): Automatic context compaction configuration
 - `working_directory` (str | None): Working directory for the session (default: runtime process working directory).
 - `enable_session_store` (bool): Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
+- `enable_host_user_hooks` (bool | None): Loads user hooks from the runtime host OS account's Copilot settings/home. `None` defaults to `False` in `"empty"` mode and `True` in `"copilot-cli"` mode; explicit `False` is preserved. Applies to both create and resume; see [Host user hooks](#host-user-hooks).
 - `github_token_provider` (callable): Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `github_token`.
 - `on_permission_request` (callable): Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.approve_all` approves requests when managed settings are disabled and raises an error when `enable_managed_settings` is true. Custom handlers can inspect `managed_approval_required` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `on_user_input_request` (callable): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
@@ -1258,6 +1259,29 @@ When `on_elicitation_request` is provided, the SDK automatically:
 - Reports the `elicitation` capability on the session
 - Dispatches `elicitation.requested` events to your handler
 - Auto-cancels if your handler throws an error (so the server doesn't hang)
+
+## Host user hooks
+
+Requires a protocol 4 runtime. Older runtimes are rejected without a legacy handshake fallback.
+
+`enable_host_user_hooks` is a per-session admission setting, including when clients
+share a runtime. Every initial `create_session`/`resume_session` request sends the
+resolved boolean: an explicit value wins; omission or `None` means `False` in
+`"empty"` mode and `True` in `"copilot-cli"` mode. Resume applies the current
+configuration and client mode, even if host hooks were enabled previously.
+
+These hooks come from the **runtime host OS account's Copilot settings/home**,
+not the SDK application's user or a SessionFs virtual home. Enabling them grants
+host capabilities: their commands are **not sandboxed by `session_fs`**.
+Keep them disabled for untrusted or multi-tenant sessions unless that host access
+is intentional. This does not control repository `.github/hooks/` hooks
+(`enable_file_hooks`), SDK `hooks` callbacks, plugin hooks, or enterprise policy
+hooks; those remain separate controls and sources.
+
+```python
+session = await client.create_session(enable_host_user_hooks=False)
+await client.resume_session(session.session_id, enable_host_user_hooks=False)
+```
 
 ## Development
 

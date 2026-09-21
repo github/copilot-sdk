@@ -45,6 +45,53 @@ import com.github.copilot.rpc.UserInputResponse;
  */
 public class SessionRequestBuilderTest {
 
+    @Test
+    void hostUserHooksResolveForEveryModeAndOverrideWithoutMutatingConfigs() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var hooks = new SessionHooks().setOnPreToolUse((input, inv) -> CompletableFuture.completedFuture(null));
+        for (var mode : CopilotClientMode.values()) {
+            for (Boolean override : new Boolean[]{null, false, true}) {
+                var create = new SessionConfig().setHooks(hooks);
+                var resume = new ResumeSessionConfig().setHooks(hooks);
+                if (override != null) {
+                    create.setEnableHostUserHooks(override);
+                    resume.setEnableHostUserHooks(override);
+                }
+                boolean expected = override != null ? override : mode != CopilotClientMode.EMPTY;
+                var createRequest = SessionRequestBuilder.buildCreateRequest(create.clone(), "host-hooks", mode);
+                var resumeRequest = SessionRequestBuilder.buildResumeRequest("host-hooks", resume.clone(), mode);
+                for (Object request : new Object[]{createRequest, resumeRequest}) {
+                    var wire = mapper.readTree(mapper.writeValueAsBytes(request));
+                    assertTrue(wire.path("enableHostUserHooks").isBoolean());
+                    assertEquals(expected, wire.path("enableHostUserHooks").booleanValue());
+                    assertTrue(wire.path("hooks").booleanValue());
+                }
+                assertEquals(override, create.getEnableHostUserHooks().orElse(null));
+                assertEquals(override, resume.getEnableHostUserHooks().orElse(null));
+                assertTrue(create.clearEnableHostUserHooks().getEnableHostUserHooks().isEmpty());
+                assertTrue(resume.clearEnableHostUserHooks().getEnableHostUserHooks().isEmpty());
+            }
+            assertEquals(mode != CopilotClientMode.EMPTY,
+                    SessionRequestBuilder.buildCreateRequest(null, "no-config", mode).getEnableHostUserHooks());
+            assertEquals(mode != CopilotClientMode.EMPTY,
+                    SessionRequestBuilder.buildResumeRequest("no-config", null, mode).getEnableHostUserHooks());
+        }
+    }
+
+    @Test
+    void hostUserHooksConfigReuseUsesCurrentMode() {
+        var create = new SessionConfig();
+        var resume = new ResumeSessionConfig();
+        for (var mode : new CopilotClientMode[]{CopilotClientMode.EMPTY, CopilotClientMode.COPILOT_CLI}) {
+            assertEquals(mode != CopilotClientMode.EMPTY,
+                    SessionRequestBuilder.buildCreateRequest(create, "reused", mode).getEnableHostUserHooks());
+            assertEquals(mode != CopilotClientMode.EMPTY,
+                    SessionRequestBuilder.buildResumeRequest("reused", resume, mode).getEnableHostUserHooks());
+        }
+        assertTrue(create.getEnableHostUserHooks().isEmpty());
+        assertTrue(resume.getEnableHostUserHooks().isEmpty());
+    }
+
     // =========================================================================
     // buildCreateRequest
     // =========================================================================

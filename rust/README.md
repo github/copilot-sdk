@@ -1247,6 +1247,26 @@ github-copilot-sdk = { version = "1", default-features = false }
 github-copilot-sdk = { version = "1", features = ["derive"] }
 ```
 
+## Host user hooks
+
+`SessionConfig::enable_host_user_hooks` and
+`ResumeSessionConfig::enable_host_user_hooks` are `Option<bool>` overrides, with
+`with_enable_host_user_hooks(bool)` builders. Every create and resume sends a
+concrete boolean in its initial RPC: an explicit value wins, otherwise `Empty`
+resolves to `false` and `CopilotCli` to `true`. Defaults apply per session even on
+a shared runtime. Resume uses the current client's mode and configuration, not
+the saved creation-time value.
+
+This controls only hooks discovered in host OS user settings and home directories.
+Repository `.github/hooks/` use `enable_file_hooks`; SDK callbacks, plugin hooks,
+and managed hooks are independent. Setting `true` enables host capabilities,
+not a `SessionFs` sandbox.
+
+```rust
+let config = SessionConfig::default().with_enable_host_user_hooks(false);
+let resume_config = ResumeSessionConfig::new("session-id".into()).with_enable_host_user_hooks(true);
+```
+
 ## Development
 
 Tests require a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:

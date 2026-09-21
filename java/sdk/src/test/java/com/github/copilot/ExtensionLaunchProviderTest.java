@@ -96,7 +96,7 @@ class ExtensionLaunchProviderTest {
                 Socket socket = serverSocket.accept();
                 JsonRpcClient server = JsonRpcClient.fromSocket(socket);
                 server.registerMethodHandler("connect", (id, params) -> respond(server, id,
-                        Map.of("ok", true, "protocolVersion", 3, "version", "test")));
+                        Map.of("ok", true, "protocolVersion", 4, "version", "test")));
                 server.registerMethodHandler("registerExtensionLaunchProvider", (id, params) -> {
                     registrationCount.incrementAndGet();
                     server.invoke("extensionLaunchProvider.resolve",

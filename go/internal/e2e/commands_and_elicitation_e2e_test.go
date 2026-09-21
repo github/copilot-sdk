@@ -192,7 +192,7 @@ func TestCommandsE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Commands.Enqueue failed: %v", err)
 		}
-		if !result.Queued {
+		if !result.Queued() {
 			t.Fatal("Expected /help to be accepted into the command queue")
 		}
 	})

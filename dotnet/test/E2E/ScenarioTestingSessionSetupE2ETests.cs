@@ -743,7 +743,7 @@ public class ScenarioTestingSessionSetupE2ETests(E2ETestFixture fixture, ITestOu
           saveCapture();
 
           if (message.method === "connect") {
-            respond(message.id, { ok: true, protocolVersion: 3, version: "fake" });
+            respond(message.id, { ok: true, protocolVersion: 4, version: "fake" });
             return;
           }
 
@@ -778,7 +778,7 @@ public class ScenarioTestingSessionSetupE2ETests(E2ETestFixture fixture, ITestOu
             respond(message.id, {
               message: "pong",
               timestamp: new Date().toISOString(),
-              protocolVersion: 3
+              protocolVersion: 4
             });
             return;
           }

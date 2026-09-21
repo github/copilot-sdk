@@ -104,6 +104,9 @@ final class SessionRequestBuilder {
 
     static CreateSessionRequest buildCreateRequest(SessionConfig config, String sessionId, CopilotClientMode mode) {
         var request = new CreateSessionRequest();
+        request.setEnableHostUserHooks(config == null
+                ? mode != CopilotClientMode.EMPTY
+                : config.getEnableHostUserHooks().orElse(mode != CopilotClientMode.EMPTY));
         // Always request permission callbacks to enable deny-by-default behavior
         request.setRequestPermission(true);
         // Always send envValueMode=direct for MCP servers
@@ -242,6 +245,9 @@ final class SessionRequestBuilder {
     static ResumeSessionRequest buildResumeRequest(String sessionId, ResumeSessionConfig config,
             CopilotClientMode mode) {
         var request = new ResumeSessionRequest();
+        request.setEnableHostUserHooks(config == null
+                ? mode != CopilotClientMode.EMPTY
+                : config.getEnableHostUserHooks().orElse(mode != CopilotClientMode.EMPTY));
         request.setSessionId(sessionId);
         // Always request permission callbacks to enable deny-by-default behavior
         request.setRequestPermission(true);

@@ -101,7 +101,7 @@ internal static class RpcSurfaceTestCli
 
           switch (message.method) {
             case "connect":
-              writeResponse(message.id, { ok: true, protocolVersion: 3, version: "rpc-surface-test" });
+              writeResponse(message.id, { ok: true, protocolVersion: 4, version: "rpc-surface-test" });
               return;
             case "session.create":
               writeResponse(message.id, {

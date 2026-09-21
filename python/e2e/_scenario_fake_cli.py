@@ -157,14 +157,14 @@ function handleRequest(message) {
     case "connect":
       writeResponse(message.id, {
         ok: true,
-        protocolVersion: 3,
+        protocolVersion: 4,
         version: "scenario-fake",
       });
       return;
     case "ping":
       writeResponse(message.id, {
         message: message.params?.message ?? "pong",
-        protocolVersion: 3,
+        protocolVersion: 4,
         timestamp: "2026-01-02T03:04:05Z",
       });
       return;

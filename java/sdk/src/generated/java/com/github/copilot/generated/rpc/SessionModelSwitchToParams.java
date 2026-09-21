@@ -30,7 +30,7 @@ public record SessionModelSwitchToParams(
     @JsonProperty("modelId") String modelId,
     /** Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. */
     @JsonProperty("autoTier") AutoTier autoTier,
-    /** Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied. */
+    /** Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. Pass null to clear any session effort override and fall back to the model's default. When omitted, the session's current effort is kept. */
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** Reasoning summary mode to request for supported model clients */
     @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,

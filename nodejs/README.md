@@ -159,6 +159,7 @@ Create a new conversation session.
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
 - `workingDirectory?: string` - Working directory for the session (default: runtime process cwd).
 - `enableSessionStore?: boolean` - Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
+- `enableHostUserHooks?: boolean` - Loads user hooks from the runtime host OS account's Copilot settings/home. Defaults to `false` in `"empty"` mode and `true` in `"copilot-cli"` mode. Explicit `false` is preserved. Applies to both create and resume; see [Host user hooks](#host-user-hooks).
 - `gitHubTokenProvider?: GitHubTokenProvider` - Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `gitHubToken`.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
 - `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `approveAll` approves requests when managed settings are disabled and throws when `enableManagedSettings` is true. Custom handlers can inspect `managedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
@@ -182,6 +183,8 @@ Initial acquisition runs during session creation or resume. Cancellation, provid
 ##### `resumeSession(sessionId: string, config?: ResumeSessionConfig): Promise<CopilotSession>`
 
 Resume an existing session. Returns the session with `workspacePath` populated if infinite sessions were enabled.
+
+`enableHostUserHooks` is resolved from the current resume configuration and client mode, not inherited from the previous session.
 
 ##### `ping(message?: string): Promise<{ message: string; timestamp: string }>`
 
@@ -1270,6 +1273,30 @@ try {
 } catch (error) {
     console.error("Error:", error.message);
 }
+```
+
+## Host user hooks
+
+Requires a protocol 4 runtime. Older runtimes are rejected without a legacy handshake fallback.
+
+`enableHostUserHooks` is a per-session admission setting, including when clients
+share a runtime. Every initial create/resume request sends the resolved boolean:
+an explicit value wins; omission means `false` in `"empty"` mode and `true` in
+`"copilot-cli"` mode. Resume applies the current setting even if host hooks were
+enabled previously.
+
+These hooks come from the **runtime host OS account's Copilot settings/home**,
+not the SDK application's user or a SessionFs virtual home. Enabling them grants
+host capabilities: their commands are **not sandboxed by `sessionFs`**.
+Keep them disabled for untrusted or multi-tenant sessions unless that host access
+is intentional. This does not control repository `.github/hooks/` hooks
+(`enableFileHooks`), SDK `hooks` callbacks, plugin hooks, or enterprise policy
+hooks; those remain separate controls and sources.
+
+```typescript
+const config = { onPermissionRequest: approveAll, enableHostUserHooks: false };
+const session = await client.createSession(config);
+await client.resumeSession(session.sessionId, config);
 ```
 
 ## Development
