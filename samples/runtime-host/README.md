@@ -68,12 +68,14 @@ inside the checkout. The opt-in flag avoids running a source-build-only suite
 against released artifacts. These tests explicitly use the local runtime's TCP
 transport so dropping one owner connection does not kill the shared runtime.
 
-Three non-model lifecycle tests cover explicit/idempotent disposal, unexpected
-child exit, and unexpected owner connection loss with an unrelated owner's host
-and session still alive. To run only those:
+Four non-model lifecycle tests cover explicit/idempotent disposal, unexpected
+child exit, unexpected owner connection loss with an unrelated owner's host
+and session still alive, and graceful runtime shutdown with an attached AHP
+session. The shutdown case requires a successful RPC and clean exit notification,
+not just eventual forced termination. To run only those:
 
 ```sh
-npm test -- test/e2e/runtime_host.e2e.test.ts -t 'disposes|reports|cleans up'
+npm test -- test/e2e/runtime_host.e2e.test.ts -t 'disposes|reports|cleans up|gracefully'
 ```
 
 The inference test uses the existing `CapiProxy`, snapshot matcher, and canonical
