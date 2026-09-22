@@ -6771,6 +6771,58 @@ async fn session_fs_dispatches_read_file_to_provider() {
     assert!(response["result"].get("error").is_none() || response["result"]["error"].is_null());
 }
 
+/// The CLI reads workspace metadata through sessionFs while session.create is
+/// still in flight, so the provider has to be serving before the create
+/// response arrives.
+#[tokio::test]
+async fn session_fs_serves_requests_during_create() {
+    let provider = Arc::new(RecordingFsProvider::new().with_file("/workspace.yaml", "name: w"));
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: String::new(),
+    };
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_session_fs_provider(provider))
+                .await
+                .unwrap()
+        }
+    });
+
+    let create_req = server.read_request().await;
+    assert_eq!(create_req["method"], "session.create");
+    server.session_id = requested_session_id(&create_req).to_string();
+
+    server
+        .send_request(
+            42,
+            "sessionFs.readFile",
+            serde_json::json!({ "sessionId": server.session_id, "path": "/workspace.yaml" }),
+        )
+        .await;
+    let response = timeout(TIMEOUT, server.read_response())
+        .await
+        .expect("sessionFs.readFile was not answered while session.create was pending");
+    assert_eq!(response["id"], 42);
+    assert_eq!(response["result"]["content"], "name: w");
+
+    server
+        .respond(
+            &create_req,
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "workspacePath": "/tmp/workspace"
+            }),
+        )
+        .await;
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
 #[tokio::test]
 async fn session_fs_maps_not_found_to_enoent() {
     let provider = Arc::new(RecordingFsProvider::new());

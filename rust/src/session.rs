@@ -1560,6 +1560,56 @@ impl Client {
             ),
         };
 
+        let mut spawn_loop = Some({
+            let client = self.clone();
+            let idle_waiter = idle_waiter.clone();
+            let capabilities = capabilities.clone();
+            let open_canvases = open_canvases.clone();
+            let event_tx = event_tx.clone();
+            let shutdown = shutdown.clone();
+            let external_tools_shutdown = external_tools_shutdown.clone();
+            move |session_id: SessionId, channels: crate::router::SessionChannels| {
+                spawn_event_loop(
+                    session_id,
+                    client,
+                    handlers,
+                    hooks,
+                    transforms,
+                    command_handlers,
+                    canvas_handler,
+                    session_fs_provider,
+                    bearer_token_providers,
+                    channels,
+                    idle_waiter,
+                    capabilities,
+                    open_canvases,
+                    event_tx,
+                    shutdown,
+                    external_tools_shutdown,
+                )
+            }
+        });
+        // Only the event loop answers session-scoped requests, and the CLI
+        // sends some (sessionFs reads of workspace metadata) while
+        // session.create is still in flight. With the ID known up front, start
+        // the loop before the RPC, as resume does; the cloud path starts it
+        // once the response has registered the session.
+        let early_event_loop = match local_session_id {
+            Some(_) => {
+                let (session_id, registration) = inline_stash
+                    .lock()
+                    .take()
+                    .expect("session registration must exist");
+                let spawn = spawn_loop.take().expect("event loop is spawned once");
+                Some((
+                    session_id.clone(),
+                    spawn(session_id, registration.channels),
+                    registration.token,
+                ))
+            }
+            None => None,
+        };
+
         let rpc_start = Instant::now();
         let result = self
             .call_with_inline_callback("session.create", Some(params), inline_callback)
@@ -1580,31 +1630,22 @@ impl Client {
             .into());
         }
 
-        let (session_id, registration) = inline_stash
-            .lock()
-            .take()
-            .expect("session registration must have populated stash on success");
-        let channels = registration.channels;
-        let registration_token = registration.token;
-        pending_registration.resolve_to(session_id.clone(), registration_token);
-        let event_loop = spawn_event_loop(
-            session_id.clone(),
-            self.clone(),
-            handlers,
-            hooks,
-            transforms,
-            command_handlers,
-            canvas_handler,
-            session_fs_provider,
-            bearer_token_providers,
-            channels,
-            idle_waiter.clone(),
-            capabilities.clone(),
-            open_canvases.clone(),
-            event_tx.clone(),
-            shutdown.clone(),
-            external_tools_shutdown.clone(),
-        );
+        let (session_id, event_loop, registration_token) = match early_event_loop {
+            Some(started) => started,
+            None => {
+                let (session_id, registration) = inline_stash
+                    .lock()
+                    .take()
+                    .expect("session registration must have populated stash on success");
+                pending_registration.resolve_to(session_id.clone(), registration.token);
+                let spawn = spawn_loop.take().expect("event loop is spawned once");
+                (
+                    session_id.clone(),
+                    spawn(session_id, registration.channels),
+                    registration.token,
+                )
+            }
+        };
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
