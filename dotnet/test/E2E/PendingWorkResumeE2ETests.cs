@@ -257,6 +257,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                 result: JsonDocument.Parse("\"EXTERNAL_RESUMED_BETA\"").RootElement.Clone());
             Assert.Equal(expectedHandleResult, resumedResult.Success);
             Assert.Equal(1, invocationCount);
+            releaseOriginalTool.TrySetResult("ORIGINAL_SHOULD_NOT_WIN");
 
             if (!expectedHandleResult)
             {
