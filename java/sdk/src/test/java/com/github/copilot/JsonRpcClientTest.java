@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -42,8 +43,9 @@ class JsonRpcClientTest {
     }
 
     private SocketPair createSocketPair() throws Exception {
-        var serverSocket = new ServerSocket(0);
-        var clientSocket = new Socket("localhost", serverSocket.getLocalPort());
+        var loopback = InetAddress.getLoopbackAddress();
+        var serverSocket = new ServerSocket(0, 1, loopback);
+        var clientSocket = new Socket(loopback, serverSocket.getLocalPort());
         var serverSide = serverSocket.accept();
         var client = JsonRpcClient.fromSocket(clientSocket);
         return new SocketPair(client, serverSide, serverSocket);
@@ -266,8 +268,9 @@ class JsonRpcClientTest {
 
     @Test
     void testInvokeWithSendFailure() throws Exception {
-        var serverSocket = new ServerSocket(0);
-        var clientSocket = new Socket("localhost", serverSocket.getLocalPort());
+        var loopback = InetAddress.getLoopbackAddress();
+        var serverSocket = new ServerSocket(0, 1, loopback);
+        var clientSocket = new Socket(loopback, serverSocket.getLocalPort());
         var serverSide = serverSocket.accept();
         var client = JsonRpcClient.fromSocket(clientSocket);
 

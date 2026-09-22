@@ -1,5 +1,7 @@
+# Runs an SDK command inside x64 Alpine and verifies the container is
+# executing on musl with the requested transport.
 name: "Run Alpine SDK Tests"
-description: "Run an SDK test command in an ARM64 Alpine container."
+description: "Run an SDK test command in an x64 Alpine container."
 inputs:
   image:
     description: "Container image used to run the tests."
@@ -7,6 +9,10 @@ inputs:
   workdir:
     description: "Working directory inside the container."
     required: true
+  sdk-root:
+    description: "SDK root inside the container."
+    required: false
+    default: "/workspace"
   transport:
     description: "SDK transport to test: default or inprocess."
     required: true
@@ -21,6 +27,7 @@ runs:
       env:
         ALPINE_TEST_COMMAND: ${{ inputs.command }}
         ALPINE_TEST_IMAGE: ${{ inputs.image }}
+        ALPINE_TEST_SDK_ROOT: ${{ inputs.sdk-root }}
         ALPINE_TEST_TRANSPORT: ${{ inputs.transport }}
         ALPINE_TEST_WORKDIR: ${{ inputs.workdir }}
       run: |
@@ -33,7 +40,7 @@ runs:
         apk add --no-cache bash git
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-        test "$(uname -m)" = "aarch64"
+        test "$(uname -m)" = "x86_64"
         ldd --version 2>&1 | grep -qi musl
 
         case "$COPILOT_SDK_TEST_TRANSPORT" in
@@ -46,13 +53,14 @@ runs:
         chmod +x "$script_path"
 
         docker run --rm \
-          --platform linux/arm64 \
+          --platform linux/amd64 \
           --volume "$GITHUB_WORKSPACE:/workspace" \
           --volume "$script_path:/tmp/copilot-sdk-alpine-test.sh:ro" \
           --workdir "$ALPINE_TEST_WORKDIR" \
           --env CI=true \
           --env GITHUB_ACTIONS=true \
           --env GITHUB_WORKSPACE=/workspace \
+          --env COPILOT_SDK_ROOT="$ALPINE_TEST_SDK_ROOT" \
           --env COPILOT_HMAC_KEY \
           --env COPILOT_SDK_E2E_BACKEND \
           --env BUNDLED_CLI_CACHE_DIR \

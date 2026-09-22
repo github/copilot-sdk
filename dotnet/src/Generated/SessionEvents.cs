@@ -128,6 +128,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionModeChangedEvent), "session.mode_changed")]
 [JsonDerivedType(typeof(SessionModeNoticeDeliveredEvent), "session.mode_notice_delivered")]
 [JsonDerivedType(typeof(SessionModelChangeEvent), "session.model_change")]
+[JsonDerivedType(typeof(SessionModelDeselectedEvent), "session.model_deselected")]
 [JsonDerivedType(typeof(SessionPermissionRecoveryEvent), "session.permission_recovery")]
 [JsonDerivedType(typeof(SessionPermissionsChangedEvent), "session.permissions_changed")]
 [JsonDerivedType(typeof(SessionPlanChangedEvent), "session.plan_changed")]
@@ -394,6 +395,19 @@ public sealed partial class SessionModelChangeEvent : SessionEvent
     /// <summary>The <c>session.model_change</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionModelChangeData Data { get; set; }
+}
+
+/// <summary>The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model.</summary>
+/// <remarks>Represents the <c>session.model_deselected</c> event.</remarks>
+public sealed partial class SessionModelDeselectedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.model_deselected";
+
+    /// <summary>The <c>session.model_deselected</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionModelDeselectedData Data { get; set; }
 }
 
 /// <summary>Live-only Auto preference recommendation from Copilot API after a successful Auto model call.</summary>
@@ -2635,6 +2649,18 @@ public sealed partial class SessionModelChangeData
     public Verbosity? Verbosity { get; set; }
 }
 
+/// <summary>The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model.</summary>
+public sealed partial class SessionModelDeselectedData
+{
+    /// <summary>Model that was selected before the host withdrew it.</summary>
+    [JsonPropertyName("previousModel")]
+    public required string PreviousModel { get; set; }
+
+    /// <summary>Low-cardinality reason the selection was cleared.</summary>
+    [JsonPropertyName("reason")]
+    public required ModelDeselectedReason Reason { get; set; }
+}
+
 /// <summary>Live-only Auto preference recommendation from Copilot API after a successful Auto model call.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionAutoTierRecommendationData
@@ -4840,6 +4866,11 @@ public sealed partial class ToolExecutionStartData
     [JsonPropertyName("toolName")]
     public required string ToolName { get; set; }
 
+    /// <summary>Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolTitle")]
+    public string? ToolTitle { get; set; }
+
     /// <summary>Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("turnId")]
@@ -5524,6 +5555,11 @@ public sealed partial class SystemMessageData
     /// <summary>The system or developer prompt text sent as model input.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }
+
+    /// <summary>Optional ordered structured blocks corresponding to content, retained for prompt-cache layout restoration.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("contentBlocks")]
+    public SystemMessageContentBlock[]? ContentBlocks { get; set; }
 
     /// <summary>Logical interaction identifier for the model run receiving this prompt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -9822,11 +9858,30 @@ public sealed partial class HookEndError
     public string? Stack { get; set; }
 }
 
+/// <summary>One persisted structured system-message block and its cache intent.</summary>
+/// <remarks>Nested data type for <c>SystemMessageContentBlock</c>.</remarks>
+public sealed partial class SystemMessageContentBlock
+{
+    /// <summary>Explicit prompt-cache intent. True places a breakpoint after this block, false suppresses one, and absence preserves the provider's legacy default.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cacheBreakpoint")]
+    public bool? CacheBreakpoint { get; set; }
+
+    /// <summary>Text content for this system-message block.</summary>
+    [JsonPropertyName("content")]
+    public required string Content { get; set; }
+
+    /// <summary>Diagnostic classification indicating whether the block is stable across equivalent sessions.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("isStatic")]
+    public bool? IsStatic { get; set; }
+}
+
 /// <summary>Metadata about the prompt template and its construction.</summary>
 /// <remarks>Nested data type for <c>SystemMessageMetadata</c>.</remarks>
 public sealed partial class SystemMessageMetadata
 {
-    /// <summary>Version identifier of the prompt template used.</summary>
+    /// <summary>Version identifier of the prompt template or structured prompt layout used.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("promptVersion")]
     public string? PromptVersion { get; set; }
@@ -13216,6 +13271,64 @@ public readonly struct ModelChangeSource : IEquatable<ModelChangeSource>
         public override void Write(Utf8JsonWriter writer, ModelChangeSource value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelChangeSource));
+        }
+    }
+}
+
+/// <summary>Why the session no longer has an explicitly selected model.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelDeselectedReason : IEquatable<ModelDeselectedReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelDeselectedReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelDeselectedReason"/>.</param>
+    [JsonConstructor]
+    public ModelDeselectedReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelDeselectedReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A host-managed provider snapshot no longer publishes the selected model.</summary>
+    public static ModelDeselectedReason ProviderWithdrawn { get; } = new("provider_withdrawn");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelDeselectedReason"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelDeselectedReason left, ModelDeselectedReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelDeselectedReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelDeselectedReason left, ModelDeselectedReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelDeselectedReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelDeselectedReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelDeselectedReason}"/> for serializing <see cref="ModelDeselectedReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelDeselectedReason>
+    {
+        /// <inheritdoc />
+        public override ModelDeselectedReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelDeselectedReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelDeselectedReason));
         }
     }
 }
@@ -20415,6 +20528,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionModeNoticeDeliveredEvent))]
 [JsonSerializable(typeof(SessionModelChangeData))]
 [JsonSerializable(typeof(SessionModelChangeEvent))]
+[JsonSerializable(typeof(SessionModelDeselectedData))]
+[JsonSerializable(typeof(SessionModelDeselectedEvent))]
 [JsonSerializable(typeof(SessionPermissionRecoveryData))]
 [JsonSerializable(typeof(SessionPermissionRecoveryEvent))]
 [JsonSerializable(typeof(SessionPermissionsChangedData))]
@@ -20487,6 +20602,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SubagentSelectedEvent))]
 [JsonSerializable(typeof(SubagentStartedData))]
 [JsonSerializable(typeof(SubagentStartedEvent))]
+[JsonSerializable(typeof(SystemMessageContentBlock))]
 [JsonSerializable(typeof(SystemMessageData))]
 [JsonSerializable(typeof(SystemMessageEvent))]
 [JsonSerializable(typeof(SystemMessageMetadata))]

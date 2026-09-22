@@ -15,7 +15,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Snapshot of the session's allow-listed directories and primary working directory.
+ * Snapshot of the session's recursive directory grants, exact session-approved paths, and primary working directory.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -27,6 +27,8 @@ import javax.annotation.processing.Generated;
 public record SessionPermissionsPathsListResult(
     /** All directories currently allowed for tool access on this session. */
     @JsonProperty("directories") List<String> directories,
+    /** Exact paths approved for this session without recursively allowing their descendants. */
+    @JsonProperty("sessionApprovedPaths") List<String> sessionApprovedPaths,
     /** The primary working directory for this session. */
     @JsonProperty("primary") String primary
 ) {

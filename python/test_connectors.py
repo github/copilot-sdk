@@ -14,7 +14,7 @@ from copilot.session import CopilotSession
 
 
 @pytest.mark.asyncio
-async def test_session_connectors_exposes_complete_runtime_api():
+async def test_session_connectors_exposes_host_lifecycle_api():
     transport = Mock()
     transport.request = AsyncMock(side_effect=connector_response)
     session = CopilotSession("session-1", transport)

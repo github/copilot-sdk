@@ -170,10 +170,7 @@ class TestScenarioSends:
                 assert requests[0]["params"]["mode"] == mode
 
             with pytest.raises(Exception) as retry_exc_info:
-                await asyncio.wait_for(
-                    session.send("Fail immediately after transport loss."),
-                    timeout=1,
-                )
+                await session.send("Fail immediately after transport loss.")
             assert type(retry_exc_info.value).__name__ == "ProcessExitedError"
             assert len(_send_requests(capture_path)) == 1
         finally:

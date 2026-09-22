@@ -1,0 +1,190 @@
+# Invoked by sdk.yml to run Rust SDK formatting, linting, documentation,
+# full subprocess coverage, and focused in-process smoke coverage across
+# standard platforms and x64 musl.
+name: "SDK Rust"
+
+env:
+  HUSKY: 0
+  POWERSHELL_UPDATECHECK: Off
+  SDK_HOME: ${{ inputs.sdk-home }}
+  SETUP_NODE_TIMEOUT_MINUTES: 10
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: false
+        type: string
+        default: all
+      sdk-home:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: "Rust (${{ matrix.os }}, default)"
+    if: contains(fromJSON('["all","linux-x64","darwin-arm64","win32-x64"]'), inputs.platform)
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.platform == 'linux-x64' && '["ubuntu-latest"]' || inputs.platform == 'darwin-arm64' && '["macos-latest"]' || inputs.platform == 'win32-x64' && '["windows-latest"]' || '["ubuntu-latest","macos-latest","windows-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/rust
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ runner.os == 'Linux' && format('executable-sdk-{0}-{1}-gnu', runner.os, runner.arch) || format('executable-sdk-{0}-{1}', runner.os, runner.arch) }}
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          components: rustfmt, clippy
+      - if: runner.os == 'Linux'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-04-14
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.sdk-home }}/rust
+          prefix-key: v2-sdk-rust-no-bin
+          cache-bin: false
+      - if: runner.os == 'Linux'
+        run: cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
+      - if: runner.os == 'Linux'
+        run: cargo clippy --all-targets --no-default-features --features test-support,local-runtime,derive -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+      - if: runner.os == 'Linux'
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc --no-deps --no-default-features --features local-runtime,derive
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+      - env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          RUST_E2E_CONCURRENCY: 4
+        run: cargo test --no-default-features --features test-support,derive -- --test-threads=4 --nocapture
+
+  rust-inprocess:
+    name: "Rust (${{ matrix.os }}, inprocess)"
+    if: contains(fromJSON('["all","linux-x64","darwin-arm64"]'), inputs.platform)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.platform == 'linux-x64' && '["ubuntu-latest"]' || inputs.platform == 'darwin-arm64' && '["macos-latest"]' || '["ubuntu-latest","macos-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/rust
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+      COPILOT_SDK_DEFAULT_CONNECTION: inprocess
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ runner.os == 'Linux' && format('executable-sdk-{0}-{1}-gnu', runner.os, runner.arch) || format('executable-sdk-{0}-{1}', runner.os, runner.arch) }}
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.sdk-home }}/rust
+          prefix-key: v2-sdk-rust-no-bin
+          cache-bin: false
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: >-
+          cargo test --no-default-features --features test-support,local-runtime,derive
+          --test e2e inprocess::should_start_ping_and_stop_inprocess_client
+          -- --exact --test-threads=1 --nocapture
+
+  rust-musl-x64:
+    name: "Rust (Alpine x64, ${{ matrix.transport }})"
+    if: inputs.platform == 'all' || inputs.platform == 'linuxmusl-x64'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: [default, inprocess]
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-sdk-Linux-X64-musl
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore
+        working-directory: .
+      - uses: ./.github/actions/run-alpine-tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          CARGO_TERM_COLOR: always
+          RUST_BACKTRACE: 1
+          RUSTFLAGS: "-C target-feature=-crt-static"
+          RUSTDOCFLAGS: "-C target-feature=-crt-static"
+        with:
+          image: rust:1.94.0-alpine
+          sdk-root: /workspace/${{ inputs.sdk-home }}
+          workdir: /workspace/${{ inputs.sdk-home }}/rust
+          transport: ${{ matrix.transport }}
+          command: |
+            rustc --print cfg | grep -Fqx "target_arch=\"x86_64\""
+            rustc --print cfg | grep -Fqx "target_env=\"musl\""
+            apk add --no-cache build-base pkgconf openssl-dev nodejs npm
+            npm --prefix "$COPILOT_SDK_ROOT/nodejs" ci --ignore-scripts
+            npm --prefix "$COPILOT_SDK_ROOT/test/harness" ci --ignore-scripts
+
+            export GITHUB_ENV=/tmp/copilot-sdk-runtime.env
+            export COPILOT_RUNTIME_TARGET=linuxmusl-x64
+            export COPILOT_RUNTIME_OUTPUT_DIRECTORY=/workspace/.sdk-runtime/linuxmusl-x64
+            node "$COPILOT_SDK_ROOT/scripts/ci/runtime-artifact.mjs" prepare
+            set -a
+            . "$GITHUB_ENV"
+            set +a
+            case "$COPILOT_CLI_PATH" in
+              */prebuilds/linuxmusl-x64/copilot-runtime) ;;
+              *) echo "Expected the linuxmusl-x64 runtime, got: $COPILOT_CLI_PATH" >&2; exit 1 ;;
+            esac
+
+            export CARGO_TARGET_DIR=/tmp/copilot-sdk-rust-target
+            cd "$COPILOT_SDK_ROOT/rust"
+            if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
+              unset RUST_E2E_CONCURRENCY
+              cargo test --no-default-features --features test-support,local-runtime,derive \
+                --test e2e inprocess::should_start_ping_and_stop_inprocess_client \
+                -- --exact --test-threads=1 --nocapture
+            else
+              export RUST_E2E_CONCURRENCY=4
+              cargo test --no-default-features --features test-support,derive -- --test-threads=4 --nocapture
+            fi

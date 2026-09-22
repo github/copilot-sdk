@@ -7,6 +7,7 @@ package com.github.copilot;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -43,8 +44,9 @@ class UpdateSessionOptionsForModeTest {
         volatile String lastMethod;
 
         AutoReplyPair() throws Exception {
-            try (var ss = new ServerSocket(0)) {
-                clientSocket = new Socket("localhost", ss.getLocalPort());
+            var loopback = InetAddress.getLoopbackAddress();
+            try (var ss = new ServerSocket(0, 1, loopback)) {
+                clientSocket = new Socket(loopback, ss.getLocalPort());
                 serverSocket = ss.accept();
             }
             serverSocket.setSoTimeout(5000);

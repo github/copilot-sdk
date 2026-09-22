@@ -659,7 +659,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentListResult_with_items() {
         var item = new AgentInfo("name1", "Name One", "Desc 1", "/path/to/agent1", null, null, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         var result = new SessionAgentListResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("name1", result.agents().get(0).name());
@@ -671,7 +671,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentGetCurrentResult_nested() {
         var agent = new AgentInfo("agent-1", "Agent One", "Does things", null, null, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
         var result = new SessionAgentGetCurrentResult(agent);
         assertEquals("agent-1", result.agent().name());
         assertEquals("Agent One", result.agent().displayName());
@@ -688,7 +688,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentReloadResult_with_items() {
         var item = new AgentInfo("a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null, null, null,
-                null, null);
+                null, null, null);
         var result = new SessionAgentReloadResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("a", result.agents().get(0).name());
@@ -697,7 +697,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentSelectResult_nested() {
         var agent = new AgentInfo("selected", "Selected", "The selected agent", "/path/to/selected", null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
         var result = new SessionAgentSelectResult(agent);
         assertEquals("selected", result.agent().name());
     }
@@ -1015,7 +1015,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void modelsListResult_nested() {
-        var supports = new ModelCapabilitiesSupports(true, false, null);
+        var supports = new ModelCapabilitiesSupports(true, null, false, null);
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
@@ -1042,13 +1042,15 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void toolsListResult_nested() {
-        var tool = new Tool("bash", "bash", "Run shell commands", Map.of("type", "object"), "Use for shell commands");
+        var tool = new Tool("bash", "bash", "Run shell commands", Map.of("type", "object"), "Use for shell commands",
+                true);
         var result = new ToolsListResult(List.of(tool));
         assertEquals(1, result.tools().size());
         assertEquals("bash", result.tools().get(0).name());
         assertEquals("bash", result.tools().get(0).namespacedName());
         assertEquals("Run shell commands", result.tools().get(0).description());
         assertEquals("Use for shell commands", result.tools().get(0).instructions());
+        assertEquals(Boolean.TRUE, result.tools().get(0).safeForTelemetry());
     }
 
     // ── SessionModelSwitchToParams nested records ──────────────────────────
@@ -1057,7 +1059,7 @@ class GeneratedRpcRecordsCoverageTest {
     void sessionModelSwitchToParams_nested_records() {
         var limitsVision = new ModelCapabilitiesOverrideLimitsVision(List.of("image/png", "image/jpeg"), 10L, 5000000L);
         var limits = new ModelCapabilitiesOverrideLimits(100000L, 8192L, 128000L, limitsVision);
-        var supports = new ModelCapabilitiesOverrideSupports(true, true, null);
+        var supports = new ModelCapabilitiesOverrideSupports(true, null, true, null);
         var capabilities = new ModelCapabilitiesOverride(supports, limits);
         var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, null, capabilities, null, null,
                 null, null, null, null, null, null, null);

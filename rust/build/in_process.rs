@@ -17,6 +17,15 @@ pub(crate) fn main() {
     println!("cargo:rerun-if-changed=cli-version.txt");
     println!("cargo:rerun-if-changed=cli-version-in-process.txt");
 
+    if std::env::var_os("CARGO_FEATURE_LOCAL_RUNTIME").is_some()
+        && std::env::var_os("CARGO_FEATURE_BUNDLED_CLI").is_none()
+    {
+        println!(
+            "cargo:warning=local-runtime is enabled — using the runtime supplied by the application"
+        );
+        return;
+    }
+
     // Only declare the package metadata rerun when it actually exists.
     // Cargo treats `rerun-if-changed` for a missing path as "always rerun"
     // — so unconditionally declaring this on consumers without a sibling
@@ -93,7 +102,7 @@ pub(crate) fn main() {
         .map(std::path::PathBuf::from);
 
     let cache_key = format!("v{version}-{archive_name}");
-    let include_runtime = std::env::var_os("CARGO_FEATURE_BUNDLED_IN_PROCESS").is_some();
+    let include_runtime = std::env::var_os("CARGO_FEATURE_IN_PROCESS").is_some();
 
     if std::env::var_os("CARGO_FEATURE_BUNDLED_CLI").is_some() {
         let runtime_expected_hash = local_expected_hash

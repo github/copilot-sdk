@@ -667,7 +667,7 @@ describe("factories", () => {
         expect(resumeSessionForExtension).toHaveBeenCalledWith(
             "session-extension",
             expect.objectContaining({ suppressResumeEvent: true }),
-            [factory],
+            { factories: [factory], workflows: undefined },
             undefined
         );
     });
@@ -705,8 +705,11 @@ describe("factories", () => {
             },
         });
         vi.spyOn(CopilotClient.prototype, "resumeSessionForExtension").mockImplementation(
-            async (_sessionId, _config, factories) => {
-                joinedSession.registerFactories(factories);
+            async (_sessionId, _config, contributions) => {
+                if (Array.isArray(contributions)) {
+                    throw new Error("joinSession should use the contribution object");
+                }
+                joinedSession.registerFactories(contributions.factories);
                 return joinedSession;
             }
         );

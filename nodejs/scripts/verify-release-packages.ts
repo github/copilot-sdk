@@ -30,8 +30,10 @@ assert(
     "Main package is missing repository metadata"
 );
 assertExactProductionDependencies(sourceManifest);
+const platforms =
+    process.env.COPILOT_SDK_RUNTIME_PLATFORMS?.split(",").filter(Boolean) ?? RUNTIME_PLATFORMS;
 const expectedRuntimePackages = Object.fromEntries(
-    RUNTIME_PLATFORMS.map((platform) => [getRuntimePackageName(platform), sourceManifest.version])
+    platforms.map((platform) => [getRuntimePackageName(platform), sourceManifest.version])
 );
 const expectedPackageNames = new Set([
     sourceManifest.name,
@@ -97,7 +99,7 @@ assert(
     "Main package is missing dist/cjs/index.js"
 );
 
-for (const platform of RUNTIME_PLATFORMS) {
+for (const platform of platforms) {
     const packageName = getRuntimePackageName(platform);
     const packed = packages.get(packageName);
     assert(packed, `Missing ${packageName} tarball`);

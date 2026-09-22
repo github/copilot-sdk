@@ -516,6 +516,34 @@ describe("Pending work resume", async () => {
                         )
                     ).toBe("beta");
 
+                    if (!scenario.disconnectOriginalClient) {
+                        const lockObserver = new CopilotClient({
+                            workingDirectory: workDir,
+                            env,
+                            gitHubToken: DEFAULT_GITHUB_TOKEN,
+                            connection: RuntimeConnection.forStdio({
+                                path: process.env.COPILOT_CLI_PATH,
+                            }),
+                        });
+                        try {
+                            await lockObserver.start();
+                            await waitForCondition(
+                                async () => {
+                                    const result = await lockObserver.rpc.sessions.checkInUse({
+                                        sessionIds: [sessionId],
+                                    });
+                                    return result.inUse.includes(sessionId);
+                                },
+                                {
+                                    timeoutMs: PENDING_WORK_TIMEOUT_MS,
+                                    timeoutMessage: `Timed out waiting for session '${sessionId}' to acquire its lock.`,
+                                }
+                            );
+                        } finally {
+                            await lockObserver.forceStop();
+                        }
+                    }
+
                     if (scenario.disconnectOriginalClient) {
                         const lockObserver = new CopilotClient({
                             workingDirectory: workDir,

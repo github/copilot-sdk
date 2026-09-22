@@ -8,8 +8,13 @@
 
 use std::path::PathBuf;
 
+#[cfg(any(
+    all(feature = "bundled-cli", has_bundled_cli),
+    all(not(feature = "bundled-cli"), has_extracted_cli)
+))]
+use github_copilot_sdk::ErrorKind;
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, ErrorKind, HAS_BUNDLED_CLI, install_bundled_cli,
+    CliProgram, Client, ClientOptions, HAS_BUNDLED_CLI, install_bundled_cli,
     install_bundled_runtime,
 };
 #[cfg(all(feature = "bundled-cli", has_bundled_cli))]
@@ -79,6 +84,10 @@ async fn env_override_resolves_to_pointed_file() {
 
 /// A stale (non-existent) COPILOT_CLI_PATH falls through to the next
 /// resolution source (embed or dev) rather than failing outright.
+#[cfg(any(
+    all(feature = "bundled-cli", has_bundled_cli),
+    all(not(feature = "bundled-cli"), has_extracted_cli)
+))]
 #[tokio::test(flavor = "current_thread")]
 #[serial(copilot_cli_path)]
 async fn stale_env_override_falls_through() {
@@ -342,7 +351,7 @@ fn install_bundled_runtime_returns_wrapper_bundle() {
         "runtime.node was not installed: {}",
         runtime_node.display()
     );
-    #[cfg(feature = "bundled-in-process")]
+    #[cfg(feature = "in-process")]
     {
         let runtime_library = first
             .parent()

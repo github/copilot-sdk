@@ -4,7 +4,7 @@ import type { MessageConnection } from "vscode-jsonrpc";
 import { CopilotSession } from "../src/session.js";
 
 describe("session Connector RPC", () => {
-    it("exposes the complete experimental Connector lifecycle", async () => {
+    it("exposes the host-owned experimental Connector lifecycle", async () => {
         const sendRequest = vi.fn(async (method: string) => {
             if (method === "session.connectors.getCapabilities") {
                 return {

@@ -91,6 +91,8 @@ class BuiltinPluginDirectoriesTest {
             try {
                 Socket socket = serverSocket.accept();
                 JsonRpcClient server = JsonRpcClient.fromSocket(socket);
+                server.registerMethodHandler("ping", (id, params) -> respond(server, id,
+                        Map.of("message", "pong", "timestamp", "2026-09-21T00:00:00Z", "protocolVersion", 3)));
                 server.registerMethodHandler("connect", (id, params) -> respond(server, id,
                         Map.of("ok", true, "protocolVersion", 3, "version", "test")));
                 server.registerMethodHandler("plugins.builtin.set", (id, params) -> {

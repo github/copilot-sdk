@@ -11,13 +11,12 @@
  */
 
 import { execFile } from "child_process";
+import { realpathSync } from "fs";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
-
-import { applyConnectorSessionApiOverlay } from "./connectorSessionApiOverlay.js";
 import {
 	addManagedApprovalRequiredToPermissionRequests,
 	type ApiSchema,
@@ -59,7 +58,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-const GENERATED_DIR = path.join(REPO_ROOT, "rust/src/generated");
+const GENERATED_DIR = path.join(process.env.COPILOT_CODEGEN_OUTPUT_ROOT ?? REPO_ROOT, "rust/src/generated");
 
 const EXTERNAL_SCHEMA_RUST_MODULE: Record<string, string> = {
 	"session-events.schema.json": "super::session_events",
@@ -227,9 +226,21 @@ interface RustCodegenCtx {
 	allowUntaggedUnions: boolean;
 	/** Specific union type names allowed even when their discriminator is not generally allowed. */
 	allowedUnionTypeNames: Set<string>;
+	/** Boolean discriminator literals enforced for explicitly supported variant structs. */
+	strictBooleanConstFields: Map<string, Map<string, boolean>>;
 	/** External schema references that are actually emitted in generated types. */
 	externalTypeRefs: Map<string, Set<string>>;
 }
+
+const STRICT_BOOLEAN_UNION_VARIANTS = new Map([
+	[
+		"EnqueueCommandResult",
+		new Map([
+			["AcceptedEnqueueCommandResult", new Map([["queued", true]])],
+			["UnsupportedEnqueueCommandResult", new Map([["queued", false]])],
+		]),
+	],
+]);
 
 function stripOption(typeName: string): string {
 	return typeName.startsWith("Option<") && typeName.endsWith(">")
@@ -373,6 +384,13 @@ function tryEmitRustUnion(
 	// the `Default` derive.
 	ctx.nonDefaultableTypes.add(enumName);
 
+	const strictBooleanVariants = STRICT_BOOLEAN_UNION_VARIANTS.get(enumName);
+	if (strictBooleanVariants) {
+		for (const [typeName, fields] of strictBooleanVariants) {
+			ctx.strictBooleanConstFields.set(typeName, fields);
+		}
+	}
+
 	for (const { schema: variantSchema, typeName } of resolvedVariants) {
 		if (isObjectSchema(variantSchema)) {
 			emitRustStruct(typeName, variantSchema, ctx);
@@ -444,6 +462,7 @@ function makeCtx(
 				: (options.unionDiscriminatorProperties ?? new Set(["kind"])),
 		allowUntaggedUnions: options.allowUntaggedUnions ?? false,
 		allowedUnionTypeNames: new Set(options.allowedUnionTypeNames ?? []),
+		strictBooleanConstFields: new Map(),
 		externalTypeRefs: new Map(),
 	};
 }
@@ -698,6 +717,10 @@ function resolveRustType(
 	ctx: RustCodegenCtx,
 ): string {
 	const nestedName = parentTypeName + toPascalCase(jsonPropName);
+
+	if (ctx.strictBooleanConstFields.get(parentTypeName)?.has(jsonPropName)) {
+		return wrapOption("bool", isRequired);
+	}
 
 	// $ref — resolve and recurse
 	if (propSchema.$ref && typeof propSchema.$ref === "string") {
@@ -954,6 +977,7 @@ function emitRustStruct(
 		isReq: boolean;
 		rustField: string;
 		rustType: string;
+		strictBooleanConst: boolean | undefined;
 	}
 	const fields: FieldInfo[] = [];
 	for (const [propName, propSchema] of Object.entries(
@@ -964,11 +988,23 @@ function emitRustStruct(
 		const isReq = required.has(propName);
 		const rustField = safeRustFieldName(propName);
 		const rustType = resolveRustType(prop, typeName, propName, isReq, ctx);
-		fields.push({ propName, prop, isReq, rustField, rustType });
+		const strictBooleanConst = ctx.strictBooleanConstFields
+			.get(typeName)
+			?.get(propName);
+		fields.push({
+			propName,
+			prop,
+			isReq,
+			rustField,
+			rustType,
+			strictBooleanConst,
+		});
 	}
 
 	const blocksDefault = fields.some(
-		(f) => f.isReq && ctx.nonDefaultableTypes.has(f.rustType),
+		(f) =>
+			(f.isReq && ctx.nonDefaultableTypes.has(f.rustType)) ||
+			f.strictBooleanConst === true,
 	);
 	if (blocksDefault) {
 		ctx.nonDefaultableTypes.add(typeName);
@@ -979,7 +1015,14 @@ function emitRustStruct(
 	lines.push(`#[serde(rename_all = "camelCase")]`);
 	lines.push(`${structVis} struct ${typeName} {`);
 
-	for (const { propName, prop, isReq, rustField, rustType } of fields) {
+	for (const {
+		propName,
+		prop,
+		isReq,
+		rustField,
+		rustType,
+		strictBooleanConst,
+	} of fields) {
 		if (prop.description) {
 			pushRustDoc(lines, prop.description, "    ");
 		}
@@ -1020,6 +1063,10 @@ function emitRustStruct(
 			lines.push(
 				`    #[serde(${isReq ? "" : "default, "}deserialize_with = "${typeName}::deserialize_${snakeField}")]`,
 			);
+		} else if (strictBooleanConst !== undefined) {
+			lines.push(
+				`    #[serde(${isReq ? "" : "default, "}deserialize_with = "${typeName}::deserialize_${snakeField}", serialize_with = "${typeName}::serialize_${snakeField}")]`,
+			);
 		}
 
 		lines.push(`    ${propIsInternal ? "pub(crate)" : "pub"} ${rustField}: ${rustType},`);
@@ -1027,14 +1074,59 @@ function emitRustStruct(
 
 	lines.push("}");
 	const constrainedFields = fields.filter(
-		({ prop }) => prop.$ref && typeof prop.const === "string",
+		({ prop, strictBooleanConst }) =>
+			(prop.$ref && typeof prop.const === "string") ||
+			strictBooleanConst !== undefined,
 	);
 	if (constrainedFields.length > 0) {
 		// A referenced enum can accept future values; its containing field must
 		// still enforce an explicit literal constraint before union selection.
 		lines.push("", `impl ${typeName} {`);
-		for (const { propName, prop, isReq, rustType } of constrainedFields) {
-			const literal = JSON.stringify(prop.const);
+		for (const {
+			propName,
+			prop,
+			isReq,
+			rustType,
+			strictBooleanConst,
+		} of constrainedFields) {
+			const literal = JSON.stringify(strictBooleanConst ?? prop.const);
+			if (strictBooleanConst !== undefined) {
+				const deserializeMismatch = isReq
+					? strictBooleanConst
+						? "!value"
+						: "value"
+					: strictBooleanConst
+						? "value.is_some_and(|value| !value)"
+						: "value.is_some_and(|value| value)";
+				const serializeMismatch = isReq
+					? strictBooleanConst
+						? "!*value"
+						: "*value"
+					: deserializeMismatch;
+				lines.push(
+					`    fn deserialize_${toRustFieldName(propName)}<'de, D>(deserializer: D) -> Result<${rustType}, D::Error>`,
+					"    where",
+					"        D: serde::Deserializer<'de>,",
+					"    {",
+					`        let value = ${isReq ? "bool" : "Option::<bool>"}::deserialize(deserializer)?;`,
+					`        if ${deserializeMismatch} {`,
+					`            return Err(serde::de::Error::custom("expected ${literal}"));`,
+					"        }",
+					"        Ok(value)",
+					"    }",
+					"",
+					`    fn serialize_${toRustFieldName(propName)}<S>(value: &${rustType}, serializer: S) -> Result<S::Ok, S::Error>`,
+					"    where",
+					"        S: serde::Serializer,",
+					"    {",
+					`        if ${serializeMismatch} {`,
+					`            return Err(serde::ser::Error::custom("expected ${literal}"));`,
+					"        }",
+					"        value.serialize(serializer)",
+					"    }",
+				);
+				continue;
+			}
 			lines.push(
 				`    fn deserialize_${toRustFieldName(propName)}<'de, D>(deserializer: D) -> Result<${rustType}, D::Error>`,
 				"    where",
@@ -1535,7 +1627,13 @@ export function generateApiTypesCode(
 	);
 	const ctx = makeCtx(defCollections, {
 		nonDefaultableTypes,
-		allowedUnionTypeNames: ["AuthInfo", "McpOauthProbeResult", "SettableAuthInfo", "ToolResult"],
+		allowedUnionTypeNames: [
+			"AuthInfo",
+			"EnqueueCommandResult",
+			"McpOauthProbeResult",
+			"SettableAuthInfo",
+			"ToolResult",
+		],
 	});
 
 	// Collect all RPC methods before emitting shared definitions so method stability
@@ -1619,6 +1717,12 @@ export function generateApiTypesCode(
 				ctx.experimentalTypeNames.add(resultName);
 			}
 		}
+	}
+
+	for (const name of STRICT_BOOLEAN_UNION_VARIANTS.keys()) {
+		const definition = definitions[name];
+		if (typeof definition !== "object" || definition === null) continue;
+		tryEmitRustUnion(definition as JSONSchema7, name, "", ctx);
 	}
 
 	// Generate shared definitions (structs & enums)
@@ -2300,10 +2404,7 @@ async function generate(): Promise<void> {
 		JSON.parse(await fs.readFile(sessionEventsSchemaPath, "utf-8")),
 	);
 	const apiRaw = normalizeSchemaBrandCasing(
-		applyConnectorSessionApiOverlay(
-			JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
-			path.basename(apiSchemaPath),
-		),
+		JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
 	);
 
 	const sessionEventsSchema = propagateInternalVisibility(
@@ -2376,7 +2477,29 @@ async function generate(): Promise<void> {
 
 const __filename = fileURLToPath(import.meta.url);
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+export function isRustCodegenEntrypoint(
+	entryPath: string | undefined,
+	modulePath = __filename,
+	platform = process.platform,
+): boolean {
+	if (!entryPath) {
+		return false;
+	}
+	const canonicalize = (filePath: string) => {
+		try {
+			return realpathSync.native(filePath);
+		} catch {
+			return path.resolve(filePath);
+		}
+	};
+	const canonicalEntryPath = canonicalize(entryPath);
+	const canonicalModulePath = canonicalize(modulePath);
+	return platform === "win32"
+		? canonicalEntryPath.toLowerCase() === canonicalModulePath.toLowerCase()
+		: canonicalEntryPath === canonicalModulePath;
+}
+
+if (isRustCodegenEntrypoint(process.argv[1])) {
 	generate().catch((err) => {
 		console.error("Code generation failed:", err);
 		process.exit(1);

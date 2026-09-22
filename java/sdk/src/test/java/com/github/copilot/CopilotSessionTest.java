@@ -240,10 +240,18 @@ public class CopilotSessionTest {
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             var events = new ArrayList<String>();
-            session.on(evt -> events.add(evt.getType()));
+            var idleReceived = new CompletableFuture<Void>();
+            session.on(evt -> {
+                events.add(evt.getType());
+                if (evt instanceof SessionIdleEvent) {
+                    idleReceived.complete(null);
+                }
+            });
 
             // Use String convenience overload (covers sendAndWait(String) path)
             AssistantMessageEvent response = session.sendAndWait("What is 2+2?").get(60, TimeUnit.SECONDS);
+            // Await this listener, not just sendAndWait's internal idle listener.
+            idleReceived.get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
             assertEquals("assistant.message", response.getType());

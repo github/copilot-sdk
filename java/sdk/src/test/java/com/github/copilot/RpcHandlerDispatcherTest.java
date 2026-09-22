@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
@@ -60,8 +61,9 @@ class RpcHandlerDispatcherTest {
     @BeforeEach
     void setup() throws Exception {
         // Create a socket pair for the JsonRpcClient
-        try (ServerSocket ss = new ServerSocket(0)) {
-            clientSideSocket = new Socket("localhost", ss.getLocalPort());
+        var loopback = InetAddress.getLoopbackAddress();
+        try (ServerSocket ss = new ServerSocket(0, 1, loopback)) {
+            clientSideSocket = new Socket(loopback, ss.getLocalPort());
             serverSideSocket = ss.accept();
         }
         serverSideSocket.setSoTimeout(SOCKET_TIMEOUT_MS);

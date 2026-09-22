@@ -137,6 +137,7 @@ class SessionEventType(Enum):
     SESSION_INDEXED_SEARCH = "session.indexed_search"
     SESSION_WARNING = "session.warning"
     SESSION_MODEL_CHANGE = "session.model_change"
+    SESSION_MODEL_DESELECTED = "session.model_deselected"
     # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_AUTO_TIER_RECOMMENDATION = "session.auto_tier_recommendation"
     SESSION_AUTO_TIER_SWITCH_FAILED = "session.auto_tier_switch_failed"
@@ -9452,6 +9453,29 @@ class SessionModelChangeData:
 
 
 @dataclass
+class SessionModelDeselectedData:
+    "The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model."
+    previous_model: str
+    reason: ModelDeselectedReason
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionModelDeselectedData":
+        assert isinstance(obj, dict)
+        previous_model = from_str(obj.get("previousModel"))
+        reason = parse_enum(ModelDeselectedReason, obj.get("reason"))
+        return SessionModelDeselectedData(
+            previous_model=previous_model,
+            reason=reason,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["previousModel"] = from_str(self.previous_model)
+        result["reason"] = to_enum(ModelDeselectedReason, self.reason)
+        return result
+
+
+@dataclass
 class SessionPermissionRecoveryData:
     "Authoritative snapshot of an Autopilot permission-recovery episode"
     attempts: list[PermissionRecoveryAttempt]
@@ -11031,10 +11055,40 @@ class SubagentStartedData:
 
 
 @dataclass
+class SystemMessageContentBlock:
+    "One persisted structured system-message block and its cache intent"
+    content: str
+    cache_breakpoint: bool | None = None
+    is_static: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SystemMessageContentBlock":
+        assert isinstance(obj, dict)
+        content = from_str(obj.get("content"))
+        cache_breakpoint = from_union([from_none, from_bool], obj.get("cacheBreakpoint"))
+        is_static = from_union([from_none, from_bool], obj.get("isStatic"))
+        return SystemMessageContentBlock(
+            content=content,
+            cache_breakpoint=cache_breakpoint,
+            is_static=is_static,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["content"] = from_str(self.content)
+        if self.cache_breakpoint is not None:
+            result["cacheBreakpoint"] = from_union([from_none, from_bool], self.cache_breakpoint)
+        if self.is_static is not None:
+            result["isStatic"] = from_union([from_none, from_bool], self.is_static)
+        return result
+
+
+@dataclass
 class SystemMessageData:
     "System/developer instruction content with role and optional template metadata"
     content: str
     role: SystemMessageRole
+    content_blocks: list[SystemMessageContentBlock] | None = None
     interaction_id: str | None = None
     metadata: SystemMessageMetadata | None = None
     name: str | None = None
@@ -11044,12 +11098,14 @@ class SystemMessageData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         role = parse_enum(SystemMessageRole, obj.get("role"))
+        content_blocks = from_union([from_none, lambda x: from_list(SystemMessageContentBlock.from_dict, x)], obj.get("contentBlocks"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         metadata = from_union([from_none, SystemMessageMetadata.from_dict], obj.get("metadata"))
         name = from_union([from_none, from_str], obj.get("name"))
         return SystemMessageData(
             content=content,
             role=role,
+            content_blocks=content_blocks,
             interaction_id=interaction_id,
             metadata=metadata,
             name=name,
@@ -11059,6 +11115,8 @@ class SystemMessageData:
         result: dict = {}
         result["content"] = from_str(self.content)
         result["role"] = to_enum(SystemMessageRole, self.role)
+        if self.content_blocks is not None:
+            result["contentBlocks"] = from_union([from_none, lambda x: from_list(lambda x: to_class(SystemMessageContentBlock, x), x)], self.content_blocks)
         if self.interaction_id is not None:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.metadata is not None:
@@ -12190,6 +12248,7 @@ class ToolExecutionStartData:
     rte: bool | None = None
     shell_tool_info: ToolExecutionStartShellToolInfo | None = None
     tool_description: ToolExecutionStartToolDescription | None = None
+    tool_title: str | None = None
     turn_id: str | None = None
 
     @staticmethod
@@ -12210,6 +12269,7 @@ class ToolExecutionStartData:
         rte = from_union([from_none, from_bool], obj.get("rte"))
         shell_tool_info = from_union([from_none, ToolExecutionStartShellToolInfo.from_dict], obj.get("shellToolInfo"))
         tool_description = from_union([from_none, ToolExecutionStartToolDescription.from_dict], obj.get("toolDescription"))
+        tool_title = from_union([from_none, from_str], obj.get("toolTitle"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
         return ToolExecutionStartData(
             tool_call_id=tool_call_id,
@@ -12227,6 +12287,7 @@ class ToolExecutionStartData:
             rte=rte,
             shell_tool_info=shell_tool_info,
             tool_description=tool_description,
+            tool_title=tool_title,
             turn_id=turn_id,
         )
 
@@ -12260,6 +12321,8 @@ class ToolExecutionStartData:
             result["shellToolInfo"] = from_union([from_none, lambda x: to_class(ToolExecutionStartShellToolInfo, x)], self.shell_tool_info)
         if self.tool_description is not None:
             result["toolDescription"] = from_union([from_none, lambda x: to_class(ToolExecutionStartToolDescription, x)], self.tool_description)
+        if self.tool_title is not None:
+            result["toolTitle"] = from_union([from_none, from_str], self.tool_title)
         if self.turn_id is not None:
             result["turnId"] = from_union([from_none, from_str], self.turn_id)
         return result
@@ -13772,6 +13835,12 @@ class ModelChangeSource(Enum):
     SDK = "sdk"
 
 
+class ModelDeselectedReason(Enum):
+    "Why the session no longer has an explicitly selected model."
+    # A host-managed provider snapshot no longer publishes the selected model.
+    PROVIDER_WITHDRAWN = "provider_withdrawn"
+
+
 class OmittedBinaryOmittedReason(Enum):
     "Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable"
     # Bytes exceeded the session's inline size limit.
@@ -14465,7 +14534,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -14505,6 +14574,7 @@ class SessionEvent:
             case SessionEventType.SESSION_INDEXED_SEARCH: data = SessionIndexedSearchData.from_dict(data_obj)
             case SessionEventType.SESSION_WARNING: data = SessionWarningData.from_dict(data_obj)
             case SessionEventType.SESSION_MODEL_CHANGE: data = SessionModelChangeData.from_dict(data_obj)
+            case SessionEventType.SESSION_MODEL_DESELECTED: data = SessionModelDeselectedData.from_dict(data_obj)
             case SessionEventType.SESSION_AUTO_TIER_RECOMMENDATION: data = SessionAutoTierRecommendationData.from_dict(data_obj)
             case SessionEventType.SESSION_AUTO_TIER_SWITCH_FAILED: data = SessionAutoTierSwitchFailedData.from_dict(data_obj)
             case SessionEventType.SESSION_MODE_CHANGED: data = SessionModeChangedData.from_dict(data_obj)
@@ -14855,6 +14925,7 @@ __all__ = [
     "ModelCallFinishedOutcome",
     "ModelCallStartData",
     "ModelChangeSource",
+    "ModelDeselectedReason",
     "OmittedBinaryOmittedReason",
     "OmittedBinaryResult",
     "OmittedBinaryType",
@@ -15006,6 +15077,7 @@ __all__ = [
     "SessionModeChangedData",
     "SessionModeNoticeDeliveredData",
     "SessionModelChangeData",
+    "SessionModelDeselectedData",
     "SessionPermissionRecoveryData",
     "SessionPermissionsChangedData",
     "SessionPlanChangedData",
@@ -15051,6 +15123,7 @@ __all__ = [
     "SubagentSelectedData",
     "SubagentStartedData",
     "SubagentTaskModelSource",
+    "SystemMessageContentBlock",
     "SystemMessageData",
     "SystemMessageMetadata",
     "SystemMessageRole",

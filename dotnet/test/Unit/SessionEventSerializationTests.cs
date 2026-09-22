@@ -149,13 +149,13 @@ public class SessionEventSerializationTests
         }
     }
 
-    public static TheoryData<string> AutoTierSwitchFailureReasons =>
-    [
+    public static TheoryData<string> AutoTierSwitchFailureReasons => new()
+    {
         "policy_rejected",
         "request_failed",
         "setup_failed",
         "unsupported",
-    ];
+    };
 
     [Theory]
     [MemberData(nameof(AutoTierSwitchFailureReasons))]

@@ -1,6 +1,6 @@
 # GitHub Copilot SDK for Java
 
-[![Build](https://github.com/github/copilot-sdk/actions/workflows/java-sdk-tests.yml/badge.svg)](https://github.com/github/copilot-sdk/actions/workflows/java-sdk-tests.yml)
+[![Build](https://github.com/github/copilot-sdk/actions/workflows/sdk.yml/badge.svg)](https://github.com/github/copilot-sdk/actions/workflows/sdk.yml)
 [![Java 17+](https://img.shields.io/badge/Java-17%2B-blue?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -704,9 +704,9 @@ CI enforces both checks. Spotless runs explicitly in CI; `mvn verify` alone does
 
 #### Development Setup for native embedding
 
-Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven because `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release.
+Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven. In a standalone SDK checkout, `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release. When the SDK is nested in `copilot-agent-runtime`, it instead stages the same-checkout artifacts from `dist-cli`; run `pnpm run build:cli` from the runtime repository first.
 
-On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On a Linux musl x64 host, Maven activates `native-linuxmusl-x64` when `copilot.native.libc=musl` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned platform package from the corresponding `github/copilot-cli` release during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
+On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On a Linux musl x64 host, Maven activates `native-linuxmusl-x64` when `copilot.native.libc=musl` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, stages the platform package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
 
 Before opting in, validate that Node.js reports glibc for the build host:
 

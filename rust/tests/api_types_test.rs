@@ -4,12 +4,13 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::rpc::{
-    ConnectorAccountRequest, ConnectorCatalogStatus, ConnectorConnectRequest,
-    ConnectorContinueRequest, ConnectorReconcileRequest, Extension, ExtensionList, ExtensionSource,
-    ExtensionStatus, ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest,
-    FleetStartResult, ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult,
-    ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus,
-    QueuePendingItems, QueuePendingItemsKind, SandboxConfig, SendAgentMode, TasksStartAgentRequest,
+    AcceptedEnqueueCommandResult, ConnectorAccountRequest, ConnectorCatalogStatus,
+    ConnectorConnectRequest, ConnectorContinueRequest, ConnectorReconcileRequest,
+    EnqueueCommandResult, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
+    ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
+    ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest,
+    ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
+    SandboxConfig, SendAgentMode, TasksStartAgentRequest, UnsupportedEnqueueCommandResult,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
@@ -282,6 +283,49 @@ fn queue_pending_message_id_is_optional_for_older_hosts() {
             .unwrap()
             .get("messageId")
             .is_none()
+    );
+}
+
+#[test]
+fn enqueue_command_result_preserves_boolean_discriminator() {
+    let accepted: EnqueueCommandResult = serde_json::from_value(serde_json::json!({
+        "queued": true,
+        "queueId": "queue-1"
+    }))
+    .unwrap();
+    assert!(matches!(
+        &accepted,
+        EnqueueCommandResult::AcceptedEnqueueCommandResult(_)
+    ));
+    assert_eq!(
+        serde_json::to_value(&accepted).unwrap(),
+        serde_json::json!({ "queued": true, "queueId": "queue-1" })
+    );
+
+    let unsupported: EnqueueCommandResult =
+        serde_json::from_value(serde_json::json!({ "queued": false, "queueId": null })).unwrap();
+    assert!(matches!(
+        &unsupported,
+        EnqueueCommandResult::UnsupportedEnqueueCommandResult(_)
+    ));
+    assert_eq!(
+        serde_json::to_value(&unsupported).unwrap(),
+        serde_json::json!({ "queued": false })
+    );
+
+    assert!(
+        serde_json::to_value(AcceptedEnqueueCommandResult {
+            queued: false,
+            queue_id: "queue-1".to_string(),
+        })
+        .is_err()
+    );
+    assert!(
+        serde_json::to_value(UnsupportedEnqueueCommandResult {
+            queued: true,
+            queue_id: None,
+        })
+        .is_err()
     );
 }
 

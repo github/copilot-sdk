@@ -4795,6 +4795,70 @@ impl<'a> SessionRpcConnectors<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Reconciles the authoritative Connector catalog into the session MCP projection during startup with a bounded deadline and fail-closed cleanup.
+    ///
+    /// Wire method: `session.connectors.reconcileForStartup`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
+    ///
+    /// # Returns
+    ///
+    /// Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn reconcile_for_startup(
+        &self,
+        params: ConnectorAccountRequest,
+    ) -> Result<ConnectorStatus, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_CONNECTORS_RECONCILEFORSTARTUP,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Removes the runtime-owned Connector MCP projection without changing service-side connections.
+    ///
+    /// Wire method: `session.connectors.withdrawProjection`.
+    ///
+    /// # Returns
+    ///
+    /// Authoritative session connector state. Account IDs are opaque routing identifiers and credentials are never included.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn withdraw_projection(&self) -> Result<ConnectorStatus, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_CONNECTORS_WITHDRAWPROJECTION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `session.contentExclusion.*` RPCs.
@@ -8692,13 +8756,13 @@ impl<'a> SessionRpcPermissions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Clears session-scoped tool permission approvals.
+    /// Clears session-scoped tool approvals and, for full resets, exact session-approved paths.
     ///
     /// Wire method: `session.permissions.resetSessionApprovals`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Clears session-scoped tool permission approvals, and optionally the location-scoped ones.
+    /// * `params` - Clears session-scoped tool approvals and optionally clears location-scoped approvals and exact session-approved paths.
     ///
     /// # Returns
     ///
@@ -8968,13 +9032,13 @@ pub struct SessionRpcPermissionsPaths<'a> {
 }
 
 impl<'a> SessionRpcPermissionsPaths<'a> {
-    /// Returns the session's allowed directories and primary working directory.
+    /// Returns the session's recursive directory grants, exact session-approved paths, and primary working directory.
     ///
     /// Wire method: `session.permissions.paths.list`.
     ///
     /// # Returns
     ///
-    /// Snapshot of the session's allow-listed directories and primary working directory.
+    /// Snapshot of the session's recursive directory grants, exact session-approved paths, and primary working directory.
     ///
     /// <div class="warning">
     ///
@@ -9847,6 +9911,36 @@ impl<'a> SessionRpcProvider<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_PROVIDER_ADD, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Atomically updates the session's BYOK provider and model registry by applying the supplied snapshot, replacing existing entries, updating models, or removing entries absent from the snapshot.
+    ///
+    /// Wire method: `session.provider.sync`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Authoritative BYOK provider and model registry snapshot to apply atomically to the session.
+    ///
+    /// # Returns
+    ///
+    /// The selectable model entries and selection ids synthesized for the synchronized BYOK models.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn sync(&self, params: ProviderSyncRequest) -> Result<ProviderSyncResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PROVIDER_SYNC, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

@@ -526,7 +526,7 @@ fn resolve_library_path(entrypoint: &Path) -> Result<PathBuf, Error> {
             name: natural_library_name().into(),
             hint: Some(format!(
                 "native runtime library not found next to '{}'. Enable the \
-                 `bundled-in-process` feature or set COPILOT_CLI_PATH to a compatible CLI package.",
+                 `in-process` feature or set COPILOT_CLI_PATH to a compatible CLI package.",
                 entrypoint.display()
             )),
         },

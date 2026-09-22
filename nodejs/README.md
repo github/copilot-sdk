@@ -14,10 +14,9 @@ verified `github/copilot-cli` release assets when the SDK is published, so
 starting the SDK performs no runtime download. Set `COPILOT_CLI_PATH` to use an
 existing installation instead.
 
-The checked-in release pin is `copilotCliVersion` in `package.json`. Run
-`npm run set:cli-version -- <version>` to update it and regenerate the compiled
-metadata in `src/cliVersion.ts`. Packaging verifies release assets against the
-release's `SHA256SUMS.txt`.
+The checked-in `copilotCliVersion` in `package.json` and compiled metadata in
+`src/cliVersion.ts` use a development placeholder. The public SDK snapshot
+replaces both with the CLI version published for that snapshot.
 
 `npm run pack:release` builds the main package and all platform packages. Set
 `COPILOT_CLI_DOWNLOAD_BASE_URL` to use a release mirror while packaging.
@@ -25,6 +24,12 @@ Release workflows instead set `COPILOT_SDK_RUNTIME_PACKAGE_DIR` to a directory
 containing validated runtime npm package roots named for all eight platforms.
 This keeps `COPILOT_CLI_USE_NPM_PACKAGE` false and embeds those runtime files in
 the self-contained SDK platform packages.
+
+In the runtime repository, packaging uses the prepared same-checkout runtime.
+Set `COPILOT_SDK_RUNTIME_PLATFORMS` to the available target (for example,
+`linux-x64`) for both `pack:release` and `verify:release-packages`. SDK CI checks
+that target only; public release workflows leave this unset to package and
+verify all eight platforms.
 
 ## Installation
 

@@ -195,7 +195,7 @@ public sealed partial class ReplayProxy : IAsyncDisposable
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "justfile")))
+            if (File.Exists(Path.Combine(dir.FullName, "test", "harness", "package.json")))
                 return dir.FullName;
             dir = dir.Parent;
         }

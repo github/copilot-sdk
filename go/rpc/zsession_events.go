@@ -214,6 +214,7 @@ const (
 	SessionEventTypeSessionMCPServerStatusChanged  SessionEventType = "session.mcp_server_status_changed"
 	SessionEventTypeSessionModeChanged             SessionEventType = "session.mode_changed"
 	SessionEventTypeSessionModelChange             SessionEventType = "session.model_change"
+	SessionEventTypeSessionModelDeselected         SessionEventType = "session.model_deselected"
 	SessionEventTypeSessionModeNoticeDelivered     SessionEventType = "session.mode_notice_delivered"
 	SessionEventTypeSessionPermissionRecovery      SessionEventType = "session.permission_recovery"
 	// Experimental: SessionEventTypeSessionPermissionsChanged identifies an experimental event
@@ -2968,6 +2969,8 @@ func (*SystemNotificationData) Type() SessionEventType { return SessionEventType
 type SystemMessageData struct {
 	// The system or developer prompt text sent as model input
 	Content string `json:"content"`
+	// Optional ordered structured blocks corresponding to content, retained for prompt-cache layout restoration.
+	ContentBlocks []SystemMessageContentBlock `json:"contentBlocks,omitzero"`
 	// Logical interaction identifier for the model run receiving this prompt
 	InteractionID *string `json:"interactionId,omitempty"`
 	// Metadata about the prompt template and its construction
@@ -2999,6 +3002,19 @@ type SessionTaskCompleteData struct {
 
 func (*SessionTaskCompleteData) sessionEventData()      {}
 func (*SessionTaskCompleteData) Type() SessionEventType { return SessionEventTypeSessionTaskComplete }
+
+// The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model.
+type SessionModelDeselectedData struct {
+	// Model that was selected before the host withdrew it.
+	PreviousModel string `json:"previousModel"`
+	// Low-cardinality reason the selection was cleared.
+	Reason ModelDeselectedReason `json:"reason"`
+}
+
+func (*SessionModelDeselectedData) sessionEventData() {}
+func (*SessionModelDeselectedData) Type() SessionEventType {
+	return SessionEventTypeSessionModelDeselected
+}
 
 // Tool execution completion results including success status, detailed output, and error information
 type ToolExecutionCompleteData struct {
@@ -3092,6 +3108,8 @@ type ToolExecutionStartData struct {
 	ToolDescription *ToolExecutionStartToolDescription `json:"toolDescription,omitempty"`
 	// Name of the tool being executed
 	ToolName string `json:"toolName"`
+	// Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
+	ToolTitle *string `json:"toolTitle,omitempty"`
 	// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
 	TurnID *string `json:"turnId,omitempty"`
 }
@@ -4918,9 +4936,19 @@ type SkillsLoadedSkill struct {
 	UserInvocable bool `json:"userInvocable"`
 }
 
+// One persisted structured system-message block and its cache intent
+type SystemMessageContentBlock struct {
+	// Explicit prompt-cache intent. True places a breakpoint after this block, false suppresses one, and absence preserves the provider's legacy default.
+	CacheBreakpoint *bool `json:"cacheBreakpoint,omitempty"`
+	// Text content for this system-message block.
+	Content string `json:"content"`
+	// Diagnostic classification indicating whether the block is stable across equivalent sessions.
+	IsStatic *bool `json:"isStatic,omitempty"`
+}
+
 // Metadata about the prompt template and its construction
 type SystemMessageMetadata struct {
-	// Version identifier of the prompt template used
+	// Version identifier of the prompt template or structured prompt layout used
 	PromptVersion *string `json:"promptVersion,omitempty"`
 	// Template variables used when constructing the prompt
 	Variables map[string]any `json:"variables,omitzero"`
@@ -6076,6 +6104,14 @@ const (
 	ModelCallFinishedOutcomeRejected ModelCallFinishedOutcome = "rejected"
 	// The provider response was accepted for continued agent processing.
 	ModelCallFinishedOutcomeSuccess ModelCallFinishedOutcome = "success"
+)
+
+// Why the session no longer has an explicitly selected model.
+type ModelDeselectedReason string
+
+const (
+	// A host-managed provider snapshot no longer publishes the selected model.
+	ModelDeselectedReasonProviderWithdrawn ModelDeselectedReason = "provider_withdrawn"
 )
 
 // Binary result type discriminator. Use "image" for images and "resource" for other binary data.

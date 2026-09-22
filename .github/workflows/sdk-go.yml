@@ -1,0 +1,164 @@
+# Invoked by sdk.yml to run Go SDK formatting, linting, samples, documentation,
+# full subprocess coverage, and focused in-process smoke coverage across
+# standard platforms and x64 musl.
+name: "SDK Go"
+
+env:
+  HUSKY: 0
+  POWERSHELL_UPDATECHECK: Off
+  SDK_HOME: ${{ inputs.sdk-home }}
+  SETUP_NODE_TIMEOUT_MINUTES: 10
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: false
+        type: string
+        default: all
+      sdk-home:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: "Go (${{ matrix.os }}, ${{ matrix.transport }})"
+    if: contains(fromJSON('["all","linux-x64","darwin-arm64","win32-x64"]'), inputs.platform)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.platform == 'linux-x64' && '["ubuntu-latest"]' || inputs.platform == 'darwin-arm64' && '["macos-latest"]' || inputs.platform == 'win32-x64' && '["windows-latest"]' || '["ubuntu-latest","macos-latest","windows-latest"]') }}
+        transport: [default, inprocess]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/go
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ runner.os == 'Linux' && format('executable-sdk-{0}-{1}-gnu', runner.os, runner.arch) || format('executable-sdk-{0}-{1}', runner.os, runner.arch) }}
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+          cache-dependency-path: |
+            ${{ inputs.sdk-home }}/go/go.sum
+            ${{ inputs.sdk-home }}/go/samples/go.sum
+      - if: runner.os == 'Linux' && matrix.transport == 'default'
+        run: |
+          go fmt ./...
+          git diff --exit-code
+      - if: runner.os == 'Linux' && matrix.transport == 'default'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          working-directory: ${{ inputs.sdk-home }}/go
+          version: latest
+          args: --timeout=5m
+      - if: runner.os == 'Linux' && matrix.transport == 'default'
+        run: go test ./...
+        working-directory: ${{ inputs.sdk-home }}/go/samples
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+      - env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_SDK_DEFAULT_CONNECTION: ${{ matrix.transport == 'inprocess' && 'inprocess' || '' }}
+          GOFLAGS: ${{ matrix.transport == 'inprocess' && '-tags=copilot_inprocess' || '' }}
+        run: |
+          if [ "$COPILOT_SDK_DEFAULT_CONNECTION" = "inprocess" ]; then
+            go test -v -race -timeout=20m ./internal/e2e -run '^TestInProcessFfiE2E$'
+          else
+            /bin/bash test.sh
+          fi
+
+  go-musl-x64:
+    name: "Go (Alpine x64, ${{ matrix.transport }})"
+    if: inputs.platform == 'all' || inputs.platform == 'linuxmusl-x64'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: [default, inprocess]
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-sdk-Linux-X64-musl
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore
+        working-directory: .
+      - uses: ./.github/actions/run-alpine-tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        with:
+          image: golang:1.24-alpine
+          sdk-root: /workspace/${{ inputs.sdk-home }}
+          workdir: /workspace/${{ inputs.sdk-home }}
+          transport: ${{ matrix.transport }}
+          command: |
+            apk add --no-cache build-base nodejs npm
+            npm --prefix "$COPILOT_SDK_ROOT/nodejs" ci --ignore-scripts
+            npm --prefix "$COPILOT_SDK_ROOT/test/harness" ci --ignore-scripts
+
+            export GITHUB_ENV=/tmp/copilot-sdk-runtime.env
+            export COPILOT_RUNTIME_TARGET=linuxmusl-x64
+            export COPILOT_RUNTIME_OUTPUT_DIRECTORY=/workspace/.sdk-runtime/linuxmusl-x64
+            node "$COPILOT_SDK_ROOT/scripts/ci/runtime-artifact.mjs" prepare
+            set -a
+            . "$GITHUB_ENV"
+            set +a
+            case "$COPILOT_CLI_PATH" in
+              */prebuilds/linuxmusl-x64/copilot-runtime) ;;
+              *) echo "Expected the linuxmusl-x64 runtime, got: $COPILOT_CLI_PATH" >&2; exit 1 ;;
+            esac
+
+            if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
+              export GOFLAGS="-tags=copilot_inprocess"
+            else
+              unset GOFLAGS
+            fi
+            export CGO_ENABLED=1
+            test "$(go env GOARCH)" = "amd64"
+            test "$(go env CGO_ENABLED)" = "1"
+            cd "$COPILOT_SDK_ROOT/go"
+            if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
+              go test -v -race -timeout=20m ./internal/e2e -run '^TestInProcessFfiE2E$'
+            else
+              /bin/bash test.sh
+            fi
+
+  docs-go:
+    name: "Docs (Go)"
+    if: inputs.platform == 'all' || inputs.platform == 'docs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+          cache-dependency-path: ${{ inputs.sdk-home }}/go/go.sum
+      - run: npm ci
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
+      - run: npm run extract && npm run validate:go
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation

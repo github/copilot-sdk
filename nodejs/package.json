@@ -5,7 +5,7 @@
         "url": "https://github.com/github/copilot-sdk.git"
     },
     "version": "0.0.0-dev",
-    "copilotCliVersion": "1.0.87-0",
+    "copilotCliVersion": "1.0.88-2",
     "description": "TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC",
     "main": "./dist/cjs/index.js",
     "types": "./dist/index.d.ts",
@@ -43,6 +43,7 @@
         "release:manifest": "tsx scripts/release-manifest.ts",
         "prepare:runtime": "tsx scripts/prepare-runtime.ts",
         "test": "vitest run",
+        "test:unit": "vitest run --exclude=\"test/e2e/**\"",
         "test:watch": "vitest",
         "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" --ignore-path .prettierignore",
         "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" --ignore-path .prettierignore",

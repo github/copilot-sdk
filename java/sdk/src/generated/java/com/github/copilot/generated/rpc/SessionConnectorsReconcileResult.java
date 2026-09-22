@@ -33,6 +33,8 @@ public record SessionConnectorsReconcileResult(
     @JsonProperty("accountId") String accountId,
     /** Latest validated catalog snapshot, when available. */
     @JsonProperty("catalog") ConnectorCatalogResult catalog,
+    /** Exact selected account and stable scope requiring an authorization update, when proven by the Connector service. */
+    @JsonProperty("authorizationRequirement") ConnectorAuthorizationRequirement authorizationRequirement,
     /** Live MCP status for every Connector-owned runtime server. */
     @JsonProperty("runtimeServers") List<ConnectorRuntimeStatus> runtimeServers,
     /** Number of active opaque connection continuations. */

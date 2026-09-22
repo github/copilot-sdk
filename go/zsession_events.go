@@ -187,6 +187,7 @@ type (
 	ModelCallFinishedOutcome                                       = rpc.ModelCallFinishedOutcome
 	ModelCallStartData                                             = rpc.ModelCallStartData
 	ModelChangeSource                                              = rpc.ModelChangeSource
+	ModelDeselectedReason                                          = rpc.ModelDeselectedReason
 	OmittedBinaryOmittedReason                                     = rpc.OmittedBinaryOmittedReason
 	OmittedBinaryResult                                            = rpc.OmittedBinaryResult
 	OmittedBinaryType                                              = rpc.OmittedBinaryType
@@ -335,6 +336,7 @@ type (
 	SessionMode                                                    = rpc.SessionMode
 	SessionModeChangedData                                         = rpc.SessionModeChangedData
 	SessionModelChangeData                                         = rpc.SessionModelChangeData
+	SessionModelDeselectedData                                     = rpc.SessionModelDeselectedData
 	SessionModeNoticeDeliveredData                                 = rpc.SessionModeNoticeDeliveredData
 	SessionPermissionRecoveryData                                  = rpc.SessionPermissionRecoveryData
 	SessionPermissionsChangedData                                  = rpc.SessionPermissionsChangedData
@@ -381,6 +383,7 @@ type (
 	SubagentSelectedData                                           = rpc.SubagentSelectedData
 	SubagentStartedData                                            = rpc.SubagentStartedData
 	SubagentTaskModelSource                                        = rpc.SubagentTaskModelSource
+	SystemMessageContentBlock                                      = rpc.SystemMessageContentBlock
 	SystemMessageData                                              = rpc.SystemMessageData
 	SystemMessageMetadata                                          = rpc.SystemMessageMetadata
 	SystemMessageRole                                              = rpc.SystemMessageRole
@@ -687,6 +690,7 @@ const (
 	ModelChangeSourceSDK                                                 = rpc.ModelChangeSourceSDK
 	ModelChangeSourceSettingsCommand                                     = rpc.ModelChangeSourceSettingsCommand
 	ModelChangeSourceStartup                                             = rpc.ModelChangeSourceStartup
+	ModelDeselectedReasonProviderWithdrawn                               = rpc.ModelDeselectedReasonProviderWithdrawn
 	OmittedBinaryOmittedReasonAssetUnavailable                           = rpc.OmittedBinaryOmittedReasonAssetUnavailable
 	OmittedBinaryOmittedReasonTooLarge                                   = rpc.OmittedBinaryOmittedReasonTooLarge
 	OmittedBinaryTypeImage                                               = rpc.OmittedBinaryTypeImage
@@ -930,6 +934,7 @@ const (
 	SessionEventTypeSessionMCPServerStatusChanged                        = rpc.SessionEventTypeSessionMCPServerStatusChanged
 	SessionEventTypeSessionModeChanged                                   = rpc.SessionEventTypeSessionModeChanged
 	SessionEventTypeSessionModelChange                                   = rpc.SessionEventTypeSessionModelChange
+	SessionEventTypeSessionModelDeselected                               = rpc.SessionEventTypeSessionModelDeselected
 	SessionEventTypeSessionModeNoticeDelivered                           = rpc.SessionEventTypeSessionModeNoticeDelivered
 	SessionEventTypeSessionPermissionRecovery                            = rpc.SessionEventTypeSessionPermissionRecovery
 	SessionEventTypeSessionPermissionsChanged                            = rpc.SessionEventTypeSessionPermissionsChanged

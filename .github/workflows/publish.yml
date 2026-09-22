@@ -1053,7 +1053,7 @@ jobs:
       - run: npm ci --ignore-scripts
         working-directory: ./nodejs
       - name: Update npm for trusted publishing
-        run: npm install --global npm@11.6.3
+        run: npm install -g npm@11.6.3
       - name: Download retained release
         uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:

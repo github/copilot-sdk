@@ -14,8 +14,7 @@ import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { COPILOT_CLI_VERSION } from "../../nodejs/src/cliVersion.js";
 import { ensureCopilotPackage } from "../../nodejs/scripts/releaseArtifacts.js";
-
-import { applyConnectorSessionApiOverlay } from "./connectorSessionApiOverlay.js";
+import { findRuntimeRoot } from "../runtime-layout.mjs";
 
 export const execFileAsync = promisify(execFile);
 
@@ -49,23 +48,76 @@ export type SchemaWithSharedDefinitions<T extends JSONSchema7 = JSONSchema7> = T
 };
 // ── Schema paths ────────────────────────────────────────────────────────────
 
+export interface CopilotSchemaPaths {
+    apiSchemaPath: string;
+    sessionEventsSchemaPath: string;
+}
+
+export interface ResolveCopilotSchemaPathsOptions {
+    acquirePackage?: (version: string) => Promise<string>;
+    environment?: NodeJS.ProcessEnv;
+    runtimeSource?: string;
+    sdkRoot?: string;
+    schemaDirectory?: string;
+}
+
 /**
- * Resolve a JSON schema from the pinned Copilot CLI GitHub Release.
+ * Resolves the co-located API and session-event schemas selected for generation.
+ * Runtime-repository callers must provide checked-out schemas explicitly;
+ * standalone SDK callers retain the pinned published-package behavior.
  */
-async function resolveCopilotSchemaPath(fileName: string): Promise<string> {
-    const packageRoot = await ensureCopilotPackage(COPILOT_CLI_VERSION);
-    const schemaPath = path.join(packageRoot, "schemas", fileName);
-    await fs.access(schemaPath);
-    return schemaPath;
+export async function resolveCopilotSchemaPaths(
+    options: ResolveCopilotSchemaPathsOptions = {},
+): Promise<CopilotSchemaPaths> {
+    const environment = options.environment ?? process.env;
+    const sdkRoot = options.sdkRoot ?? REPO_ROOT;
+    const runtimeRoot = findRuntimeRoot(sdkRoot);
+    const runtimeSource =
+        options.runtimeSource ?? environment.COPILOT_RUNTIME_SOURCE ?? (runtimeRoot ? "checkout" : undefined);
+    const explicitDirectory =
+        options.schemaDirectory ??
+        environment.COPILOT_CLI_SCHEMA_DIR ??
+        (runtimeSource === "checkout" && runtimeRoot ? path.join(runtimeRoot, "generated") : undefined);
+    let schemaDirectory: string;
+
+    if (explicitDirectory) {
+        schemaDirectory = path.resolve(explicitDirectory);
+    } else if (runtimeSource === "checkout") {
+        throw new Error(
+            "COPILOT_CLI_SCHEMA_DIR is required when COPILOT_RUNTIME_SOURCE=checkout; generate the runtime schemas and select their directory explicitly.",
+        );
+    } else {
+        const acquirePackage = options.acquirePackage ?? ensureCopilotPackage;
+        schemaDirectory = path.join(await acquirePackage(COPILOT_CLI_VERSION), "schemas");
+    }
+
+    const paths = {
+        apiSchemaPath: path.join(schemaDirectory, "api.schema.json"),
+        sessionEventsSchemaPath: path.join(schemaDirectory, "session-events.schema.json"),
+    };
+    for (const schemaPath of Object.values(paths)) {
+        let contents: string;
+        try {
+            contents = await fs.readFile(schemaPath, "utf8");
+        } catch (error) {
+            throw new Error(`Selected Copilot schema not found at ${schemaPath}`, { cause: error });
+        }
+        try {
+            JSON.parse(contents);
+        } catch (error) {
+            throw new Error(`Selected Copilot schema is invalid JSON at ${schemaPath}`, { cause: error });
+        }
+    }
+    return paths;
 }
 
 export async function getSessionEventsSchemaPath(): Promise<string> {
-    return resolveCopilotSchemaPath("session-events.schema.json");
+    return (await resolveCopilotSchemaPaths()).sessionEventsSchemaPath;
 }
 
 export async function getApiSchemaPath(cliArg?: string): Promise<string> {
     if (cliArg) return cliArg;
-    return resolveCopilotSchemaPath("api.schema.json");
+    return (await resolveCopilotSchemaPaths()).apiSchemaPath;
 }
 
 // ── Brand casing normalization ──────────────────────────────────────────────
@@ -153,9 +205,7 @@ function renameBrandDefinitionKeys(defs: Record<string, unknown>): void {
 /** Load a JSON schema file and normalize GitHub brand casing in titles, refs, and definition keys. */
 export async function loadSchemaJson<T>(filePath: string): Promise<T> {
     const parsed = JSON.parse(await fs.readFile(filePath, "utf-8")) as T;
-    return normalizeSchemaBrandCasing(
-        applyConnectorSessionApiOverlay(parsed, path.basename(filePath))
-    );
+    return normalizeSchemaBrandCasing(parsed);
 }
 
 // ── Schema processing ───────────────────────────────────────────────────────
@@ -358,7 +408,7 @@ export function normalizeNullableRequiredRefs(schema: JSONSchema7): JSONSchema7 
 // ── File output ─────────────────────────────────────────────────────────────
 
 export async function writeGeneratedFile(relativePath: string, content: string): Promise<string> {
-    const fullPath = path.join(REPO_ROOT, relativePath);
+    const fullPath = path.join(process.env.COPILOT_CODEGEN_OUTPUT_ROOT ?? REPO_ROOT, relativePath);
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
     await fs.writeFile(fullPath, content, "utf-8");
     return fullPath;

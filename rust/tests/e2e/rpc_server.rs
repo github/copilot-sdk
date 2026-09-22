@@ -255,6 +255,7 @@ async fn should_discover_server_mcp_and_skills() {
                     .skills()
                     .discover(SkillsDiscoverRequest {
                         exclude_host_skills: None,
+                        ignored_skills_locations: None,
                         project_paths: None,
                         skill_directories: Some(vec![
                             skill_directory.to_string_lossy().to_string(),
@@ -273,6 +274,7 @@ async fn should_discover_server_mcp_and_skills() {
                     .skills()
                     .get_discovery_paths(SkillsGetDiscoveryPathsRequest {
                         exclude_host_skills: Some(true),
+                        ignored_skills_locations: None,
                         project_paths: Some(vec![project_path.clone()]),
                     })
                     .await
@@ -377,6 +379,7 @@ async fn should_discover_server_mcp_and_skills() {
                     .skills()
                     .discover(SkillsDiscoverRequest {
                         exclude_host_skills: None,
+                        ignored_skills_locations: None,
                         project_paths: None,
                         skill_directories: Some(vec![
                             skill_directory.to_string_lossy().to_string(),

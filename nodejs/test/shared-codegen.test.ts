@@ -1,8 +1,9 @@
-import { readFile } from "node:fs/promises";
 import type { JSONSchema7 } from "json-schema";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { applyConnectorSessionApiOverlay } from "../../scripts/codegen/connectorSessionApiOverlay.ts";
 import {
     collectDefinitionCollections,
     collectExperimentalOnlyRpcReferencedDefinitionNames,
@@ -12,9 +13,140 @@ import {
     inlineExternalSchemaDefinitions,
     isIntegerSchemaBoundedToInt32,
     rewriteSharedDefinitionReferences,
+    resolveCopilotSchemaPaths,
 } from "../../scripts/codegen/utils.ts";
 
 describe("shared schema definition codegen utilities", () => {
+    it("selects checked-out schemas for normal nested generation with a clean environment", async () => {
+        const paths = await resolveCopilotSchemaPaths({
+            acquirePackage: async () => {
+                throw new Error("published acquisition must not run");
+            },
+            environment: {},
+        });
+
+        expect(paths).toEqual({
+            apiSchemaPath: join(process.cwd(), "../../../generated/api.schema.json"),
+            sessionEventsSchemaPath: join(
+                process.cwd(),
+                "../../../generated/session-events.schema.json"
+            ),
+        });
+    });
+
+    it("retains published acquisition for a copied standalone layout with a clean environment", async () => {
+        const root = await mkdtemp(join(tmpdir(), "copilot-standalone-codegen-"));
+        const packageRoot = join(root, "published-package");
+        const schemaRoot = join(packageRoot, "schemas");
+        await mkdir(schemaRoot, { recursive: true });
+        await writeFile(
+            join(schemaRoot, "api.schema.json"),
+            JSON.stringify({ title: "Published API" })
+        );
+        await writeFile(
+            join(schemaRoot, "session-events.schema.json"),
+            JSON.stringify({ title: "Published events" })
+        );
+
+        const paths = await resolveCopilotSchemaPaths({
+            acquirePackage: async () => packageRoot,
+            environment: {},
+            sdkRoot: join(root, "copied-sdk"),
+        });
+
+        expect(paths).toEqual({
+            apiSchemaPath: join(schemaRoot, "api.schema.json"),
+            sessionEventsSchemaPath: join(schemaRoot, "session-events.schema.json"),
+        });
+    });
+
+    it("uses explicit runtime schemas without acquiring a published package", async () => {
+        const root = await mkdtemp(join(tmpdir(), "copilot-runtime-schemas-"));
+        const schemaDirectory = join(root, "schemas");
+        await mkdir(schemaDirectory);
+        await Promise.all([
+            writeFile(join(schemaDirectory, "api.schema.json"), '{"title":"Runtime API"}\n'),
+            writeFile(
+                join(schemaDirectory, "session-events.schema.json"),
+                '{"title":"Runtime Events"}\n'
+            ),
+        ]);
+
+        const paths = await resolveCopilotSchemaPaths({
+            acquirePackage: async () => {
+                throw new Error("published acquisition must not run");
+            },
+            runtimeSource: "checkout",
+            schemaDirectory,
+        });
+
+        expect(paths).toEqual({
+            apiSchemaPath: join(schemaDirectory, "api.schema.json"),
+            sessionEventsSchemaPath: join(schemaDirectory, "session-events.schema.json"),
+        });
+    });
+
+    it("fails closed for missing runtime schema input and retains standalone acquisition", async () => {
+        const missingRuntimeRoot = await mkdtemp(
+            join(tmpdir(), "copilot-missing-runtime-schemas-")
+        );
+        const missingSdkRoot = join(missingRuntimeRoot, "src/sdk");
+        await Promise.all([
+            mkdir(missingSdkRoot, { recursive: true }),
+            mkdir(join(missingRuntimeRoot, "script"), { recursive: true }),
+        ]);
+        await writeFile(join(missingRuntimeRoot, "script/sea-build.ts"), "");
+        await expect(
+            resolveCopilotSchemaPaths({
+                acquirePackage: async () => {
+                    throw new Error("published acquisition must not run");
+                },
+                environment: {},
+                sdkRoot: missingSdkRoot,
+            })
+        ).rejects.toThrow(/Selected Copilot schema not found/);
+
+        const invalidRoot = await mkdtemp(join(tmpdir(), "copilot-invalid-runtime-schemas-"));
+        await mkdir(join(invalidRoot, "schemas"));
+        await Promise.all([
+            writeFile(join(invalidRoot, "schemas/api.schema.json"), "{}\n"),
+            writeFile(join(invalidRoot, "schemas/session-events.schema.json"), "invalid json"),
+        ]);
+        await expect(
+            resolveCopilotSchemaPaths({
+                acquirePackage: async () => {
+                    throw new Error("published acquisition must not run");
+                },
+                environment: {},
+                runtimeSource: "checkout",
+                schemaDirectory: join(invalidRoot, "schemas"),
+            })
+        ).rejects.toThrow(/invalid JSON/);
+
+        const root = await mkdtemp(join(tmpdir(), "copilot-published-schemas-"));
+        const schemas = join(root, "schemas");
+        await mkdir(schemas);
+        await Promise.all([
+            writeFile(join(schemas, "api.schema.json"), '{"title":"Published API"}\n'),
+            writeFile(
+                join(schemas, "session-events.schema.json"),
+                '{"title":"Published Events"}\n'
+            ),
+        ]);
+
+        await expect(
+            resolveCopilotSchemaPaths({
+                acquirePackage: async () => root,
+                environment: {},
+                runtimeSource: "published",
+                sdkRoot: join(root, "exported-sdk"),
+            })
+        ).resolves.toEqual({
+            apiSchemaPath: join(schemas, "api.schema.json"),
+            sessionEventsSchemaPath: join(schemas, "session-events.schema.json"),
+        });
+    });
+
     it("detects integer schemas bounded to the 32-bit signed range", () => {
         expect(
             isIntegerSchemaBoundedToInt32({
@@ -60,57 +192,6 @@ describe("shared schema definition codegen utilities", () => {
                 maximum: 100.5,
             })
         ).toBe(false);
-    });
-
-    describe("Connector session API overlay", () => {
-        async function loadOverlay(): Promise<{
-            sessionConnectors: Record<string, unknown>;
-            definitions: Record<string, Record<string, unknown>>;
-        }> {
-            return JSON.parse(
-                await readFile(
-                    new URL(
-                        "../../scripts/codegen/connector-session-api-overlay.json",
-                        import.meta.url
-                    ),
-                    "utf8"
-                )
-            );
-        }
-
-        it("installs the complete draft contract and is idempotent", async () => {
-            const schema = { session: {}, definitions: {} };
-            const target = await loadOverlay();
-
-            expect(applyConnectorSessionApiOverlay(schema, "api.schema.json")).toBe(schema);
-            expect(schema.session).toEqual({ connectors: target.sessionConnectors });
-            expect(schema.definitions).toEqual(target.definitions);
-
-            const before = structuredClone(schema);
-            expect(applyConnectorSessionApiOverlay(schema, "api.schema.json")).toBe(schema);
-            expect(schema).toEqual(before);
-        });
-
-        it("rejects partial or changed upstream contracts without mutation", async () => {
-            const target = await loadOverlay();
-            const schema = {
-                session: { connectors: target.sessionConnectors },
-                definitions: {},
-            };
-            const before = structuredClone(schema);
-
-            expect(() => applyConnectorSessionApiOverlay(schema, "api.schema.json")).toThrow(
-                "partial or unknown upstream contract"
-            );
-            expect(schema).toEqual(before);
-        });
-
-        it("ignores non-API schemas", () => {
-            const schema = { definitions: {} };
-            expect(applyConnectorSessionApiOverlay(schema, "session-events.schema.json")).toBe(
-                schema
-            );
-        });
     });
 
     it("extracts non-empty enum value descriptions from schema extensions", () => {

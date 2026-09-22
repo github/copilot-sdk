@@ -16,6 +16,11 @@ import pytest
 from copilot import _cli_download, _cli_version, _ffi_runtime_host
 
 
+@pytest.fixture(autouse=True)
+def _clear_ambient_skip_download(monkeypatch):
+    monkeypatch.delenv("COPILOT_SKIP_CLI_DOWNLOAD", raising=False)
+
+
 def _release_package(runtime_platform: str) -> bytes:
     wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"
     members = {

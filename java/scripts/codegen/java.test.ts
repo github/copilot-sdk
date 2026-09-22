@@ -1,14 +1,36 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import type { JSONSchema7 } from "json-schema";
 
 import {
     collectNestedDiscriminatedUnionTypeNames,
+    isMainModule,
     renderEventVariantClass,
     renderRpcTypes,
     schemaTypeToJava,
 } from "./java.js";
 import { RPC_VARIANT_OWNERS } from "./rpc-variant-owners.js";
+
+test("recognizes an entrypoint reached through a linked directory", (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-java-codegen-entrypoint-"));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const sourceDirectory = path.join(root, "source");
+    const linkedDirectory = path.join(root, "linked");
+    fs.mkdirSync(sourceDirectory);
+    fs.writeFileSync(path.join(sourceDirectory, "java.ts"), "");
+    fs.symlinkSync(sourceDirectory, linkedDirectory, process.platform === "win32" ? "junction" : "dir");
+
+    assert.equal(
+        isMainModule(
+            path.join(linkedDirectory, "java.ts"),
+            path.join(sourceDirectory, "java.ts"),
+        ),
+        true,
+    );
+});
 
 function renderPayload(dataSchema: JSONSchema7): string {
     return renderEventVariantClass({

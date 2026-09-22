@@ -69,7 +69,7 @@ func TestRPCQueueE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Commands.Enqueue(first) failed: %v", err)
 		}
-		if !first.Queued {
+		if !first.Queued() {
 			t.Fatal("Expected first command to be queued")
 		}
 
@@ -84,7 +84,7 @@ func TestRPCQueueE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Commands.Enqueue(second) failed: %v", err)
 		}
-		if !second.Queued {
+		if !second.Queued() {
 			t.Fatal("Expected second command to be queued")
 		}
 		waitForCommandInPendingItems(t, session, secondCommand)
@@ -102,7 +102,7 @@ func TestRPCQueueE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Commands.Enqueue(third) failed: %v", err)
 		}
-		if !third.Queued {
+		if !third.Queued() {
 			t.Fatal("Expected third command to be queued")
 		}
 		waitForCommandInPendingItems(t, session, thirdCommand)

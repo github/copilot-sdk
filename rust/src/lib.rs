@@ -3,7 +3,7 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
-#[cfg(not(feature = "bundled-cli"))]
+#[cfg(all(not(feature = "bundled-cli"), not(feature = "local-runtime")))]
 mod cache_paths;
 /// Canvas declarations, provider callbacks, and host-side canvas RPC types.
 pub mod canvas;
@@ -15,7 +15,7 @@ mod errors;
 /// Connection-level extension launch profile provider.
 pub mod extension_launch_provider;
 /// In-process FFI transport hosting the runtime cdylib (`Transport::InProcess`).
-#[cfg(feature = "bundled-in-process")]
+#[cfg(feature = "in-process")]
 pub(crate) mod ffi;
 pub use errors::*;
 /// Connection-level Copilot request handler — intercept and replace the
@@ -164,7 +164,8 @@ pub enum Transport {
     /// authentication, log level, and [`ClientOptions::base_directory`] remain
     /// supported.
     ///
-    /// Requires the `bundled-in-process` Cargo feature.
+    /// Requires the `in-process` Cargo feature, enabled by either
+    /// `bundled-in-process` or `local-runtime`.
     InProcess,
     /// Spawn the CLI with `--port` and connect via TCP.
     Tcp {
@@ -1117,7 +1118,7 @@ fn resolve_default_transport_value(value: Option<&str>) -> Result<Transport> {
     }
 }
 
-#[cfg(any(feature = "bundled-in-process", test))]
+#[cfg(any(feature = "in-process", test))]
 fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
     if !matches!(&options.program, CliProgram::Resolve) {
         return Err(Error::with_message(
@@ -1182,7 +1183,7 @@ impl std::fmt::Debug for Client {
 struct ClientInner {
     child: parking_lot::Mutex<Option<Child>>,
     process_tree: parking_lot::Mutex<Option<process_tree::ProcessTree>>,
-    #[cfg(feature = "bundled-in-process")]
+    #[cfg(feature = "in-process")]
     /// In-process FFI runtime host, set only for [`Transport::InProcess`].
     /// Closing it tears down the native runtime connection.
     ffi_host: parking_lot::Mutex<Option<Arc<crate::ffi::FfiShared>>>,
@@ -1248,14 +1249,14 @@ impl Client {
             options.transport = resolve_default_transport(&options)?;
         }
         if matches!(options.transport, Transport::InProcess) {
-            #[cfg(not(feature = "bundled-in-process"))]
+            #[cfg(not(feature = "in-process"))]
             {
                 return Err(Error::with_message(
                     ErrorKind::InvalidConfig,
-                    "Transport::InProcess requires the `bundled-in-process` Cargo feature",
+                    "Transport::InProcess requires the `in-process` Cargo feature",
                 ));
             }
-            #[cfg(feature = "bundled-in-process")]
+            #[cfg(feature = "in-process")]
             validate_inprocess_options(&options)?;
         }
         if options.mode == ClientMode::Empty
@@ -1494,7 +1495,7 @@ impl Client {
                 )?
             }
             Transport::InProcess => {
-                #[cfg(feature = "bundled-in-process")]
+                #[cfg(feature = "in-process")]
                 {
                     info!(runtime_path = %program.display(), "hosting copilot runtime in-process (FFI)");
                     let mut environment = Vec::new();
@@ -1563,7 +1564,7 @@ impl Client {
                     *client.inner.ffi_host.lock() = Some(shared);
                     client
                 }
-                #[cfg(not(feature = "bundled-in-process"))]
+                #[cfg(not(feature = "in-process"))]
                 unreachable!("in-process feature validation returned above")
             }
         };
@@ -1902,7 +1903,7 @@ impl Client {
             inner: Arc::new(ClientInner {
                 child: parking_lot::Mutex::new(child),
                 process_tree: parking_lot::Mutex::new(process_tree),
-                #[cfg(feature = "bundled-in-process")]
+                #[cfg(feature = "in-process")]
                 ffi_host: parking_lot::Mutex::new(None),
                 rpc,
                 cwd,
@@ -2846,7 +2847,7 @@ impl Client {
         self.inner.github_token_registry.clear();
 
         let should_shutdown_runtime = self.inner.child.lock().is_some();
-        #[cfg(feature = "bundled-in-process")]
+        #[cfg(feature = "in-process")]
         let should_shutdown_runtime =
             should_shutdown_runtime || self.inner.ffi_host.lock().is_some();
         if should_shutdown_runtime {
@@ -2914,7 +2915,7 @@ impl Client {
         // Provider registration is scoped to the connection. Closing the
         // transport unregisters it and prevents stale callbacks after stop.
         self.inner.rpc.force_close();
-        #[cfg(feature = "bundled-in-process")]
+        #[cfg(feature = "in-process")]
         {
             if let Some(host) = self.inner.ffi_host.lock().take() {
                 host.close();
@@ -2972,7 +2973,7 @@ impl Client {
             error!(pid = ?pid, error = %e, "failed to send kill signal");
         }
         self.inner.rpc.force_close();
-        #[cfg(feature = "bundled-in-process")]
+        #[cfg(feature = "in-process")]
         {
             if let Some(host) = self.inner.ffi_host.lock().take() {
                 host.close();
@@ -3040,7 +3041,7 @@ impl Drop for ClientInner {
                 info!(pid = ?pid, "kill signal sent for CLI process on drop");
             }
         }
-        #[cfg(feature = "bundled-in-process")]
+        #[cfg(feature = "in-process")]
         {
             if let Some(host) = self.ffi_host.lock().take() {
                 self.rpc.force_close();
@@ -3158,14 +3159,14 @@ mod tests {
         assert!(validate_inprocess_options(&options).is_ok());
     }
 
-    #[cfg(not(feature = "bundled-in-process"))]
+    #[cfg(not(feature = "in-process"))]
     #[tokio::test]
     async fn inprocess_requires_cargo_feature() {
         let error = Client::start(ClientOptions::new().with_transport(Transport::InProcess))
             .await
             .unwrap_err();
 
-        assert!(error.to_string().contains("bundled-in-process"));
+        assert!(error.to_string().contains("in-process"));
     }
 
     #[test]
@@ -3785,7 +3786,7 @@ mod tests {
             inner: Arc::new(ClientInner {
                 child: parking_lot::Mutex::new(None),
                 process_tree: parking_lot::Mutex::new(None),
-                #[cfg(feature = "bundled-in-process")]
+                #[cfg(feature = "in-process")]
                 ffi_host: parking_lot::Mutex::new(None),
                 rpc: {
                     let (req_tx, _req_rx) = mpsc::unbounded_channel();

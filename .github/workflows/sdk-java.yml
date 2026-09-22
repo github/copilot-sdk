@@ -1,0 +1,277 @@
+# Invoked by sdk.yml to run full subprocess Java SDK coverage on supported JDKs,
+# focused in-process smoke coverage across native classifiers, and documentation
+# and generated-client drift checks.
+name: "SDK Java"
+
+env:
+  HUSKY: 0
+  POWERSHELL_UPDATECHECK: Off
+  SDK_HOME: ${{ inputs.sdk-home }}
+  SETUP_NODE_TIMEOUT_MINUTES: 10
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: false
+        type: string
+        default: all
+      runtime-source:
+        required: true
+        type: string
+      sdk-home:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  java:
+    name: "Java (JDK ${{ matrix.test-jdk }})"
+    if: inputs.platform == 'all' || inputs.platform == 'linux-x64'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-jdk: ["25", "17"]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/java
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-sdk-Linux-X64-gnu
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: actions/setup-java@v5
+        with:
+          java-version: "25"
+          distribution: microsoft
+          cache: maven
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - if: matrix.test-jdk == '25'
+        run: ./scripts/test-update-documentation-versions.sh
+      - run: ./mvnw test-compile jar:jar
+      - if: matrix.test-jdk == '25'
+        run: ./mvnw javadoc:javadoc
+      - if: matrix.test-jdk == '25'
+        run: ./mvnw spotless:check
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - if: matrix.test-jdk == '25'
+        env:
+          CI: "true"
+        run: ./mvnw -pl sdk verify -Dskip.test.harness=true -Dcopilot.cli.path="$COPILOT_CLI_PATH"
+      - if: matrix.test-jdk == '17'
+        uses: actions/setup-java@v5
+        with:
+          java-version: "17"
+          distribution: microsoft
+      - if: matrix.test-jdk == '17'
+        env:
+          CI: "true"
+        run: ./mvnw -pl sdk jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true -Dcopilot.cli.path="$COPILOT_CLI_PATH"
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: java-test-results-jdk-${{ matrix.test-jdk }}
+          path: |
+            ${{ inputs.sdk-home }}/java/sdk/target/surefire-reports/
+            ${{ inputs.sdk-home }}/java/sdk/target/surefire-reports-isolated/
+            ${{ inputs.sdk-home }}/java/sdk/target/failsafe-reports/
+          retention-days: 7
+
+  java-inprocess:
+    name: "Java (inprocess, ${{ matrix.classifier }})"
+    if: contains(fromJSON('["all","linux-x64","darwin-arm64","win32-x64"]'), inputs.platform)
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.platform == 'linux-x64' && '[{"os":"ubuntu-latest","classifier":"linux-x64"}]' || inputs.platform == 'darwin-arm64' && '[{"os":"macos-26","classifier":"darwin-arm64"}]' || inputs.platform == 'win32-x64' && '[{"os":"windows-latest","classifier":"win32-x64"}]' || '[{"os":"ubuntu-latest","classifier":"linux-x64"},{"os":"windows-latest","classifier":"win32-x64"},{"os":"macos-26","classifier":"darwin-arm64"}]') }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/java
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ runner.os == 'Linux' && format('executable-sdk-{0}-{1}-gnu', runner.os, runner.arch) || format('executable-sdk-{0}-{1}', runner.os, runner.arch) }}
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: actions/setup-java@v5
+        with:
+          java-version: "25"
+          distribution: microsoft
+          cache: maven
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - env:
+          CI: "true"
+          MAVEN_ARGS: ${{ matrix.maven-args }}
+        run: >-
+          ./mvnw clean verify -Pinprocess
+          -Dtest=NoTestsForInProcessSmoke
+          -Dsurefire.failIfNoSpecifiedTests=false
+          -Dit.test=InProcessTransportIT
+          -Dcopilot.inprocess.cli.path="$COPILOT_CLI_PATH"
+          $MAVEN_ARGS
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: java-test-results-inprocess-${{ matrix.classifier }}
+          path: |
+            ${{ inputs.sdk-home }}/java/sdk/target/surefire-reports/
+            ${{ inputs.sdk-home }}/java/sdk/target/surefire-reports-isolated/
+            ${{ inputs.sdk-home }}/java/sdk/target/failsafe-reports/
+          retention-days: 7
+
+  java-inprocess-musl-x64:
+    name: "Java (inprocess, linuxmusl-x64)"
+    if: inputs.platform == 'all' || inputs.platform == 'linuxmusl-x64'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-sdk-Linux-X64-musl
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore
+        working-directory: .
+      - name: Run Java SDK tests (InProcess, musl)
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --workdir "/workspace/$SDK_HOME/java" \
+            --env CI=true \
+            --env COPILOT_HMAC_KEY \
+            --env GITHUB_ACTIONS=true \
+            --env GITHUB_WORKSPACE=/workspace \
+            --env SDK_HOME="/workspace/$SDK_HOME" \
+            eclipse-temurin:25-jdk-alpine \
+            sh -c 'set -eux
+              apk add --no-cache git java-cacerts maven nodejs npm
+              export JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+              git config --global --add safe.directory /workspace
+              export GITHUB_ENV=/tmp/copilot-sdk-runtime.env
+              export COPILOT_RUNTIME_TARGET=linuxmusl-x64
+              export COPILOT_RUNTIME_OUTPUT_DIRECTORY=/workspace/.sdk-runtime/linuxmusl-x64
+              node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+              set -a
+              . "$GITHUB_ENV"
+              set +a
+              node copilot-native/scripts/validate-native-host.mjs linuxmusl-x64
+              ./mvnw clean verify -Pinprocess \
+                -Dtest=NoTestsForInProcessSmoke \
+                -Dsurefire.failIfNoSpecifiedTests=false \
+                -Dit.test=InProcessTransportIT \
+                -Dcopilot.native.libc=musl \
+                -Dcopilot.inprocess.cli.path="$COPILOT_CLI_PATH"'
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: java-test-results-inprocess-linuxmusl-x64
+          path: |
+            ${{ inputs.sdk-home }}/java/sdk/target/surefire-reports/
+            ${{ inputs.sdk-home }}/java/sdk/target/surefire-reports-isolated/
+            ${{ inputs.sdk-home }}/java/sdk/target/failsafe-reports/
+          retention-days: 7
+
+  java-codegen:
+    name: "Generated Java client"
+    if: inputs.platform == 'all' || inputs.platform == 'docs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - if: inputs.runtime-source == 'checkout'
+        uses: ./.github/actions/setup-node
+        timeout-minutes: ${{ fromJSON(env.SETUP_NODE_TIMEOUT_MINUTES) }}
+        with:
+          install-deps: "false"
+      - if: inputs.runtime-source == 'checkout'
+        uses: ./.github/actions/setup-rust-cache
+        timeout-minutes: 8
+        continue-on-error: true
+        with:
+          cache-key: sdk-java-codegen
+      - if: inputs.runtime-source == 'published'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: ${{ inputs.sdk-home }}/java/scripts/codegen
+      - if: inputs.runtime-source == 'checkout'
+        run: npm --prefix "$SDK_HOME" run generate:java
+      - if: inputs.runtime-source == 'published'
+        run: npm run generate
+        working-directory: ${{ inputs.sdk-home }}/java/scripts/codegen
+      - env:
+          RUNTIME_SOURCE: ${{ inputs.runtime-source }}
+        run: |
+          paths=("$SDK_HOME/java/sdk/src/generated")
+          if [[ "$RUNTIME_SOURCE" == "checkout" ]]; then
+            paths+=(generated)
+          fi
+          changes=$(git status --porcelain -- "${paths[@]}")
+          if [[ -n "$changes" ]]; then
+            echo "::error::Generated Java client is out of date."
+            echo "$changes"
+            git diff --stat -- "${paths[@]}"
+            git diff -- "${paths[@]}"
+            exit 1
+          fi
+      - env:
+          PROTOCOL_FILE: ${{ inputs.sdk-home }}/sdk-protocol-version.json
+          JAVA_PROTOCOL_FILE: ${{ inputs.sdk-home }}/java/sdk/src/main/java/com/github/copilot/SdkProtocolVersion.java
+        run: |
+          expected=$(jq -r '.version' "$PROTOCOL_FILE")
+          actual=$(sed -n 's/.*LATEST(\([0-9][0-9]*\)).*/\1/p' "$JAVA_PROTOCOL_FILE")
+          test "$expected" = "$actual"
+
+  docs-java:
+    name: "Docs (Java)"
+    if: inputs.platform == 'all' || inputs.platform == 'docs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v5
+        with:
+          distribution: microsoft
+          java-version: "25"
+          cache: maven
+      - run: ./mvnw install -Dmaven.test.skip=true -Dskip.test.harness=true -Dcopilot.native.skip.download=true
+        working-directory: ${{ inputs.sdk-home }}/java
+      - run: npm ci
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
+      - run: npm run extract && npm run validate:java
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation

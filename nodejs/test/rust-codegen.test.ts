@@ -2,7 +2,23 @@ import type { ApiSchema } from "../../scripts/codegen/utils.ts";
 import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
-import { generateApiTypesCode, generateSessionEventsCode } from "../../scripts/codegen/rust.ts";
+import {
+    generateApiTypesCode,
+    generateSessionEventsCode,
+    isRustCodegenEntrypoint,
+} from "../../scripts/codegen/rust.ts";
+
+describe("Rust codegen entrypoint", () => {
+    it("matches Windows paths case-insensitively", () => {
+        expect(
+            isRustCodegenEntrypoint(
+                "C:\\a\\copilot-agent-runtime\\src\\sdk\\scripts\\codegen\\rust.ts",
+                "c:\\a\\copilot-agent-runtime\\src\\sdk\\scripts\\codegen\\rust.ts",
+                "win32"
+            )
+        ).toBe(true);
+    });
+});
 
 describe("Rust API type codegen", () => {
     it.each([true, false])(
@@ -94,6 +110,57 @@ describe("Rust API type codegen", () => {
 
         expect(code).toContain("pub use super::session_events::{PermissionDecisionSource};");
         expect(code).toContain("use crate::types::{RequestId, SessionId};");
+    });
+
+    it("emits the enqueue result union discriminated by queued", () => {
+        const code = generateApiTypesCode({
+            definitions: {
+                AcceptedEnqueueCommandResult: {
+                    type: "object",
+                    required: ["queued", "queueId"],
+                    properties: {
+                        queued: { type: "boolean", const: true },
+                        queueId: { type: "string" },
+                    },
+                },
+                UnsupportedEnqueueCommandResult: {
+                    type: "object",
+                    required: ["queued"],
+                    properties: {
+                        queued: { type: "boolean", const: false },
+                        queueId: { type: ["string", "null"] },
+                    },
+                },
+                EnqueueCommandResult: {
+                    anyOf: [
+                        { $ref: "#/definitions/AcceptedEnqueueCommandResult" },
+                        { $ref: "#/definitions/UnsupportedEnqueueCommandResult" },
+                    ],
+                    title: "EnqueueCommandResult",
+                },
+            },
+        } as ApiSchema);
+
+        expect(code).toContain("#[serde(untagged)]");
+        expect(code).toContain("pub enum EnqueueCommandResult {");
+        expect(code).toContain("True(AcceptedEnqueueCommandResult),");
+        expect(code).toContain("False(UnsupportedEnqueueCommandResult),");
+        expect(code).toContain(
+            'deserialize_with = "AcceptedEnqueueCommandResult::deserialize_queued", serialize_with = "AcceptedEnqueueCommandResult::serialize_queued"'
+        );
+        expect(code).toContain(
+            'deserialize_with = "UnsupportedEnqueueCommandResult::deserialize_queued", serialize_with = "UnsupportedEnqueueCommandResult::serialize_queued"'
+        );
+        expect(code).toContain('serde::de::Error::custom("expected true")');
+        expect(code).toContain('serde::ser::Error::custom("expected true")');
+        expect(code).toContain('serde::de::Error::custom("expected false")');
+        expect(code).toContain('serde::ser::Error::custom("expected false")');
+        expect(code).toContain("if !value {");
+        expect(code).toContain("if !*value {");
+        expect(code).toContain("if value {");
+        expect(code).toContain("if *value {");
+        expect(code).not.toMatch(/\bvalue != (?:true|false)\b/);
+        expect(code).not.toMatch(/\*value != (?:true|false)\b/);
     });
 
     it.each([

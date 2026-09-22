@@ -170,8 +170,8 @@ type AgentGetCurrentResult struct {
 	Agent *AgentInfo `json:"agent,omitempty"`
 }
 
-// Agent metadata, including identifiers, display details, source, tools, model, models, MCP
-// servers, skills, and file path.
+// Agent metadata, including identifiers, display details, source, tools, model, models,
+// reasoning effort, MCP servers, skills, and file path.
 // Experimental: AgentInfo is part of an experimental API and may change or be removed.
 type AgentInfo struct {
 	// Description of the agent's purpose
@@ -204,6 +204,9 @@ type AgentInfo struct {
 	// Authored base prompt for the agent. Runtime prompt assembly may add dynamic context at
 	// invocation time. Omitted from `session.agent.list` unless `includePrompt` is true.
 	Prompt *string `json:"prompt,omitempty"`
+	// Authored reasoning effort for this agent. Applied on selection to models that support it;
+	// omitted means no authored preference.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Skill names preloaded into this agent's context. Omitted means none.
 	Skills []string `json:"skills,omitzero"`
 	// Where the agent definition was loaded from
@@ -283,18 +286,20 @@ type AgentRegistryLiveTargetEntry struct {
 	Token *string `json:"token,omitempty"`
 }
 
-// Per-spawn log-capture outcome; populated from spawnLiveTarget.
+// Canonical process-log discovery outcome; populated from spawnLiveTarget.
 // Experimental: AgentRegistryLogCapture is part of an experimental API and may change or be
 // removed.
 type AgentRegistryLogCapture struct {
-	// Whether per-spawn log capture is on (false when env-disabled or open failed)
+	// Whether a canonical process log was discovered for this managed spawn
 	Enabled bool `json:"enabled"`
-	// Human-readable open failure message (only set when enabled === false AND the env-disable
-	// opt-out was NOT used)
+	// Why no canonical process log could be opened for this managed spawn (set only when
+	// enabled is false)
 	OpenError *string `json:"openError,omitempty"`
-	// Categorized reason for log-open failure
+	// Categorized reason no canonical process log could be opened (set only when enabled is
+	// false)
 	OpenErrorReason *AgentRegistryLogCaptureOpenErrorReason `json:"openErrorReason,omitempty"`
-	// Absolute path to the per-spawn log file (only set when enabled)
+	// Absolute path to the managed spawn's process-<timestamp>-<pid>.log file (only set when
+	// enabled)
 	Path *string `json:"path,omitempty"`
 }
 
@@ -2641,6 +2646,17 @@ type ConnectorAccountRequest struct {
 	AccountID string `json:"accountId"`
 }
 
+// Account-targeted authorization update required by the Connector service. The account ID
+// is an opaque host routing identifier; no credential is included.
+// Experimental: ConnectorAuthorizationRequirement is part of an experimental API and may
+// change or be removed.
+type ConnectorAuthorizationRequirement struct {
+	// Exact opaque account selection that made the Connector request.
+	AccountID string `json:"accountId"`
+	// Stable OAuth scope the selected account must grant.
+	Scope ConnectorAuthorizationScope `json:"scope"`
+}
+
 // Feature detection and hard polling limits for the EXPERIMENTAL session connector API.
 // Experimental: ConnectorCapabilities is part of an experimental API and may change or be
 // removed.
@@ -2814,6 +2830,9 @@ type ConnectorStatus struct {
 	AccountID *string `json:"accountId,omitempty"`
 	// Connector API contract version.
 	APIVersion int64 `json:"apiVersion"`
+	// Exact selected account and stable scope requiring an authorization update, when proven by
+	// the Connector service.
+	AuthorizationRequirement *ConnectorAuthorizationRequirement `json:"authorizationRequirement,omitempty"`
 	// Current feature and session availability.
 	Availability ConnectorAvailability `json:"availability"`
 	// Latest validated catalog snapshot, when available.
@@ -2842,12 +2861,14 @@ type ConnectRequest struct {
 	// external use.
 	ClientInfo *ConnectClientInfo `json:"clientInfo,omitempty"`
 	// Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the
-	// runtime forwards every internal telemetry event it emits — across all sessions, plus
-	// sessionless events — to this connection over the `gitHubTelemetry.event` notification.
-	// Regular events are also written to the runtime's normal GitHub/CTS path (dual-write);
-	// host-only compatibility events are forward-only and intentionally skip that path.
-	// Intended for first-party hosts that re-emit the events into their own telemetry stores.
-	// Both unrestricted and restricted events are forwarded, each tagged with a `restricted`
+	// runtime forwards this host's telemetry across all its sessions, its sessionless events,
+	// and explicitly process-wide events over the `gitHubTelemetry.event` notification.
+	// Connections intentionally sharing one server receive that server's events; independently
+	// embedded runtime hosts do not receive each other's host-owned events. Regular events are
+	// also written to the runtime's normal GitHub/CTS path (dual-write); host-only
+	// compatibility events are forward-only and intentionally skip that path. Intended for
+	// first-party hosts that re-emit the events into their own telemetry stores. Both
+	// unrestricted and restricted events are forwarded, each tagged with a `restricted`
 	// discriminator; a backstop drops restricted events when restricted telemetry is disabled —
 	// using the process-global gate for ordinary events and an explicit session-scoped decision
 	// for host-only events.
@@ -2950,7 +2971,8 @@ type CopilotUserResponse struct {
 	CopilotPlan *string `json:"copilot_plan,omitempty"`
 	// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
 	Endpoints *CopilotUserResponseEndpoints `json:"endpoints,omitempty"`
-	// Enterprises that provide the user's Copilot license, each with a stable numeric ID.
+	// Enterprises that provide the user's Copilot license; malformed entries are normalized to
+	// null or ID-less shapes.
 	EnterpriseList []CopilotUserResponseEnterpriseListItem `json:"enterprise_list,omitzero"`
 	// Whether MCP (Model Context Protocol) support is enabled for the user.
 	IsMCPEnabled *bool `json:"is_mcp_enabled,omitempty"`
@@ -3003,8 +3025,8 @@ type CopilotUserResponseEndpoints struct {
 }
 
 type CopilotUserResponseEnterpriseListItem struct {
-	// Numeric database ID of the enterprise.
-	ID int64 `json:"id"`
+	// JavaScript-safe numeric database ID of the enterprise.
+	ID *int64 `json:"id,omitempty"`
 }
 
 type CopilotUserResponseOrganizationListItem struct {
@@ -3456,10 +3478,33 @@ type EnqueueCommandParams struct {
 // Indicates whether the command was accepted into the local execution queue.
 // Experimental: EnqueueCommandResult is part of an experimental API and may change or be
 // removed.
-type EnqueueCommandResult struct {
-	// True when the command was accepted into the local execution queue. False when the call
-	// targets a session that does not support local command queueing (e.g. remote sessions).
-	Queued bool `json:"queued"`
+type EnqueueCommandResult interface {
+	enqueueCommandResult()
+	Queued() bool
+}
+
+// Experimental: AcceptedEnqueueCommandResult is part of an experimental API and may change
+// or be removed.
+type AcceptedEnqueueCommandResult struct {
+	// Stable opaque ID of the queued command.
+	QueueID string `json:"queueId"`
+}
+
+func (AcceptedEnqueueCommandResult) enqueueCommandResult() {}
+func (AcceptedEnqueueCommandResult) Queued() bool {
+	return true
+}
+
+// Experimental: UnsupportedEnqueueCommandResult is part of an experimental API and may
+// change or be removed.
+type UnsupportedEnqueueCommandResult struct {
+	// Legacy null queue ID accepted for compatibility with older runtimes.
+	QueueID any `json:"queueId,omitempty"`
+}
+
+func (UnsupportedEnqueueCommandResult) enqueueCommandResult() {}
+func (UnsupportedEnqueueCommandResult) Queued() bool {
+	return false
 }
 
 // Cursor, batch size, and optional long-poll/filter parameters for reading session events.
@@ -8276,6 +8321,8 @@ type ModelCapabilitiesOverrideSupports struct {
 	AdaptiveThinking *AdaptiveThinkingSupport `json:"adaptive_thinking,omitempty"`
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
+	// Whether this model supports canonical tool calling
+	ToolCalls *bool `json:"toolCalls,omitempty"`
 	// Whether this model supports vision/image input
 	Vision *bool `json:"vision,omitempty"`
 }
@@ -8291,6 +8338,8 @@ type ModelCapabilitiesSupports struct {
 	AdaptiveThinking *AdaptiveThinkingSupport `json:"adaptive_thinking,omitempty"`
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
+	// Whether this model supports canonical tool calling
+	ToolCalls *bool `json:"toolCalls,omitempty"`
 	// Whether this model supports vision/image input
 	Vision *bool `json:"vision,omitempty"`
 }
@@ -8488,7 +8537,8 @@ type ModelSwitchToRequest struct {
 	PickerPersistence *ModelPickerPersistenceRequest `json:"pickerPersistence,omitempty"`
 	// Reasoning effort level to use for the model. CAPI values are model-defined and validated
 	// against the selected model; BYOK providers may define additional values. "none" disables
-	// reasoning. When omitted, no effort override is applied.
+	// reasoning. Pass null to clear any session effort override and fall back to the model's
+	// default. When omitted, the session's current effort is kept.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode to request for supported model clients
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
@@ -9480,7 +9530,8 @@ type PermissionPathsConfig struct {
 	WorkspacePath *string `json:"workspacePath,omitempty"`
 }
 
-// Snapshot of the session's allow-listed directories and primary working directory.
+// Snapshot of the session's recursive directory grants, exact session-approved paths, and
+// primary working directory.
 // Experimental: PermissionPathsList is part of an experimental API and may change or be
 // removed.
 type PermissionPathsList struct {
@@ -9488,6 +9539,8 @@ type PermissionPathsList struct {
 	Directories []string `json:"directories"`
 	// The primary working directory for this session.
 	Primary string `json:"primary"`
+	// Exact paths approved for this session without recursively allowing their descendants.
+	SessionApprovedPaths []string `json:"sessionApprovedPaths,omitzero"`
 }
 
 // Directory path to set as the session's new primary working directory.
@@ -9918,7 +9971,8 @@ type PermissionsPathsAddResult struct {
 	Success bool `json:"success"`
 }
 
-// No parameters; returns the session's allow-listed directories.
+// No parameters; returns the session's recursive directory grants and exact
+// session-approved paths.
 // Experimental: PermissionsPathsListRequest is part of an experimental API and may change
 // or be removed.
 type PermissionsPathsListRequest struct {
@@ -9938,11 +9992,13 @@ type PermissionsPathsUpdatePrimaryResult struct {
 type PermissionsPendingRequestsRequest struct {
 }
 
-// Clears session-scoped tool permission approvals, and optionally the location-scoped ones.
+// Clears session-scoped tool approvals and optionally clears location-scoped approvals and
+// exact session-approved paths.
 // Experimental: PermissionsResetSessionApprovalsRequest is part of an experimental API and
 // may change or be removed.
 type PermissionsResetSessionApprovalsRequest struct {
-	// Whether location-scoped approvals are cleared too. Defaults to `true`.
+	// Whether location-scoped approvals and exact session-approved paths are cleared too.
+	// Defaults to `true`.
 	IncludeLocation *bool `json:"includeLocation,omitempty"`
 }
 
@@ -10633,6 +10689,8 @@ type ProviderModelConfig struct {
 	MaxOutputTokens *float64 `json:"maxOutputTokens,omitempty"`
 	// Maximum prompt/input tokens for the model.
 	MaxPromptTokens *float64 `json:"maxPromptTokens,omitempty"`
+	// Provider-published model metadata, preserved verbatim as the public Model.metadata object.
+	Metadata map[string]any `json:"metadata,omitzero"`
 	// Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
 	ModelID *string `json:"modelId,omitempty"`
 	// Display name for model pickers. Defaults to the provider-qualified selection id
@@ -10666,6 +10724,33 @@ type ProviderSessionToken struct {
 	Model *string `json:"model,omitempty"`
 	// The short-lived token value.
 	Token string `json:"token"`
+}
+
+// Authoritative BYOK provider and model registry snapshot to apply atomically to the
+// session.
+// Experimental: ProviderSyncRequest is part of an experimental API and may change or be
+// removed.
+type ProviderSyncRequest struct {
+	// BYOK model definition snapshot. Models absent from this list are removed.
+	Models []ProviderModelConfig `json:"models,omitzero"`
+	// Named BYOK provider connection snapshot. Providers absent from this list are removed.
+	Providers []NamedProviderConfig `json:"providers,omitzero"`
+}
+
+// The selectable model entries and selection ids synthesized for the synchronized BYOK
+// models.
+// Experimental: ProviderSyncResult is part of an experimental API and may change or be
+// removed.
+type ProviderSyncResult struct {
+	// True when synchronization withdrew the selected host-managed model, leaving the session
+	// with no explicit selection, so ordinary model resolution picks the session default.
+	// Synchronization never promotes a surviving host model in its place: publishing a model
+	// offers it, and the choice of which model to use stays with the user.
+	ModelDeselected *bool `json:"modelDeselected,omitempty"`
+	// Synthesized selectable model entries for the synchronized BYOK models.
+	Models []any `json:"models"`
+	// Provider-qualified model selection ids present after synchronization.
+	SelectionIDs []string `json:"selectionIds"`
 }
 
 // Asks the SDK client to acquire a bearer token for a BYOK provider whose config set
@@ -13572,6 +13657,9 @@ type SessionOpenOptions struct {
 	// Internal: HasSkillProvider is part of the SDK's internal API surface and is not intended
 	// for external use.
 	HasSkillProvider *bool `json:"hasSkillProvider,omitempty"`
+	// Skill scan directories and descendants excluded from discovery. Supports `~`-relative
+	// paths.
+	IgnoredSkillsLocations []string `json:"ignoredSkillsLocations,omitzero"`
 	// Built-in subagent names to include in this session. When specified, only these built-ins
 	// are available, subject to runtime availability and exclusions. Custom agents with the
 	// same name remain available.
@@ -14842,6 +14930,9 @@ type SessionUpdateOptionsParams struct {
 	ExcludedTools []string `json:"excludedTools,omitzero"`
 	// Map of feature-flag IDs to their boolean enabled state.
 	FeatureFlags map[string]bool `json:"featureFlags,omitzero"`
+	// Skill scan directories and descendants excluded from discovery. Supports `~`-relative
+	// paths.
+	IgnoredSkillsLocations []string `json:"ignoredSkillsLocations,omitzero"`
 	// Built-in subagent names to include in this session. When specified, only these built-ins
 	// are available, subject to runtime availability and exclusions. Custom agents with the
 	// same name remain available. Set to null to remove the allowlist restriction.
@@ -15372,6 +15463,8 @@ type SkillsDiscoverRequest struct {
 	// When true, omit skills from the host's global sources (personal, custom, plugin, and
 	// built-in), returning only project-scoped skills. For multitenant deployments.
 	ExcludeHostSkills *bool `json:"excludeHostSkills,omitempty"`
+	// Optional skill scan paths to exclude from discovery.
+	IgnoredSkillsLocations []string `json:"ignoredSkillsLocations,omitzero"`
 	// Optional list of project directory paths to scan for project-scoped skills
 	ProjectPaths []string `json:"projectPaths,omitzero"`
 	// Optional list of additional skill directory paths to include
@@ -15393,6 +15486,8 @@ type SkillsGetDiscoveryPathsRequest struct {
 	// When true, omit the host's personal and custom skill directories, leaving only project
 	// directories. For multitenant deployments.
 	ExcludeHostSkills *bool `json:"excludeHostSkills,omitempty"`
+	// Optional skill scan paths to exclude from discovery.
+	IgnoredSkillsLocations []string `json:"ignoredSkillsLocations,omitzero"`
 	// Optional list of project directory paths. When omitted or empty, only personal and custom
 	// directories are returned.
 	ProjectPaths []string `json:"projectPaths,omitzero"`
@@ -15742,6 +15837,9 @@ type SubagentSettingsEntry struct {
 // Experimental: SystemMessageBlock is part of an experimental API and may change or be
 // removed.
 type SystemMessageBlock struct {
+	// Whether providers with explicit prompt caching should place a cache breakpoint after this
+	// block.
+	CacheBreakpoint *bool `json:"cacheBreakpoint,omitempty"`
 	// Text content for this system-message block.
 	Content string `json:"content"`
 	// Whether the block is static and may be cached independently of dynamic prompt content.
@@ -16374,6 +16472,11 @@ type Tool struct {
 	NamespacedName *string `json:"namespacedName,omitempty"`
 	// JSON Schema for the tool's input parameters
 	Parameters map[string]any `json:"parameters,omitzero"`
+	// Telemetry-safety policy for the tool name and input names, not input values. Treat
+	// omitted metadata as unsafe.
+	// Experimental: SafeForTelemetry is part of an experimental API and may change or be
+	// removed.
+	SafeForTelemetry BuiltinToolSafeForTelemetry `json:"safeForTelemetry,omitempty"`
 }
 
 // Built-in tools available for the requested model, with their parameters and instructions.
@@ -18671,7 +18774,7 @@ const (
 	AgentRegistryLiveTargetEntryStatusWorking AgentRegistryLiveTargetEntryStatus = "working"
 )
 
-// Categorized reason for log-open failure
+// Categorized reason no canonical process log could be opened
 // Experimental: AgentRegistryLogCaptureOpenErrorReason is part of an experimental API and
 // may change or be removed.
 type AgentRegistryLogCaptureOpenErrorReason string
@@ -19464,6 +19567,16 @@ const (
 	ConnectedRemoteSessionMetadataKindCodingAgent ConnectedRemoteSessionMetadataKind = "coding-agent"
 	// Remote CLI session.
 	ConnectedRemoteSessionMetadataKindRemoteSession ConnectedRemoteSessionMetadataKind = "remote-session"
+)
+
+// Stable OAuth scope whose absence prevents Connector management.
+// Experimental: ConnectorAuthorizationScope is part of an experimental API and may change
+// or be removed.
+type ConnectorAuthorizationScope string
+
+const (
+	// Allows Copilot to manage Connector connections and use their tools.
+	ConnectorAuthorizationScopeWritePluginGatewayConnections ConnectorAuthorizationScope = "write_plugin_gateway_connections"
 )
 
 // Availability of the EXPERIMENTAL session connector API.
@@ -25273,7 +25386,7 @@ type CommandsAPI sessionAPI
 // Parameters: Slash-prefixed command string to enqueue for FIFO processing.
 //
 // Returns: Indicates whether the command was accepted into the local execution queue.
-func (a *CommandsAPI) Enqueue(ctx context.Context, params *EnqueueCommandParams) (*EnqueueCommandResult, error) {
+func (a *CommandsAPI) Enqueue(ctx context.Context, params *EnqueueCommandParams) (EnqueueCommandResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["command"] = params.Command
@@ -25285,11 +25398,11 @@ func (a *CommandsAPI) Enqueue(ctx context.Context, params *EnqueueCommandParams)
 	if err != nil {
 		return nil, err
 	}
-	var result EnqueueCommandResult
-	if err := json.Unmarshal(raw, &result); err != nil {
+	result, err := unmarshalEnqueueCommandResult(raw)
+	if err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return result, nil
 }
 
 // Executes a slash command synchronously and returns any error.
@@ -28294,6 +28407,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.FeatureFlags != nil {
 			req["featureFlags"] = params.FeatureFlags
 		}
+		if params.IgnoredSkillsLocations != nil {
+			req["ignoredSkillsLocations"] = params.IgnoredSkillsLocations
+		}
 		if params.IncludedBuiltinAgents != nil {
 			req["includedBuiltinAgents"] = params.IncludedBuiltinAgents
 		}
@@ -28568,12 +28684,13 @@ func (a *PermissionsAPI) PendingRequests(ctx context.Context) (*PendingPermissio
 	return &result, nil
 }
 
-// ResetSessionApprovals clears session-scoped tool permission approvals.
+// ResetSessionApprovals clears session-scoped tool approvals and, for full resets, exact
+// session-approved paths.
 //
 // RPC method: session.permissions.resetSessionApprovals.
 //
-// Parameters: Clears session-scoped tool permission approvals, and optionally the
-// location-scoped ones.
+// Parameters: Clears session-scoped tool approvals and optionally clears location-scoped
+// approvals and exact session-approved paths.
 //
 // Returns: Indicates whether the operation succeeded.
 func (a *PermissionsAPI) ResetSessionApprovals(ctx context.Context, params *PermissionsResetSessionApprovalsRequest) (*PermissionsResetSessionApprovalsResult, error) {
@@ -28892,11 +29009,13 @@ func (a *PermissionsPathsAPI) IsPathWithinWorkspace(ctx context.Context, params 
 	return &result, nil
 }
 
-// List returns the session's allowed directories and primary working directory.
+// List returns the session's recursive directory grants, exact session-approved paths, and
+// primary working directory.
 //
 // RPC method: session.permissions.paths.list.
 //
-// Returns: Snapshot of the session's allow-listed directories and primary working directory.
+// Returns: Snapshot of the session's recursive directory grants, exact session-approved
+// paths, and primary working directory.
 func (a *PermissionsPathsAPI) List(ctx context.Context) (*PermissionPathsList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request(ctx, "session.permissions.paths.list", req)
@@ -29449,6 +29568,38 @@ func (a *ProviderAPI) GetEndpoint(ctx context.Context, params ...*SessionProvide
 		return nil, err
 	}
 	var result ProviderEndpoint
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Sync atomically updates the session's BYOK provider and model registry by applying the
+// supplied snapshot, replacing existing entries, updating models, or removing entries
+// absent from the snapshot.
+//
+// RPC method: session.provider.sync.
+//
+// Parameters: Authoritative BYOK provider and model registry snapshot to apply atomically
+// to the session.
+//
+// Returns: The selectable model entries and selection ids synthesized for the synchronized
+// BYOK models.
+func (a *ProviderAPI) Sync(ctx context.Context, params *ProviderSyncRequest) (*ProviderSyncResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Models != nil {
+			req["models"] = params.Models
+		}
+		if params.Providers != nil {
+			req["providers"] = params.Providers
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.provider.sync", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ProviderSyncResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -32351,6 +32502,60 @@ func (a *InternalCommandsAPI) FinalizeInvocationEffect(ctx context.Context, para
 	return &result, nil
 }
 
+// Experimental: InternalConnectorsAPI contains experimental APIs that may change or be
+// removed.
+type InternalConnectorsAPI internalSessionAPI
+
+// ReconcileForStartup reconciles the authoritative Connector catalog into the session MCP
+// projection during startup with a bounded deadline and fail-closed cleanup.
+//
+// RPC method: session.connectors.reconcileForStartup.
+//
+// Parameters: Pins a Connector operation to one host-owned GitHub account through its
+// opaque selection ID. Provider tokens are never accepted.
+//
+// Returns: Authoritative session connector state. Account IDs are opaque routing
+// identifiers and credentials are never included.
+// Internal: ReconcileForStartup is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalConnectorsAPI) ReconcileForStartup(ctx context.Context, params *ConnectorAccountRequest) (*ConnectorStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["accountId"] = params.AccountID
+	}
+	raw, err := a.client.Request(ctx, "session.connectors.reconcileForStartup", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ConnectorStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// WithdrawProjection removes the runtime-owned Connector MCP projection without changing
+// service-side connections.
+//
+// RPC method: session.connectors.withdrawProjection.
+//
+// Returns: Authoritative session connector state. Account IDs are opaque routing
+// identifiers and credentials are never included.
+// Internal: WithdrawProjection is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalConnectorsAPI) WithdrawProjection(ctx context.Context) (*ConnectorStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.connectors.withdrawProjection", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ConnectorStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: InternalFactoryAPI contains experimental APIs that may change or be removed.
 type InternalFactoryAPI internalSessionAPI
 
@@ -33342,6 +33547,7 @@ type InternalSessionRPC struct {
 
 	Canvas     *InternalCanvasAPI
 	Commands   *InternalCommandsAPI
+	Connectors *InternalConnectorsAPI
 	Factory    *InternalFactoryAPI
 	GitHubAuth *InternalGitHubAuthAPI
 	MCP        *InternalMCPAPI
@@ -33389,6 +33595,7 @@ func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalS
 	r.common = internalSessionAPI{client: client, sessionID: sessionID}
 	r.Canvas = (*InternalCanvasAPI)(&r.common)
 	r.Commands = (*InternalCommandsAPI)(&r.common)
+	r.Connectors = (*InternalConnectorsAPI)(&r.common)
 	r.Factory = (*InternalFactoryAPI)(&r.common)
 	r.GitHubAuth = (*InternalGitHubAuthAPI)(&r.common)
 	r.MCP = (*InternalMCPAPI)(&r.common)
@@ -34098,8 +34305,9 @@ type ExtensionLaunchProviderHandler interface {
 type GitHubTelemetryHandler interface {
 	// Event forwards a single GitHub telemetry event to a host connection that opted into
 	// telemetry forwarding during the `server.connect` handshake. Opted-in connections receive
-	// every event the runtime emits after the handshake — across all sessions, plus sessionless
-	// events (for example, `server.sendTelemetry` calls with no session id).
+	// their runtime host's events across all its sessions, its sessionless events (for example,
+	// `server.sendTelemetry`), and explicitly process-wide events. Events owned by another
+	// independently embedded runtime host are not forwarded to this connection.
 	//
 	// RPC method: gitHubTelemetry.event.
 	//

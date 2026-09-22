@@ -1,0 +1,163 @@
+# Invoked by sdk.yml to run Node.js SDK builds, tests, packaging checks,
+# documentation validation, full subprocess coverage, and focused in-process
+# smoke coverage on standard platforms and x64 musl.
+name: "SDK Node.js"
+
+env:
+  HUSKY: 0
+  POWERSHELL_UPDATECHECK: Off
+  SDK_HOME: ${{ inputs.sdk-home }}
+  SETUP_NODE_TIMEOUT_MINUTES: 10
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: false
+        type: string
+        default: all
+      sdk-home:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  nodejs:
+    name: "Node.js (${{ matrix.os }}, ${{ matrix.transport }})"
+    if: contains(fromJSON('["all","linux-x64","darwin-arm64","win32-x64"]'), inputs.platform)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.platform == 'linux-x64' && '["ubuntu-latest"]' || inputs.platform == 'darwin-arm64' && '["macos-latest"]' || inputs.platform == 'win32-x64' && '["windows-latest"]' || '["ubuntu-latest","macos-latest","windows-latest"]') }}
+        transport: [default, inprocess]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/nodejs
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ runner.os == 'Linux' && format('executable-sdk-{0}-{1}-gnu', runner.os, runner.arch) || format('executable-sdk-{0}-{1}', runner.os, runner.arch) }}
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ inputs.sdk-home }}/nodejs/package-lock.json
+      - run: npm ci --ignore-scripts
+      - if: runner.os == 'Linux' && matrix.transport == 'default'
+        run: npm run format:check
+      - if: runner.os == 'Linux' && matrix.transport == 'default'
+        run: npm run lint
+      - if: runner.os == 'Linux' && matrix.transport == 'default'
+        run: npm run typecheck
+      - run: npm run build
+      - if: runner.os == 'Linux' && matrix.transport == 'default'
+        env:
+          COPILOT_SDK_RUNTIME_PLATFORMS: linux-x64
+        run: |
+          npm run pack:release
+          npm run verify:release-packages
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - if: runner.os == 'Linux' && matrix.transport == 'default'
+        run: npm test
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - if: runner.os == 'Linux' && matrix.transport == 'default'
+        run: npm ci
+        working-directory: ${{ inputs.sdk-home }}/scripts/corrections
+      - if: runner.os == 'Linux' && matrix.transport == 'default'
+        run: npm test
+        working-directory: ${{ inputs.sdk-home }}/scripts/corrections
+      - if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+      - env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_SDK_DEFAULT_CONNECTION: ${{ matrix.transport == 'inprocess' && 'inprocess' || '' }}
+        run: |
+          if [ "$COPILOT_SDK_DEFAULT_CONNECTION" = "inprocess" ]; then
+            npm test -- test/e2e/inprocess_ffi.e2e.test.ts
+          else
+            npm test
+          fi
+
+  nodejs-musl-x64:
+    name: "Node.js (Alpine x64, ${{ matrix.transport }})"
+    if: inputs.platform == 'all' || inputs.platform == 'linuxmusl-x64'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: [default, inprocess]
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-sdk-Linux-X64-musl
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore
+        working-directory: .
+      - uses: ./.github/actions/run-alpine-tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        with:
+          image: node:22-alpine
+          sdk-root: /workspace/${{ inputs.sdk-home }}
+          workdir: /workspace/${{ inputs.sdk-home }}/nodejs
+          transport: ${{ matrix.transport }}
+          command: |
+            npm ci --ignore-scripts
+            npm run build
+            (cd "$COPILOT_SDK_ROOT/test/harness" && npm ci --ignore-scripts)
+
+            export GITHUB_ENV=/tmp/copilot-sdk-runtime.env
+            export COPILOT_RUNTIME_TARGET=linuxmusl-x64
+            export COPILOT_RUNTIME_OUTPUT_DIRECTORY=/workspace/.sdk-runtime/linuxmusl-x64
+            node "$COPILOT_SDK_ROOT/scripts/ci/runtime-artifact.mjs" prepare
+            set -a
+            . "$GITHUB_ENV"
+            set +a
+            case "$COPILOT_CLI_PATH" in
+              */prebuilds/linuxmusl-x64/copilot-runtime) ;;
+              *) echo "Expected the linuxmusl-x64 runtime, got: $COPILOT_CLI_PATH" >&2; exit 1 ;;
+            esac
+            test -x "$COPILOT_CLI_PATH"
+            test -f "$(dirname "$COPILOT_CLI_PATH")/runtime.node"
+            if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
+              npm test -- test/e2e/inprocess_ffi.e2e.test.ts
+            else
+              npm test
+            fi
+
+  docs-typescript:
+    name: "Docs (TypeScript)"
+    if: inputs.platform == 'all' || inputs.platform == 'docs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ inputs.sdk-home }}/nodejs/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/nodejs
+      - run: npm ci
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
+      - run: npm run extract && npm run validate:ts
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation

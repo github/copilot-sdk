@@ -39,6 +39,8 @@ pub enum SessionEventType {
     SessionWarning,
     #[serde(rename = "session.model_change")]
     SessionModelChange,
+    #[serde(rename = "session.model_deselected")]
+    SessionModelDeselected,
     ///
     /// <div class="warning">
     ///
@@ -585,6 +587,8 @@ pub enum SessionEventData {
     SessionWarning(SessionWarningData),
     #[serde(rename = "session.model_change")]
     SessionModelChange(SessionModelChangeData),
+    #[serde(rename = "session.model_deselected")]
+    SessionModelDeselected(SessionModelDeselectedData),
     ///
     /// <div class="warning">
     ///
@@ -1535,6 +1539,16 @@ pub struct SessionModelChangeData {
     /// Output verbosity level after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verbosity: Option<Verbosity>,
+}
+
+/// Session event "session.model_deselected". The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModelDeselectedData {
+    /// Model that was selected before the host withdrew it.
+    pub previous_model: String,
+    /// Low-cardinality reason the selection was cleared.
+    pub reason: ModelDeselectedReason,
 }
 
 /// Session event "session.auto_tier_recommendation". Live-only Auto preference recommendation from Copilot API after a successful Auto model call.
@@ -3909,6 +3923,9 @@ pub struct ToolExecutionStartData {
     pub tool_description: Option<ToolExecutionStartToolDescription>,
     /// Name of the tool being executed
     pub tool_name: String,
+    /// Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_title: Option<String>,
     /// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
     #[serde(skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
@@ -5105,11 +5122,25 @@ pub struct SessionBinaryAssetData {
     pub r#type: BinaryAssetType,
 }
 
+/// One persisted structured system-message block and its cache intent
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemMessageContentBlock {
+    /// Explicit prompt-cache intent. True places a breakpoint after this block, false suppresses one, and absence preserves the provider's legacy default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_breakpoint: Option<bool>,
+    /// Text content for this system-message block.
+    pub content: String,
+    /// Diagnostic classification indicating whether the block is stable across equivalent sessions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_static: Option<bool>,
+}
+
 /// Metadata about the prompt template and its construction
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageMetadata {
-    /// Version identifier of the prompt template used
+    /// Version identifier of the prompt template or structured prompt layout used
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_version: Option<String>,
     /// Template variables used when constructing the prompt
@@ -5123,6 +5154,9 @@ pub struct SystemMessageMetadata {
 pub struct SystemMessageData {
     /// The system or developer prompt text sent as model input
     pub content: String,
+    /// Optional ordered structured blocks corresponding to content, retained for prompt-cache layout restoration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_blocks: Option<Vec<SystemMessageContentBlock>>,
     /// Logical interaction identifier for the model run receiving this prompt
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
@@ -8172,6 +8206,18 @@ pub enum ModelChangeSource {
     /// An SDK or RPC caller selected the model.
     #[serde(rename = "sdk")]
     Sdk,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Why the session no longer has an explicitly selected model.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelDeselectedReason {
+    /// A host-managed provider snapshot no longer publishes the selected model.
+    #[serde(rename = "provider_withdrawn")]
+    ProviderWithdrawn,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

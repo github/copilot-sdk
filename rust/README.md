@@ -1121,6 +1121,20 @@ github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
 child-process transports. Set `COPILOT_CLI_PATH` only when using an externally
 provisioned compatible runtime package with in-process transport.
 
+Applications that already ship a compatible runtime can enable `local-runtime`
+instead. This enables `Transport::InProcess` without downloading, extracting,
+or embedding SDK-managed runtime artifacts:
+
+```toml
+github-copilot-sdk = { version = "1", default-features = false, features = ["local-runtime"] }
+```
+
+The default `bundled-cli` feature takes precedence when both features are
+enabled, preserving bundled behavior for `--all-features` builds.
+
+`COPILOT_CLI_PATH` must point to the application's CLI entrypoint, with the
+compatible native runtime library next to it.
+
 For builds that prefer a smaller artifact, disable the `bundled-cli` feature:
 
 ```toml
@@ -1159,8 +1173,10 @@ github-copilot-sdk = { version = "1", default-features = false }
    - **`bundled-cli` on (default):** embeds the full CLI release archive and a
      separately filtered runtime archive containing `copilot-runtime[.exe]`,
      `runtime.node`, and required assets.
-   - **`bundled-in-process` on:** the runtime archive additionally contains the
+   - **`in-process` on:** the runtime archive additionally contains the
      platform-native runtime library (`.dll`, `.so`, or `.dylib`).
+   - **`local-runtime` on and `bundled-cli` off:** skips this acquisition step
+     entirely because the application supplies the runtime package.
    - **`bundled-cli` off:** downloads only the runtime package and extracts its
      managed runtime artifacts directly into the platform cache using staging
      files and atomic renames.
@@ -1204,7 +1220,15 @@ COPILOT_CLI_EXTRACT_DIR = { value = "vendor/copilot", relative = true, force = t
 
 ### Skipping the bundle entirely
 
-Set `COPILOT_SKIP_CLI_DOWNLOAD=1` at build time to disable the entire download / bundle / cache mechanism — `build.rs` returns immediately without touching the network. Use this when you always supply the managed runtime via `ClientOptions::program = CliProgram::Path(...)`. Works regardless of the `bundled-cli` feature state; runtime resolution falls through to `Error::BinaryNotFound` unless an applicable explicit source resolves.
+Enable `local-runtime` to disable the entire download / bundle / cache
+mechanism for applications that host a locally supplied runtime in process.
+`build.rs` returns immediately without touching the network, and runtime
+resolution requires `COPILOT_CLI_PATH` to identify the supplied package.
+
+`COPILOT_SKIP_CLI_DOWNLOAD=1` remains available as an explicit build-time
+override for managed child-process consumers. It works regardless of the
+`bundled-cli` feature state; runtime resolution falls through to
+`Error::BinaryNotFound` unless an applicable explicit source resolves.
 
 ### Resolution priority
 
@@ -1277,7 +1301,9 @@ and `CARGO_CFG_TARGET_ENV` (cross-compilation works).
 | Feature | Default | Description |
 | ------- | ------- | ----------- |
 | `bundled-cli` | ✓ | Embeds the managed wrapper pair and compatible CLI artifact. Disable via `default-features = false` when supplying the runtime explicitly. |
-| `bundled-in-process` | — | Enables `Transport::InProcess`, implies `bundled-cli`, and additionally embeds the platform-native runtime library. |
+| `in-process` | — | Enables `Transport::InProcess` while preserving the selected runtime acquisition policy. |
+| `local-runtime` | — | Enables `in-process` and, when `bundled-cli` is disabled, disables SDK-managed runtime download, extraction, and embedding. The application must supply a compatible runtime package through `COPILOT_CLI_PATH`. |
+| `bundled-in-process` | — | Enables `in-process`, implies `bundled-cli`, and additionally embeds the platform-native runtime library. |
 | `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). |
 
 ```toml
@@ -1286,6 +1312,9 @@ github-copilot-sdk = "1"
 
 # Enable the in-process transport and bundle its native runtime library.
 github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
+
+# Enable the in-process transport with an application-supplied runtime.
+github-copilot-sdk = { version = "1", default-features = false, features = ["local-runtime"] }
 
 # Opt out of bundling — supply the CLI explicitly at runtime.
 github-copilot-sdk = { version = "1", default-features = false }

@@ -1,0 +1,39 @@
+load("@rules_rust//crate_universe:defs.bzl", "crate", "crates_vendor")
+
+# Keep the Rust SDK's independent Cargo manifest and lockfile authoritative.
+crates_vendor(
+    name = "vendor",
+    annotations = {
+        "openssl-sys": [crate.annotation(
+            build_script_data = ["@openssl//:gen_dir"],
+            build_script_env = {
+                "OPENSSL_DIR": "$(execpath @openssl//:gen_dir)",
+                "OPENSSL_NO_VENDOR": "1",
+                "OPENSSL_STATIC": "1",
+            },
+        )],
+    },
+    cargo_lockfile = "//src/sdk/rust:Cargo.lock",
+    generate_build_scripts = True,
+    manifests = ["//src/sdk/rust:Cargo.toml"],
+    mode = "remote",
+    packages = {
+        # Optional in Cargo and therefore absent from the default resolved
+        # workspace graph, but required by the Bazel all-features build.
+        "sdk-libloading": crate.spec(
+            package = "libloading",
+            version = "=0.8.9",
+        ),
+    },
+    repository_name = "sdk_vendor",
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "aarch64-pc-windows-msvc",
+        "x86_64-pc-windows-msvc",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu",
+    ],
+    tags = ["manual"],
+    vendor_path = "crates",
+)

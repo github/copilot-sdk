@@ -18,6 +18,8 @@ import type {
     McpOauthPendingRequestResponse,
     FactoryLogLine,
     FactoryRunResult as WireFactoryRunResult,
+    WorkflowLogLine,
+    WorkflowRunResult as WireWorkflowRunResult,
     ModelSwitchAutoTierResult,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
@@ -85,6 +87,21 @@ import {
     type JsonValue,
     type FactoryStepOptions,
 } from "./factory.js";
+import {
+    WORKFLOW_AGENT_OPTION_KEYS,
+    getWorkflowDefinition,
+    WorkflowResumeError,
+    isWorkflowRunTerminal,
+    type WorkflowResumeErrorCode,
+    type WorkflowListRunsOptions,
+    type WorkflowRunResult,
+    type WorkflowAgentOptions,
+    type WorkflowRunOptions,
+    type SessionWorkflowApi,
+    type WorkflowContext,
+    type WorkflowHandle,
+    type WorkflowStepOptions,
+} from "./workflow.js";
 
 function isFactoryResumeErrorCode(value: unknown): value is FactoryResumeErrorCode {
     return (
@@ -110,6 +127,31 @@ function copyDefinedFactoryAgentOption<TKey extends keyof FactoryAgentOptions>(
     }
 }
 
+function isWorkflowResumeErrorCode(value: unknown): value is WorkflowResumeErrorCode {
+    return (
+        value === "not_found" ||
+        value === "non_resumable" ||
+        value === "workflow_run_not_resumable" ||
+        value === "already_active" ||
+        value === "workflow_already_running" ||
+        value === "workflow_limits_invalid" ||
+        value === "workflow_session_disposed" ||
+        value === "workflow_storage_unavailable" ||
+        value === "workflow_storage_corrupt"
+    );
+}
+
+function copyDefinedWorkflowAgentOption<TKey extends keyof WorkflowAgentOptions>(
+    source: WorkflowAgentOptions,
+    target: WorkflowAgentOptions,
+    key: TKey
+): void {
+    const value = source[key];
+    if (value !== undefined) {
+        target[key] = value;
+    }
+}
+
 type FactoryExecutionContext = {
     active: boolean;
     helperScope?: "parallel" | "pipeline";
@@ -123,6 +165,29 @@ function throwIfFactoryExecutionIsActive(): void {
             "factory.run, factory.resume, and factory.pause are not allowed while a factory body is running on this call path."
         );
     }
+}
+
+type WorkflowExecutionContext = {
+    active: boolean;
+    helperScope?: "parallel" | "pipeline";
+};
+
+const workflowExecutionStore = new AsyncLocalStorage<WorkflowExecutionContext>();
+
+function throwIfWorkflowExecutionIsActive(): void {
+    if (workflowExecutionStore.getStore()?.active) {
+        throw new Error(
+            "workflow.run, workflow.resume, and workflow.pause are not allowed while a workflow body is running on this call path."
+        );
+    }
+}
+
+function runInWorkflowHelperScope<TResult>(
+    helperScope: "parallel" | "pipeline",
+    callback: () => Promise<TResult> | TResult
+): Promise<TResult> | TResult {
+    const current = workflowExecutionStore.getStore();
+    return workflowExecutionStore.run({ active: current?.active ?? false, helperScope }, callback);
 }
 
 function runInFactoryHelperScope<TResult>(
@@ -254,6 +319,64 @@ async function runFactoryPipeline(
     );
 }
 
+async function runWorkflowParallel<TResult>(
+    thunks: Array<() => Promise<TResult> | TResult>
+): Promise<Array<TResult | null>> {
+    if (!Array.isArray(thunks)) {
+        throw new Error(
+            "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
+        );
+    }
+    assertFactoryFanoutSize("parallel", thunks.length);
+    if (thunks.some((thunk) => typeof thunk !== "function")) {
+        throw new Error(
+            "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
+        );
+    }
+    return Promise.all(
+        thunks.map((thunk) =>
+            Promise.resolve()
+                .then(() => runInWorkflowHelperScope("parallel", thunk))
+                .catch((error) => {
+                    if (isFactoryFatalError(error)) {
+                        throw error;
+                    }
+                    return null;
+                })
+        )
+    );
+}
+
+async function runWorkflowPipeline(
+    items: unknown[],
+    ...stages: Array<
+        (previous: unknown, item: unknown, index: number) => Promise<unknown> | unknown
+    >
+): Promise<unknown[]> {
+    if (!Array.isArray(items)) {
+        throw new Error("pipeline(items, ...stages): items must be an array");
+    }
+    assertFactoryFanoutSize("pipeline", items.length);
+    return Promise.all(
+        items.map(async (item, index) => {
+            let previous = item;
+            for (const stage of stages) {
+                try {
+                    previous = await runInWorkflowHelperScope("pipeline", () =>
+                        stage(previous, item, index)
+                    );
+                } catch (error) {
+                    if (isFactoryFatalError(error)) {
+                        throw error;
+                    }
+                    return null;
+                }
+            }
+            return previous;
+        })
+    );
+}
+
 class FactoryProgressBuffer {
     private nextSeq = 0;
     private pending: FactoryLogLine[] = [];
@@ -337,6 +460,88 @@ class FactoryProgressBuffer {
     }
 }
 
+class WorkflowProgressBuffer {
+    private nextSeq = 0;
+    private pending: WorkflowLogLine[] = [];
+    private flushTimer?: ReturnType<typeof setTimeout>;
+    private flushTail: Promise<void> = Promise.resolve();
+    private flushError: unknown;
+    private flushFailed = false;
+    private closed = false;
+
+    constructor(private readonly send: (lines: WorkflowLogLine[]) => Promise<void>) {}
+
+    enqueue(kind: WorkflowLogLine["kind"], text: string): void {
+        if (this.closed) {
+            throw new Error("Cannot log after the workflow run has settled");
+        }
+        this.pending.push({ seq: this.nextSeq++, kind, text });
+        this.scheduleFlush();
+    }
+
+    async flush(): Promise<void> {
+        this.clearFlushTimer();
+        const lines = this.pending.splice(0);
+        if (lines.length > 0) {
+            this.flushTail = this.flushTail.then(async () => {
+                try {
+                    await this.send(lines);
+                } catch (error) {
+                    if (!this.flushFailed) {
+                        this.flushFailed = true;
+                        this.flushError = error;
+                    }
+                }
+            });
+        }
+        await this.flushTail;
+        if (this.flushFailed) {
+            throw this.flushError;
+        }
+    }
+
+    async close(): Promise<void> {
+        this.closed = true;
+        this.clearFlushTimer();
+        const lines = this.pending.splice(0);
+        await this.flushTail;
+        if (this.flushFailed) {
+            console.warn(
+                "Ignoring a background workflow progress flush failure after the workflow body settled",
+                this.flushError
+            );
+        }
+        if (lines.length > 0) {
+            try {
+                await this.send(lines);
+            } catch (error) {
+                console.warn(
+                    "Failed to flush final workflow progress after the workflow body settled",
+                    error
+                );
+            }
+        }
+    }
+
+    private scheduleFlush(): void {
+        if (this.flushTimer !== undefined) {
+            return;
+        }
+        this.flushTimer = setTimeout(() => {
+            this.flushTimer = undefined;
+            void this.flush().catch(() => {});
+        }, FACTORY_LOG_FLUSH_DELAY_MS);
+        this.flushTimer.unref?.();
+    }
+
+    private clearFlushTimer(): void {
+        if (this.flushTimer !== undefined) {
+            clearTimeout(this.flushTimer);
+            this.flushTimer = undefined;
+        }
+    }
+}
+
 async function awaitFactoryOperation<TResult>(
     operation: () => Promise<TResult>,
     signal: AbortSignal
@@ -361,9 +566,22 @@ async function awaitFactoryOperation<TResult>(
     }
 }
 
+async function awaitWorkflowOperation<TResult>(
+    operation: () => Promise<TResult>,
+    signal: AbortSignal
+): Promise<TResult> {
+    return awaitFactoryOperation(operation, signal);
+}
+
 function throwIfFactoryAborted(signal: AbortSignal): void {
     if (signal.aborted) {
         throw signal.reason ?? new DOMException("Factory run was aborted", "AbortError");
+    }
+}
+
+function throwIfWorkflowAborted(signal: AbortSignal): void {
+    if (signal.aborted) {
+        throw signal.reason ?? new DOMException("Workflow run was aborted", "AbortError");
     }
 }
 
@@ -445,6 +663,8 @@ export class CopilotSession {
     private commandHandlers: Map<string, CommandHandler> = new Map();
     private factories = new Map<string, ReturnType<typeof getFactoryDefinition>>();
     private factoryAbortControllers = new Map<string, Map<string, AbortController>>();
+    private workflows = new Map<string, ReturnType<typeof getWorkflowDefinition>>();
+    private workflowAbortControllers = new Map<string, Map<string, AbortController>>();
     private permissionHandler?: PermissionHandler;
     private mcpAuthHandler?: McpAuthHandler;
     private userInputHandler?: UserInputHandler;
@@ -543,6 +763,69 @@ export class CopilotSession {
         cancel: async (runId) => this.rpc.factory.cancel({ runId }),
     };
 
+    readonly workflow: SessionWorkflowApi = {
+        run: (async (
+            nameOrHandle: string | WorkflowHandle,
+            options?: WorkflowRunOptions
+        ): Promise<unknown> => {
+            throwIfWorkflowExecutionIsActive();
+            const name =
+                typeof nameOrHandle === "string"
+                    ? nameOrHandle
+                    : getWorkflowDefinition(nameOrHandle).meta.name;
+            const envelope = await this.rpc.workflow.run({
+                name,
+                args: options?.args === undefined ? {} : options.args,
+                options: {
+                    limits: options?.limits,
+                    notifyOnComplete: options?.notifyOnComplete,
+                    logPhaseNames: options?.logPhaseNames,
+                },
+            });
+
+            return this.settleWorkflowRun(envelope);
+        }) as SessionWorkflowApi["run"],
+        resume: (async (runId: string, options?: Parameters<SessionWorkflowApi["resume"]>[1]) => {
+            throwIfWorkflowExecutionIsActive();
+            let response;
+            try {
+                response = await this.rpc.workflow.resume({
+                    runId,
+                    limits: options?.limits,
+                    notifyOnComplete: options?.notifyOnComplete,
+                    logPhaseNames: options?.logPhaseNames,
+                });
+            } catch (error) {
+                if (
+                    error instanceof ResponseError &&
+                    typeof error.data === "object" &&
+                    error.data !== null
+                ) {
+                    const code = (error.data as { code?: unknown }).code;
+                    if (isWorkflowResumeErrorCode(code)) {
+                        throw new WorkflowResumeError(code, error.message);
+                    }
+                }
+                throw error;
+            }
+            return this.settleWorkflowRun(response.run);
+        }) as SessionWorkflowApi["resume"],
+        getRun: async (runId) => this.rpc.workflow.getRun({ runId }),
+        waitForRun: (runId, options) => this.waitForWorkflowRun(runId, options?.signal),
+        listRuns: (async (options?: WorkflowListRunsOptions) => {
+            const page = await this.rpc.workflow.listRuns(options ?? {});
+            return options === undefined ? page.runs : page;
+        }) as SessionWorkflowApi["listRuns"],
+        getRunDetail: (runId) => this.rpc.workflow.getRunDetail({ runId }),
+        getRunProgress: (runId, options = {}) =>
+            this.rpc.workflow.getRunProgress({ runId, ...options }),
+        pause: async (runId) => {
+            throwIfWorkflowExecutionIsActive();
+            return this.rpc.workflow.pause({ runId });
+        },
+        cancel: async (runId) => this.rpc.workflow.cancel({ runId }),
+    };
+
     /**
      * Resolve a start/resume envelope into the terminal envelope callers expect.
      *
@@ -611,6 +894,97 @@ export class CopilotSession {
                         rereadRequested = false;
                         const envelope = await this.rpc.factory.getRun({ runId });
                         if (isFactoryRunTerminal(envelope.status)) {
+                            finish(() => resolve(envelope));
+                            return;
+                        }
+                    } while (rereadRequested && !settled);
+                } catch (error) {
+                    finish(() => reject(error));
+                } finally {
+                    reading = false;
+                }
+            };
+
+            if (signal !== undefined) {
+                onAbort = (): void => finish(() => reject(abortError()));
+                signal.addEventListener("abort", onAbort, { once: true });
+            }
+
+            unsubscribe = this.on("factory.run_updated", (event) => {
+                if (event.data.runId === runId) {
+                    void read();
+                }
+            });
+
+            pollHandle = setInterval(() => void read(), 5_000);
+            // The re-read is a safety net, not work the process owes anyone: an
+            // outstanding wait must never keep Node alive on its own.
+            pollHandle.unref?.();
+            void read();
+        });
+    }
+
+    private settleWorkflowRun(envelope: WireWorkflowRunResult): Promise<WorkflowRunResult> {
+        if (isWorkflowRunTerminal(envelope.status)) {
+            return Promise.resolve(envelope);
+        }
+        return this.waitForWorkflowRun(envelope.runId);
+    }
+
+    /**
+     * Resolve when a workflow run reaches a terminal status.
+     *
+     * The subscription is installed *before* the first read so a transition
+     * landing between the two cannot be missed, and re-reads are serialized so
+     * overlapping invalidation events cannot interleave — the run's revision
+     * advances once per operation, so a burst of events is common and must
+     * collapse into a single in-flight read. A bounded periodic re-read keeps a
+     * dropped invalidation from leaving the wait pending forever.
+     */
+    private waitForWorkflowRun(runId: string, signal?: AbortSignal): Promise<WorkflowRunResult> {
+        const abortError = (): unknown =>
+            signal?.reason ?? new DOMException("Workflow run wait was aborted", "AbortError");
+        if (signal?.aborted === true) {
+            return Promise.reject(abortError());
+        }
+
+        return new Promise<WorkflowRunResult>((resolve, reject) => {
+            let settled = false;
+            let reading = false;
+            let rereadRequested = false;
+            let pollHandle: ReturnType<typeof setInterval> | undefined;
+            let unsubscribe: (() => void) | undefined;
+            let onAbort: (() => void) | undefined;
+
+            const finish = (complete: () => void): void => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                if (pollHandle !== undefined) {
+                    clearInterval(pollHandle);
+                }
+                unsubscribe?.();
+                if (onAbort !== undefined) {
+                    signal?.removeEventListener("abort", onAbort);
+                }
+                complete();
+            };
+
+            const read = async (): Promise<void> => {
+                if (settled) {
+                    return;
+                }
+                if (reading) {
+                    rereadRequested = true;
+                    return;
+                }
+                reading = true;
+                try {
+                    do {
+                        rereadRequested = false;
+                        const envelope = await this.rpc.workflow.getRun({ runId });
+                        if (isWorkflowRunTerminal(envelope.status)) {
                             finish(() => resolve(envelope));
                             return;
                         }
@@ -1034,6 +1408,13 @@ export class CopilotSession {
             }
         }
         this.factoryAbortControllers.clear();
+        this.workflows.clear();
+        for (const controllersForRun of this.workflowAbortControllers.values()) {
+            for (const controller of controllersForRun.values()) {
+                controller.abort();
+            }
+        }
+        this.workflowAbortControllers.clear();
         this.transformCallbacks?.clear();
     }
 
@@ -1825,6 +2206,213 @@ export class CopilotSession {
     }
 
     /**
+     * Registers workflow closures and reverse-RPC handlers for this session.
+     *
+     * @param workflows - Workflow handles declared by the joining extension.
+     * @internal Called by the SDK when an extension joins a session.
+     */
+    registerWorkflows(workflows?: WorkflowHandle[]): void {
+        this.workflows.clear();
+        if (!workflows || workflows.length === 0) {
+            delete this.clientSessionApis.workflow;
+            return;
+        }
+
+        for (const handle of workflows) {
+            const definition = getWorkflowDefinition(handle);
+            if (this.workflows.has(definition.meta.name)) {
+                throw new Error(
+                    `Duplicate workflow name "${definition.meta.name}". Workflow names must be unique within a joinSession call.`
+                );
+            }
+            this.workflows.set(definition.meta.name, definition);
+        }
+
+        const self = this;
+        this.clientSessionApis.workflow = {
+            async execute(params) {
+                const definition = self.workflows.get(params.name);
+                if (!definition) {
+                    const message = `No workflow registered with name "${params.name}"`;
+                    throw new ResponseError(ErrorCodes.InvalidParams, message, {
+                        code: "workflow_not_found",
+                        name: params.name,
+                    });
+                }
+
+                const controller = new AbortController();
+                // Keyed by execution token as well as run ID so overlapping
+                // attempts for one run stay individually addressable.
+                let controllersForRun = self.workflowAbortControllers.get(params.runId);
+                if (controllersForRun === undefined) {
+                    controllersForRun = new Map();
+                    self.workflowAbortControllers.set(params.runId, controllersForRun);
+                }
+                controllersForRun.set(params.executionToken, controller);
+                const progress = new WorkflowProgressBuffer(async (lines) => {
+                    await self.rpc.workflow.log({
+                        runId: params.runId,
+                        executionToken: params.executionToken,
+                        lines,
+                    });
+                });
+                try {
+                    const context: WorkflowContext = {
+                        runId: params.runId,
+                        args: params.args,
+                        session: self,
+                        signal: controller.signal,
+                        phase: (title: string) => {
+                            throwIfWorkflowAborted(controller.signal);
+                            progress.enqueue("phase", title);
+                        },
+                        log: (message: string) => {
+                            throwIfWorkflowAborted(controller.signal);
+                            progress.enqueue("log", message);
+                        },
+                        agent: async (prompt, options = {}) => {
+                            await progress.flush();
+                            const opts: WorkflowAgentOptions = {};
+                            for (const key of WORKFLOW_AGENT_OPTION_KEYS) {
+                                copyDefinedWorkflowAgentOption(options, opts, key);
+                            }
+                            const response = await awaitWorkflowOperation(
+                                () =>
+                                    self.rpc.workflow.agent({
+                                        workflowRunId: params.runId,
+                                        executionToken: params.executionToken,
+                                        prompt,
+                                        opts,
+                                    }),
+                                controller.signal
+                            );
+                            return response.result ?? null;
+                        },
+                        step: async (
+                            key: string,
+                            producer: () => Promise<JsonValue> | JsonValue,
+                            options: WorkflowStepOptions = {}
+                        ): Promise<JsonValue> => {
+                            await progress.flush();
+                            if (options.volatile) {
+                                // The flush above is an await point, so an abort can land
+                                // between entering step() and running the producer. The
+                                // journaled branch is covered by awaitWorkflowOperation;
+                                // this one has to check for itself, or a cancelled run
+                                // would still start new extension work.
+                                throwIfWorkflowAborted(controller.signal);
+                                return producer();
+                            }
+                            const cached = await awaitWorkflowOperation(
+                                () =>
+                                    self.rpc.workflow.journal.get({
+                                        runId: params.runId,
+                                        executionToken: params.executionToken,
+                                        key,
+                                    }),
+                                controller.signal
+                            );
+                            if (cached.hit) {
+                                if (cached.resultJson === undefined) {
+                                    throw new Error(
+                                        `step("${key}") journal returned a hit without a result`
+                                    );
+                                }
+                                assertWorkflowStepResult(cached.resultJson, key);
+                                return cached.resultJson;
+                            }
+
+                            // Producers are best-effort at-least-once across crashes or
+                            // concurrent callers, so authors must make side effects idempotent.
+                            const result = await producer();
+                            assertWorkflowStepResult(result, key);
+                            await awaitWorkflowOperation(
+                                () =>
+                                    self.rpc.workflow.journal.put({
+                                        runId: params.runId,
+                                        executionToken: params.executionToken,
+                                        key,
+                                        resultJson: result,
+                                    }),
+                                controller.signal
+                            );
+                            return result;
+                        },
+                        pause: async (key: string): Promise<void> => {
+                            if (typeof key !== "string" || key.length === 0) {
+                                throw new Error("Workflow pause checkpoint key must not be empty");
+                            }
+                            const helperScope = workflowExecutionStore.getStore()?.helperScope;
+                            if (helperScope !== undefined) {
+                                throw new Error(
+                                    `Workflow pause checkpoints are not allowed inside ${helperScope}() branches`
+                                );
+                            }
+                            await progress.flush();
+                            const response = await awaitWorkflowOperation(
+                                () =>
+                                    self.internalRpc.workflow.pauseAtCheckpoint({
+                                        runId: params.runId,
+                                        executionToken: params.executionToken,
+                                        key,
+                                    }),
+                                controller.signal
+                            );
+                            switch (response.action) {
+                                case "continue":
+                                    return;
+                                case "pause":
+                                    await awaitWorkflowOperation(
+                                        () => new Promise<never>(() => {}),
+                                        controller.signal
+                                    );
+                            }
+                        },
+                        parallel: runWorkflowParallel,
+                        pipeline: runWorkflowPipeline,
+                        workflow: async () => {
+                            throw new Error("nested workflows are not supported");
+                        },
+                    };
+                    const execution = { active: true };
+                    const result = await workflowExecutionStore.run(execution, async () => {
+                        try {
+                            return await definition.run(context);
+                        } finally {
+                            execution.active = false;
+                        }
+                    });
+                    if (result === undefined) {
+                        return {};
+                    }
+                    assertWorkflowResult(result);
+                    return { result };
+                } finally {
+                    try {
+                        await progress.close();
+                    } finally {
+                        const controllersForRun = self.workflowAbortControllers.get(params.runId);
+                        if (controllersForRun?.get(params.executionToken) === controller) {
+                            controllersForRun.delete(params.executionToken);
+                            if (controllersForRun.size === 0) {
+                                self.workflowAbortControllers.delete(params.runId);
+                            }
+                        }
+                    }
+                }
+            },
+            async abort(params) {
+                const controllersForRun = self.workflowAbortControllers.get(params.runId);
+                const controller = controllersForRun?.get(params.executionToken);
+                if (controller !== undefined) {
+                    controller.abort(new DOMException("Workflow run was aborted", "AbortError"));
+                }
+                return {};
+            },
+        };
+    }
+
+    /**
      * Registers per-provider {@link BearerTokenProvider} callbacks for BYOK providers
      * configured with managed-identity / on-demand bearer-token auth.
      *
@@ -2484,7 +3072,11 @@ type FactoryResultValidationCategory =
     | "unsupported_object";
 
 interface StrictJsonValidationContext {
-    code: "factory_result_not_json" | "factory_step_not_json";
+    code:
+        | "factory_result_not_json"
+        | "factory_step_not_json"
+        | "workflow_result_not_json"
+        | "workflow_step_not_json";
     label: string;
     allowTopLevelUndefined: boolean;
 }
@@ -2669,6 +3261,22 @@ function assertFactoryStepResult(value: unknown, key: string): asserts value is 
     assertStrictJson(value, {
         code: "factory_step_not_json",
         label: `Factory step "${key}" result`,
+        allowTopLevelUndefined: false,
+    });
+}
+
+function assertWorkflowResult(value: unknown): asserts value is JsonValue | undefined {
+    assertStrictJson(value, {
+        code: "workflow_result_not_json",
+        label: "Workflow result",
+        allowTopLevelUndefined: true,
+    });
+}
+
+function assertWorkflowStepResult(value: unknown, key: string): asserts value is JsonValue {
+    assertStrictJson(value, {
+        code: "workflow_step_not_json",
+        label: `Workflow step "${key}" result`,
         allowTopLevelUndefined: false,
     });
 }

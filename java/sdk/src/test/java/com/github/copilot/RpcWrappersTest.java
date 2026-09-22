@@ -199,7 +199,7 @@ class RpcWrappersTest {
 
     @Test
     @AllowCopilotExperimental
-    void sessionRpc_connectors_exposes_all_generated_methods() {
+    void sessionRpc_connectors_exposes_host_lifecycle_methods() {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-connectors");
 
@@ -554,8 +554,9 @@ class RpcWrappersTest {
         private final JsonRpcClient rpcClient;
 
         SocketPair() throws Exception {
-            try (var ss = new java.net.ServerSocket(0)) {
-                clientSocket = new java.net.Socket("localhost", ss.getLocalPort());
+            var loopback = java.net.InetAddress.getLoopbackAddress();
+            try (var ss = new java.net.ServerSocket(0, 1, loopback)) {
+                clientSocket = new java.net.Socket(loopback, ss.getLocalPort());
                 serverSocket = ss.accept();
             }
             serverSocket.setSoTimeout(3000);

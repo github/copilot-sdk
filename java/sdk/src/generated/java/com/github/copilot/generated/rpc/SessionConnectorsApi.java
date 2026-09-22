@@ -164,4 +164,31 @@ public final class SessionConnectorsApi {
         return caller.invoke("session.connectors.reconcile", _p, SessionConnectorsReconcileResult.class);
     }
 
+    /**
+     * Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionConnectorsReconcileForStartupResult> reconcileForStartup(SessionConnectorsReconcileForStartupParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.connectors.reconcileForStartup", _p, SessionConnectorsReconcileForStartupResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionConnectorsWithdrawProjectionResult> withdrawProjection() {
+        return caller.invoke("session.connectors.withdrawProjection", java.util.Map.of("sessionId", this.sessionId), SessionConnectorsWithdrawProjectionResult.class);
+    }
+
 }
