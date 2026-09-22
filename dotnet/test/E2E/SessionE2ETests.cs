@@ -388,13 +388,13 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Use OnEvent to capture events dispatched during session creation.
         // session.start is emitted during the session.create RPC; if the session
         // weren't registered in the sessions map before the RPC, it would be dropped.
-        var earlyEvents = new List<SessionEvent>();
+        var earlyEvents = new ConcurrentQueue<SessionEvent>();
         var sessionStartReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnEvent = evt =>
             {
-                earlyEvents.Add(evt);
+                earlyEvents.Enqueue(evt);
                 if (evt is SessionStartEvent)
                     sessionStartReceived.TrySetResult(true);
             },
