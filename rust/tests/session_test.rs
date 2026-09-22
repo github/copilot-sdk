@@ -2081,6 +2081,112 @@ async fn send_injects_session_id() {
 }
 
 #[test]
+fn message_options_response_optional_defaults_and_builder() {
+    let prompt = "notification".to_string();
+    for options in [
+        MessageOptions::new(&prompt),
+        MessageOptions::from(prompt.as_str()),
+        MessageOptions::from(prompt.clone()),
+        MessageOptions::from(&prompt),
+    ] {
+        assert_eq!(options.response_optional, None);
+        assert_eq!(
+            options
+                .with_response_optional(true)
+                .with_response_optional(false)
+                .response_optional,
+            Some(false)
+        );
+    }
+}
+
+#[tokio::test]
+async fn send_response_optional_preserves_false_and_omits_none() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    for value in [None, Some(false), Some(true)] {
+        let mut options = MessageOptions::new("notification")
+            .with_source(MessageSource::System)
+            .with_mode(DeliveryMode::Enqueue);
+        let mut expected = serde_json::json!({
+            "sessionId": server.session_id,
+            "prompt": "notification",
+            "source": "system",
+            "mode": "enqueue",
+        });
+        if let Some(value) = value {
+            options = options.with_response_optional(value);
+            expected["responseOptional"] = serde_json::json!(value);
+        }
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move { session.send(options).await }
+        });
+        let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(request["method"], "session.send");
+        assert_eq!(request["params"], expected);
+        server
+            .respond(&request, serde_json::json!({"messageId": "optional"}))
+            .await;
+        assert_eq!(
+            timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap(),
+            "optional"
+        );
+    }
+}
+
+#[test]
+fn rpc_response_optional_serialization() {
+    for value in [None, Some(false), Some(true)] {
+        let mut options = SendRequest::default();
+        options.prompt = "notification".into();
+        options.response_optional = value;
+        let mut expected = serde_json::json!({"prompt": "notification"});
+        if let Some(value) = value {
+            expected["responseOptional"] = serde_json::json!(value);
+        }
+        assert_eq!(serde_json::to_value(options).unwrap(), expected);
+    }
+}
+
+#[tokio::test]
+async fn rpc_send_response_optional_preserves_false_and_omits_none() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    for value in [None, Some(false), Some(true)] {
+        let mut options = SendRequest::default();
+        options.prompt = "notification".into();
+        options.response_optional = value;
+        let mut expected = serde_json::json!({
+            "sessionId": server.session_id,
+            "prompt": "notification",
+        });
+        if let Some(value) = value {
+            expected["responseOptional"] = serde_json::json!(value);
+        }
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move { session.rpc().send(options).await }
+        });
+        let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(request["method"], "session.send");
+        assert_eq!(request["params"], expected);
+        server
+            .respond(&request, serde_json::json!({"messageId": "optional"}))
+            .await;
+        assert_eq!(
+            timeout(TIMEOUT, handle)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap()
+                .message_id,
+            "optional"
+        );
+    }
+}
+
+#[test]
 fn message_options_source_is_opt_in() {
     let prompt = "hello".to_string();
     for options in [
@@ -4370,7 +4476,7 @@ async fn send_and_wait_agent_source_preserves_mode_and_optional_reply() {
 }
 
 #[tokio::test]
-async fn send_and_wait_system_source_returns_none_on_idle_without_assistant() {
+async fn send_and_wait_response_optional_returns_none_on_idle_without_assistant() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
 
@@ -4381,6 +4487,7 @@ async fn send_and_wait_system_source_returns_none_on_idle_without_assistant() {
                 .send_and_wait(
                     MessageOptions::new("Context updated")
                         .with_source(MessageSource::System)
+                        .with_response_optional(true)
                         .with_wait_timeout(TIMEOUT),
                 )
                 .await
@@ -4389,6 +4496,7 @@ async fn send_and_wait_system_source_returns_none_on_idle_without_assistant() {
     let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
     assert_eq!(request["method"], "session.send");
     assert_eq!(request["params"]["source"], "system");
+    assert_eq!(request["params"]["responseOptional"], true);
     server
         .respond(&request, serde_json::json!({"messageId": "system-message"}))
         .await;
@@ -4407,6 +4515,7 @@ async fn send_and_wait_system_source_returns_none_on_idle_without_assistant() {
     let handle = tokio::spawn(async move { session.send("human follow-up").await });
     let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
     assert!(request["params"].get("source").is_none());
+    assert!(request["params"].get("responseOptional").is_none());
     server
         .respond(&request, serde_json::json!({"messageId": "human-message"}))
         .await;

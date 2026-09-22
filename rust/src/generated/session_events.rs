@@ -2598,6 +2598,9 @@ pub struct UserMessageData {
     /// Parent agent task ID for background telemetry correlated to this user turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_agent_task_id: Option<String>,
+    /// True when the sender explicitly allows this automatic notification to complete without visible assistant output. Absent means a response is required. Does not relax other messages in the same turn or suppress execution errors.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_optional: Option<bool>,
     /// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
     #[serde(skip_serializing_if = "Option::is_none")]
     pub responses_reasoning: Option<ResponsesReasoning>,

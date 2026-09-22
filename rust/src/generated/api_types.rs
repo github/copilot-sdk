@@ -3477,7 +3477,6 @@ impl CatalogAiSkillCandidate {
             serde::de::value::StringDeserializer::<D::Error>::new(value),
         )
     }
-
     fn deserialize_kind<'de, D>(deserializer: D) -> Result<CatalogAiSkillCandidateKind, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -3490,7 +3489,6 @@ impl CatalogAiSkillCandidate {
             serde::de::value::StringDeserializer::<D::Error>::new(value),
         )
     }
-
     fn deserialize_media_type<'de, D>(deserializer: D) -> Result<CatalogAiSkillMediaType, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -9962,7 +9960,6 @@ impl McpPlanRequiredValueEnum {
             serde::de::value::StringDeserializer::<D::Error>::new(value),
         )
     }
-
     fn deserialize_value_type<'de, D>(deserializer: D) -> Result<McpPlanEnumValueType, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -16880,6 +16877,9 @@ pub struct SendMessageItem {
     /// If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required_tool: Option<String>,
+    /// If true, this automatic notification may complete without visible assistant output. Defaults to false. Required messages in the same turn still require output; provider and execution errors are unaffected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_optional: Option<bool>,
     /// Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -16998,6 +16998,9 @@ pub struct SendRequest {
     /// Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_format: Option<SendRequestResponseFormat>,
+    /// If true, this automatic notification may complete without visible assistant output. Defaults to false. Required messages in the same turn still require output; provider and execution errors are unaffected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_optional: Option<bool>,
     /// Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
