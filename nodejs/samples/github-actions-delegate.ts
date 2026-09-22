@@ -52,9 +52,7 @@ const delegate = defineTool("github_actions_delegate", {
 const client = new CopilotClient();
 const session = await client.createSession({
     tools: [delegate],
-    defaultAgent: {
-        excludedTools: ["task"],
-    },
+    availableTools: ["custom:github_actions_delegate"],
     systemMessage: {
         content: [
             "Act as an orchestrator.",

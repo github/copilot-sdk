@@ -1,5 +1,7 @@
 ---
 description: Runs a constrained task delegated by a Copilot SDK host
+concurrency:
+  job-discriminator: ${{ inputs.correlation_id }}
 on:
   workflow_dispatch:
     inputs:

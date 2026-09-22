@@ -1,8 +1,0 @@
-# Configure poutine security scanner
-# See: https://github.com/boostsecurityio/poutine
-
-# Set rule configuration options
-rulesConfig:
-  pr_runs_on_self_hosted:
-    allowed_runners:
-      - ubuntu-slim  # GitHub's new built-in runner (not self-hosted)

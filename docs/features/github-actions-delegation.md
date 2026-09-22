@@ -107,6 +107,6 @@ Keep these controls when adapting the proof of concept:
 
 ## Native sub-agent compatibility
 
-The parent prompt hides the built-in `task` tool and directs the model to `github_actions_delegate`. This preserves normal SDK tool-call behavior but not native sub-agent event semantics.
+The parent session uses `availableTools: ["custom:github_actions_delegate"]`, which hides the built-in `task` tool and local execution tools. This preserves normal SDK tool-call behavior but not native sub-agent event semantics.
 
 Overriding the built-in `task` tool with `overridesBuiltInTool: true` is possible but experimental because its schema and orchestration behavior belong to the Copilot CLI runtime. Full compatibility with `subagent.started`, `subagent.completed`, and `subagent.failed` requires a remote executor feature in the runtime rather than an SDK-only change.

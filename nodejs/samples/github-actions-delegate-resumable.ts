@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, unlink, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { CopilotClient, defineTool, type SessionEvent } from "@github/copilot-sdk";
 import {
@@ -74,7 +74,7 @@ async function dispatch(prompt: string): Promise<void> {
     const client = new CopilotClient();
     const session = await client.createSession({
         tools: [delegate],
-        defaultAgent: { excludedTools: ["task"] },
+        availableTools: ["custom:github_actions_delegate"],
         systemMessage: {
             content: [
                 "Act as an orchestrator.",
@@ -112,6 +112,7 @@ async function complete(): Promise<void> {
     const client = new CopilotClient();
     const session = await client.resumeSession(state.sessionId, {
         tools: [delegate],
+        availableTools: ["custom:github_actions_delegate"],
         continuePendingWork: true,
         onPermissionRequest: async () => ({ kind: "approve-once" }),
     });
@@ -132,6 +133,7 @@ async function complete(): Promise<void> {
         },
     });
     console.log((await assistantMessage).data.content);
+    await unlink(stateFile);
     await client.stop();
 }
 
