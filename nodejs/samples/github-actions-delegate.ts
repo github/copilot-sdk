@@ -1,5 +1,5 @@
-import { CopilotClient, defineTool } from "@github/copilot-sdk";
 import { z } from "zod";
+import { CopilotClient, defineTool } from "@github/copilot-sdk";
 import {
     GitHubActionsClient,
     type DelegateRequest,

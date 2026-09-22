@@ -12,6 +12,7 @@ These guides cover the capabilities you can add to your Copilot SDK application.
 | [Hooks](./hooks.md) | Intercept and customize session behavior—control tool execution, transform results, handle errors |
 | [Custom Agents](./custom-agents.md) | Define specialized sub-agents with scoped tools and instructions |
 | [Fleet Mode](./fleet-mode.md) | Dispatch multiple sub-agents in parallel for large, independent workstreams |
+| [GitHub Actions delegation](./github-actions-delegation.md) | Delegate isolated agent work to allowlisted GitHub Actions workflows |
 | [MCP Servers](./mcp.md) | Integrate Model Context Protocol servers for external tool access |
 | [Skills](./skills.md) | Load reusable prompt modules from directories |
 | [Plugin Directories](./plugin-directories.md) | Bundle skills, hooks, MCP servers, and agents as a single loadable plugin |

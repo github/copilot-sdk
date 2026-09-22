@@ -3,7 +3,8 @@
     "type": "module",
     "scripts": {
         "start": "npx tsx chat.ts",
-        "delegate": "npx tsx github-actions-delegate.ts"
+        "delegate": "npx tsx github-actions-delegate.ts",
+        "delegate:resumable": "npx tsx github-actions-delegate-resumable.ts"
     },
     "dependencies": {
         "@github/copilot-sdk": "file:.."

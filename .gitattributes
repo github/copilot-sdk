@@ -1,4 +1,4 @@
-.github/workflows/*.lock.yml linguist-generated=true
+.github/workflows/*.lock.yml linguist-generated=true merge=ours
 
 # Cross-platform tools rewrite these files, so keep their output deterministic.
 java/**/*.java text eol=lf
