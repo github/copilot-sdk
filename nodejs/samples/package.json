@@ -2,7 +2,8 @@
     "name": "copilot-sdk-sample",
     "type": "module",
     "scripts": {
-        "start": "npx tsx chat.ts"
+        "start": "npx tsx chat.ts",
+        "delegate": "npx tsx github-actions-delegate.ts"
     },
     "dependencies": {
         "@github/copilot-sdk": "file:.."
