@@ -23,7 +23,7 @@ The dispatcher:
 * Accepts a task, repository, ref, agent profile, and expected output.
 * Rejects repositories, refs, and agent profiles that the host did not allowlist.
 * Derives an opaque correlation ID and `agent/<correlation-id>` output branch from the SDK session and tool-call IDs.
-* Reuses an existing correlated run when a tool call is retried.
+* Reuses an existing correlated run when a tool call is retried after GitHub makes the run visible.
 * Reports queued, running, completed, failed, and cancelled lifecycle states.
 * Cancels the workflow run when the SDK tool invocation is aborted.
 * Returns the workflow URL, conclusion, artifacts, and matching pull requests.
@@ -69,6 +69,8 @@ npm run delegate -- "Review retry handling and return a concise report"
 `GITHUB_ACTIONS_WORKFLOW` optionally selects another allowlisted workflow filename. It defaults to `sdk-delegated-agent.lock.yml`.
 
 The tool handler waits for the remote run. This is suitable when the host process can remain alive for the workflow duration.
+
+The dispatch API returns no run ID. The sample finds the run by its correlation-based `run-name`, so dispatch has at-least-once semantics during the short interval before a new run appears in the Actions API. Keep delegated work idempotent.
 
 ## Run the resumable sample
 

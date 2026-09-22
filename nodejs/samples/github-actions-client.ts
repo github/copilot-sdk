@@ -108,6 +108,12 @@ function abortError(): Error {
     return error;
 }
 
+function timeoutError(correlationId: string): Error {
+    const error = new Error(`Timed out waiting for GitHub Actions run ${correlationId}.`);
+    error.name = "TimeoutError";
+    return error;
+}
+
 function defaultSleep(milliseconds: number, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
         if (signal?.aborted) {
@@ -115,15 +121,15 @@ function defaultSleep(milliseconds: number, signal?: AbortSignal): Promise<void>
             return;
         }
 
-        const timer = setTimeout(resolve, milliseconds);
-        signal?.addEventListener(
-            "abort",
-            () => {
-                clearTimeout(timer);
-                reject(abortError());
-            },
-            { once: true }
-        );
+        const onAbort = () => {
+            clearTimeout(timer);
+            reject(abortError());
+        };
+        const timer = setTimeout(() => {
+            signal?.removeEventListener("abort", onAbort);
+            resolve();
+        }, milliseconds);
+        signal?.addEventListener("abort", onAbort, { once: true });
     });
 }
 
@@ -278,7 +284,7 @@ export class GitHubActionsClient {
             return this.createResult(handle, run, signal);
         }
 
-        throw new Error(`Timed out waiting for GitHub Actions run ${handle.correlationId}.`);
+        throw timeoutError(handle.correlationId);
     }
 
     public async execute(
@@ -289,7 +295,10 @@ export class GitHubActionsClient {
         try {
             return await this.wait(handle, invocation.signal);
         } catch (error) {
-            if (invocation.signal?.aborted) {
+            if (
+                invocation.signal?.aborted ||
+                (error instanceof Error && error.name === "TimeoutError")
+            ) {
                 await this.cancel(handle);
             }
             throw error;
@@ -298,7 +307,16 @@ export class GitHubActionsClient {
 
     public async cancel(handle: DelegateHandle): Promise<void> {
         const run = await this.findRun(handle);
-        if (run && run.status !== "completed") {
+        if (run?.status === "completed") {
+            this.emit({
+                correlationId: handle.correlationId,
+                state: this.terminalState(run.conclusion),
+                runId: run.id,
+                runUrl: run.html_url,
+            });
+            return;
+        }
+        if (run) {
             await this.request(handle.repository, `/actions/runs/${run.id}/cancel`, {
                 method: "POST",
             });
