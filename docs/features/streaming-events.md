@@ -222,6 +222,10 @@ session.on(AssistantMessageDeltaEvent.class, event ->
 
 A session can emit events before its create or resume call returns. The agent may already be working—especially on resume with `continuePendingWork`—and ephemeral events such as `session.idle` are never written to the session log, so `getMessages` cannot recover them afterwards. A subscription installed after the session handle exists misses that startup window.
 
+For exact message, loop, interaction, and worker field sources, see
+[Observing runtime execution identity](./execution-identity.md). Event order alone
+does not associate an event with an application's pending request or Turn.
+
 > [!TIP]
 > **(Rust)** `Client::prepare_session` and `Client::prepare_resume_session` return a `PreparedSession` that owns the session's event channel before any protocol activity happens. Subscribe first, then call `start()`.
 
