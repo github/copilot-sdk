@@ -136,6 +136,12 @@ ID, account for reporting-session normalization, and retain session/agent
 provenance. Supplied event IDs are preserved during replay; a duplicate does not
 establish a new occurrence. An end event has its own ID, not its start event's ID.
 
+That product bridge is not an OpenTelemetry occurrence join. At this baseline,
+chat spans do not carry the root event ID; host-known trace parentage is a
+separate relationship. Worker chat spans can cover multiple loop iterations,
+so overwriting one span attribute cannot preserve all occurrence identities.
+Runtime emission and collector/query support need their own verified contract.
+
 This is not a universal equality join for all product records. The runtime can
 normalize non-UUID reporting session IDs, report under a parent's identity,
 fill a child event's missing interaction from root state, or remint an event
