@@ -87,6 +87,11 @@ the oldest pending send, queue position, or display text.
    [PreparedSession](./streaming-events.md#subscribing-before-a-session-starts).
    Notifications can precede an RPC response. Drain concurrently or size the
    finite buffer; handle `Lagged` as missing evidence, not a successful outcome.
+   On create with a known session ID, routing is registered before the RPC but
+   the event loop starts after the response; early notifications wait in the
+   router queue. Retention does not guarantee subscriber delivery before the
+   create acknowledgement. Resume starts the event loop before awaiting its
+   response.
 1. Retain the accepted message ID with the application's own request/Turn
    identity and session provenance. Allow either the acknowledgement or event
    to arrive first; only join matching observed keys.
