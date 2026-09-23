@@ -6752,6 +6752,68 @@ async fn create_session_pair_with_fs_provider(
     (session, server)
 }
 
+/// Regression test for github/copilot-sdk#2749. While the CLI is still
+/// processing `session.create` it can issue session-scoped requests, such as
+/// `sessionFs.stat` for workspace metadata, and it waits for their responses
+/// before it answers the create call. The SDK must therefore serve those
+/// requests before the `session.create` response arrives; otherwise both
+/// sides wait on each other and startup deadlocks.
+#[tokio::test]
+async fn session_fs_request_during_create_is_served_before_create_response() {
+    let provider = Arc::new(RecordingFsProvider::new().with_file("/workspace/.copilot", "meta"));
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: String::new(),
+    };
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_session_fs_provider(provider))
+                .await
+        }
+    });
+
+    let create_req = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(create_req["method"], "session.create");
+    server.session_id = requested_session_id(&create_req).to_string();
+
+    // The CLI asks the provider for metadata before it has answered create.
+    server
+        .send_request(
+            7,
+            "sessionFs.stat",
+            serde_json::json!({ "sessionId": server.session_id, "path": "/workspace/.copilot" }),
+        )
+        .await;
+    let response = timeout(TIMEOUT, server.read_response())
+        .await
+        .expect("sessionFs.stat must be served while session.create is still pending");
+    assert_eq!(response["id"], 7);
+    assert_eq!(response["result"]["isFile"], true);
+    assert!(response["result"]["error"].is_null());
+
+    // Only now does the CLI answer session.create.
+    server
+        .respond(
+            &create_req,
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "workspacePath": "/tmp/workspace"
+            }),
+        )
+        .await;
+    let session = timeout(TIMEOUT, create_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(session.id().as_str(), server.session_id);
+}
+
 #[tokio::test]
 async fn session_fs_dispatches_read_file_to_provider() {
     let provider = Arc::new(RecordingFsProvider::new().with_file("/foo.txt", "hello world"));

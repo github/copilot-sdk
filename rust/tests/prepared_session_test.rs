@@ -705,6 +705,33 @@ async fn create_rpc_error_preserves_kind_and_cleans_up() {
 }
 
 #[tokio::test]
+async fn create_result_parse_error_preserves_kind_and_cleans_up() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("prepared-create-parse-error");
+
+    let prepared = client
+        .prepare_session(SessionConfig::default().with_session_id(session_id.clone()))
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let start = tokio::spawn(prepared.start());
+
+    let create_req = server.read_request().await;
+    // A malformed result: `sessionId` must be a string.
+    server
+        .respond(&create_req, json!({ "sessionId": 42 }))
+        .await;
+
+    let error = expect_error(timeout(TIMEOUT, start).await.unwrap().unwrap());
+    assert!(
+        matches!(error.kind(), ErrorKind::Json),
+        "unexpected error kind: {:?}",
+        error.kind()
+    );
+    await_no_registrations(&client).await;
+    expect_closed(&mut events).await;
+}
+
+#[tokio::test]
 async fn create_session_id_mismatch_preserves_kind_and_cleans_up() {
     let (client, mut server) = make_client();
     let session_id = SessionId::new("prepared-mismatch");

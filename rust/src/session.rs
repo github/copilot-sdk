@@ -359,6 +359,46 @@ impl Drop for PendingSessionRegistration {
     }
 }
 
+/// Spawns a session's event loop once its ID and router channels are known;
+/// every other [`spawn_event_loop`] input is already captured.
+type EventLoopSpawner =
+    Box<dyn FnOnce(SessionId, crate::router::SessionChannels) -> JoinHandle<()> + Send>;
+
+/// The event loop of a `session.create` startup while the RPC is in flight.
+///
+/// The loop can only start once the session is registered on the router,
+/// and registration needs the session ID. When the ID is known client-side
+/// the session is registered and its loop is running *before* the RPC is
+/// issued: the CLI issues session-scoped requests (for example
+/// `sessionFs.stat`) while it is still processing `session.create` and waits
+/// for their responses before it answers, so an undrained request channel
+/// would deadlock startup (github/copilot-sdk#2749). When the server assigns
+/// the ID the loop cannot start until the response has named the session,
+/// so the spawner is held until then.
+enum CreateEventLoop {
+    /// Registered and running since before the RPC was issued.
+    Running {
+        event_loop: JoinHandle<()>,
+        token: crate::router::RegistrationToken,
+    },
+    /// Spawned once the `session.create` response has been registered.
+    Deferred(EventLoopSpawner),
+}
+
+impl CreateEventLoop {
+    /// Tear down a startup that failed before the [`Session`] was built.
+    ///
+    /// A running loop is cancelled and awaited before the guard unregisters
+    /// the session, mirroring resume. A deferred loop has nothing to await,
+    /// so the guard's `Drop` performs the same cleanup.
+    async fn cleanup(self, pending_registration: PendingSessionRegistration) {
+        match self {
+            Self::Running { event_loop, .. } => pending_registration.cleanup(event_loop).await,
+            Self::Deferred(_) => drop(pending_registration),
+        }
+    }
+}
+
 /// A session on a GitHub Copilot CLI server.
 ///
 /// Created via [`Client::create_session`] or [`Client::resume_session`].
@@ -1345,10 +1385,8 @@ impl Client {
         // For cloud sessions, let the CLI/server assign the session id and
         // register the session lazily once the response arrives. For non-cloud
         // sessions we generate the id client-side (when the caller didn't
-        // supply one) so the session can be registered BEFORE the RPC — the
-        // CLI may issue session-scoped requests (e.g. sessionFs.writeFile for
-        // workspace metadata) during session.create processing, before it has
-        // sent the response.
+        // supply one) so the session can be registered, and its event loop
+        // started, BEFORE the RPC; see `CreateEventLoop` for why.
         let caller_session_id = config.session_id.clone();
         let use_server_generated_id = config.cloud.is_some() && caller_session_id.is_none();
         let local_session_id: Option<SessionId> = if use_server_generated_id {
@@ -1483,26 +1521,75 @@ impl Client {
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let external_tools_shutdown = self.inner.rpc.connection_closed_token();
 
+        // Captures every by-value input of `spawn_event_loop` once, so the
+        // loop can be spawned from whichever arm below owns that step
+        // without repeating the call.
+        let spawn_loop: EventLoopSpawner = {
+            let client = self.clone();
+            let idle_waiter = idle_waiter.clone();
+            let capabilities = capabilities.clone();
+            let open_canvases = open_canvases.clone();
+            let event_tx = event_tx.clone();
+            let shutdown = shutdown.clone();
+            let external_tools_shutdown = external_tools_shutdown.clone();
+            Box::new(
+                move |session_id: SessionId, channels: crate::router::SessionChannels| {
+                    spawn_event_loop(
+                        session_id,
+                        client,
+                        handlers,
+                        hooks,
+                        transforms,
+                        command_handlers,
+                        canvas_handler,
+                        session_fs_provider,
+                        bearer_token_providers,
+                        channels,
+                        idle_waiter,
+                        capabilities,
+                        open_canvases,
+                        event_tx,
+                        shutdown,
+                        external_tools_shutdown,
+                    )
+                },
+            )
+        };
+
         // For cloud sessions (use_server_generated_id), defer session
         // registration to the inline callback so the read task registers
-        // the session synchronously the instant the response arrives.
-        // For non-cloud sessions, register up-front so the CLI can issue
-        // session-scoped requests during session.create processing.
+        // the session synchronously the instant the response arrives; the
+        // event loop is spawned once the response has named the session.
+        // For non-cloud sessions, register up-front AND start the event
+        // loop before the RPC (see `CreateEventLoop`).
         let inline_stash: Arc<
             ParkingLotMutex<Option<(SessionId, crate::router::SessionRegistration)>>,
         > = Arc::new(ParkingLotMutex::new(None));
 
-        let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
+        // The guard is armed for the whole startup sequence: any early
+        // return, and any drop of this future (caller cancellation), cancels
+        // the session token and unregisters whatever was registered on the
+        // router. For the cloud path the ID is only known once the inline
+        // callback has run, so the guard reads the stash at cleanup time.
+        let (inline_callback, mut pending_registration, event_loop) = if let Some(ref sid) =
             local_session_id
         {
-            let channels = self.register_session(sid);
-            *inline_stash.lock() = Some((sid.clone(), channels));
-            None
+            let registration = self.register_session(sid);
+            let token = registration.token;
+            let event_loop = spawn_loop(sid.clone(), registration.channels);
+            let guard = PendingSessionRegistration::new(
+                self.clone(),
+                sid.clone(),
+                token,
+                shutdown.clone(),
+                external_tools_shutdown.clone(),
+            );
+            (None, guard, CreateEventLoop::Running { event_loop, token })
         } else {
             let client = self.clone();
             let stash = inline_stash.clone();
             let expected = caller_session_id.clone();
-            Some(Box::new(move |response| {
+            let callback: crate::jsonrpc::InlineResponseCallback = Box::new(move |response| {
                 let result = response.result.as_ref().ok_or_else(|| {
                     Error::with_message(ErrorKind::Json, "session.create response had no result")
                 })?;
@@ -1528,51 +1615,43 @@ impl Client {
                 let registration = client.register_session(&parsed.session_id);
                 *stashed = Some((parsed.session_id, registration));
                 Ok(())
-            }))
-        };
-
-        // Armed for the whole startup sequence: any early return, and any
-        // drop of this future (caller cancellation), cancels the session
-        // token and unregisters whatever was registered on the router. For
-        // the cloud path the ID is only known once the inline callback has
-        // run, so the guard reads the stash at cleanup time.
-        let mut pending_registration = match local_session_id {
-            Some(ref sid) => {
-                let token = inline_stash
-                    .lock()
-                    .as_ref()
-                    .expect("session registration must exist")
-                    .1
-                    .token;
-                PendingSessionRegistration::new(
-                    self.clone(),
-                    sid.clone(),
-                    token,
-                    shutdown.clone(),
-                    external_tools_shutdown.clone(),
-                )
-            }
-            None => PendingSessionRegistration::deferred(
+            });
+            let guard = PendingSessionRegistration::deferred(
                 self.clone(),
                 inline_stash.clone(),
                 shutdown.clone(),
                 external_tools_shutdown.clone(),
-            ),
+            );
+            (Some(callback), guard, CreateEventLoop::Deferred(spawn_loop))
         };
 
         let rpc_start = Instant::now();
-        let result = self
+        let result = match self
             .call_with_inline_callback("session.create", Some(params), inline_callback)
-            .await?;
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                event_loop.cleanup(pending_registration).await;
+                return Err(error);
+            }
+        };
         tracing::debug!(
             elapsed_ms = rpc_start.elapsed().as_millis(),
             "Client::create_session session creation request completed successfully"
         );
-        let create_result: CreateSessionResult = serde_json::from_value(result)?;
+        let create_result: CreateSessionResult = match serde_json::from_value(result) {
+            Ok(result) => result,
+            Err(error) => {
+                event_loop.cleanup(pending_registration).await;
+                return Err(error.into());
+            }
+        };
 
         if let Some(ref requested) = local_session_id
             && create_result.session_id != *requested
         {
+            event_loop.cleanup(pending_registration).await;
             return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
                 requested: requested.clone(),
                 returned: create_result.session_id.clone(),
@@ -1580,31 +1659,21 @@ impl Client {
             .into());
         }
 
-        let (session_id, registration) = inline_stash
-            .lock()
-            .take()
-            .expect("session registration must have populated stash on success");
-        let channels = registration.channels;
-        let registration_token = registration.token;
-        pending_registration.resolve_to(session_id.clone(), registration_token);
-        let event_loop = spawn_event_loop(
-            session_id.clone(),
-            self.clone(),
-            handlers,
-            hooks,
-            transforms,
-            command_handlers,
-            canvas_handler,
-            session_fs_provider,
-            bearer_token_providers,
-            channels,
-            idle_waiter.clone(),
-            capabilities.clone(),
-            open_canvases.clone(),
-            event_tx.clone(),
-            shutdown.clone(),
-            external_tools_shutdown.clone(),
-        );
+        let (session_id, event_loop, registration_token) = match event_loop {
+            // Equal to the requested ID: the mismatch check above passed.
+            CreateEventLoop::Running { event_loop, token } => {
+                (create_result.session_id.clone(), event_loop, token)
+            }
+            CreateEventLoop::Deferred(spawn_loop) => {
+                let (session_id, registration) = inline_stash
+                    .lock()
+                    .take()
+                    .expect("session registration must have populated stash on success");
+                pending_registration.resolve_to(session_id.clone(), registration.token);
+                let event_loop = spawn_loop(session_id.clone(), registration.channels);
+                (session_id, event_loop, registration.token)
+            }
+        };
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -2060,9 +2129,10 @@ impl PreparedSession {
     /// Create or resume the session on the CLI.
     ///
     /// This is where all protocol activity happens: config validation,
-    /// router registration, the `session.create` / `session.resume` RPC,
-    /// and the event loop spawn. Nothing observable occurs until this
-    /// future is first polled.
+    /// router registration, the event loop spawn (before the RPC when the
+    /// session ID is known client-side, after the response otherwise), and
+    /// the `session.create` / `session.resume` RPC. Nothing observable
+    /// occurs until this future is first polled.
     ///
     /// # Errors
     ///
