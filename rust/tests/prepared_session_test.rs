@@ -1431,6 +1431,66 @@ async fn identity_delivery_does_not_depend_on_send_acknowledgement_order() {
 }
 
 #[tokio::test]
+async fn cancelled_send_response_does_not_supply_the_next_message_identity() {
+    let fixture = identity_fixture();
+    let (client, mut server) = make_client();
+    let session_id = fixture["notifications"]["user"]["params"]["sessionId"]
+        .as_str()
+        .unwrap();
+    let (session, mut events) = start_identity_session(&client, &mut server, session_id).await;
+    let session = Arc::new(session);
+    let abandoned = tokio::spawn({
+        let session = session.clone();
+        async move { session.send("").await }
+    });
+    let abandoned_request = server.read_request().await;
+    assert_eq!(abandoned_request["method"], "session.send");
+    abandoned.abort();
+    assert!(
+        timeout(TIMEOUT, abandoned)
+            .await
+            .unwrap()
+            .unwrap_err()
+            .is_cancelled()
+    );
+
+    let next = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send(
+                    MessageOptions::new("").with_source(github_copilot_sdk::MessageSource::System),
+                )
+                .await
+        }
+    });
+    let next_request = server.read_request().await;
+    assert_eq!(next_request["method"], "session.send");
+    assert_ne!(abandoned_request["id"], next_request["id"]);
+    server
+        .respond(&abandoned_request, fixture["sendResults"]["user"].clone())
+        .await;
+    server
+        .send_notification(&fixture["notifications"]["user"])
+        .await;
+    server
+        .respond(&next_request, fixture["sendResults"]["system"].clone())
+        .await;
+    server
+        .send_notification(&fixture["notifications"]["system"])
+        .await;
+    assert_eq!(
+        timeout(TIMEOUT, next).await.unwrap().unwrap().unwrap(),
+        fixture["sendResults"]["system"]["messageId"]
+            .as_str()
+            .unwrap()
+    );
+    for name in ["user", "system"] {
+        expect_identity_event(&mut events, &fixture["notifications"][name]).await;
+    }
+}
+
+#[tokio::test]
 async fn identity_delivery_preserves_duplicates_workers_and_session_isolation() {
     let fixture = identity_fixture();
     let notifications = &fixture["notifications"];

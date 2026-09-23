@@ -95,6 +95,11 @@ the oldest pending send, queue position, or display text.
    its waiting future is cancelled after dispatch. Missing interaction, worker,
    or recovery keys are not supplied by the event's chronological `parentId`.
 
+The supported send request has no caller-supplied message ID. If the response is
+lost, an arriving `user.message` alone cannot identify the application's pending
+send. That boundary needs a verified runtime-owned bridge; neither queue order
+nor repurposing `source` as a correlation nonce supplies one.
+
 The root stream also contains subagent events marked by `agentId`. This marker
 alone does not establish a worker's runtime session or its relationship to an
 application Turn. A late worker event does not belong to whichever root Turn is
@@ -119,8 +124,9 @@ legacy keys. Message/display content is empty and tool arguments are absent.
 Consumers can replay permutations and duplicates to test their own association
 logic without collecting prompts or tool output. SDK tests verify typed
 round-tripping and delivery before/after acknowledgements, across interleaved
-sessions, resume, and new connections. They do not establish deployed runtime
-ordering, export coverage, or end-to-end telemetry joins.
+sessions, cancelled waits with late responses, resume, and new connections.
+They do not establish deployed runtime ordering, export coverage, or end-to-end
+telemetry joins.
 
 ## Further reading
 
