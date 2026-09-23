@@ -142,6 +142,13 @@ separate relationship. Worker chat spans can cover multiple loop iterations,
 so overwriting one span attribute cannot preserve all occurrence identities.
 Runtime emission and collector/query support need their own verified contract.
 
+Client-tool timing is a separate boundary: `ToolInvocation.traceparent` and
+`tracestate` come from `external_tool.requested`; the earlier
+`tool.execution_start` has no typed trace-context fields at this baseline.
+If a host dispatches client execution on that earlier event, a later callback
+cache cannot retroactively parent it. Use a verified context source available
+before handoff, and never wait for telemetry to allow the tool to execute.
+
 This is not a universal equality join for all product records. The runtime can
 normalize non-UUID reporting session IDs, report under a parent's identity,
 fill a child event's missing interaction from root state, or remint an event
