@@ -358,6 +358,26 @@ impl FakeServer {
         .await;
     }
 
+    /// Like [`send_event`](Self::send_event), but stamps the event envelope
+    /// with `agentId`, mirroring how the CLI's sub-agent bridge re-emits a
+    /// child agent's events on the parent session stream.
+    async fn send_event_from_agent(&mut self, event_type: &str, data: Value, agent_id: &str) {
+        self.send_notification(
+            "session.event",
+            serde_json::json!({
+                "sessionId": self.session_id,
+                "event": {
+                    "id": format!("evt-{}", rand_id()),
+                    "timestamp": "2025-01-01T00:00:00Z",
+                    "agentId": agent_id,
+                    "type": event_type,
+                    "data": data,
+                },
+            }),
+        )
+        .await;
+    }
+
     async fn send_request(&mut self, id: u64, method: &str, params: Value) {
         let request = serde_json::json!({
             "jsonrpc": "2.0",
@@ -4511,6 +4531,286 @@ async fn send_and_wait_returns_error_on_session_error() {
             )
         ) && err.to_string().contains("something went wrong")
     );
+}
+
+/// `subagent.started` payload for a child announced on the parent stream.
+fn sub_agent_started_data(agent_name: &str) -> Value {
+    serde_json::json!({
+        "agentName": agent_name,
+        "agentDisplayName": agent_name,
+        "agentDescription": format!("{agent_name} sub-agent"),
+        "toolCallId": format!("call-{agent_name}"),
+    })
+}
+
+/// Regression for github/copilot-sdk#2750: the CLI's sub-agent bridge
+/// announces a child through `subagent.started` and then re-emits the
+/// child's `assistant.message` / `session.error` / `session.idle` on the
+/// parent session stream with `agentId` set to the child's id. Those events
+/// must not complete the parent's `send_and_wait` and a child's
+/// `assistant.message` must not be captured as the reply, but they must
+/// still reach subscribers.
+#[tokio::test]
+async fn send_and_wait_ignores_sub_agent_error_and_idle() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let mut events = session.subscribe();
+
+    let mut handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send_and_wait(
+                    MessageOptions::new("delegate").with_wait_timeout(Duration::from_secs(5)),
+                )
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    server.respond(&request, serde_json::json!({})).await;
+
+    // The bridge announces the child before re-emitting any of its events.
+    server
+        .send_event_from_agent(
+            "subagent.started",
+            sub_agent_started_data("explorer"),
+            "child-agent-1",
+        )
+        .await;
+    server
+        .send_event_from_agent(
+            "assistant.message",
+            serde_json::json!({ "content": "child says hi" }),
+            "child-agent-1",
+        )
+        .await;
+    server
+        .send_event_from_agent(
+            "session.error",
+            serde_json::json!({ "message": "child model call failed" }),
+            "child-agent-1",
+        )
+        .await;
+    server
+        .send_event_from_agent("session.idle", serde_json::json!({}), "child-agent-1")
+        .await;
+
+    // Sub-agent events are still fanned out to subscribers...
+    for expected in [
+        "subagent.started",
+        "assistant.message",
+        "session.error",
+        "session.idle",
+    ] {
+        let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+        assert_eq!(event.event_type, expected);
+        assert_eq!(event.agent_id.as_deref(), Some("child-agent-1"));
+    }
+
+    // ...but the wait must still be pending.
+    assert!(
+        timeout(Duration::from_millis(300), &mut handle)
+            .await
+            .is_err(),
+        "send_and_wait must not resolve on a sub-agent's session.error / session.idle"
+    );
+
+    server
+        .send_event(
+            "assistant.message",
+            serde_json::json!({ "content": "root reply" }),
+        )
+        .await;
+    // A later sub-agent message must not displace the root reply.
+    server
+        .send_event_from_agent(
+            "assistant.message",
+            serde_json::json!({ "content": "child says bye" }),
+            "child-agent-1",
+        )
+        .await;
+    server
+        .send_event("session.idle", serde_json::json!({}))
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    let event = result.expect("root assistant.message should be captured");
+    assert_eq!(event.data["content"], "root reply");
+    assert!(event.agent_id.is_none());
+}
+
+/// Regression for github/copilot-sdk#2750: a sub-agent's `session.idle`
+/// must not resolve the wait, and a subsequent root `session.error` must
+/// still fail it with the root error message.
+#[tokio::test]
+async fn send_and_wait_ignores_sub_agent_idle_then_resolves_on_root_error() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let mut events = session.subscribe();
+
+    let mut handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send_and_wait(
+                    MessageOptions::new("delegate").with_wait_timeout(Duration::from_secs(5)),
+                )
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    server.respond(&request, serde_json::json!({})).await;
+
+    server
+        .send_event_from_agent(
+            "subagent.started",
+            sub_agent_started_data("explorer"),
+            "child-agent-1",
+        )
+        .await;
+    server
+        .send_event_from_agent("session.idle", serde_json::json!({}), "child-agent-1")
+        .await;
+    // Wait until the event loop has processed the child's idle before
+    // checking that the wait is still pending.
+    for expected in ["subagent.started", "session.idle"] {
+        let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+        assert_eq!(event.event_type, expected);
+    }
+    assert!(
+        timeout(Duration::from_millis(300), &mut handle)
+            .await
+            .is_err(),
+        "send_and_wait must not resolve on a sub-agent's session.idle"
+    );
+
+    server
+        .send_event(
+            "session.error",
+            serde_json::json!({ "message": "root model call failed" }),
+        )
+        .await;
+
+    let err = timeout(TIMEOUT, handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert!(
+        matches!(
+            err.kind(),
+            ErrorKind::Session(github_copilot_sdk::SessionErrorKind::AgentError)
+        ),
+        "{err}"
+    );
+    assert!(err.to_string().contains("root model call failed"), "{err}");
+}
+
+/// Any `subagent.*` lifecycle event announces the child, not only
+/// `subagent.started`: a child known from `subagent.failed` is still a
+/// child when its `session.error` trails the failure.
+#[tokio::test]
+async fn send_and_wait_ignores_sub_agent_known_from_a_later_lifecycle_event() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let mut events = session.subscribe();
+
+    let mut handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send_and_wait(
+                    MessageOptions::new("delegate").with_wait_timeout(Duration::from_secs(5)),
+                )
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    server.respond(&request, serde_json::json!({})).await;
+
+    server
+        .send_event_from_agent(
+            "subagent.failed",
+            serde_json::json!({
+                "agentName": "explorer",
+                "agentDisplayName": "explorer",
+                "error": "child model call failed",
+                "toolCallId": "call-explorer",
+            }),
+            "child-agent-1",
+        )
+        .await;
+    server
+        .send_event_from_agent(
+            "session.error",
+            serde_json::json!({ "message": "child model call failed" }),
+            "child-agent-1",
+        )
+        .await;
+    for expected in ["subagent.failed", "session.error"] {
+        let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+        assert_eq!(event.event_type, expected);
+    }
+    assert!(
+        timeout(Duration::from_millis(300), &mut handle)
+            .await
+            .is_err(),
+        "send_and_wait must not fail on a sub-agent's session.error"
+    );
+
+    server
+        .send_event("session.idle", serde_json::json!({}))
+        .await;
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert!(result.is_none(), "no root assistant.message was sent");
+}
+
+/// Forward compatibility for github/copilot-sdk#2750: the runtime omits
+/// `agentId` on root-agent events today, but an `agentId` that was never
+/// announced as a sub-agent must still complete the wait. Otherwise a
+/// runtime that starts stamping root events would turn a fast failure into
+/// a silent wait timeout.
+#[tokio::test]
+async fn send_and_wait_resolves_on_events_from_an_unannounced_agent_id() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send_and_wait(
+                    MessageOptions::new("hello").with_wait_timeout(Duration::from_secs(5)),
+                )
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    server.respond(&request, serde_json::json!({})).await;
+
+    server
+        .send_event_from_agent(
+            "assistant.message",
+            serde_json::json!({ "content": "root reply" }),
+            "root-agent-7",
+        )
+        .await;
+    server
+        .send_event_from_agent("session.idle", serde_json::json!({}), "root-agent-7")
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    let event = result.expect("assistant.message from an unannounced agent should be captured");
+    assert_eq!(event.data["content"], "root reply");
+    assert_eq!(event.agent_id.as_deref(), Some("root-agent-7"));
 }
 
 #[tokio::test]

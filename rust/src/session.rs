@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -159,6 +159,46 @@ fn is_structured_output_event(event: &SessionEvent) -> bool {
             | SessionEventType::SessionIdle
             | SessionEventType::SessionError
     )
+}
+
+/// Whether `event` may drive the parent's [`Session::send_and_wait`] waiter,
+/// i.e. whether it is attributed to the session's root/main agent rather
+/// than to one of the sub-agents observed on this session.
+///
+/// The CLI re-emits a sub-agent's events on the parent session stream with
+/// `agentId` set to the child's identifier, and announces every child on
+/// that same stream first through its `subagent.*` lifecycle events (see
+/// [`register_sub_agent`]). Root/main-agent and session-level events omit
+/// `agentId` today, so an event counts as root-attributed when its `agentId`
+/// is absent, empty, or not the id of a known sub-agent. The last arm is
+/// deliberate: it keeps the wait working if the runtime ever starts stamping
+/// root events with an identifier of its own (otherwise a root failure would
+/// degrade into a silent wait timeout), while the only way to misclassify a
+/// child is to have missed its lifecycle events, which is exactly the
+/// pre-fix behaviour and never worse.
+fn is_root_agent_event(event: &SessionEvent, observed_sub_agents: &HashSet<String>) -> bool {
+    match event.agent_id.as_deref() {
+        None | Some("") => true,
+        Some(agent_id) => !observed_sub_agents.contains(agent_id),
+    }
+}
+
+/// Record the sub-agent identifier carried by a `subagent.*` lifecycle
+/// event so [`is_root_agent_event`] recognises that child's re-emitted
+/// events. Identifiers are never removed: a child's final events can trail
+/// its `subagent.completed` / `subagent.failed`.
+fn register_sub_agent(event: &SessionEvent, observed_sub_agents: &mut HashSet<String>) {
+    if matches!(
+        event.parsed_type(),
+        SessionEventType::SubagentStarted
+            | SessionEventType::SubagentConfigured
+            | SessionEventType::SubagentCompleted
+            | SessionEventType::SubagentFailed
+    ) && let Some(agent_id) = event.agent_id.as_deref().filter(|id| !id.is_empty())
+        && !observed_sub_agents.contains(agent_id)
+    {
+        observed_sub_agents.insert(agent_id.to_owned());
+    }
 }
 
 struct StructuredOutputState {
@@ -665,6 +705,16 @@ impl Session {
     /// Blocks until `session.idle` (success) or `session.error` (failure),
     /// returning the last `assistant.message` event captured during streaming.
     /// Times out after `MessageOptions::wait_timeout` (default 60 seconds).
+    ///
+    /// Only events attributed to the root agent complete the wait. Events the
+    /// CLI re-emits from sub-agents carry the child's `agentId`, which the
+    /// session learns from the child's `subagent.*` lifecycle events; those
+    /// events are ignored by the wait — a sub-agent's `assistant.message` is
+    /// not captured and its `session.idle` / `session.error` neither completes
+    /// nor fails the wait — but they are still delivered to
+    /// [`subscribe`](Self::subscribe) subscribers. Events with no `agentId`,
+    /// an empty one, or one that does not belong to a known sub-agent are
+    /// treated as the root agent's.
     ///
     /// Only one unformatted `send_and_wait` may be active per session. Calling
     /// [`send`](Self::send) during that wait also returns an error. Schema-bearing
@@ -2236,6 +2286,11 @@ fn spawn_event_loop(
     } = channels;
     let pending_external_tools: PendingExternalTools =
         Arc::new(ParkingLotMutex::new(HashMap::new()));
+    // Sub-agent ids announced on this session's stream, consulted by the
+    // `send_and_wait` waiter so a child's completion cannot end the parent's
+    // wait. Owned by the loop task: `handle_notification` is awaited inline,
+    // so no lock is needed.
+    let mut observed_sub_agents: HashSet<String> = HashSet::new();
 
     let span = tracing::error_span!("session_event_loop", session_id = %session_id);
     tokio::spawn(
@@ -2268,7 +2323,7 @@ fn spawn_event_loop(
                     _ = shutdown.cancelled() => break,
                     Some(notification) = notifications.recv() => {
                         handle_notification(
-                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &open_canvases, &event_tx, &shutdown, &external_tools_shutdown, &pending_external_tools,
+                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &mut observed_sub_agents, &capabilities, &open_canvases, &event_tx, &shutdown, &external_tools_shutdown, &pending_external_tools,
                         ).await;
                     }
                     Some(request) = requests.recv() => {
@@ -2431,6 +2486,7 @@ async fn handle_notification(
     command_handlers: &Arc<CommandHandlerMap>,
     notification: SessionEventNotification,
     idle_waiter: &Arc<ParkingLotMutex<Option<IdleWaiter>>>,
+    observed_sub_agents: &mut HashSet<String>,
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilities>>,
     open_canvases: &Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
@@ -2449,12 +2505,18 @@ async fn handle_notification(
         );
     }
 
+    register_sub_agent(event, observed_sub_agents);
+
     // Signal send_and_wait if active. The lock is only contended when
-    // a send_and_wait call is in flight (idle_waiter is Some).
+    // a send_and_wait call is in flight (idle_waiter is Some). Only events
+    // attributed to the root agent may drive the waiter; a sub-agent's
+    // events fall through untouched and are still broadcast below.
     match event_type {
         SessionEventType::AssistantMessage
         | SessionEventType::SessionIdle
-        | SessionEventType::SessionError => {
+        | SessionEventType::SessionError
+            if is_root_agent_event(event, observed_sub_agents) =>
+        {
             let mut guard = idle_waiter.lock();
             if let Some(waiter) = guard.as_mut() {
                 match event_type {
@@ -3434,11 +3496,14 @@ fn inject_transform_sections_resume(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use serde_json::json;
 
     use super::{
         build_mode_post_create_patch, has_managed_settings, is_autopilot_continuation_idle,
-        permission_request_data, permission_response_params,
+        is_root_agent_event, permission_request_data, permission_response_params,
+        register_sub_agent,
     };
     use crate::handler::PermissionResult;
     use crate::types::{
@@ -3467,6 +3532,86 @@ mod tests {
 
         event.data = json!({});
         assert!(!is_autopilot_continuation_idle(&event));
+    }
+
+    fn agent_event(event_type: &str, agent_id: Option<&str>) -> SessionEvent {
+        SessionEvent {
+            id: "event-1".to_string(),
+            timestamp: "2026-01-01T00:00:00Z".to_string(),
+            parent_id: None,
+            ephemeral: None,
+            agent_id: agent_id.map(str::to_owned),
+            debug_cli_received_at_ms: None,
+            debug_ws_forwarded_at_ms: None,
+            event_type: event_type.to_string(),
+            data: json!({}),
+        }
+    }
+
+    #[test]
+    fn root_agent_events_are_unstamped_empty_or_not_a_known_sub_agent() {
+        let mut observed = HashSet::new();
+
+        assert!(is_root_agent_event(
+            &agent_event("session.idle", None),
+            &observed
+        ));
+        assert!(is_root_agent_event(
+            &agent_event("session.idle", Some("")),
+            &observed
+        ));
+        // An id never announced as a sub-agent is not treated as a child.
+        assert!(is_root_agent_event(
+            &agent_event("session.idle", Some("agent-1")),
+            &observed
+        ));
+
+        register_sub_agent(
+            &agent_event("subagent.started", Some("agent-1")),
+            &mut observed,
+        );
+        assert!(!is_root_agent_event(
+            &agent_event("session.idle", Some("agent-1")),
+            &observed
+        ));
+        assert!(!is_root_agent_event(
+            &agent_event("session.error", Some("agent-1")),
+            &observed
+        ));
+        assert!(is_root_agent_event(
+            &agent_event("session.idle", None),
+            &observed
+        ));
+        assert!(is_root_agent_event(
+            &agent_event("session.idle", Some("agent-2")),
+            &observed
+        ));
+    }
+
+    #[test]
+    fn sub_agents_are_registered_only_from_lifecycle_events() {
+        let mut observed = HashSet::new();
+        register_sub_agent(
+            &agent_event("assistant.message", Some("agent-1")),
+            &mut observed,
+        );
+        register_sub_agent(&agent_event("session.idle", Some("agent-1")), &mut observed);
+        assert!(observed.is_empty());
+
+        for lifecycle in [
+            "subagent.started",
+            "subagent.configured",
+            "subagent.completed",
+            "subagent.failed",
+        ] {
+            let mut observed = HashSet::new();
+            register_sub_agent(&agent_event(lifecycle, Some("agent-1")), &mut observed);
+            assert!(observed.contains("agent-1"), "{lifecycle}");
+        }
+
+        register_sub_agent(&agent_event("subagent.started", None), &mut observed);
+        register_sub_agent(&agent_event("subagent.started", Some("")), &mut observed);
+        assert!(observed.is_empty());
     }
 
     #[test]
