@@ -5538,6 +5538,10 @@ pub struct MessageOptions {
     /// Optional message provenance. When `None`, the field is omitted,
     /// preserving the runtime's default for user messages.
     pub source: Option<MessageSource>,
+    /// Whether the runtime may complete without producing an assistant response.
+    /// Omitted or false preserves the empty-output error. Required messages in a
+    /// combined turn take precedence over optional messages.
+    pub response_optional: Option<bool>,
     /// Optional message delivery mode for this turn.
     ///
     /// Controls whether the prompt is queued behind in-flight work
@@ -5579,6 +5583,7 @@ impl MessageOptions {
             prompt: prompt.into(),
             response_schema: None,
             source: None,
+            response_optional: None,
             mode: None,
             agent_mode: None,
             attachments: None,
@@ -5599,6 +5604,13 @@ impl MessageOptions {
     /// Request provider-native structured output for this run.
     pub fn with_response_schema(mut self, schema: Value) -> Self {
         self.response_schema = Some(schema);
+        self
+    }
+
+    /// Allow an empty completion for an informational message when true.
+    /// False retains the runtime's normal response requirement.
+    pub fn with_response_optional(mut self, response_optional: bool) -> Self {
+        self.response_optional = Some(response_optional);
         self
     }
 

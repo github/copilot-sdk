@@ -609,6 +609,9 @@ impl Session {
         if let Some(source) = opts.source {
             params["source"] = serde_json::to_value(source)?;
         }
+        if let Some(response_optional) = opts.response_optional {
+            params["responseOptional"] = serde_json::json!(response_optional);
+        }
         if let Some(m) = opts.mode {
             params["mode"] = serde_json::to_value(m)?;
         }
