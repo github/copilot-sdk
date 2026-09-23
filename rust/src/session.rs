@@ -175,10 +175,9 @@ fn is_structured_output_event(event: &SessionEvent) -> bool {
 /// - While no sub-agent has been observed on this session, every non-empty
 ///   `agentId` is treated as a sub-agent's. A resumed session starts with an
 ///   empty set and no history is replayed, so a background sub-agent that
-///   outlives the parent's detach would otherwise resolve the resumed
-///   parent's wait with its own `session.idle` / `session.error`. In this
-///   regime the gate matches the absent-or-empty check used by the
-///   structured-output path.
+///   outlives the parent's detach could otherwise fail the resumed parent's
+///   wait with its own `session.error`. In this regime the gate matches the
+///   absent-or-empty check used by the structured-output path.
 /// - Once at least one sub-agent has been observed, only the ids in the set
 ///   are treated as sub-agents. This keeps the wait working if the runtime
 ///   ever starts stamping root events with an identifier of its own
@@ -196,8 +195,10 @@ fn is_root_agent_event(event: &SessionEvent, observed_sub_agents: &HashSet<Strin
 
 /// Record the sub-agent identifier carried by a `subagent.*` lifecycle
 /// event so [`is_root_agent_event`] recognises that child's re-emitted
-/// events. Identifiers are never removed: a child's final events can trail
-/// its `subagent.completed` / `subagent.failed`.
+/// events. Nested sub-agents are announced on the root stream with their
+/// own identifiers, so the set covers them too. Identifiers are never
+/// removed: a child's final events can trail its `subagent.completed` /
+/// `subagent.failed`.
 fn register_sub_agent(event: &SessionEvent, observed_sub_agents: &mut HashSet<String>) {
     if matches!(
         event.parsed_type(),

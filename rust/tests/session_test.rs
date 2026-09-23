@@ -4545,11 +4545,12 @@ fn sub_agent_started_data(agent_name: &str) -> Value {
 
 /// Regression for github/copilot-sdk#2750: the CLI's sub-agent bridge
 /// announces a child through `subagent.started` and then re-emits the
-/// child's `assistant.message` / `session.error` / `session.idle` on the
-/// parent session stream with `agentId` set to the child's id. Those events
-/// must not complete the parent's `send_and_wait` and a child's
+/// child's events (among them `assistant.message` and `session.error`) on
+/// the parent session stream with `agentId` set to the child's id. Those
+/// events must not complete the parent's `send_and_wait` and a child's
 /// `assistant.message` must not be captured as the reply, but they must
-/// still reach subscribers.
+/// still reach subscribers. Current runtimes do not bridge a child's
+/// `session.idle`; one is sent here so the gate does not depend on that.
 #[tokio::test]
 async fn send_and_wait_ignores_sub_agent_error_and_idle() {
     let (session, mut server) = create_session_pair().await;
@@ -4641,9 +4642,10 @@ async fn send_and_wait_ignores_sub_agent_error_and_idle() {
     assert!(event.agent_id.is_none());
 }
 
-/// Regression for github/copilot-sdk#2750: a sub-agent's `session.idle`
-/// must not resolve the wait, and a subsequent root `session.error` must
-/// still fail it with the root error message.
+/// A stamped `session.idle` must not resolve the wait (current runtimes do
+/// not bridge a child's idle, but the gate must not rely on that), and a
+/// subsequent root `session.error` must still fail it with the root error
+/// message.
 #[tokio::test]
 async fn send_and_wait_ignores_sub_agent_idle_then_resolves_on_root_error() {
     let (session, mut server) = create_session_pair().await;
