@@ -4772,12 +4772,12 @@ async fn send_and_wait_ignores_sub_agent_known_from_a_later_lifecycle_event() {
 }
 
 /// Forward compatibility for github/copilot-sdk#2750: the runtime omits
-/// `agentId` on root-agent events today, but an `agentId` that was never
-/// announced as a sub-agent must still complete the wait. Otherwise a
-/// runtime that starts stamping root events would turn a fast failure into
-/// a silent wait timeout.
+/// `agentId` on root-agent events today, but once a sub-agent is known an
+/// `agentId` that was never announced as a sub-agent must still complete
+/// the wait. Otherwise a runtime that starts stamping root events would
+/// turn a fast failure into a silent wait timeout.
 #[tokio::test]
-async fn send_and_wait_resolves_on_events_from_an_unannounced_agent_id() {
+async fn send_and_wait_resolves_on_events_from_an_unannounced_agent_id_once_a_sub_agent_is_known() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
 
@@ -4798,6 +4798,13 @@ async fn send_and_wait_resolves_on_events_from_an_unannounced_agent_id() {
 
     server
         .send_event_from_agent(
+            "subagent.started",
+            sub_agent_started_data("explorer"),
+            "child-agent-1",
+        )
+        .await;
+    server
+        .send_event_from_agent(
             "assistant.message",
             serde_json::json!({ "content": "root reply" }),
             "root-agent-7",
@@ -4811,6 +4818,77 @@ async fn send_and_wait_resolves_on_events_from_an_unannounced_agent_id() {
     let event = result.expect("assistant.message from an unannounced agent should be captured");
     assert_eq!(event.data["content"], "root reply");
     assert_eq!(event.agent_id.as_deref(), Some("root-agent-7"));
+}
+
+/// A resumed session starts with no known sub-agents and no history is
+/// replayed, so a background sub-agent that outlived the parent's detach
+/// is unknown to the resumed parent. Until a sub-agent is announced on the
+/// resumed stream, any stamped event must be treated as a sub-agent's so
+/// that such a child cannot fail or resolve the parent's wait.
+#[tokio::test]
+async fn resumed_send_and_wait_ignores_stamped_events_before_any_sub_agent_is_known() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let (client, mut server_read, mut server_write) = make_client();
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .resume_session(ResumeSessionConfig::new(SessionId::from("resumed-session")))
+                .await
+                .unwrap()
+        }
+    });
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.resume");
+    server_respond_create(&mut server_write, &request, "resumed-session").await;
+    respond_to_reload(&mut server_read, &mut server_write).await;
+    let session = Arc::new(timeout(TIMEOUT, resume_handle).await.unwrap().unwrap());
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "resumed-session".to_string(),
+    };
+    let mut events = session.subscribe();
+
+    let mut handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send_and_wait(
+                    MessageOptions::new("continue").with_wait_timeout(Duration::from_secs(5)),
+                )
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    server.respond(&request, serde_json::json!({})).await;
+
+    // The surviving child was announced before the resume, so this stream
+    // never saw its `subagent.started`.
+    server
+        .send_event_from_agent(
+            "session.error",
+            serde_json::json!({ "message": "background child failed" }),
+            "background-agent-9",
+        )
+        .await;
+    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+    assert_eq!(event.event_type, "session.error");
+    assert!(
+        timeout(Duration::from_millis(300), &mut handle)
+            .await
+            .is_err(),
+        "a stamped session.error must not fail the wait before any sub-agent is known"
+    );
+
+    server
+        .send_event("session.idle", serde_json::json!({}))
+        .await;
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert!(result.is_none(), "no root assistant.message was sent");
 }
 
 #[tokio::test]

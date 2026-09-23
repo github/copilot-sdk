@@ -163,23 +163,34 @@ fn is_structured_output_event(event: &SessionEvent) -> bool {
 
 /// Whether `event` may drive the parent's [`Session::send_and_wait`] waiter,
 /// i.e. whether it is attributed to the session's root/main agent rather
-/// than to one of the sub-agents observed on this session.
+/// than to a sub-agent.
 ///
 /// The CLI re-emits a sub-agent's events on the parent session stream with
 /// `agentId` set to the child's identifier, and announces every child on
 /// that same stream first through its `subagent.*` lifecycle events (see
 /// [`register_sub_agent`]). Root/main-agent and session-level events omit
-/// `agentId` today, so an event counts as root-attributed when its `agentId`
-/// is absent, empty, or not the id of a known sub-agent. The last arm is
-/// deliberate: it keeps the wait working if the runtime ever starts stamping
-/// root events with an identifier of its own (otherwise a root failure would
-/// degrade into a silent wait timeout), while the only way to misclassify a
-/// child is to have missed its lifecycle events, which is exactly the
-/// pre-fix behaviour and never worse.
+/// `agentId` today, so an event with no `agentId` (or an empty one) is
+/// always the root agent's. A non-empty `agentId` is judged in two regimes:
+///
+/// - While no sub-agent has been observed on this session, every non-empty
+///   `agentId` is treated as a sub-agent's. A resumed session starts with an
+///   empty set and no history is replayed, so a background sub-agent that
+///   outlives the parent's detach would otherwise resolve the resumed
+///   parent's wait with its own `session.idle` / `session.error`. In this
+///   regime the gate matches the absent-or-empty check used by the
+///   structured-output path.
+/// - Once at least one sub-agent has been observed, only the ids in the set
+///   are treated as sub-agents. This keeps the wait working if the runtime
+///   ever starts stamping root events with an identifier of its own
+///   (otherwise a root failure would degrade into a silent wait timeout);
+///   the only way to misclassify a child is to have missed its lifecycle
+///   events, which is exactly the pre-fix behaviour and never worse.
 fn is_root_agent_event(event: &SessionEvent, observed_sub_agents: &HashSet<String>) -> bool {
     match event.agent_id.as_deref() {
         None | Some("") => true,
-        Some(agent_id) => !observed_sub_agents.contains(agent_id),
+        Some(agent_id) => {
+            !observed_sub_agents.is_empty() && !observed_sub_agents.contains(agent_id)
+        }
     }
 }
 
@@ -712,9 +723,10 @@ impl Session {
     /// events are ignored by the wait — a sub-agent's `assistant.message` is
     /// not captured and its `session.idle` / `session.error` neither completes
     /// nor fails the wait — but they are still delivered to
-    /// [`subscribe`](Self::subscribe) subscribers. Events with no `agentId`,
-    /// an empty one, or one that does not belong to a known sub-agent are
-    /// treated as the root agent's.
+    /// [`subscribe`](Self::subscribe) subscribers. Events with no `agentId`
+    /// or an empty one are always treated as the root agent's; once a
+    /// sub-agent has been observed, so are events whose `agentId` is not a
+    /// known sub-agent's.
     ///
     /// Only one unformatted `send_and_wait` may be active per session. Calling
     /// [`send`](Self::send) during that wait also returns an error. Schema-bearing
@@ -3549,7 +3561,7 @@ mod tests {
     }
 
     #[test]
-    fn root_agent_events_are_unstamped_empty_or_not_a_known_sub_agent() {
+    fn root_agent_events_are_unstamped_or_unknown_once_a_sub_agent_is_known() {
         let mut observed = HashSet::new();
 
         assert!(is_root_agent_event(
@@ -3560,8 +3572,9 @@ mod tests {
             &agent_event("session.idle", Some("")),
             &observed
         ));
-        // An id never announced as a sub-agent is not treated as a child.
-        assert!(is_root_agent_event(
+        // Before any sub-agent is known, every stamped event is a
+        // sub-agent's: a resumed session has no history to learn from.
+        assert!(!is_root_agent_event(
             &agent_event("session.idle", Some("agent-1")),
             &observed
         ));
@@ -3582,6 +3595,8 @@ mod tests {
             &agent_event("session.idle", None),
             &observed
         ));
+        // Once a sub-agent is known, an id that was never announced is not
+        // treated as a child.
         assert!(is_root_agent_event(
             &agent_event("session.idle", Some("agent-2")),
             &observed
