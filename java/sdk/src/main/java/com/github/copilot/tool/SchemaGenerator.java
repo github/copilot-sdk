@@ -5,7 +5,9 @@
 package com.github.copilot.tool;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.lang.model.element.Element;
@@ -35,6 +37,17 @@ import com.github.copilot.CopilotExperimental;
  */
 @CopilotExperimental
 public class SchemaGenerator {
+    private final boolean closedObjects;
+    private final Set<String> expandingResponseTypes = new HashSet<>();
+
+    /** Creates a schema generator for custom tools. */
+    public SchemaGenerator() {
+        this(false);
+    }
+
+    SchemaGenerator(boolean closedObjects) {
+        this.closedObjects = closedObjects;
+    }
 
     /**
      * Given a {@link TypeMirror} from the annotation processing environment,
@@ -100,7 +113,7 @@ public class SchemaGenerator {
         String properties = "Map.ofEntries(" + String.join(", ", propertyEntries) + ")";
         String required = "List.of(" + String.join(", ", requiredNames) + ")";
 
-        return "Map.of(\"type\", \"object\", \"properties\", " + properties + ", \"required\", " + required + ")";
+        return objectSchema(properties, required);
     }
 
     private String generateSchema(TypeMirror type, Types typeUtils, Elements elementUtils) {
@@ -119,6 +132,18 @@ public class SchemaGenerator {
 
         // Handle declared types (classes, interfaces, enums, records)
         if (type.getKind() == TypeKind.DECLARED) {
+            if (closedObjects) {
+                String name = type.toString();
+                if (!expandingResponseTypes.add(name)) {
+                    throw new IllegalArgumentException(
+                            "Recursive response types require an explicit JSON Schema: " + name);
+                }
+                try {
+                    return generateDeclaredTypeSchema((DeclaredType) type, typeUtils, elementUtils);
+                } finally {
+                    expandingResponseTypes.remove(name);
+                }
+            }
             return generateDeclaredTypeSchema((DeclaredType) type, typeUtils, elementUtils);
         }
 
@@ -294,7 +319,7 @@ public class SchemaGenerator {
         String properties = "Map.ofEntries(" + String.join(", ", propertyEntries) + ")";
         String required = "List.of(" + String.join(", ", requiredNames) + ")";
 
-        return "Map.of(\"type\", \"object\", \"properties\", " + properties + ", \"required\", " + required + ")";
+        return objectSchema(properties, required);
     }
 
     private String generateClassSchema(TypeElement typeElement, Types typeUtils, Elements elementUtils) {
@@ -325,13 +350,18 @@ public class SchemaGenerator {
         }
 
         if (propertyEntries.isEmpty()) {
-            return "Map.of(\"type\", \"object\")";
+            return closedObjects ? objectSchema("Map.of()", "List.of()") : "Map.of(\"type\", \"object\")";
         }
 
         String properties = "Map.ofEntries(" + String.join(", ", propertyEntries) + ")";
         String required = "List.of(" + String.join(", ", requiredNames) + ")";
 
-        return "Map.of(\"type\", \"object\", \"properties\", " + properties + ", \"required\", " + required + ")";
+        return objectSchema(properties, required);
+    }
+
+    private String objectSchema(String properties, String required) {
+        return "Map.of(\"type\", \"object\", \"properties\", " + properties + ", \"required\", " + required
+                + (closedObjects ? ", \"additionalProperties\", false" : "") + ")";
     }
 
     private String generateSealedSchema(TypeElement typeElement, Types typeUtils, Elements elementUtils) {

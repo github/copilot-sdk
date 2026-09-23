@@ -389,12 +389,16 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // session.start is emitted during the session.create RPC; if the session
         // weren't registered in the sessions map before the RPC, it would be dropped.
         var earlyEvents = new List<SessionEvent>();
+        var earlyEventsLock = new object();
         var sessionStartReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnEvent = evt =>
             {
-                earlyEvents.Add(evt);
+                lock (earlyEventsLock)
+                {
+                    earlyEvents.Add(evt);
+                }
                 if (evt is SessionStartEvent)
                     sessionStartReceived.TrySetResult(true);
             },
@@ -402,7 +406,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         // session.start is dispatched asynchronously via the event channel.
         await sessionStartReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Contains(earlyEvents, evt => evt is SessionStartEvent);
+        lock (earlyEventsLock)
+        {
+            Assert.Contains(earlyEvents, evt => evt is SessionStartEvent);
+        }
 
         var receivedEvents = new List<SessionEvent>();
         var receivedEventsLock = new object();

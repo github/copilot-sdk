@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * One change applying the plan would make, described rather than serialised so the configuration payload stays behind the runtime boundary.
+ * The configuration-change alternative for the transportChoices entry at the same index. Only the selected alternative is applied; entries are not cumulative. The payload stays behind the runtime boundary.
  *
  * @since 1.0.0
  */

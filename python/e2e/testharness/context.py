@@ -48,6 +48,10 @@ def get_cli_path_for_tests() -> str:
     env_path = os.environ.get("COPILOT_CLI_PATH")
     if env_path and Path(env_path).exists():
         return str(Path(env_path).resolve())
+    if os.environ.get("COPILOT_RUNTIME_SOURCE") == "checkout":
+        raise RuntimeError(
+            "COPILOT_CLI_PATH must select an existing same-checkout runtime for SDK tests"
+        )
 
     return _prepare_pinned_cli(Path(__file__).parents[3])
 

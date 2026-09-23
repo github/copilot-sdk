@@ -1,10 +1,231 @@
 import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
-import { generateRpcCode } from "../../scripts/codegen/csharp.ts";
+import { generateRpcCode, generateSessionEventsCode } from "../../scripts/codegen/csharp.ts";
 import type { ApiSchema } from "../../scripts/codegen/utils.ts";
 
+describe("C# root event payload unions", () => {
+    it.each(["anyOf", "oneOf"] as const)("preserves referenced %s payload variants", (keyword) => {
+        const code = generateSessionEventsCode({
+            definitions: {
+                Payload: {
+                    [keyword]: ["status", "startup", "server_error", "incremental"].map((kind) => ({
+                        type: "object",
+                        properties: { kind: { const: kind }, value: { type: "string" } },
+                        required: ["kind", "value"],
+                    })),
+                },
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                type: { const: "sample.union" },
+                                data: { $ref: "#/definitions/Payload" },
+                            },
+                            required: ["type", "data"],
+                        },
+                        {
+                            type: "object",
+                            properties: {
+                                type: { const: "sample.empty" },
+                                data: { type: "object", properties: {} },
+                            },
+                            required: ["type", "data"],
+                        },
+                    ],
+                },
+            },
+        });
+        expect(code).toContain("public required SampleUnionData Data");
+        expect(code).toContain('TypeDiscriminatorPropertyName = "kind"');
+        for (const suffix of ["Status", "Startup", "ServerError", "Incremental"]) {
+            expect(code).toContain(
+                `public sealed partial class SampleUnionData${suffix} : SampleUnionData`
+            );
+            expect(code).toContain(`[JsonSerializable(typeof(SampleUnionData${suffix}))]`);
+        }
+        expect(code).toContain("public required string Value");
+        expect(code).toContain("public sealed partial class SampleEmptyData");
+        expect(code).not.toContain("public sealed partial class SampleUnionData { }");
+    });
+});
+
 describe("C# RPC codegen", () => {
+    it.each(["uninstall", "update"])(
+        "separates the session wire envelope from the shared plugins %s request",
+        (method) => {
+            const title = `Plugins${method === "uninstall" ? "Uninstall" : "Update"}Request`;
+            const params: JSONSchema7 = {
+                title,
+                type: "object",
+                properties: {
+                    name: { type: "string" },
+                    directSourceId: { type: ["string", "null"] },
+                    mode: { type: "string", enum: ["local", "global"] },
+                },
+                required: ["name"],
+                additionalProperties: false,
+            };
+            const code = generateRpcCode({
+                definitions: { [title]: params },
+                server: {
+                    plugins: {
+                        [method]: {
+                            rpcMethod: `plugins.${method}`,
+                            params: { $ref: `#/definitions/${title}` },
+                        },
+                    },
+                },
+                session: {
+                    plugins: {
+                        [method]: {
+                            rpcMethod: `session.plugins.${method}`,
+                            params: {
+                                ...params,
+                                properties: {
+                                    sessionId: { type: "string" },
+                                    ...params.properties,
+                                },
+                                required: ["sessionId", "name"],
+                            },
+                        },
+                    },
+                },
+            });
+
+            expect(code).toContain(`internal sealed class ${title}\n`);
+            expect(code).toContain(`internal sealed class ${title}WithSession\n`);
+            expect(code).toContain(
+                `new ${title}WithSession { SessionId = _session.SessionId, Name = name, DirectSourceId = directSourceId, Mode = mode }`
+            );
+            expect(code).toContain(
+                `new ${title} { Name = name, DirectSourceId = directSourceId, Mode = mode }`
+            );
+            expect(code).toContain(
+                `string name, string? directSourceId = null, ${title}Mode? mode = null, CancellationToken cancellationToken = default`
+            );
+            expect(code).not.toContain(`${title}WithSessionMode`);
+            expect(code).toContain(`[JsonSerializable(typeof(${title}))]`);
+            expect(code).toContain(`[JsonSerializable(typeof(${title}WithSession))]`);
+        }
+    );
+
+    it("still rejects incompatible schemas sharing a request title", () => {
+        expect(() =>
+            generateRpcCode({
+                server: {
+                    first: {
+                        rpcMethod: "first",
+                        params: {
+                            title: "SharedRequest",
+                            type: "object",
+                            properties: { name: { type: "string" } },
+                        },
+                    },
+                    second: {
+                        rpcMethod: "second",
+                        params: {
+                            title: "SharedRequest",
+                            type: "object",
+                            properties: { count: { type: "integer" } },
+                        },
+                    },
+                },
+            })
+        ).toThrow('Conflicting RPC class name "SharedRequest"');
+    });
+
+    it("does not hide non-envelope differences in a shared session request", () => {
+        const params: JSONSchema7 = {
+            title: "SharedRequest",
+            type: "object",
+            properties: { name: { type: "string" } },
+            required: ["name"],
+        };
+        expect(() =>
+            generateRpcCode({
+                definitions: { SharedRequest: params },
+                server: {
+                    configure: { rpcMethod: "configure", params },
+                },
+                session: {
+                    configure: {
+                        rpcMethod: "session.configure",
+                        params: {
+                            ...params,
+                            properties: {
+                                sessionId: { type: "string" },
+                                name: { type: "integer" },
+                            },
+                            required: ["sessionId", "name"],
+                        },
+                    },
+                },
+            })
+        ).toThrow('Conflicting RPC class name "SharedRequest"');
+    });
+
+    it("preserves nullable public requests and their separate session wire type", () => {
+        const code = generateRpcCode({
+            session: {
+                configure: {
+                    rpcMethod: "session.configure",
+                    params: {
+                        anyOf: [
+                            { type: "null" },
+                            {
+                                title: "ConfigureRequest",
+                                type: "object",
+                                properties: {
+                                    sessionId: { type: "string" },
+                                    mode: { type: "string", enum: ["local", "global"] },
+                                },
+                                required: ["sessionId"],
+                            },
+                        ],
+                    },
+                },
+            },
+        });
+        expect(code).toContain("public sealed class ConfigureRequest\n");
+        expect(code).toContain("internal sealed class ConfigureRequestWithSession\n");
+        expect(code).toContain("ConfigureAsync(ConfigureRequest? request = null,");
+        expect(code).toContain(
+            "new ConfigureRequestWithSession { SessionId = _session.SessionId, Mode = request?.Mode }"
+        );
+        expect(code).not.toContain("ConfigureRequestWithSessionMode");
+    });
+
+    it("preserves session-only wire type names used by handwritten SDK code", () => {
+        const params: JSONSchema7 = {
+            title: "ModelSwitchToRequest",
+            type: "object",
+            properties: { modelId: { type: "string" } },
+            required: ["modelId"],
+        };
+        const code = generateRpcCode({
+            definitions: { ModelSwitchToRequest: params },
+            session: {
+                model: {
+                    switchTo: {
+                        rpcMethod: "session.model.switchTo",
+                        params: {
+                            ...params,
+                            properties: { sessionId: { type: "string" }, ...params.properties },
+                            required: ["sessionId", "modelId"],
+                        },
+                    },
+                },
+            },
+        });
+        expect(code).toContain("internal sealed class ModelSwitchToRequest\n");
+        expect(code).toContain(
+            "new ModelSwitchToRequest { SessionId = _session.SessionId, ModelId = modelId }"
+        );
+        expect(code).not.toContain("ModelSwitchToRequestWithSession");
+    });
+
     it.each([
         ["anyOf", false],
         ["anyOf", true],

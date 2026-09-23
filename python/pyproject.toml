@@ -26,7 +26,7 @@ classifiers = [
 ]
 dependencies = [
     "python-dateutil>=2.9.0.post0",
-    "pydantic>=2.0",
+    "pydantic>=2.11",
     "httpx>=0.24.0",
 ]
 
@@ -41,6 +41,7 @@ telemetry = [
 
 [dependency-groups]
 dev = [
+    "mypy",
     "ruff==0.16.0",
     "ty>=0.0.2,<0.0.25",
     "pytest>=7.0.0",

@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findRuntimeRoot } from '../../../scripts/runtime-layout.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '../../..');
@@ -32,41 +33,69 @@ const releaseBase = (
   'https://github.com/github/copilot-cli/releases/download'
 ).replace(/\/+$/, '');
 
-let archive;
-let expectedHash;
-if (process.env.COPILOT_CLI_RELEASE_TARBALL) {
-  archive = fs.readFileSync(process.env.COPILOT_CLI_RELEASE_TARBALL);
-  expectedHash = process.env.COPILOT_CLI_RELEASE_SHA256;
-} else {
-  const releaseUrl = `${releaseBase}/v${version}`;
-  const checksums = (await download(`${releaseUrl}/SHA256SUMS.txt`)).toString('utf8');
-  expectedHash = findChecksum(checksums, assetName);
-  archive = await download(`${releaseUrl}/${assetName}`);
-}
-
-if (!expectedHash || !/^[a-fA-F0-9]{64}$/.test(expectedHash)) {
-  throw new Error(`Missing or invalid SHA-256 for ${assetName}`);
-}
-const actualHash = createHash('sha256').update(archive).digest('hex');
-if (actualHash !== expectedHash.toLowerCase()) {
-  throw new Error(
-    `Integrity verification failed for ${assetName}: expected ${expectedHash}, got ${actualHash}`,
-  );
-}
-
 const schemaNames = ['api.schema.json', 'session-events.schema.json'];
-const members = execFileSync('tar', ['-tzf', '-'], {
-  encoding: 'utf8',
-  input: archive,
-  maxBuffer: 512 * 1024 * 1024,
-})
-  .split(/\r?\n/)
-  .filter(Boolean);
-const outputParent = path.dirname(outputDir);
-fs.mkdirSync(outputParent, { recursive: true });
-const stagingDir = fs.mkdtempSync(path.join(outputParent, '.schemas-'));
+const schemaContents = new Map();
+const runtimeRoot = findRuntimeRoot(repoRoot);
+const runtimeSource =
+  process.env.COPILOT_RUNTIME_SOURCE ?? (runtimeRoot ? 'checkout' : undefined);
+const explicitSchemaDirectory =
+  process.env.COPILOT_CLI_SCHEMA_DIR ??
+  (runtimeSource === 'checkout' && runtimeRoot
+    ? path.join(runtimeRoot, 'generated')
+    : undefined);
 
-try {
+if (explicitSchemaDirectory) {
+  for (const schemaName of schemaNames) {
+    const schemaPath = path.resolve(explicitSchemaDirectory, schemaName);
+    let contents;
+    try {
+      contents = fs.readFileSync(schemaPath);
+    } catch (error) {
+      throw new Error(`Selected Copilot schema not found at ${schemaPath}`, { cause: error });
+    }
+    try {
+      JSON.parse(contents.toString('utf8'));
+    } catch (error) {
+      throw new Error(`Invalid runtime schema at ${schemaPath}`, { cause: error });
+    }
+    schemaContents.set(schemaName, contents);
+  }
+} else {
+  if (runtimeSource === 'checkout') {
+    throw new Error(
+      'COPILOT_CLI_SCHEMA_DIR is required when COPILOT_RUNTIME_SOURCE=checkout; generate the runtime schemas and select their directory explicitly.',
+    );
+  }
+
+  let archive;
+  let expectedHash;
+  if (process.env.COPILOT_CLI_RELEASE_TARBALL) {
+    archive = fs.readFileSync(process.env.COPILOT_CLI_RELEASE_TARBALL);
+    expectedHash = process.env.COPILOT_CLI_RELEASE_SHA256;
+  } else {
+    const releaseUrl = `${releaseBase}/v${version}`;
+    const checksums = (await download(`${releaseUrl}/SHA256SUMS.txt`)).toString('utf8');
+    expectedHash = findChecksum(checksums, assetName);
+    archive = await download(`${releaseUrl}/${assetName}`);
+  }
+
+  if (!expectedHash || !/^[a-fA-F0-9]{64}$/.test(expectedHash)) {
+    throw new Error(`Missing or invalid SHA-256 for ${assetName}`);
+  }
+  const actualHash = createHash('sha256').update(archive).digest('hex');
+  if (actualHash !== expectedHash.toLowerCase()) {
+    throw new Error(
+      `Integrity verification failed for ${assetName}: expected ${expectedHash}, got ${actualHash}`,
+    );
+  }
+
+  const members = execFileSync('tar', ['-tzf', '-'], {
+    encoding: 'utf8',
+    input: archive,
+    maxBuffer: 512 * 1024 * 1024,
+  })
+    .split(/\r?\n/)
+    .filter(Boolean);
   for (const schemaName of schemaNames) {
     const member = `package/schemas/${schemaName}`;
     if (members.filter((candidate) => candidate === member).length !== 1) {
@@ -78,7 +107,17 @@ try {
       maxBuffer: 512 * 1024 * 1024,
     });
     JSON.parse(contents.toString('utf8'));
-    fs.writeFileSync(path.join(stagingDir, schemaName), contents);
+    schemaContents.set(schemaName, contents);
+  }
+}
+
+const outputParent = path.dirname(outputDir);
+fs.mkdirSync(outputParent, { recursive: true });
+const stagingDir = fs.mkdtempSync(path.join(outputParent, '.schemas-'));
+
+try {
+  for (const schemaName of schemaNames) {
+    fs.writeFileSync(path.join(stagingDir, schemaName), schemaContents.get(schemaName));
   }
 
   fs.rmSync(outputDir, { recursive: true, force: true });
@@ -87,7 +126,11 @@ try {
   fs.rmSync(stagingDir, { recursive: true, force: true });
 }
 
-console.log(`Staged Copilot CLI ${version} schemas at ${outputDir}`);
+console.log(
+  explicitSchemaDirectory
+    ? `Staged checked-out runtime schemas at ${outputDir}`
+    : `Staged Copilot CLI ${version} schemas at ${outputDir}`,
+);
 
 async function download(url) {
   let lastError;

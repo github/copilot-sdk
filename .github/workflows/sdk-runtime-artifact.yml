@@ -1,0 +1,169 @@
+name: "SDK runtime artifact"
+
+env:
+  COPILOT_AUTO_UPDATE: "false"
+  COPILOT_BAZEL_ANG_ENABLED: ${{ vars.COPILOT_BAZEL_ANG_ENABLED }}
+  COPILOT_RUNTIME_E2E_TEST_HOOKS: "1"
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  GIT_HTTP_LOW_SPEED_LIMIT: 1000
+  GIT_HTTP_LOW_SPEED_TIME: 60
+  HUSKY: 0
+  SETUP_NODE_TIMEOUT_MINUTES: 10
+
+on:
+  workflow_call:
+    inputs:
+      runtime-source:
+        required: true
+        type: string
+      sdk-home:
+        required: true
+        type: string
+      os:
+        required: true
+        type: string
+      target:
+        required: true
+        type: string
+      artifact:
+        required: true
+        type: string
+      bazel-config:
+        required: false
+        default: ""
+        type: string
+      use-bazel-addons-on-darwin:
+        required: false
+        default: false
+        type: boolean
+      shared-cli-build-compatible:
+        required: false
+        default: false
+        type: boolean
+      prebuilt-addons-artifact:
+        required: false
+        default: ""
+        type: string
+      timeout-minutes:
+        required: false
+        default: 90
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runtime-source == 'checkout' && inputs.os || 'ubuntu-latest' }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    concurrency:
+      group: ${{ inputs.shared-cli-build-compatible && format('project-build-sea-{0}-release-{1}-{2}', inputs.os, inputs.bazel-config, github.sha) || format('sdk-runtime-artifact-{0}-{1}', inputs.target, github.sha) }}
+      queue: max
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+
+      - name: Restore completed runtime build
+        id: cache
+        if: inputs.runtime-source == 'checkout'
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            project-build-receipt.txt
+            dist-cli/
+            dist-bin/
+            dist-pkg-tarballs/
+            src/core/sharedApi/runtime-generated/index.d.ts
+            src/native/runtime/runtime.*.node
+            src/native/runtime/copilot-runtime.*
+            src/native/runtime/index.d.ts
+            src/native/cli/cli-native.*.node
+            src/native/cli/index.d.ts
+          key: ${{ inputs.shared-cli-build-compatible && format('project-build-v1-sea-{0}-{1}-{2}-release-{3}-{4}-{5}', inputs.os, runner.os, runner.arch, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) || format('sdk-project-build-v1-{0}-{1}-{2}-{3}-release-{4}-{5}-{6}', inputs.target, inputs.os, runner.os, runner.arch, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) }}
+
+      - if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-node
+        timeout-minutes: ${{ fromJSON(env.SETUP_NODE_TIMEOUT_MINUTES) }}
+
+      - if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit != 'true' && inputs.prebuilt-addons-artifact == '' && !(runner.os == 'Windows' && inputs.target == 'win32-arm64')
+        uses: ./.github/actions/setup-bazel
+        with:
+          datadog-api-key: ${{ secrets.DATADOG_API_KEY }}
+          datadog-site: ${{ vars.DATADOG_SITE || vars.DD_SITE }}
+
+      - name: Install the ARM64 strip tool
+        if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit != 'true' && runner.os == 'Linux' && endsWith(inputs.target, '-arm64')
+        run: script/linux/apt-install.sh binutils-aarch64-linux-gnu
+
+      - if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit != 'true' && inputs.prebuilt-addons-artifact != ''
+        uses: ./.github/actions/use-prebuilt-native-addons
+        with:
+          artifact-name: ${{ inputs.prebuilt-addons-artifact }}
+
+      - if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit != 'true'
+        uses: ./.github/actions/build-sea-executable
+        with:
+          bazel-config: ${{ inputs.bazel-config }}
+          os: sdk-${{ inputs.artifact }}
+          target: ${{ inputs.target }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          use-bazel-addons-on-darwin: ${{ inputs.use-bazel-addons-on-darwin }}
+
+      - if: inputs.runtime-source == 'published'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ inputs.sdk-home }}/nodejs/package-lock.json
+
+      - if: inputs.runtime-source == 'published'
+        run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/nodejs
+
+      - name: Download pinned published runtime
+        if: inputs.runtime-source == 'published'
+        env:
+          SDK_HOME: ${{ inputs.sdk-home }}
+          TARGET: ${{ inputs.target }}
+        run: npm --prefix "$SDK_HOME/nodejs" exec -- tsx "$SDK_HOME/scripts/ci/prepare-published-runtime.ts" "$TARGET"
+
+      - name: Record completed runtime build
+        if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit != 'true'
+        env:
+          TARGET: ${{ inputs.target }}
+        run: printf 'variant=sea\nprofile=release\nsha=%s\ntarget=%s\n' "$GITHUB_SHA" "$TARGET" > project-build-receipt.txt
+
+      - name: Save completed runtime build
+        if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            project-build-receipt.txt
+            dist-cli/
+            dist-bin/
+            dist-pkg-tarballs/
+            src/core/sharedApi/runtime-generated/index.d.ts
+            src/native/runtime/runtime.*.node
+            src/native/runtime/copilot-runtime.*
+            src/native/runtime/index.d.ts
+            src/native/cli/cli-native.*.node
+            src/native/cli/index.d.ts
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - name: Upload SDK runtime artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: executable-sdk-${{ inputs.artifact }}
+          path: |
+            dist-cli/
+            dist-bin/${{ inputs.target }}/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1

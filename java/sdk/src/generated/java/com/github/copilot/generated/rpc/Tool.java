@@ -31,6 +31,8 @@ public record Tool(
     /** JSON Schema for the tool's input parameters */
     @JsonProperty("parameters") Map<String, Object> parameters,
     /** Optional instructions for how to use this tool effectively */
-    @JsonProperty("instructions") String instructions
+    @JsonProperty("instructions") String instructions,
+    /** Telemetry-safety policy for the tool name and input names, not input values. Treat omitted metadata as unsafe. */
+    @JsonProperty("safeForTelemetry") Object safeForTelemetry
 ) {
 }

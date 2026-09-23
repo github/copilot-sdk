@@ -8,3 +8,7 @@ package ffihost
 // linux. Only those Unix platforms deliver the SA_ONSTACK-less SIGCHLD handler
 // installed by Tokio that the Go runtime rejects; Windows is unaffected.
 func rearmForeignSignalHandlers(_ uintptr) {}
+
+func protectChildProcessSignalHandler() func() {
+	return func() {}
+}

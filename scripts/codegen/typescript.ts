@@ -7,6 +7,7 @@
  */
 
 import fs from "fs/promises";
+import { realpathSync } from "fs";
 import type { JSONSchema7 } from "json-schema";
 import { compile } from "json-schema-to-typescript";
 import path from "path";
@@ -1310,7 +1311,29 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
 
 const __filename = fileURLToPath(import.meta.url);
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+export function isTypeScriptCodegenEntrypoint(
+    entryPath: string | undefined,
+    modulePath = __filename,
+    platform = process.platform,
+): boolean {
+    if (!entryPath) {
+        return false;
+    }
+    const canonicalize = (filePath: string) => {
+        try {
+            return realpathSync.native(filePath);
+        } catch {
+            return path.resolve(filePath);
+        }
+    };
+    const canonicalEntryPath = canonicalize(entryPath);
+    const canonicalModulePath = canonicalize(modulePath);
+    return platform === "win32"
+        ? canonicalEntryPath.toLowerCase() === canonicalModulePath.toLowerCase()
+        : canonicalEntryPath === canonicalModulePath;
+}
+
+if (isTypeScriptCodegenEntrypoint(process.argv[1])) {
     const sessionArg = process.argv[2] || undefined;
     const apiArg = process.argv[3] || undefined;
     generate(sessionArg, apiArg).catch((err) => {

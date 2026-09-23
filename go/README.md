@@ -17,7 +17,11 @@ go get github.com/github/copilot-sdk/go
 
 ## Run the Sample
 
-Try the interactive chat sample (from the repo root):
+Try the interactive chat sample from the SDK root (`src/sdk` when nested).
+In the runtime repository, first run `pnpm run build:cli` from the runtime root
+to prepare the same-checkout executable, then return to `src/sdk`.
+Building the Go SDK alone does not build the runtime. For dependency
+prerequisites, see [development setup](#development).
 
 ```bash
 cd nodejs
@@ -209,6 +213,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
   `StdioConnection` and `TCPConnection` accept an optional connection-level `Env`. Set environment variables via **either** the client-level `Env` option or the connection's `Env`, not both (setting both panics); prefer the connection-level `Env`.
 - `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
+- `ExtensionLaunchProvider` (ExtensionLaunchProvider): Experimental connection-level resolver for extension launch profiles. `Start` installs the reverse-RPC handler and registers the provider before sessions can be created.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
 - `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
 - `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
@@ -528,6 +533,38 @@ lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details",
     })
 lookupIssue.Defer = copilot.ToolDeferAuto
 ```
+
+## Structured output (experimental)
+
+Use the package-level generic helper (Go does not support generic methods):
+
+```go
+type Inventory struct {
+    Count int    `json:"count"`
+    Color string `json:"color"`
+}
+
+inventory, err := copilot.SendAndWait[Inventory](ctx, session, copilot.MessageOptions{
+    Prompt: "Call get_inventory, then report the widget count and color.",
+})
+```
+
+This derives the schema using the same `jsonschema-go` generator as `DefineTool`
+and unmarshals the final JSON into `Inventory`. Unmarshaling is not full JSON
+Schema validation. For an explicit schema, set `MessageOptions.ResponseSchema`
+on `session.Send` or `session.SendAndWait`; the latter returns the message event.
+The generic helper rejects an explicit schema or immediate delivery.
+
+The schema lasts for one run, including tools, steering, and stop-hook corrections.
+Independent sends and subagents do not inherit it; streaming stays text.
+Structured waits select the last correlated root assistant message without tool
+requests at non-autopilot idle. Concurrent waits retain their own results, though
+queued work can delay idle. Aborted runs, session errors after the run starts,
+and missing final output fail. Context cancellation stops waiting, not agent work.
+
+Provider schema restrictions apply, and supplied schemas are forwarded unchanged.
+Low-level `session.RPC.Send` and `session.RPC.SendMessages` expose the full
+`rpc.ResponseFormat` options, including name, description, and strictness.
 
 ## Streaming
 
@@ -1062,20 +1099,21 @@ Communicates with CLI via TCP socket. Useful for distributed scenarios.
 
 ## Development
 
-Tests require a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
+Follow [SDK development setup](../CONTRIBUTING.md#developing-an-sdk) for Go,
+golangci-lint, and the Node/replay-harness dependencies. From the SDK root
+(`src/sdk` in the runtime repository, or the standalone repository root):
 
 ```bash
-cd nodejs
-npm ci
+npm run build:go
+npm run test:go
+npm run check:go
 ```
 
-```bash
-cd test/harness
-npm ci
-```
+For focused tests, use `go test` selectors from `go/` after
+[preparing the runtime](../CONTRIBUTING.md#testing-an-unreleased-runtime-api).
+The existing race-enabled native test script is also available there:
 
 ```bash
-cd go
 ./test.sh
 ```
 

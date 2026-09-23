@@ -1,4 +1,12 @@
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+    existsSync,
+    mkdtempSync,
+    mkdirSync,
+    readFileSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
@@ -17,6 +25,7 @@ import {
 import { COPILOT_CLI_USE_NPM_PACKAGE, COPILOT_CLI_VERSION } from "../src/cliVersion.js";
 import { ensureCopilotPackage } from "../scripts/releaseArtifacts.js";
 import { getLegacyCliPathForTests } from "./e2e/harness/sdkTestContext.js";
+import * as runtimeLayout from "../../scripts/runtime-layout.mjs";
 
 describe("defaultRuntimeCacheRoot", () => {
     it.each([
@@ -160,8 +169,6 @@ describe("materializeRuntimeBundle", () => {
         writeFileSync(join(sourceDir, "copilot-sdk", "extension.js"), "extension SDK");
         mkdirSync(join(sourceDir, "preloads"), { recursive: true });
         writeFileSync(join(sourceDir, "preloads", "extension_bootstrap.mjs"), "bootstrap");
-        mkdirSync(join(sourceDir, "sdk"), { recursive: true });
-        writeFileSync(join(sourceDir, "sdk", "index.js"), "legacy SDK");
         writeFileSync(join(sourceDir, "app.js"), "excluded");
         writeFileSync(join(sourceDir, "copilot"), "excluded");
         writeFileSync(join(sourceDir, "copilot.exe"), "excluded");
@@ -196,7 +203,6 @@ describe("materializeRuntimeBundle", () => {
         expect(readFileSync(join(installDir, "preloads", "extension_bootstrap.mjs"), "utf8")).toBe(
             "bootstrap"
         );
-        expect(readFileSync(join(installDir, "sdk", "index.js"), "utf8")).toBe("legacy SDK");
         expect(existsSync(join(installDir, "app.js"))).toBe(false);
         expect(existsSync(join(installDir, "copilot"))).toBe(false);
         expect(existsSync(join(installDir, "copilot.exe"))).toBe(false);
@@ -315,11 +321,44 @@ describe("release package acquisition", () => {
         writeFileSync(join(packageRoot, "app.js"), "legacy CLI");
         writeFileSync(join(packageRoot, "prebuilds", platform, "runtime.node"), "runtime");
         vi.stubEnv("COPILOT_SDK_RUNTIME_PACKAGE_DIR", root);
+        vi.stubEnv("COPILOT_RUNTIME_SOURCE", "published");
+        vi.stubEnv("COPILOT_LEGACY_CLI_PATH", undefined);
 
         try {
             await expect(getLegacyCliPathForTests()).resolves.toBe(join(packageRoot, "app.js"));
         } finally {
             vi.unstubAllEnvs();
+        }
+    });
+
+    it("resolves the legacy E2E CLI from checkout artifacts without an explicit source flag", async () => {
+        const root = mkdtempSync(join(tmpdir(), "copilot-legacy-checkout-"));
+        const platform = getRuntimePlatform();
+        const acquiredRoot = join(root, "acquired");
+        const packageRoot = join(acquiredRoot, platform);
+        mkdirSync(join(packageRoot, "prebuilds", platform), { recursive: true });
+        writeFileSync(
+            join(packageRoot, "package.json"),
+            JSON.stringify({ version: COPILOT_CLI_VERSION })
+        );
+        writeFileSync(join(packageRoot, "app.js"), "published CLI");
+        writeFileSync(
+            join(packageRoot, "prebuilds", platform, "runtime.node"),
+            "published runtime"
+        );
+        const legacyCliPath = join(root, "app.js");
+        writeFileSync(legacyCliPath, "checkout CLI");
+        const findRuntimeRoot = vi.spyOn(runtimeLayout, "findRuntimeRoot").mockReturnValue(root);
+        vi.stubEnv("COPILOT_RUNTIME_SOURCE", undefined);
+        vi.stubEnv("COPILOT_LEGACY_CLI_PATH", legacyCliPath);
+        vi.stubEnv("COPILOT_SDK_RUNTIME_PACKAGE_DIR", acquiredRoot);
+
+        try {
+            await expect(getLegacyCliPathForTests()).resolves.toBe(legacyCliPath);
+        } finally {
+            findRuntimeRoot.mockRestore();
+            vi.unstubAllEnvs();
+            rmSync(root, { recursive: true, force: true });
         }
     });
 

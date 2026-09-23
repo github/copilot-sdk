@@ -63,6 +63,8 @@ public final class SessionFusionResolvedEvent extends SessionEvent {
         @JsonProperty("scores") FusionScores scores,
         /** Validated orchestration pattern selected for the turn. */
         @JsonProperty("pattern") FusionPattern pattern,
+        /** Short human-readable summary of the selected workflow, suitable for immediate client display after routing. May be absent in older durable events; omit the explanation or derive one from pattern and phasePlan. Display text, not a stable machine-readable value. */
+        @JsonProperty("hint") String hint,
         /** Presentation-neutral phase plan for clients that render workflow progress. */
         @JsonProperty("phasePlan") List<FusionPhasePlanStep> phasePlan,
         /** Concrete model selected for the primary solver phase. */

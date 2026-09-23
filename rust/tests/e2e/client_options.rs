@@ -1,12 +1,18 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use github_copilot_sdk::canvas::CanvasDeclaration;
-use github_copilot_sdk::rpc::{OpenCanvasInstance, RemoteSessionMode};
-use github_copilot_sdk::session_events::{ReasoningSummary, SessionLimitsConfig};
+use github_copilot_sdk::rpc::{ConnectRemoteSessionParams, OpenCanvasInstance, RemoteSessionMode};
+use github_copilot_sdk::session_events::{
+    ReasoningSummary, SessionEventType, SessionLimitsConfig, SessionStartData,
+};
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, CopilotExpAssignmentResponse, ExtensionInfo, ProviderConfig,
-    ResumeSessionConfig, SessionConfig, SessionId, Transport,
+    AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
+    AttachmentSelectionRange, CliProgram, Client, ClientOptions, CloudSessionOptions,
+    CloudSessionRepository, CopilotExpAssignmentResponse, DeliveryMode, ExtensionInfo,
+    GitHubReferenceType, MessageOptions, MessageSource, ProviderConfig, ResumeSessionConfig,
+    SessionConfig, SessionId, Transport,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -332,6 +338,323 @@ async fn should_forward_advanced_session_resume_options_to_the_cli() {
     );
 }
 
+#[tokio::test]
+async fn should_send_complete_message_wire_shape() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options("message-wire-client-token"))
+        .await
+        .expect("start fake CLI client");
+    let session = client
+        .create_session(SessionConfig::default())
+        .await
+        .expect("create session");
+    let file_path = fake.path("message-file").join("scenario.txt");
+    let directory_path = fake.path("message-directory");
+    let selection_path = fake.path("selection").join("Program.rs");
+
+    let message_id = session
+        .send(
+            MessageOptions::new("Use the hidden scenario context.")
+                .with_display_prompt("Review selected scenario context")
+                .with_mode(DeliveryMode::Enqueue)
+                .with_agent_mode(AgentMode::Interactive)
+                .with_source(MessageSource::Agent("scenario-client".to_string()))
+                .with_traceparent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+                .with_tracestate("scenario-client=send")
+                .with_attachments(vec![
+                    Attachment::File {
+                        path: file_path.clone(),
+                        display_name: Some("scenario.txt".to_string()),
+                        line_range: Some(AttachmentLineRange { start: 3, end: 9 }),
+                    },
+                    Attachment::Directory {
+                        path: directory_path.clone(),
+                        display_name: Some("message-directory".to_string()),
+                    },
+                    Attachment::Selection {
+                        file_path: selection_path.clone(),
+                        text: "SCENARIO_SELECTION".to_string(),
+                        display_name: Some("Program.rs".to_string()),
+                        selection: AttachmentSelectionRange {
+                            start: AttachmentSelectionPosition {
+                                line: 17,
+                                character: 0,
+                            },
+                            end: AttachmentSelectionPosition {
+                                line: 17,
+                                character: 18,
+                            },
+                        },
+                    },
+                    Attachment::GitHubReference {
+                        number: 610,
+                        reference_type: GitHubReferenceType::Pr,
+                        state: "open".to_string(),
+                        title: "Scenario-shaped E2E coverage".to_string(),
+                        url: "https://github.com/github/copilot-sdk/pull/610".to_string(),
+                    },
+                    Attachment::Blob {
+                        data: "QVBQX0JMT0I=".to_string(),
+                        mime_type: "text/plain".to_string(),
+                        display_name: Some("scenario-wire-blob.txt".to_string()),
+                    },
+                    Attachment::ExtensionContext {
+                        captured_at: "2026-09-17T20:00:00Z".to_string(),
+                        extension_id: "scenario-client:code-review".to_string(),
+                        canvas_id: Some("diff".to_string()),
+                        instance_id: Some("diff-17".to_string()),
+                        title: "Selected change".to_string(),
+                        payload: Some(json!({ "selection": "SCENARIO_SELECTION", "line": 17 })),
+                    },
+                ]),
+        )
+        .await
+        .expect("send complete message");
+    assert_eq!(message_id, "scenario-client-message");
+
+    session.disconnect().await.expect("disconnect session");
+    client.stop().await.expect("stop client");
+
+    let send = fake.captured_request("session.send");
+    let params = send.params.as_object().expect("session.send params");
+    assert_json_values(
+        params,
+        [
+            ("prompt", json!("Use the hidden scenario context.")),
+            ("displayPrompt", json!("Review selected scenario context")),
+            ("mode", json!("enqueue")),
+            ("agentMode", json!("interactive")),
+            ("source", json!("agent-scenario-client")),
+            (
+                "traceparent",
+                json!("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+            ),
+            ("tracestate", json!("scenario-client=send")),
+        ],
+    );
+    let attachments = params["attachments"].as_array().expect("attachments");
+    assert_eq!(
+        attachments
+            .iter()
+            .map(|attachment| attachment["type"].as_str().expect("attachment type"))
+            .collect::<Vec<_>>(),
+        [
+            "file",
+            "directory",
+            "selection",
+            "github_reference",
+            "blob",
+            "extension_context"
+        ]
+    );
+    assert_eq!(attachments[0]["path"], json!(path_string(&file_path)));
+    assert_eq!(attachments[0]["lineRange"], json!({ "start": 3, "end": 9 }));
+    assert_eq!(attachments[1]["path"], json!(path_string(&directory_path)));
+    assert_eq!(
+        attachments[2]["filePath"],
+        json!(path_string(&selection_path))
+    );
+    assert_eq!(attachments[2]["text"], json!("SCENARIO_SELECTION"));
+    assert_eq!(attachments[3]["number"], json!(610));
+    assert_eq!(attachments[3]["referenceType"], json!("pr"));
+    assert_eq!(attachments[4]["data"], json!("QVBQX0JMT0I="));
+    assert_eq!(attachments[4]["mimeType"], json!("text/plain"));
+    assert_eq!(
+        attachments[5]["extensionId"],
+        json!("scenario-client:code-review")
+    );
+    assert_eq!(
+        attachments[5]["payload"]["selection"],
+        json!("SCENARIO_SELECTION")
+    );
+}
+
+#[tokio::test]
+async fn dropping_unpolled_send_never_dispatches_for_any_delivery_mode() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options("cancelled-send-client-token"))
+        .await
+        .expect("start fake CLI client");
+    let session = client
+        .create_session(SessionConfig::default())
+        .await
+        .expect("create session");
+
+    for mode in [
+        None,
+        Some(DeliveryMode::Enqueue),
+        Some(DeliveryMode::Immediate),
+    ] {
+        let mut message = MessageOptions::new("This message must never be invoked.")
+            .with_display_prompt("Cancelled scenario message")
+            .with_source(MessageSource::Agent("scenario-client".to_string()));
+        message.mode = mode;
+        drop(session.send(message));
+    }
+
+    session.disconnect().await.expect("disconnect session");
+    client.stop().await.expect("stop client");
+    assert!(
+        fake.capture()
+            .requests
+            .iter()
+            .all(|request| request.method != "session.send")
+    );
+}
+
+#[tokio::test]
+async fn transport_loss_never_replays_send_for_any_delivery_mode() {
+    for (mode, expected_mode) in [
+        (None, None),
+        (Some(DeliveryMode::Enqueue), Some("enqueue")),
+        (Some(DeliveryMode::Immediate), Some("immediate")),
+    ] {
+        let fake = FakeCli::new();
+        let client = Client::start(
+            fake.client_options_with_behavior("ambiguous-send-client-token", "drop-after-send"),
+        )
+        .await
+        .expect("start fake CLI client");
+        let session = client
+            .create_session(SessionConfig::default())
+            .await
+            .expect("create session");
+        let mut message = MessageOptions::new("AMBIGUOUS_SCENARIO_SEND")
+            .with_display_prompt("Ambiguous scenario send")
+            .with_source(MessageSource::Agent("scenario-client".to_string()));
+        message.mode = mode;
+
+        let error = session
+            .send(message)
+            .await
+            .expect_err("transport loss should fail send");
+        assert!(error.is_transport_failure());
+        client.force_stop();
+
+        let sends = fake
+            .capture()
+            .requests
+            .into_iter()
+            .filter(|request| request.method == "session.send")
+            .collect::<Vec<_>>();
+        assert_eq!(sends.len(), 1);
+        assert_eq!(
+            sends[0].params.get("mode").and_then(Value::as_str),
+            expected_mode
+        );
+    }
+}
+
+#[tokio::test]
+async fn cloud_create_routes_first_event_for_server_assigned_session_id() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options("cloud-create-client-token"))
+        .await
+        .expect("start fake CLI client");
+    let prepared = client
+        .prepare_session(
+            SessionConfig::default().with_cloud(CloudSessionOptions::with_repository(
+                CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
+            )),
+        )
+        .expect("prepare cloud session");
+    let mut events = prepared.subscribe();
+    let session = prepared.start().await.expect("start cloud session");
+
+    assert_eq!(session.id().as_str(), "server-assigned-cloud-session");
+    let event = tokio::time::timeout(Duration::from_secs(5), events.recv())
+        .await
+        .expect("first cloud event timed out")
+        .expect("cloud event stream closed");
+    assert_eq!(event.parsed_type(), SessionEventType::SessionStart);
+    assert_eq!(
+        event
+            .typed_data::<SessionStartData>()
+            .expect("session.start data")
+            .session_id,
+        session.id().clone()
+    );
+
+    session.disconnect().await.expect("disconnect session");
+    client.stop().await.expect("stop client");
+    let create = fake.captured_request("session.create");
+    assert!(create.params.get("sessionId").is_none());
+    assert_eq!(
+        create.params["cloud"]["repository"]["owner"],
+        json!("github")
+    );
+}
+
+#[tokio::test]
+async fn remote_connect_runtime_id_is_used_for_resume() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options("cloud-connect-client-token"))
+        .await
+        .expect("start fake CLI client");
+
+    let connection = client
+        .rpc()
+        .sessions()
+        .connect(ConnectRemoteSessionParams {
+            session_id: SessionId::from("cloud-control-session"),
+        })
+        .await
+        .expect("connect remote session");
+    assert_eq!(connection.session_id.as_str(), "runtime-session-id");
+    assert_eq!(connection.metadata.session_id, connection.session_id);
+    assert_eq!(
+        connection.metadata.resource_id.as_deref(),
+        Some("github/copilot-sdk#123")
+    );
+    let resumed = client
+        .resume_session(ResumeSessionConfig::new(connection.session_id.clone()))
+        .await
+        .expect("resume connected runtime session");
+    assert_eq!(resumed.id(), &connection.session_id);
+
+    resumed.disconnect().await.expect("disconnect session");
+    client.stop().await.expect("stop client");
+    assert_eq!(
+        fake.captured_request("sessions.connect").params["sessionId"],
+        json!("cloud-control-session")
+    );
+    assert_eq!(
+        fake.captured_request("session.resume").params["sessionId"],
+        json!("runtime-session-id")
+    );
+}
+
+#[tokio::test]
+async fn remote_resource_mismatch_is_observable_before_resume() {
+    let fake = FakeCli::new();
+    let client = Client::start(
+        fake.client_options_with_behavior("cloud-mismatch-client-token", "resource-mismatch"),
+    )
+    .await
+    .expect("start fake CLI client");
+
+    let connection = client
+        .rpc()
+        .sessions()
+        .connect(ConnectRemoteSessionParams {
+            session_id: SessionId::from("cloud-control-session"),
+        })
+        .await
+        .expect("connect remote session");
+    assert_ne!(
+        connection.metadata.resource_id.as_deref(),
+        Some("github/copilot-sdk#123")
+    );
+
+    client.stop().await.expect("stop client");
+    assert!(
+        fake.capture()
+            .requests
+            .iter()
+            .all(|request| request.method != "session.resume")
+    );
+}
+
 struct FakeCli {
     _dir: TempDir,
     script_path: PathBuf,
@@ -356,6 +679,10 @@ impl FakeCli {
     }
 
     fn client_options(&self, token: &str) -> ClientOptions {
+        self.client_options_with_behavior(token, "normal")
+    }
+
+    fn client_options_with_behavior(&self, token: &str, behavior: &str) -> ClientOptions {
         ClientOptions::new()
             .with_program(CliProgram::Path(PathBuf::from("node")))
             .with_prefix_args([self.script_path.as_os_str().to_owned()])
@@ -363,6 +690,8 @@ impl FakeCli {
             .with_extra_args([
                 "--capture-file".to_string(),
                 self.capture_path.to_string_lossy().into_owned(),
+                "--behavior".to_string(),
+                behavior.to_string(),
             ])
             .with_github_token(token)
             .with_use_logged_in_user(false)
@@ -425,6 +754,8 @@ const fs = require("fs");
 
 const captureIndex = process.argv.indexOf("--capture-file");
 const captureFile = captureIndex >= 0 ? process.argv[captureIndex + 1] : undefined;
+const behaviorIndex = process.argv.indexOf("--behavior");
+const behavior = behaviorIndex >= 0 ? process.argv[behaviorIndex + 1] : "normal";
 const requests = [];
 
 function saveCapture() {
@@ -482,8 +813,57 @@ function handleMessage(message) {
     return;
   }
   if (message.method === "session.create") {
-    const sessionId = (message.params && message.params.sessionId) || "fake-session";
+    const isCloud = Boolean(message.params && message.params.cloud);
+    const sessionId = (message.params && message.params.sessionId)
+      || (isCloud ? "server-assigned-cloud-session" : "fake-session");
     writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
+    if (isCloud) {
+      writeMessage({
+        jsonrpc: "2.0",
+        method: "session.event",
+        params: {
+          sessionId,
+          event: {
+            id: "cloud-start-event",
+            timestamp: "2026-09-18T00:00:00Z",
+            parentId: null,
+            type: "session.start",
+            data: {
+              sessionId,
+              version: 1,
+              producer: "fake-cli",
+              copilotVersion: "fake",
+              startTime: "2026-09-18T00:00:00Z",
+            }
+          }
+        }
+      });
+    }
+    return;
+  }
+  if (message.method === "sessions.connect") {
+    const resourceId = behavior === "resource-mismatch"
+      ? "github/other-repository#456"
+      : "github/copilot-sdk#123";
+    writeResponse(message.id, {
+      sessionId: "runtime-session-id",
+      metadata: {
+        kind: "coding_agent",
+        modifiedTime: "2026-09-18T00:00:00Z",
+        repository: { owner: "github", name: "copilot-sdk", branch: "main" },
+        resourceId,
+        sessionId: "runtime-session-id",
+        startTime: "2026-09-18T00:00:00Z"
+      }
+    });
+    return;
+  }
+  if (message.method === "session.send") {
+    if (behavior === "drop-after-send") {
+      process.exit(0);
+      return;
+    }
+    writeResponse(message.id, { messageId: "scenario-client-message" });
     return;
   }
   if (message.method === "session.resume") {
@@ -503,7 +883,11 @@ function handleMessage(message) {
 }
 
 function writeResponse(id, result) {
-  const body = JSON.stringify({ jsonrpc: "2.0", id, result });
+  writeMessage({ jsonrpc: "2.0", id, result });
+}
+
+function writeMessage(message) {
+  const body = JSON.stringify(message);
   process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\r\n\r\n" + body);
 }
 "#;

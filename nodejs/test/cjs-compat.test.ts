@@ -23,11 +23,15 @@ describe("Dual ESM/CJS build (#528)", () => {
         expect(existsSync(join(distDir, "cjs/index.js"))).toBe(true);
     });
 
-    it("CJS build is requireable and exports CopilotClient", () => {
+    it("CJS build is requireable and exports CopilotClient and Dynamic Workflows", () => {
         const script = `
             const sdk = require(${JSON.stringify(join(distDir, "cjs/index.js"))});
             if (typeof sdk.CopilotClient !== 'function') {
                 console.error('CopilotClient is not a function');
+                process.exit(1);
+            }
+            if (typeof sdk.defineWorkflow !== 'function') {
+                console.error('defineWorkflow is not a function');
                 process.exit(1);
             }
             console.log('CJS require: OK');
@@ -38,6 +42,37 @@ describe("Dual ESM/CJS build (#528)", () => {
             cwd: join(import.meta.dirname, ".."),
         });
         expect(output).toContain("CJS require: OK");
+    });
+
+    it("extension builds export defineWorkflow", () => {
+        for (const { extensionPath, moduleType } of [
+            { extensionPath: join(distDir, "extension.js"), moduleType: "esm" },
+            { extensionPath: join(distDir, "cjs/extension.js"), moduleType: "cjs" },
+        ]) {
+            const script =
+                moduleType === "cjs"
+                    ? `
+                    const sdk = require(${JSON.stringify(extensionPath)});
+                    if (typeof sdk.defineWorkflow !== 'function') process.exit(1);
+                    console.log('defineWorkflow cjs: OK');
+                `
+                    : `
+                    import { pathToFileURL } from 'node:url';
+                    const sdk = await import(pathToFileURL(${JSON.stringify(extensionPath)}).href);
+                    if (typeof sdk.defineWorkflow !== 'function') process.exit(1);
+                    console.log('defineWorkflow esm: OK');
+                `;
+            const output = execFileSync(
+                process.execPath,
+                [...(moduleType === "cjs" ? [] : ["--input-type=module"]), "--eval", script],
+                {
+                    encoding: "utf-8",
+                    timeout: 10000,
+                    cwd: join(import.meta.dirname, ".."),
+                }
+            );
+            expect(output).toContain(`defineWorkflow ${moduleType}: OK`);
+        }
     });
 
     it("CJS build resolves bundled CLI path", () => {

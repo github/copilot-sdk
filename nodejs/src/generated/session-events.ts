@@ -21,8 +21,10 @@ export type SessionEvent =
   | ScheduleRearmedEvent
   | AutopilotObjectiveChangedEvent
   | InfoEvent
+  | IndexedSearchEvent
   | WarningEvent
   | ModelChangeEvent
+  | ModelDeselectedEvent
   | AutoTierRecommendationEvent
   | AutoTierSwitchFailedEvent
   | ModeChangedEvent
@@ -48,6 +50,7 @@ export type SessionEvent =
   | FusionRouteFailedEvent
   | FusionResolvedEvent
   | FusionCompletedEvent
+  | PermissionRecoveryEvent
   | UserMessageEvent
   | PendingMessagesModifiedEvent
   | AssistantTurnStartEvent
@@ -251,6 +254,169 @@ export type AutopilotObjectiveChangedStatus =
   /** Objective was completed by the agent. */
   | "completed";
 /**
+ * Transient indexed-search status and diagnostics from the live runtime service. Never persisted or used to infer activation from session history.
+ */
+export type IndexedSearchData =
+  | {
+      /**
+       * Indexed-search event variant discriminator.
+       */
+      kind: "status";
+      state: IndexedSearchState;
+    }
+  | {
+      disabledReason?: IndexedSearchDisabledReason;
+      /**
+       * Whether the repository meets the automatic indexing file-count threshold, when known.
+       */
+      eligible?: boolean;
+      /**
+       * Startup failure details. May contain sensitive user data; restricted telemetry only.
+       */
+      errorMessage?: string;
+      /**
+       * Number of text files counted in the repository.
+       */
+      fileCount?: number;
+      /**
+       * Whether indexed search was explicitly enabled through the environment.
+       */
+      forcedByEnv: boolean;
+      /**
+       * Indexed-search event variant discriminator.
+       */
+      kind: "startup";
+      outcome: IndexedSearchOutcome;
+      /**
+       * Wall-clock duration of startup in milliseconds.
+       */
+      startupDurationMs: number;
+      /**
+       * Whether waiting for index readiness was requested, including skipped attempts.
+       */
+      warmStart: boolean;
+    }
+  | {
+      /**
+       * Server failure details. May contain sensitive user data; restricted telemetry only.
+       */
+      errorMessage?: string;
+      errorType: IndexedSearchErrorType;
+      /**
+       * Process exit code, when available.
+       */
+      exitCode?: number;
+      /**
+       * Indexed-search event variant discriminator.
+       */
+      kind: "server_error";
+    }
+  | {
+      /**
+       * Number of added files.
+       */
+      addedFileCount?: number;
+      /**
+       * Number of modified files.
+       */
+      changedFileCount?: number;
+      /**
+       * Number of deleted files.
+       */
+      deletedFileCount?: number;
+      /**
+       * Indexed-search event variant discriminator.
+       */
+      kind: "incremental";
+      phase: IndexedSearchIncrementalPhase;
+      /**
+       * Total number of detected changes.
+       */
+      totalChangeCount?: number;
+      /**
+       * Total incremental indexing duration in milliseconds.
+       */
+      totalDurationMs?: number;
+      /**
+       * Index update duration in milliseconds.
+       */
+      updateDurationMs?: number;
+      /**
+       * Workspace scan duration in milliseconds.
+       */
+      walkDurationMs?: number;
+    };
+/**
+ * Live indexed-search state for this session activation, never inferred from persisted history.
+ */
+export type IndexedSearchState =
+  /** Indexed search is not active for this session. */
+  | "disabled"
+  /** Indexed-search startup is in progress. */
+  | "starting"
+  /** The indexed-search server started successfully; its index may still be warming. */
+  | "enabled"
+  /** The indexed-search server and its index are ready. */
+  | "ready"
+  /** Indexed-search startup or the active server failed. */
+  | "failed";
+/**
+ * Configuration, policy, or workspace condition that disabled indexed search.
+ */
+export type IndexedSearchDisabledReason =
+  /** Indexed search was explicitly disabled by the environment. */
+  | "use_tgrep_false"
+  /** Search uses the external ripgrep binary instead of bundled search. */
+  | "use_builtin_ripgrep_false"
+  /** Organization policy disables indexed search. */
+  | "organization"
+  /** Authentication has not resolved organization policy. */
+  | "organization_policy_auth_pending"
+  /** Organization policy could not be determined. */
+  | "organization_policy_unknown"
+  /** The workspace uses a virtualized or network filesystem. */
+  | "virtual_filesystem"
+  /** The workspace is inside a Windows cloud-sync root. */
+  | "cloud_sync_root"
+  /** The Windows cloud-sync safety check failed. */
+  | "cloud_sync_detection_failed"
+  /** The workspace is not available on the runtime's local filesystem. */
+  | "workspace_not_local";
+/**
+ * Result of an indexed-search startup attempt.
+ */
+export type IndexedSearchOutcome =
+  /** A new indexed-search server was started. */
+  | "started"
+  /** The repository has too few files for automatic indexing. */
+  | "skipped_below_threshold"
+  /** No Git repository was found and indexing was not forced. */
+  | "skipped_no_gitroot"
+  /** Configuration, policy, or workspace safety disabled indexing. */
+  | "skipped_disabled"
+  /** An existing indexed-search server was reused. */
+  | "reused_existing"
+  /** The startup attempt failed. */
+  | "failed";
+/**
+ * Category of an indexed-search server failure.
+ */
+export type IndexedSearchErrorType =
+  /** The indexed-search server could not be spawned. */
+  | "spawn_error"
+  /** The indexed-search server exited unexpectedly. */
+  | "unexpected_exit"
+  /** The indexed-search server was terminated by a signal. */
+  | "killed_by_signal";
+/**
+ * Phase of an incremental indexed-search update.
+ */
+export type IndexedSearchIncrementalPhase =
+  /** A workspace scan found changes to index. */
+  | "changes_detected"
+  /** The incremental index update completed. */
+  | "updated";
+/**
  * Origin of an effective session model change.
  */
 export type ModelChangeSource =
@@ -274,8 +440,16 @@ export type ModelChangeSource =
   | "plan_mode"
   /** The runtime selected the model automatically, such as rate-limit recovery or refusal fallback. */
   | "automatic"
+  /** The user selected the promoted model from the changeboarding card or its keyboard shortcut. */
+  | "changeboarding_shortcut"
   /** An SDK or RPC caller selected the model. */
   | "sdk";
+/**
+ * Why the session no longer has an explicitly selected model.
+ */
+export type ModelDeselectedReason =
+  /** A host-managed provider snapshot no longer publishes the selected model. */
+  "provider_withdrawn";
 /**
  * Auto preferences that Copilot API can recommend.
  */
@@ -357,6 +531,94 @@ export type CompactionTrigger =
   | "memory_pressure"
   /** Compaction requested while switching to a model with a smaller context window. */
   | "model_switch";
+/**
+ * Category of structured task blocker
+ */
+export type TaskBlockerKind =
+  /** Autopilot permission recovery requires intervention or has no safe autonomous path. */
+  "permission_recovery";
+/**
+ * Runtime handling applied to a recovery attempt
+ */
+export type PermissionRecoveryAttemptDisposition =
+  /** The request was denied without prompting so the agent could try an alternative. */
+  | "deferred"
+  /** The request was surfaced to an interactive responder. */
+  | "prompted"
+  /** The interactive responder approved the request. */
+  | "approved"
+  /** The interactive responder denied the request or became unavailable. */
+  | "denied"
+  /** The request exhausted unattended recovery and produced a blocked outcome. */
+  | "blocked"
+  /** A tool call succeeded as an equivalent alternative. */
+  | "succeeded";
+/**
+ * Controlled reason for an individual attempt disposition
+ */
+export type PermissionRecoveryAttemptReason =
+  /** The attempt required permission that Assisted Permissions could not grant. */
+  | "permission_required"
+  /** The request repeated an earlier attempt. */
+  | "repeated_attempt"
+  /** The request exceeded the bounded number of distinct attempts. */
+  | "attempts_exhausted"
+  /** The interactive responder approved the request. */
+  | "permission_approved"
+  /** The interactive responder denied the request. */
+  | "permission_denied"
+  /** The interactive responder became unavailable. */
+  | "responder_unavailable"
+  /** The tool call succeeded without the blocked permission. */
+  | "equivalent_alternative_succeeded";
+/**
+ * Relationship of an attempt to earlier permission requests
+ */
+export type PermissionRecoveryAttemptRelation =
+  /** The first denied permission request in the episode. */
+  | "initial"
+  /** A request equivalent to an earlier attempt. */
+  | "retry"
+  /** A distinct request or a successful alternative tool call. */
+  | "alternative";
+/**
+ * Action selected when autonomous recovery cannot continue
+ */
+export type PermissionRecoveryOnBlocked =
+  /** Surface the existing permission prompt to a response-capable client. */
+  | "ask"
+  /** Return a structured unsuccessful blocked outcome because no responder is available. */
+  | "fail";
+/**
+ * Controlled reason for a permission-recovery episode transition
+ */
+export type PermissionRecoveryReason =
+  /** An action required permission that Assisted Permissions could not grant. */
+  | "permission_required"
+  /** The agent repeated an equivalent permission request instead of making progress. */
+  | "repeated_attempt"
+  /** The bounded number of distinct permission attempts was exhausted. */
+  | "attempts_exhausted"
+  /** A responder approved the escalated permission request. */
+  | "permission_approved"
+  /** A responder denied the escalated permission request. */
+  | "permission_denied"
+  /** The response-capable client became unavailable while escalation was pending. */
+  | "responder_unavailable"
+  /** A later tool call succeeded without requiring the blocked permission. */
+  | "equivalent_alternative_succeeded";
+/**
+ * Lifecycle state of a permission-recovery episode
+ */
+export type PermissionRecoveryStatus =
+  /** Autopilot may try a bounded equivalent alternative. */
+  | "recovering"
+  /** An interactive permission response is required. */
+  | "awaiting_approval"
+  /** The episode ended through approval or a successful equivalent alternative. */
+  | "resolved"
+  /** No autonomous path remains and the task requires intervention. */
+  | "blocked";
 /**
  * Semantic result of evaluating a task completion request
  */
@@ -1934,6 +2196,36 @@ export interface InfoData {
   url?: string;
 }
 /**
+ * Session event "session.indexed_search". Transient indexed-search status and diagnostics from the live runtime service. Never persisted or used to infer activation from session history.
+ */
+export interface IndexedSearchEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: IndexedSearchData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.indexed_search".
+   */
+  type: "session.indexed_search";
+}
+/**
  * Session event "session.warning". Warning message for timeline display with categorization
  */
 export interface WarningEvent {
@@ -2049,6 +2341,46 @@ export interface ModelChangeData {
   reasoningSummary?: ReasoningSummary;
   source?: ModelChangeSource;
   verbosity?: Verbosity;
+}
+/**
+ * Session event "session.model_deselected". The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model.
+ */
+export interface ModelDeselectedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ModelDeselectedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.model_deselected".
+   */
+  type: "session.model_deselected";
+}
+/**
+ * The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model.
+ */
+export interface ModelDeselectedData {
+  /**
+   * Model that was selected before the host withdrew it.
+   */
+  previousModel: string;
+  reason: ModelDeselectedReason;
 }
 /**
  * Session event "session.auto_tier_recommendation". Live-only Auto preference recommendation from Copilot API after a successful Auto model call.
@@ -3178,6 +3510,7 @@ export interface CompactionCompleteData {
    * GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
    */
   requestId?: string;
+  responsesReasoning?: ResponsesReasoning;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
    */
@@ -3295,6 +3628,23 @@ export interface CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
   tokenType: string;
 }
 /**
+ * Original request-level and effective conversation reasoning effort for a Responses history boundary
+ */
+export interface ResponsesReasoning {
+  /**
+   * Effective effort selected before this message, independent of the response-level reasoning field
+   */
+  effort: string;
+  /**
+   * Original request-level effort, retained while replaying this conversation prefix
+   */
+  initialEffort: string;
+  /**
+   * Provider model whose reasoning settings this boundary records
+   */
+  model: string;
+}
+/**
  * Session event "session.task_complete". Task completion notification with summary from the agent
  */
 export interface TaskCompleteEvent {
@@ -3328,6 +3678,7 @@ export interface TaskCompleteEvent {
  * Task completion notification with summary from the agent
  */
 export interface TaskCompleteData {
+  blocker?: TaskBlocker;
   /**
    * Active autopilot objective ID evaluated by the completion reviewer
    */
@@ -3345,6 +3696,64 @@ export interface TaskCompleteData {
    * Summary of the completed task, provided by the agent
    */
   summary?: string;
+}
+/**
+ * Structured reason that the task cannot continue without intervention
+ */
+/** @experimental */
+export interface TaskBlocker {
+  kind: TaskBlockerKind;
+  permissionRecovery: PermissionRecoveryData;
+  reason: PermissionRecoveryReason;
+  /**
+   * Whether a later user response or steering message can resume the task
+   */
+  resumable: boolean;
+}
+/**
+ * Authoritative snapshot of an Autopilot permission-recovery episode
+ */
+export interface PermissionRecoveryData {
+  /**
+   * Ordered privacy-safe record of permission attempts and the successful alternative, when any
+   */
+  attempts: PermissionRecoveryAttempt[];
+  /**
+   * Stable identifier shared by every transition in this recovery episode
+   */
+  episodeId: string;
+  /**
+   * Maximum number of distinct autonomous permission attempts allowed before escalation
+   */
+  maxAttempts: number;
+  onBlocked: PermissionRecoveryOnBlocked;
+  reason: PermissionRecoveryReason;
+  status: PermissionRecoveryStatus;
+}
+export interface PermissionRecoveryAttempt {
+  /**
+   * Unique identifier for this attempt record
+   */
+  attemptId: string;
+  disposition: PermissionRecoveryAttemptDisposition;
+  /**
+   * One-based position of this attempt in the episode
+   */
+  ordinal: number;
+  /**
+   * Controlled permission request kind, such as shell, path, URL, or tool
+   */
+  permissionKind: string;
+  reason: PermissionRecoveryAttemptReason;
+  relation: PermissionRecoveryAttemptRelation;
+  /**
+   * SHA-256 fingerprint of normalized request data; raw permission arguments are not included
+   */
+  requestFingerprint: string;
+  /**
+   * Tool-call identifier associated with this attempt, when available
+   */
+  toolCallId?: string;
 }
 /**
  * Session event "session.completion_receipt". Behavior-neutral record of structured runtime facts present when an agent completion decision is accepted.
@@ -3606,6 +4015,12 @@ export interface FusionResolvedData {
    */
   fusionId: string;
   /**
+   * Short human-readable summary of the selected workflow, suitable for immediate client display after routing. May be absent in older durable events; omit the explanation or derive one from pattern and phasePlan. Display text, not a stable machine-readable value.
+   *
+   * @experimental
+   */
+  hint?: string;
+  /**
    * Version of the executable model universe used for selection.
    */
   modelUniverseVersion?: string;
@@ -3819,6 +4234,36 @@ export interface FusionCompletedData {
   turnId: string;
 }
 /**
+ * Session event "session.permission_recovery". Authoritative snapshot of an Autopilot permission-recovery episode
+ */
+export interface PermissionRecoveryEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: PermissionRecoveryData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.permission_recovery".
+   */
+  type: "session.permission_recovery";
+}
+/**
  * Session event "user.message". Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
  */
 export interface UserMessageEvent {
@@ -3882,6 +4327,7 @@ export interface UserMessageData {
    * Parent agent task ID for background telemetry correlated to this user turn
    */
   parentAgentTaskId?: string;
+  responsesReasoning?: ResponsesReasoning;
   /**
    * Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
    */
@@ -5765,6 +6211,18 @@ export interface AssistantUsageData {
    */
   serviceRequestId?: string;
   /**
+   * Number of prior thinking blocks the provider dropped while transforming the request
+   *
+   * @internal
+   */
+  thinkingDroppedBlocks?: number;
+  /**
+   * Recognized provider-reported reasons for dropped thinking blocks, in response order
+   *
+   * @internal
+   */
+  thinkingDroppedReasons?: string[];
+  /**
    * Time to first token in milliseconds. Only available for streaming requests
    */
   timeToFirstTokenMs?: number;
@@ -6280,6 +6738,10 @@ export interface ToolExecutionStartData {
    * Name of the tool being executed
    */
   toolName: string;
+  /**
+   * Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
+   */
+  toolTitle?: string;
   /**
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
    */
@@ -7108,6 +7570,10 @@ export interface SkillInvokedData {
    */
   disableModelInvocation?: boolean;
   /**
+   * Projected chat-message count when the skill was invoked. New writers persist this so replay does not need to reconstruct superseded history; readers derive it for legacy events when absent.
+   */
+  invokedAtTurn?: number;
+  /**
    * Model identifier active when the skill was invoked, when known
    */
   model?: string;
@@ -7795,6 +8261,10 @@ export interface SystemMessageData {
    */
   content: string;
   /**
+   * Optional ordered structured blocks corresponding to content, retained for prompt-cache layout restoration.
+   */
+  contentBlocks?: SystemMessageContentBlock[];
+  /**
    * Logical interaction identifier for the model run receiving this prompt
    */
   interactionId?: string;
@@ -7806,11 +8276,28 @@ export interface SystemMessageData {
   role: SystemMessageRole;
 }
 /**
+ * One persisted structured system-message block and its cache intent
+ */
+export interface SystemMessageContentBlock {
+  /**
+   * Explicit prompt-cache intent. True places a breakpoint after this block, false suppresses one, and absence preserves the provider's legacy default.
+   */
+  cacheBreakpoint?: boolean;
+  /**
+   * Text content for this system-message block.
+   */
+  content: string;
+  /**
+   * Diagnostic classification indicating whether the block is stable across equivalent sessions.
+   */
+  isStatic?: boolean;
+}
+/**
  * Metadata about the prompt template and its construction
  */
 export interface SystemMessageMetadata {
   /**
-   * Version identifier of the prompt template used
+   * Version identifier of the prompt template or structured prompt layout used
    */
   promptVersion?: string;
   /**
@@ -7859,6 +8346,7 @@ export interface SystemNotificationData {
    */
   content: string;
   kind: SystemNotification;
+  responsesReasoning?: ResponsesReasoning;
 }
 /**
  * System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt.
@@ -8098,8 +8586,13 @@ export interface PermissionRequestedEvent {
  */
 export interface PermissionRequestedData {
   agentMode?: SessionMode;
+  permissionMode?: PermissionMode;
   permissionRequest: PermissionRequest;
   promptRequest?: PermissionPromptRequest;
+  /**
+   * Permission-recovery episode that authorized this request to surface for interactive attention
+   */
+  recoveryEpisodeId?: string;
   /**
    * Unique identifier for this permission request; used to respond via session.respondToPermission()
    */
@@ -8440,6 +8933,7 @@ export interface PermissionRequestMemory {
  */
 /** @experimental */
 export interface PermissionAssistedApproval {
+  evaluation?: PermissionApprovalEvaluation;
   failureReason?: AssistedApprovalJudgeFailureReason;
   /**
    * Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.
@@ -8450,6 +8944,98 @@ export interface PermissionAssistedApproval {
    */
   reason?: string;
   recommendation: AssistedApprovalRecommendation;
+}
+/**
+ * Bounded runtime attribution, independent of free-text rationale. Telemetry revalidates this vocabulary before standard collection.
+ */
+export interface PermissionApprovalEvaluation {
+  /**
+   * Stage that produced this attribution.
+   */
+  evaluationStage: /** The attribution stage is unknown. */
+    | "unknown"
+    /** The request resolved before assisted-approval evaluation. */
+    | "not_reached"
+    /** A runtime gate skipped the judge. */
+    | "pre_judge"
+    /** The judge interface produced the evaluation. */
+    | "judge"
+    /** A cached recommendation or another request's outcome was reused. */
+    | "reuse";
+  /**
+   * Whether the request invoked the judge interface. A cached recommendation retains the original attempt fact. Omitted means unknown, including inherited outcomes.
+   */
+  judgeAttempted?: boolean;
+  /**
+   * Status of the local judge interface, not proof of a model network call.
+   */
+  judgeStatus: /** No authoritative attribution is available. */
+    | "unknown"
+    /** This evaluation did not invoke the judge interface. */
+    | "not_called"
+    /** The judge interface returned a usable verdict. */
+    | "completed"
+    /** The judge interface returned an error. */
+    | "failed"
+    /** This evaluation reused a cached recommendation. */
+    | "cached"
+    /** This request inherited another decision without local judge attribution. */
+    | "inherited";
+  /**
+   * Machine-readable runtime gate reason, never a command, path or human rationale.
+   */
+  reasonCode: /** Attribution is missing or outside the supported vocabulary. */
+    | "unknown"
+    /** The request resolved before assisted-approval evaluation. */
+    | "not-reached"
+    /** Assisted approval was inactive for this request. */
+    | "inactive"
+    /** The judge was skipped because authorization extraction could not safely establish a complete recent history. */
+    | "authorization-history-incomplete"
+    /** Managed policy required a human decision. */
+    | "managed-approval-required"
+    /** The request asked to bypass sandbox restrictions. */
+    | "sandbox-bypass"
+    /** An action field exceeded the judge input limit. */
+    | "action-too-long"
+    /** The script path was not authorized for inspection. */
+    | "path-not-authorized"
+    /** The script working directory was invalid. */
+    | "invalid-working-directory"
+    /** The script snapshot could not be read. */
+    | "unreadable"
+    /** The script path was not a regular file. */
+    | "not-regular-file"
+    /** The script snapshot exceeded the size limit. */
+    | "too-large"
+    /** The script snapshot was not UTF-8. */
+    | "non-utf8"
+    /** The script interpreter could not be inspected. */
+    | "interpreter-unavailable"
+    /** The interpreter snapshot exceeded the size limit. */
+    | "interpreter-too-large"
+    /** The shell environment could not be reviewed. */
+    | "shell-environment-unreviewable"
+    /** A script path could not be represented for review. */
+    | "unrepresentable-path"
+    /** An interpreter wrapped a script that could not be reviewed. */
+    | "interpreter-wrapped-script"
+    /** The script invocation could not be reviewed. */
+    | "unreviewable-script-invocation"
+    /** The script argument binding could not be reviewed. */
+    | "argument-binding-unreviewable"
+    /** The script review metadata was malformed. */
+    | "malformed-script-action-review"
+    /** The script snapshot manifest was malformed. */
+    | "malformed-script-action-manifest"
+    /** Script review was unavailable. */
+    | "unavailable"
+    /** The judge interface returned a usable verdict. */
+    | "judge-verdict"
+    /** The judge interface returned an error. */
+    | "judge-error"
+    /** The request inherited an outcome from another decision. */
+    | "inherited";
 }
 /**
  * Custom tool invocation permission request
@@ -9194,12 +9780,17 @@ export interface PermissionCompletedEvent {
  * Permission request completion notification signaling UI dismissal
  */
 export interface PermissionCompletedData {
+  blocker?: TaskBlocker;
   /**
    * Who decided this permission request. Absent on completions recorded before this field existed, which consumers must treat as "not a human decision" rather than assuming one. Authorization records are minted only for `human_response`; an assisted-approval verdict, a host policy, an unattended fallback, and a hook resolution all produce the same `result` a person does, so this is the only field that distinguishes them.
    *
    * @experimental
    */
   decisionSource?: PermissionDecisionSource;
+  /**
+   * Permission-recovery episode settled by this response, when the request was escalated by Autopilot
+   */
+  recoveryEpisodeId?: string;
   /**
    * Request ID of the resolved permission request; clients should dismiss any UI for this request
    */

@@ -26,6 +26,10 @@ public record MarketplaceInfo(
     /** Human-readable description of where the marketplace data is fetched from (e.g. "GitHub: owner/repo"). */
     @JsonProperty("source") String source,
     /** True when this is a default marketplace shipped with the runtime. Defaults are not removable. */
-    @JsonProperty("isDefault") Boolean isDefault
+    @JsonProperty("isDefault") Boolean isDefault,
+    /** Whether enterprise managed settings provide and control this marketplace entry. */
+    @JsonProperty("managed") Boolean managed,
+    /** Whether the managed marketplace currently resolved into the runtime marketplace registry. Set to false when the desired managed entry is retained for governance visibility after loading or reconciliation failed. */
+    @JsonProperty("available") Boolean available
 ) {
 }

@@ -39,6 +39,130 @@ from copilot.session_events import (
 class TestEventForwardCompatibility:
     """Test forward compatibility for unknown event types."""
 
+    @pytest.mark.parametrize(
+        ("event_type", "data"), [("session.idle", {}), ("user.message", {"content": "hello"})]
+    )
+    def test_object_event_preserves_complete_envelope(self, event_type, data):
+        wire = {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "timestamp": "2026-09-18T22:00:00+00:00",
+            "parentId": "22222222-2222-2222-2222-222222222222",
+            "type": event_type,
+            "data": data,
+        }
+        assert session_event_to_dict(session_event_from_dict(wire)) == wire
+
+    @pytest.mark.parametrize(
+        ("event_type", "kind", "fields"),
+        [
+            ("session.indexed_search", "status", {"state": "ready"}),
+            (
+                "session.indexed_search",
+                "startup",
+                {
+                    "outcome": "started",
+                    "startupDurationMs": 1.5,
+                    "forcedByEnv": False,
+                    "warmStart": False,
+                    "fileCount": 0,
+                    "eligible": False,
+                    "errorMessage": "diagnostic",
+                },
+            ),
+            (
+                "session.indexed_search",
+                "server_error",
+                {"errorType": "unexpected_exit", "exitCode": 0, "errorMessage": "diagnostic"},
+            ),
+            (
+                "session.indexed_search",
+                "incremental",
+                {
+                    "phase": "updated",
+                    "changedFileCount": 0,
+                    "addedFileCount": 1,
+                    "deletedFileCount": 0,
+                    "totalChangeCount": 1,
+                    "walkDurationMs": 0.5,
+                    "updateDurationMs": 1.25,
+                    "totalDurationMs": 1.75,
+                },
+            ),
+            (
+                "sandbox.decision",
+                "policy_resolved",
+                {
+                    "backend": "seatbelt",
+                    "policySource": "default_policy",
+                    "readwritePathsCount": 0,
+                    "readonlyPathsCount": 1,
+                    "deniedPathsCount": 0,
+                    "addCurrentWorkingDirectory": False,
+                    "allowOutbound": False,
+                    "allowLocalNetwork": False,
+                    "proxyMode": "none",
+                    "allowBypass": False,
+                    "gitAuth": False,
+                    "ghAuth": False,
+                    "keychainAccess": False,
+                },
+            ),
+            ("sandbox.decision", "spawn_completed", {"backend": "seatbelt", "durationMs": 1.5}),
+            (
+                "sandbox.decision",
+                "enforcement_state",
+                {"backend": "seatbelt", "command": "echo test", "attestation": "spawn_succeeded"},
+            ),
+            (
+                "sandbox.decision",
+                "access_denied",
+                {
+                    "denialClass": "filesystem_read",
+                    "attestation": "builtin_policy_checked",
+                    "deniedResource": "/example",
+                    "command": "cat example",
+                },
+            ),
+            (
+                "sandbox.decision",
+                "bypass_decided",
+                {"source": "user_prompted", "deniedResource": "/example"},
+            ),
+            (
+                "sandbox.decision",
+                "permissive_retry_decided",
+                {"source": "model_requested", "command": "echo test"},
+            ),
+            (
+                "sandbox.decision",
+                "permissive_retry_completed",
+                {"processName": "example", "command": "echo test"},
+            ),
+        ],
+    )
+    def test_union_event_preserves_complete_envelope(self, event_type, kind, fields):
+        data = {"kind": kind, **fields}
+        if event_type == "sandbox.decision":
+            data.update(
+                control="process",
+                outcome="resolved",
+                platform="macos",
+                enforcementPoint="shell",
+                toolCallId="tool-1",
+            )
+        wire = {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "timestamp": "2026-09-18T22:00:00+00:00",
+            "parentId": "22222222-2222-2222-2222-222222222222",
+            "ephemeral": True,
+            "agentId": "agent-1",
+            "type": event_type,
+            "data": data,
+        }
+        event = session_event_from_dict(wire)
+        assert event.type.value == event_type
+        assert session_event_to_dict(event) == wire
+
     @pytest.mark.parametrize("event_type", ["session.start", "session.resume"])
     @pytest.mark.parametrize("tier", ["efficiency", "balance", "intelligence", "fast", None])
     def test_auto_tier_lifecycle_events_round_trip(self, event_type, tier):

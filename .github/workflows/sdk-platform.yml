@@ -1,0 +1,59 @@
+# Runs all SDK language checks for one runtime platform, allowing each platform
+# to start as soon as its runtime artifact is available.
+name: "SDK platform"
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: true
+        type: string
+      sdk-home:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  nodejs:
+    uses: ./.github/workflows/sdk-nodejs.yml
+    with:
+      platform: ${{ inputs.platform }}
+      sdk-home: ${{ inputs.sdk-home }}
+    secrets: inherit
+
+  python:
+    uses: ./.github/workflows/sdk-python.yml
+    with:
+      platform: ${{ inputs.platform }}
+      sdk-home: ${{ inputs.sdk-home }}
+    secrets: inherit
+
+  go:
+    uses: ./.github/workflows/sdk-go.yml
+    with:
+      platform: ${{ inputs.platform }}
+      sdk-home: ${{ inputs.sdk-home }}
+    secrets: inherit
+
+  dotnet:
+    uses: ./.github/workflows/sdk-dotnet.yml
+    with:
+      platform: ${{ inputs.platform }}
+      sdk-home: ${{ inputs.sdk-home }}
+    secrets: inherit
+
+  rust:
+    uses: ./.github/workflows/sdk-rust.yml
+    with:
+      platform: ${{ inputs.platform }}
+      sdk-home: ${{ inputs.sdk-home }}
+    secrets: inherit
+
+  java:
+    uses: ./.github/workflows/sdk-java.yml
+    with:
+      platform: ${{ inputs.platform }}
+      sdk-home: ${{ inputs.sdk-home }}
+    secrets: inherit

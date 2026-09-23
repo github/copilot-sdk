@@ -12,8 +12,7 @@ import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vite
 import { CopilotClient, CopilotClientOptions, RuntimeConnection } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
 import { formatError, retry } from "./sdkTestHelper";
-import { ensureCopilotPackage } from "../../../scripts/releaseArtifacts";
-import { COPILOT_CLI_VERSION } from "../../../src/cliVersion";
+import { resolvePreparedRuntimePath } from "../../../scripts/prepare-runtime.js";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";
 export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
@@ -54,8 +53,7 @@ function getCliPathForTests(): string | undefined {
 
 /** Resolves the legacy SEA only for tests that explicitly exercise Node-hosted features. */
 export async function getLegacyCliPathForTests(): Promise<string> {
-    const packageRoot = await ensureCopilotPackage(COPILOT_CLI_VERSION);
-    return join(packageRoot, "app.js");
+    return resolvePreparedRuntimePath({ option: "--print-legacy-path" });
 }
 
 export async function createSdkTestContext({

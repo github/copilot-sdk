@@ -1,10 +1,10 @@
 ---
-description: Generates release notes from merged PRs/commits. Triggered by the publish workflow or manually via workflow_dispatch.
+description: Updates GitHub Release notes from merged PRs/commits. Triggered by the publish workflow or manually via workflow_dispatch.
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to generate changelog for (e.g., v1.0.0)"
+        description: "Release tag to generate notes for (e.g., v1.0.0)"
         required: true
         type: string
 permissions:
@@ -16,23 +16,17 @@ permissions:
 tools:
   github:
     toolsets: [default]
-  edit:
 safe-outputs:
-  create-pull-request:
-    title-prefix: "[changelog] "
-    labels: [automation, changelog]
-    draft: false
   update-release:
     max: 1
 timeout-minutes: 15
 ---
 
-# Release Changelog Generator
+# Release Notes Generator
 
 You are an AI agent that generates well-formatted release notes when a release of the Copilot SDK is published.
 
-- **For stable releases** (tag has no prerelease suffix like `-preview`): update `CHANGELOG.md` via a PR AND update the GitHub Release notes.
-- **For prerelease releases** (tag contains `-preview` or similar suffix): update the GitHub Release notes ONLY. Do NOT modify `CHANGELOG.md` or create a PR.
+Update the GitHub Release notes for **both stable and prerelease releases**. This repository is a read-only source mirror: do NOT modify `CHANGELOG.md`, change repository files, or create a pull request.
 
 Determine which type of release this is by inspecting the tag or fetching the release metadata.
 
@@ -55,7 +49,7 @@ Use the GitHub API to fetch the release corresponding to `${{ github.event.input
 2. The **new version** is the release tag: `${{ github.event.inputs.tag }}`
 3. Fetch the release metadata to determine if this is a **stable** or **prerelease** release.
 4. Determine the **previous version** to diff against:
-   - **For stable releases**: find the previous **stable** release (skip prereleases). Check `CHANGELOG.md` for the most recent `## [vX.Y.Z](...)` heading, or fall back to listing releases via the API. This means stable changelogs include ALL changes since the last stable release, even if some were already mentioned in prerelease notes.
+   - **For stable releases**: list releases via the API and find the previous **stable** release (skip prereleases and the current release). Do not use the frozen `CHANGELOG.md` as the version baseline. Stable release notes include ALL changes since the last stable release, even if some were already mentioned in prerelease notes.
    - **For prerelease releases**: find the most recent release of **any kind** (stable or prerelease) that precedes this one. This way prerelease notes only cover what's new since the last release.
 5. If no previous release exists at all, use the first commit in the repo as the starting point.
 6. After identifying the range, verify it by listing the commits in `PREVIOUS_TAG..NEW_TAG`. If the local result still looks suspiciously small or inconsistent, do **not** proceed based on local git alone — use the GitHub tools as the source of truth for the commits and PRs in the release.
@@ -87,42 +81,17 @@ Only include changes that are **user-visible in the published SDK packages**. Sk
 
 Additionally, identify **new contributors** — anyone whose first merged PR to this repo falls within this release range. You can determine this by checking whether the author has any earlier merged PRs in the repository.
 
-### Step 4: Update CHANGELOG.md (stable releases only)
+### Step 4: Update the GitHub Release
 
-**Skip this step entirely for prerelease releases.**
+For both stable and prerelease releases, use the `update-release` output to replace the auto-generated release notes with your formatted notes. **Do not include the version heading** (`## [vX.Y.Z](...) (date)`) in the release notes — the release already has a title showing the version. Start directly with the feature sections or other changes list.
 
-1. Read the current `CHANGELOG.md` file.
-2. Add the new version entry **at the top** of the file, right after the title/header. Use the full tag as the version in the heading, for example `## [v1.0.0](...)`.
-
-3. Use the release's publish date (from the GitHub Release metadata), not today's date. For `workflow_dispatch` runs, fetch the release by tag to get the date.
-4. If there are new contributors, add a `### New contributors` section at the end listing each with a link to their first PR:
-   ```
-   ### New contributors
-   - @username made their first contribution in [#123](https://github.com/github/copilot-sdk/pull/123)
-   ```
-   Omit this section if there are no new contributors.
-5. Make sure the existing content below is preserved exactly as-is.
-
-### Step 5: Create a Pull Request (stable releases only)
-
-**Skip this step entirely for prerelease releases.**
-
-Use the `create-pull-request` output to submit your changes. The PR should:
-
-- Have a clear title like "Add changelog for vX.Y.Z"
-- Include a brief body summarizing the number of changes
-
-### Step 6: Update the GitHub Release
-
-Use the `update-release` output to replace the auto-generated release notes with your nicely formatted changelog. **Do not include the version heading** (`## [vX.Y.Z](...) (date)`) in the release notes — the release already has a title showing the version. Start directly with the feature sections or other changes list.
+If there are new contributors, add a `### New contributors` section at the end listing each with a link to their first PR. Omit this section if there are no new contributors.
 
 ## Example Output
 
-Here is an example of what a changelog entry should look like, based on real commits from this repo. **Follow this style exactly.**
+Here is an example of what the release notes should look like, based on real commits from this repo. **Follow this style exactly.**
 
 ````markdown
-## [v0.1.28](https://github.com/github/copilot-sdk/releases/tag/v0.1.28) (2026-02-14)
-
 ### Feature: support overriding built-in tools
 
 Applications can now override built-in tools such as `edit` or `grep`. To do this, register a custom tool with the same name and set the override flag. ([#636](https://github.com/github/copilot-sdk/pull/636))
@@ -176,5 +145,5 @@ While `session.rpc.models.setModel()` already worked, there is now a convenience
 2. **Be accurate**: Only include changes that actually landed in this release range. Don't hallucinate PRs.
 3. **Attribute correctly**: Always link to the PR number. Do not add explicit author attribution.
 4. **Skip noise**: Don't include trivial changes (typo fixes in comments, whitespace changes) unless they're the only changes.
-5. **Preserve history**: Never modify existing entries in CHANGELOG.md — only prepend new ones.
-6. **Handle edge cases**: If there are no meaningful changes (e.g., only internal dependency bumps), still create an entry noting "Internal dependency updates only" or similar.
+5. **Preserve history**: Leave `CHANGELOG.md` and all repository files unchanged.
+6. **Handle edge cases**: If there are no meaningful changes (e.g., only internal dependency bumps), still update the release notes with "Internal dependency updates only" or similar.

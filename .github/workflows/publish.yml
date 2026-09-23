@@ -417,11 +417,11 @@ jobs:
       ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
       FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/nuget/v3/index.json
     steps:
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           dotnet-version: "10.0.x"
       - name: Download .NET package
-        uses: actions/download-artifact@v8.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: dotnet-package
           path: ./dist
@@ -1053,7 +1053,7 @@ jobs:
       - run: npm ci --ignore-scripts
         working-directory: ./nodejs
       - name: Update npm for trusted publishing
-        run: npm install --global npm@11.6.3
+        run: npm install -g npm@11.6.3
       - name: Download retained release
         uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:

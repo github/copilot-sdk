@@ -273,8 +273,8 @@ public class CopilotClientTest {
             Throwable root = ex instanceof ExecutionException && ex.getCause() != null ? ex.getCause() : ex;
             String message = root.getMessage();
             assertNotNull(message);
-            assertTrue(message.toLowerCase().contains("stderr") || message.toLowerCase().contains("unexpectedly"),
-                    "Error should include stderr or unexpected exit details: " + message);
+            assertTrue(message.contains("--nonexistent-flag-for-testing"),
+                    "Error should include the CLI's invalid-flag diagnostic: " + message);
         }
     }
 

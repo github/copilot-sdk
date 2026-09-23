@@ -1,0 +1,359 @@
+# Invoked by sdk.yml to run the .NET SDK build/test matrix, documentation,
+# backend shards, full subprocess CAPI coverage, and focused in-process smoke
+# coverage on Linux and x64 musl.
+name: "SDK .NET"
+
+env:
+  HUSKY: 0
+  POWERSHELL_UPDATECHECK: Off
+  SDK_HOME: ${{ inputs.sdk-home }}
+  SETUP_NODE_TIMEOUT_MINUTES: 10
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: false
+        type: string
+        default: all
+      sdk-home:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet-linux-x64:
+    name: ".NET (ubuntu-latest, ${{ matrix.transport }}, CAPI, full)"
+    if: inputs.platform == 'all' || inputs.platform == 'linux-x64'
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: [default, inprocess]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/dotnet
+    env:
+      COPILOT_SDK_E2E_BACKEND: capi
+      DOTNET_TEST_FILTER: ${{ matrix.transport == 'inprocess' && 'FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientE2ETests.Should_Start_And_Connect_Over_InProcess_Ffi|FullyQualifiedName~GitHub.Copilot.Test.E2E.SessionE2ETests.Should_Receive_Session_Events' || '' }}
+      DOTNET_TEST_SHARD: full
+      COPILOT_SDK_DEFAULT_CONNECTION: ${{ matrix.transport == 'inprocess' && 'inprocess' || '' }}
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-sdk-Linux-X64-gnu
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: dotnet restore -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH" -p:CopilotSkipCliDownload=true
+      # TEMPORARY MERGE QUEUE REDUCTION: pull requests and main pushes retain
+      # static checks; merge groups rerun only SDK compatibility coverage.
+      - if: github.event_name != 'merge_group' && matrix.transport == 'default'
+        run: dotnet format --verify-no-changes --no-restore
+      - run: dotnet build --no-restore -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH" -p:CopilotSkipCliDownload=true
+      - name: Test structured output with reflection enabled
+        if: matrix.transport == 'default'
+        env:
+          DOTNET_ROLL_FORWARD: Major
+        run: >-
+          dotnet test test/GitHub.Copilot.SDK.Test.csproj --no-restore --framework net8.0
+          -p:JsonSerializerIsReflectionEnabledByDefault=true
+          -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH"
+          -p:CopilotSkipCliDownload=true
+          --filter "FullyQualifiedName~GitHub.Copilot.Test.Unit.ClientSessionLifetimeTests.StructuredOutput"
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: ../scripts/ci/run-dotnet-tests.sh
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-test-diagnostics-ubuntu-latest-${{ matrix.transport }}-capi-full-${{ github.run_attempt }}
+          path: ${{ inputs.sdk-home }}/dotnet/TestResults/
+          if-no-files-found: warn
+          retention-days: 7
+
+  dotnet-darwin-arm64:
+    name: ".NET (macos-latest, default, CAPI, ${{ matrix.shard }})"
+    if: inputs.platform == 'all' || inputs.platform == 'darwin-arm64'
+    runs-on: macos-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          [
+            "1",
+            "2a",
+            "2b-pending",
+            "2b-permission",
+            "2b-auth",
+            "2b-hooks",
+            "2b-unit-p",
+            "2b-provider",
+            "2b-rpc-additional",
+            "2b-rpc-agent",
+            "2b-rpc-event-log",
+            "2b-rpc-event-effects",
+            "2b-rpc-mcp-skills",
+            "2b-rpc-mcp-config",
+            "2b-rpc-mcp-lifecycle",
+            "2b-rpc-q-z",
+            "extensions",
+            "2c",
+          ]
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/dotnet
+    env:
+      COPILOT_SDK_E2E_BACKEND: capi
+      DOTNET_TEST_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-sdk-macOS-ARM64
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: dotnet restore -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH" -p:CopilotSkipCliDownload=true
+      - run: dotnet build --no-restore -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH" -p:CopilotSkipCliDownload=true
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: ../scripts/ci/run-dotnet-tests.sh
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-test-diagnostics-macos-latest-default-capi-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: ${{ inputs.sdk-home }}/dotnet/TestResults/
+          if-no-files-found: warn
+          retention-days: 7
+
+  dotnet-win32-x64:
+    name: ".NET (windows-latest, default, CAPI, ${{ matrix.shard }})"
+    if: inputs.platform == 'all' || inputs.platform == 'win32-x64'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ["1", "2"]
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/dotnet
+    env:
+      COPILOT_SDK_E2E_BACKEND: capi
+      DOTNET_TEST_SHARD: ${{ matrix.shard }}
+      DOTNET_TEST_RUNTIME: win-x64
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-sdk-Windows-X64
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: dotnet restore test/GitHub.Copilot.SDK.Test.csproj --runtime "$DOTNET_TEST_RUNTIME" -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH" -p:CopilotSkipCliDownload=true
+      - run: dotnet build test/GitHub.Copilot.SDK.Test.csproj --no-restore --runtime "$DOTNET_TEST_RUNTIME" -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH" -p:CopilotSkipCliDownload=true
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+      - env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: ../scripts/ci/run-dotnet-tests.sh
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-test-diagnostics-windows-latest-default-capi-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: ${{ inputs.sdk-home }}/dotnet/TestResults/
+          if-no-files-found: warn
+          retention-days: 7
+
+  # Exercise non-CAPI model backends through .NET only instead of multiplying
+  # them across every language and execution mode; all SDKs cover both modes with CAPI.
+  dotnet-backends:
+    name: ".NET (ubuntu-latest, default, ${{ matrix.backend }})"
+    if: inputs.platform == 'all' || inputs.platform == 'linux-x64'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [anthropic-messages, openai-responses, openai-completions]
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/dotnet
+    env:
+      COPILOT_SDK_E2E_BACKEND: ${{ matrix.backend }}
+      DOTNET_TEST_FILTER: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
+      DOTNET_TEST_SHARD: full
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-sdk-Linux-X64-gnu
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: dotnet restore -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH" -p:CopilotSkipCliDownload=true
+      - run: dotnet build --no-restore -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH" -p:CopilotSkipCliDownload=true
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: ../scripts/ci/run-dotnet-tests.sh
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-test-diagnostics-ubuntu-latest-default-${{ matrix.backend }}-full-${{ github.run_attempt }}
+          path: ${{ inputs.sdk-home }}/dotnet/TestResults/
+          if-no-files-found: warn
+          retention-days: 7
+
+  dotnet-musl-x64:
+    name: ".NET (Alpine x64, ${{ matrix.transport }}, CAPI)"
+    if: inputs.platform == 'all' || inputs.platform == 'linuxmusl-x64'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COPILOT_SDK_E2E_BACKEND: capi
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: [default, inprocess]
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-sdk-Linux-X64-musl
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore
+        working-directory: .
+      - uses: ./.github/actions/run-alpine-tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_SDK_E2E_BACKEND: capi
+        with:
+          image: mcr.microsoft.com/dotnet/sdk:10.0-alpine
+          sdk-root: /workspace/${{ inputs.sdk-home }}
+          workdir: /workspace/${{ inputs.sdk-home }}
+          transport: ${{ matrix.transport }}
+          command: |
+            dotnet --info | grep -Eq "RID:[[:space:]]+linux-musl-x64"
+            apk add --no-cache nodejs npm
+            npm --prefix "$COPILOT_SDK_ROOT/nodejs" ci --ignore-scripts
+            npm --prefix "$COPILOT_SDK_ROOT/test/harness" ci --ignore-scripts
+
+            export GITHUB_ENV=/tmp/copilot-sdk-runtime.env
+            export COPILOT_RUNTIME_TARGET=linuxmusl-x64
+            export COPILOT_RUNTIME_OUTPUT_DIRECTORY=/workspace/.sdk-runtime/linuxmusl-x64
+            node "$COPILOT_SDK_ROOT/scripts/ci/runtime-artifact.mjs" prepare
+            set -a
+            . "$GITHUB_ENV"
+            set +a
+            case "$COPILOT_CLI_PATH" in
+              */prebuilds/linuxmusl-x64/copilot-runtime) ;;
+              *) echo "Expected the linuxmusl-x64 runtime, got: $COPILOT_CLI_PATH" >&2; exit 1 ;;
+            esac
+
+            export DOTNET_ROLL_FORWARD=Major
+            dotnet restore "$COPILOT_SDK_ROOT/dotnet/test/GitHub.Copilot.SDK.Test.csproj" \
+              -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH" \
+              -p:CopilotSkipCliDownload=true
+            set --
+            if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
+              set -- --filter 'FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientE2ETests.Should_Start_And_Connect_Over_InProcess_Ffi|FullyQualifiedName~GitHub.Copilot.Test.E2E.SessionE2ETests.Should_Receive_Session_Events'
+            fi
+            dotnet test "$COPILOT_SDK_ROOT/dotnet/test/GitHub.Copilot.SDK.Test.csproj" \
+              --no-restore \
+              --framework net8.0 \
+              -v n \
+              --blame-hang \
+              --blame-hang-timeout 10m \
+              --blame-hang-dump-type none \
+              --logger "trx;LogFilePrefix=test-results" \
+              --results-directory "$COPILOT_SDK_ROOT/dotnet/TestResults" \
+              "$@" \
+              -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH" \
+              -p:CopilotSkipCliDownload=true \
+              -p:RunAnalyzers=false
+      - name: Upload .NET test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-test-diagnostics-alpine-x64-${{ matrix.transport }}-capi-${{ github.run_attempt }}
+          path: ${{ inputs.sdk-home }}/dotnet/TestResults/
+          if-no-files-found: warn
+          retention-days: 7
+
+  docs-dotnet:
+    name: "Docs (.NET)"
+    if: inputs.platform == 'all' || inputs.platform == 'docs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - run: npm ci
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
+      - run: dotnet restore -p:CopilotSkipCliDownload=true
+        working-directory: ${{ inputs.sdk-home }}/dotnet
+      - run: npm run extract && npm run validate:cs
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation

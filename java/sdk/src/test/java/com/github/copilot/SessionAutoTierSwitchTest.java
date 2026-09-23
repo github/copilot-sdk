@@ -17,6 +17,7 @@ import com.github.copilot.generated.rpc.SessionModelSwitchAutoTierResult;
 import com.github.copilot.rpc.AutoTier;
 import com.github.copilot.rpc.SetModelOptions;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import org.junit.jupiter.api.Test;
@@ -167,8 +168,9 @@ class SessionAutoTierSwitchTest {
         private final JsonRpcClient rpcClient;
 
         SocketPair() throws Exception {
-            try (var ss = new ServerSocket(0)) {
-                clientSocket = new Socket("localhost", ss.getLocalPort());
+            var loopback = InetAddress.getLoopbackAddress();
+            try (var ss = new ServerSocket(0, 1, loopback)) {
+                clientSocket = new Socket(loopback, ss.getLocalPort());
                 serverSocket = ss.accept();
             }
             serverSocket.setSoTimeout(3000);

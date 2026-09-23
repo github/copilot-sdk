@@ -1,0 +1,181 @@
+# Invoked by sdk.yml to run Python SDK formatting, linting, typing,
+# documentation, full subprocess coverage, and focused in-process smoke
+# coverage across standard platforms and x64 musl.
+name: "SDK Python"
+
+env:
+  HUSKY: 0
+  POWERSHELL_UPDATECHECK: Off
+  SDK_HOME: ${{ inputs.sdk-home }}
+  SETUP_NODE_TIMEOUT_MINUTES: 10
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: false
+        type: string
+        default: all
+      sdk-home:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: "Python (${{ matrix.os }}, ${{ matrix.transport }})"
+    if: contains(fromJSON('["all","linux-x64","darwin-arm64","win32-x64"]'), inputs.platform)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.platform == 'linux-x64' && '["ubuntu-latest"]' || inputs.platform == 'darwin-arm64' && '["macos-latest"]' || inputs.platform == 'win32-x64' && '["windows-latest"]' || '["ubuntu-latest","macos-latest","windows-latest"]') }}
+        transport: [default, inprocess]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/python
+    env:
+      PYTHONUTF8: 1
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ runner.os == 'Linux' && format('executable-sdk-{0}-{1}-gnu', runner.os, runner.arch) || format('executable-sdk-{0}-{1}', runner.os, runner.arch) }}
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked --all-extras --dev
+      # TEMPORARY MERGE QUEUE REDUCTION: pull requests and main pushes retain
+      # static checks; merge groups rerun only SDK compatibility coverage.
+      - if: github.event_name != 'merge_group' && runner.os == 'Linux' && matrix.transport == 'default'
+        run: uv run --locked ruff format --check .
+      - if: github.event_name != 'merge_group' && runner.os == 'Linux' && matrix.transport == 'default'
+        run: uv run --locked ruff check
+      - if: github.event_name != 'merge_group' && runner.os == 'Linux' && matrix.transport == 'default'
+        run: uv run --locked ty check copilot
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+      - env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_SDK_DEFAULT_CONNECTION: ${{ matrix.transport == 'inprocess' && 'inprocess' || '' }}
+        run: |
+          if [ "$COPILOT_SDK_DEFAULT_CONNECTION" = "inprocess" ]; then
+            uv run --locked pytest -v -s e2e/test_inprocess_ffi_e2e.py
+          else
+            env -u COPILOT_SKIP_CLI_DOWNLOAD uv run --locked pytest -v -s -n 2 --dist=loadfile
+          fi
+      - name: Upload Python test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-test-diagnostics-${{ matrix.os }}-${{ matrix.transport }}-${{ github.run_attempt }}
+          path: ${{ inputs.sdk-home }}/python/.pytest-diagnostics/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+
+  python-musl-x64:
+    name: "Python (Alpine x64, ${{ matrix.transport }})"
+    if: inputs.platform == 'all' || inputs.platform == 'linuxmusl-x64'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: [default, inprocess]
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-sdk-Linux-X64-musl
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore
+        working-directory: .
+      - uses: ./.github/actions/run-alpine-tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        with:
+          image: python:3.11-alpine
+          sdk-root: /workspace/${{ inputs.sdk-home }}
+          workdir: /workspace/${{ inputs.sdk-home }}
+          transport: ${{ matrix.transport }}
+          command: |
+            apk add --no-cache nodejs npm
+            python -m pip install --no-cache-dir uv
+            npm --prefix "$COPILOT_SDK_ROOT/nodejs" ci --ignore-scripts
+            npm --prefix "$COPILOT_SDK_ROOT/test/harness" ci --ignore-scripts
+
+            export GITHUB_ENV=/tmp/copilot-sdk-runtime.env
+            export COPILOT_RUNTIME_TARGET=linuxmusl-x64
+            export COPILOT_RUNTIME_OUTPUT_DIRECTORY=/workspace/.sdk-runtime/linuxmusl-x64
+            node "$COPILOT_SDK_ROOT/scripts/ci/runtime-artifact.mjs" prepare
+            set -a
+            . "$GITHUB_ENV"
+            set +a
+            case "$COPILOT_CLI_PATH" in
+              */prebuilds/linuxmusl-x64/copilot-runtime) ;;
+              *) echo "Expected the linuxmusl-x64 runtime, got: $COPILOT_CLI_PATH" >&2; exit 1 ;;
+            esac
+
+            cd "$COPILOT_SDK_ROOT/python"
+            uv sync --locked --all-extras --dev
+            if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
+              uv run --locked pytest -v -s e2e/test_inprocess_ffi_e2e.py
+            else
+              env -u COPILOT_SKIP_CLI_DOWNLOAD uv run --locked pytest -v -s -n 2 --dist=loadfile
+            fi
+      - name: Upload Python test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-test-diagnostics-alpine-x64-${{ matrix.transport }}-${{ github.run_attempt }}
+          path: ${{ inputs.sdk-home }}/python/.pytest-diagnostics/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+
+  docs-python:
+    name: "Docs (Python)"
+    if: inputs.platform == 'all' || inputs.platform == 'docs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --locked
+        working-directory: ${{ inputs.sdk-home }}/python
+      - run: npm ci
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
+      - run: npm run extract
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
+      - run: uv run --locked --project "$GITHUB_WORKSPACE/$SDK_HOME/python" python3 -m mypy --version
+      - run: uv run --locked --project "$GITHUB_WORKSPACE/$SDK_HOME/python" npm run validate:py
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation

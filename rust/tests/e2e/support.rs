@@ -513,7 +513,7 @@ impl E2eContext {
 
     /// Start a client that hosts the bundled runtime directly in-process over
     /// FFI ([`Transport::InProcess`]).
-    #[cfg_attr(not(feature = "bundled-in-process"), allow(dead_code))]
+    #[cfg_attr(not(feature = "in-process"), allow(dead_code))]
     pub async fn start_inprocess_client(&self) -> Client {
         let options = ClientOptions::new().with_transport(Transport::InProcess);
         Client::start(options)

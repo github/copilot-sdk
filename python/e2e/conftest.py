@@ -25,10 +25,17 @@ if not cli_download.CLI_VERSION:
     package_json = json.loads((Path(__file__).parents[2] / "nodejs" / "package.json").read_text())
     cli_download.CLI_VERSION = package_json["copilotCliVersion"]
 
-if is_inprocess_transport():
+
+def _neutralize_inprocess_environment() -> None:
+    """Remove host credentials while preserving an explicitly offline runtime."""
     os.environ.pop("COPILOT_HMAC_KEY", None)
     os.environ.pop("CAPI_HMAC_KEY", None)
-    os.environ.pop("COPILOT_CLI_PATH", None)
+    if not cli_download._should_skip_download():
+        os.environ.pop("COPILOT_CLI_PATH", None)
+
+
+if is_inprocess_transport():
+    _neutralize_inprocess_environment()
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

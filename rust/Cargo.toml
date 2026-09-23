@@ -30,7 +30,9 @@ name = "github_copilot_sdk"
 [features]
 default = ["bundled-cli"]
 bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
-bundled-in-process = ["bundled-cli", "dep:libloading"]
+in-process = ["dep:libloading"]
+local-runtime = ["in-process"]
+bundled-in-process = ["bundled-cli", "in-process"]
 derive = ["dep:schemars"]
 test-support = []
 
@@ -78,7 +80,7 @@ windows-sys = { version = "0.61", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-rusqlite = { version = "0.35", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 schemars = "1"
 serial_test = "3"
 tempfile = "3"

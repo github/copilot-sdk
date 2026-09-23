@@ -123,6 +123,11 @@ describe("Abort", async () => {
         // Wait for the tool to start executing
         const toolValue = await withTimeout(toolStarted, 60_000, "slow_analysis start");
         expect(toolValue).toBe("test_abort");
+        expect((await session.rpc.metadata.isProcessing()).processing).toBe(true);
+        expect(await session.rpc.metadata.activity()).toMatchObject({
+            hasActiveWork: true,
+            abortable: true,
+        });
 
         // Abort while the tool is running
         await session.abort();
@@ -135,13 +140,21 @@ describe("Abort", async () => {
         const recoveryReceived = new Promise<void>((resolve) => {
             recoveryResolve = resolve;
         });
+        let recoveryIdleResolve!: (value: void) => void;
+        const recoveryIdle = new Promise<void>((resolve) => {
+            recoveryIdleResolve = resolve;
+        });
+        let recoveryMessageSeen = false;
 
         session.on((event) => {
             if (
                 event.type === "assistant.message" &&
                 event.data.content?.includes("tool_abort_recovery_ok")
             ) {
+                recoveryMessageSeen = true;
                 recoveryResolve();
+            } else if (event.type === "session.idle" && recoveryMessageSeen) {
+                recoveryIdleResolve();
             }
         });
 
@@ -150,6 +163,9 @@ describe("Abort", async () => {
         });
 
         await withTimeout(recoveryReceived, 60_000, "tool abort recovery message");
+        await withTimeout(recoveryIdle, 60_000, "tool abort recovery idle");
+        expect((await session.rpc.metadata.isProcessing()).processing).toBe(false);
+        expect((await session.rpc.metadata.activity()).hasActiveWork).toBe(false);
 
         await session.disconnect();
     });

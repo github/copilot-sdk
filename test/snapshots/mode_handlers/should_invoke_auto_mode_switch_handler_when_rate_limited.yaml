@@ -19,4 +19,4 @@ conversations:
       - role: user
         content: Explain that auto mode recovered from a rate limit in one short sentence.
       - role: assistant
-        content: Auto mode recovered from the rate limit and the session can continue.
+        content: Auto mode recovered from the rate limit and continued automatically.

@@ -6,13 +6,15 @@ import { fileURLToPath } from "node:url";
 import { globSync } from "glob";
 import { t as listTar, x as extractTar } from "tar";
 import { getRuntimePackageName, RUNTIME_PLATFORMS } from "../src/runtimeArtifacts.js";
+import { assertExactProductionDependencies } from "./dependency-policy.js";
 
 interface PackedPackage {
     manifest: {
+        dependencies?: Record<string, string>;
         name: string;
+        optionalDependencies?: Record<string, string>;
         version: string;
         repository?: string | { type?: string; url?: string };
-        optionalDependencies?: Record<string, string>;
     };
     entries: Set<string>;
 }
@@ -27,8 +29,11 @@ assert(
         : sourceManifest.repository?.url?.trim(),
     "Main package is missing repository metadata"
 );
+assertExactProductionDependencies(sourceManifest);
+const platforms =
+    process.env.COPILOT_SDK_RUNTIME_PLATFORMS?.split(",").filter(Boolean) ?? RUNTIME_PLATFORMS;
 const expectedRuntimePackages = Object.fromEntries(
-    RUNTIME_PLATFORMS.map((platform) => [getRuntimePackageName(platform), sourceManifest.version])
+    platforms.map((platform) => [getRuntimePackageName(platform), sourceManifest.version])
 );
 const expectedPackageNames = new Set([
     sourceManifest.name,
@@ -78,17 +83,23 @@ assert.deepEqual(
 const mainPackage = packages.get(sourceManifest.name);
 assert(mainPackage, `Missing ${sourceManifest.name} tarball`);
 assert.deepEqual(
+    mainPackage.manifest.dependencies,
+    sourceManifest.dependencies,
+    "Main package dependencies do not match the source manifest"
+);
+assert.deepEqual(
     mainPackage.manifest.optionalDependencies,
     expectedRuntimePackages,
     "Main package optional dependencies do not match the platform packages"
 );
+assertExactProductionDependencies(mainPackage.manifest);
 assert(mainPackage.entries.has("package/dist/index.js"), "Main package is missing dist/index.js");
 assert(
     mainPackage.entries.has("package/dist/cjs/index.js"),
     "Main package is missing dist/cjs/index.js"
 );
 
-for (const platform of RUNTIME_PLATFORMS) {
+for (const platform of platforms) {
     const packageName = getRuntimePackageName(platform);
     const packed = packages.get(packageName);
     assert(packed, `Missing ${packageName} tarball`);
@@ -103,7 +114,6 @@ for (const platform of RUNTIME_PLATFORMS) {
         `package/prebuilds/${platform}/runtime.node`,
         "package/copilot-sdk/extension.js",
         "package/preloads/extension_bootstrap.mjs",
-        "package/sdk/index.js",
     ]) {
         assert(packed.entries.has(requiredPath), `${packageName} is missing ${requiredPath}`);
     }

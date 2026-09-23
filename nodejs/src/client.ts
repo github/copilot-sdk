@@ -49,6 +49,7 @@ import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvi
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import { getTraceContext } from "./telemetry.js";
+import { toJsonSchema } from "./schema.js";
 import { ToolSet } from "./toolSet.js";
 import type {
     AutoModeSwitchRequest,
@@ -59,6 +60,7 @@ import type {
     CustomAgentConfig,
     ExitPlanModeRequest,
     ExitPlanModeResult,
+    ExtensionLaunchProvider,
     ExtensionJoinOptions,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
@@ -87,12 +89,17 @@ import type {
     SessionMetadata,
     SystemMessageCustomizeConfig,
     TelemetryConfig,
-    Tool,
     TraceContextProvider,
     TypedSessionLifecycleHandler,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
 import type { FactoryHandle } from "./factory.js";
+import type { WorkflowHandle } from "./workflow.js";
+
+interface ExtensionOrchestrationContributions {
+    factories?: FactoryHandle[];
+    workflows?: WorkflowHandle[];
+}
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -100,18 +107,6 @@ import type { FactoryHandle } from "./factory.js";
  */
 const MIN_PROTOCOL_VERSION = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
-
-/**
- * Check if value is a Zod schema (has toJSONSchema method)
- */
-function isZodSchema(value: unknown): value is { toJSONSchema(): Record<string, unknown> } {
-    return (
-        value != null &&
-        typeof value === "object" &&
-        "toJSONSchema" in value &&
-        typeof (value as { toJSONSchema: unknown }).toJSONSchema === "function"
-    );
-}
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -158,17 +153,6 @@ async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise
             onExit();
         }
     });
-}
-
-/**
- * Convert tool parameters to JSON schema format for sending to CLI
- */
-function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> | undefined {
-    if (!parameters) return undefined;
-    if (isZodSchema(parameters)) {
-        return parameters.toJSONSchema();
-    }
-    return parameters;
 }
 
 /** Implicit provider name for the singular, whole-session {@link ProviderConfig}. */
@@ -442,6 +426,7 @@ export class CopilotClient {
     private cliProcess: ChildProcess | null = null;
     private ffiHost: FfiRuntimeHost | null = null;
     private connection: MessageConnection | null = null;
+    private requestAdapter: ReturnType<typeof createCopilotRequestAdapter> | null = null;
     private messageWriter: TeardownResilientStreamMessageWriter | null = null;
     private connectionClosed: boolean = false;
     private socket: Socket | null = null;
@@ -491,6 +476,7 @@ export class CopilotClient {
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
+    private extensionLaunchProvider?: ExtensionLaunchProvider;
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
@@ -689,6 +675,7 @@ export class CopilotClient {
         this.onGetTraceContext = options.onGetTraceContext;
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
+        this.extensionLaunchProvider = options.extensionLaunchProvider;
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
 
@@ -834,14 +821,16 @@ export class CopilotClient {
 
     private setupClientGlobalHandlers(): void {
         const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+        handlers.extensionLaunchProvider = this.extensionLaunchProvider;
         if (this.requestHandler) {
-            handlers.llmInference = createCopilotRequestAdapter(this.requestHandler, () => {
+            this.requestAdapter = createCopilotRequestAdapter(this.requestHandler, () => {
                 if (!this.connection) {
                     return undefined;
                 }
                 this._rpc ??= createServerRpc(this.connection);
                 return this._rpc;
             });
+            handlers.llmInference = this.requestAdapter;
         }
         if (this.onGitHubTelemetry) {
             const onGitHubTelemetry = this.onGitHubTelemetry;
@@ -970,6 +959,10 @@ export class CopilotClient {
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
 
+            if (this.extensionLaunchProvider) {
+                await this.rpc.registerExtensionLaunchProvider();
+            }
+
             if (this.builtinPluginDirectories.length > 0) {
                 try {
                     await this.connection!.sendRequest("plugins.builtin.set", {
@@ -1084,6 +1077,7 @@ export class CopilotClient {
         }
         this.sessions.clear();
         this.githubTokenProviders.clear();
+        this.requestAdapter?.cancelPending();
 
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
@@ -1272,6 +1266,7 @@ export class CopilotClient {
         }
         this.sessions.clear();
         this.githubTokenProviders.clear();
+        this.requestAdapter?.cancelPending();
 
         // Force close connection. Suppress writer failures first so teardown
         // write rejections don't surface as unhandled rejections.
@@ -1823,16 +1818,35 @@ export class CopilotClient {
         config: ResumeSessionConfig,
         factories?: FactoryHandle[],
         extensionOptions?: ExtensionJoinOptions
+    ): Promise<CopilotSession>;
+    /** @internal */
+    async resumeSessionForExtension(
+        sessionId: string,
+        config: ResumeSessionConfig,
+        contributions?: ExtensionOrchestrationContributions,
+        extensionOptions?: ExtensionJoinOptions
+    ): Promise<CopilotSession>;
+    async resumeSessionForExtension(
+        sessionId: string,
+        config: ResumeSessionConfig,
+        contributions: FactoryHandle[] | ExtensionOrchestrationContributions = {},
+        extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
-        return this.resumeSessionInternal(sessionId, config, factories, extensionOptions);
+        return this.resumeSessionInternal(sessionId, config, contributions, extensionOptions);
     }
 
     private async resumeSessionInternal(
         sessionId: string,
         config: ResumeSessionConfig,
-        factories?: FactoryHandle[],
+        contributions: FactoryHandle[] | ExtensionOrchestrationContributions = {},
         extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
+        const { factories, workflows } = Array.isArray(contributions)
+            ? { factories: contributions, workflows: undefined }
+            : contributions;
+        if (factories !== undefined && workflows !== undefined) {
+            throw new Error("Session configuration cannot include both factories and workflows");
+        }
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
@@ -1857,6 +1871,7 @@ export class CopilotClient {
         session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
         session.registerFactories(factories);
+        session.registerWorkflows(workflows);
         const {
             wireProvider: bearerWireProvider,
             wireProviders: bearerWireProviders,
@@ -1943,6 +1958,7 @@ export class CopilotClient {
                 toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
                 factories: factories?.map((factory) => factory.meta),
+                workflows: workflows?.map((workflow) => workflow.meta),
                 requestCanvasRenderer: config.requestCanvasRenderer,
                 requestExtensions: config.requestExtensions,
                 extensionSdkPath: config.extensionSdkPath,
@@ -3094,6 +3110,7 @@ export class CopilotClient {
             }
             this.sessions.clear();
             this.githubTokenProviders.clear();
+            this.requestAdapter?.cancelPending();
         };
         this.connection.onClose(markDisconnected);
         this.connection.onError(() => {

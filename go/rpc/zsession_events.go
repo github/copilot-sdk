@@ -198,6 +198,7 @@ const (
 	SessionEventTypeSessionFusionRouteStarted       SessionEventType = "session.fusion_route_started"
 	SessionEventTypeSessionHandoff                  SessionEventType = "session.handoff"
 	SessionEventTypeSessionIdle                     SessionEventType = "session.idle"
+	SessionEventTypeSessionIndexedSearch            SessionEventType = "session.indexed_search"
 	SessionEventTypeSessionInfo                     SessionEventType = "session.info"
 	SessionEventTypeSessionLimitsExhaustedCompleted SessionEventType = "session_limits_exhausted.completed"
 	SessionEventTypeSessionLimitsExhaustedRequested SessionEventType = "session_limits_exhausted.requested"
@@ -213,7 +214,9 @@ const (
 	SessionEventTypeSessionMCPServerStatusChanged  SessionEventType = "session.mcp_server_status_changed"
 	SessionEventTypeSessionModeChanged             SessionEventType = "session.mode_changed"
 	SessionEventTypeSessionModelChange             SessionEventType = "session.model_change"
+	SessionEventTypeSessionModelDeselected         SessionEventType = "session.model_deselected"
 	SessionEventTypeSessionModeNoticeDelivered     SessionEventType = "session.mode_notice_delivered"
+	SessionEventTypeSessionPermissionRecovery      SessionEventType = "session.permission_recovery"
 	// Experimental: SessionEventTypeSessionPermissionsChanged identifies an experimental event
 	// that may change or be removed.
 	SessionEventTypeSessionPermissionsChanged     SessionEventType = "session.permissions_changed"
@@ -447,6 +450,27 @@ type AssistantMessageData struct {
 func (*AssistantMessageData) sessionEventData()      {}
 func (*AssistantMessageData) Type() SessionEventType { return SessionEventTypeAssistantMessage }
 
+// Authoritative snapshot of an Autopilot permission-recovery episode
+type SessionPermissionRecoveryData struct {
+	// Ordered privacy-safe record of permission attempts and the successful alternative, when any
+	Attempts []PermissionRecoveryAttempt `json:"attempts"`
+	// Stable identifier shared by every transition in this recovery episode
+	EpisodeID string `json:"episodeId"`
+	// Maximum number of distinct autonomous permission attempts allowed before escalation
+	MaxAttempts int64 `json:"maxAttempts"`
+	// Policy selected from the current client's response capability; mode or client changes may update it during recovery
+	OnBlocked PermissionRecoveryOnBlocked `json:"onBlocked"`
+	// Controlled reason for the latest episode transition
+	Reason PermissionRecoveryReason `json:"reason"`
+	// Current lifecycle state of the recovery episode
+	Status PermissionRecoveryStatus `json:"status"`
+}
+
+func (*SessionPermissionRecoveryData) sessionEventData() {}
+func (*SessionPermissionRecoveryData) Type() SessionEventType {
+	return SessionEventTypeSessionPermissionRecovery
+}
+
 // Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
 // Experimental: SessionAutoModeResolvedData is part of an experimental API and may change or be removed.
 type SessionAutoModeResolvedData struct {
@@ -642,6 +666,8 @@ type SessionCompactionCompleteData struct {
 	PreCompactionTokens *int64 `json:"preCompactionTokens,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
 	RequestID *string `json:"requestId,omitempty"`
+	// Reasoning baseline on the replacement summary, preserved when replay skips the compacted history
+	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// For failed compaction only: the HTTP status code of the compaction LLM call failure, when it carried one. Absent for successful compaction and for failures without an HTTP status (e.g. an empty model response or a transport error).
@@ -1171,6 +1197,9 @@ type SessionFusionResolvedData struct {
 	FollowUpModel string `json:"followUpModel"`
 	// Stable identifier for the resolved HydraFusion turn.
 	FusionID string `json:"fusionId"`
+	// Short human-readable summary of the selected workflow, suitable for immediate client display after routing. May be absent in older durable events; omit the explanation or derive one from pattern and phasePlan. Display text, not a stable machine-readable value.
+	// Experimental: Hint is part of an experimental API and may change or be removed.
+	Hint *string `json:"hint,omitempty"`
 	// Version of the executable model universe used for selection.
 	ModelUniverseVersion *string `json:"modelUniverseVersion,omitempty"`
 	// Validated orchestration pattern selected for the turn.
@@ -1514,6 +1543,8 @@ type SkillInvokedRefData struct {
 	Description *string `json:"description,omitempty"`
 	// Whether model invocation is disabled for this skill
 	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
+	// Projected chat-message count when the skill was invoked. Preserved from the inline event data when the authored body is deduplicated.
+	InvokedAtTurn *int64 `json:"invokedAtTurn,omitempty"`
 	// Model identifier active when the skill was invoked, when known
 	Model *string `json:"model,omitempty"`
 	// Name of the invoked skill
@@ -1618,6 +1649,12 @@ type AssistantUsageData struct {
 	Rte *bool `json:"rte,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
+	// Number of prior thinking blocks the provider dropped while transforming the request
+	// Internal: ThinkingDroppedBlocks is part of the SDK's internal API surface and is not intended for external use.
+	ThinkingDroppedBlocks *int64 `json:"thinkingDroppedBlocks,omitempty"`
+	// Recognized provider-reported reasons for dropped thinking blocks, in response order
+	// Internal: ThinkingDroppedReasons is part of the SDK's internal API surface and is not intended for external use.
+	ThinkingDroppedReasons []string `json:"thinkingDroppedReasons,omitzero"`
 	// Time to first token in milliseconds. Only available for streaming requests
 	TimeToFirstTokenMs *float64 `json:"timeToFirstTokenMs,omitempty"`
 	// Tool-call counts keyed by tool name
@@ -1929,6 +1966,8 @@ func (*SessionIdleData) Type() SessionEventType { return SessionEventTypeSession
 
 // Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`.
 type SandboxDecisionData struct {
+	// Raw preserves the complete union payload, including unrecognized variants.
+	Raw json.RawMessage `json:"-"`
 }
 
 func (*SandboxDecisionData) sessionEventData()      {}
@@ -2109,6 +2148,8 @@ type UserMessageData struct {
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
 	// Parent agent task ID for background telemetry correlated to this user turn
 	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
+	// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 	// Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
 	Source *string `json:"source,omitempty"`
 	// Normalized document MIME types that were sent natively instead of through tagged_files XML
@@ -2124,9 +2165,13 @@ func (*UserMessageData) Type() SessionEventType { return SessionEventTypeUserMes
 
 // Permission request completion notification signaling UI dismissal
 type PermissionCompletedData struct {
+	// Atomic structured blocked outcome when this permission response ended an Autopilot recovery episode unsuccessfully
+	Blocker *TaskBlocker `json:"blocker,omitempty"`
 	// Who decided this permission request. Absent on completions recorded before this field existed, which consumers must treat as "not a human decision" rather than assuming one. Authorization records are minted only for `human_response`; an assisted-approval verdict, a host policy, an unattended fallback, and a hook resolution all produce the same `result` a person does, so this is the only field that distinguishes them.
 	// Experimental: DecisionSource is part of an experimental API and may change or be removed.
 	DecisionSource *PermissionDecisionSource `json:"decisionSource,omitempty"`
+	// Permission-recovery episode settled by this response, when the request was escalated by Autopilot
+	RecoveryEpisodeID *string `json:"recoveryEpisodeId,omitempty"`
 	// Request ID of the resolved permission request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
 	// The result of the permission request
@@ -2142,10 +2187,14 @@ func (*PermissionCompletedData) Type() SessionEventType { return SessionEventTyp
 type PermissionRequestedData struct {
 	// Agent mode captured from the owning turn when permission evaluation began.
 	AgentMode *SessionMode `json:"agentMode,omitempty"`
+	// Permission mode captured when evaluation began. Absent on historical events.
+	PermissionMode *PermissionMode `json:"permissionMode,omitempty"`
 	// Details of the permission being requested
 	PermissionRequest PermissionRequest `json:"permissionRequest"`
 	// Derived user-facing permission prompt details for UI consumers
 	PromptRequest PermissionPromptRequest `json:"promptRequest,omitempty"`
+	// Permission-recovery episode that authorized this request to surface for interactive attention
+	RecoveryEpisodeID *string `json:"recoveryEpisodeId,omitempty"`
 	// Unique identifier for this permission request; used to respond via session.respondToPermission()
 	RequestID string `json:"requestId"`
 	// When true, this permission was already resolved by a permissionRequest hook and requires no client action
@@ -2697,6 +2746,8 @@ type SkillInvokedData struct {
 	Description *string `json:"description,omitempty"`
 	// Whether model invocation is disabled for this skill
 	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
+	// Projected chat-message count when the skill was invoked. New writers persist this so replay does not need to reconstruct superseded history; readers derive it for legacy events when absent.
+	InvokedAtTurn *int64 `json:"invokedAtTurn,omitempty"`
 	// Model identifier active when the skill was invoked, when known
 	Model *string `json:"model,omitempty"`
 	// Name of the invoked skill
@@ -2910,6 +2961,8 @@ type SystemNotificationData struct {
 	Content string `json:"content"`
 	// Structured metadata identifying what triggered this notification
 	Kind SystemNotification `json:"kind"`
+	// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 }
 
 func (*SystemNotificationData) sessionEventData()      {}
@@ -2919,6 +2972,8 @@ func (*SystemNotificationData) Type() SessionEventType { return SessionEventType
 type SystemMessageData struct {
 	// The system or developer prompt text sent as model input
 	Content string `json:"content"`
+	// Optional ordered structured blocks corresponding to content, retained for prompt-cache layout restoration.
+	ContentBlocks []SystemMessageContentBlock `json:"contentBlocks,omitzero"`
 	// Logical interaction identifier for the model run receiving this prompt
 	InteractionID *string `json:"interactionId,omitempty"`
 	// Metadata about the prompt template and its construction
@@ -2934,10 +2989,35 @@ func (*SystemMessageData) Type() SessionEventType { return SessionEventTypeSyste
 
 // Task completion notification with summary from the agent
 type SessionTaskCompleteData struct {
+	// Structured blocker details when outcome is blocked
+	Blocker *TaskBlocker `json:"blocker,omitempty"`
+	// Active autopilot objective ID evaluated by the completion reviewer
+	ObjectiveID *int64 `json:"objectiveId,omitempty"`
+	// Semantic completion decision. Absent on legacy events and invalid tool calls
+	Outcome *TaskCompletionOutcome `json:"outcome,omitempty"`
+	// Label-safe runtime rationale for the completion decision (e.g. a cancellation or pause/resume downgrade), when one applies. Reviewer-authored rationale is intentionally omitted here because this event has no IFC label channel; the reviewer's findings remain available through its own labeled sub-agent events
+	Reason *string `json:"reason,omitempty"`
+	// Whether the task was accepted as complete. False when validation failed or completion was rejected or blocked by the reviewer
+	Success *bool `json:"success,omitempty"`
+	// Summary of the completed task, provided by the agent
+	Summary *string `json:"summary,omitempty"`
 }
 
 func (*SessionTaskCompleteData) sessionEventData()      {}
 func (*SessionTaskCompleteData) Type() SessionEventType { return SessionEventTypeSessionTaskComplete }
+
+// The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model.
+type SessionModelDeselectedData struct {
+	// Model that was selected before the host withdrew it.
+	PreviousModel string `json:"previousModel"`
+	// Low-cardinality reason the selection was cleared.
+	Reason ModelDeselectedReason `json:"reason"`
+}
+
+func (*SessionModelDeselectedData) sessionEventData() {}
+func (*SessionModelDeselectedData) Type() SessionEventType {
+	return SessionEventTypeSessionModelDeselected
+}
 
 // Tool execution completion results including success status, detailed output, and error information
 type ToolExecutionCompleteData struct {
@@ -3031,12 +3111,23 @@ type ToolExecutionStartData struct {
 	ToolDescription *ToolExecutionStartToolDescription `json:"toolDescription,omitempty"`
 	// Name of the tool being executed
 	ToolName string `json:"toolName"`
+	// Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
+	ToolTitle *string `json:"toolTitle,omitempty"`
 	// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
 	TurnID *string `json:"turnId,omitempty"`
 }
 
 func (*ToolExecutionStartData) sessionEventData()      {}
 func (*ToolExecutionStartData) Type() SessionEventType { return SessionEventTypeToolExecutionStart }
+
+// Transient indexed-search status and diagnostics from the live runtime service. Never persisted or used to infer activation from session history.
+type SessionIndexedSearchData struct {
+	// Raw preserves the complete union payload, including unrecognized variants.
+	Raw json.RawMessage `json:"-"`
+}
+
+func (*SessionIndexedSearchData) sessionEventData()      {}
+func (*SessionIndexedSearchData) Type() SessionEventType { return SessionEventTypeSessionIndexedSearch }
 
 // Transient signal that an open canvas instance's provider has dropped (for example the extension is reloading mid-session). The host should keep the panel mounted and surface a reconnecting affordance rather than tearing it down; a subsequent `session.canvas.opened` for the same instanceId clears the affordance once the provider reconnects with a fresh url. Ephemeral and never persisted, so it is never replayed on cold resume.
 // Experimental: SessionCanvasUnavailableData is part of an experimental API and may change or be removed.
@@ -3815,9 +3906,23 @@ type ModelCallFailureRequestFingerprint struct {
 	ToolResultMessageCount int64 `json:"toolResultMessageCount"`
 }
 
+// Bounded runtime attribution, independent of free-text rationale. Telemetry revalidates this vocabulary before standard collection.
+type PermissionApprovalEvaluation struct {
+	// Stage that produced this attribution.
+	EvaluationStage PermissionApprovalEvaluationEvaluationStage `json:"evaluationStage"`
+	// Whether the request invoked the judge interface. A cached recommendation retains the original attempt fact. Omitted means unknown, including inherited outcomes.
+	JudgeAttempted *bool `json:"judgeAttempted,omitempty"`
+	// Status of the local judge interface, not proof of a model network call.
+	JudgeStatus PermissionApprovalEvaluationJudgeStatus `json:"judgeStatus"`
+	// Machine-readable runtime gate reason, never a command, path or human rationale.
+	ReasonCode PermissionApprovalEvaluationReasonCode `json:"reasonCode"`
+}
+
 // Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
 // Experimental: PermissionAssistedApproval is part of an experimental API and may change or be removed.
 type PermissionAssistedApproval struct {
+	// Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.
+	Evaluation *PermissionApprovalEvaluation `json:"evaluation,omitempty"`
 	// Classified cause of an `error` recommendation. Absent for every other recommendation.
 	FailureReason *AssistedApprovalJudgeFailureReason `json:"failureReason,omitempty"`
 	// Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.
@@ -4721,6 +4826,16 @@ func (r PersistedBinaryImage) Type() PersistedBinaryResultType {
 	return PersistedBinaryResultType(r.Discriminator)
 }
 
+// Original request-level and effective conversation reasoning effort for a Responses history boundary
+type ResponsesReasoning struct {
+	// Effective effort selected before this message, independent of the response-level reasoning field
+	Effort string `json:"effort"`
+	// Original request-level effort, retained while replaying this conversation prefix
+	InitialEffort string `json:"initialEffort"`
+	// Provider model whose reasoning settings this boundary records
+	Model string `json:"model"`
+}
+
 // The user's selected action for an exhausted session limit.
 type SessionLimitsExhaustedResponse struct {
 	// Action selected by the user.
@@ -4824,9 +4939,19 @@ type SkillsLoadedSkill struct {
 	UserInvocable bool `json:"userInvocable"`
 }
 
+// One persisted structured system-message block and its cache intent
+type SystemMessageContentBlock struct {
+	// Explicit prompt-cache intent. True places a breakpoint after this block, false suppresses one, and absence preserves the provider's legacy default.
+	CacheBreakpoint *bool `json:"cacheBreakpoint,omitempty"`
+	// Text content for this system-message block.
+	Content string `json:"content"`
+	// Diagnostic classification indicating whether the block is stable across equivalent sessions.
+	IsStatic *bool `json:"isStatic,omitempty"`
+}
+
 // Metadata about the prompt template and its construction
 type SystemMessageMetadata struct {
-	// Version identifier of the prompt template used
+	// Version identifier of the prompt template or structured prompt layout used
 	PromptVersion *string `json:"promptVersion,omitempty"`
 	// Template variables used when constructing the prompt
 	Variables map[string]any `json:"variables,omitzero"`
@@ -5857,24 +5982,6 @@ const (
 	ManagedSettingsEnforcedEscalationUnrestrictedURLs ManagedSettingsEnforcedEscalation = "unrestricted_urls"
 )
 
-// Summary of which managed-settings channels contributed to the effective session policy. Use the per-channel booleans for exact provenance.
-type ManagedSettingsResolvedSource string
-
-const (
-	// Only session-local SDK-host injection contributed.
-	ManagedSettingsResolvedSourceClient ManagedSettingsResolvedSource = "client"
-	// Only the device MDM/plist/registry/file channel contributed.
-	ManagedSettingsResolvedSourceDevice ManagedSettingsResolvedSource = "device"
-	// More than one channel contributed. Ordinary keys resolve device over server over policy helper per key, while permissions compose restrictively across all present layers.
-	ManagedSettingsResolvedSourceMixed ManagedSettingsResolvedSource = "mixed"
-	// No managed policy is in force (no channel contributed).
-	ManagedSettingsResolvedSourceNone ManagedSettingsResolvedSource = "none"
-	// A policy helper registered by device or server policy contributed. Device registration takes priority when present.
-	ManagedSettingsResolvedSourcePolicyHelper ManagedSettingsResolvedSource = "policyHelper"
-	// Only the server/account channel contributed.
-	ManagedSettingsResolvedSourceServer ManagedSettingsResolvedSource = "server"
-)
-
 // How the pending MCP headers refresh request resolved.
 type MCPHeadersRefreshCompletedOutcome string
 
@@ -6002,6 +6109,14 @@ const (
 	ModelCallFinishedOutcomeSuccess ModelCallFinishedOutcome = "success"
 )
 
+// Why the session no longer has an explicitly selected model.
+type ModelDeselectedReason string
+
+const (
+	// A host-managed provider snapshot no longer publishes the selected model.
+	ModelDeselectedReasonProviderWithdrawn ModelDeselectedReason = "provider_withdrawn"
+)
+
 // Binary result type discriminator. Use "image" for images and "resource" for other binary data.
 type OmittedBinaryType string
 
@@ -6010,6 +6125,98 @@ const (
 	OmittedBinaryTypeImage OmittedBinaryType = "image"
 	// Other binary resource data.
 	OmittedBinaryTypeResource OmittedBinaryType = "resource"
+)
+
+// Stage that produced this attribution.
+type PermissionApprovalEvaluationEvaluationStage string
+
+const (
+	// The judge interface produced the evaluation.
+	PermissionApprovalEvaluationEvaluationStageJudge PermissionApprovalEvaluationEvaluationStage = "judge"
+	// The request resolved before assisted-approval evaluation.
+	PermissionApprovalEvaluationEvaluationStageNotReached PermissionApprovalEvaluationEvaluationStage = "not_reached"
+	// A runtime gate skipped the judge.
+	PermissionApprovalEvaluationEvaluationStagePreJudge PermissionApprovalEvaluationEvaluationStage = "pre_judge"
+	// A cached recommendation or another request's outcome was reused.
+	PermissionApprovalEvaluationEvaluationStageReuse PermissionApprovalEvaluationEvaluationStage = "reuse"
+	// The attribution stage is unknown.
+	PermissionApprovalEvaluationEvaluationStageUnknown PermissionApprovalEvaluationEvaluationStage = "unknown"
+)
+
+// Status of the local judge interface, not proof of a model network call.
+type PermissionApprovalEvaluationJudgeStatus string
+
+const (
+	// This evaluation reused a cached recommendation.
+	PermissionApprovalEvaluationJudgeStatusCached PermissionApprovalEvaluationJudgeStatus = "cached"
+	// The judge interface returned a usable verdict.
+	PermissionApprovalEvaluationJudgeStatusCompleted PermissionApprovalEvaluationJudgeStatus = "completed"
+	// The judge interface returned an error.
+	PermissionApprovalEvaluationJudgeStatusFailed PermissionApprovalEvaluationJudgeStatus = "failed"
+	// This request inherited another decision without local judge attribution.
+	PermissionApprovalEvaluationJudgeStatusInherited PermissionApprovalEvaluationJudgeStatus = "inherited"
+	// This evaluation did not invoke the judge interface.
+	PermissionApprovalEvaluationJudgeStatusNotCalled PermissionApprovalEvaluationJudgeStatus = "not_called"
+	// No authoritative attribution is available.
+	PermissionApprovalEvaluationJudgeStatusUnknown PermissionApprovalEvaluationJudgeStatus = "unknown"
+)
+
+// Machine-readable runtime gate reason, never a command, path or human rationale.
+type PermissionApprovalEvaluationReasonCode string
+
+const (
+	// An action field exceeded the judge input limit.
+	PermissionApprovalEvaluationReasonCodeActionTooLong PermissionApprovalEvaluationReasonCode = "action-too-long"
+	// The script argument binding could not be reviewed.
+	PermissionApprovalEvaluationReasonCodeArgumentBindingUnreviewable PermissionApprovalEvaluationReasonCode = "argument-binding-unreviewable"
+	// The judge was skipped because authorization extraction could not safely establish a complete recent history.
+	PermissionApprovalEvaluationReasonCodeAuthorizationHistoryIncomplete PermissionApprovalEvaluationReasonCode = "authorization-history-incomplete"
+	// Assisted approval was inactive for this request.
+	PermissionApprovalEvaluationReasonCodeInactive PermissionApprovalEvaluationReasonCode = "inactive"
+	// The request inherited an outcome from another decision.
+	PermissionApprovalEvaluationReasonCodeInherited PermissionApprovalEvaluationReasonCode = "inherited"
+	// The interpreter snapshot exceeded the size limit.
+	PermissionApprovalEvaluationReasonCodeInterpreterTooLarge PermissionApprovalEvaluationReasonCode = "interpreter-too-large"
+	// The script interpreter could not be inspected.
+	PermissionApprovalEvaluationReasonCodeInterpreterUnavailable PermissionApprovalEvaluationReasonCode = "interpreter-unavailable"
+	// An interpreter wrapped a script that could not be reviewed.
+	PermissionApprovalEvaluationReasonCodeInterpreterWrappedScript PermissionApprovalEvaluationReasonCode = "interpreter-wrapped-script"
+	// The script working directory was invalid.
+	PermissionApprovalEvaluationReasonCodeInvalidWorkingDirectory PermissionApprovalEvaluationReasonCode = "invalid-working-directory"
+	// The judge interface returned an error.
+	PermissionApprovalEvaluationReasonCodeJudgeError PermissionApprovalEvaluationReasonCode = "judge-error"
+	// The judge interface returned a usable verdict.
+	PermissionApprovalEvaluationReasonCodeJudgeVerdict PermissionApprovalEvaluationReasonCode = "judge-verdict"
+	// The script snapshot manifest was malformed.
+	PermissionApprovalEvaluationReasonCodeMalformedScriptActionManifest PermissionApprovalEvaluationReasonCode = "malformed-script-action-manifest"
+	// The script review metadata was malformed.
+	PermissionApprovalEvaluationReasonCodeMalformedScriptActionReview PermissionApprovalEvaluationReasonCode = "malformed-script-action-review"
+	// Managed policy required a human decision.
+	PermissionApprovalEvaluationReasonCodeManagedApprovalRequired PermissionApprovalEvaluationReasonCode = "managed-approval-required"
+	// The script snapshot was not UTF-8.
+	PermissionApprovalEvaluationReasonCodeNonUtf8 PermissionApprovalEvaluationReasonCode = "non-utf8"
+	// The request resolved before assisted-approval evaluation.
+	PermissionApprovalEvaluationReasonCodeNotReached PermissionApprovalEvaluationReasonCode = "not-reached"
+	// The script path was not a regular file.
+	PermissionApprovalEvaluationReasonCodeNotRegularFile PermissionApprovalEvaluationReasonCode = "not-regular-file"
+	// The script path was not authorized for inspection.
+	PermissionApprovalEvaluationReasonCodePathNotAuthorized PermissionApprovalEvaluationReasonCode = "path-not-authorized"
+	// The request asked to bypass sandbox restrictions.
+	PermissionApprovalEvaluationReasonCodeSandboxBypass PermissionApprovalEvaluationReasonCode = "sandbox-bypass"
+	// The shell environment could not be reviewed.
+	PermissionApprovalEvaluationReasonCodeShellEnvironmentUnreviewable PermissionApprovalEvaluationReasonCode = "shell-environment-unreviewable"
+	// The script snapshot exceeded the size limit.
+	PermissionApprovalEvaluationReasonCodeTooLarge PermissionApprovalEvaluationReasonCode = "too-large"
+	// Script review was unavailable.
+	PermissionApprovalEvaluationReasonCodeUnavailable PermissionApprovalEvaluationReasonCode = "unavailable"
+	// Attribution is missing or outside the supported vocabulary.
+	PermissionApprovalEvaluationReasonCodeUnknown PermissionApprovalEvaluationReasonCode = "unknown"
+	// The script snapshot could not be read.
+	PermissionApprovalEvaluationReasonCodeUnreadable PermissionApprovalEvaluationReasonCode = "unreadable"
+	// A script path could not be represented for review.
+	PermissionApprovalEvaluationReasonCodeUnrepresentablePath PermissionApprovalEvaluationReasonCode = "unrepresentable-path"
+	// The script invocation could not be reviewed.
+	PermissionApprovalEvaluationReasonCodeUnreviewableScriptInvocation PermissionApprovalEvaluationReasonCode = "unreviewable-script-invocation"
 )
 
 // Which direction a message-backed authorization claim moves authority in.

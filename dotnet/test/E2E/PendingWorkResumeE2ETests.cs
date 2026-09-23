@@ -172,10 +172,13 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var releaseOriginalTool = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var invocationCount = 0;
 
+        // Write phases outside xUnit's per-test buffer so a host-aborted run retains the last await.
+        Console.Error.WriteLine($"Pending-work resume: starting server; disconnectOriginalClient={disconnectOriginalClient}");
         await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken) });
         await server.StartAsync();
         var cliUrl = GetCliUrl(server);
 
+        Console.Error.WriteLine("Pending-work resume: creating original session");
         using var suspendedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
         var session1 = await Ctx.CreateSessionAsync(suspendedClient, new SessionConfig
         {
@@ -188,11 +191,13 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         {
             var toolRequested = WaitForExternalToolRequestAsync(session1, "resume_external_tool");
 
+            Console.Error.WriteLine("Pending-work resume: sending original prompt");
             await session1.SendAsync(new MessageOptions
             {
                 Prompt = "Use resume_external_tool with value 'beta', then reply with the result.",
             });
 
+            Console.Error.WriteLine("Pending-work resume: waiting for original tool handler");
             var toolEvent = await toolRequested;
             Assert.Equal("beta", await originalToolStarted.Task.WaitAsync(PendingWorkTimeout));
 
@@ -241,8 +246,10 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                 resumeConfig.Tools = [AIFunctionFactory.Create(ResumedExternalTool, "resume_external_tool")];
             }
 
+            Console.Error.WriteLine("Pending-work resume: resuming session");
             var session2 = await Ctx.ResumeSessionAsync(resumedClient, sessionId, resumeConfig);
 
+            Console.Error.WriteLine("Pending-work resume: reading resume event");
             var resumeEvent = await GetSingleResumeEventAsync(session2);
             Assert.Equal(false, resumeEvent.Data.ContinuePendingWork);
             Assert.Equal(expectedSessionWasActive, resumeEvent.Data.SessionWasActive);
@@ -252,6 +259,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             // Cold: the runtime auto-completed the orphaned tool call with a synthetic
             // interrupt result during resume, so HandlePendingToolCall correctly reports
             // success=false. The session should still be healthy for new turns.
+            Console.Error.WriteLine("Pending-work resume: handling pending tool result");
             var resumedResult = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolEvent.Data.RequestId,
                 result: JsonDocument.Parse("\"EXTERNAL_RESUMED_BETA\"").RootElement.Clone());
@@ -267,13 +275,17 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                 Assert.Contains("COLD_RESUMED_FOLLOWUP", followUp?.Data.Content ?? string.Empty);
             }
 
+            Console.Error.WriteLine("Pending-work resume: detaching resumed session");
             await session2.DisposeAsync();
+            Console.Error.WriteLine("Pending-work resume: force-stopping resumed client");
             await resumedClient.ForceStopAsync();
         }
         finally
         {
+            Console.Error.WriteLine("Pending-work resume: releasing original tool handler");
             releaseOriginalTool.TrySetResult("ORIGINAL_SHOULD_NOT_WIN");
         }
+        Console.Error.WriteLine("Pending-work resume: disposing original client and server");
 
         [Description("Looks up a value after resumption")]
         async Task<string> BlockingExternalTool(

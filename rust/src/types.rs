@@ -5185,6 +5185,25 @@ pub enum Attachment {
         #[serde(skip_serializing_if = "Option::is_none")]
         display_name: Option<String>,
     },
+    /// Context captured from an extension-owned canvas.
+    #[serde(rename = "extension_context")]
+    ExtensionContext {
+        /// ISO 8601 timestamp when the context was captured.
+        captured_at: String,
+        /// Extension that owns the canvas.
+        extension_id: String,
+        /// Canvas declaration identifier when the context is bound to a canvas.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        canvas_id: Option<String>,
+        /// Open canvas instance identifier when the context is bound to a canvas.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        instance_id: Option<String>,
+        /// Human-readable context title.
+        title: String,
+        /// Extension-defined structured context payload.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        payload: Option<Value>,
+    },
     /// A reference to a GitHub issue, PR, or discussion.
     #[serde(rename = "github_reference")]
     GitHubReference {
@@ -5329,7 +5348,8 @@ impl Attachment {
             | Self::GitHubTreeComparison { .. }
             | Self::GitHubUrl { .. }
             | Self::GitHubFile { .. }
-            | Self::GitHubSnippet { .. } => None,
+            | Self::GitHubSnippet { .. }
+            | Self::ExtensionContext { .. } => None,
         }
     }
 
@@ -5349,6 +5369,9 @@ impl Attachment {
             } else {
                 title.trim().to_string()
             }),
+            Self::ExtensionContext { title, .. } if !title.trim().is_empty() => {
+                Some(title.trim().to_string())
+            }
             _ => self.derived_display_name(),
         }
     }
@@ -5381,7 +5404,8 @@ impl Attachment {
             | Self::GitHubTreeComparison { .. }
             | Self::GitHubUrl { .. }
             | Self::GitHubFile { .. }
-            | Self::GitHubSnippet { .. } => {}
+            | Self::GitHubSnippet { .. }
+            | Self::ExtensionContext { .. } => {}
         }
     }
 
@@ -5401,7 +5425,8 @@ impl Attachment {
             | Self::GitHubTreeComparison { .. }
             | Self::GitHubUrl { .. }
             | Self::GitHubFile { .. }
-            | Self::GitHubSnippet { .. } => None,
+            | Self::GitHubSnippet { .. }
+            | Self::ExtensionContext { .. } => None,
         }
     }
 }
@@ -5535,6 +5560,9 @@ pub enum AgentMode {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct MessageOptions {
+    /// Per-run JSON Schema. Independent sends and subagents do not inherit it.
+    /// Immediate steering must not specify a schema. Streaming events remain text.
+    pub response_schema: Option<Value>,
     /// The user prompt to send.
     pub prompt: String,
     /// Optional message provenance. When `None`, the field is omitted,
@@ -5579,6 +5607,7 @@ impl MessageOptions {
     pub fn new(prompt: impl Into<String>) -> Self {
         Self {
             prompt: prompt.into(),
+            response_schema: None,
             source: None,
             mode: None,
             agent_mode: None,
@@ -5594,6 +5623,12 @@ impl MessageOptions {
     /// Set the message provenance without changing its delivery mode.
     pub fn with_source(mut self, source: MessageSource) -> Self {
         self.source = Some(source);
+        self
+    }
+
+    /// Request provider-native structured output for this run.
+    pub fn with_response_schema(mut self, schema: Value) -> Self {
+        self.response_schema = Some(schema);
         self
     }
 
@@ -7916,11 +7951,17 @@ mod tests {
                 "referenceType": "issue",
                 "state": "open",
                 "url": "https://github.com/example/repo/issues/42"
+            },
+            {
+                "type": "extension_context",
+                "capturedAt": "2026-09-18T11:00:00Z",
+                "extensionId": "example:extension",
+                "title": "Unbound context"
             }
         ]))
         .expect("attachments should deserialize");
 
-        assert_eq!(attachments.len(), 5);
+        assert_eq!(attachments.len(), 6);
         assert!(matches!(
             &attachments[0],
             Attachment::File {
@@ -7967,6 +8008,28 @@ mod tests {
                 && state == "open"
                 && url == "https://github.com/example/repo/issues/42"
         ));
+        assert!(matches!(
+            &attachments[5],
+            Attachment::ExtensionContext {
+                captured_at,
+                extension_id,
+                canvas_id: None,
+                instance_id: None,
+                title,
+                payload: None,
+            } if captured_at == "2026-09-18T11:00:00Z"
+                && extension_id == "example:extension"
+                && title == "Unbound context"
+        ));
+        assert_eq!(
+            serde_json::to_value(&attachments[5]).expect("serialize extension context"),
+            json!({
+                "type": "extension_context",
+                "capturedAt": "2026-09-18T11:00:00Z",
+                "extensionId": "example:extension",
+                "title": "Unbound context"
+            })
+        );
     }
 
     #[test]

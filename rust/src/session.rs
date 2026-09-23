@@ -186,6 +186,90 @@ struct IdleWaiter {
     first_assistant_message_seen: bool,
 }
 
+fn structured_output_error(message: impl Into<String>) -> Error {
+    Error::with_message(
+        ErrorKind::Session(SessionErrorKind::AgentError),
+        message.into(),
+    )
+}
+
+fn is_structured_output_event(event: &SessionEvent) -> bool {
+    matches!(
+        event.parsed_type(),
+        SessionEventType::UserMessage
+            | SessionEventType::AssistantMessage
+            | SessionEventType::SessionIdle
+            | SessionEventType::SessionError
+    )
+}
+
+struct StructuredOutputState {
+    message_id: String,
+    started: bool,
+    final_message: Option<SessionEvent>,
+}
+
+impl StructuredOutputState {
+    fn observe(&mut self, event: SessionEvent) -> Result<Option<SessionEvent>, Error> {
+        if event.agent_id.as_deref().is_some_and(|id| !id.is_empty()) {
+            return Ok(None);
+        }
+        match event.parsed_type() {
+            SessionEventType::UserMessage => {
+                let data: crate::session_events::UserMessageData =
+                    serde_json::from_value(event.data)?;
+                if data.message_id.as_deref() == Some(self.message_id.as_str()) {
+                    self.started = true;
+                }
+            }
+            SessionEventType::AssistantMessage => {
+                let data: crate::session_events::AssistantMessageData =
+                    serde_json::from_value(event.data.clone())?;
+                if data.originating_message_id.as_deref() == Some(self.message_id.as_str()) {
+                    self.started = true;
+                    self.final_message =
+                        if data.tool_requests.is_some_and(|tools| !tools.is_empty()) {
+                            None
+                        } else {
+                            Some(event)
+                        };
+                }
+            }
+            SessionEventType::SessionIdle if self.started => {
+                let data: SessionIdleData = serde_json::from_value(event.data)?;
+                if data.mode == Some(SessionMode::Autopilot) {
+                    return Ok(None);
+                }
+                if data.aborted == Some(true) {
+                    return Err(structured_output_error(
+                        "session aborted before structured output completed",
+                    ));
+                }
+                let result = self.final_message.take().ok_or_else(|| {
+                    structured_output_error("run completed without a structured assistant response")
+                })?;
+                let data: crate::session_events::AssistantMessageData =
+                    serde_json::from_value(result.data.clone())?;
+                if data.content.trim().is_empty() {
+                    return Err(structured_output_error(
+                        "run completed without a structured assistant response",
+                    ));
+                }
+                return Ok(Some(result));
+            }
+            SessionEventType::SessionError if self.started => {
+                let data: SessionErrorData = serde_json::from_value(event.data)?;
+                return Err(structured_output_error(format!(
+                    "session error: {}",
+                    data.message
+                )));
+            }
+            _ => {}
+        }
+        Ok(None)
+    }
+}
+
 /// RAII guard that clears the [`Session::idle_waiter`] slot on drop. Used
 /// by [`Session::send_and_wait`] to ensure the slot doesn't leak if the
 /// caller's future is cancelled (outer `tokio::time::timeout` / `select!`
@@ -640,6 +724,12 @@ impl Session {
         if let Some(display_prompt) = opts.display_prompt {
             params["displayPrompt"] = serde_json::to_value(display_prompt)?;
         }
+        if let Some(schema) = opts.response_schema {
+            params["responseFormat"] = serde_json::json!({
+                "type": "json_schema",
+                "jsonSchema": { "name": "response", "strict": true, "schema": schema }
+            });
+        }
         let trace_ctx = if opts.traceparent.is_some() || opts.tracestate.is_some() {
             TraceContext {
                 traceparent: opts.traceparent,
@@ -673,9 +763,11 @@ impl Session {
     /// returning the last `assistant.message` event captured during streaming.
     /// Times out after `MessageOptions::wait_timeout` (default 60 seconds).
     ///
-    /// Only one `send_and_wait` call may be active per session at a time.
-    /// Calling [`send`](Self::send) while a `send_and_wait`
-    /// is in flight will also return an error.
+    /// Only one unformatted `send_and_wait` may be active per session. Calling
+    /// [`send`](Self::send) during that wait also returns an error. Schema-bearing
+    /// waits instead correlate by originating message ID and support concurrency.
+    /// They select the last root message without tool requests at non-autopilot
+    /// idle, failing on aborted idle, session errors after starting, or no result.
     ///
     /// # Cancel safety
     ///
@@ -690,6 +782,9 @@ impl Session {
     ) -> Result<Option<SessionEvent>, Error> {
         let total_start = Instant::now();
         let opts = opts.into();
+        if opts.response_schema.is_some() {
+            return self.send_and_wait_structured(opts).await.map(Some);
+        }
         let timeout_duration = opts.wait_timeout.unwrap_or(Duration::from_secs(60));
         let (tx, rx) = oneshot::channel();
 
@@ -743,6 +838,82 @@ impl Session {
                 Err(ErrorKind::Session(SessionErrorKind::Timeout(timeout_duration)).into())
             }
         }
+    }
+
+    /// Infer an output schema with the same `schemars` integration as custom tools,
+    /// then deserialize the final correlated root response at non-autopilot idle.
+    ///
+    /// Requires the `derive` feature. Provider schema restrictions apply. Serde
+    /// validates JSON/type compatibility, not every JSON Schema constraint.
+    /// Options must not specify a schema or immediate delivery. Dropping this
+    /// future or timing out unsubscribes the wait without aborting agent work.
+    #[cfg(feature = "derive")]
+    pub async fn send_and_wait_typed<T>(&self, opts: impl Into<MessageOptions>) -> Result<T, Error>
+    where
+        T: schemars::JsonSchema + serde::de::DeserializeOwned,
+    {
+        let mut opts = opts.into();
+        if opts.response_schema.is_some()
+            || opts.mode == Some(crate::types::DeliveryMode::Immediate)
+        {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "typed structured output cannot specify a response schema or immediate delivery",
+            ));
+        }
+        opts.response_schema = Some(crate::tool::schema_for::<T>());
+        let event = self.send_and_wait_structured(opts).await?;
+        let data: crate::session_events::AssistantMessageData = serde_json::from_value(event.data)?;
+        serde_json::from_str::<Option<T>>(&data.content)?.ok_or_else(|| {
+            structured_output_error("structured response was JSON null, not a result")
+        })
+    }
+
+    async fn send_and_wait_structured(&self, opts: MessageOptions) -> Result<SessionEvent, Error> {
+        let duration = opts.wait_timeout.unwrap_or(Duration::from_secs(60));
+        let mut events = self.subscribe();
+        let wait = async {
+            let mut admission = Box::pin(self.send(opts));
+            let mut pending = Vec::new();
+            let message_id = loop {
+                tokio::select! {
+                    result = &mut admission => break result?,
+                    event = events.recv() => {
+                        let event = event.map_err(|err| structured_output_error(err.to_string()))?;
+                        if is_structured_output_event(&event) {
+                            pending.push(event);
+                        }
+                    }
+                    _ = self.shutdown.cancelled() =>
+                        return Err(structured_output_error("session closed before structured output completed")),
+                }
+            };
+            let mut state = StructuredOutputState {
+                message_id,
+                started: false,
+                final_message: None,
+            };
+            for event in pending {
+                if let Some(result) = state.observe(event)? {
+                    return Ok(result);
+                }
+            }
+            loop {
+                tokio::select! {
+                    event = events.recv() => {
+                        let event = event.map_err(|err| structured_output_error(err.to_string()))?;
+                        if let Some(result) = state.observe(event)? {
+                            return Ok(result);
+                        }
+                    }
+                    _ = self.shutdown.cancelled() =>
+                        return Err(structured_output_error("session closed before structured output completed")),
+                }
+            }
+        };
+        tokio::time::timeout(duration, wait)
+            .await
+            .map_err(|_| Error::from(ErrorKind::Session(SessionErrorKind::Timeout(duration))))?
     }
 
     /// Retrieve the session's timeline events.
@@ -2365,7 +2536,7 @@ async fn handle_notification(
     pending_external_tools: &PendingExternalTools,
 ) {
     let dispatch_start = Instant::now();
-    let event = notification.event.clone();
+    let event = &notification.event;
     let event_type = event.parsed_type();
     if event_type == SessionEventType::PermissionRequested {
         tracing::debug!(
@@ -2395,7 +2566,7 @@ async fn handle_notification(
                         }
                         waiter.last_assistant_message = Some(event.clone());
                     }
-                    SessionEventType::SessionIdle if is_autopilot_continuation_idle(&event) => {}
+                    SessionEventType::SessionIdle if is_autopilot_continuation_idle(event) => {}
                     SessionEventType::SessionIdle | SessionEventType::SessionError => {
                         if let Some(waiter) = guard.take() {
                             if event_type == SessionEventType::SessionIdle {

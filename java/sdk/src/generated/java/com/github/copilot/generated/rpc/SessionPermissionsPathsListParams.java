@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * No parameters; returns the session's allow-listed directories.
+ * No parameters; returns the session's recursive directory grants and exact session-approved paths.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0

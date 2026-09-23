@@ -150,19 +150,19 @@ public sealed partial class ReplayProxy : IAsyncDisposable
         _startupTask = null;
     }
 
-    public async Task ConfigureAsync(string filePath, string workDir, string backend)
+    public async Task ConfigureAsync(string filePath, string workDir, string backend, bool replayOnly = false)
     {
         var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
 
         using var client = new HttpClient();
         var response = await client.PostAsJsonAsync(
             $"{url}/config",
-            new ConfigureRequest(filePath, workDir, backend),
+            new ConfigureRequest(filePath, workDir, backend, replayOnly),
             ReplayProxyJsonContext.Default.ConfigureRequest);
         response.EnsureSuccessStatusCode();
     }
 
-    private record ConfigureRequest(string FilePath, string WorkDir, string Backend);
+    private record ConfigureRequest(string FilePath, string WorkDir, string Backend, bool ReplayOnly);
 
     private record ProxyStartupMetadata(string? ConnectProxyUrl, string? CaFilePath);
 
@@ -195,7 +195,7 @@ public sealed partial class ReplayProxy : IAsyncDisposable
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "justfile")))
+            if (File.Exists(Path.Combine(dir.FullName, "test", "harness", "package.json")))
                 return dir.FullName;
             dir = dir.Parent;
         }
@@ -250,7 +250,9 @@ public record ParsedHttpExchange(
 public record ChatCompletionRequest(
     string Model,
     List<ChatCompletionMessage> Messages,
-    List<ChatCompletionTool>? Tools);
+    List<ChatCompletionTool>? Tools,
+    [property: JsonPropertyName("tool_choice")] JsonElement? ToolChoice = null,
+    [property: JsonPropertyName("response_format")] JsonElement? ResponseFormat = null);
 
 public record ChatCompletionMessage(
     string Role,

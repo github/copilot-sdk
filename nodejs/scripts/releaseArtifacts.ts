@@ -27,6 +27,45 @@ export interface EnsureCopilotPackageOptions {
     platform?: string;
 }
 
+export async function downloadVerifiedReleaseAsset(
+    version: string,
+    assetName: string,
+    options: Omit<EnsureCopilotPackageOptions, "platform"> = {}
+): Promise<Buffer> {
+    const baseUrl = (
+        (options.environment ?? process.env).COPILOT_CLI_DOWNLOAD_BASE_URL ??
+        "https://github.com/github/copilot-cli/releases/download"
+    ).replace(/\/+$/, "");
+    const fetcher = options.fetch ?? globalThis.fetch;
+    if (!fetcher) {
+        throw new Error("This Node.js runtime does not provide fetch().");
+    }
+    const fetchTimeoutMs = options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
+    const expectedChecksum = await getReleaseChecksum(
+        version,
+        assetName,
+        baseUrl,
+        fetcher,
+        fetchTimeoutMs
+    );
+    if (!expectedChecksum) {
+        throw new Error(`SHA256SUMS.txt does not contain ${assetName}.`);
+    }
+    const archive = await fetchWithRetry(
+        fetcher,
+        `${baseUrl}/v${version}/${assetName}`,
+        async (response) => Buffer.from(await response.arrayBuffer()),
+        fetchTimeoutMs
+    );
+    const actualChecksum = createHash("sha256").update(archive).digest("hex");
+    if (actualChecksum !== expectedChecksum) {
+        throw new Error(
+            `Checksum mismatch for ${assetName}: expected ${expectedChecksum}, got ${actualChecksum}.`
+        );
+    }
+    return archive;
+}
+
 const packageDownloads = new Map<string, Promise<string>>();
 const checksumDownloads = new Map<string, Promise<Map<string, string>>>();
 const DEFAULT_FETCH_TIMEOUT_MS = 60_000;
@@ -211,28 +250,11 @@ async function downloadCopilotPackage(
         throw new Error("This Node.js runtime does not provide fetch().");
     }
     const assetName = getRuntimeReleaseAssetName(version, platform);
-    const expectedChecksum = await getReleaseChecksum(
-        version,
-        assetName,
-        baseUrl,
-        fetcher,
-        fetchTimeoutMs
-    );
-    if (!expectedChecksum) {
-        throw new Error(`SHA256SUMS.txt does not contain ${assetName}.`);
-    }
-    const archive = await fetchWithRetry(
-        fetcher,
-        `${baseUrl}/v${version}/${assetName}`,
-        async (response) => Buffer.from(await response.arrayBuffer()),
-        fetchTimeoutMs
-    );
-    const actualChecksum = createHash("sha256").update(archive).digest("hex");
-    if (actualChecksum !== expectedChecksum) {
-        throw new Error(
-            `Checksum mismatch for ${assetName}: expected ${expectedChecksum}, got ${actualChecksum}.`
-        );
-    }
+    const archive = await downloadVerifiedReleaseAsset(version, assetName, {
+        environment: { COPILOT_CLI_DOWNLOAD_BASE_URL: baseUrl },
+        fetch: fetcher,
+        fetchTimeoutMs,
+    });
 
     mkdirSync(cacheRoot, { recursive: true });
     const stagingRoot = mkdtempSync(join(cacheRoot, ".download-"));

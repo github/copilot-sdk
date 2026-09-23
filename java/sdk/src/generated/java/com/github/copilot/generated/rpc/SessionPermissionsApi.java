@@ -162,7 +162,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Clears session-scoped tool permission approvals, and optionally the location-scoped ones.
+     * Clears session-scoped tool approvals and optionally clears location-scoped approvals and exact session-approved paths.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

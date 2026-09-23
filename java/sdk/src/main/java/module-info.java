@@ -28,6 +28,6 @@ module com.github.copilot.java {
     opens com.github.copilot.rpc to com.fasterxml.jackson.databind;
     opens com.github.copilot.ffi to com.sun.jna;
 
-    provides javax.annotation.processing.Processor
-            with com.github.copilot.CopilotExperimentalProcessor, com.github.copilot.tool.CopilotToolProcessor;
+    provides javax.annotation.processing.Processor with com.github.copilot.CopilotExperimentalProcessor,
+            com.github.copilot.tool.CopilotToolProcessor, com.github.copilot.tool.CopilotResponseProcessor;
 }

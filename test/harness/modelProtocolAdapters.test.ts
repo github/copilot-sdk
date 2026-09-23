@@ -549,6 +549,72 @@ describe("protocol-aware replay", () => {
     },
   );
 
+  test.each(
+    backends.flatMap((backend) =>
+      [false, true].map((splitHistory) => ({ backend, splitHistory })),
+    ),
+  )(
+    "preserves the continuation response boundary for $backend with splitHistory=$splitHistory",
+    async ({ backend, splitHistory }) => {
+      const history: NormalizedData["conversations"][number]["messages"] = [
+        { role: "system", content: "${system}" },
+        { role: "user", content: "Hello" },
+        ...(splitHistory
+          ? [
+              { role: "assistant" as const, content: "CONTEXT_" },
+              { role: "assistant" as const, content: "READY" },
+            ]
+          : [{ role: "assistant" as const, content: "CONTEXT_READY" }]),
+      ];
+      await writeFile(
+        cachePath,
+        yaml.stringify(
+          {
+            models: ["captured-capi-model"],
+            conversations: [
+              { messages: history },
+              {
+                messages: [
+                  ...history,
+                  { role: "assistant", content: "CONTINUATION_DONE" },
+                ],
+              },
+            ],
+          } satisfies NormalizedData,
+          { aliasDuplicateObjects: false },
+        ),
+      );
+      const request = requestFor(backend, "Hello");
+      if (backend === "openai-responses") {
+        (request.input as unknown[]).push({
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "CONTEXT_READY" }],
+        });
+      } else {
+        (request.messages as unknown[]).push(
+          ...(backend === "anthropic-messages"
+            ? [{ role: "assistant", content: "CONTEXT_READY" }]
+            : history.slice(2)),
+        );
+      }
+      await withProxy(backend, async (proxyUrl) => {
+        for (const stream of [false, true]) {
+          const response = await fetch(`${proxyUrl}${endpoints[backend]}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ ...request, stream }),
+            signal: AbortSignal.timeout(2_000),
+          });
+          expect(response.status).toBe(200);
+          const body = await response.text();
+          expect(body).toContain("CONTINUATION_DONE");
+          expect(body).not.toContain("CONTEXT_READY");
+        }
+      });
+    },
+  );
+
   test("does not rewrite canonical snapshots after BYOK replay", async () => {
     const original = await readFile(cachePath, "utf8");
     const proxy = new ReplayingCapiProxy(

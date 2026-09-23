@@ -287,7 +287,7 @@ impl fmt::Display for ErrorKind {
 /// Errors returned by the SDK.
 pub struct Error {
     repr: Repr<ErrorKind>,
-    rpc_data: Option<Value>,
+    rpc_data: Option<Box<Value>>,
     // Only `Some` when `RUST_BACKTRACE` is set; boxed so the `Some` variant
     // doesn't inflate `Error` beyond `clippy::result_large_err` limits.
     backtrace: Option<Box<Backtrace>>,
@@ -339,16 +339,15 @@ impl Error {
         }
     }
 
-    pub(crate) fn from_rpc_error(code: i32, message: String, data: Option<Value>) -> Self {
+    pub(crate) fn from_rpc<C>(code: i32, message: C, data: Option<Value>) -> Self
+    where
+        C: Into<Cow<'static, str>>,
+    {
         Self {
             repr: Repr::SimpleMessage(ErrorKind::Rpc { code }, message.into()),
-            rpc_data: data,
+            rpc_data: data.map(Box::new),
             backtrace: capture_backtrace(),
         }
-    }
-
-    pub(crate) fn rpc_data(&self) -> Option<&Value> {
-        self.rpc_data.as_ref()
     }
 
     /// Returns `true` if this error indicates the transport is broken — the CLI
@@ -368,6 +367,15 @@ impl Error {
             ErrorKind::Rpc { code } => Some(*code),
             _ => None,
         }
+    }
+
+    /// Returns the non-null JSON-RPC error data for an [`ErrorKind::Rpc`] error, if any.
+    ///
+    /// The value may be an object, array, or scalar. Missing and `null` data
+    /// return `None`. Data is not included in this error's `Display` or `Debug`
+    /// output.
+    pub fn rpc_data(&self) -> Option<&Value> {
+        self.rpc_data.as_deref()
     }
 }
 

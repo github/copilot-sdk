@@ -54,12 +54,13 @@ class RpcSessionStateExtrasE2ETest {
         try (var client = ctx.createClient()) {
             try (var session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get()) {
-                var result = session.getRpc().provider.add(new SessionProviderAddParams(null,
-                        List.of(new NamedProviderConfig("java-e2e-provider", ProviderConfigType.OPENAI,
-                                ProviderConfigWireApi.COMPLETIONS, null, "https://models.example.test/v1",
-                                "provider-key", null, null, Map.of("x-provider", "java"), null)),
-                        List.of(new ProviderModelConfig("small", "java-e2e-provider", null, null, "Java Added Model",
-                                4096L, null, null, null, null))))
+                var result = session.getRpc().provider
+                        .add(new SessionProviderAddParams(null,
+                                List.of(new NamedProviderConfig("java-e2e-provider", ProviderConfigType.OPENAI,
+                                        ProviderConfigWireApi.COMPLETIONS, null, "https://models.example.test/v1",
+                                        "provider-key", null, null, Map.of("x-provider", "java"), null)),
+                                List.of(new ProviderModelConfig("small", "java-e2e-provider", null, null,
+                                        "Java Added Model", 4096L, null, null, null, null, null))))
                         .get(30, TimeUnit.SECONDS);
                 assertEquals(1, result.models().size());
 

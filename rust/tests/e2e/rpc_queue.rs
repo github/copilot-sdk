@@ -1,6 +1,7 @@
 use github_copilot_sdk::rpc::{
-    CommandsRespondToQueuedCommandRequest, EnqueueCommandParams, QueuePendingItems,
-    QueuePendingItemsKind, RegisterEventInterestParams, ReleaseEventInterestParams,
+    CommandsRespondToQueuedCommandRequest, EnqueueCommandParams, EnqueueCommandResult,
+    QueuePendingItems, QueuePendingItemsKind, RegisterEventInterestParams,
+    ReleaseEventInterestParams,
 };
 use github_copilot_sdk::session::Session;
 use github_copilot_sdk::session_events::{CommandQueuedData, SessionEventType};
@@ -157,7 +158,10 @@ async fn pendingitems_reports_queued_command_and_remove_and_clear_update_queue()
                     })
                     .await
                     .expect("enqueue command");
-                assert!(enqueue.queued);
+                assert!(matches!(
+                    enqueue,
+                    EnqueueCommandResult::AcceptedEnqueueCommandResult(result) if result.queued
+                ));
                 let queued = queued_event
                     .await
                     .typed_data::<CommandQueuedData>()
@@ -172,7 +176,10 @@ async fn pendingitems_reports_queued_command_and_remove_and_clear_update_queue()
                     })
                     .await
                     .expect("enqueue second command");
-                assert!(second.queued);
+                assert!(matches!(
+                    second,
+                    EnqueueCommandResult::AcceptedEnqueueCommandResult(result) if result.queued
+                ));
                 wait_for_command_in_pending_items(&session, &second_command).await;
 
                 let removed = session
@@ -193,7 +200,10 @@ async fn pendingitems_reports_queued_command_and_remove_and_clear_update_queue()
                     })
                     .await
                     .expect("enqueue third command");
-                assert!(third.queued);
+                assert!(matches!(
+                    third,
+                    EnqueueCommandResult::AcceptedEnqueueCommandResult(result) if result.queued
+                ));
                 wait_for_command_in_pending_items(&session, &third_command).await;
 
                 session.rpc().queue().clear().await.expect("clear queue");

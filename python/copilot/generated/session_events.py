@@ -134,8 +134,10 @@ class SessionEventType(Enum):
     SESSION_SCHEDULE_REARMED = "session.schedule_rearmed"
     SESSION_AUTOPILOT_OBJECTIVE_CHANGED = "session.autopilot_objective_changed"
     SESSION_INFO = "session.info"
+    SESSION_INDEXED_SEARCH = "session.indexed_search"
     SESSION_WARNING = "session.warning"
     SESSION_MODEL_CHANGE = "session.model_change"
+    SESSION_MODEL_DESELECTED = "session.model_deselected"
     # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_AUTO_TIER_RECOMMENDATION = "session.auto_tier_recommendation"
     SESSION_AUTO_TIER_SWITCH_FAILED = "session.auto_tier_switch_failed"
@@ -168,6 +170,7 @@ class SessionEventType(Enum):
     SESSION_FUSION_RESOLVED = "session.fusion_resolved"
     # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_FUSION_COMPLETED = "session.fusion_completed"
+    SESSION_PERMISSION_RECOVERY = "session.permission_recovery"
     USER_MESSAGE = "user.message"
     PENDING_MESSAGES_MODIFIED = "pending_messages.modified"
     ASSISTANT_TURN_START = "assistant.turn_start"
@@ -1497,6 +1500,7 @@ class PermissionAssentDetectedData:
 class PermissionAssistedApproval:
     "Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request."
     recommendation: AssistedApprovalRecommendation
+    evaluation: PermissionApprovalEvaluation | None = None
     failure_reason: AssistedApprovalJudgeFailureReason | None = None
     model: str | None = None
     reason: str | None = None
@@ -1505,11 +1509,13 @@ class PermissionAssistedApproval:
     def from_dict(obj: Any) -> "PermissionAssistedApproval":
         assert isinstance(obj, dict)
         recommendation = parse_enum(AssistedApprovalRecommendation, obj.get("recommendation"))
+        evaluation = from_union([from_none, PermissionApprovalEvaluation.from_dict], obj.get("evaluation"))
         failure_reason = from_union([from_none, lambda x: parse_enum(AssistedApprovalJudgeFailureReason, x)], obj.get("failureReason"))
         model = from_union([from_none, from_str], obj.get("model"))
         reason = from_union([from_none, from_str], obj.get("reason"))
         return PermissionAssistedApproval(
             recommendation=recommendation,
+            evaluation=evaluation,
             failure_reason=failure_reason,
             model=model,
             reason=reason,
@@ -1518,6 +1524,8 @@ class PermissionAssistedApproval:
     def to_dict(self) -> dict:
         result: dict = {}
         result["recommendation"] = to_enum(AssistedApprovalRecommendation, self.recommendation)
+        if self.evaluation is not None:
+            result["evaluation"] = from_union([from_none, lambda x: to_class(PermissionApprovalEvaluation, x)], self.evaluation)
         if self.failure_reason is not None:
             result["failureReason"] = from_union([from_none, lambda x: to_enum(AssistedApprovalJudgeFailureReason, x)], self.failure_reason)
         if self.model is not None:
@@ -2184,6 +2192,8 @@ class SessionFusionResolvedData:
     synthetic_model: str
     turn_id: str
     follow_up: FusionFollowUpRecommendation | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    hint: str | None = None
     model_universe_version: str | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     phase_plan: list[FusionPhasePlanStep] | None = None
@@ -2210,6 +2220,7 @@ class SessionFusionResolvedData:
         synthetic_model = from_str(obj.get("syntheticModel"))
         turn_id = from_str(obj.get("turnId"))
         follow_up = from_union([from_none, FusionFollowUpRecommendation.from_dict], obj.get("followUp"))
+        hint = from_union([from_none, from_str], obj.get("hint"))
         model_universe_version = from_union([from_none, from_str], obj.get("modelUniverseVersion"))
         phase_plan = from_union([from_none, lambda x: from_list(FusionPhasePlanStep.from_dict, x)], obj.get("phasePlan"))
         plan_version = from_union([from_none, from_str], obj.get("planVersion"))
@@ -2232,6 +2243,7 @@ class SessionFusionResolvedData:
             synthetic_model=synthetic_model,
             turn_id=turn_id,
             follow_up=follow_up,
+            hint=hint,
             model_universe_version=model_universe_version,
             phase_plan=phase_plan,
             plan_version=plan_version,
@@ -2258,6 +2270,8 @@ class SessionFusionResolvedData:
         result["turnId"] = from_str(self.turn_id)
         if self.follow_up is not None:
             result["followUp"] = from_union([from_none, lambda x: to_class(FusionFollowUpRecommendation, x)], self.follow_up)
+        if self.hint is not None:
+            result["hint"] = from_union([from_none, from_str], self.hint)
         if self.model_universe_version is not None:
             result["modelUniverseVersion"] = from_union([from_none, from_str], self.model_universe_version)
         if self.phase_plan is not None:
@@ -2494,6 +2508,38 @@ class SessionPermissionsChangedData:
             result["mode"] = from_union([from_none, lambda x: to_enum(PermissionMode, x)], self.mode)
         if self.previous_mode is not None:
             result["previousMode"] = from_union([from_none, lambda x: to_enum(PermissionMode, x)], self.previous_mode)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TaskBlocker:
+    "Structured reason that the task cannot continue without intervention"
+    kind: TaskBlockerKind
+    permission_recovery: PermissionRecoveryData
+    reason: PermissionRecoveryReason
+    resumable: bool
+
+    @staticmethod
+    def from_dict(obj: Any) -> "TaskBlocker":
+        assert isinstance(obj, dict)
+        kind = parse_enum(TaskBlockerKind, obj.get("kind"))
+        permission_recovery = PermissionRecoveryData.from_dict(obj.get("permissionRecovery"))
+        reason = parse_enum(PermissionRecoveryReason, obj.get("reason"))
+        resumable = from_bool(obj.get("resumable"))
+        return TaskBlocker(
+            kind=kind,
+            permission_recovery=permission_recovery,
+            reason=reason,
+            resumable=resumable,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(TaskBlockerKind, self.kind)
+        result["permissionRecovery"] = to_class(PermissionRecoveryData, self.permission_recovery)
+        result["reason"] = to_enum(PermissionRecoveryReason, self.reason)
+        result["resumable"] = from_bool(self.resumable)
         return result
 
 
@@ -3293,6 +3339,10 @@ class AssistantUsageData:
     rejected_prediction_tokens: int | None = None
     rte: bool | None = None
     service_request_id: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _thinking_dropped_blocks: int | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _thinking_dropped_reasons: list[str] | None = None
     time_to_first_token: timedelta | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _tool_counts: dict[str, int] | None = None
@@ -3340,6 +3390,8 @@ class AssistantUsageData:
         rejected_prediction_tokens = from_union([from_none, from_int], obj.get("rejectedPredictionTokens"))
         rte = from_union([from_none, from_bool], obj.get("rte"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
+        _thinking_dropped_blocks = from_union([from_none, from_int], obj.get("thinkingDroppedBlocks"))
+        _thinking_dropped_reasons = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("thinkingDroppedReasons"))
         time_to_first_token = from_union([from_none, from_timedelta], obj.get("timeToFirstTokenMs"))
         _tool_counts = from_union([from_none, lambda x: from_dict(from_int, x)], obj.get("toolCounts"))
         _tool_token_count = from_union([from_none, from_int], obj.get("toolTokenCount"))
@@ -3382,6 +3434,8 @@ class AssistantUsageData:
             rejected_prediction_tokens=rejected_prediction_tokens,
             rte=rte,
             service_request_id=service_request_id,
+            _thinking_dropped_blocks=_thinking_dropped_blocks,
+            _thinking_dropped_reasons=_thinking_dropped_reasons,
             time_to_first_token=time_to_first_token,
             _tool_counts=_tool_counts,
             _tool_token_count=_tool_token_count,
@@ -3463,6 +3517,10 @@ class AssistantUsageData:
             result["rte"] = from_union([from_none, from_bool], self.rte)
         if self.service_request_id is not None:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
+        if self._thinking_dropped_blocks is not None:
+            result["thinkingDroppedBlocks"] = from_union([from_none, to_int], self._thinking_dropped_blocks)
+        if self._thinking_dropped_reasons is not None:
+            result["thinkingDroppedReasons"] = from_union([from_none, lambda x: from_list(from_str, x)], self._thinking_dropped_reasons)
         if self.time_to_first_token is not None:
             result["timeToFirstTokenMs"] = from_union([from_none, to_timedelta], self.time_to_first_token)
         if self._tool_counts is not None:
@@ -6040,6 +6098,38 @@ class PendingMessagesModifiedData:
 
 
 @dataclass
+class PermissionApprovalEvaluation:
+    "Bounded runtime attribution, independent of free-text rationale. Telemetry revalidates this vocabulary before standard collection."
+    evaluation_stage: PermissionApprovalEvaluationEvaluationStage
+    judge_status: PermissionApprovalEvaluationJudgeStatus
+    reason_code: PermissionApprovalEvaluationReasonCode
+    judge_attempted: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionApprovalEvaluation":
+        assert isinstance(obj, dict)
+        evaluation_stage = parse_enum(PermissionApprovalEvaluationEvaluationStage, obj.get("evaluationStage"))
+        judge_status = parse_enum(PermissionApprovalEvaluationJudgeStatus, obj.get("judgeStatus"))
+        reason_code = parse_enum(PermissionApprovalEvaluationReasonCode, obj.get("reasonCode"))
+        judge_attempted = from_union([from_none, from_bool], obj.get("judgeAttempted"))
+        return PermissionApprovalEvaluation(
+            evaluation_stage=evaluation_stage,
+            judge_status=judge_status,
+            reason_code=reason_code,
+            judge_attempted=judge_attempted,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["evaluationStage"] = to_enum(PermissionApprovalEvaluationEvaluationStage, self.evaluation_stage)
+        result["judgeStatus"] = to_enum(PermissionApprovalEvaluationJudgeStatus, self.judge_status)
+        result["reasonCode"] = to_enum(PermissionApprovalEvaluationReasonCode, self.reason_code)
+        if self.judge_attempted is not None:
+            result["judgeAttempted"] = from_union([from_none, from_bool], self.judge_attempted)
+        return result
+
+
+@dataclass
 class PermissionApproved:
     "Permission response variant indicating the request was approved without persisting an approval rule."
     kind: ClassVar[str] = "approved"
@@ -6144,8 +6234,10 @@ class PermissionCompletedData:
     "Permission request completion notification signaling UI dismissal"
     request_id: str
     result: PermissionResult
+    blocker: TaskBlocker | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     decision_source: PermissionDecisionSource | None = None
+    recovery_episode_id: str | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -6153,12 +6245,16 @@ class PermissionCompletedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         result = _load_PermissionResult(obj.get("result"))
+        blocker = from_union([from_none, TaskBlocker.from_dict], obj.get("blocker"))
         decision_source = from_union([from_none, lambda x: parse_enum(PermissionDecisionSource, x)], obj.get("decisionSource"))
+        recovery_episode_id = from_union([from_none, from_str], obj.get("recoveryEpisodeId"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionCompletedData(
             request_id=request_id,
             result=result,
+            blocker=blocker,
             decision_source=decision_source,
+            recovery_episode_id=recovery_episode_id,
             tool_call_id=tool_call_id,
         )
 
@@ -6166,8 +6262,12 @@ class PermissionCompletedData:
         result: dict = {}
         result["requestId"] = from_str(self.request_id)
         result["result"] = self.result.to_dict()
+        if self.blocker is not None:
+            result["blocker"] = from_union([from_none, lambda x: to_class(TaskBlocker, x)], self.blocker)
         if self.decision_source is not None:
             result["decisionSource"] = from_union([from_none, lambda x: to_enum(PermissionDecisionSource, x)], self.decision_source)
+        if self.recovery_episode_id is not None:
+            result["recoveryEpisodeId"] = from_union([from_none, from_str], self.recovery_episode_id)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -6961,6 +7061,92 @@ class PermissionPromptRequestWrite:
 
 
 @dataclass
+class PermissionRecoveryAttempt:
+    attempt_id: str
+    disposition: PermissionRecoveryAttemptDisposition
+    ordinal: int
+    permission_kind: str
+    reason: PermissionRecoveryAttemptReason
+    relation: PermissionRecoveryAttemptRelation
+    request_fingerprint: str
+    tool_call_id: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionRecoveryAttempt":
+        assert isinstance(obj, dict)
+        attempt_id = from_str(obj.get("attemptId"))
+        disposition = parse_enum(PermissionRecoveryAttemptDisposition, obj.get("disposition"))
+        ordinal = from_int(obj.get("ordinal"))
+        permission_kind = from_str(obj.get("permissionKind"))
+        reason = parse_enum(PermissionRecoveryAttemptReason, obj.get("reason"))
+        relation = parse_enum(PermissionRecoveryAttemptRelation, obj.get("relation"))
+        request_fingerprint = from_str(obj.get("requestFingerprint"))
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        return PermissionRecoveryAttempt(
+            attempt_id=attempt_id,
+            disposition=disposition,
+            ordinal=ordinal,
+            permission_kind=permission_kind,
+            reason=reason,
+            relation=relation,
+            request_fingerprint=request_fingerprint,
+            tool_call_id=tool_call_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["attemptId"] = from_str(self.attempt_id)
+        result["disposition"] = to_enum(PermissionRecoveryAttemptDisposition, self.disposition)
+        result["ordinal"] = to_int(self.ordinal)
+        result["permissionKind"] = from_str(self.permission_kind)
+        result["reason"] = to_enum(PermissionRecoveryAttemptReason, self.reason)
+        result["relation"] = to_enum(PermissionRecoveryAttemptRelation, self.relation)
+        result["requestFingerprint"] = from_str(self.request_fingerprint)
+        if self.tool_call_id is not None:
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        return result
+
+
+@dataclass
+class PermissionRecoveryData:
+    "Authoritative snapshot of an Autopilot permission-recovery episode"
+    attempts: list[PermissionRecoveryAttempt]
+    episode_id: str
+    max_attempts: int
+    on_blocked: PermissionRecoveryOnBlocked
+    reason: PermissionRecoveryReason
+    status: PermissionRecoveryStatus
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionRecoveryData":
+        assert isinstance(obj, dict)
+        attempts = from_list(PermissionRecoveryAttempt.from_dict, obj.get("attempts"))
+        episode_id = from_str(obj.get("episodeId"))
+        max_attempts = from_int(obj.get("maxAttempts"))
+        on_blocked = parse_enum(PermissionRecoveryOnBlocked, obj.get("onBlocked"))
+        reason = parse_enum(PermissionRecoveryReason, obj.get("reason"))
+        status = parse_enum(PermissionRecoveryStatus, obj.get("status"))
+        return PermissionRecoveryData(
+            attempts=attempts,
+            episode_id=episode_id,
+            max_attempts=max_attempts,
+            on_blocked=on_blocked,
+            reason=reason,
+            status=status,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["attempts"] = from_list(lambda x: to_class(PermissionRecoveryAttempt, x), self.attempts)
+        result["episodeId"] = from_str(self.episode_id)
+        result["maxAttempts"] = to_int(self.max_attempts)
+        result["onBlocked"] = to_enum(PermissionRecoveryOnBlocked, self.on_blocked)
+        result["reason"] = to_enum(PermissionRecoveryReason, self.reason)
+        result["status"] = to_enum(PermissionRecoveryStatus, self.status)
+        return result
+
+
+@dataclass
 class PermissionRequestCustomTool:
     "Custom tool invocation permission request"
     kind: ClassVar[str] = "custom-tool"
@@ -7697,7 +7883,9 @@ class PermissionRequestedData:
     permission_request: PermissionRequest
     request_id: str
     agent_mode: SessionMode | None = None
+    permission_mode: PermissionMode | None = None
     prompt_request: PermissionPromptRequest | None = None
+    recovery_episode_id: str | None = None
     resolved_by_hook: bool | None = None
     risk_assessment: Any = None
 
@@ -7707,14 +7895,18 @@ class PermissionRequestedData:
         permission_request = _load_PermissionRequest(obj.get("permissionRequest"))
         request_id = from_str(obj.get("requestId"))
         agent_mode = from_union([from_none, lambda x: parse_enum(SessionMode, x)], obj.get("agentMode"))
+        permission_mode = from_union([from_none, lambda x: parse_enum(PermissionMode, x)], obj.get("permissionMode"))
         prompt_request = from_union([from_none, _load_PermissionPromptRequest], obj.get("promptRequest"))
+        recovery_episode_id = from_union([from_none, from_str], obj.get("recoveryEpisodeId"))
         resolved_by_hook = from_union([from_none, from_bool], obj.get("resolvedByHook"))
         risk_assessment = obj.get("riskAssessment")
         return PermissionRequestedData(
             permission_request=permission_request,
             request_id=request_id,
             agent_mode=agent_mode,
+            permission_mode=permission_mode,
             prompt_request=prompt_request,
+            recovery_episode_id=recovery_episode_id,
             resolved_by_hook=resolved_by_hook,
             risk_assessment=risk_assessment,
         )
@@ -7725,8 +7917,12 @@ class PermissionRequestedData:
         result["requestId"] = from_str(self.request_id)
         if self.agent_mode is not None:
             result["agentMode"] = from_union([from_none, lambda x: to_enum(SessionMode, x)], self.agent_mode)
+        if self.permission_mode is not None:
+            result["permissionMode"] = from_union([from_none, lambda x: to_enum(PermissionMode, x)], self.permission_mode)
         if self.prompt_request is not None:
             result["promptRequest"] = from_union([from_none, lambda x: x.to_dict()], self.prompt_request)
+        if self.recovery_episode_id is not None:
+            result["recoveryEpisodeId"] = from_union([from_none, from_str], self.recovery_episode_id)
         if self.resolved_by_hook is not None:
             result["resolvedByHook"] = from_union([from_none, from_bool], self.resolved_by_hook)
         if self.risk_assessment is not None:
@@ -7936,6 +8132,33 @@ class PromptCacheBreakData:
 
 
 @dataclass
+class ResponsesReasoning:
+    "Original request-level and effective conversation reasoning effort for a Responses history boundary"
+    effort: str
+    initial_effort: str
+    model: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ResponsesReasoning":
+        assert isinstance(obj, dict)
+        effort = from_str(obj.get("effort"))
+        initial_effort = from_str(obj.get("initialEffort"))
+        model = from_str(obj.get("model"))
+        return ResponsesReasoning(
+            effort=effort,
+            initial_effort=initial_effort,
+            model=model,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["effort"] = from_str(self.effort)
+        result["initialEffort"] = from_str(self.initial_effort)
+        result["model"] = from_str(self.model)
+        return result
+
+
+@dataclass
 class SamplingCompletedData:
     "Sampling request completion notification signaling UI dismissal"
     request_id: str
@@ -7984,13 +8207,183 @@ class SamplingRequestedData:
 @dataclass
 class SandboxDecisionData:
     "Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`."
+    control: SandboxControl
+    enforcement_point: SandboxEnforcementPoint
+    kind: SandboxDecisionDataKind
+    outcome: SandboxOutcome
+    platform: SandboxPlatform
+    add_current_working_directory: bool | None = None
+    allow_bypass: bool | None = None
+    allow_local_network: bool | None = None
+    allow_outbound: bool | None = None
+    attestation: SandboxAttestation | None = None
+    backend: SandboxBackend | None = None
+    command: str | None = None
+    confidence: SandboxDenialConfidence | None = None
+    degradation_reason: SandboxDegradationReason | None = None
+    denial_class: SandboxDenialClass | None = None
+    denied_paths_count: int | None = None
+    denied_resource: str | None = None
+    duration_ms: float | None = None
+    effective_filesystem_policy: SandboxFilesystemPolicyDetails | None = None
+    gh_auth: bool | None = None
+    git_auth: bool | None = None
+    keychain_access: bool | None = None
+    policy_source: SandboxPolicySource | None = None
+    process_name: str | None = None
+    proxy_mode: SandboxProxyMode | None = None
+    readonly_paths_count: int | None = None
+    readwrite_paths_count: int | None = None
+    source: SandboxBypassSource | None = None
+    tool_call_id: str | None = None
+
     @staticmethod
     def from_dict(obj: Any) -> "SandboxDecisionData":
         assert isinstance(obj, dict)
-        return SandboxDecisionData()
+        control = parse_enum(SandboxControl, obj.get("control"))
+        enforcement_point = parse_enum(SandboxEnforcementPoint, obj.get("enforcementPoint"))
+        kind = parse_enum(SandboxDecisionDataKind, obj.get("kind"))
+        outcome = parse_enum(SandboxOutcome, obj.get("outcome"))
+        platform = parse_enum(SandboxPlatform, obj.get("platform"))
+        add_current_working_directory = from_union([from_none, from_bool], obj.get("addCurrentWorkingDirectory"))
+        allow_bypass = from_union([from_none, from_bool], obj.get("allowBypass"))
+        allow_local_network = from_union([from_none, from_bool], obj.get("allowLocalNetwork"))
+        allow_outbound = from_union([from_none, from_bool], obj.get("allowOutbound"))
+        attestation = from_union([from_none, lambda x: parse_enum(SandboxAttestation, x)], obj.get("attestation"))
+        backend = from_union([from_none, lambda x: parse_enum(SandboxBackend, x)], obj.get("backend"))
+        command = from_union([from_none, from_str], obj.get("command"))
+        confidence = from_union([from_none, lambda x: parse_enum(SandboxDenialConfidence, x)], obj.get("confidence"))
+        degradation_reason = from_union([from_none, lambda x: parse_enum(SandboxDegradationReason, x)], obj.get("degradationReason"))
+        denial_class = from_union([from_none, lambda x: parse_enum(SandboxDenialClass, x)], obj.get("denialClass"))
+        denied_paths_count = from_union([from_none, from_int], obj.get("deniedPathsCount"))
+        denied_resource = from_union([from_none, from_str], obj.get("deniedResource"))
+        duration_ms = from_union([from_none, from_float], obj.get("durationMs"))
+        effective_filesystem_policy = from_union([from_none, SandboxFilesystemPolicyDetails.from_dict], obj.get("effectiveFilesystemPolicy"))
+        gh_auth = from_union([from_none, from_bool], obj.get("ghAuth"))
+        git_auth = from_union([from_none, from_bool], obj.get("gitAuth"))
+        keychain_access = from_union([from_none, from_bool], obj.get("keychainAccess"))
+        policy_source = from_union([from_none, lambda x: parse_enum(SandboxPolicySource, x)], obj.get("policySource"))
+        process_name = from_union([from_none, from_str], obj.get("processName"))
+        proxy_mode = from_union([from_none, lambda x: parse_enum(SandboxProxyMode, x)], obj.get("proxyMode"))
+        readonly_paths_count = from_union([from_none, from_int], obj.get("readonlyPathsCount"))
+        readwrite_paths_count = from_union([from_none, from_int], obj.get("readwritePathsCount"))
+        source = from_union([from_none, lambda x: parse_enum(SandboxBypassSource, x)], obj.get("source"))
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        return SandboxDecisionData(
+            control=control,
+            enforcement_point=enforcement_point,
+            kind=kind,
+            outcome=outcome,
+            platform=platform,
+            add_current_working_directory=add_current_working_directory,
+            allow_bypass=allow_bypass,
+            allow_local_network=allow_local_network,
+            allow_outbound=allow_outbound,
+            attestation=attestation,
+            backend=backend,
+            command=command,
+            confidence=confidence,
+            degradation_reason=degradation_reason,
+            denial_class=denial_class,
+            denied_paths_count=denied_paths_count,
+            denied_resource=denied_resource,
+            duration_ms=duration_ms,
+            effective_filesystem_policy=effective_filesystem_policy,
+            gh_auth=gh_auth,
+            git_auth=git_auth,
+            keychain_access=keychain_access,
+            policy_source=policy_source,
+            process_name=process_name,
+            proxy_mode=proxy_mode,
+            readonly_paths_count=readonly_paths_count,
+            readwrite_paths_count=readwrite_paths_count,
+            source=source,
+            tool_call_id=tool_call_id,
+        )
 
     def to_dict(self) -> dict:
-        return {}
+        result: dict = {}
+        result["control"] = to_enum(SandboxControl, self.control)
+        result["enforcementPoint"] = to_enum(SandboxEnforcementPoint, self.enforcement_point)
+        result["kind"] = to_enum(SandboxDecisionDataKind, self.kind)
+        result["outcome"] = to_enum(SandboxOutcome, self.outcome)
+        result["platform"] = to_enum(SandboxPlatform, self.platform)
+        if self.add_current_working_directory is not None:
+            result["addCurrentWorkingDirectory"] = from_union([from_none, from_bool], self.add_current_working_directory)
+        if self.allow_bypass is not None:
+            result["allowBypass"] = from_union([from_none, from_bool], self.allow_bypass)
+        if self.allow_local_network is not None:
+            result["allowLocalNetwork"] = from_union([from_none, from_bool], self.allow_local_network)
+        if self.allow_outbound is not None:
+            result["allowOutbound"] = from_union([from_none, from_bool], self.allow_outbound)
+        if self.attestation is not None:
+            result["attestation"] = from_union([from_none, lambda x: to_enum(SandboxAttestation, x)], self.attestation)
+        if self.backend is not None:
+            result["backend"] = from_union([from_none, lambda x: to_enum(SandboxBackend, x)], self.backend)
+        if self.command is not None:
+            result["command"] = from_union([from_none, from_str], self.command)
+        if self.confidence is not None:
+            result["confidence"] = from_union([from_none, lambda x: to_enum(SandboxDenialConfidence, x)], self.confidence)
+        if self.degradation_reason is not None:
+            result["degradationReason"] = from_union([from_none, lambda x: to_enum(SandboxDegradationReason, x)], self.degradation_reason)
+        if self.denial_class is not None:
+            result["denialClass"] = from_union([from_none, lambda x: to_enum(SandboxDenialClass, x)], self.denial_class)
+        if self.denied_paths_count is not None:
+            result["deniedPathsCount"] = from_union([from_none, to_int], self.denied_paths_count)
+        if self.denied_resource is not None:
+            result["deniedResource"] = from_union([from_none, from_str], self.denied_resource)
+        if self.duration_ms is not None:
+            result["durationMs"] = from_union([from_none, to_float], self.duration_ms)
+        if self.effective_filesystem_policy is not None:
+            result["effectiveFilesystemPolicy"] = from_union([from_none, lambda x: to_class(SandboxFilesystemPolicyDetails, x)], self.effective_filesystem_policy)
+        if self.gh_auth is not None:
+            result["ghAuth"] = from_union([from_none, from_bool], self.gh_auth)
+        if self.git_auth is not None:
+            result["gitAuth"] = from_union([from_none, from_bool], self.git_auth)
+        if self.keychain_access is not None:
+            result["keychainAccess"] = from_union([from_none, from_bool], self.keychain_access)
+        if self.policy_source is not None:
+            result["policySource"] = from_union([from_none, lambda x: to_enum(SandboxPolicySource, x)], self.policy_source)
+        if self.process_name is not None:
+            result["processName"] = from_union([from_none, from_str], self.process_name)
+        if self.proxy_mode is not None:
+            result["proxyMode"] = from_union([from_none, lambda x: to_enum(SandboxProxyMode, x)], self.proxy_mode)
+        if self.readonly_paths_count is not None:
+            result["readonlyPathsCount"] = from_union([from_none, to_int], self.readonly_paths_count)
+        if self.readwrite_paths_count is not None:
+            result["readwritePathsCount"] = from_union([from_none, to_int], self.readwrite_paths_count)
+        if self.source is not None:
+            result["source"] = from_union([from_none, lambda x: to_enum(SandboxBypassSource, x)], self.source)
+        if self.tool_call_id is not None:
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        return result
+
+
+@dataclass
+class SandboxFilesystemPolicyDetails:
+    "Effective sandbox filesystem rules, in policy order. Only populated when content capture is enabled, since these are real host paths."
+    denied_paths: list[str]
+    readonly_paths: list[str]
+    readwrite_paths: list[str]
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SandboxFilesystemPolicyDetails":
+        assert isinstance(obj, dict)
+        denied_paths = from_list(from_str, obj.get("deniedPaths"))
+        readonly_paths = from_list(from_str, obj.get("readonlyPaths"))
+        readwrite_paths = from_list(from_str, obj.get("readwritePaths"))
+        return SandboxFilesystemPolicyDetails(
+            denied_paths=denied_paths,
+            readonly_paths=readonly_paths,
+            readwrite_paths=readwrite_paths,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["deniedPaths"] = from_list(from_str, self.denied_paths)
+        result["readonlyPaths"] = from_list(from_str, self.readonly_paths)
+        result["readwritePaths"] = from_list(from_str, self.readwrite_paths)
+        return result
 
 
 @dataclass
@@ -8125,6 +8518,7 @@ class SessionCompactionCompleteData:
     pre_compaction_messages_length: int | None = None
     pre_compaction_tokens: int | None = None
     request_id: str | None = None
+    responses_reasoning: ResponsesReasoning | None = None
     service_request_id: str | None = None
     status_code: int | None = None
     summary_content: str | None = None
@@ -8151,6 +8545,7 @@ class SessionCompactionCompleteData:
         pre_compaction_messages_length = from_union([from_none, from_int], obj.get("preCompactionMessagesLength"))
         pre_compaction_tokens = from_union([from_none, from_int], obj.get("preCompactionTokens"))
         request_id = from_union([from_none, from_str], obj.get("requestId"))
+        responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
         summary_content = from_union([from_none, from_str], obj.get("summaryContent"))
@@ -8174,6 +8569,7 @@ class SessionCompactionCompleteData:
             pre_compaction_messages_length=pre_compaction_messages_length,
             pre_compaction_tokens=pre_compaction_tokens,
             request_id=request_id,
+            responses_reasoning=responses_reasoning,
             service_request_id=service_request_id,
             status_code=status_code,
             summary_content=summary_content,
@@ -8213,6 +8609,8 @@ class SessionCompactionCompleteData:
             result["preCompactionTokens"] = from_union([from_none, to_int], self.pre_compaction_tokens)
         if self.request_id is not None:
             result["requestId"] = from_union([from_none, from_str], self.request_id)
+        if self.responses_reasoning is not None:
+            result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self.responses_reasoning)
         if self.service_request_id is not None:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.status_code is not None:
@@ -8604,6 +9002,120 @@ class SessionIdleData:
 
 
 @dataclass
+class SessionIndexedSearchData:
+    "Transient indexed-search status and diagnostics from the live runtime service. Never persisted or used to infer activation from session history."
+    kind: SessionIndexedSearchDataKind
+    added_file_count: float | None = None
+    changed_file_count: float | None = None
+    deleted_file_count: float | None = None
+    disabled_reason: IndexedSearchDisabledReason | None = None
+    eligible: bool | None = None
+    error_message: str | None = None
+    error_type: IndexedSearchErrorType | None = None
+    exit_code: float | None = None
+    file_count: float | None = None
+    forced_by_env: bool | None = None
+    outcome: IndexedSearchOutcome | None = None
+    phase: IndexedSearchIncrementalPhase | None = None
+    startup_duration_ms: float | None = None
+    state: IndexedSearchState | None = None
+    total_change_count: float | None = None
+    total_duration_ms: float | None = None
+    update_duration_ms: float | None = None
+    walk_duration_ms: float | None = None
+    warm_start: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionIndexedSearchData":
+        assert isinstance(obj, dict)
+        kind = parse_enum(SessionIndexedSearchDataKind, obj.get("kind"))
+        added_file_count = from_union([from_none, from_float], obj.get("addedFileCount"))
+        changed_file_count = from_union([from_none, from_float], obj.get("changedFileCount"))
+        deleted_file_count = from_union([from_none, from_float], obj.get("deletedFileCount"))
+        disabled_reason = from_union([from_none, lambda x: parse_enum(IndexedSearchDisabledReason, x)], obj.get("disabledReason"))
+        eligible = from_union([from_none, from_bool], obj.get("eligible"))
+        error_message = from_union([from_none, from_str], obj.get("errorMessage"))
+        error_type = from_union([from_none, lambda x: parse_enum(IndexedSearchErrorType, x)], obj.get("errorType"))
+        exit_code = from_union([from_none, from_float], obj.get("exitCode"))
+        file_count = from_union([from_none, from_float], obj.get("fileCount"))
+        forced_by_env = from_union([from_none, from_bool], obj.get("forcedByEnv"))
+        outcome = from_union([from_none, lambda x: parse_enum(IndexedSearchOutcome, x)], obj.get("outcome"))
+        phase = from_union([from_none, lambda x: parse_enum(IndexedSearchIncrementalPhase, x)], obj.get("phase"))
+        startup_duration_ms = from_union([from_none, from_float], obj.get("startupDurationMs"))
+        state = from_union([from_none, lambda x: parse_enum(IndexedSearchState, x)], obj.get("state"))
+        total_change_count = from_union([from_none, from_float], obj.get("totalChangeCount"))
+        total_duration_ms = from_union([from_none, from_float], obj.get("totalDurationMs"))
+        update_duration_ms = from_union([from_none, from_float], obj.get("updateDurationMs"))
+        walk_duration_ms = from_union([from_none, from_float], obj.get("walkDurationMs"))
+        warm_start = from_union([from_none, from_bool], obj.get("warmStart"))
+        return SessionIndexedSearchData(
+            kind=kind,
+            added_file_count=added_file_count,
+            changed_file_count=changed_file_count,
+            deleted_file_count=deleted_file_count,
+            disabled_reason=disabled_reason,
+            eligible=eligible,
+            error_message=error_message,
+            error_type=error_type,
+            exit_code=exit_code,
+            file_count=file_count,
+            forced_by_env=forced_by_env,
+            outcome=outcome,
+            phase=phase,
+            startup_duration_ms=startup_duration_ms,
+            state=state,
+            total_change_count=total_change_count,
+            total_duration_ms=total_duration_ms,
+            update_duration_ms=update_duration_ms,
+            walk_duration_ms=walk_duration_ms,
+            warm_start=warm_start,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(SessionIndexedSearchDataKind, self.kind)
+        if self.added_file_count is not None:
+            result["addedFileCount"] = from_union([from_none, to_float], self.added_file_count)
+        if self.changed_file_count is not None:
+            result["changedFileCount"] = from_union([from_none, to_float], self.changed_file_count)
+        if self.deleted_file_count is not None:
+            result["deletedFileCount"] = from_union([from_none, to_float], self.deleted_file_count)
+        if self.disabled_reason is not None:
+            result["disabledReason"] = from_union([from_none, lambda x: to_enum(IndexedSearchDisabledReason, x)], self.disabled_reason)
+        if self.eligible is not None:
+            result["eligible"] = from_union([from_none, from_bool], self.eligible)
+        if self.error_message is not None:
+            result["errorMessage"] = from_union([from_none, from_str], self.error_message)
+        if self.error_type is not None:
+            result["errorType"] = from_union([from_none, lambda x: to_enum(IndexedSearchErrorType, x)], self.error_type)
+        if self.exit_code is not None:
+            result["exitCode"] = from_union([from_none, to_float], self.exit_code)
+        if self.file_count is not None:
+            result["fileCount"] = from_union([from_none, to_float], self.file_count)
+        if self.forced_by_env is not None:
+            result["forcedByEnv"] = from_union([from_none, from_bool], self.forced_by_env)
+        if self.outcome is not None:
+            result["outcome"] = from_union([from_none, lambda x: to_enum(IndexedSearchOutcome, x)], self.outcome)
+        if self.phase is not None:
+            result["phase"] = from_union([from_none, lambda x: to_enum(IndexedSearchIncrementalPhase, x)], self.phase)
+        if self.startup_duration_ms is not None:
+            result["startupDurationMs"] = from_union([from_none, to_float], self.startup_duration_ms)
+        if self.state is not None:
+            result["state"] = from_union([from_none, lambda x: to_enum(IndexedSearchState, x)], self.state)
+        if self.total_change_count is not None:
+            result["totalChangeCount"] = from_union([from_none, to_float], self.total_change_count)
+        if self.total_duration_ms is not None:
+            result["totalDurationMs"] = from_union([from_none, to_float], self.total_duration_ms)
+        if self.update_duration_ms is not None:
+            result["updateDurationMs"] = from_union([from_none, to_float], self.update_duration_ms)
+        if self.walk_duration_ms is not None:
+            result["walkDurationMs"] = from_union([from_none, to_float], self.walk_duration_ms)
+        if self.warm_start is not None:
+            result["warmStart"] = from_union([from_none, from_bool], self.warm_start)
+        return result
+
+
+@dataclass
 class SessionInfoData:
     "Informational message for timeline display with categorization"
     info_type: str
@@ -8943,6 +9455,68 @@ class SessionModelChangeData:
             result["source"] = from_union([from_none, lambda x: to_enum(ModelChangeSource, x)], self.source)
         if self.verbosity is not None:
             result["verbosity"] = from_union([from_none, lambda x: to_enum(Verbosity, x)], self.verbosity)
+        return result
+
+
+@dataclass
+class SessionModelDeselectedData:
+    "The model the user had explicitly selected is no longer available, because the host that published it withdrew it, so the session no longer has an explicit selection. The next turn resolves a default as though the user had never chosen a model. Clients should stop presenting the previous model as selected. This event is durable because resume rebuilds the selected model from the event log; without it a resumed session would restore a model its provider no longer serves. Reasoning effort, verbosity, and other session-level preferences are deliberately unchanged, because they belong to the session rather than to the model."
+    previous_model: str
+    reason: ModelDeselectedReason
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionModelDeselectedData":
+        assert isinstance(obj, dict)
+        previous_model = from_str(obj.get("previousModel"))
+        reason = parse_enum(ModelDeselectedReason, obj.get("reason"))
+        return SessionModelDeselectedData(
+            previous_model=previous_model,
+            reason=reason,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["previousModel"] = from_str(self.previous_model)
+        result["reason"] = to_enum(ModelDeselectedReason, self.reason)
+        return result
+
+
+@dataclass
+class SessionPermissionRecoveryData:
+    "Authoritative snapshot of an Autopilot permission-recovery episode"
+    attempts: list[PermissionRecoveryAttempt]
+    episode_id: str
+    max_attempts: int
+    on_blocked: PermissionRecoveryOnBlocked
+    reason: PermissionRecoveryReason
+    status: PermissionRecoveryStatus
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionPermissionRecoveryData":
+        assert isinstance(obj, dict)
+        attempts = from_list(PermissionRecoveryAttempt.from_dict, obj.get("attempts"))
+        episode_id = from_str(obj.get("episodeId"))
+        max_attempts = from_int(obj.get("maxAttempts"))
+        on_blocked = parse_enum(PermissionRecoveryOnBlocked, obj.get("onBlocked"))
+        reason = parse_enum(PermissionRecoveryReason, obj.get("reason"))
+        status = parse_enum(PermissionRecoveryStatus, obj.get("status"))
+        return SessionPermissionRecoveryData(
+            attempts=attempts,
+            episode_id=episode_id,
+            max_attempts=max_attempts,
+            on_blocked=on_blocked,
+            reason=reason,
+            status=status,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["attempts"] = from_list(lambda x: to_class(PermissionRecoveryAttempt, x), self.attempts)
+        result["episodeId"] = from_str(self.episode_id)
+        result["maxAttempts"] = to_int(self.max_attempts)
+        result["onBlocked"] = to_enum(PermissionRecoveryOnBlocked, self.on_blocked)
+        result["reason"] = to_enum(PermissionRecoveryReason, self.reason)
+        result["status"] = to_enum(PermissionRecoveryStatus, self.status)
         return result
 
 
@@ -9428,6 +10002,7 @@ class SessionStartData:
 @dataclass
 class SessionTaskCompleteData:
     "Task completion notification with summary from the agent"
+    blocker: TaskBlocker | None = None
     objective_id: int | None = None
     outcome: TaskCompletionOutcome | None = None
     reason: str | None = None
@@ -9437,12 +10012,14 @@ class SessionTaskCompleteData:
     @staticmethod
     def from_dict(obj: Any) -> "SessionTaskCompleteData":
         assert isinstance(obj, dict)
+        blocker = from_union([from_none, TaskBlocker.from_dict], obj.get("blocker"))
         objective_id = from_union([from_none, from_int], obj.get("objectiveId"))
         outcome = from_union([from_none, lambda x: parse_enum(TaskCompletionOutcome, x)], obj.get("outcome"))
         reason = from_union([from_none, from_str], obj.get("reason"))
         success = from_union([from_none, from_bool], obj.get("success"))
         summary = from_union([from_none, from_str], obj.get("summary"))
         return SessionTaskCompleteData(
+            blocker=blocker,
             objective_id=objective_id,
             outcome=outcome,
             reason=reason,
@@ -9452,6 +10029,8 @@ class SessionTaskCompleteData:
 
     def to_dict(self) -> dict:
         result: dict = {}
+        if self.blocker is not None:
+            result["blocker"] = from_union([from_none, lambda x: to_class(TaskBlocker, x)], self.blocker)
         if self.objective_id is not None:
             result["objectiveId"] = from_union([from_none, to_int], self.objective_id)
         if self.outcome is not None:
@@ -9976,6 +10555,7 @@ class SkillInvokedData:
     allowed_tools: list[str] | None = None
     description: str | None = None
     disable_model_invocation: bool | None = None
+    invoked_at_turn: int | None = None
     model: str | None = None
     plugin_name: str | None = None
     plugin_version: str | None = None
@@ -9991,6 +10571,7 @@ class SkillInvokedData:
         allowed_tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("allowedTools"))
         description = from_union([from_none, from_str], obj.get("description"))
         disable_model_invocation = from_union([from_none, from_bool], obj.get("disableModelInvocation"))
+        invoked_at_turn = from_union([from_none, from_int], obj.get("invokedAtTurn"))
         model = from_union([from_none, from_str], obj.get("model"))
         plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
         plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
@@ -10003,6 +10584,7 @@ class SkillInvokedData:
             allowed_tools=allowed_tools,
             description=description,
             disable_model_invocation=disable_model_invocation,
+            invoked_at_turn=invoked_at_turn,
             model=model,
             plugin_name=plugin_name,
             plugin_version=plugin_version,
@@ -10021,6 +10603,8 @@ class SkillInvokedData:
             result["description"] = from_union([from_none, from_str], self.description)
         if self.disable_model_invocation is not None:
             result["disableModelInvocation"] = from_union([from_none, from_bool], self.disable_model_invocation)
+        if self.invoked_at_turn is not None:
+            result["invokedAtTurn"] = from_union([from_none, to_int], self.invoked_at_turn)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.plugin_name is not None:
@@ -10044,6 +10628,7 @@ class SkillInvokedRefData:
     allowed_tools: list[str] | None = None
     description: str | None = None
     disable_model_invocation: bool | None = None
+    invoked_at_turn: int | None = None
     model: str | None = None
     plugin_name: str | None = None
     plugin_version: str | None = None
@@ -10060,6 +10645,7 @@ class SkillInvokedRefData:
         allowed_tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("allowedTools"))
         description = from_union([from_none, from_str], obj.get("description"))
         disable_model_invocation = from_union([from_none, from_bool], obj.get("disableModelInvocation"))
+        invoked_at_turn = from_union([from_none, from_int], obj.get("invokedAtTurn"))
         model = from_union([from_none, from_str], obj.get("model"))
         plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
         plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
@@ -10073,6 +10659,7 @@ class SkillInvokedRefData:
             allowed_tools=allowed_tools,
             description=description,
             disable_model_invocation=disable_model_invocation,
+            invoked_at_turn=invoked_at_turn,
             model=model,
             plugin_name=plugin_name,
             plugin_version=plugin_version,
@@ -10092,6 +10679,8 @@ class SkillInvokedRefData:
             result["description"] = from_union([from_none, from_str], self.description)
         if self.disable_model_invocation is not None:
             result["disableModelInvocation"] = from_union([from_none, from_bool], self.disable_model_invocation)
+        if self.invoked_at_turn is not None:
+            result["invokedAtTurn"] = from_union([from_none, to_int], self.invoked_at_turn)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.plugin_name is not None:
@@ -10472,10 +11061,40 @@ class SubagentStartedData:
 
 
 @dataclass
+class SystemMessageContentBlock:
+    "One persisted structured system-message block and its cache intent"
+    content: str
+    cache_breakpoint: bool | None = None
+    is_static: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SystemMessageContentBlock":
+        assert isinstance(obj, dict)
+        content = from_str(obj.get("content"))
+        cache_breakpoint = from_union([from_none, from_bool], obj.get("cacheBreakpoint"))
+        is_static = from_union([from_none, from_bool], obj.get("isStatic"))
+        return SystemMessageContentBlock(
+            content=content,
+            cache_breakpoint=cache_breakpoint,
+            is_static=is_static,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["content"] = from_str(self.content)
+        if self.cache_breakpoint is not None:
+            result["cacheBreakpoint"] = from_union([from_none, from_bool], self.cache_breakpoint)
+        if self.is_static is not None:
+            result["isStatic"] = from_union([from_none, from_bool], self.is_static)
+        return result
+
+
+@dataclass
 class SystemMessageData:
     "System/developer instruction content with role and optional template metadata"
     content: str
     role: SystemMessageRole
+    content_blocks: list[SystemMessageContentBlock] | None = None
     interaction_id: str | None = None
     metadata: SystemMessageMetadata | None = None
     name: str | None = None
@@ -10485,12 +11104,14 @@ class SystemMessageData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         role = parse_enum(SystemMessageRole, obj.get("role"))
+        content_blocks = from_union([from_none, lambda x: from_list(SystemMessageContentBlock.from_dict, x)], obj.get("contentBlocks"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         metadata = from_union([from_none, SystemMessageMetadata.from_dict], obj.get("metadata"))
         name = from_union([from_none, from_str], obj.get("name"))
         return SystemMessageData(
             content=content,
             role=role,
+            content_blocks=content_blocks,
             interaction_id=interaction_id,
             metadata=metadata,
             name=name,
@@ -10500,6 +11121,8 @@ class SystemMessageData:
         result: dict = {}
         result["content"] = from_str(self.content)
         result["role"] = to_enum(SystemMessageRole, self.role)
+        if self.content_blocks is not None:
+            result["contentBlocks"] = from_union([from_none, lambda x: from_list(lambda x: to_class(SystemMessageContentBlock, x), x)], self.content_blocks)
         if self.interaction_id is not None:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.metadata is not None:
@@ -10618,21 +11241,26 @@ class SystemNotificationData:
     "System-generated notification for runtime events like background task completion"
     content: str
     kind: SystemNotification
+    responses_reasoning: ResponsesReasoning | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SystemNotificationData":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         kind = _load_SystemNotification(obj.get("kind"))
+        responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         return SystemNotificationData(
             content=content,
             kind=kind,
+            responses_reasoning=responses_reasoning,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["content"] = from_str(self.content)
         result["kind"] = self.kind.to_dict()
+        if self.responses_reasoning is not None:
+            result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self.responses_reasoning)
         return result
 
 
@@ -11626,6 +12254,7 @@ class ToolExecutionStartData:
     rte: bool | None = None
     shell_tool_info: ToolExecutionStartShellToolInfo | None = None
     tool_description: ToolExecutionStartToolDescription | None = None
+    tool_title: str | None = None
     turn_id: str | None = None
 
     @staticmethod
@@ -11646,6 +12275,7 @@ class ToolExecutionStartData:
         rte = from_union([from_none, from_bool], obj.get("rte"))
         shell_tool_info = from_union([from_none, ToolExecutionStartShellToolInfo.from_dict], obj.get("shellToolInfo"))
         tool_description = from_union([from_none, ToolExecutionStartToolDescription.from_dict], obj.get("toolDescription"))
+        tool_title = from_union([from_none, from_str], obj.get("toolTitle"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
         return ToolExecutionStartData(
             tool_call_id=tool_call_id,
@@ -11663,6 +12293,7 @@ class ToolExecutionStartData:
             rte=rte,
             shell_tool_info=shell_tool_info,
             tool_description=tool_description,
+            tool_title=tool_title,
             turn_id=turn_id,
         )
 
@@ -11696,6 +12327,8 @@ class ToolExecutionStartData:
             result["shellToolInfo"] = from_union([from_none, lambda x: to_class(ToolExecutionStartShellToolInfo, x)], self.shell_tool_info)
         if self.tool_description is not None:
             result["toolDescription"] = from_union([from_none, lambda x: to_class(ToolExecutionStartToolDescription, x)], self.tool_description)
+        if self.tool_title is not None:
+            result["toolTitle"] = from_union([from_none, from_str], self.tool_title)
         if self.turn_id is not None:
             result["turnId"] = from_union([from_none, from_str], self.turn_id)
         return result
@@ -11962,6 +12595,7 @@ class UserMessageData:
     message_id: str | None = None
     native_document_path_fallback_paths: list[str] | None = None
     parent_agent_task_id: str | None = None
+    responses_reasoning: ResponsesReasoning | None = None
     source: str | None = None
     supported_native_document_mime_types: list[str] | None = None
     transformed_content: str | None = None
@@ -11979,6 +12613,7 @@ class UserMessageData:
         message_id = from_union([from_none, from_str], obj.get("messageId"))
         native_document_path_fallback_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("nativeDocumentPathFallbackPaths"))
         parent_agent_task_id = from_union([from_none, from_str], obj.get("parentAgentTaskId"))
+        responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         source = from_union([from_none, from_str], obj.get("source"))
         supported_native_document_mime_types = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("supportedNativeDocumentMimeTypes"))
         transformed_content = from_union([from_none, from_str], obj.get("transformedContent"))
@@ -11993,6 +12628,7 @@ class UserMessageData:
             message_id=message_id,
             native_document_path_fallback_paths=native_document_path_fallback_paths,
             parent_agent_task_id=parent_agent_task_id,
+            responses_reasoning=responses_reasoning,
             source=source,
             supported_native_document_mime_types=supported_native_document_mime_types,
             transformed_content=transformed_content,
@@ -12018,6 +12654,8 @@ class UserMessageData:
             result["nativeDocumentPathFallbackPaths"] = from_union([from_none, lambda x: from_list(from_str, x)], self.native_document_path_fallback_paths)
         if self.parent_agent_task_id is not None:
             result["parentAgentTaskId"] = from_union([from_none, from_str], self.parent_agent_task_id)
+        if self.responses_reasoning is not None:
+            result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self.responses_reasoning)
         if self.source is not None:
             result["source"] = from_union([from_none, from_str], self.source)
         if self.supported_native_document_mime_types is not None:
@@ -12935,6 +13573,76 @@ class HandoffSourceType(Enum):
     LOCAL = "local"
 
 
+class IndexedSearchDisabledReason(Enum):
+    "Configuration, policy, or workspace condition that disabled indexed search."
+    # Indexed search was explicitly disabled by the environment.
+    USE_TGREP_FALSE = "use_tgrep_false"
+    # Search uses the external ripgrep binary instead of bundled search.
+    USE_BUILTIN_RIPGREP_FALSE = "use_builtin_ripgrep_false"
+    # Organization policy disables indexed search.
+    ORGANIZATION = "organization"
+    # Authentication has not resolved organization policy.
+    ORGANIZATION_POLICY_AUTH_PENDING = "organization_policy_auth_pending"
+    # Organization policy could not be determined.
+    ORGANIZATION_POLICY_UNKNOWN = "organization_policy_unknown"
+    # The workspace uses a virtualized or network filesystem.
+    VIRTUAL_FILESYSTEM = "virtual_filesystem"
+    # The workspace is inside a Windows cloud-sync root.
+    CLOUD_SYNC_ROOT = "cloud_sync_root"
+    # The Windows cloud-sync safety check failed.
+    CLOUD_SYNC_DETECTION_FAILED = "cloud_sync_detection_failed"
+    # The workspace is not available on the runtime's local filesystem.
+    WORKSPACE_NOT_LOCAL = "workspace_not_local"
+
+
+class IndexedSearchErrorType(Enum):
+    "Category of an indexed-search server failure."
+    # The indexed-search server could not be spawned.
+    SPAWN_ERROR = "spawn_error"
+    # The indexed-search server exited unexpectedly.
+    UNEXPECTED_EXIT = "unexpected_exit"
+    # The indexed-search server was terminated by a signal.
+    KILLED_BY_SIGNAL = "killed_by_signal"
+
+
+class IndexedSearchIncrementalPhase(Enum):
+    "Phase of an incremental indexed-search update."
+    # A workspace scan found changes to index.
+    CHANGES_DETECTED = "changes_detected"
+    # The incremental index update completed.
+    UPDATED = "updated"
+
+
+class IndexedSearchOutcome(Enum):
+    "Result of an indexed-search startup attempt."
+    # A new indexed-search server was started.
+    STARTED = "started"
+    # The repository has too few files for automatic indexing.
+    SKIPPED_BELOW_THRESHOLD = "skipped_below_threshold"
+    # No Git repository was found and indexing was not forced.
+    SKIPPED_NO_GITROOT = "skipped_no_gitroot"
+    # Configuration, policy, or workspace safety disabled indexing.
+    SKIPPED_DISABLED = "skipped_disabled"
+    # An existing indexed-search server was reused.
+    REUSED_EXISTING = "reused_existing"
+    # The startup attempt failed.
+    FAILED = "failed"
+
+
+class IndexedSearchState(Enum):
+    "Live indexed-search state for this session activation, never inferred from persisted history."
+    # Indexed search is not active for this session.
+    DISABLED = "disabled"
+    # Indexed-search startup is in progress.
+    STARTING = "starting"
+    # The indexed-search server started successfully; its index may still be warming.
+    ENABLED = "enabled"
+    # The indexed-search server and its index are ready.
+    READY = "ready"
+    # Indexed-search startup or the active server failed.
+    FAILED = "failed"
+
+
 class ManagedSettingsEnforcedAction(Enum):
     "The category of runtime action that enterprise managed settings governed (blocked or capped)"
     # An attempt to turn on a bypass-permissions ("yolo") escalation was refused or capped because policy disables bypass-permissions mode.
@@ -13127,8 +13835,16 @@ class ModelChangeSource(Enum):
     PLAN_MODE = "plan_mode"
     # The runtime selected the model automatically, such as rate-limit recovery or refusal fallback.
     AUTOMATIC = "automatic"
+    # The user selected the promoted model from the changeboarding card or its keyboard shortcut.
+    CHANGEBOARDING_SHORTCUT = "changeboarding_shortcut"
     # An SDK or RPC caller selected the model.
     SDK = "sdk"
+
+
+class ModelDeselectedReason(Enum):
+    "Why the session no longer has an explicitly selected model."
+    # A host-managed provider snapshot no longer publishes the selected model.
+    PROVIDER_WITHDRAWN = "provider_withdrawn"
 
 
 class OmittedBinaryOmittedReason(Enum):
@@ -13145,6 +13861,92 @@ class OmittedBinaryType(Enum):
     IMAGE = "image"
     # Other binary resource data.
     RESOURCE = "resource"
+
+
+class PermissionApprovalEvaluationEvaluationStage(Enum):
+    "Stage that produced this attribution."
+    # The attribution stage is unknown.
+    UNKNOWN = "unknown"
+    # The request resolved before assisted-approval evaluation.
+    NOT_REACHED = "not_reached"
+    # A runtime gate skipped the judge.
+    PRE_JUDGE = "pre_judge"
+    # The judge interface produced the evaluation.
+    JUDGE = "judge"
+    # A cached recommendation or another request's outcome was reused.
+    REUSE = "reuse"
+
+
+class PermissionApprovalEvaluationJudgeStatus(Enum):
+    "Status of the local judge interface, not proof of a model network call."
+    # No authoritative attribution is available.
+    UNKNOWN = "unknown"
+    # This evaluation did not invoke the judge interface.
+    NOT_CALLED = "not_called"
+    # The judge interface returned a usable verdict.
+    COMPLETED = "completed"
+    # The judge interface returned an error.
+    FAILED = "failed"
+    # This evaluation reused a cached recommendation.
+    CACHED = "cached"
+    # This request inherited another decision without local judge attribution.
+    INHERITED = "inherited"
+
+
+class PermissionApprovalEvaluationReasonCode(Enum):
+    "Machine-readable runtime gate reason, never a command, path or human rationale."
+    # Attribution is missing or outside the supported vocabulary.
+    UNKNOWN = "unknown"
+    # The request resolved before assisted-approval evaluation.
+    NOT_REACHED = "not-reached"
+    # Assisted approval was inactive for this request.
+    INACTIVE = "inactive"
+    # The judge was skipped because authorization extraction could not safely establish a complete recent history.
+    AUTHORIZATION_HISTORY_INCOMPLETE = "authorization-history-incomplete"
+    # Managed policy required a human decision.
+    MANAGED_APPROVAL_REQUIRED = "managed-approval-required"
+    # The request asked to bypass sandbox restrictions.
+    SANDBOX_BYPASS = "sandbox-bypass"
+    # An action field exceeded the judge input limit.
+    ACTION_TOO_LONG = "action-too-long"
+    # The script path was not authorized for inspection.
+    PATH_NOT_AUTHORIZED = "path-not-authorized"
+    # The script working directory was invalid.
+    INVALID_WORKING_DIRECTORY = "invalid-working-directory"
+    # The script snapshot could not be read.
+    UNREADABLE = "unreadable"
+    # The script path was not a regular file.
+    NOT_REGULAR_FILE = "not-regular-file"
+    # The script snapshot exceeded the size limit.
+    TOO_LARGE = "too-large"
+    # The script snapshot was not UTF-8.
+    NON_UTF8 = "non-utf8"
+    # The script interpreter could not be inspected.
+    INTERPRETER_UNAVAILABLE = "interpreter-unavailable"
+    # The interpreter snapshot exceeded the size limit.
+    INTERPRETER_TOO_LARGE = "interpreter-too-large"
+    # The shell environment could not be reviewed.
+    SHELL_ENVIRONMENT_UNREVIEWABLE = "shell-environment-unreviewable"
+    # A script path could not be represented for review.
+    UNREPRESENTABLE_PATH = "unrepresentable-path"
+    # An interpreter wrapped a script that could not be reviewed.
+    INTERPRETER_WRAPPED_SCRIPT = "interpreter-wrapped-script"
+    # The script invocation could not be reviewed.
+    UNREVIEWABLE_SCRIPT_INVOCATION = "unreviewable-script-invocation"
+    # The script argument binding could not be reviewed.
+    ARGUMENT_BINDING_UNREVIEWABLE = "argument-binding-unreviewable"
+    # The script review metadata was malformed.
+    MALFORMED_SCRIPT_ACTION_REVIEW = "malformed-script-action-review"
+    # The script snapshot manifest was malformed.
+    MALFORMED_SCRIPT_ACTION_MANIFEST = "malformed-script-action-manifest"
+    # Script review was unavailable.
+    UNAVAILABLE = "unavailable"
+    # The judge interface returned a usable verdict.
+    JUDGE_VERDICT = "judge-verdict"
+    # The judge interface returned an error.
+    JUDGE_ERROR = "judge-error"
+    # The request inherited an outcome from another decision.
+    INHERITED = "inherited"
 
 
 class PermissionDecisionSource(Enum):
@@ -13169,6 +13971,88 @@ class PermissionPromptRequestPathAccessKind(Enum):
     SHELL = "shell"
     # Write access to a filesystem path.
     WRITE = "write"
+
+
+class PermissionRecoveryAttemptDisposition(Enum):
+    "Runtime handling applied to a recovery attempt"
+    # The request was denied without prompting so the agent could try an alternative.
+    DEFERRED = "deferred"
+    # The request was surfaced to an interactive responder.
+    PROMPTED = "prompted"
+    # The interactive responder approved the request.
+    APPROVED = "approved"
+    # The interactive responder denied the request or became unavailable.
+    DENIED = "denied"
+    # The request exhausted unattended recovery and produced a blocked outcome.
+    BLOCKED = "blocked"
+    # A tool call succeeded as an equivalent alternative.
+    SUCCEEDED = "succeeded"
+
+
+class PermissionRecoveryAttemptReason(Enum):
+    "Controlled reason for an individual attempt disposition"
+    # The attempt required permission that Assisted Permissions could not grant.
+    PERMISSION_REQUIRED = "permission_required"
+    # The request repeated an earlier attempt.
+    REPEATED_ATTEMPT = "repeated_attempt"
+    # The request exceeded the bounded number of distinct attempts.
+    ATTEMPTS_EXHAUSTED = "attempts_exhausted"
+    # The interactive responder approved the request.
+    PERMISSION_APPROVED = "permission_approved"
+    # The interactive responder denied the request.
+    PERMISSION_DENIED = "permission_denied"
+    # The interactive responder became unavailable.
+    RESPONDER_UNAVAILABLE = "responder_unavailable"
+    # The tool call succeeded without the blocked permission.
+    EQUIVALENT_ALTERNATIVE_SUCCEEDED = "equivalent_alternative_succeeded"
+
+
+class PermissionRecoveryAttemptRelation(Enum):
+    "Relationship of an attempt to earlier permission requests"
+    # The first denied permission request in the episode.
+    INITIAL = "initial"
+    # A request equivalent to an earlier attempt.
+    RETRY = "retry"
+    # A distinct request or a successful alternative tool call.
+    ALTERNATIVE = "alternative"
+
+
+class PermissionRecoveryOnBlocked(Enum):
+    "Action selected when autonomous recovery cannot continue"
+    # Surface the existing permission prompt to a response-capable client.
+    ASK = "ask"
+    # Return a structured unsuccessful blocked outcome because no responder is available.
+    FAIL = "fail"
+
+
+class PermissionRecoveryReason(Enum):
+    "Controlled reason for a permission-recovery episode transition"
+    # An action required permission that Assisted Permissions could not grant.
+    PERMISSION_REQUIRED = "permission_required"
+    # The agent repeated an equivalent permission request instead of making progress.
+    REPEATED_ATTEMPT = "repeated_attempt"
+    # The bounded number of distinct permission attempts was exhausted.
+    ATTEMPTS_EXHAUSTED = "attempts_exhausted"
+    # A responder approved the escalated permission request.
+    PERMISSION_APPROVED = "permission_approved"
+    # A responder denied the escalated permission request.
+    PERMISSION_DENIED = "permission_denied"
+    # The response-capable client became unavailable while escalation was pending.
+    RESPONDER_UNAVAILABLE = "responder_unavailable"
+    # A later tool call succeeded without requiring the blocked permission.
+    EQUIVALENT_ALTERNATIVE_SUCCEEDED = "equivalent_alternative_succeeded"
+
+
+class PermissionRecoveryStatus(Enum):
+    "Lifecycle state of a permission-recovery episode"
+    # Autopilot may try a bounded equivalent alternative.
+    RECOVERING = "recovering"
+    # An interactive permission response is required.
+    AWAITING_APPROVAL = "awaiting_approval"
+    # The episode ended through approval or a successful equivalent alternative.
+    RESOLVED = "resolved"
+    # No autonomous path remains and the task requires intervention.
+    BLOCKED = "blocked"
 
 
 class PermissionRequestMemoryAction(Enum):
@@ -13247,12 +14131,199 @@ class RemediationAction(Enum):
     ALLOW_SANDBOX_OUTBOUND = "allow_sandbox_outbound"
 
 
+class SandboxAttestation(Enum):
+    "Runtime observation backing an enforcement-state or denial claim. Absent on `enforcement_state` when no observation backs the state."
+    # A containment backend accepted and applied the spawn request.
+    SPAWN_SUCCEEDED = "spawn_succeeded"
+    # The spawn was refused for lack of a usable containment backend.
+    UNSUPPORTED = "unsupported"
+    # A runtime-owned policy check ran and returned a verdict. Attests the check, not that the caller honoured it.
+    BUILTIN_POLICY_CHECKED = "builtin_policy_checked"
+
+
+class SandboxBackend(Enum):
+    "Process-containment backend selected for the host platform"
+    # Apple Seatbelt process sandbox.
+    SEATBELT = "seatbelt"
+    # Linux Bubblewrap process sandbox.
+    BUBBLEWRAP = "bubblewrap"
+    # Windows ProcessContainer sandbox.
+    PROCESS_CONTAINER = "process_container"
+    # No supported process-containment backend is available.
+    UNSUPPORTED = "unsupported"
+
+
+class SandboxBypassSource(Enum):
+    "Where a request to run outside the process sandbox originated. Orthogonal to the outcome: the same verdict means a different thing depending on where the request came from."
+    # No longer produced. The model could once ask for a bypass in the tool call itself; no tool exposes that parameter now. Retained so historical events still deserialize.
+    MODEL_REQUESTED = "model_requested"
+    # The runtime raised the prompt itself — either after a sandboxed attempt looked blocked, or before a run the sandbox cannot enforce at all, such as a detached command — and a person answered it. In the second case nothing had executed when the decision was made.
+    USER_PROMPTED = "user_prompted"
+    # The runtime raised the prompt itself — after a sandboxed attempt looked blocked, or before a run it cannot enforce — but the permission flow produced no confirmed human answer. This includes unavailable or unreadable prompts, cancellation, and automated rule, hook, or content-exclusion denials.
+    PROMPT_UNAVAILABLE = "prompt_unavailable"
+
+
+class SandboxControl(Enum):
+    "Customer-controllable sandbox governance area"
+    # Process containment and sandbox spawn behavior.
+    PROCESS = "process"
+    # Filesystem read, write, and deny policy.
+    FILESYSTEM = "filesystem"
+    # Outbound and local-network access policy.
+    NETWORK = "network"
+    # Selection of the sandbox or built-in enforcement route.
+    ROUTING = "routing"
+    # Decisions to run outside the process sandbox, whether requested by the model or resolved by a person.
+    BYPASS = "bypass"
+    # Credential and keychain capability injection.
+    CREDENTIALS = "credentials"
+    # Host-platform and backend support behavior.
+    PLATFORM = "platform"
+
+
+class SandboxDecisionDataKind(Enum):
+    "Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`. discriminator"
+    POLICY_RESOLVED = "policy_resolved"
+    SPAWN_COMPLETED = "spawn_completed"
+    ENFORCEMENT_STATE = "enforcement_state"
+    ACCESS_DENIED = "access_denied"
+    BYPASS_DECIDED = "bypass_decided"
+    PERMISSIVE_RETRY_DECIDED = "permissive_retry_decided"
+    PERMISSIVE_RETRY_COMPLETED = "permissive_retry_completed"
+
+
+class SandboxDegradationReason(Enum):
+    "Finite reason why sandbox enforcement is weaker than configured"
+    # The selected backend cannot enforce per-path deny rules.
+    DENIED_PATHS_UNSUPPORTED = "denied_paths_unsupported"
+    # The host platform has no supported process-containment backend.
+    UNSUPPORTED_PLATFORM = "unsupported_platform"
+
+
+class SandboxDenialClass(Enum):
+    "Bounded class of access an enforcement check refused. Raw resources, commands, and process names accompany it only when content capture is enabled; diagnostic text and matched rules are never exported."
+    # A read was refused because the effective policy does not grant it.
+    FILESYSTEM_READ = "filesystem_read"
+    # A write was refused. Distinct from `filesystem_read` because a read-only grant denies writes to a path it otherwise permits.
+    FILESYSTEM_WRITE = "filesystem_write"
+    # A process could not start because the sandbox refused a required process-scoped resource. Currently emitted for the Windows MSYS `BaseNamedObjects` fork failure confirmed by learning-mode capture.
+    PROCESS_STARTUP = "process_startup"
+    # Windows registry access was refused and correlated with capture evidence.
+    REGISTRY_ACCESS = "registry_access"
+    # Windows ALPC or RPC access was refused and correlated with capture evidence.
+    IPC_ACCESS = "ipc_access"
+    # Access to another Windows process was refused and correlated with capture evidence.
+    PROCESS_ACCESS = "process_access"
+    # Windows job-object access was refused and correlated with capture evidence.
+    JOB_ACCESS = "job_access"
+    # Windows UI-handle access was refused and correlated with capture evidence.
+    UI_ACCESS = "ui_access"
+    # Windows service-control-manager access was refused and correlated with capture evidence.
+    SERVICE_ACCESS = "service_access"
+    # An outbound connection was refused by `network.allowOutbound`.
+    NETWORK_OUTBOUND = "network_outbound"
+    # A connection to a local or loopback destination was refused by `network.allowLocalNetwork`.
+    NETWORK_LOCAL = "network_local"
+    # A destination was refused by the sandbox host allow/deny rules.
+    NETWORK_HOST = "network_host"
+    # The sandbox's denial capture recorded a refusal its record does not attribute to a more specific control: an unclassified resource (registry, COM, section object) or an AppContainer capability with no network meaning. Deliberately generic — the capture proves the denial happened, and naming a narrower class than the record supports would be a guess.
+    OTHER_ACCESS = "other_access"
+
+
+class SandboxDenialConfidence(Enum):
+    "How strong the evidence behind a denial is. A denial the sandbox itself recorded is a fact; one inferred from a command's output text is a judgement, and an analysis that cannot tell them apart will treat a false positive as enforcement."
+    # The sandbox's own denial capture recorded the refused access. The strongest evidence available: the kernel observed it, not the runtime.
+    CAPTURED = "captured"
+    # The command named a path that the effective policy independently denies. No capture confirmed it, but the policy did.
+    POLICY_CORROBORATED = "policy_corroborated"
+    # The failure carried a fingerprint the sandbox itself emits, so the sandbox is known to have refused something even though the resource was not confirmed.
+    SANDBOX_REPORTED = "sandbox_reported"
+    # Classified from the command's own output text alone. The weakest evidence: a command that merely prints sandbox-like wording reaches this level.
+    OUTPUT_CLASSIFIED = "output_classified"
+
+
+class SandboxEnforcementPoint(Enum):
+    "Runtime boundary that enforced or routed a sandbox decision"
+    # Shell command process containment.
+    SHELL = "shell"
+    # Built-in filesystem policy enforcement.
+    BUILTIN_FILESYSTEM = "builtin_filesystem"
+    # Search-tool sandbox or policy enforcement.
+    SEARCH = "search"
+    # Web-fetch network policy enforcement.
+    WEB_FETCH = "web_fetch"
+    # Model Context Protocol server routing.
+    MCP = "mcp"
+    # Language server process routing.
+    LSP = "lsp"
+
+
+class SandboxOutcome(Enum):
+    "Finite result of a sandbox decision. Each `SandboxDecisionData` variant uses a disjoint subset: `policy_resolved` is `resolved | degraded`, `spawn_completed` and `permissive_retry_completed` are `succeeded | failed`, `enforcement_state` is `engaged | inactive | failed`, `access_denied` is `denied`, and escalation decisions are `approved | declined`."
+    # The sandbox policy resolved successfully. Describes configuration only and makes no claim that a backend engaged.
+    RESOLVED = "resolved"
+    # No sandbox governed the workload.
+    INACTIVE = "inactive"
+    # A runtime-owned containment backend accepted the workload. Evidence of engagement, not of verified containment for the workload's lifetime.
+    ENGAGED = "engaged"
+    # The sandbox operation completed successfully.
+    SUCCEEDED = "succeeded"
+    # The sandbox operation failed.
+    FAILED = "failed"
+    # The sandbox is active with one or more controls weakened by platform limitations or an explicitly selected relaxed mode.
+    DEGRADED = "degraded"
+    # An enforcement check refused the requested access.
+    DENIED = "denied"
+    # A request to run outside the process sandbox was granted.
+    APPROVED = "approved"
+    # A request to run outside the process sandbox was not granted.
+    DECLINED = "declined"
+
+
+class SandboxPlatform(Enum):
+    "Host operating-system family used for sandbox enforcement"
+    # Apple macOS host.
+    MACOS = "macos"
+    # Linux host.
+    LINUX = "linux"
+    # Microsoft Windows host.
+    WINDOWS = "windows"
+    # Host platform outside the explicitly supported families.
+    OTHER = "other"
+
+
+class SandboxPolicySource(Enum):
+    "Origin of the effective sandbox policy"
+    # Runtime default sandbox policy.
+    DEFAULT_POLICY = "default_policy"
+    # User-configured sandbox policy merged with runtime-required grants.
+    USER_POLICY = "user_policy"
+
+
+class SandboxProxyMode(Enum):
+    "Bounded classification of effective sandbox proxy routing"
+    # No sandbox proxy is configured.
+    NONE = "none"
+    # Traffic routes through a loopback proxy.
+    LOOPBACK = "loopback"
+    # Traffic routes through a non-loopback proxy endpoint.
+    EXTERNAL = "external"
+
+
 class ScheduleOrigin(Enum):
     "Who created the schedule: `user` (an explicit user action such as `/every` or `/after`) or `model` (the agent via the `manage_schedule` tool). Gates whether a scheduled skill that opted out of model invocation may fire: only user-created schedules may."
     # The schedule was created by an explicit user action, such as `/every` or `/after`.
     USER = "user"
     # The schedule was created by the agent via the `manage_schedule` tool.
     MODEL = "model"
+
+
+class SessionIndexedSearchDataKind(Enum):
+    "Transient indexed-search status and diagnostics from the live runtime service. Never persisted or used to infer activation from session history. discriminator"
+    STATUS = "status"
+    STARTUP = "startup"
+    SERVER_ERROR = "server_error"
+    INCREMENTAL = "incremental"
 
 
 class SessionLimitsExhaustedResponseAction(Enum):
@@ -13381,6 +14452,12 @@ class SystemNotificationFactoryPauseInfoType(Enum):
     CHECKPOINT = "checkpoint"
 
 
+class TaskBlockerKind(Enum):
+    "Category of structured task blocker"
+    # Autopilot permission recovery requires intervention or has no safe autonomous path.
+    PERMISSION_RECOVERY = "permission_recovery"
+
+
 class TaskCompletionOutcome(Enum):
     "Semantic result of evaluating a task completion request"
     # The completion request was accepted and the objective is complete.
@@ -13463,7 +14540,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -13500,8 +14577,10 @@ class SessionEvent:
             case SessionEventType.SESSION_SCHEDULE_REARMED: data = SessionScheduleRearmedData.from_dict(data_obj)
             case SessionEventType.SESSION_AUTOPILOT_OBJECTIVE_CHANGED: data = SessionAutopilotObjectiveChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_INFO: data = SessionInfoData.from_dict(data_obj)
+            case SessionEventType.SESSION_INDEXED_SEARCH: data = SessionIndexedSearchData.from_dict(data_obj)
             case SessionEventType.SESSION_WARNING: data = SessionWarningData.from_dict(data_obj)
             case SessionEventType.SESSION_MODEL_CHANGE: data = SessionModelChangeData.from_dict(data_obj)
+            case SessionEventType.SESSION_MODEL_DESELECTED: data = SessionModelDeselectedData.from_dict(data_obj)
             case SessionEventType.SESSION_AUTO_TIER_RECOMMENDATION: data = SessionAutoTierRecommendationData.from_dict(data_obj)
             case SessionEventType.SESSION_AUTO_TIER_SWITCH_FAILED: data = SessionAutoTierSwitchFailedData.from_dict(data_obj)
             case SessionEventType.SESSION_MODE_CHANGED: data = SessionModeChangedData.from_dict(data_obj)
@@ -13527,6 +14606,7 @@ class SessionEvent:
             case SessionEventType.SESSION_FUSION_ROUTE_FAILED: data = SessionFusionRouteFailedData.from_dict(data_obj)
             case SessionEventType.SESSION_FUSION_RESOLVED: data = SessionFusionResolvedData.from_dict(data_obj)
             case SessionEventType.SESSION_FUSION_COMPLETED: data = SessionFusionCompletedData.from_dict(data_obj)
+            case SessionEventType.SESSION_PERMISSION_RECOVERY: data = SessionPermissionRecoveryData.from_dict(data_obj)
             case SessionEventType.USER_MESSAGE: data = UserMessageData.from_dict(data_obj)
             case SessionEventType.PENDING_MESSAGES_MODIFIED: data = PendingMessagesModifiedData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_TURN_START: data = AssistantTurnStartData.from_dict(data_obj)
@@ -13810,6 +14890,11 @@ __all__ = [
     "HookEndError",
     "HookProgressData",
     "HookStartData",
+    "IndexedSearchDisabledReason",
+    "IndexedSearchErrorType",
+    "IndexedSearchIncrementalPhase",
+    "IndexedSearchOutcome",
+    "IndexedSearchState",
     "ManagedSettingsEnforcedAction",
     "ManagedSettingsEnforcedEscalation",
     "ManagedSettingsResolvedSource",
@@ -13846,10 +14931,15 @@ __all__ = [
     "ModelCallFinishedOutcome",
     "ModelCallStartData",
     "ModelChangeSource",
+    "ModelDeselectedReason",
     "OmittedBinaryOmittedReason",
     "OmittedBinaryResult",
     "OmittedBinaryType",
     "PendingMessagesModifiedData",
+    "PermissionApprovalEvaluation",
+    "PermissionApprovalEvaluationEvaluationStage",
+    "PermissionApprovalEvaluationJudgeStatus",
+    "PermissionApprovalEvaluationReasonCode",
     "PermissionApproved",
     "PermissionApprovedForLocation",
     "PermissionApprovedForSession",
@@ -13886,6 +14976,14 @@ __all__ = [
     "PermissionPromptRequestUrl",
     "PermissionPromptRequestWrite",
     "PermissionRecommendation",
+    "PermissionRecoveryAttempt",
+    "PermissionRecoveryAttemptDisposition",
+    "PermissionRecoveryAttemptReason",
+    "PermissionRecoveryAttemptRelation",
+    "PermissionRecoveryData",
+    "PermissionRecoveryOnBlocked",
+    "PermissionRecoveryReason",
+    "PermissionRecoveryStatus",
     "PermissionRequest",
     "PermissionRequestCustomTool",
     "PermissionRequestExtensionEnvAccess",
@@ -13917,9 +15015,24 @@ __all__ = [
     "ReasoningSummary",
     "RecommendedAutoTier",
     "RemediationAction",
+    "ResponsesReasoning",
     "SamplingCompletedData",
     "SamplingRequestedData",
+    "SandboxAttestation",
+    "SandboxBackend",
+    "SandboxBypassSource",
+    "SandboxControl",
     "SandboxDecisionData",
+    "SandboxDecisionDataKind",
+    "SandboxDegradationReason",
+    "SandboxDenialClass",
+    "SandboxDenialConfidence",
+    "SandboxEnforcementPoint",
+    "SandboxFilesystemPolicyDetails",
+    "SandboxOutcome",
+    "SandboxPlatform",
+    "SandboxPolicySource",
+    "SandboxProxyMode",
     "ScheduleOrigin",
     "SessionAutoModeResolvedData",
     "SessionAutoTierRecommendationData",
@@ -13952,6 +15065,8 @@ __all__ = [
     "SessionFusionRouteStartedData",
     "SessionHandoffData",
     "SessionIdleData",
+    "SessionIndexedSearchData",
+    "SessionIndexedSearchDataKind",
     "SessionInfoData",
     "SessionLimitsConfig",
     "SessionLimitsExhaustedCompletedData",
@@ -13968,6 +15083,8 @@ __all__ = [
     "SessionModeChangedData",
     "SessionModeNoticeDeliveredData",
     "SessionModelChangeData",
+    "SessionModelDeselectedData",
+    "SessionPermissionRecoveryData",
     "SessionPermissionsChangedData",
     "SessionPlanChangedData",
     "SessionRemoteSteerableChangedData",
@@ -14012,6 +15129,7 @@ __all__ = [
     "SubagentSelectedData",
     "SubagentStartedData",
     "SubagentTaskModelSource",
+    "SystemMessageContentBlock",
     "SystemMessageData",
     "SystemMessageMetadata",
     "SystemMessageRole",
@@ -14029,6 +15147,8 @@ __all__ = [
     "SystemNotificationShellCompleted",
     "SystemNotificationShellDetachedCompleted",
     "SystemNotificationUnclassified",
+    "TaskBlocker",
+    "TaskBlockerKind",
     "TaskCompletionOutcome",
     "ToolExecutionCompleteContent",
     "ToolExecutionCompleteContentAudio",

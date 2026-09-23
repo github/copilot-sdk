@@ -49,6 +49,31 @@ public class MessageOptions {
     private AgentMode agentMode;
     private Map<String, String> requestHeaders;
     private String displayPrompt;
+    private Map<String, Object> responseSchema;
+
+    /**
+     * Gets this run's output schema.
+     *
+     * @return the schema, or null when unformatted
+     */
+    @com.github.copilot.CopilotExperimental
+    public Map<String, Object> getResponseSchema() {
+        return responseSchema == null ? null : Collections.unmodifiableMap(responseSchema);
+    }
+
+    /**
+     * Requests provider-native JSON Schema output for this run. Independent sends
+     * do not inherit it. Immediate steering cannot specify a schema.
+     *
+     * @param responseSchema
+     *            the schema, passed unchanged to the provider
+     * @return this options instance
+     */
+    @com.github.copilot.CopilotExperimental
+    public MessageOptions setResponseSchema(Map<String, Object> responseSchema) {
+        this.responseSchema = responseSchema == null ? null : new HashMap<>(responseSchema);
+        return this;
+    }
 
     /**
      * Gets the message prompt.
@@ -246,6 +271,7 @@ public class MessageOptions {
         copy.agentMode = this.agentMode;
         copy.requestHeaders = this.requestHeaders != null ? new HashMap<>(this.requestHeaders) : null;
         copy.displayPrompt = this.displayPrompt;
+        copy.responseSchema = this.responseSchema == null ? null : new HashMap<>(this.responseSchema);
         return copy;
     }
 

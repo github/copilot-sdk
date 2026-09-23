@@ -14,10 +14,14 @@ verified `github/copilot-cli` release assets when the SDK is published, so
 starting the SDK performs no runtime download. Set `COPILOT_CLI_PATH` to use an
 existing installation instead.
 
-The checked-in release pin is `copilotCliVersion` in `package.json`. Run
-`npm run set:cli-version -- <version>` to update it and regenerate the compiled
-metadata in `src/cliVersion.ts`. Packaging verifies release assets against the
-release's `SHA256SUMS.txt`.
+The checked-in `copilotCliVersion` in `package.json` and compiled metadata in
+`src/cliVersion.ts` use a development placeholder. The public SDK snapshot
+replaces both with the CLI version published for that snapshot.
+
+Do not change these pins for runtime-repository development. If they contain
+`0.0.0-dev`, use the same-checkout runtime; release snapshot export owns replacing
+development placeholders with a published CLI version. See
+[checkout preparation](../CONTRIBUTING.md#testing-an-unreleased-runtime-api).
 
 `npm run pack:release` builds the main package and all platform packages. Set
 `COPILOT_CLI_DOWNLOAD_BASE_URL` to use a release mirror while packaging.
@@ -25,6 +29,12 @@ Release workflows instead set `COPILOT_SDK_RUNTIME_PACKAGE_DIR` to a directory
 containing validated runtime npm package roots named for all eight platforms.
 This keeps `COPILOT_CLI_USE_NPM_PACKAGE` false and embeds those runtime files in
 the self-contained SDK platform packages.
+
+In the runtime repository, packaging uses the prepared same-checkout runtime.
+Set `COPILOT_SDK_RUNTIME_PLATFORMS` to the available target (for example,
+`linux-x64`) for both `pack:release` and `verify:release-packages`. SDK CI checks
+that target only; public release workflows leave this unset to package and
+verify all eight platforms.
 
 ## Installation
 
@@ -34,7 +44,11 @@ npm install @github/copilot-sdk
 
 ## Run the Sample
 
-Try the interactive chat sample (from the repo root):
+Try the interactive chat sample from the SDK root (`src/sdk` when nested).
+In the runtime repository, first run `pnpm run build:cli` from the runtime root
+to prepare the same-checkout executable, then return to `src/sdk`.
+Building the Node SDK alone does not build the runtime. For dependency
+prerequisites, see [development setup](#development).
 
 ```bash
 cd nodejs
@@ -118,6 +132,7 @@ new CopilotClient(options?: CopilotClientOptions)
 - `mode?: "empty" | "copilot-cli"` - Defaulting strategy. Use `"empty"` for multi-user server mode; defaults to `"copilot-cli"`.
 - `workingDirectory?: string` - Working directory for the runtime process (default: current process cwd).
 - `baseDirectory?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When not set, the runtime defaults to `~/.copilot`. Ignored when connecting via `RuntimeConnection.forUri`.
+- `extensionLaunchProvider?: ExtensionLaunchProvider` - Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
 - `logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all"` - Log level. When omitted, the runtime uses its own default (currently `"info"`).
 - `env?: Record<string, string | undefined>` - Environment variables for the runtime process. When omitted, inherits `process.env`.
 - `gitHubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
@@ -304,6 +319,87 @@ Send a message and wait until the session becomes idle.
 - `timeout?: number` - Optional timeout in milliseconds
 
 Returns the final assistant message event, or undefined if none was received.
+
+##### Structured output (preview)
+
+Requires a runtime build with `responseFormat` and `originatingMessageId` support.
+Pass a raw JSON Schema or a Zod schema as `responseSchema` to `send` or
+`sendAndWait`. As with custom tool parameters, the SDK converts Zod schemas to
+JSON Schema before sending them:
+
+```typescript
+import { z } from "zod";
+
+const answerSchema = z.object({ answer: z.number().int() });
+const message = await session.sendAndWait({
+    prompt: "What is 19 + 23?",
+    responseSchema: answerSchema,
+});
+console.log(message?.data.content); // JSON text
+```
+
+For a typed result, pass the Zod schema as the **second argument** instead:
+
+```typescript
+const answer = await session.sendAndWait("What is 19 + 23?", answerSchema);
+console.log(answer.answer); // number; TResult is inferred from answerSchema
+```
+
+`sendAndWait<TResult>(options, schema, timeout?)` generates the JSON Schema from
+the schema value, parses the final JSON, and validates it with the schema's
+`parse` method. TypeScript cannot derive a runtime schema from an erased type
+parameter alone. Invalid JSON, a schema mismatch, or a completed run without a
+matching assistant message throws. Do not also set `options.responseSchema` when
+using the typed overload.
+
+The schema belongs to the submitted run, including its tool-call iterations.
+Internally generated stop-hook corrections retain the schema and originating
+message ID, so the wait returns the corrected answer. Independent subsequent
+sends do not inherit it. Ordinary immediate steering inherits the active schema
+and originating message ID, even when it arrives too late for the current model
+request and is promoted into a follow-up run. Specifying a schema with
+`mode: "immediate"` is rejected, even while idle.
+The generated `session.rpc.send` and `session.rpc.sendMessages` wrappers expose
+the full `responseFormat` contract when you need to set its name, description,
+or strict option rather than using the convenience defaults (`name: "response"`,
+`strict: true`).
+Each batch starts one run: the final returned message ID is its origin, preceding
+messages are context, and an empty batch has no origin. An immediate batch
+steers the active run instead and retains its origin.
+The schema is not a persisted session default: autonomous resume-pending work
+after a restart does not restore it. A terminal tool that clears context ends
+the old run; its fresh seed does not inherit the schema or origin. Such a run
+can finish without a structured result, in which case the typed wait throws.
+After a successful terminal tool, the runtime disables tools while the model
+produces the structured result. Stop-hook corrections remain supported.
+Remote sessions and known HydraFusion routes reject response formats before
+admission. Schemas larger than 32 MiB when JSON-encoded are also rejected before
+admission, using the runtime's existing request-size ceiling. This does not
+guarantee the schema plus conversation and tools fits the provider's budget.
+
+Structured waits select the last root-agent message whose `originatingMessageId`
+matches the ID returned by their send, then return at a non-autopilot
+`session.idle`. Other queued work can delay that idle, but cannot replace the
+selected result. The existing unformatted overload retains its session-wide
+behavior. `turnId` identifies an individual model/tool iteration, not the whole
+run; telemetry interaction IDs are not unique run identifiers.
+
+For event-driven consumption with `send`, subscribe before sending and collect
+root `assistant.message` events whose `data.originatingMessageId` matches the ID
+returned by `send`; events may arrive before that acknowledgement. Wait for
+`session.idle`, then parse the last matching message without tool requests.
+An earlier response may be superseded by a stop-hook correction. Handle
+`session.error` and aborted idle events rather than returning a partial result.
+
+Streaming still delivers ordinary text events, including intermediate messages
+and tool calls. Only the final selected message is parsed by the typed overload;
+not every event is necessarily a complete schema-conforming JSON document.
+Provider errors, refusals, cancellation, truncation, session errors, and timeouts
+can prevent a typed result. A timeout stops waiting, not the runtime's work.
+Use a model and endpoint that support native structured output. An API-compatible
+gateway may ignore format fields even when it accepts the request; for example,
+the Claude Chat-completions compatibility route is not equivalent to Anthropic's
+native `output_config.format` endpoint.
 
 ##### `on(eventType: string, handler: TypedSessionEventHandler): () => void`
 
@@ -1192,18 +1288,27 @@ try {
 
 ## Development
 
-From the repository root:
+Follow [SDK development setup](../CONTRIBUTING.md#developing-an-sdk) first,
+including the harness and corrections-script dependencies. From the SDK root
+(`src/sdk` in the runtime repository, or the standalone repository root):
 
 ```bash
-cd test/harness
-npm ci
+npm run build:nodejs
+npm run test:nodejs
+npm run check:nodejs
 ```
 
+In the runtime layout, these build/test commands refresh the projection and
+prepare the checked-out runtime for tests. For focused unit tests after
+installing Node dependencies:
+
 ```bash
-cd nodejs
-npm ci
-npm test
+npm --prefix nodejs run test:unit
 ```
+
+For native Vitest selectors on E2Es, use the
+[prepared-runtime instructions](../CONTRIBUTING.md#testing-an-unreleased-runtime-api);
+the SDK facade does not forward selectors.
 
 ## License
 

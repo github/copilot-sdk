@@ -29,6 +29,7 @@ import com.github.copilot.ffi.FfiRuntimeHost;
 import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.ExtensionLaunchProvider;
 import com.github.copilot.rpc.InProcessRuntimeConnection;
 import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.StdioRuntimeConnection;
@@ -553,7 +554,6 @@ public final class CopilotClient implements AutoCloseable {
             JsonRpcClient connectedRpc = rpc;
             Connection connection = new Connection(connectedRpc, process, new ServerRpc(connectedRpc::invoke),
                     inProcessTransport == null ? null : inProcessTransport.host());
-            connectedRpc.setCloseHandler(() -> sessions.values().forEach(CopilotSession::cancelPendingExternalTools));
 
             // Register handlers for server-to-client calls
             RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor,
@@ -563,11 +563,19 @@ public final class CopilotClient implements AutoCloseable {
             // Register the LLM inference request handler when configured.
             com.github.copilot.CopilotRequestHandler requestHandler = this.options.getRequestHandler();
             boolean hasLlmInference = requestHandler != null;
+            LlmInferenceAdapter llmAdapter = null;
             if (hasLlmInference) {
-                LlmInferenceAdapter llmAdapter = new LlmInferenceAdapter(requestHandler,
-                        () -> connection.serverRpc().llmInference, executor);
+                llmAdapter = new LlmInferenceAdapter(requestHandler, () -> connection.serverRpc().llmInference,
+                        executor);
                 llmAdapter.registerHandlers(connectedRpc);
             }
+            LlmInferenceAdapter connectedLlmAdapter = llmAdapter;
+            connectedRpc.setCloseHandler(() -> {
+                sessions.values().forEach(CopilotSession::cancelPendingExternalTools);
+                if (connectedLlmAdapter != null) {
+                    connectedLlmAdapter.cancelPending();
+                }
+            });
 
             // Register the GitHub telemetry forwarding handler when configured.
             Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry = this.options
@@ -577,10 +585,19 @@ public final class CopilotClient implements AutoCloseable {
                 telemetryAdapter.registerHandlers(connectedRpc);
             }
 
+            ExtensionLaunchProvider extensionLaunchProvider = this.options.getExtensionLaunchProvider();
+            if (extensionLaunchProvider != null) {
+                new ExtensionLaunchProviderAdapter(extensionLaunchProvider).registerHandlers(connectedRpc);
+            }
+
             // Verify protocol version
             verifyProtocolVersion(connection);
             LoggingHelpers.logTiming(LOG, Level.FINE,
                     "CopilotClient.start protocol verification complete. Elapsed={Elapsed}", startNanos);
+
+            if (extensionLaunchProvider != null) {
+                connection.serverRpc().registerExtensionLaunchProvider().join();
+            }
 
             var builtinPluginDirectories = options.getBuiltinPluginDirectories();
             if (builtinPluginDirectories != null && !builtinPluginDirectories.isEmpty()) {
@@ -604,8 +621,10 @@ public final class CopilotClient implements AutoCloseable {
                         startNanos);
             }
             // Clean up the spawned process if connection setup failed
-            if (process != null) {
-                cleanupCliProcess(process, true);
+            if (process != null && cleanupCliProcess(process, true)) {
+                // Cleanup observed an exited child and left its streams open.
+                // Drain stderr before rpc.close() destroys those streams.
+                serverManager.awaitStderrReader();
             }
             if (rpc != null) {
                 try {
@@ -813,7 +832,11 @@ public final class CopilotClient implements AutoCloseable {
         }).thenCompose(result -> result);
     }
 
-    private static void cleanupCliProcess(Process process, boolean forceImmediately) {
+    /**
+     * Returns true only when the child had already exited and no streams were
+     * destroyed.
+     */
+    private static boolean cleanupCliProcess(Process process, boolean forceImmediately) {
         try {
             if (process.isAlive()) {
                 // The runtime completes all cleanup before responding to
@@ -827,25 +850,28 @@ public final class CopilotClient implements AutoCloseable {
                     if (!process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                         LOG.fine("Process did not terminate within force kill timeout");
                     }
-                    return;
+                    return false;
                 }
 
                 process.destroy();
                 if (process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                    return;
+                    return false;
                 }
 
                 process.destroyForcibly();
                 if (!process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                     LOG.fine("Process did not terminate within force kill timeout");
                 }
+                return false;
             }
+            return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             LOG.log(Level.FINE, "Interrupted while killing process", e);
         } catch (Exception e) {
             LOG.log(Level.FINE, "Error killing process", e);
         }
+        return false;
     }
 
     /**
@@ -1365,6 +1391,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // envValueMode
                 null, // allowAllMcpServerInstructions
                 null, // skillDirectories
+                null, // ignoredSkillsLocations
                 patchSkills, // includedBuiltinSkills
                 null, // disabledSkills
                 null, // enableOnDemandInstructionDiscovery

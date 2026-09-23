@@ -5,7 +5,103 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { validateNativeHost } from "./validate-native-host.mjs";
+import {
+  readElfInterpreter,
+  validateNativeHost,
+} from "./validate-native-host.mjs";
+
+function createElf64({ machine = 62, interpreter } = {}) {
+  const interpreterBytes =
+    interpreter === undefined
+      ? undefined
+      : Buffer.from(`${interpreter}\0`, "utf8");
+  const programHeaderCount = interpreterBytes === undefined ? 0 : 1;
+  const interpreterOffset = ELF64_HEADER_SIZE + ELF64_PROGRAM_HEADER_SIZE;
+  const buffer = Buffer.alloc(
+    interpreterOffset + (interpreterBytes?.length ?? 0),
+  );
+
+  buffer.set([0x7f, 0x45, 0x4c, 0x46], 0);
+  buffer[4] = 2;
+  buffer[5] = 1;
+  buffer[6] = 1;
+  buffer.writeUInt16LE(machine, 18);
+  buffer.writeUInt32LE(1, 20);
+  buffer.writeBigUInt64LE(
+    BigInt(programHeaderCount === 0 ? 0 : ELF64_HEADER_SIZE),
+    32,
+  );
+  buffer.writeUInt16LE(ELF64_HEADER_SIZE, 52);
+  buffer.writeUInt16LE(ELF64_PROGRAM_HEADER_SIZE, 54);
+  buffer.writeUInt16LE(programHeaderCount, 56);
+
+  if (interpreterBytes !== undefined) {
+    buffer.writeUInt32LE(3, ELF64_HEADER_SIZE);
+    buffer.writeBigUInt64LE(BigInt(interpreterOffset), ELF64_HEADER_SIZE + 8);
+    buffer.writeBigUInt64LE(
+      BigInt(interpreterBytes.length),
+      ELF64_HEADER_SIZE + 32,
+    );
+    interpreterBytes.copy(buffer, interpreterOffset);
+  }
+
+  return buffer;
+}
+
+const ELF64_HEADER_SIZE = 64;
+const ELF64_PROGRAM_HEADER_SIZE = 56;
+
+test("reads the x64 musl interpreter from an ELF executable", () => {
+  assert.deepEqual(
+    readElfInterpreter(
+      createElf64({
+        interpreter: "/lib/ld-musl-x86_64.so.1",
+      }),
+    ),
+    {
+      machine: 62,
+      interpreter: "/lib/ld-musl-x86_64.so.1",
+    },
+  );
+});
+
+test("reads the ARM64 musl interpreter from an ELF executable", () => {
+  assert.deepEqual(
+    readElfInterpreter(
+      createElf64({
+        machine: 183,
+        interpreter: "/lib/ld-musl-aarch64.so.1",
+      }),
+    ),
+    {
+      machine: 183,
+      interpreter: "/lib/ld-musl-aarch64.so.1",
+    },
+  );
+});
+
+test("reports a static ELF executable without an interpreter", () => {
+  assert.deepEqual(readElfInterpreter(createElf64()), {
+    machine: 62,
+    interpreter: undefined,
+  });
+});
+
+test("rejects a truncated ELF executable", () => {
+  assert.throws(
+    () => readElfInterpreter(Buffer.from([0x7f, 0x45, 0x4c, 0x46])),
+    /too small/,
+  );
+});
+
+test("rejects an ELF interpreter outside the executable", () => {
+  const buffer = createElf64({
+    interpreter: "/lib/ld-musl-x86_64.so.1",
+  });
+  buffer.writeBigUInt64LE(BigInt(buffer.length + 1), ELF64_HEADER_SIZE + 8);
+
+  assert.throws(() => readElfInterpreter(buffer), /interpreter extends beyond/);
+});
 
 test("accepts Linux x64 with glibc", () => {
   assert.equal(
@@ -26,6 +122,19 @@ test("accepts Linux ARM64 with glibc", () => {
       glibcVersionRuntime: "2.39",
     }),
     "Validated native build host: linux-arm64 (glibc 2.39)",
+  );
+});
+
+test("accepts Linux musl x64", () => {
+  assert.equal(
+    validateNativeHost("linuxmusl-x64", {
+      platform: "linux",
+      arch: "x64",
+      glibcVersionRuntime: undefined,
+      elfMachine: 62,
+      elfInterpreter: "/lib/ld-musl-x86_64.so.1",
+    }),
+    "Validated native build host: linuxmusl-x64 (musl)",
   );
 });
 
@@ -94,6 +203,87 @@ test("rejects Linux ARM64 with musl or unknown libc", () => {
         glibcVersionRuntime: undefined,
       }),
     /requires glibc/,
+  );
+});
+
+test("rejects Linux musl x64 with glibc", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("linuxmusl-x64", {
+        platform: "linux",
+        arch: "x64",
+        glibcVersionRuntime: "2.39",
+        elfMachine: 62,
+        elfInterpreter: "/lib64/ld-linux-x86-64.so.2",
+      }),
+    /requires musl/,
+  );
+});
+
+test("rejects Linux musl x64 when the glibc report is unavailable", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("linuxmusl-x64", {
+        platform: "linux",
+        arch: "x64",
+        glibcVersionRuntime: undefined,
+        elfMachine: 62,
+        elfInterpreter: "/lib64/ld-linux-x86-64.so.2",
+      }),
+    /ld-linux-x86-64/,
+  );
+});
+
+test("rejects Linux musl x64 with unknown libc", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("linuxmusl-x64", {
+        platform: "linux",
+        arch: "x64",
+        glibcVersionRuntime: undefined,
+        elfMachine: 62,
+        elfInterpreter: undefined,
+      }),
+    /no dynamic ELF interpreter/,
+  );
+});
+
+test("rejects Linux musl x64 with the ARM64 musl interpreter", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("linuxmusl-x64", {
+        platform: "linux",
+        arch: "x64",
+        glibcVersionRuntime: undefined,
+        elfMachine: 183,
+        elfInterpreter: "/lib/ld-musl-aarch64.so.1",
+      }),
+    /ld-musl-aarch64/,
+  );
+});
+
+test("rejects Linux musl x64 when ELF detection fails", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("linuxmusl-x64", {
+        platform: "linux",
+        arch: "x64",
+        glibcVersionRuntime: undefined,
+        elfDetectionError: "permission denied",
+      }),
+    /unable to inspect the Node executable: permission denied/,
+  );
+});
+
+test("rejects a non-x64 host for Linux musl x64", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("linuxmusl-x64", {
+        platform: "linux",
+        arch: "arm64",
+        glibcVersionRuntime: undefined,
+      }),
+    /requires Linux x64/,
   );
 });
 
@@ -208,10 +398,12 @@ test("rejects macOS ARM64 for the macOS x64 classifier", () => {
 test("rejects an unimplemented classifier", () => {
   assert.throws(
     () =>
-      validateNativeHost("linuxmusl-x64", {
+      validateNativeHost("linuxmusl-arm64", {
         platform: "linux",
-        arch: "x64",
+        arch: "arm64",
         glibcVersionRuntime: undefined,
+        elfMachine: 183,
+        elfInterpreter: "/lib/ld-musl-aarch64.so.1",
       }),
     /Unsupported native build classifier/,
   );

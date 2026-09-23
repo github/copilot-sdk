@@ -49,6 +49,19 @@ public final class SendMessageRequest {
     @JsonProperty("displayPrompt")
     private String displayPrompt;
 
+    @JsonProperty("responseFormat")
+    private Map<String, Object> responseFormat;
+
+    /** Gets the output format. @return the provider-native format */
+    public Map<String, Object> getResponseFormat() {
+        return responseFormat;
+    }
+
+    /** Sets the output format. @param responseFormat the provider-native format */
+    public void setResponseFormat(Map<String, Object> responseFormat) {
+        this.responseFormat = responseFormat;
+    }
+
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
         return sessionId;

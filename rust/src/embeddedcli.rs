@@ -269,13 +269,13 @@ fn default_install_dir(version: &str) -> PathBuf {
 const MAX_PUBLISH_ATTEMPTS: u32 = 3;
 
 // Natural platform shared-library name for the in-process FFI runtime.
-#[cfg(all(has_bundled_cli, feature = "bundled-in-process", windows))]
+#[cfg(all(has_bundled_cli, feature = "in-process", windows))]
 const RUNTIME_LIBRARY_NAME: &str = "copilot_runtime.dll";
-#[cfg(all(has_bundled_cli, feature = "bundled-in-process", target_os = "macos"))]
+#[cfg(all(has_bundled_cli, feature = "in-process", target_os = "macos"))]
 const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.dylib";
 #[cfg(all(
     has_bundled_cli,
-    feature = "bundled-in-process",
+    feature = "in-process",
     not(windows),
     not(target_os = "macos")
 ))]
@@ -288,7 +288,7 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
     let root = fs::canonicalize(install_dir)
         .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
     let mut required = vec![RUNTIME_BINARY_NAME, RUNTIME_NODE_NAME];
-    #[cfg(feature = "bundled-in-process")]
+    #[cfg(feature = "in-process")]
     required.push(RUNTIME_LIBRARY_NAME);
     let mut seen = HashSet::new();
     let mut changed = HashSet::new();
@@ -431,9 +431,9 @@ fn selected_runtime_asset(path: &Path) -> bool {
         path.file_name().and_then(|name| name.to_str()),
         Some("copilot_runtime.dll" | "libcopilot_runtime.dylib" | "libcopilot_runtime.so")
     ) {
-        #[cfg(feature = "bundled-in-process")]
+        #[cfg(feature = "in-process")]
         return path == Path::new(RUNTIME_LIBRARY_NAME);
-        #[cfg(not(feature = "bundled-in-process"))]
+        #[cfg(not(feature = "in-process"))]
         return false;
     }
     true
@@ -964,7 +964,7 @@ fn extract_cli_binary(archive: &[u8]) -> Result<Vec<u8>, EmbeddedCliError> {
     Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(all(has_bundled_cli, any(not(windows), test)))]
 fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
     let gz = flate2::read::GzDecoder::new(archive);
     let mut tar = tar::Archive::new(gz);
@@ -1126,7 +1126,7 @@ impl std::error::Error for EmbeddedCliError {
 mod tests {
     use super::*;
 
-    #[cfg(all(has_bundled_cli, feature = "bundled-in-process"))]
+    #[cfg(all(has_bundled_cli, feature = "in-process"))]
     #[test]
     fn embedded_runtime_archive_contains_runtime_assets_and_excludes_cli() {
         let gz = flate2::read::GzDecoder::new(build_time::RUNTIME_ARCHIVE);
@@ -1365,7 +1365,7 @@ mod tests {
             (RUNTIME_BINARY_NAME, b"wrapper".as_slice(), 0o755),
             (RUNTIME_NODE_NAME, b"runtime".as_slice(), 0o755),
         ];
-        #[cfg(feature = "bundled-in-process")]
+        #[cfg(feature = "in-process")]
         entries.push((RUNTIME_LIBRARY_NAME, b"library".as_slice(), 0o644));
         entries.extend_from_slice(extra);
         for (name, bytes, mode) in entries {
@@ -1726,7 +1726,7 @@ mod tests {
         let names = [
             RUNTIME_NODE_NAME,
             RUNTIME_BINARY_NAME,
-            #[cfg(feature = "bundled-in-process")]
+            #[cfg(feature = "in-process")]
             RUNTIME_LIBRARY_NAME,
         ];
         for name in names {
@@ -1800,7 +1800,7 @@ mod tests {
         }
     }
 
-    #[cfg(all(has_bundled_cli, feature = "bundled-in-process"))]
+    #[cfg(all(has_bundled_cli, feature = "in-process"))]
     #[test]
     fn runtime_library_aliases_are_rejected_before_repair() {
         let alias = format!("./{RUNTIME_LIBRARY_NAME}");
@@ -1852,7 +1852,7 @@ mod tests {
             RUNTIME_BINARY_NAME,
             RUNTIME_NODE_NAME,
             "nested/asset",
-            #[cfg(feature = "bundled-in-process")]
+            #[cfg(feature = "in-process")]
             RUNTIME_LIBRARY_NAME,
         ];
         let mut read_only_files = Vec::new();

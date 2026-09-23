@@ -177,6 +177,11 @@ final class LlmInferenceExchange {
     // --- Response emit (driven by the handler) ---
 
     void startResponse(int status, String statusText, Map<String, List<String>> headers) throws IOException {
+        join(startResponseAsync(status, statusText, headers));
+    }
+
+    CompletableFuture<Void> startResponseAsync(int status, String statusText, Map<String, List<String>> headers)
+            throws IOException {
         synchronized (lock) {
             if (started) {
                 throw new IOException("LLM inference response startResponse() called twice");
@@ -187,7 +192,7 @@ final class LlmInferenceExchange {
             started = true;
         }
         var params = new LlmInferenceHttpResponseStartParams(requestId, (long) status, statusText, headers);
-        join(api().httpResponseStart(params));
+        return api().httpResponseStart(params).thenApply(ignored -> null);
     }
 
     void writeResponseText(String text) throws IOException {
@@ -201,6 +206,10 @@ final class LlmInferenceExchange {
     void writeResponseBinary(byte[] data, int offset, int length) throws IOException {
         ByteBuffer encoded = Base64.getEncoder().encode(ByteBuffer.wrap(data, offset, length));
         writeChunk(new String(encoded.array(), 0, encoded.limit(), StandardCharsets.ISO_8859_1), true);
+    }
+
+    CompletableFuture<Void> writeResponseBinaryAsync(byte[] data) throws IOException {
+        return writeChunkAsync(Base64.getEncoder().encodeToString(data), true);
     }
 
     void endResponse() throws IOException {
@@ -227,6 +236,10 @@ final class LlmInferenceExchange {
     }
 
     private void writeChunk(String data, boolean binary) throws IOException {
+        join(writeChunkAsync(data, binary));
+    }
+
+    private CompletableFuture<Void> writeChunkAsync(String data, boolean binary) throws IOException {
         synchronized (lock) {
             if (cancelled) {
                 throw new IOException("LLM inference request was cancelled by the runtime");
@@ -241,7 +254,7 @@ final class LlmInferenceExchange {
         }
         var params = new LlmInferenceHttpResponseChunkParams(requestId, data, binary ? Boolean.TRUE : null,
                 Boolean.FALSE, null);
-        join(api().httpResponseChunk(params));
+        return api().httpResponseChunk(params).thenApply(ignored -> null);
     }
 
     private ServerLlmInferenceApi api() throws IOException {

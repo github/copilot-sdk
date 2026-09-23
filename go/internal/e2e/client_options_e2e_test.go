@@ -128,6 +128,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			}
 			opts.UseLoggedInUser = copilot.Bool(false)
 		})
+
 		t.Cleanup(func() { client.ForceStop() })
 
 		if err := client.Start(t.Context()); err != nil {
@@ -239,6 +240,74 @@ func TestClientOptionsE2E(t *testing.T) {
 			return
 		}
 		t.Fatalf("session.resume request was not captured. Captured requests: %+v", resumedCapture.Requests)
+	})
+
+	t.Run("should register and invoke extension launch provider during startup", func(t *testing.T) {
+		if testharness.RunInIsolatedProcess(t) {
+			return
+		}
+		ctx := testharness.NewTestContext(t)
+		cliPath := filepath.Join(ctx.WorkDir, "fake-cli-extension-provider-"+randomHex(t)+".js")
+		capturePath := filepath.Join(ctx.WorkDir, "fake-cli-extension-provider-"+randomHex(t)+".json")
+		if err := os.WriteFile(cliPath, []byte(fakeStdioCliScript), 0644); err != nil {
+			t.Fatalf("Failed to write fake CLI script: %v", err)
+		}
+
+		requests := make(chan *copilot.ExtensionLaunchProviderResolveRequest, 1)
+		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+			opts.Connection = copilot.StdioConnection{
+				Path: cliPath,
+				Args: []string{"--capture-file", capturePath},
+			}
+			opts.GitHubToken = ""
+			opts.UseLoggedInUser = copilot.Bool(false)
+			opts.ExtensionLaunchProvider = extensionLaunchProviderFunc(func(
+				request *copilot.ExtensionLaunchProviderResolveRequest,
+			) (*copilot.ExtensionLaunchProviderResolveResult, error) {
+				requests <- request
+				return &copilot.ExtensionLaunchProviderResolveResult{
+					Launch: &copilot.ExtensionLaunchProfile{
+						Executable: "go",
+						Args:       []string{"extension-host"},
+						Env:        map[string]string{"EXTENSION_SOURCE": "go"},
+					},
+				}, nil
+			})
+		})
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+
+		request := <-requests
+		if request.ID != "project:go-e2e" || request.Name != "go-e2e" ||
+			request.ModulePath != "/extensions/go-e2e.go" || request.Source != rpc.ExtensionSourceProject {
+			t.Fatalf("Unexpected extension launch request: %+v", request)
+		}
+
+		capture := readCapture(t, capturePath)
+		foundRegistration := false
+		for _, captured := range capture.Requests {
+			if captured.Method == "registerExtensionLaunchProvider" {
+				foundRegistration = true
+				break
+			}
+		}
+		if !foundRegistration {
+			t.Fatalf("registerExtensionLaunchProvider request was not captured: %+v", capture.Requests)
+		}
+		if len(capture.ClientResponses) != 1 {
+			t.Fatalf("Expected one extension launch response, got %+v", capture.ClientResponses)
+		}
+		response := capture.ClientResponses[0]
+		if response.ID != 9001 {
+			t.Fatalf("Expected response id 9001, got %d", response.ID)
+		}
+		launch := response.Result["launch"].(map[string]any)
+		if launch["executable"] != "go" {
+			t.Fatalf("Expected Go launch profile, got %+v", launch)
+		}
 	})
 
 	t.Run("should send empty-mode custom agent locality defaults in initial requests", func(t *testing.T) {
@@ -761,15 +830,31 @@ func assertArgValue(t *testing.T, args []string, name, expected string) {
 
 // capturedCli mirrors the JSON file written by the fake stdio CLI script.
 type capturedCli struct {
-	Args             []string          `json:"args"`
-	WorkingDirectory string            `json:"cwd"`
-	Requests         []capturedRequest `json:"requests"`
-	Env              map[string]string `json:"env"`
+	Args             []string           `json:"args"`
+	WorkingDirectory string             `json:"cwd"`
+	Requests         []capturedRequest  `json:"requests"`
+	ClientResponses  []capturedResponse `json:"clientResponses"`
+	Env              map[string]string  `json:"env"`
 }
 
 type capturedRequest struct {
 	Method string `json:"method"`
 	Params any    `json:"params"`
+}
+
+type capturedResponse struct {
+	ID     int            `json:"id"`
+	Result map[string]any `json:"result"`
+}
+
+type extensionLaunchProviderFunc func(
+	request *copilot.ExtensionLaunchProviderResolveRequest,
+) (*copilot.ExtensionLaunchProviderResolveResult, error)
+
+func (f extensionLaunchProviderFunc) Resolve(
+	request *copilot.ExtensionLaunchProviderResolveRequest,
+) (*copilot.ExtensionLaunchProviderResolveResult, error) {
+	return f(request)
 }
 
 func readCapture(t *testing.T, path string) capturedCli {
@@ -821,6 +906,8 @@ const fs = require("fs");
 const captureIndex = process.argv.indexOf("--capture-file");
 const captureFile = captureIndex >= 0 ? process.argv[captureIndex + 1] : undefined;
 const requests = [];
+const clientResponses = [];
+let extensionRegistrationId;
 
 function saveCapture() {
   if (!captureFile) {
@@ -830,6 +917,7 @@ function saveCapture() {
     args: process.argv.slice(2),
     cwd: process.cwd(),
     requests,
+    clientResponses,
     env: {
       COPILOT_HOME: process.env.COPILOT_HOME,
       COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
@@ -875,6 +963,15 @@ function handleMessage(message) {
   if (!Object.prototype.hasOwnProperty.call(message, "id")) {
     return;
   }
+  if (!message.method) {
+    clientResponses.push(message);
+    saveCapture();
+    if (message.id === 9001 && extensionRegistrationId !== undefined) {
+      writeResponse(extensionRegistrationId, {});
+      extensionRegistrationId = undefined;
+    }
+    return;
+  }
   requests.push({ method: message.method, params: message.params });
   saveCapture();
   if (message.method === "connect") {
@@ -883,6 +980,16 @@ function handleMessage(message) {
   }
   if (message.method === "ping") {
     writeResponse(message.id, { message: "pong", protocolVersion: 3, timestamp: Date.now() });
+    return;
+  }
+  if (message.method === "registerExtensionLaunchProvider") {
+    extensionRegistrationId = message.id;
+    writeRequest(9001, "extensionLaunchProvider.resolve", {
+      id: "project:go-e2e",
+      name: "go-e2e",
+      modulePath: "/extensions/go-e2e.go",
+      source: "project",
+    });
     return;
   }
   if (message.method === "session.create" || message.method === "session.resume") {
@@ -904,6 +1011,11 @@ function handleMessage(message) {
 
 function writeResponse(id, result) {
   const body = JSON.stringify({ jsonrpc: "2.0", id, result });
+  process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\r\n\r\n" + body);
+}
+
+function writeRequest(id, method, params) {
+  const body = JSON.stringify({ jsonrpc: "2.0", id, method, params });
   process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\r\n\r\n" + body);
 }
 `

@@ -5,11 +5,22 @@ import { describe, expect, it } from "vitest";
 import {
     assertNoPublicInternalReferences,
     filterPublicSessionEventVariants,
+    isTypeScriptCodegenEntrypoint,
     normalizeSchemaForTypeScript,
 } from "../../scripts/codegen/typescript.ts";
 import type { DefinitionCollections } from "../../scripts/codegen/utils.ts";
 
 describe("typescript schema codegen", () => {
+    it("recognizes Windows entrypoint paths case-insensitively", () => {
+        expect(
+            isTypeScriptCodegenEntrypoint(
+                "C:\\b\\execroot\\src\\sdk\\scripts\\codegen\\typescript.ts",
+                "c:\\B\\execroot\\src\\sdk\\scripts\\codegen\\typescript.ts",
+                "win32"
+            )
+        ).toBe(true);
+    });
+
     it("emits JSDoc comments for described enum values", async () => {
         const schema: JSONSchema7 = {
             title: "SyntheticOptions",

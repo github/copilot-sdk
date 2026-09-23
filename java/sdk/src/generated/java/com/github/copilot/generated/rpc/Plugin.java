@@ -28,6 +28,18 @@ public record Plugin(
     /** Installed version */
     @JsonProperty("version") String version,
     /** Whether the plugin is currently enabled */
-    @JsonProperty("enabled") Boolean enabled
+    @JsonProperty("enabled") Boolean enabled,
+    /** Opaque stable identity for a direct plugin source. */
+    @JsonProperty("directSourceId") String directSourceId,
+    /** Absolute marketplace directory for a live plugin. */
+    @JsonProperty("installedFrom") String installedFrom,
+    /** Runtime plugin provenance, such as "builtin". */
+    @JsonProperty("source") String source,
+    /** Whether enterprise managed settings control this plugin. */
+    @JsonProperty("managed") Boolean managed,
+    /** Enabled state required by enterprise managed settings. */
+    @JsonProperty("managedDesiredEnabled") Boolean managedDesiredEnabled,
+    /** Whether this managed desired plugin has an installed or live record. */
+    @JsonProperty("installed") Boolean installed
 ) {
 }

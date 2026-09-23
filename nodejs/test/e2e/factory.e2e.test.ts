@@ -4,7 +4,6 @@ import { copyFile, mkdir, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it, vi } from "vitest";
-import { approveAll, FactoryResumeError, RuntimeConnection } from "../../src/index.js";
 import {
     createSdkTestContext,
     DEFAULT_GITHUB_TOKEN,
@@ -13,11 +12,33 @@ import {
 import { retry } from "./harness/sdkTestHelper.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const sdkEntryPoint = process.env.COPILOT_CLI_PATH
+    ? new URL("../../dist/index.js", import.meta.url).href
+    : new URL("../../src/index.js", import.meta.url).href;
+const { approveAll, RuntimeConnection } = (await import(
+    sdkEntryPoint
+)) as typeof import("../../src/index.js");
+const cliPath = process.env.COPILOT_CLI_PATH ?? (await getLegacyCliPathForTests());
+const cliDistDirectory = process.env.COPILOT_EXTENSION_SDK_PATH
+    ? dirname(process.env.COPILOT_EXTENSION_SDK_PATH)
+    : dirname(cliPath);
 const factoryTestContext = await createSdkTestContext({
     copilotClientOptions: {
-        connection: RuntimeConnection.forStdio({ path: await getLegacyCliPathForTests() }),
+        connection: RuntimeConnection.forStdio({ path: cliPath }),
         env: {
             COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS,AGENT_FACTORIES",
+        },
+        extensionLaunchProvider: {
+            resolve: async (request) => ({
+                launch: {
+                    executable: "node",
+                    args: [join(cliDistDirectory, "preloads", "extension_bootstrap.mjs")],
+                    env: {
+                        COPILOT_CLI_DIST_DIR: cliDistDirectory,
+                        EXTENSION_PATH: request.modulePath,
+                    },
+                },
+            }),
         },
     },
 });
@@ -68,6 +89,52 @@ async function setupFactoryExtension(workDir: string, onPermissionRequest = appr
     return session;
 }
 
+async function setupWorkflowExtension(workDir: string) {
+    const { copilotClient, openAiEndpoint } = factoryTestContext;
+    const extensionDir = join(workDir, ".github", "extensions", "workflow-smoke");
+    const readyFile = join(extensionDir, "ready");
+    await rm(join(workDir, ".github"), { recursive: true, force: true });
+    await mkdir(extensionDir, { recursive: true });
+    await copyFile(
+        join(__dirname, "fixtures", "workflow-extension.mjs"),
+        join(extensionDir, "extension.mjs")
+    );
+    execFileSync("git", ["init", "--quiet"], { cwd: workDir });
+
+    await openAiEndpoint.setCopilotUserByToken(DEFAULT_GITHUB_TOKEN, {
+        login: "workflow-e2e-user",
+        copilot_plan: "individual_pro",
+        token_based_billing: true,
+        is_mcp_enabled: true,
+        endpoints: {
+            api: openAiEndpoint.url,
+            telemetry: "https://localhost:1/telemetry",
+        },
+        analytics_tracking_id: "workflow-e2e-tracking-id",
+    });
+
+    const session = await copilotClient.createSession({
+        requestExtensions: true,
+        extensionSdkPath: resolve(__dirname, "..", "..", "dist"),
+        onPermissionRequest: approveAll,
+    });
+
+    try {
+        await retry(
+            "wait for the workflow extension to join the session",
+            async () => {
+                expect(existsSync(readyFile)).toBe(true);
+            },
+            300,
+            100
+        );
+        return session;
+    } catch (error) {
+        await session.disconnect();
+        throw error;
+    }
+}
+
 it("runs an extension-authored factory across the SDK process boundary", async () => {
     const { workDir } = factoryTestContext;
     await using session = await setupFactoryExtension(workDir);
@@ -82,6 +149,22 @@ it("runs an extension-authored factory across the SDK process boundary", async (
         result: { source: "sdk-e2e", count: 11 },
     });
 });
+
+it("runs an extension-authored workflow across the SDK process boundary", async () => {
+    const { workDir } = factoryTestContext;
+    await using session = await setupWorkflowExtension(workDir);
+
+    const result = await session.workflow.run("argument-echo", {
+        args: { source: "sdk-workflow-e2e", count: 12 },
+        limits: { timeoutSeconds: 15 },
+        notifyOnComplete: false,
+    });
+
+    expect(result).toMatchObject({
+        status: "completed",
+    });
+    expect(result.result).toEqual({ source: "sdk-workflow-e2e", count: 12 });
+}, 45_000);
 
 // TODO(cli-1.0.81-2): the subagent request is rejected downstream under CLI 1.0.81-2, so the
 // fixture reports didThrow: true. Re-enable once the runtime fix ships.
@@ -114,8 +197,10 @@ it("throws FactoryResumeError with not_found for an unknown run", async () => {
         .resume("00000000-0000-0000-0000-000000000000")
         .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(FactoryResumeError);
-    expect((error as FactoryResumeError).code).toBe("not_found");
+    expect(error).toMatchObject({
+        name: "FactoryResumeError",
+        code: "not_found",
+    });
 });
 
 it("throws FactoryResumeError with non_resumable for a completed run", async () => {
@@ -128,8 +213,10 @@ it("throws FactoryResumeError with non_resumable for a completed run", async () 
     const run = await session.factory.run("argument-echo", { notifyOnComplete: false });
     const error = await session.factory.resume(run.runId).catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(FactoryResumeError);
-    expect((error as FactoryResumeError).code).toBe("non_resumable");
+    expect(error).toMatchObject({
+        name: "FactoryResumeError",
+        code: "non_resumable",
+    });
 });
 
 it("forwards factory runtime controls across the SDK process boundary", async () => {

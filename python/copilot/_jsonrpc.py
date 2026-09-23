@@ -87,6 +87,7 @@ class JsonRpcClient:
         self._stderr_thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._write_lock = threading.Lock()
+        self._transport_closed = False
         self._pending_lock = threading.Lock()
         self._process_exit_error: str | None = None
         self._stderr_output: list[str] = []
@@ -100,11 +101,11 @@ class JsonRpcClient:
             # Always use the provided loop or get the running loop
             self._loop = loop or asyncio.get_running_loop()
             self._read_thread = threading.Thread(target=self._read_loop, daemon=True)
-            self._read_thread.start()
-            # Start stderr reader thread if process has stderr
+            # Register stderr before stdout can reach EOF and latch a terminal error.
             if hasattr(self.process, "stderr") and self.process.stderr:
                 self._stderr_thread = threading.Thread(target=self._stderr_loop, daemon=True)
                 self._stderr_thread.start()
+            self._read_thread.start()
 
     def _stderr_loop(self):
         """Read stderr in background to capture error messages"""
@@ -165,6 +166,7 @@ class JsonRpcClient:
 
         Raises:
             JsonRpcError: If the server returns an error
+            ProcessExitedError: If the transport has closed
             asyncio.TimeoutError: If the request times out (only when timeout is set)
         """
         request_start = time.perf_counter()
@@ -174,8 +176,10 @@ class JsonRpcClient:
         if not self._loop:
             raise RuntimeError("Client not started. Call start() first.")
 
-        future = self._loop.create_future()
         with self._pending_lock:
+            if self._process_exit_error is not None:
+                raise ProcessExitedError(self._process_exit_error)
+            future = self._loop.create_future()
             self.pending_requests[request_id] = future
             if on_response_inline is not None:
                 self._pending_inline_callbacks[request_id] = on_response_inline
@@ -213,6 +217,10 @@ class JsonRpcClient:
             with self._pending_lock:
                 self.pending_requests.pop(request_id, None)
                 self._pending_inline_callbacks.pop(request_id, None)
+            # A write failure and the reader's failure sweep can complete independently.
+            future.add_done_callback(
+                lambda completed: None if completed.cancelled() else completed.exception()
+            )
 
     async def notify(self, method: str, params: dict | None = None):
         """
@@ -221,6 +229,9 @@ class JsonRpcClient:
         Args:
             method: Method name
             params: Optional parameters
+
+        Raises:
+            ProcessExitedError: If the transport has closed
         """
         message = {
             "jsonrpc": "2.0",
@@ -257,13 +268,22 @@ class JsonRpcClient:
         loop = self._loop or asyncio.get_event_loop()
 
         def write():
+            if hasattr(self.process, "poll") and self.process.poll() is not None:
+                raise ProcessExitedError(self._get_process_exit_error())
             content = json.dumps(message, separators=(",", ":"))
             content_bytes = content.encode("utf-8")
             header = f"Content-Length: {len(content_bytes)}\r\n\r\n"
             with self._write_lock:
-                self.process.stdin.write(header.encode("utf-8"))
-                self.process.stdin.write(content_bytes)
-                self.process.stdin.flush()
+                if self._transport_closed:
+                    with self._pending_lock:
+                        error_msg = self._process_exit_error
+                    raise ProcessExitedError(error_msg or self._get_process_exit_error())
+                try:
+                    self.process.stdin.write(header.encode("utf-8"))
+                    self.process.stdin.write(content_bytes)
+                    self.process.stdin.flush()
+                except (BrokenPipeError, OSError, ValueError) as exc:
+                    raise ProcessExitedError(self._get_process_exit_error()) from exc
 
         # Run in thread pool to avoid blocking
         await loop.run_in_executor(None, write)
@@ -281,11 +301,9 @@ class JsonRpcClient:
         except EOFError:
             # Stream closed - check if process exited
             pass
-        except Exception as e:
+        except Exception:
             if self._running:
                 logger.warning("Failed to parse incoming JSON-RPC message", exc_info=True)
-                # Store error for pending requests
-                self._process_exit_error = str(e)
 
         # Process exited or read failed - fail all pending requests
         if self._running:
@@ -295,11 +313,15 @@ class JsonRpcClient:
                 self.on_close()
 
     def _fail_pending_requests(self):
-        """Fail all pending requests when process exits"""
+        """Latch transport closure and fail all pending requests."""
+        with self._write_lock:
+            self._transport_closed = True
         error_msg = self._get_process_exit_error()
 
         # Fail all pending requests
         with self._pending_lock:
+            # Prevent requests from registering after this final failure sweep.
+            self._process_exit_error = error_msg
             for request_id, future in list(self.pending_requests.items()):
                 if not future.done():
                     exc = ProcessExitedError(error_msg)

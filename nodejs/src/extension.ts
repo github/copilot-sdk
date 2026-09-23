@@ -10,6 +10,7 @@ import {
     type ResumeSessionConfig,
 } from "./types.js";
 import type { FactoryHandle } from "./factory.js";
+import type { WorkflowHandle } from "./workflow.js";
 
 export {
     Canvas,
@@ -21,6 +22,28 @@ export {
     type CanvasJsonSchema,
     type CanvasOptions,
 } from "./canvas.js";
+
+type JoinSessionContributionConfig =
+    | {
+          /**
+           * Factory handles to register when the extension joins the session.
+           *
+           * @experimental Part of the experimental Agent Factories surface and may
+           * change or be removed in future SDK or CLI releases.
+           */
+          factories?: FactoryHandle[];
+          workflows?: never;
+      }
+    | {
+          factories?: never;
+          /**
+           * Workflow handles to register when the extension joins the session.
+           *
+           * @experimental Part of the experimental Dynamic Workflows surface and may
+           * change or be removed in future SDK or CLI releases.
+           */
+          workflows?: WorkflowHandle[];
+      };
 
 export type JoinSessionConfig = Omit<
     ResumeSessionConfig,
@@ -56,14 +79,7 @@ export type JoinSessionConfig = Omit<
      * ```
      */
     requestedEnvironmentVariables?: string[];
-    /**
-     * Factory handles to register when the extension joins the session.
-     *
-     * @experimental Part of the experimental Agent Factories surface and may
-     * change or be removed in future SDK or CLI releases.
-     */
-    factories?: FactoryHandle[];
-};
+} & JoinSessionContributionConfig;
 
 export type { ExtensionInfo, FactoryLimits, FactoryMeta } from "./types.js";
 export {
@@ -94,6 +110,36 @@ export {
     type FactoryPhaseStatus,
     type FactoryAgentSummary,
 } from "./factory.js";
+export {
+    defineWorkflow,
+    WorkflowResumeError,
+    isWorkflowRunTerminal,
+    type WorkflowRunOptions,
+    type WorkflowResumeOptions,
+    type WorkflowLimitOverrides,
+    type WorkflowResumeErrorCode,
+    type SessionWorkflowApi,
+    type WorkflowAgentOptions,
+    type WorkflowContext,
+    type WorkflowDefinition,
+    type WorkflowHandle,
+    type WorkflowJsonSchema,
+    type WorkflowLimits,
+    type WorkflowMeta,
+    type WorkflowPipelineStage,
+    type WorkflowStepOptions,
+    type WorkflowRunResult,
+    type WorkflowRunStatus,
+    type WorkflowRunSummary,
+    type WorkflowListRunsOptions,
+    type WorkflowRunsPage,
+    type WorkflowRunDetail,
+    type WorkflowProgressPage,
+    type WorkflowProgressLine,
+    type WorkflowPhaseObservation,
+    type WorkflowPhaseStatus,
+    type WorkflowAgentSummary,
+} from "./workflow.js";
 
 /**
  * Joins the current foreground session.
@@ -125,12 +171,16 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     const {
         extensionSdkPath: _stripped,
         factories,
+        workflows,
         requestedEnvironmentVariables,
         ...rest
     } = config as JoinSessionConfig & {
         extensionSdkPath?: string;
     };
     void _stripped;
+    if (factories !== undefined && workflows !== undefined) {
+        throw new Error("joinSession cannot register both factories and workflows");
+    }
 
     return client.resumeSessionForExtension(
         sessionId,
@@ -139,7 +189,7 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
             onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
             suppressResumeEvent: config.suppressResumeEvent ?? true,
         },
-        factories,
+        { factories, workflows },
         requestedEnvironmentVariables?.length ? { requestedEnvironmentVariables } : undefined
     );
 }

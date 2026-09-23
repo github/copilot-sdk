@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -390,22 +392,27 @@ class FfiRuntimeHostTest {
         host.start("/tmp/entrypoint", new CopilotClientOptions());
         assertNotNull(callbackRef.get());
 
-        CompletableFuture<Void> callbackFuture = CompletableFuture.runAsync(() -> {
-            Memory mem = new Memory(1);
-            mem.setByte(0, (byte) 'x');
-            callbackRef.get().invoke(Pointer.NULL, mem, new SizeT(1));
-        });
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            CompletableFuture<Void> callbackFuture = CompletableFuture.runAsync(() -> {
+                Memory mem = new Memory(1);
+                mem.setByte(0, (byte) 'x');
+                callbackRef.get().invoke(Pointer.NULL, mem, new SizeT(1));
+            }, executor);
 
-        assertTrue(callbackEntered.await(2, TimeUnit.SECONDS));
-        CompletableFuture<Void> closeFuture = CompletableFuture.runAsync(host::close);
-        closeFuture.get(5, TimeUnit.SECONDS);
-        assertEquals(0, shutdownCalls.get(), "host shutdown must wait for a successful connection close");
+            assertTrue(callbackEntered.await(2, TimeUnit.SECONDS));
+            CompletableFuture<Void> closeFuture = CompletableFuture.runAsync(host::close, executor);
+            closeFuture.get(5, TimeUnit.SECONDS);
+            assertEquals(0, shutdownCalls.get(), "host shutdown must wait for a successful connection close");
 
-        allowCallbackToReturn.countDown();
-        callbackFuture.get(5, TimeUnit.SECONDS);
-        assertTrue(shutdownCalled.await(5, TimeUnit.SECONDS), "deferred cleanup should retry connection close");
-        assertTrue(closeCalls.get() >= 2, "connection close should be retried after reporting non-quiescence");
-        assertTrue(shutdownObservedAfterCallbackReturn.get(), "host_shutdown should run after callback drains");
+            allowCallbackToReturn.countDown();
+            callbackFuture.get(5, TimeUnit.SECONDS);
+            assertTrue(shutdownCalled.await(5, TimeUnit.SECONDS), "deferred cleanup should retry connection close");
+            assertTrue(closeCalls.get() >= 2, "connection close should be retried after reporting non-quiescence");
+            assertTrue(shutdownObservedAfterCallbackReturn.get(), "host_shutdown should run after callback drains");
+        } finally {
+            executor.shutdownNow();
+        }
 
         host.close();
         Thread.sleep(150);
