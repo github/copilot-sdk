@@ -12421,6 +12421,10 @@ export interface McpServerConfigHttp {
    */
   oauthClientId?: string;
   /**
+   * Non-empty array of valid RFC 6749 scope-token strings to request for the statically configured OAuth client when the server challenge omits scope or provides an empty scope. Requires a non-empty oauthClientId. These scopes take precedence over protected-resource metadata.
+   */
+  oauthScopes?: string[];
+  /**
    * Whether the configured OAuth client is public and does not require a client secret.
    */
   oauthPublicClient?: boolean;

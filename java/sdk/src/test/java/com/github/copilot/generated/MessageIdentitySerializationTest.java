@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.generated.UserMessageEvent.UserMessageEventData;
 import com.github.copilot.generated.rpc.QueuePendingItems;
 
@@ -62,5 +63,34 @@ class MessageIdentitySerializationTest {
 
         assertNull(olderMessage.messageId());
         assertFalse(MAPPER.<JsonNode>valueToTree(olderMessage).has("messageId"));
+    }
+
+    @Test
+    void testToolStartTraceContextIsOptionalAndPreserved() throws Exception {
+        for (var context : new String[] {
+                "{}",
+                """
+                        {"traceparent":"00-11111111111111111111111111111111-2222222222222222-01","tracestate":"vendor=value"}
+                        """,
+                """
+                        {"traceparent":"00-11111111111111111111111111111111-2222222222222222-00"}
+                        """,
+                """
+                        {"traceparent":"invalid","tracestate":"invalid"}
+                        """,
+                """
+                        {"traceparent":""}
+                        """
+        }) {
+            var wire = MAPPER.createObjectNode()
+                    .put("toolCallId", "tool-call-a")
+                    .put("toolName", "client-tool");
+            wire.setAll(MAPPER.readValue(context, ObjectNode.class));
+            var data = MAPPER.treeToValue(wire, ToolExecutionStartEvent.ToolExecutionStartEventData.class);
+
+            assertEquals(wire.path("traceparent").asText(null), data.traceparent());
+            assertEquals(wire.path("tracestate").asText(null), data.tracestate());
+            assertEquals(wire, MAPPER.valueToTree(data));
+        }
     }
 }

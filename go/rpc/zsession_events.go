@@ -1197,6 +1197,9 @@ type SessionFusionResolvedData struct {
 	FollowUpModel string `json:"followUpModel"`
 	// Stable identifier for the resolved HydraFusion turn.
 	FusionID string `json:"fusionId"`
+	// Short human-readable summary of the selected workflow, suitable for immediate client display after routing. May be absent in older durable events; omit the explanation or derive one from pattern and phasePlan. Display text, not a stable machine-readable value.
+	// Experimental: Hint is part of an experimental API and may change or be removed.
+	Hint *string `json:"hint,omitempty"`
 	// Version of the executable model universe used for selection.
 	ModelUniverseVersion *string `json:"modelUniverseVersion,omitempty"`
 	// Validated orchestration pattern selected for the turn.
@@ -3110,6 +3113,10 @@ type ToolExecutionStartData struct {
 	ToolName string `json:"toolName"`
 	// Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
 	ToolTitle *string `json:"toolTitle,omitempty"`
+	// W3C traceparent of this tool's active runtime execute_tool span. Available on live events when tool-context propagation is enabled; absent when the span is unavailable or on persisted history. This diagnostic context does not authorize execution.
+	Traceparent *string `json:"traceparent,omitempty"`
+	// Optional W3C tracestate associated with traceparent. Omitted when no valid vendor state is available.
+	Tracestate *string `json:"tracestate,omitempty"`
 	// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
 	TurnID *string `json:"turnId,omitempty"`
 }
@@ -3851,6 +3858,8 @@ type MCPOauthRequiredStaticClientConfig struct {
 	GrantType *MCPOauthRequiredStaticClientConfigGrantType `json:"grantType,omitempty"`
 	// Whether this is a public OAuth client
 	PublicClient *bool `json:"publicClient,omitempty"`
+	// Configured OAuth scope string used when the server challenge omits scope or provides an empty scope
+	Scope *string `json:"scope,omitempty"`
 }
 
 // OAuth WWW-Authenticate parameters parsed from an MCP auth challenge

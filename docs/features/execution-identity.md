@@ -6,7 +6,9 @@ infer that association or publish telemetry facts.
 
 ## Field sources and compatibility
 
-These fields are available in SDK 1.0.14 with its default CLI 1.0.85. A configured
+The core identity fields below are available in SDK 1.0.14 with its default CLI
+1.0.85. The newer early tool-context fields have a separate prerequisite
+[below](#live-client-tool-trace-context). A configured
 CLI path or external server can select a different runtime. Record both versions
 and the connection/session lifetime when diagnosing an association; the SDK
 version alone does not prove that a runtime emitted an optional field.
@@ -147,13 +149,6 @@ separate relationship. Worker chat spans can cover multiple loop iterations,
 so overwriting one span attribute cannot preserve all occurrence identities.
 Runtime emission and collector/query support need their own verified contract.
 
-Client-tool timing is a separate boundary: `ToolInvocation.traceparent` and
-`tracestate` come from `external_tool.requested`; the earlier
-`tool.execution_start` has no typed trace-context fields at this baseline.
-If a host dispatches client execution on that earlier event, a later callback
-cache cannot retroactively parent it. Use a verified context source available
-before handoff, and never wait for telemetry to allow the tool to execute.
-
 This is not a universal equality join for all product records. The runtime can
 normalize non-UUID reporting session IDs, report under a parent's identity,
 fill a child event's missing interaction from root state, or remint an event
@@ -161,6 +156,58 @@ envelope before root projection. Knowing an occurrence ID also does not resolve
 the missing cause of a worker follow-up or recovery submission. Keep raw
 observations and explicit provenance; do not add a second telemetry writer or
 put diagnostic identifiers in metric tags.
+
+## Live client-tool trace context
+
+The generated `ToolExecutionStartData` now exposes optional `traceparent` and
+`tracestate` strings on `tool.execution_start.data`, including before a later
+`external_tool.requested` callback. No SDK flag, writer, or new event family is
+introduced. All six projections come from the canonical schemas in
+[runtime commit 7ab2ab8](https://github.com/github/copilot-agent-runtime/commit/7ab2ab8ea278c812664eece9feab83ef376936eb),
+delivered in [the runtime companion](https://github.com/github/copilot-agent-runtime/pull/22693).
+This is an unreleased producer prerequisite, not a new published SDK/CLI floor.
+The standalone CLI release pin is unchanged; it does not supply these new fields.
+Release-generation inputs must advance through the normal release process before
+this generated exposure can pass a pinned-release freshness check.
+
+The producer uses the actual active `execute_tool` span, checks the tool,
+native-session and start-event identities, and decorates the live wire copy.
+Its static `RUNTIME_TOOL_TRACE_CONTEXT` flag is off by default and independent
+of model propagation. Missing, disabled, unavailable, or persisted-history
+context remains absent. Enabling this flag does not enable an exporter.
+
+Rust access is
+`event.typed_data::<ToolExecutionStartData>()?.traceparent` and `.tracestate`;
+both are `Option<String>`. Older payloads deserialize with `None` and serialize
+without new keys. The SDK preserves supplied strings rather than interpreting
+W3C validity or authorizing execution. Consumers must independently validate
+context and ignore invalid telemetry without failing a valid tool operation.
+No context is inherited from a previous tool or added when replay omits it.
+
+For AHP consumers, the agreed existing extension is
+`action._meta["com.github.copilot.traceContext"]` on `chat/toolCallStart` and
+`chat/toolCallReady`, with value
+`{version: 1, traceparent: string, tracestate?: string}`. The wrapper is not part
+of the SDK's runtime event data. Host/browser emission and consumption remain
+default-off; absent, invalid, or unknown-version metadata preserves old tool
+behavior. Retain unrelated metadata and ownership/confirmation checks.
+
+Ready can invoke a client tool synchronously. Copy the observed matching tool's
+context before that handoff, never from activation identity, an arbitrary latest
+tool, or a computed tool ID. `ToolInvocation` still carries the later callback
+context, but a callback cache cannot retroactively parent earlier execution.
+Never delay tools waiting for telemetry. Neither a start event nor trace context
+is evidence of permission to execute.
+
+The unmodified schema inputs used for generation have SHA-256 checksums:
+
+* `session-events.schema.json`: `0268ec8b872b7272a011f4905cf3506b59426d930fd8d5249f4ff8b80040ffe6`
+* `api.schema.json`: `141d44c48ef5665b97032a8a400271b4140c92b2ed228fc9c84736dbd3cf4fcf`
+
+Relative to the standalone pin, these canonical inputs also contain the existing
+optional `FusionResolvedData.hint`, `McpOauthRequiredStaticClientConfig.scope`,
+and `McpServerConfigHttp.oauthScopes` additions. They are generated together;
+there is no hand-edited schema subset or shadow Rust field.
 
 ## Content-free compatibility fixtures
 
@@ -182,6 +229,12 @@ round-tripping and delivery before/after acknowledgements, across interleaved
 sessions, cancelled waits with late responses, resume, and new connections.
 They do not establish deployed runtime ordering, export coverage, or end-to-end
 telemetry joins.
+
+[tool-trace-context-v1.json](../../rust/tests/fixtures/tool-trace-context-v1.json)
+adds full synthetic early-tool notifications using the shared sampled and
+unsampled v1 carrier values. Tests retain exact per-tool fields, duplicates,
+missing context, and a same-ID persisted copy without live context, without
+waiting for any tool callback. The fixture is not a recorded runtime execution.
 
 ## Further reading
 

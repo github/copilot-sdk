@@ -1597,3 +1597,51 @@ async fn a_new_connection_does_not_reuse_observed_identity_for_the_same_session_
         expect_closed(&mut events).await;
     }
 }
+
+#[tokio::test]
+async fn early_tool_context_is_delivered_without_waiting_for_a_callback_or_reusing_context() {
+    use github_copilot_sdk::session_events::ToolExecutionStartData;
+
+    let fixture: Value =
+        serde_json::from_str(include_str!("fixtures/tool-trace-context-v1.json")).unwrap();
+    let notifications = &fixture["notifications"];
+    let session_id = notifications["sampled"]["params"]["sessionId"]
+        .as_str()
+        .unwrap();
+    let (client, mut server) = make_client();
+    let (_session, mut events) = start_identity_session(&client, &mut server, session_id).await;
+
+    for name in ["sampled", "unsampled", "absent", "sampled"] {
+        server.send_notification(&notifications[name]).await;
+    }
+    let mut persisted = notifications["sampled"].clone();
+    let data = persisted["params"]["event"]["data"]
+        .as_object_mut()
+        .unwrap();
+    data.remove("traceparent");
+    data.remove("tracestate");
+    server.send_notification(&persisted).await;
+
+    for wire in [
+        &notifications["sampled"],
+        &notifications["unsampled"],
+        &notifications["absent"],
+        &notifications["sampled"],
+        &persisted,
+    ] {
+        let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+        let data = event.typed_data::<ToolExecutionStartData>().unwrap();
+        let expected = &wire["params"]["event"]["data"];
+        assert_eq!(data.tool_call_id, expected["toolCallId"].as_str().unwrap());
+        assert_eq!(
+            data.traceparent.as_deref(),
+            expected["traceparent"].as_str()
+        );
+        assert_eq!(data.tracestate.as_deref(), expected["tracestate"].as_str());
+        assert_eq!(
+            serde_json::to_value(event).unwrap(),
+            wire["params"]["event"]
+        );
+    }
+    server.expect_quiet().await;
+}

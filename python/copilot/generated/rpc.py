@@ -34081,6 +34081,12 @@ class MCPSerializableServerConfig:
     oauth_public_client: bool | None = None
     """Whether the configured OAuth client is public and does not require a client secret."""
 
+    oauth_scopes: list[str] | None = None
+    """Non-empty array of valid RFC 6749 scope-token strings to request for the statically
+    configured OAuth client when the server challenge omits scope or provides an empty scope.
+    Requires a non-empty oauthClientId. These scopes take precedence over protected-resource
+    metadata.
+    """
     url: str | None = None
     """URL of the remote MCP server endpoint."""
 
@@ -34118,8 +34124,9 @@ class MCPSerializableServerConfig:
         oauth_client_id = from_union([from_str, from_none], obj.get("oauthClientId"))
         oauth_grant_type = from_union([MCPGrantType, from_none], obj.get("oauthGrantType"))
         oauth_public_client = from_union([from_bool, from_none], obj.get("oauthPublicClient"))
+        oauth_scopes = from_union([lambda x: from_list(from_str, x), from_none], obj.get("oauthScopes"))
         url = from_union([from_str, from_none], obj.get("url"))
-        return MCPSerializableServerConfig(args, auth, command, config_warnings, cwd, defer_tools, disable_secret_masking, disable_tool_cache, display_name, env, events, exclude_tools, filter_mapping, is_default_server, notifications, oidc, safe_for_telemetry, slow_connection_threshold_ms, source, source_path, source_plugin, source_plugin_spec, source_plugin_version, timeout, tools, type, headers, headers_refresh_ttl_ms, oauth_client_id, oauth_grant_type, oauth_public_client, url)
+        return MCPSerializableServerConfig(args, auth, command, config_warnings, cwd, defer_tools, disable_secret_masking, disable_tool_cache, display_name, env, events, exclude_tools, filter_mapping, is_default_server, notifications, oidc, safe_for_telemetry, slow_connection_threshold_ms, source, source_path, source_plugin, source_plugin_spec, source_plugin_version, timeout, tools, type, headers, headers_refresh_ttl_ms, oauth_client_id, oauth_grant_type, oauth_public_client, oauth_scopes, url)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -34185,6 +34192,8 @@ class MCPSerializableServerConfig:
             result["oauthGrantType"] = from_union([lambda x: to_enum(MCPGrantType, x), from_none], self.oauth_grant_type)
         if self.oauth_public_client is not None:
             result["oauthPublicClient"] = from_union([from_bool, from_none], self.oauth_public_client)
+        if self.oauth_scopes is not None:
+            result["oauthScopes"] = from_union([lambda x: from_list(from_str, x), from_none], self.oauth_scopes)
         if self.url is not None:
             result["url"] = from_union([from_str, from_none], self.url)
         return result
@@ -34249,6 +34258,12 @@ class MCPServerConfigHTTP:
     oauth_public_client: bool | None = None
     """Whether the configured OAuth client is public and does not require a client secret."""
 
+    oauth_scopes: list[str] | None = None
+    """Non-empty array of valid RFC 6749 scope-token strings to request for the statically
+    configured OAuth client when the server challenge omits scope or provides an empty scope.
+    Requires a non-empty oauthClientId. These scopes take precedence over protected-resource
+    metadata.
+    """
     oidc: bool | MCPServerAuthConfigRedirectPort | None = None
     """Set to `true` to use defaults, or provide an object with additional auth or OIDC settings."""
 
@@ -34304,6 +34319,7 @@ class MCPServerConfigHTTP:
         oauth_client_id = from_union([from_str, from_none], obj.get("oauthClientId"))
         oauth_grant_type = from_union([MCPGrantType, from_none], obj.get("oauthGrantType"))
         oauth_public_client = from_union([from_bool, from_none], obj.get("oauthPublicClient"))
+        oauth_scopes = from_union([lambda x: from_list(from_str, x), from_none], obj.get("oauthScopes"))
         oidc = from_union([from_bool, MCPServerAuthConfigRedirectPort.from_dict, from_none], obj.get("oidc"))
         safe_for_telemetry = from_union([from_bool, MCPSafeForTelemetryFields.from_dict, from_none], obj.get("safeForTelemetry"))
         slow_connection_threshold_ms = from_union([from_int, from_none], obj.get("slowConnectionThresholdMs"))
@@ -34315,7 +34331,7 @@ class MCPServerConfigHTTP:
         timeout = from_union([from_int, from_none], obj.get("timeout"))
         tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
         type = from_union([MCPServerConfigHTTPType, from_none], obj.get("type"))
-        return MCPServerConfigHTTP(url, auth, config_warnings, defer_tools, disable_secret_masking, disable_tool_cache, display_name, events, exclude_tools, filter_mapping, headers, headers_refresh_ttl_ms, is_default_server, notifications, oauth_client_id, oauth_grant_type, oauth_public_client, oidc, safe_for_telemetry, slow_connection_threshold_ms, source, source_path, source_plugin, source_plugin_spec, source_plugin_version, timeout, tools, type)
+        return MCPServerConfigHTTP(url, auth, config_warnings, defer_tools, disable_secret_masking, disable_tool_cache, display_name, events, exclude_tools, filter_mapping, headers, headers_refresh_ttl_ms, is_default_server, notifications, oauth_client_id, oauth_grant_type, oauth_public_client, oauth_scopes, oidc, safe_for_telemetry, slow_connection_threshold_ms, source, source_path, source_plugin, source_plugin_spec, source_plugin_version, timeout, tools, type)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -34352,6 +34368,8 @@ class MCPServerConfigHTTP:
             result["oauthGrantType"] = from_union([lambda x: to_enum(MCPGrantType, x), from_none], self.oauth_grant_type)
         if self.oauth_public_client is not None:
             result["oauthPublicClient"] = from_union([from_bool, from_none], self.oauth_public_client)
+        if self.oauth_scopes is not None:
+            result["oauthScopes"] = from_union([lambda x: from_list(from_str, x), from_none], self.oauth_scopes)
         if self.oidc is not None:
             result["oidc"] = from_union([from_bool, lambda x: to_class(MCPServerAuthConfigRedirectPort, x), from_none], self.oidc)
         if self.safe_for_telemetry is not None:
@@ -38774,6 +38792,12 @@ class MCPServerConfig:
     oauth_public_client: bool | None = None
     """Whether the configured OAuth client is public and does not require a client secret."""
 
+    oauth_scopes: list[str] | None = None
+    """Non-empty array of valid RFC 6749 scope-token strings to request for the statically
+    configured OAuth client when the server challenge omits scope or provides an empty scope.
+    Requires a non-empty oauthClientId. These scopes take precedence over protected-resource
+    metadata.
+    """
     url: str | None = None
     """URL of the remote MCP server endpoint."""
 
@@ -38814,9 +38838,10 @@ class MCPServerConfig:
         oauth_client_id = from_union([from_str, from_none], obj.get("oauthClientId"))
         oauth_grant_type = from_union([MCPGrantType, from_none], obj.get("oauthGrantType"))
         oauth_public_client = from_union([from_bool, from_none], obj.get("oauthPublicClient"))
+        oauth_scopes = from_union([lambda x: from_list(from_str, x), from_none], obj.get("oauthScopes"))
         url = from_union([from_str, from_none], obj.get("url"))
         server_instance = obj.get("serverInstance")
-        return MCPServerConfig(args, auth, command, config_warnings, cwd, defer_tools, disable_secret_masking, disable_tool_cache, display_name, env, events, exclude_tools, filter_mapping, is_default_server, notifications, oidc, safe_for_telemetry, slow_connection_threshold_ms, source, source_path, source_plugin, source_plugin_spec, source_plugin_version, timeout, tools, type, headers, headers_refresh_ttl_ms, oauth_client_id, oauth_grant_type, oauth_public_client, url, server_instance)
+        return MCPServerConfig(args, auth, command, config_warnings, cwd, defer_tools, disable_secret_masking, disable_tool_cache, display_name, env, events, exclude_tools, filter_mapping, is_default_server, notifications, oidc, safe_for_telemetry, slow_connection_threshold_ms, source, source_path, source_plugin, source_plugin_spec, source_plugin_version, timeout, tools, type, headers, headers_refresh_ttl_ms, oauth_client_id, oauth_grant_type, oauth_public_client, oauth_scopes, url, server_instance)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -38882,6 +38907,8 @@ class MCPServerConfig:
             result["oauthGrantType"] = from_union([lambda x: to_enum(MCPGrantType, x), from_none], self.oauth_grant_type)
         if self.oauth_public_client is not None:
             result["oauthPublicClient"] = from_union([from_bool, from_none], self.oauth_public_client)
+        if self.oauth_scopes is not None:
+            result["oauthScopes"] = from_union([lambda x: from_list(from_str, x), from_none], self.oauth_scopes)
         if self.url is not None:
             result["url"] = from_union([from_str, from_none], self.url)
         if self.server_instance is not None:

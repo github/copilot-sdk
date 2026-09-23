@@ -3371,6 +3371,12 @@ public sealed partial class SessionFusionResolvedData
     [JsonPropertyName("fusionId")]
     public required string FusionId { get; set; }
 
+    /// <summary>Short human-readable summary of the selected workflow, suitable for immediate client display after routing. May be absent in older durable events; omit the explanation or derive one from pattern and phasePlan. Display text, not a stable machine-readable value.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hint")]
+    public string? Hint { get; set; }
+
     /// <summary>Version of the executable model universe used for selection.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("modelUniverseVersion")]
@@ -4870,6 +4876,16 @@ public sealed partial class ToolExecutionStartData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolTitle")]
     public string? ToolTitle { get; set; }
+
+    /// <summary>W3C traceparent of this tool's active runtime execute_tool span. Available on live events when tool-context propagation is enabled; absent when the span is unavailable or on persisted history. This diagnostic context does not authorize execution.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("traceparent")]
+    public string? Traceparent { get; set; }
+
+    /// <summary>Optional W3C tracestate associated with traceparent. Omitted when no valid vendor state is available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tracestate")]
+    public string? Tracestate { get; set; }
 
     /// <summary>Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -11847,6 +11863,11 @@ public sealed partial class McpOauthRequiredStaticClientConfig
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("publicClient")]
     public bool? PublicClient { get; set; }
+
+    /// <summary>Configured OAuth scope string used when the server challenge omits scope or provides an empty scope.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("scope")]
+    public string? Scope { get; set; }
 }
 
 /// <summary>OAuth WWW-Authenticate parameters parsed from an MCP auth challenge.</summary>

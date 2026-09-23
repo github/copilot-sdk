@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -97,5 +98,51 @@ func TestUserMessageDataMessageIDJSONCompatibility(t *testing.T) {
 	}
 	if _, ok := wire["messageId"]; ok {
 		t.Fatal("messageId should be omitted when absent")
+	}
+}
+
+func TestToolExecutionStartTraceContextJSONCompatibility(t *testing.T) {
+	for _, context := range []map[string]string{
+		{},
+		{
+			"traceparent": "00-11111111111111111111111111111111-2222222222222222-01",
+			"tracestate":  "vendor=value",
+		},
+		{"traceparent": "00-11111111111111111111111111111111-2222222222222222-00"},
+		{"traceparent": "invalid", "tracestate": "invalid"},
+		{"traceparent": ""},
+	} {
+		wire := map[string]string{"toolCallId": "tool-call-a", "toolName": "client-tool"}
+		for key, value := range context {
+			wire[key] = value
+		}
+		encoded, err := json.Marshal(wire)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var data ToolExecutionStartData
+		if err := json.Unmarshal(encoded, &data); err != nil {
+			t.Fatal(err)
+		}
+		for key, value := range map[string]*string{
+			"traceparent": data.Traceparent,
+			"tracestate":  data.Tracestate,
+		} {
+			expected, present := context[key]
+			if present && (value == nil || *value != expected) || !present && value != nil {
+				t.Fatalf("%s presence/value changed", key)
+			}
+		}
+		encoded, err = json.Marshal(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var roundTrip map[string]string
+		if err := json.Unmarshal(encoded, &roundTrip); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(wire, roundTrip) {
+			t.Fatal("tool-start data changed during round trip")
+		}
 	}
 }

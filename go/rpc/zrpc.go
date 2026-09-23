@@ -7448,6 +7448,11 @@ type MCPServerConfigHTTP struct {
 	OauthGrantType *MCPServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
 	// Whether the configured OAuth client is public and does not require a client secret.
 	OauthPublicClient *bool `json:"oauthPublicClient,omitempty"`
+	// Non-empty array of valid RFC 6749 scope-token strings to request for the statically
+	// configured OAuth client when the server challenge omits scope or provides an empty scope.
+	// Requires a non-empty oauthClientId. These scopes take precedence over protected-resource
+	// metadata.
+	OauthScopes []string `json:"oauthScopes,omitzero"`
 	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
 	Oidc MCPServerAuthConfig `json:"oidc,omitempty"`
 	// Telemetry-obfuscation policy for this server's tools.

@@ -149,6 +149,42 @@ public class SessionEventSerializationTests
         }
     }
 
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("00-11111111111111111111111111111111-2222222222222222-01", "vendor=value")]
+    [InlineData("00-11111111111111111111111111111111-2222222222222222-00", null)]
+    [InlineData("invalid", "invalid")]
+    [InlineData("", null)]
+    public void ToolStartEvent_PreservesOptionalTraceContext(string? traceparent, string? tracestate)
+    {
+        var data = new JsonObject
+        {
+            ["toolCallId"] = "tool-call-a",
+            ["toolName"] = "client-tool",
+        };
+        if (traceparent is not null)
+        {
+            data["traceparent"] = traceparent;
+        }
+        if (tracestate is not null)
+        {
+            data["tracestate"] = tracestate;
+        }
+        var wire = new JsonObject
+        {
+            ["id"] = "11111111-1111-1111-1111-111111111111",
+            ["timestamp"] = "2026-09-18T22:00:00+00:00",
+            ["parentId"] = "22222222-2222-2222-2222-222222222222",
+            ["type"] = "tool.execution_start",
+            ["data"] = data,
+        };
+        var decoded = Assert.IsType<ToolExecutionStartEvent>(SessionEvent.FromJson(wire.ToJsonString()));
+
+        Assert.Equal(traceparent, decoded.Data.Traceparent);
+        Assert.Equal(tracestate, decoded.Data.Tracestate);
+        Assert.True(JsonNode.DeepEquals(wire, JsonNode.Parse(decoded.ToJson())));
+    }
+
     public static TheoryData<string> AutoTierSwitchFailureReasons => new()
     {
         "policy_rejected",

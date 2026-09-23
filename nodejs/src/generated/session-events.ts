@@ -4015,6 +4015,12 @@ export interface FusionResolvedData {
    */
   fusionId: string;
   /**
+   * Short human-readable summary of the selected workflow, suitable for immediate client display after routing. May be absent in older durable events; omit the explanation or derive one from pattern and phasePlan. Display text, not a stable machine-readable value.
+   *
+   * @experimental
+   */
+  hint?: string;
+  /**
    * Version of the executable model universe used for selection.
    */
   modelUniverseVersion?: string;
@@ -6736,6 +6742,14 @@ export interface ToolExecutionStartData {
    * Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
    */
   toolTitle?: string;
+  /**
+   * W3C traceparent of this tool's active runtime execute_tool span. Available on live events when tool-context propagation is enabled; absent when the span is unavailable or on persisted history. This diagnostic context does not authorize execution.
+   */
+  traceparent?: string;
+  /**
+   * Optional W3C tracestate associated with traceparent. Omitted when no valid vendor state is available.
+   */
+  tracestate?: string;
   /**
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
    */
@@ -10848,6 +10862,10 @@ export interface McpOauthRequiredStaticClientConfig {
    * Whether this is a public OAuth client
    */
   publicClient?: boolean;
+  /**
+   * Configured OAuth scope string used when the server challenge omits scope or provides an empty scope
+   */
+  scope?: string;
 }
 /**
  * OAuth WWW-Authenticate parameters parsed from an MCP auth challenge

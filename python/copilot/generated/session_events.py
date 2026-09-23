@@ -2192,6 +2192,8 @@ class SessionFusionResolvedData:
     synthetic_model: str
     turn_id: str
     follow_up: FusionFollowUpRecommendation | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    hint: str | None = None
     model_universe_version: str | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     phase_plan: list[FusionPhasePlanStep] | None = None
@@ -2218,6 +2220,7 @@ class SessionFusionResolvedData:
         synthetic_model = from_str(obj.get("syntheticModel"))
         turn_id = from_str(obj.get("turnId"))
         follow_up = from_union([from_none, FusionFollowUpRecommendation.from_dict], obj.get("followUp"))
+        hint = from_union([from_none, from_str], obj.get("hint"))
         model_universe_version = from_union([from_none, from_str], obj.get("modelUniverseVersion"))
         phase_plan = from_union([from_none, lambda x: from_list(FusionPhasePlanStep.from_dict, x)], obj.get("phasePlan"))
         plan_version = from_union([from_none, from_str], obj.get("planVersion"))
@@ -2240,6 +2243,7 @@ class SessionFusionResolvedData:
             synthetic_model=synthetic_model,
             turn_id=turn_id,
             follow_up=follow_up,
+            hint=hint,
             model_universe_version=model_universe_version,
             phase_plan=phase_plan,
             plan_version=plan_version,
@@ -2266,6 +2270,8 @@ class SessionFusionResolvedData:
         result["turnId"] = from_str(self.turn_id)
         if self.follow_up is not None:
             result["followUp"] = from_union([from_none, lambda x: to_class(FusionFollowUpRecommendation, x)], self.follow_up)
+        if self.hint is not None:
+            result["hint"] = from_union([from_none, from_str], self.hint)
         if self.model_universe_version is not None:
             result["modelUniverseVersion"] = from_union([from_none, from_str], self.model_universe_version)
         if self.phase_plan is not None:
@@ -5626,6 +5632,7 @@ class McpOauthRequiredStaticClientConfig:
     client_secret: str | None = None
     grant_type: str | None = None
     public_client: bool | None = None
+    scope: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "McpOauthRequiredStaticClientConfig":
@@ -5634,11 +5641,13 @@ class McpOauthRequiredStaticClientConfig:
         client_secret = from_union([from_none, from_str], obj.get("clientSecret"))
         grant_type = from_union([from_none, from_str], obj.get("grantType"))
         public_client = from_union([from_none, from_bool], obj.get("publicClient"))
+        scope = from_union([from_none, from_str], obj.get("scope"))
         return McpOauthRequiredStaticClientConfig(
             client_id=client_id,
             client_secret=client_secret,
             grant_type=grant_type,
             public_client=public_client,
+            scope=scope,
         )
 
     def to_dict(self) -> dict:
@@ -5650,6 +5659,8 @@ class McpOauthRequiredStaticClientConfig:
             result["grantType"] = from_union([from_none, from_str], self.grant_type)
         if self.public_client is not None:
             result["publicClient"] = from_union([from_none, from_bool], self.public_client)
+        if self.scope is not None:
+            result["scope"] = from_union([from_none, from_str], self.scope)
         return result
 
 
@@ -12249,6 +12260,8 @@ class ToolExecutionStartData:
     shell_tool_info: ToolExecutionStartShellToolInfo | None = None
     tool_description: ToolExecutionStartToolDescription | None = None
     tool_title: str | None = None
+    traceparent: str | None = None
+    tracestate: str | None = None
     turn_id: str | None = None
 
     @staticmethod
@@ -12270,6 +12283,8 @@ class ToolExecutionStartData:
         shell_tool_info = from_union([from_none, ToolExecutionStartShellToolInfo.from_dict], obj.get("shellToolInfo"))
         tool_description = from_union([from_none, ToolExecutionStartToolDescription.from_dict], obj.get("toolDescription"))
         tool_title = from_union([from_none, from_str], obj.get("toolTitle"))
+        traceparent = from_union([from_none, from_str], obj.get("traceparent"))
+        tracestate = from_union([from_none, from_str], obj.get("tracestate"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
         return ToolExecutionStartData(
             tool_call_id=tool_call_id,
@@ -12288,6 +12303,8 @@ class ToolExecutionStartData:
             shell_tool_info=shell_tool_info,
             tool_description=tool_description,
             tool_title=tool_title,
+            traceparent=traceparent,
+            tracestate=tracestate,
             turn_id=turn_id,
         )
 
@@ -12323,6 +12340,10 @@ class ToolExecutionStartData:
             result["toolDescription"] = from_union([from_none, lambda x: to_class(ToolExecutionStartToolDescription, x)], self.tool_description)
         if self.tool_title is not None:
             result["toolTitle"] = from_union([from_none, from_str], self.tool_title)
+        if self.traceparent is not None:
+            result["traceparent"] = from_union([from_none, from_str], self.traceparent)
+        if self.tracestate is not None:
+            result["tracestate"] = from_union([from_none, from_str], self.tracestate)
         if self.turn_id is not None:
             result["turnId"] = from_union([from_none, from_str], self.turn_id)
         return result

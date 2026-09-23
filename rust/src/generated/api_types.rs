@@ -10985,6 +10985,9 @@ pub struct McpServerConfigHttp {
     /// Whether the configured OAuth client is public and does not require a client secret.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oauth_public_client: Option<bool>,
+    /// Non-empty array of valid RFC 6749 scope-token strings to request for the statically configured OAuth client when the server challenge omits scope or provides an empty scope. Requires a non-empty oauthClientId. These scopes take precedence over protected-resource metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oauth_scopes: Option<Vec<String>>,
     /// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc: Option<serde_json::Value>,

@@ -2854,6 +2854,7 @@ func (r *MCPServerConfigHTTP) UnmarshalJSON(data []byte) error {
 		OauthClientID             *string                            `json:"oauthClientId,omitempty"`
 		OauthGrantType            *MCPServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
 		OauthPublicClient         *bool                              `json:"oauthPublicClient,omitempty"`
+		OauthScopes               []string                           `json:"oauthScopes,omitzero"`
 		Oidc                      json.RawMessage                    `json:"oidc,omitempty"`
 		SafeForTelemetry          json.RawMessage                    `json:"safeForTelemetry,omitempty"`
 		SlowConnectionThresholdMs *int64                             `json:"slowConnectionThresholdMs,omitempty"`
@@ -2899,6 +2900,7 @@ func (r *MCPServerConfigHTTP) UnmarshalJSON(data []byte) error {
 	r.OauthClientID = raw.OauthClientID
 	r.OauthGrantType = raw.OauthGrantType
 	r.OauthPublicClient = raw.OauthPublicClient
+	r.OauthScopes = raw.OauthScopes
 	if raw.Oidc != nil {
 		value, err := unmarshalMCPServerAuthConfig(raw.Oidc)
 		if err != nil {

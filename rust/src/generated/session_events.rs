@@ -2463,6 +2463,16 @@ pub struct SessionFusionResolvedData {
     pub follow_up_model: String,
     /// Stable identifier for the resolved HydraFusion turn.
     pub fusion_id: String,
+    /// Short human-readable summary of the selected workflow, suitable for immediate client display after routing. May be absent in older durable events; omit the explanation or derive one from pattern and phasePlan. Display text, not a stable machine-readable value.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
     /// Version of the executable model universe used for selection.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_universe_version: Option<String>,
@@ -3926,6 +3936,12 @@ pub struct ToolExecutionStartData {
     /// Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_title: Option<String>,
+    /// W3C traceparent of this tool's active runtime execute_tool span. Available on live events when tool-context propagation is enabled; absent when the span is unavailable or on persisted history. This diagnostic context does not authorize execution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub traceparent: Option<String>,
+    /// Optional W3C tracestate associated with traceparent. Omitted when no valid vendor state is available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracestate: Option<String>,
     /// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
     #[serde(skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
@@ -6841,6 +6857,9 @@ pub struct McpOauthRequiredStaticClientConfig {
     /// Whether this is a public OAuth client
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_client: Option<bool>,
+    /// Configured OAuth scope string used when the server challenge omits scope or provides an empty scope
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
 }
 
 /// OAuth WWW-Authenticate parameters parsed from an MCP auth challenge
