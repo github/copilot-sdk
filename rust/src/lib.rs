@@ -2573,6 +2573,40 @@ impl Client {
         Ok(serde_json::from_value(value)?)
     }
 
+    /// Set the account identity used to scope persisted session-store operations.
+    ///
+    /// Call this after connecting and before local session-store operations such
+    /// as listing or resuming sessions. Pass `None` to clear the identity, such
+    /// as when the user logs out.
+    pub async fn set_session_store_identity(
+        &self,
+        identity: Option<&SessionStoreIdentity>,
+    ) -> Result<()> {
+        self.call(
+            "sessionStore.setIdentity",
+            Some(serde_json::json!({ "identity": identity })),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Claim one quarantined legacy local session for the active store identity.
+    ///
+    /// The runtime atomically binds the claim to the identity most recently set
+    /// on this client connection through
+    /// [`set_session_store_identity`](Self::set_session_store_identity). Call
+    /// this only after explicit trusted-host user confirmation for the selected
+    /// session. The runtime rejects missing identities, conflicting ownership,
+    /// and sessions that are not eligible legacy local sessions.
+    pub async fn claim_legacy_session(&self, session_id: &SessionId) -> Result<()> {
+        self.call(
+            "sessionStore.claimLegacySession",
+            Some(serde_json::json!({ "sessionId": session_id })),
+        )
+        .await?;
+        Ok(())
+    }
+
     /// List persisted sessions, optionally filtered by working directory,
     /// repository, or git context.
     pub async fn list_sessions(
