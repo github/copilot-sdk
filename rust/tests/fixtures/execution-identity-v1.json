@@ -126,6 +126,23 @@
         }
       }
     },
+    "reusedTurnStart": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000011",
+          "timestamp": "2026-09-16T00:00:04.250Z",
+          "parentId": "10000000-0000-4000-8000-000000000004",
+          "type": "assistant.turn_start",
+          "data": {
+            "turnId": "0",
+            "interactionId": "30000000-0000-4000-8000-000000000001"
+          }
+        }
+      }
+    },
     "workerStarted": {
       "jsonrpc": "2.0",
       "method": "session.event",

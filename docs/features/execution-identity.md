@@ -59,6 +59,10 @@ across invocations. Interaction IDs can be reused for system-sourced work and
 no-user HMAC sessions. Even `(sessionId, interactionId, turnId)` is not a
 universally unique execution key.
 
+Record the actual `assistant.turn_start` **event ID** as the loop-occurrence
+identity, with its observed runtime session and agent scope. Neither the loop
+counter nor the initiating message ID identifies an individual occurrence.
+
 The exact accepted `messageId` connects a send to `user.message.messageId`.
 `assistant.message.originatingMessageId`, when present, identifies the primary
 message that started the run, not the assistant message itself:
@@ -122,13 +126,23 @@ Despite its name, `user.message.parentAgentTaskId` reflects the preparing
 `TurnIdentity`'s task identifier, not a parent interaction ID. Do not equate it
 with the distinct CAPI `X-Parent-Agent-Id` value.
 
-Product-telemetry identities also need their own verified mapping. The runtime
-can normalize non-UUID reporting session IDs, report under a parent's identity,
+There is a narrower, existing product-telemetry bridge in CLI 1.0.85:
+the root listener copies the final root-subscription event ID into
+`properties.event_id` for `user_message`, `assistant_turn_start`, and
+`assistant_turn_end`, corresponding to the same dotted SDK event types.
+Child listeners skip these bridge families, so use the final root-bridged ID,
+not an original child-log ID. Match the telemetry kind as well as the observed
+ID, account for reporting-session normalization, and retain session/agent
+provenance. Supplied event IDs are preserved during replay; a duplicate does not
+establish a new occurrence. An end event has its own ID, not its start event's ID.
+
+This is not a universal equality join for all product records. The runtime can
+normalize non-UUID reporting session IDs, report under a parent's identity,
 fill a child event's missing interaction from root state, or remint an event
-envelope. An observed SDK session, interaction, worker, or event ID is therefore
-not a universal equality join to similarly named product fields. Keep the raw
+envelope before root projection. Knowing an occurrence ID also does not resolve
+the missing cause of a worker follow-up or recovery submission. Keep raw
 observations and explicit provenance; do not add a second telemetry writer or
-put these diagnostic identifiers in metric tags.
+put diagnostic identifiers in metric tags.
 
 ## Content-free compatibility fixtures
 
@@ -140,9 +154,10 @@ result bodies; `notifications` contains complete `session.event` notifications.
 These fixture metadata fields are not new runtime protocol fields.
 
 The fragments deliberately include distinct message/event/queue identities,
-repeated loop/interaction keys, a correction retaining its origin, another
-session, initial worker scope, resume, and absent legacy keys. Message/display
-content and agent descriptions are empty; tool arguments are absent.
+repeated loop/interaction keys with distinct start-event IDs, a correction
+retaining its origin, another session, initial worker scope, resume, and absent
+legacy keys. Message/display content and agent descriptions are empty; tool
+arguments are absent.
 Consumers can replay permutations and duplicates to test their own association
 logic without collecting prompts or tool output. SDK tests verify typed
 round-tripping and delivery before/after acknowledgements, across interleaved

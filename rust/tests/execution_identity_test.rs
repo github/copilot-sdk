@@ -104,6 +104,19 @@ fn loop_and_interaction_keys_can_repeat_without_replacing_message_identity() {
 }
 
 #[test]
+fn distinct_loop_occurrences_preserve_event_ids_when_counter_keys_repeat() {
+    let fixture = fixture();
+    let first = event(&fixture, "turnStart");
+    let second = event(&fixture, "reusedTurnStart");
+    assert_eq!(first.data, second.data);
+    assert_ne!(first.id, second.id);
+    assert_eq!(
+        fixture["notifications"]["turnStart"]["params"]["sessionId"],
+        fixture["notifications"]["reusedTurnStart"]["params"]["sessionId"]
+    );
+}
+
+#[test]
 fn spawn_and_correction_identity_preserve_distinct_relationships() {
     let fixture = fixture();
     let started = event(&fixture, "workerStarted");
