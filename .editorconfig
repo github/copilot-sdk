@@ -1,0 +1,32 @@
+root = true
+
+[*]
+trim_trailing_whitespace = true
+
+[*.{cjs,cs,go,html,java,js,jsx,md,mjs,rs,sh,ts,tsx,xml}]
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+max_line_length = 120
+
+[*.py]
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+max_line_length = 100
+
+[*.{json,yaml,yml}]
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+max_line_length = 120
+
+[*.toml]
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+
+# The C# generator emits no trailing newline. Preserve that deterministic
+# output without weakening the handwritten C# formatting contract.
+[dotnet/src/Generated/*.cs]
+insert_final_newline = false

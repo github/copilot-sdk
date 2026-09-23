@@ -12,7 +12,7 @@
       "fileExtensions": {
         ".cs": "csharp"
       },
-      "rootUri": "dotnet"
+      "rootUri": "${configDir}/../dotnet"
     },
     "go": {
       "command": "gopls",
@@ -20,7 +20,7 @@
       "fileExtensions": {
         ".go": "go"
       },
-      "rootUri": "go"
+      "rootUri": "${configDir}/../go"
     }
   }
 }

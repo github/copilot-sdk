@@ -3,17 +3,84 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
 
 public class SessionEventSerializationTests
 {
+    [Theory]
+    [InlineData("session.idle", "{}")]
+    [InlineData("user.message", """{"content":"hello"}""")]
+    public void ObjectEvent_PreservesCompleteEnvelope(string eventType, string data)
+    {
+        var wire = $$"""
+            {
+                "id":"11111111-1111-1111-1111-111111111111",
+                "timestamp":"2026-09-18T22:00:00+00:00",
+                "parentId":"22222222-2222-2222-2222-222222222222",
+                "type":"{{eventType}}",
+                "data":{{data}}
+            }
+            """;
+        var decoded = SessionEvent.FromJson(wire);
+        Assert.Equal(eventType, decoded.Type);
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(wire), JsonNode.Parse(decoded.ToJson())));
+    }
+
+    [Theory]
+    [InlineData("session.indexed_search", "status", """{"state":"ready"}""")]
+    [InlineData("session.indexed_search", "startup", """{"outcome":"started","startupDurationMs":1.5,"forcedByEnv":false,"warmStart":false,"fileCount":0,"eligible":false,"errorMessage":"diagnostic"}""")]
+    [InlineData("session.indexed_search", "server_error", """{"errorType":"unexpected_exit","exitCode":0,"errorMessage":"diagnostic"}""")]
+    [InlineData("session.indexed_search", "incremental", """{"phase":"updated","changedFileCount":0,"addedFileCount":1,"deletedFileCount":0,"totalChangeCount":1,"walkDurationMs":0.5,"updateDurationMs":1.25,"totalDurationMs":1.75}""")]
+    [InlineData("sandbox.decision", "policy_resolved", """{"backend":"seatbelt","policySource":"default_policy","readwritePathsCount":0,"readonlyPathsCount":1,"deniedPathsCount":0,"addCurrentWorkingDirectory":false,"allowOutbound":false,"allowLocalNetwork":false,"proxyMode":"none","allowBypass":false,"gitAuth":false,"ghAuth":false,"keychainAccess":false}""")]
+    [InlineData("sandbox.decision", "spawn_completed", """{"backend":"seatbelt","durationMs":1.5}""")]
+    [InlineData("sandbox.decision", "enforcement_state", """{"backend":"seatbelt","command":"echo test","attestation":"spawn_succeeded"}""")]
+    [InlineData("sandbox.decision", "access_denied", """{"denialClass":"filesystem_read","attestation":"builtin_policy_checked","deniedResource":"/example","command":"cat example"}""")]
+    [InlineData("sandbox.decision", "bypass_decided", """{"source":"user_prompted","deniedResource":"/example"}""")]
+    [InlineData("sandbox.decision", "permissive_retry_decided", """{"source":"model_requested","command":"echo test"}""")]
+    [InlineData("sandbox.decision", "permissive_retry_completed", """{"processName":"example","command":"echo test"}""")]
+    public void UnionEvent_PreservesCompleteEnvelope(string eventType, string kind, string fields)
+    {
+        var data = eventType == "sandbox.decision"
+            ? JsonNode.Parse("""{"control":"process","outcome":"resolved","platform":"macos","enforcementPoint":"shell","toolCallId":"tool-1"}""")!.AsObject()
+            : new JsonObject();
+        data["kind"] = kind;
+        foreach (var field in JsonNode.Parse(fields)!.AsObject())
+        {
+            data[field.Key] = field.Value?.DeepClone();
+        }
+        var envelope = new JsonObject
+        {
+            ["id"] = "11111111-1111-1111-1111-111111111111",
+            ["timestamp"] = "2026-09-18T22:00:00+00:00",
+            ["parentId"] = "22222222-2222-2222-2222-222222222222",
+            ["ephemeral"] = true,
+            ["agentId"] = "agent-1",
+            ["type"] = eventType,
+            ["data"] = data,
+        };
+
+        var decoded = SessionEvent.FromJson(envelope.ToJsonString());
+        Assert.Equal(eventType, decoded.Type);
+        if (eventType == "session.indexed_search")
+        {
+            Assert.IsType<SessionIndexedSearchEvent>(decoded);
+        }
+        else
+        {
+            Assert.IsType<SandboxDecisionEvent>(decoded);
+        }
+        Assert.True(JsonNode.DeepEquals(envelope, JsonNode.Parse(decoded.ToJson())));
+    }
+
     public static TheoryData<AutoTier?, string?> AutoTiers => new()
     {
         { AutoTier.Efficiency, "efficiency" },
         { AutoTier.Balance, "balance" },
         { AutoTier.Intelligence, "intelligence" },
+        { AutoTier.Fast, "fast" },
         { null, null },
     };
 
@@ -82,13 +149,13 @@ public class SessionEventSerializationTests
         }
     }
 
-    public static TheoryData<string> AutoTierSwitchFailureReasons =>
-    [
+    public static TheoryData<string> AutoTierSwitchFailureReasons => new()
+    {
         "policy_rejected",
         "request_failed",
         "setup_failed",
         "unsupported",
-    ];
+    };
 
     [Theory]
     [MemberData(nameof(AutoTierSwitchFailureReasons))]
@@ -102,7 +169,7 @@ public class SessionEventSerializationTests
                 "type": "session.auto_tier_switch_failed",
                 "data": {
                     "effectiveAutoTier": "balance",
-                    "requestedAutoTier": "intelligence",
+                    "requestedAutoTier": "fast",
                     "reason": "{{wireReason}}"
                 }
             }
@@ -113,7 +180,7 @@ public class SessionEventSerializationTests
         var data = Assert.IsType<SessionAutoTierSwitchFailedEvent>(sessionEvent).Data;
         Assert.Equal(new AutoTierSwitchFailureReason(wireReason), data.Reason);
         Assert.Equal(AutoTier.Balance, data.EffectiveAutoTier);
-        Assert.Equal(AutoTier.Intelligence, data.RequestedAutoTier);
+        Assert.Equal(AutoTier.Fast, data.RequestedAutoTier);
     }
 
     [Fact]

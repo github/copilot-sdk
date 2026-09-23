@@ -11,6 +11,7 @@ import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
+    AttachmentExtensionContext as GeneratedExtensionContextAttachment,
     AutoTier,
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
@@ -22,7 +23,7 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
-    ExtensionLaunchProviderHandler,
+    ExtensionLaunchProviderHandler as GeneratedExtensionLaunchProvider,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
@@ -42,7 +43,6 @@ export type {
     ExtensionLaunchProviderResolveRequest,
     ExtensionLaunchProviderResolveResult,
     ExtensionSource,
-    SessionRetainRequest,
 } from "./generated/rpc.js";
 export type {
     GitHubTokenAcquireReason,
@@ -504,9 +504,10 @@ export interface CopilotClientOptions {
      * startup; they never opt back into the runtime's legacy launcher.
      *
      * Each resolve receives the original source identity and optional runtime
-     * session/default-launch context. Return `defaultLaunch` unchanged only
-     * after approving the source and completing any required retention through
-     * `client.rpc.session.retain({ sessionId })`. An absent or null launch denies
+     * session/default-launch context. For canvas admission, the caller must
+     * already have a durable session and approve the source before returning
+     * `defaultLaunch` unchanged. This API does not persist a new or zero-turn
+     * chat. An absent or null launch denies
      * execution. The optional cancellation token is cancelled on request
      * cancellation, disconnect, or stop; late results are not reused.
      *
@@ -517,7 +518,7 @@ export interface CopilotClientOptions {
      *
      * @experimental
      */
-    extensionLaunchProvider?: ExtensionLaunchProviderHandler;
+    extensionLaunchProvider?: ExtensionLaunchProvider;
 
     /**
      * Experimental. Receives GitHub telemetry events the runtime forwards to
@@ -565,6 +566,9 @@ export interface CopilotClientOptions {
      */
     _internalConnection?: InternalRuntimeConnection;
 }
+
+/** Resolves launch profiles for extension entrypoints discovered by the runtime. */
+export type ExtensionLaunchProvider = GeneratedExtensionLaunchProvider;
 
 /**
  * Configuration for creating a session
@@ -743,6 +747,14 @@ export type ToolHandler<TArgs = unknown> = (
 export interface ZodSchema<T = unknown> {
     _output: T;
     toJSONSchema(): Record<string, unknown>;
+}
+
+/**
+ * A Zod-compatible output schema that both describes and parses a typed result.
+ * TypeScript types are erased at runtime, so typed output requires a schema value.
+ */
+export interface ResponseSchema<T = unknown> extends ZodSchema<T> {
+    parse(value: unknown): T;
 }
 
 /**
@@ -3375,6 +3387,9 @@ export interface ProviderModelConfig {
  */
 export type MessageSource = "user" | "system" | `agent-${string}`;
 
+/** Structured context contributed by an extension. */
+export type ExtensionContextAttachment = GeneratedExtensionContextAttachment;
+
 export interface MessageOptions {
     /**
      * The prompt/message to send
@@ -3389,7 +3404,7 @@ export interface MessageOptions {
     source?: MessageSource;
 
     /**
-     * File, directory, selection, or blob attachments
+     * File, directory, selection, blob, or extension context attachments
      */
     attachments?: Array<
         | {
@@ -3418,6 +3433,7 @@ export interface MessageOptions {
               mimeType: string;
               displayName?: string;
           }
+        | ExtensionContextAttachment
     >;
 
     /**
@@ -3442,6 +3458,20 @@ export interface MessageOptions {
      * If provided, this is shown in the timeline instead of `prompt`.
      */
     displayPrompt?: string;
+
+    /**
+     * JSON Schema or a Zod schema for this run's output, including requests after tool calls.
+     * Independent sends do not inherit it. Ordinary immediate steering retains the active
+     * schema and origin, even when promoted to a follow-up after the model request finishes.
+     * Specifying a schema with mode "immediate" is rejected, even while idle.
+     * This is not a persisted session default and does not survive a context reset.
+     *
+     * sendAndWait still returns an assistant message event. For a typed result, pass a
+     * Zod-compatible schema as sendAndWait's second argument instead.
+     * Streaming events remain text and may include intermediate messages.
+     * Use rpc.send's responseFormat for provider-specific name, description and strict options.
+     */
+    responseSchema?: ZodSchema | Record<string, unknown>;
 }
 
 /**

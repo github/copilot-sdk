@@ -38,6 +38,8 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("toolCallId") String toolCallId,
         /** Name of the tool being executed */
         @JsonProperty("toolName") String toolName,
+        /** Human-readable display title for the tool, when the selected tool descriptor has a non-empty title. */
+        @JsonProperty("toolTitle") String toolTitle,
         /** Arguments passed to the tool */
         @JsonProperty("arguments") Object arguments,
         /** Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools. */
@@ -48,10 +50,14 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("rte") Boolean rte,
         /** Name of the MCP server hosting this tool, when the tool is an MCP tool */
         @JsonProperty("mcpServerName") String mcpServerName,
+        /** Preferred lookup name for the MCP server hosting this tool: the configured (namespaced) config-map key when the tool carries one, otherwise the display name from `mcpServerName`. Present when the tool is an MCP tool; this is the name unrestricted provenance telemetry hashes so it joins with `mcp_server_setup`, which keys off the configured name too. */
+        @JsonProperty("mcpConfigServerName") String mcpConfigServerName,
         /** Original tool name on the MCP server, when the tool is an MCP tool */
         @JsonProperty("mcpToolName") String mcpToolName,
         /** Transport the MCP server hosting this tool is connected over, when the tool is an MCP tool and the server is configured */
         @JsonProperty("mcpTransport") McpServerTransport mcpTransport,
+        /** Where the MCP server's configuration came from (`user`, `workspace`, `plugin`, or `builtin`), when the tool is an MCP tool and the server is configured */
+        @JsonProperty("mcpConfigSource") McpServerSource mcpConfigSource,
         /** Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event */
         @JsonProperty("turnId") String turnId,
         /** When true, the tool output should be displayed expanded (verbatim) in the CLI timeline */

@@ -16,7 +16,7 @@ describe("Shell and fleet RPC", async () => {
 
     function createWriteFileCommand(markerPath: string, marker: string): string {
         if (os.platform() === "win32") {
-            return `powershell -NoLogo -NoProfile -Command "Set-Content -LiteralPath '${markerPath}' -Value '${marker}'"`;
+            return `echo ${marker}>"${markerPath}"`;
         }
         return `sh -c "printf '%s' '${marker}' > '${markerPath}'"`;
     }
@@ -68,7 +68,7 @@ describe("Shell and fleet RPC", async () => {
         const marker = "copilot-sdk-shell-rpc";
 
         const result = await session.rpc.shell.exec({
-            command: createWriteFileCommand(markerPath, marker),
+            command: createWriteFileCommand(path.basename(markerPath), marker),
             cwd: workDir,
         });
 

@@ -1005,8 +1005,9 @@ public class SessionEventHandlingTest {
 
     private AssistantMessageEvent createAssistantMessageEvent(String content) {
         var event = new AssistantMessageEvent();
-        var data = new AssistantMessageEvent.AssistantMessageEventData(null, null, content, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        var data = new AssistantMessageEvent.AssistantMessageEventData(null, null, null, content, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null);
         event.setData(data);
         return event;
     }

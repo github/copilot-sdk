@@ -213,10 +213,16 @@ it("joins a real CLI that does not support environment requests", async () => {
         onPermissionRequest: approveAll,
     });
 
+    // The fixture's `writeFileSync` creates the file empty and then fills it, so
+    // waiting only for the path to exist can read the truncated file and see "".
+    // Wait for the contents instead; the fixture writes this file exactly once,
+    // and a rejected join writes "rejected:<message>" rather than nothing.
     await retry(
         "wait for the env-access extension to join the session",
         async () => {
-            expect(existsSync(cliResultFile)).toBe(true);
+            expect(existsSync(cliResultFile) && readFileSync(cliResultFile, "utf-8") !== "").toBe(
+                true
+            );
         },
         300,
         100

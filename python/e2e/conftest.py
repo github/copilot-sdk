@@ -10,6 +10,8 @@ import pytest_asyncio
 import copilot._cli_download as cli_download
 
 from .testharness import E2ETestContext, is_inprocess_transport
+from .timeout_diagnostics import add_timeout_diagnostics, cancel_timed_out_test
+from .timeout_diagnostics import pytest_timeout_set_timer as pytest_timeout_set_timer
 
 # Host-side auth resolution ranks HMAC above the GitHub token, so an ambient
 # COPILOT_HMAC_KEY (CI sets one as a job-level credential) would be picked over
@@ -23,10 +25,17 @@ if not cli_download.CLI_VERSION:
     package_json = json.loads((Path(__file__).parents[2] / "nodejs" / "package.json").read_text())
     cli_download.CLI_VERSION = package_json["copilotCliVersion"]
 
-if is_inprocess_transport():
+
+def _neutralize_inprocess_environment() -> None:
+    """Remove host credentials while preserving an explicitly offline runtime."""
     os.environ.pop("COPILOT_HMAC_KEY", None)
     os.environ.pop("CAPI_HMAC_KEY", None)
-    os.environ.pop("COPILOT_CLI_PATH", None)
+    if not cli_download._should_skip_download():
+        os.environ.pop("COPILOT_CLI_PATH", None)
+
+
+if is_inprocess_transport():
+    _neutralize_inprocess_environment()
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
@@ -34,7 +43,9 @@ def pytest_runtest_makereport(item, call):
     """Track test failures to avoid writing corrupted snapshots."""
     outcome = yield
     rep = outcome.get_result()
+    add_timeout_diagnostics(item, call, rep)
     if rep.when == "call" and rep.failed:
+        cancel_timed_out_test(call)
         # Store on the item's stash so the fixture can access it
         item.session.stash.setdefault("any_test_failed", False)
         item.session.stash["any_test_failed"] = True

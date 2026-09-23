@@ -1432,6 +1432,7 @@ describe("CopilotClient", () => {
         { autoTier: "efficiency" },
         { autoTier: "balance" },
         { autoTier: "intelligence" },
+        { autoTier: "fast" },
         { autoTier: "balance", enableWebSocketResponses: false },
     ] satisfies (CapiSessionOptions | undefined)[])(
         "forwards capi options %j in session.create and session.resume",
@@ -2676,12 +2677,12 @@ describe("CopilotClient", () => {
                 throw new Error(`Unexpected method: ${method}`);
             });
 
-        await session.setModel("auto", { autoTier: "intelligence" });
+        await session.setModel("auto", { autoTier: "fast" });
 
         expect(spy).toHaveBeenCalledWith("session.model.switchTo", {
             sessionId: session.sessionId,
             modelId: "auto",
-            autoTier: "intelligence",
+            autoTier: "fast",
         });
 
         spy.mockRestore();
@@ -2726,7 +2727,7 @@ describe("CopilotClient", () => {
                     return {
                         status: "pending",
                         effectiveAutoTier: "balance",
-                        pendingAutoTier: "intelligence",
+                        pendingAutoTier: "fast",
                         activatingAutoTier: null,
                         supersededAutoTier: null,
                     };
@@ -2734,15 +2735,15 @@ describe("CopilotClient", () => {
                 throw new Error(`Unexpected method: ${method}`);
             });
 
-        const result = await session.setAutoTier("intelligence");
+        const result = await session.setAutoTier("fast");
 
         expect(spy).toHaveBeenCalledWith("session.model.switchAutoTier", {
             sessionId: session.sessionId,
-            autoTier: "intelligence",
+            autoTier: "fast",
         });
         expect(result.status).toBe("pending");
         expect(result.effectiveAutoTier).toBe("balance");
-        expect(result.pendingAutoTier).toBe("intelligence");
+        expect(result.pendingAutoTier).toBe("fast");
         expect(result.activatingAutoTier).toBeNull();
 
         spy.mockRestore();
@@ -4286,6 +4287,19 @@ describe("CopilotClient", () => {
     });
 
     describe("shutdown", () => {
+        it.each(["stop", "forceStop"] as const)(
+            "%s cancels pending inference requests before transport teardown",
+            async (method) => {
+                const client = new CopilotClient({ autoStart: false });
+                const cancelPending = vi.fn();
+                (client as any).requestAdapter = { cancelPending };
+
+                await client[method]();
+
+                expect(cancelPending).toHaveBeenCalledTimes(1);
+            }
+        );
+
         it.each(["stop", "forceStop"] as const)(
             "%s waits for the initial in-process cleanup attempt",
             async (method) => {

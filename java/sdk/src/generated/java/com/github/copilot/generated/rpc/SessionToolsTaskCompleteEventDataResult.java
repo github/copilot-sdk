@@ -33,6 +33,8 @@ public record SessionToolsTaskCompleteEventDataResult(
     /** Label-safe runtime rationale for the completion decision (e.g. a cancellation or pause/resume downgrade), when one applies. Reviewer-authored rationale is intentionally omitted here because this event has no IFC label channel; the reviewer's findings remain available through its own labeled sub-agent events */
     @JsonProperty("reason") String reason,
     /** Active autopilot objective ID evaluated by the completion reviewer */
-    @JsonProperty("objectiveId") Long objectiveId
+    @JsonProperty("objectiveId") Long objectiveId,
+    /** Structured blocker details when outcome is blocked */
+    @JsonProperty("blocker") TaskBlocker blocker
 ) {
 }

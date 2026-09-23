@@ -24,6 +24,9 @@ use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
 /// Acknowledgement and Auto preference snapshot returned by an Auto tier switch.
 pub use crate::generated::api_types::{ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus};
 /// Routing tier for the `auto` model with Auto mode V2.
+///
+/// [`AutoTier::Fast`] is an integrator-only latency preset, not a first-party
+/// GitHub Copilot product preference.
 pub use crate::generated::session_events::AutoTier;
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
@@ -1944,6 +1947,11 @@ pub struct SessionConfig {
     pub session_id: Option<SessionId>,
     /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     pub model: Option<String>,
+    /// Exact model IDs this session may use. When unset, the host imposes no
+    /// model restriction. The runtime validates configured IDs, rejects an
+    /// explicit empty list, and intersects the list with applicable model
+    /// policies.
+    pub allowed_models: Option<Vec<String>>,
     /// Application name sent as `User-Agent` context.
     pub client_name: Option<String>,
     /// Reasoning effort level (e.g. `"low"`, `"medium"`, `"high"`).
@@ -2302,6 +2310,7 @@ impl std::fmt::Debug for SessionConfig {
         f.debug_struct("SessionConfig")
             .field("session_id", &self.session_id)
             .field("model", &self.model)
+            .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
@@ -2449,6 +2458,7 @@ impl Default for SessionConfig {
         Self {
             session_id: None,
             model: None,
+            allowed_models: None,
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
@@ -2620,6 +2630,7 @@ impl SessionConfig {
         let wire = crate::wire::SessionCreateWire {
             session_id,
             model: self.model,
+            allowed_models: self.allowed_models,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
@@ -2841,6 +2852,19 @@ impl SessionConfig {
     /// Set the model identifier (e.g. `"claude-sonnet-4"`).
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Restrict this session to the provided exact model IDs.
+    ///
+    /// Passing an empty iterator sends an explicit empty list, which the
+    /// runtime rejects.
+    pub fn with_allowed_models<I, S>(mut self, models: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.allowed_models = Some(models.into_iter().map(Into::into).collect());
         self
     }
 
@@ -3402,6 +3426,11 @@ pub struct ResumeSessionConfig {
     /// Model to use for this session (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     /// Can change the model when resuming.
     pub model: Option<String>,
+    /// Exact model IDs the resumed session may use. When unset, the host
+    /// imposes no model restriction. The runtime validates configured IDs,
+    /// rejects an explicit empty list, and intersects the list with applicable
+    /// model policies.
+    pub allowed_models: Option<Vec<String>>,
     /// Application name sent as User-Agent context.
     pub client_name: Option<String>,
     /// Desired reasoning effort to apply after resuming the session.
@@ -3672,6 +3701,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
         f.debug_struct("ResumeSessionConfig")
             .field("session_id", &self.session_id)
             .field("model", &self.model)
+            .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
@@ -3862,6 +3892,7 @@ impl ResumeSessionConfig {
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
             model: self.model,
+            allowed_models: self.allowed_models,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
@@ -3971,6 +4002,7 @@ impl ResumeSessionConfig {
         Self {
             session_id,
             model: None,
+            allowed_models: None,
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
@@ -4163,6 +4195,19 @@ impl ResumeSessionConfig {
     /// Set the model identifier to switch to on resume (e.g. `"claude-sonnet-4"`).
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Restrict the resumed session to the provided exact model IDs.
+    ///
+    /// Passing an empty iterator sends an explicit empty list, which the
+    /// runtime rejects.
+    pub fn with_allowed_models<I, S>(mut self, models: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.allowed_models = Some(models.into_iter().map(Into::into).collect());
         self
     }
 
@@ -5110,6 +5155,25 @@ pub enum Attachment {
         #[serde(skip_serializing_if = "Option::is_none")]
         display_name: Option<String>,
     },
+    /// Context captured from an extension-owned canvas.
+    #[serde(rename = "extension_context")]
+    ExtensionContext {
+        /// ISO 8601 timestamp when the context was captured.
+        captured_at: String,
+        /// Extension that owns the canvas.
+        extension_id: String,
+        /// Canvas declaration identifier when the context is bound to a canvas.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        canvas_id: Option<String>,
+        /// Open canvas instance identifier when the context is bound to a canvas.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        instance_id: Option<String>,
+        /// Human-readable context title.
+        title: String,
+        /// Extension-defined structured context payload.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        payload: Option<Value>,
+    },
     /// A reference to a GitHub issue, PR, or discussion.
     #[serde(rename = "github_reference")]
     GitHubReference {
@@ -5254,7 +5318,8 @@ impl Attachment {
             | Self::GitHubTreeComparison { .. }
             | Self::GitHubUrl { .. }
             | Self::GitHubFile { .. }
-            | Self::GitHubSnippet { .. } => None,
+            | Self::GitHubSnippet { .. }
+            | Self::ExtensionContext { .. } => None,
         }
     }
 
@@ -5274,6 +5339,9 @@ impl Attachment {
             } else {
                 title.trim().to_string()
             }),
+            Self::ExtensionContext { title, .. } if !title.trim().is_empty() => {
+                Some(title.trim().to_string())
+            }
             _ => self.derived_display_name(),
         }
     }
@@ -5306,7 +5374,8 @@ impl Attachment {
             | Self::GitHubTreeComparison { .. }
             | Self::GitHubUrl { .. }
             | Self::GitHubFile { .. }
-            | Self::GitHubSnippet { .. } => {}
+            | Self::GitHubSnippet { .. }
+            | Self::ExtensionContext { .. } => {}
         }
     }
 
@@ -5326,7 +5395,8 @@ impl Attachment {
             | Self::GitHubTreeComparison { .. }
             | Self::GitHubUrl { .. }
             | Self::GitHubFile { .. }
-            | Self::GitHubSnippet { .. } => None,
+            | Self::GitHubSnippet { .. }
+            | Self::ExtensionContext { .. } => None,
         }
     }
 }
@@ -5460,6 +5530,9 @@ pub enum AgentMode {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct MessageOptions {
+    /// Per-run JSON Schema. Independent sends and subagents do not inherit it.
+    /// Immediate steering must not specify a schema. Streaming events remain text.
+    pub response_schema: Option<Value>,
     /// The user prompt to send.
     pub prompt: String,
     /// Optional message provenance. When `None`, the field is omitted,
@@ -5504,6 +5577,7 @@ impl MessageOptions {
     pub fn new(prompt: impl Into<String>) -> Self {
         Self {
             prompt: prompt.into(),
+            response_schema: None,
             source: None,
             mode: None,
             agent_mode: None,
@@ -5519,6 +5593,12 @@ impl MessageOptions {
     /// Set the message provenance without changing its delivery mode.
     pub fn with_source(mut self, source: MessageSource) -> Self {
         self.source = Some(source);
+        self
+    }
+
+    /// Request provider-native structured output for this run.
+    pub fn with_response_schema(mut self, schema: Value) -> Self {
+        self.response_schema = Some(schema);
         self
     }
 
@@ -6493,6 +6573,7 @@ mod tests {
     fn session_config_default_wire_flags_off_without_handlers() {
         let cfg = SessionConfig::default();
         assert_eq!(cfg.mcp_oauth_token_storage, None);
+        assert_eq!(cfg.allowed_models, None);
         // Wire flags are derived from handler presence at create_session
         // time, not stored on the config. With no handlers installed, every
         // request_* flag should serialize as false.
@@ -6508,12 +6589,14 @@ mod tests {
         assert!(!wire.request_mcp_apps);
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("askUserVariant").is_none());
+        assert!(json.get("allowedModels").is_none());
     }
 
     #[test]
     fn resume_session_config_new_wire_flags_off_without_handlers() {
         let cfg = ResumeSessionConfig::new(SessionId::from("resume-flags"));
         assert_eq!(cfg.mcp_oauth_token_storage, None);
+        assert_eq!(cfg.allowed_models, None);
         let (wire, _runtime) = cfg
             .into_wire()
             .expect("default resume config has no duplicate handlers");
@@ -6526,6 +6609,43 @@ mod tests {
         assert!(!wire.request_mcp_apps);
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("askUserVariant").is_none());
+        assert!(json.get("allowedModels").is_none());
+    }
+
+    #[test]
+    fn session_configs_build_debug_and_serialize_allowed_models() {
+        let create = SessionConfig::default().with_allowed_models(["gpt-5.4", "claude-sonnet-4"]);
+        assert_eq!(
+            create.allowed_models.as_deref(),
+            Some(&["gpt-5.4".to_string(), "claude-sonnet-4".to_string()][..])
+        );
+        assert!(format!("{create:?}").contains("allowed_models"));
+
+        let (create_wire, _) = create
+            .into_wire(Some(SessionId::from("create-allowed-models")))
+            .expect("allowed model config has no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(
+            create_json["allowedModels"],
+            json!(["gpt-5.4", "claude-sonnet-4"])
+        );
+
+        let resume = ResumeSessionConfig::new(SessionId::from("resume-allowed-models"))
+            .with_allowed_models(vec!["gpt-5.4".to_string(), "gpt-5-mini".to_string()]);
+        assert_eq!(
+            resume.allowed_models.as_deref(),
+            Some(&["gpt-5.4".to_string(), "gpt-5-mini".to_string()][..])
+        );
+        assert!(format!("{resume:?}").contains("allowed_models"));
+
+        let (resume_wire, _) = resume
+            .into_wire()
+            .expect("resume allowed model config has no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(
+            resume_json["allowedModels"],
+            json!(["gpt-5.4", "gpt-5-mini"])
+        );
     }
 
     #[test]
@@ -7562,6 +7682,7 @@ mod tests {
             (AutoTier::Efficiency, "efficiency"),
             (AutoTier::Balance, "balance"),
             (AutoTier::Intelligence, "intelligence"),
+            (AutoTier::Fast, "fast"),
         ] {
             let exported: crate::AutoTier = tier.clone();
             let capi = CapiSessionOptions::new().with_auto_tier(exported);
@@ -7800,11 +7921,17 @@ mod tests {
                 "referenceType": "issue",
                 "state": "open",
                 "url": "https://github.com/example/repo/issues/42"
+            },
+            {
+                "type": "extension_context",
+                "capturedAt": "2026-09-18T11:00:00Z",
+                "extensionId": "example:extension",
+                "title": "Unbound context"
             }
         ]))
         .expect("attachments should deserialize");
 
-        assert_eq!(attachments.len(), 5);
+        assert_eq!(attachments.len(), 6);
         assert!(matches!(
             &attachments[0],
             Attachment::File {
@@ -7851,6 +7978,28 @@ mod tests {
                 && state == "open"
                 && url == "https://github.com/example/repo/issues/42"
         ));
+        assert!(matches!(
+            &attachments[5],
+            Attachment::ExtensionContext {
+                captured_at,
+                extension_id,
+                canvas_id: None,
+                instance_id: None,
+                title,
+                payload: None,
+            } if captured_at == "2026-09-18T11:00:00Z"
+                && extension_id == "example:extension"
+                && title == "Unbound context"
+        ));
+        assert_eq!(
+            serde_json::to_value(&attachments[5]).expect("serialize extension context"),
+            json!({
+                "type": "extension_context",
+                "capturedAt": "2026-09-18T11:00:00Z",
+                "extensionId": "example:extension",
+                "title": "Unbound context"
+            })
+        );
     }
 
     #[test]

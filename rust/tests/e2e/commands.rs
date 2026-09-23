@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use github_copilot_sdk::rpc::{
     CommandsInvokeRequest, CommandsListRequest, CommandsRespondToQueuedCommandRequest,
-    EnqueueCommandParams, ExecuteCommandParams, RegisterEventInterestParams,
+    EnqueueCommandParams, EnqueueCommandResult, ExecuteCommandParams, RegisterEventInterestParams,
     ReleaseEventInterestParams, SlashCommandInvocationResult, SlashCommandKind,
 };
 use github_copilot_sdk::session_events::{CommandQueuedData, SessionEventType};
@@ -214,7 +214,10 @@ async fn session_commands_enqueue_and_respond_to_queued_command() {
                     })
                     .await
                     .expect("enqueue command");
-                assert!(result.queued);
+                assert!(matches!(
+                    result,
+                    EnqueueCommandResult::AcceptedEnqueueCommandResult(result) if result.queued
+                ));
 
                 let queued = queued_event
                     .await

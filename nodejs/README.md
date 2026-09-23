@@ -14,13 +14,27 @@ verified `github/copilot-cli` release assets when the SDK is published, so
 starting the SDK performs no runtime download. Set `COPILOT_CLI_PATH` to use an
 existing installation instead.
 
-The checked-in release pin is `copilotCliVersion` in `package.json`. Run
-`npm run set:cli-version -- <version>` to update it and regenerate the compiled
-metadata in `src/cliVersion.ts`. Packaging verifies release assets against the
-release's `SHA256SUMS.txt`.
+The checked-in `copilotCliVersion` in `package.json` and compiled metadata in
+`src/cliVersion.ts` use a development placeholder. The public SDK snapshot
+replaces both with the CLI version published for that snapshot.
+
+Do not change these pins for runtime-repository development. If they contain
+`0.0.0-dev`, use the same-checkout runtime; release snapshot export owns replacing
+development placeholders with a published CLI version. See
+[checkout preparation](../CONTRIBUTING.md#testing-an-unreleased-runtime-api).
 
 `npm run pack:release` builds the main package and all platform packages. Set
 `COPILOT_CLI_DOWNLOAD_BASE_URL` to use a release mirror while packaging.
+Release workflows instead set `COPILOT_SDK_RUNTIME_PACKAGE_DIR` to a directory
+containing validated runtime npm package roots named for all eight platforms.
+This keeps `COPILOT_CLI_USE_NPM_PACKAGE` false and embeds those runtime files in
+the self-contained SDK platform packages.
+
+In the runtime repository, packaging uses the prepared same-checkout runtime.
+Set `COPILOT_SDK_RUNTIME_PLATFORMS` to the available target (for example,
+`linux-x64`) for both `pack:release` and `verify:release-packages`. SDK CI checks
+that target only; public release workflows leave this unset to package and
+verify all eight platforms.
 
 ## Installation
 
@@ -30,7 +44,11 @@ npm install @github/copilot-sdk
 
 ## Run the Sample
 
-Try the interactive chat sample (from the repo root):
+Try the interactive chat sample from the SDK root (`src/sdk` when nested).
+In the runtime repository, first run `pnpm run build:cli` from the runtime root
+to prepare the same-checkout executable, then return to `src/sdk`.
+Building the Node SDK alone does not build the runtime. For dependency
+prerequisites, see [development setup](#development).
 
 ```bash
 cd nodejs
@@ -114,6 +132,7 @@ new CopilotClient(options?: CopilotClientOptions)
 - `mode?: "empty" | "copilot-cli"` - Defaulting strategy. Use `"empty"` for multi-user server mode; defaults to `"copilot-cli"`.
 - `workingDirectory?: string` - Working directory for the runtime process (default: current process cwd).
 - `baseDirectory?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When not set, the runtime defaults to `~/.copilot`. Ignored when connecting via `RuntimeConnection.forUri`.
+- `extensionLaunchProvider?: ExtensionLaunchProvider` - Experimental, connection-owned extension launch admission. Requires explicit runtime contract version 1; see [Extension launch admission](#extension-launch-admission-experimental).
 - `logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all"` - Log level. When omitted, the runtime uses its own default (currently `"info"`).
 - `env?: Record<string, string | undefined>` - Environment variables for the runtime process. When omitted, inherits `process.env`.
 - `gitHubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
@@ -122,7 +141,6 @@ new CopilotClient(options?: CopilotClientOptions)
 - `telemetry?: TelemetryConfig` - OpenTelemetry configuration for the runtime process. Providing this object enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `onGetTraceContext?: TraceContextProvider` - Advanced: callback for linking your application's own OpenTelemetry spans into the same distributed trace as the runtime's spans. Not needed for normal telemetry collection. See [Telemetry](#telemetry) below.
 - `sessionFs?: SessionFsConfig` - Custom session filesystem provider.
-- `extensionLaunchProvider?: ExtensionLaunchProviderHandler` - Experimental, connection-owned extension launch admission. Requires explicit runtime contract version 1; see [Extension launch admission](#extension-launch-admission-experimental).
 - `sessionIdleTimeoutSeconds?: number` - Server-wide idle timeout for sessions in seconds. Ignored when connecting via `RuntimeConnection.forUri`.
 - `enableRemoteSessions?: boolean` - Enable Mission Control remote session support. Ignored when connecting via `RuntimeConnection.forUri`.
 
@@ -140,23 +158,31 @@ the handler before the RPC handshake, registers it once per connection, and requ
 runtime's null acknowledgement, an unsupported version, or a registration error
 rejects startup. Omitting the option preserves legacy launching.
 
+Canvas embedding is limited to **existing, already-persisted chats**. The host
+must establish durability through its ordinary chat/session lifecycle before
+approving a launch. This SDK contract does not persist a new or zero-turn chat;
+canvas-first persistence is deferred.
+
 ```typescript
+// persistedSessionId comes from the host's already-persisted chat selection.
 const client = new CopilotClient({
     extensionLaunchProvider: {
         async resolve(request, cancellation) {
+            if (request.sessionId !== persistedSessionId || request.defaultLaunch === undefined) {
+                return { launch: null };
+            }
             // approveRevision is the embedding application's source-admission routine.
             if (!(await approveRevision(request, cancellation))) {
                 return { launch: null };
             }
-            if (!request.sessionId || !request.defaultLaunch) {
-                throw new Error("This launch requires session and runtime bootstrap context");
-            }
-            await client.rpc.session.retain({ sessionId: request.sessionId });
             return { launch: request.defaultLaunch };
         },
     },
 });
-await client.start();
+const session = await client.resumeSession(persistedSessionId, {
+    requestExtensions: true,
+    enableScriptSafety: true,
+});
 ```
 
 The request preserves the source-qualified ID, name, original module path,
@@ -178,17 +204,10 @@ requires support from the runtime contract.
 This contract does not sandbox Node, freeze files or dependencies, or
 implement source-revision approval or immediate revocation.
 
-`await client.rpc.session.retain({ sessionId })` works reentrantly while
-`createSession` is pending. After creation, `await session.rpc.retain()` performs
-the same operation. Both return the runtime's `null` acknowledgement only after
-durable retention and writer flush, and propagate errors. Retention is idempotent,
-requires a local session, and creates no prompt, turn, title, permission grant, or
-provider process. It preserves session storage across shutdown and cold resume,
-not volatile extension memory, and does not prevent explicit deletion.
-
-Approve the source revision, await retention, then return the approved launch
-recipe: top-level extension code can have effects before `joinSession` or canvas
-open. Create/resume completion is not registry readiness; wait for the expected
+For an already-durable session, approve the source revision before returning the
+launch recipe: top-level extension code can have effects before resume returns,
+`joinSession`, or canvas open. The SDK does not infer durability from a session ID
+or a successful resume. Create/resume completion is not registry readiness; wait for the expected
 entry in `session.rpc.canvas.list()` or a registry-change event before opening it.
 
 For read-only shell-command classification from the first new extension operation,
@@ -198,21 +217,21 @@ classified as read-only may run without a permission prompt, subject to runtime
 and managed policy. This is not blanket tool approval, a policy override, or
 retroactive protection for already-running extensions.
 
-The setting is in-memory, not persisted by retention. An omitted cold-resume
+The setting is in-memory, not a durable session preference. An omitted cold-resume
 setting uses the runtime default (classification disabled); omission on a resident
 resume preserves the current value. Hosts requiring classification should supply
 `true` on every create and cold resume. Explicit `false` and omission are forwarded
 without an SDK default.
 
-These bindings require a runtime implementing the launch v1 and retention
-contracts and initial script-safety configuration. The checked-in CLI pin alone
+These bindings require a runtime implementing the launch-v1 contract and initial
+script-safety configuration. The checked-in CLI pin alone
 does not establish their availability; an older runtime rejects these opt-in
 operations. Publishing and qualifying a matching SDK/runtime pair is a separate
 release step.
 
 These experimental high-level bindings are currently Node-only. Generated wire
 types or an earlier launch-provider API in another SDK do not establish equivalent
-launch-v1, retention, cancellation, or initial script-safety behavior.
+launch-v1, cancellation, or initial script-safety behavior.
 High-level parity in the other SDKs is a separate follow-up.
 
 ##### `stop(): Promise<Error[]>`
@@ -231,7 +250,7 @@ Create a new conversation session.
 
 - `sessionId?: string` - Custom session ID.
 - `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `capi?: CapiSessionOptions` - Copilot API options. With `model: "auto"`, set `autoTier` to `"efficiency"`, `"balance"`, or `"intelligence"` to choose a routing preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
+- `capi?: CapiSessionOptions` - Copilot API options. With `model: "auto"`, set `autoTier` to `"efficiency"`, `"balance"`, `"intelligence"`, or `"fast"` to choose a routing preference. `"fast"` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
 - `reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
 - `tools?: Tool[]` - Custom tools exposed to the CLI. Tools without `handler` are declaration-only and must be resolved via pending tool-call RPCs.
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
@@ -385,6 +404,87 @@ Send a message and wait until the session becomes idle.
 
 Returns the final assistant message event, or undefined if none was received.
 
+##### Structured output (preview)
+
+Requires a runtime build with `responseFormat` and `originatingMessageId` support.
+Pass a raw JSON Schema or a Zod schema as `responseSchema` to `send` or
+`sendAndWait`. As with custom tool parameters, the SDK converts Zod schemas to
+JSON Schema before sending them:
+
+```typescript
+import { z } from "zod";
+
+const answerSchema = z.object({ answer: z.number().int() });
+const message = await session.sendAndWait({
+    prompt: "What is 19 + 23?",
+    responseSchema: answerSchema,
+});
+console.log(message?.data.content); // JSON text
+```
+
+For a typed result, pass the Zod schema as the **second argument** instead:
+
+```typescript
+const answer = await session.sendAndWait("What is 19 + 23?", answerSchema);
+console.log(answer.answer); // number; TResult is inferred from answerSchema
+```
+
+`sendAndWait<TResult>(options, schema, timeout?)` generates the JSON Schema from
+the schema value, parses the final JSON, and validates it with the schema's
+`parse` method. TypeScript cannot derive a runtime schema from an erased type
+parameter alone. Invalid JSON, a schema mismatch, or a completed run without a
+matching assistant message throws. Do not also set `options.responseSchema` when
+using the typed overload.
+
+The schema belongs to the submitted run, including its tool-call iterations.
+Internally generated stop-hook corrections retain the schema and originating
+message ID, so the wait returns the corrected answer. Independent subsequent
+sends do not inherit it. Ordinary immediate steering inherits the active schema
+and originating message ID, even when it arrives too late for the current model
+request and is promoted into a follow-up run. Specifying a schema with
+`mode: "immediate"` is rejected, even while idle.
+The generated `session.rpc.send` and `session.rpc.sendMessages` wrappers expose
+the full `responseFormat` contract when you need to set its name, description,
+or strict option rather than using the convenience defaults (`name: "response"`,
+`strict: true`).
+Each batch starts one run: the final returned message ID is its origin, preceding
+messages are context, and an empty batch has no origin. An immediate batch
+steers the active run instead and retains its origin.
+The schema is not a persisted session default: autonomous resume-pending work
+after a restart does not restore it. A terminal tool that clears context ends
+the old run; its fresh seed does not inherit the schema or origin. Such a run
+can finish without a structured result, in which case the typed wait throws.
+After a successful terminal tool, the runtime disables tools while the model
+produces the structured result. Stop-hook corrections remain supported.
+Remote sessions and known HydraFusion routes reject response formats before
+admission. Schemas larger than 32 MiB when JSON-encoded are also rejected before
+admission, using the runtime's existing request-size ceiling. This does not
+guarantee the schema plus conversation and tools fits the provider's budget.
+
+Structured waits select the last root-agent message whose `originatingMessageId`
+matches the ID returned by their send, then return at a non-autopilot
+`session.idle`. Other queued work can delay that idle, but cannot replace the
+selected result. The existing unformatted overload retains its session-wide
+behavior. `turnId` identifies an individual model/tool iteration, not the whole
+run; telemetry interaction IDs are not unique run identifiers.
+
+For event-driven consumption with `send`, subscribe before sending and collect
+root `assistant.message` events whose `data.originatingMessageId` matches the ID
+returned by `send`; events may arrive before that acknowledgement. Wait for
+`session.idle`, then parse the last matching message without tool requests.
+An earlier response may be superseded by a stop-hook correction. Handle
+`session.error` and aborted idle events rather than returning a partial result.
+
+Streaming still delivers ordinary text events, including intermediate messages
+and tool calls. Only the final selected message is parsed by the typed overload;
+not every event is necessarily a complete schema-conforming JSON document.
+Provider errors, refusals, cancellation, truncation, session errors, and timeouts
+can prevent a typed result. A timeout stops waiting, not the runtime's work.
+Use a model and endpoint that support native structured output. An API-compatible
+gateway may ignore format fields even when it accepts the request; for example,
+the Claude Chat-completions compatibility route is not equivalent to Anthropic's
+native `output_config.format` endpoint.
+
 ##### `on(eventType: string, handler: TypedSessionEventHandler): () => void`
 
 Subscribe to a specific event type. The handler receives properly typed events.
@@ -434,7 +534,7 @@ Change the Auto routing preference without changing the selected model. Pass `nu
 
 The runtime does not apply the preference immediately. It records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
 
-Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure, and read the authoritative state at any time with `session.rpc.model.getCurrent()`.
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. A failed activation leaves the incumbent effective tier unchanged. Read the authoritative state at any time with `session.rpc.model.getCurrent()`.
 
 ```typescript
 const result = await session.setAutoTier("intelligence");
@@ -1272,25 +1372,35 @@ try {
 
 ## Development
 
-From the repository root:
+Follow [SDK development setup](../CONTRIBUTING.md#developing-an-sdk) first,
+including the harness and corrections-script dependencies. From the SDK root
+(`src/sdk` in the runtime repository, or the standalone repository root):
 
 ```bash
-cd test/harness
-npm ci
+npm run build:nodejs
+npm run test:nodejs
+npm run check:nodejs
 ```
 
+In the runtime layout, these build/test commands refresh the projection and
+prepare the checked-out runtime for tests. For focused unit tests after
+installing Node dependencies:
+
 ```bash
-cd nodejs
-npm ci
-npm test
+npm --prefix nodejs run test:unit
 ```
+
+For native Vitest selectors on E2Es, use the
+[prepared-runtime instructions](../CONTRIBUTING.md#testing-an-unreleased-runtime-api);
+the SDK facade does not forward selectors.
 
 Run `npm run generate` to regenerate bindings from the checksum-verified pinned
 CLI schemas. The default Node generator also applies the reviewed experimental
 [canvas schema revision](../scripts/codegen/experimental/canvas.schema.json).
 That checked-in input records the canonical producer schema hashes, the exact
-released predecessor fingerprints, and the launch-v1/retention fragments; it
-does not invent a CLI release or change the downloaded schemas.
+released predecessor fingerprints, and the launch-v1 API fragments; it does not
+invent a CLI release or change the downloaded schemas. Session events use the
+unmodified release schema; no no-turn persistence API or event is projected.
 
 The revision accepts only its recorded predecessor or an already matching
 canonical field. Unexpected changes fail generation rather than silently

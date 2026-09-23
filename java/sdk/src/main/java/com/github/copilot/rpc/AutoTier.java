@@ -21,7 +21,13 @@ public enum AutoTier {
     BALANCE("balance"),
 
     /** Prioritize intelligence. */
-    INTELLIGENCE("intelligence");
+    INTELLIGENCE("intelligence"),
+
+    /**
+     * Integrator-only preset that optimizes for latency. Not a first-party GitHub
+     * Copilot product preference.
+     */
+    FAST("fast");
 
     private final String value;
 

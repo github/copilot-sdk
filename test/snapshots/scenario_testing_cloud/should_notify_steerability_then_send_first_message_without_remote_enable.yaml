@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly SCENARIO_STEERABLE_FIRST_SEND.
+      - role: assistant
+        content: SCENARIO_STEERABLE_FIRST_SEND

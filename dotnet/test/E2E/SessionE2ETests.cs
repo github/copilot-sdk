@@ -54,8 +54,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             SystemMessage = new SystemMessageConfig { Mode = SystemMessageMode.Append, Content = systemMessageSuffix }
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is your full name?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions { Prompt = "What is your full name?" });
         Assert.NotNull(assistantMessage);
 
         var content = assistantMessage!.Data.Content ?? string.Empty;
@@ -78,8 +77,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             SystemMessage = new SystemMessageConfig { Mode = SystemMessageMode.Replace, Content = testSystemMessage }
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is your full name?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions { Prompt = "What is your full name?" });
         Assert.NotNull(assistantMessage);
 
         var content = assistantMessage!.Data.Content ?? string.Empty;
@@ -219,8 +217,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ]
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is the secret number for key ALPHA?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions { Prompt = "What is the secret number for key ALPHA?" });
         Assert.NotNull(assistantMessage);
         Assert.Contains("54321", assistantMessage!.Data.Content ?? string.Empty);
     }
@@ -392,12 +389,16 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // session.start is emitted during the session.create RPC; if the session
         // weren't registered in the sessions map before the RPC, it would be dropped.
         var earlyEvents = new List<SessionEvent>();
+        var earlyEventsLock = new object();
         var sessionStartReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnEvent = evt =>
             {
-                earlyEvents.Add(evt);
+                lock (earlyEventsLock)
+                {
+                    earlyEvents.Add(evt);
+                }
                 if (evt is SessionStartEvent)
                     sessionStartReceived.TrySetResult(true);
             },
@@ -405,7 +406,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         // session.start is dispatched asynchronously via the event channel.
         await sessionStartReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Contains(earlyEvents, evt => evt is SessionStartEvent);
+        lock (earlyEventsLock)
+        {
+            Assert.Contains(earlyEvents, evt => evt is SessionStartEvent);
+        }
 
         var receivedEvents = new List<SessionEvent>();
         var receivedEventsLock = new object();
@@ -463,10 +467,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Events must be dispatched serially — never more than one handler invocation at a time.
         Assert.Equal(1, maxConcurrent);
 
-        // Verify the assistant response contains the expected answer.
-        // session.idle is ephemeral and not in getEvents(), but we already
-        // confirmed idle via the live event handler above.
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session, alreadyIdle: true);
+        var assistantMessage = observedEvents.OfType<AssistantMessageEvent>().LastOrDefault();
         Assert.NotNull(assistantMessage);
         Assert.Contains("300", assistantMessage!.Data.Content);
 
@@ -481,8 +482,17 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
         var events = new ConcurrentQueue<string>();
+        AssistantMessageEvent? message = null;
 
-        session.On<SessionEvent>(evt => events.Enqueue(evt.Type));
+        session.On<SessionEvent>(evt =>
+        {
+            events.Enqueue(evt.Type);
+            if (evt is AssistantMessageEvent assistantMessage)
+            {
+                message = assistantMessage;
+            }
+        });
+        var idle = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
 
         // Use a slow command so we can verify SendAsync() returns before completion
         await session.SendAsync(new MessageOptions { Prompt = "Run 'sleep 2 && echo done'" });
@@ -491,7 +501,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         Assert.DoesNotContain("session.idle", events);
 
         // Wait for turn to complete
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+        await idle;
 
         Assert.Contains("done", message?.Data.Content ?? string.Empty);
         Assert.Contains("session.idle", events);

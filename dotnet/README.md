@@ -23,7 +23,8 @@ Set `CopilotCliBinaryPath` to copy a preinstalled binary instead, or set
 
 ## Run the Samples
 
-Try the interactive chat sample (from the repo root):
+Try the interactive chat sample from the SDK root (`src/sdk` when nested).
+For checkout builds, first follow [development setup](#development):
 
 ```bash
 dotnet run --file dotnet/samples/Chat.cs
@@ -251,6 +252,7 @@ Send a message to the session.
 - `Attachments` - File attachments
 - `Mode` - Delivery mode ("enqueue" or "immediate")
 - `Source` - Optional message origin: `MessageSource.User`, `MessageSource.System`, or `MessageSource.Agent(id)`. Omitted by default, preserving the runtime's default user behavior.
+- `ResponseSchema` - Experimental provider-native JSON Schema (`JsonElement`) for this turn.
 
 Returns the message ID.
 
@@ -276,6 +278,132 @@ await session.SendAndWaitAsync(new MessageOptions
 
 Agent sources serialize as `agent-<id>`. Pass the agent ID without adding a
 prefix. The SDK preserves its case and whitespace and rejects null IDs.
+
+##### Structured outputs (experimental)
+
+Use `SendAndWaitAsync<TResult>` to infer a JSON Schema from a .NET type and
+deserialize the final response. Schema inference uses
+`Microsoft.Extensions.AI.AIJsonUtilities`, the same technology as custom tools.
+In a reflection-enabled application, `await session.SendAndWaitAsync<Inventory>(prompt)`
+needs no serialization configuration. The example below supplies source-generated
+metadata so it also works when reflection serialization is disabled.
+
+```csharp
+var result = await session.SendAndWaitAsync<Inventory>(
+    "How many red widgets are in stock?",
+    serializerOptions: InventoryJsonContext.Default.Options);
+Console.WriteLine($"{result.Count} {result.Color} widgets");
+
+public sealed class Inventory
+{
+    public required int Count { get; set; }
+    public required string Color { get; set; }
+}
+
+[System.Text.Json.Serialization.JsonSourceGenerationOptions(
+    PropertyNamingPolicy = System.Text.Json.Serialization.JsonKnownNamingPolicy.CamelCase)]
+[System.Text.Json.Serialization.JsonSerializable(typeof(Inventory))]
+internal partial class InventoryJsonContext : System.Text.Json.Serialization.JsonSerializerContext;
+```
+
+The same serialization options govern schema inference and deserialization,
+including naming policies, `[JsonPropertyName]`, converters, required members,
+and nullable annotations. Options default to `AIJsonUtilities.DefaultOptions`,
+as for custom tools. Supply a source-generated resolver (as above) for Native
+AOT or when reflection serialization is disabled. The typed helper requests
+strict output, marks all schema properties required, and disallows additional
+properties; nullable properties can still contain JSON null.
+
+The helper waits for non-autopilot session idle after the requested user message
+is consumed, selecting only root assistant messages with that originating message
+ID. This can wait for other queued work to drain, but other messages and subagent
+responses cannot replace the result. Session errors or an aborted idle after the
+requested run starts conservatively fail the wait, even if later queued work
+caused them. It throws `InvalidOperationException` when there is no final response,
+and `JsonException` for invalid JSON, an incompatible
+value, or a null result. Deserialization is not full JSON Schema validation:
+validate application-specific constraints yourself. Timeout defaults to 60
+seconds; timeout and cancellation stop waiting without aborting runtime work.
+The original `MessageOptions` is not modified, and an explicit `ResponseSchema`
+cannot be combined with this typed overload.
+
+For an explicit schema, set `MessageOptions.ResponseSchema`. Schemas are opaque
+`JsonElement` values, just like custom-tool schemas. The SDK forwards this schema
+unchanged with the name `response` and `strict: true`. The untyped
+`SendAndWaitAsync` still returns an assistant message event; it does not validate
+or deserialize the response. Schema-bearing waits use the same message
+correlation as typed waits; unformatted waits retain their existing behavior.
+
+With `SendAsync`, collect root `AssistantMessageEvent` events whose
+`Data.OriginatingMessageId` matches the returned message ID, then select the last
+one without tool requests when the session becomes idle. Subscribe before sending
+because events can precede the send acknowledgement, and handle `SessionErrorEvent` normally.
+There is no final-message flag: stop hooks can reject an initial answer and
+request a correction. Those corrections retain the original schema and
+originating message ID, so `SendAndWaitAsync` selects the corrected response at
+idle. Independent queued sends retain their own schemas and IDs.
+
+```csharp
+using var schema = System.Text.Json.JsonDocument.Parse("""
+    {"type":"object","properties":{"count":{"type":"integer"}},"required":["count"],"additionalProperties":false}
+    """);
+var message = await session.SendAndWaitAsync(new MessageOptions
+{
+    Prompt = "Count the widgets.",
+    ResponseSchema = schema.RootElement.Clone(),
+});
+```
+
+Use the generated `session.Rpc` APIs for advanced response-format options:
+
+```csharp
+using GitHub.Copilot.Rpc;
+using System.Text.Json;
+
+using var schema = JsonDocument.Parse("""
+    {"type":"object","properties":{"count":{"type":"integer"}},"required":["count"],"additionalProperties":false}
+    """);
+var format = new ResponseFormatJsonSchema
+{
+    JsonSchema = new JsonSchemaResponseFormat
+    {
+        Name = "inventory",
+        Schema = schema.RootElement.Clone(),
+        Strict = true,
+        Description = "The inventory count",
+    },
+};
+await session.Rpc.SendAsync("Count the widgets.", responseFormat: format);
+// A batch shares one output contract:
+await session.Rpc.SendMessagesAsync(
+    [new() { Prompt = "There are 42 widgets." }, new() { Prompt = "Report the count." }],
+    responseFormat: format);
+```
+
+Raw schemas and outputs are passed through without validation or rewriting.
+Provider support and schema restrictions apply. The format persists through
+tool continuations in that run, not independent subsequent runs. An ordinary
+`Mode = "immediate"` steering message inherits the active format and originating
+message ID, even if it arrives after the final model request and is promoted
+into a follow-up run. Specifying a new format on an immediate message is rejected,
+even while idle.
+Each batch starts one run: the final returned message ID is its origin, preceding
+messages are context, and an empty batch has no origin. An immediate batch
+steers the active run instead and retains its origin.
+The schema is not a persisted session default: autonomous resume-pending work
+after a restart does not restore it. A terminal tool that clears context ends
+the old run; its fresh seed does not inherit the schema or origin. Such a run
+can finish without a structured result, in which case the typed wait throws.
+After a successful terminal tool, the runtime disables tools while the model
+produces the structured result. Stop-hook corrections remain supported.
+Remote sessions and known HydraFusion routes reject response formats before
+admission. Schemas larger than 32 MiB when JSON-encoded are also rejected before
+admission, using the runtime's existing request-size ceiling. This does not
+guarantee the schema plus conversation and tools fits the provider's budget.
+Use a provider route that enforces JSON Schema: an API-compatible gateway can
+ignore unsupported format fields, and the Claude Chat-completions compatibility
+route is not equivalent to Anthropic's native Messages endpoint. The SDK's
+pinned CLI release includes the required runtime support.
 
 ##### `On(Action<SessionEvent> handler): IDisposable`
 
@@ -317,9 +445,13 @@ await session2.DisposeAsync();
 
 ## Auto routing tiers
 
+The canonical values are `AutoTier.Efficiency`, `AutoTier.Balance`, `AutoTier.Intelligence`, and `AutoTier.Fast`, which send `efficiency`, `balance`, `intelligence`, and `fast` on the wire. Fast is an integrator-only latency preset, not a fourth first-party GitHub Copilot preference. The SDK forwards the requested value without deciding eligibility or inspecting client identity. An externally supplied older runtime returns its native runtime or JSON-RPC error; the SDK does not downgrade or silently ignore the request.
+
+Omitting the tier on create uses the runtime default rather than Balance. A cold resume restores the persisted tier unless the resume request supplies an explicit override.
+
 Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
 
-Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. A failed activation leaves the incumbent effective tier unchanged. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
 
 ```csharp
 var result = await session.SetAutoTierAsync(AutoTier.Intelligence);
@@ -1119,21 +1251,26 @@ catch (Exception ex)
 
 ## Development
 
-Development requires [.NET SDK 10+](https://dotnet.microsoft.com/download) and a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
+Follow [SDK development setup](../CONTRIBUTING.md#developing-an-sdk) for the
+.NET SDK selected by `global.json`, the **.NET 8 test runtime**, and Node/harness
+dependencies. SDK 10 alone does not install the runtime for `net8.0` tests;
+Windows additionally runs `net472` tests.
+
+From the SDK root (`src/sdk` in the runtime repository, or the standalone
+repository root):
 
 ```bash
-cd nodejs
-npm ci
+npm run build:dotnet
+npm run test:dotnet
+npm run check:dotnet
 ```
 
-```bash
-cd test/harness
-npm ci
-```
+For a focused native test, first
+[prepare the runtime](../CONTRIBUTING.md#testing-an-unreleased-runtime-api),
+then run from `dotnet/` so `global.json` applies:
 
 ```bash
-cd dotnet
-dotnet test
+dotnet test test/GitHub.Copilot.SDK.Test.csproj --filter "FullyQualifiedName~<test-name>"
 ```
 
 ## License

@@ -1,0 +1,456 @@
+# Acquires target-specific runtime artifacts, then fans build, test, codegen,
+# and documentation checks out to the SDK language workflows.
+name: "SDK build and test"
+
+env:
+  COPILOT_BAZEL_ANG_ENABLED: ${{ vars.COPILOT_BAZEL_ANG_ENABLED }}
+  HUSKY: 0
+  POWERSHELL_UPDATECHECK: Off
+  SETUP_NODE_TIMEOUT_MINUTES: 10
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event_name == 'push' || github.event_name == 'pull_request') && github.ref != 'refs/heads/main' && github.run_attempt == 1 && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  detect-layout:
+    name: "Detect SDK layout"
+    runs-on: ubuntu-latest
+    outputs:
+      runtime-source: ${{ steps.detect.outputs.runtime-source }}
+      sdk-home: ${{ steps.detect.outputs.sdk-home }}
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - id: detect
+        run: |
+          if [[ -f src/sdk/package.json && -f script/sea-build.ts ]]; then
+            echo "runtime-source=checkout" >> "$GITHUB_OUTPUT"
+            echo "sdk-home=src/sdk" >> "$GITHUB_OUTPUT"
+          elif [[ -f package.json && -f nodejs/package.json ]]; then
+            echo "runtime-source=published" >> "$GITHUB_OUTPUT"
+            echo "sdk-home=." >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Unable to identify the SDK repository layout."
+            exit 1
+          fi
+
+  # TEMPORARY MERGE QUEUE REDUCTION: pull requests and main pushes retain the
+  # full platform matrix. Merge groups rerun Linux x64 as the representative
+  # compatibility lane. Remove the merge_group gates below to restore it.
+  build-runtime-windows-x64-addons:
+    name: "Build runtime addons (win32-x64)"
+    needs: detect-layout
+    if: github.event_name != 'merge_group' && needs.detect-layout.outputs.runtime-source == 'checkout'
+    runs-on: ubuntu-latest-xl
+    timeout-minutes: 60
+    concurrency:
+      group: windows-x64-addons-release-windows-e2e-no-icf-${{ github.sha }}
+      queue: max
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+
+      - name: Restore completed Windows x64 addons
+        id: cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            windows-x64-addons-receipt.txt
+            src/native/runtime/runtime.win32-x64-msvc.node
+            src/native/runtime/copilot-runtime.win32-x64-msvc.exe
+            src/native/runtime/index.d.ts
+            src/native/cli/cli-native.win32-x64-msvc.node
+            src/native/cli/index.d.ts
+          key: windows-x64-addons-v1-release-windows-e2e-no-icf-${{ github.sha }}
+
+      - uses: ./.github/actions/setup-node
+        if: steps.cache.outputs.cache-hit != 'true'
+        timeout-minutes: ${{ fromJSON(env.SETUP_NODE_TIMEOUT_MINUTES) }}
+      - uses: ./.github/actions/setup-bazel
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          datadog-api-key: ${{ secrets.DATADOG_API_KEY }}
+          datadog-site: ${{ vars.DATADOG_SITE || vars.DD_SITE }}
+
+      - name: Cache xwin downloads
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v6
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/bazel-xwin-cache/dl
+          key: bazel-xwin-v2-vs17.14.37628.2-sdk10.0.26100-crt14.44.17.14-x86_64
+
+      - name: Point the Bazel repository rule at the xwin cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          XWIN_CACHE_DIR: ${{ runner.temp }}/bazel-xwin-cache
+        run: echo "common --repo_env=COPILOT_BAZEL_XWIN_CACHE_DIR=${XWIN_CACHE_DIR}" >> local.bazelrc
+
+      - name: Cross-build Windows x64 addons
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          CLI_GIT_COMMIT: ${{ github.sha }}
+          CLI_PACKAGE_NAME: "@github/copilot"
+          CLI_TARGET: win32-x64
+          COPILOT_RUNTIME_E2E_TEST_HOOKS: "1"
+        run: |
+          export CLI_VERSION="0.0.1-${GITHUB_SHA::7}"
+          node --experimental-strip-types script/build-addons-bazel.ts \
+            --profile release \
+            --platform win32 \
+            --arch x64 \
+            --bazel-config=windows-e2e-no-icf
+
+      - name: Verify Windows x64 addons
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          for artifact in \
+            src/native/runtime/runtime.win32-x64-msvc.node \
+            src/native/runtime/copilot-runtime.win32-x64-msvc.exe \
+            src/native/cli/cli-native.win32-x64-msvc.node; do
+            test -s "$artifact"
+            file "$artifact" | grep -q "PE32+"
+          done
+
+      - name: Record completed Windows x64 addons
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: printf 'profile=release\nbazel-config=windows-e2e-no-icf\nsha=%s\n' "$GITHUB_SHA" > windows-x64-addons-receipt.txt
+
+      - name: Save completed Windows x64 addons
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            windows-x64-addons-receipt.txt
+            src/native/runtime/runtime.win32-x64-msvc.node
+            src/native/runtime/copilot-runtime.win32-x64-msvc.exe
+            src/native/runtime/index.d.ts
+            src/native/cli/cli-native.win32-x64-msvc.node
+            src/native/cli/index.d.ts
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sdk-bazel-cross-addons-win32-x64-release
+          path: |
+            src/native/runtime/runtime.win32-x64-msvc.node
+            src/native/runtime/copilot-runtime.win32-x64-msvc.exe
+            src/native/runtime/index.d.ts
+            src/native/cli/cli-native.win32-x64-msvc.node
+            src/native/cli/index.d.ts
+          if-no-files-found: error
+          retention-days: 1
+
+  build-runtime-linux-x64:
+    name: "Build runtime (linux-x64)"
+    needs: detect-layout
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: read
+    uses: ./.github/workflows/sdk-runtime-artifact.yml
+    with:
+      runtime-source: ${{ needs.detect-layout.outputs.runtime-source }}
+      sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
+      os: ubuntu-latest-xl
+      target: linux-x64
+      artifact: Linux-X64-gnu
+      bazel-config: e2e-no-lto
+      shared-cli-build-compatible: true
+      timeout-minutes: 60
+    secrets: inherit
+
+  build-runtime-linuxmusl-x64:
+    name: "Build runtime (linuxmusl-x64)"
+    needs: detect-layout
+    if: github.event_name != 'merge_group'
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: read
+    uses: ./.github/workflows/sdk-runtime-artifact.yml
+    with:
+      runtime-source: ${{ needs.detect-layout.outputs.runtime-source }}
+      sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
+      os: ubuntu-latest-xl
+      target: linuxmusl-x64
+      artifact: Linux-X64-musl
+      bazel-config: e2e-no-lto
+      timeout-minutes: 60
+    secrets: inherit
+
+  build-runtime-darwin-arm64:
+    name: "Build runtime (darwin-arm64)"
+    needs: detect-layout
+    if: github.event_name != 'merge_group'
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: read
+    uses: ./.github/workflows/sdk-runtime-artifact.yml
+    with:
+      runtime-source: ${{ needs.detect-layout.outputs.runtime-source }}
+      sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
+      os: macos-latest-xlarge
+      target: darwin-arm64
+      artifact: macOS-ARM64
+      bazel-config: e2e-no-lto
+      use-bazel-addons-on-darwin: true
+      shared-cli-build-compatible: true
+      timeout-minutes: 60
+    secrets: inherit
+
+  build-runtime-win32-x64:
+    name: "Build runtime (win32-x64)"
+    needs: [detect-layout, build-runtime-windows-x64-addons]
+    if: always() && github.event_name != 'merge_group' && needs.detect-layout.result == 'success' && (needs.detect-layout.outputs.runtime-source == 'published' || needs.build-runtime-windows-x64-addons.result == 'success')
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: read
+    uses: ./.github/workflows/sdk-runtime-artifact.yml
+    with:
+      runtime-source: ${{ needs.detect-layout.outputs.runtime-source }}
+      sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
+      os: windows-2025-16core
+      target: win32-x64
+      artifact: Windows-X64
+      bazel-config: windows-e2e-no-icf
+      shared-cli-build-compatible: true
+      prebuilt-addons-artifact: ${{ needs.detect-layout.outputs.runtime-source == 'checkout' && 'sdk-bazel-cross-addons-win32-x64-release' || '' }}
+      timeout-minutes: 60
+    secrets: inherit
+
+  sdk-linux-x64:
+    name: "Linux x64"
+    needs: [detect-layout, build-runtime-linux-x64]
+    uses: ./.github/workflows/sdk-platform.yml
+    with:
+      platform: linux-x64
+      sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
+    secrets: inherit
+
+  sdk-linuxmusl-x64:
+    name: "Linux musl x64"
+    needs: [detect-layout, build-runtime-linuxmusl-x64]
+    if: github.event_name != 'merge_group'
+    uses: ./.github/workflows/sdk-platform.yml
+    with:
+      platform: linuxmusl-x64
+      sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
+    secrets: inherit
+
+  sdk-darwin-arm64:
+    name: "macOS ARM64"
+    needs: [detect-layout, build-runtime-darwin-arm64]
+    if: github.event_name != 'merge_group'
+    uses: ./.github/workflows/sdk-platform.yml
+    with:
+      platform: darwin-arm64
+      sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
+    secrets: inherit
+
+  sdk-win32-x64:
+    name: "Windows x64"
+    needs: [detect-layout, build-runtime-win32-x64]
+    # Published mode skips the checkout-only addon ancestor.
+    if: ${{ !cancelled() && github.event_name != 'merge_group' && needs.detect-layout.result == 'success' && needs.build-runtime-win32-x64.result == 'success' }}
+    uses: ./.github/workflows/sdk-platform.yml
+    with:
+      platform: win32-x64
+      sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
+    secrets: inherit
+
+  sdk-docs:
+    name: "Documentation"
+    needs: detect-layout
+    if: github.event_name != 'merge_group'
+    uses: ./.github/workflows/sdk-platform.yml
+    with:
+      platform: docs
+      sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
+    secrets: inherit
+
+  check-freshness:
+    name: "Check schema and SDK freshness"
+    needs: detect-layout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 10
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - if: needs.detect-layout.outputs.runtime-source == 'checkout'
+        uses: ./.github/actions/setup-node
+        timeout-minutes: ${{ fromJSON(env.SETUP_NODE_TIMEOUT_MINUTES) }}
+        with:
+          install-deps: "false"
+      - if: needs.detect-layout.outputs.runtime-source == 'checkout'
+        uses: ./.github/actions/setup-rust-cache
+        timeout-minutes: 8
+        continue-on-error: true
+        with:
+          cache-key: sdk-codegen
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          components: rustfmt
+      - if: needs.detect-layout.outputs.runtime-source == 'published'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: ${{ needs.detect-layout.outputs.sdk-home }}/nodejs
+      - run: npm ci
+        working-directory: ${{ needs.detect-layout.outputs.sdk-home }}/scripts/codegen
+      - if: needs.detect-layout.outputs.runtime-source == 'published'
+        run: npm ci
+        working-directory: ${{ needs.detect-layout.outputs.sdk-home }}/java/scripts/codegen
+      - env:
+          SDK_HOME: ${{ needs.detect-layout.outputs.sdk-home }}
+        run: node --test "$SDK_HOME"/scripts/ci/*.test.mjs
+      - env:
+          SDK_HOME: ${{ needs.detect-layout.outputs.sdk-home }}
+        run: npm --prefix "$SDK_HOME/nodejs" exec -- tsx --test "$SDK_HOME/scripts/ci/prepare-published-runtime.test.ts"
+      - if: needs.detect-layout.outputs.runtime-source == 'checkout'
+        env:
+          SDK_HOME: ${{ needs.detect-layout.outputs.sdk-home }}
+        run: node "$SDK_HOME/scripts/ci/check-generated.mjs"
+      - if: needs.detect-layout.outputs.runtime-source == 'published'
+        run: npm run generate
+        working-directory: ${{ needs.detect-layout.outputs.sdk-home }}/scripts/codegen
+      - if: needs.detect-layout.outputs.runtime-source == 'published'
+        run: npm run generate
+        working-directory: ${{ needs.detect-layout.outputs.sdk-home }}/java/scripts/codegen
+      - if: needs.detect-layout.outputs.runtime-source == 'published'
+        env:
+          SDK_HOME: ${{ needs.detect-layout.outputs.sdk-home }}
+        run: npm --prefix "$SDK_HOME/nodejs" run update:protocol-version
+      - if: needs.detect-layout.outputs.runtime-source == 'published'
+        env:
+          SDK_HOME: ${{ needs.detect-layout.outputs.sdk-home }}
+        run: |
+          paths=("$SDK_HOME/nodejs/src/generated" "$SDK_HOME/dotnet/src/Generated" "$SDK_HOME/python/copilot/generated" "$SDK_HOME/go" "$SDK_HOME/java/sdk/src/generated" "$SDK_HOME/rust/src/generated")
+          paths+=("$SDK_HOME/nodejs/src/sdkProtocolVersion.ts" "$SDK_HOME/python/copilot/_sdk_protocol_version.py" "$SDK_HOME/dotnet/src/SdkProtocolVersion.cs" "$SDK_HOME/rust/src/sdk_protocol_version.rs" "$SDK_HOME/java/sdk/src/main/java/com/github/copilot/SdkProtocolVersion.java")
+          changes=$(git status --porcelain -- "${paths[@]}")
+          if [[ -n "$changes" ]]; then
+            echo "::error::Generated SDK clients are out of date. From the SDK repository root, run: npm run generate"
+            echo "Commit all resulting generated changes, including added/deleted files, then push the updated branch. Do not hand-edit generated files."
+            echo "$changes"
+            git diff --stat -- "${paths[@]}"
+            git diff -- "${paths[@]}"
+            exit 1
+          fi
+
+  sdk:
+    name: "SDK"
+    if: always()
+    needs:
+      - build-runtime-windows-x64-addons
+      - build-runtime-linux-x64
+      - build-runtime-linuxmusl-x64
+      - build-runtime-darwin-arm64
+      - build-runtime-win32-x64
+      - detect-layout
+      - sdk-linux-x64
+      - sdk-linuxmusl-x64
+      - sdk-darwin-arm64
+      - sdk-win32-x64
+      - sdk-docs
+      - check-freshness
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check SDK results
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RESULTS: ${{ toJSON(needs) }}
+          RUNTIME_SOURCE: ${{ needs.detect-layout.outputs.runtime-source }}
+        run: |
+          # TEMPORARY MERGE QUEUE REDUCTION: keep this branch aligned with the
+          # gated jobs above until the full merge-group matrix is restored.
+          if [[ "$EVENT_NAME" == "merge_group" ]]; then
+            required_jobs=(
+              detect-layout
+              build-runtime-linux-x64
+              sdk-linux-x64
+              check-freshness
+            )
+            skipped_jobs=(
+              build-runtime-windows-x64-addons
+              build-runtime-linuxmusl-x64
+              build-runtime-darwin-arm64
+              build-runtime-win32-x64
+              sdk-linuxmusl-x64
+              sdk-darwin-arm64
+              sdk-win32-x64
+              sdk-docs
+            )
+            for job in "${required_jobs[@]}"; do
+              if [[ "$(jq -r --arg job "$job" '.[$job].result' <<< "$RESULTS")" != "success" ]]; then
+                echo "::error::Required merge-group SDK job did not succeed: $job"
+                echo "$RESULTS"
+                exit 1
+              fi
+            done
+            for job in "${skipped_jobs[@]}"; do
+              if [[ "$(jq -r --arg job "$job" '.[$job].result' <<< "$RESULTS")" != "skipped" ]]; then
+                echo "::error::Merge-group-only SDK reduction did not skip: $job"
+                echo "$RESULTS"
+                exit 1
+              fi
+            done
+            echo "Linux x64 SDK compatibility and generated clients passed"
+            exit 0
+          fi
+
+          if [[ "$RUNTIME_SOURCE" == "published" ]]; then
+            addon_result=$(jq -r '."build-runtime-windows-x64-addons".result' <<< "$RESULTS")
+            if [[ "$addon_result" != "skipped" ]]; then
+              echo "::error::Published-layout Windows addon producer was not skipped: $addon_result"
+              exit 1
+            fi
+          fi
+
+          failures=$(jq -r --arg runtime_source "$RUNTIME_SOURCE" '
+            to_entries[]
+            | select(.value.result != "success")
+            | select(
+                $runtime_source != "published"
+                or .key != "build-runtime-windows-x64-addons"
+                or .value.result != "skipped"
+              )
+            | "\(.key): \(.value.result)"
+          ' <<< "$RESULTS")
+          if [[ -n "$failures" ]]; then
+            echo "::error::SDK jobs did not all succeed:"
+            echo "$failures"
+            exit 1
+          fi

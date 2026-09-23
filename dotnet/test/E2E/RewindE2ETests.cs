@@ -28,6 +28,18 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             EnableFileChangeTracking = true,
         });
 
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                var initialRewindPoints = await session.Rpc.History.ListRewindPointsAsync();
+                return initialRewindPoints.UnavailableReason is null
+                    && initialRewindPoints.FileChangeTrackingEnabled
+                    && initialRewindPoints.Points.Count == 0;
+            },
+            timeout: TimeSpan.FromSeconds(30),
+            timeoutMessage: "Timed out waiting for file change tracking initialization.",
+            pollInterval: TimeSpan.FromMilliseconds(100));
+
         var ready = await session.SendAndWaitAsync(
             new MessageOptions
             {

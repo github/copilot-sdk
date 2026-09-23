@@ -21,7 +21,9 @@ import {
     CopilotClient,
     RuntimeConnection,
     type CopilotClientOptions,
+    type CopilotSession,
     type ExtensionLaunchProfile,
+    type ExtensionLaunchProvider,
     type ExtensionLaunchProviderHandler,
     type ExtensionLaunchProviderRegistrationResult,
     type ExtensionLaunchProviderResolveRequest,
@@ -29,10 +31,8 @@ import {
     type ExtensionSource,
     type PermissionRequestedEvent,
     type ResumeSessionConfig,
-    type RetainedEvent,
     type SessionConfig,
     type SessionEvent,
-    type SessionRetainRequest,
 } from "../src/index.js";
 import { ExtensionLaunchProviderConnection } from "../src/extensionLaunchProvider.js";
 import type { PermissionDecisionRequest, SessionOpenOptions } from "../src/generated/rpc.js";
@@ -142,7 +142,7 @@ describe("public script safety lifecycle configuration", () => {
                 const runtime = await runtimePeer((connection) => {
                     connection.onRequest(
                         "session.permissions.handlePendingPermissionRequest",
-                        (params: PermissionDecisionRequest & SessionRetainRequest) => {
+                        (params: PermissionDecisionRequest & { sessionId: string }) => {
                             expect(params).toEqual({
                                 sessionId: "script-safety-session",
                                 requestId: "early-permission",
@@ -155,10 +155,7 @@ describe("public script safety lifecycle configuration", () => {
                     );
                     connection.onRequest(
                         `session.${operation}`,
-                        async (
-                            params: SessionRetainRequest &
-                                Pick<SessionOpenOptions, "enableScriptSafety">
-                        ) => {
+                        async (params: SessionOpenOptions & { sessionId: string }) => {
                             expect(params.enableScriptSafety).toBe(enableScriptSafety);
                             expect(Object.hasOwn(params, "enableScriptSafety")).toBe(
                                 enableScriptSafety !== undefined
@@ -835,113 +832,65 @@ describe("public launch provider cancellation lifecycle", () => {
     );
 });
 
-describe("public no-turn retention bindings", () => {
-    it("retains reentrantly before create returns and delivers the early retained event", async () => {
-        let createReturned = false;
-        const events: SessionEvent[] = [];
-        const retained: SessionRetainRequest[] = [];
-        const runtime = await runtimePeer((connection) => {
-            connection.onRequest("session.retain", async (params: SessionRetainRequest) => {
-                retained.push(params);
-                const event: RetainedEvent = {
-                    type: "session.retained",
-                    id: randomUUID(),
-                    timestamp: new Date().toISOString(),
-                    parentId: null,
-                    data: {},
-                };
-                await connection.sendNotification("session.event", {
-                    sessionId: params.sessionId,
-                    event,
-                });
-                return null;
-            });
-            connection.onRequest("session.create", async (params: { sessionId: string }) => {
-                await expect(
-                    connection.sendRequest("extensionLaunchProvider.resolve", {
-                        ...candidate,
-                        sessionId: params.sessionId,
-                    })
-                ).resolves.toEqual({ launch: profile });
-                return { sessionId: params.sessionId };
-            });
-        });
-        const client = runtime.client({
-            extensionLaunchProvider: {
-                async resolve(request) {
-                    expect(createReturned).toBe(false);
-                    if (!request.sessionId)
-                        throw new Error("Expected actual runtime session correlation");
-                    const result = await client.rpc.session.retain({
-                        sessionId: request.sessionId,
-                    });
-                    expectTypeOf(result).toEqualTypeOf<null>();
-                    expect(result).toBeNull();
-                    return { launch: request.defaultLaunch };
-                },
-            },
-        });
-        const session = await client.createSession({ onEvent: (event) => events.push(event) });
-        createReturned = true;
-        expectTypeOf<Awaited<ReturnType<typeof session.rpc.retain>>>().toEqualTypeOf<null>();
-        expectTypeOf<
-            Parameters<typeof client.rpc.session.retain>[0]
-        >().toEqualTypeOf<SessionRetainRequest>();
-        expect(events.map((event) => event.type)).toEqual(["session.retained"]);
-        expect(retained).toEqual([{ sessionId: session.sessionId }]);
-        await expect(session.rpc.retain()).resolves.toBeNull();
-        expect(retained).toEqual([
-            { sessionId: session.sessionId },
-            { sessionId: session.sessionId },
-        ]);
+describe("public persisted-chat canvas scope", () => {
+    it("preserves ordinary session APIs without exposing no-turn retention", () => {
+        expectTypeOf<CopilotClient["rpc"]>().not.toHaveProperty("session");
+        expectTypeOf<CopilotSession["rpc"]>().not.toHaveProperty("retain");
+        expectTypeOf<Extract<SessionEvent, { type: "session.retained" }>>().toBeNever();
+        expectTypeOf<CopilotClient["rpc"]["sessions"]["save"]>().toBeFunction();
+        expectTypeOf<CopilotClient["resumeSession"]>().toBeFunction();
+        expectTypeOf<ExtensionLaunchProvider>().toEqualTypeOf<ExtensionLaunchProviderHandler>();
     });
 
-    it.each([
-        [ErrorCodes.MethodNotFound, "unsupported"],
-        [-32001, "persistence unavailable"],
-        [-32002, "writer flush failed"],
-        [-32800, "retention cancelled"],
-    ])("propagates %s (%s) from both bindings", async (code, message) => {
-        const retain = vi.fn(() => new ResponseError(code, message, { operation: "retain" }));
-        const runtime = await runtimePeer((connection) => {
-            connection.onRequest("session.retain", retain);
+    it("admits an existing session before resume returns without an implicit persistence or turn RPC", async () => {
+        let resumeReturned = false;
+        const sessionId = "existing-persisted-chat";
+        const unexpectedRequest = vi.fn((method: string) => {
+            throw new Error(`Unexpected RPC: ${method}`);
         });
-        const client = runtime.client();
-        const session = await client.createSession({});
-        await expect(
-            client.rpc.session.retain({ sessionId: session.sessionId })
-        ).rejects.toMatchObject({
-            code,
-            message,
-            data: { operation: "retain" },
-        });
-        await expect(session.rpc.retain()).rejects.toMatchObject({
-            code,
-            message,
-            data: { operation: "retain" },
-        });
-        expect(retain).toHaveBeenCalledTimes(2);
-    });
-
-    it("rejects connection loss during retention and never retries the effect", async () => {
-        const entered = deferred<void>();
-        const flush = deferred<null>();
-        const retain = vi.fn(() => {
-            entered.resolve();
-            return flush.promise;
+        const resolve = vi.fn<ExtensionLaunchProvider["resolve"]>(async (request) => {
+            expect(resumeReturned).toBe(false);
+            expect(request).toEqual({ ...candidate, sessionId });
+            return { launch: request.defaultLaunch };
         });
         const runtime = await runtimePeer((connection) => {
-            connection.onRequest("session.retain", retain);
+            connection.onRequest(unexpectedRequest);
+            connection.onRequest("session.create", () => {
+                throw new Error("An existing chat must be resumed, not implicitly created");
+            });
+            connection.onRequest(
+                "session.resume",
+                async (
+                    params: Pick<
+                        ResumeSessionConfig,
+                        "enableScriptSafety" | "requestExtensions"
+                    > & {
+                        sessionId: string;
+                    }
+                ) => {
+                    expect(params.sessionId).toBe(sessionId);
+                    expect(params.requestExtensions).toBe(true);
+                    expect(params.enableScriptSafety).toBe(true);
+                    await expect(
+                        connection.sendRequest("extensionLaunchProvider.resolve", {
+                            ...candidate,
+                            sessionId: params.sessionId,
+                        })
+                    ).resolves.toEqual({ launch: profile });
+                    return { sessionId: params.sessionId };
+                }
+            );
         });
-        const client = runtime.client();
-        await client.start();
-        const pending = client.rpc.session.retain({ sessionId: "unit-session" });
-        const rejected = expect(pending).rejects.toBeInstanceOf(Error);
-        await entered.promise;
-        await client.forceStop();
-        await rejected;
-        flush.resolve(null);
-        await client.start();
-        expect(retain).toHaveBeenCalledTimes(1);
+        const client = runtime.client({ extensionLaunchProvider: { resolve } });
+        const session = await client.resumeSession(sessionId, {
+            requestExtensions: true,
+            enableScriptSafety: true,
+        });
+        resumeReturned = true;
+        expect(session.sessionId).toBe(sessionId);
+        expect(client.rpc).not.toHaveProperty("session");
+        expect(session.rpc).not.toHaveProperty("retain");
+        expect(resolve).toHaveBeenCalledTimes(1);
+        expect(unexpectedRequest).not.toHaveBeenCalled();
     });
 });

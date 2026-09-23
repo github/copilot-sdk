@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.generated.SessionErrorEvent;
+import com.github.copilot.generated.SessionIdleEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
@@ -61,6 +62,7 @@ public class ErrorHandlingTest {
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
         var allEvents = new ArrayList<SessionEvent>();
+        var idleReceived = new CompletableFuture<Void>();
 
         ToolDefinition errorTool = ToolDefinition.create("get_user_location", "Gets the user's location",
                 Map.of("type", "object", "properties", Map.of()), (invocation) -> {
@@ -73,18 +75,25 @@ public class ErrorHandlingTest {
             CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(errorTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
-            session.on(event -> allEvents.add(event));
+            session.on(event -> {
+                allEvents.add(event);
+                if (event instanceof SessionIdleEvent) {
+                    idleReceived.complete(null);
+                }
+            });
 
             AssistantMessageEvent response = session
                     .sendAndWait(new MessageOptions()
                             .setPrompt("What is my location? If you can't find out, just say 'unknown'."))
                     .get(60, TimeUnit.SECONDS);
+            // Await this listener, not just sendAndWait's internal idle listener.
+            idleReceived.get(60, TimeUnit.SECONDS);
 
             // Session should complete without crashing
             assertNotNull(response, "Should receive a response even when tool fails");
 
             // Should have received session.idle (indicating successful completion)
-            assertTrue(allEvents.stream().anyMatch(e -> e instanceof com.github.copilot.generated.SessionIdleEvent),
+            assertTrue(allEvents.stream().anyMatch(e -> e instanceof SessionIdleEvent),
                     "Session should reach idle state after handling tool error");
 
             session.close();

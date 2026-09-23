@@ -117,6 +117,38 @@ public final class SessionQueueApi {
     }
 
     /**
+     * Conditional withdrawal of a single user message, before the runtime claims it for delivery.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionQueueWithdrawMessageResult> withdrawMessage(SessionQueueWithdrawMessageParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.queue.withdrawMessage", _p, SessionQueueWithdrawMessageResult.class);
+    }
+
+    /**
+     * Append to one pending steering message without changing its identity or delivery position.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionQueueAppendSteeringResult> appendSteering(SessionQueueAppendSteeringParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.queue.appendSteering", _p, SessionQueueAppendSteeringResult.class);
+    }
+
+    /**
      * Parameters for duplicating a queued item.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

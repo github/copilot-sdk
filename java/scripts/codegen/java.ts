@@ -8,15 +8,18 @@
  */
 
 import fs from "fs/promises";
+import { realpathSync } from "fs";
 import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
+import { RPC_VARIANT_OWNERS } from "./rpc-variant-owners.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /** Root of the copilot-sdk-java repo */
 const REPO_ROOT = path.resolve(__dirname, "../..");
+const OUTPUT_ROOT = process.env.COPILOT_CODEGEN_OUTPUT_ROOT ?? REPO_ROOT;
 
 /** Event types to exclude from generation (internal/legacy types) */
 const EXCLUDED_EVENT_TYPES = new Set(["session.import_legacy"]);
@@ -176,7 +179,10 @@ function toEnumConstant(value: string): string {
 
 /** Resolve a JSON schema staged from the pinned GitHub Release artifact. */
 async function resolveCopilotSchemaPath(fileName: string): Promise<string> {
-    const schemaPath = path.join(REPO_ROOT, "scripts/codegen/target/schemas", fileName);
+    const schemaPath = path.join(
+        process.env.COPILOT_CLI_SCHEMA_OUTPUT ?? path.join(REPO_ROOT, "scripts/codegen/target/schemas"),
+        fileName,
+    );
     try {
         await fs.access(schemaPath);
         return schemaPath;
@@ -195,8 +201,19 @@ async function getApiSchemaPath(): Promise<string> {
 
 // ── File writing ─────────────────────────────────────────────────────────────
 
+let pendingOutput: Map<string, string> | undefined;
+
 async function writeGeneratedFile(relativePath: string, content: string): Promise<string> {
-    const fullPath = path.join(REPO_ROOT, relativePath);
+    const fullPath = path.join(OUTPUT_ROOT, relativePath);
+    const files = rpcGeneration?.files ?? pendingOutput;
+    if (files) {
+        const previous = files.get(relativePath);
+        if (rpcGeneration?.variantNames && previous !== undefined && previous !== content) {
+            throw new Error(`Conflicting Java RPC output "${relativePath}".`);
+        }
+        files.set(relativePath, content);
+        return fullPath;
+    }
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
     await fs.writeFile(fullPath, content, "utf-8");
     console.log(`  ✓ ${relativePath}`);
@@ -426,6 +443,80 @@ export function collectNestedDiscriminatedUnionTypeNames(
 /**
  * Generate a polymorphic base class and variant subclasses for a discriminated union result type.
  */
+interface RpcVariant {
+    discriminatorValue: string;
+    variantClassName: string;
+    schema: JSONSchema7;
+}
+
+interface RpcUnion {
+    schema: JSONSchema7;
+    packageName: string;
+    packageDir: string;
+    discriminatorProperty: string;
+    variants: RpcVariant[];
+}
+
+interface RpcGeneration {
+    files: Map<string, string>;
+    unions: Map<string, RpcUnion>;
+    variantNames?: Map<string, Map<string, string>>;
+}
+
+let rpcGeneration: RpcGeneration | undefined;
+
+function planRpcVariantNames(
+    generation: RpcGeneration,
+    historicalOwners: Readonly<Record<string, string>>
+): Map<string, Map<string, string>> {
+    const memberships = new Map<string, Map<string, RpcVariant>>();
+    const reserved = new Set([...generation.files.keys()].map((file) => path.basename(file, ".java")));
+    for (const [root, union] of generation.unions) {
+        if (reserved.has(root)) throw new Error(`Conflicting Java RPC union name "${root}".`);
+        reserved.add(root);
+        for (const variant of union.variants) {
+            const owners = memberships.get(variant.variantClassName) ?? new Map<string, RpcVariant>();
+            for (const [otherRoot, other] of owners) {
+                if (stableStringify(other.schema) !== stableStringify(variant.schema) ||
+                    generation.unions.get(otherRoot)?.discriminatorProperty !== union.discriminatorProperty ||
+                    other.discriminatorValue !== variant.discriminatorValue) {
+                    throw new Error(`Incompatible schemas for Java RPC variant "${variant.variantClassName}" in "${otherRoot}" and "${root}".`);
+                }
+            }
+            owners.set(root, variant);
+            memberships.set(variant.variantClassName, owners);
+        }
+    }
+    for (const [name, owner] of Object.entries(historicalOwners)) {
+        if (!memberships.get(name)?.has(owner)) {
+            throw new Error(`Missing historical Java RPC owner "${owner}" for "${name}".`);
+        }
+    }
+    for (const name of memberships.keys()) {
+        if (reserved.has(name)) throw new Error(`Conflicting Java RPC variant name "${name}".`);
+        reserved.add(name);
+    }
+    const result = new Map<string, Map<string, string>>();
+    for (const [name, owners] of [...memberships].sort(([a], [b]) => a.localeCompare(b))) {
+        const roots = [...owners.keys()].sort();
+        const canonicalOwner = Object.hasOwn(historicalOwners, name) ? historicalOwners[name] : roots[0];
+        if (!Object.hasOwn(historicalOwners, name) && roots.length > 1) {
+            throw new Error(`Ambiguous Java RPC owner for "${name}": ${roots.join(", ")}. Record its historical owner explicitly.`);
+        }
+        for (const root of roots) {
+            const contextualName = root === canonicalOwner ? name : `${root}${name}`;
+            if (root !== canonicalOwner) {
+                if (reserved.has(contextualName)) throw new Error(`Conflicting Java RPC contextual name "${contextualName}".`);
+                reserved.add(contextualName);
+            }
+            const names = result.get(root) ?? new Map<string, string>();
+            names.set(name, contextualName);
+            result.set(root, names);
+        }
+    }
+    return result;
+}
+
 async function generatePolymorphicResultClass(
     className: string,
     schema: JSONSchema7,
@@ -441,17 +532,33 @@ async function generatePolymorphicResultClass(
         return;
     }
 
-    // Collect variant info
-    interface VariantInfo {
-        discriminatorValue: string;
-        variantClassName: string;
-        schema: JSONSchema7;
-    }
-
-    const variantInfos: VariantInfo[] = [];
+    const variantInfos: RpcVariant[] = [];
     for (const [discValue, { schema: variantSchema }] of discriminator.mapping) {
         const variantClassName = (variantSchema as JSONSchema7 & { title?: string }).title ?? `${className}${toPascalCase(discValue)}`;
         variantInfos.push({ discriminatorValue: discValue, variantClassName, schema: variantSchema });
+    }
+
+    if (rpcGeneration && !rpcGeneration.variantNames) {
+        const previous = rpcGeneration.unions.get(className);
+        if (previous && stableStringify(previous.schema) !== stableStringify(schema)) {
+            throw new Error(`Conflicting Java RPC union "${className}".`);
+        }
+        rpcGeneration.unions.set(className, {
+            schema, packageName, packageDir, discriminatorProperty: discriminator.property, variants: variantInfos,
+        });
+        // Resolve fields now so nested/standalone unions participate in the same
+        // ownership plan. Nothing is written until every membership is known.
+        for (const variant of variantInfos) {
+            await generatePolymorphicVariantClass(variant.variantClassName, variant.schema, variant.discriminatorValue, discriminator.property, className, packageName, packageDir);
+        }
+        return;
+    }
+    if (rpcGeneration?.variantNames) {
+        for (const variant of variantInfos) {
+            const name = rpcGeneration.variantNames.get(className)?.get(variant.variantClassName);
+            if (!name) throw new Error(`Unplanned Java RPC variant "${variant.variantClassName}" in "${className}".`);
+            variant.variantClassName = name;
+        }
     }
 
     // Generate the abstract base class
@@ -624,6 +731,7 @@ async function generatePolymorphicVariantClass(
     const importLines = sortedImports.map((i) => `import ${i};`).join("\n");
     lines[importPlaceholderIdx] = importLines;
 
+    if (rpcGeneration && !rpcGeneration.variantNames) return;
     await writeGeneratedFile(`${packageDir}/${className}.java`, lines.join("\n"));
 }
 
@@ -883,9 +991,17 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
     await generatePendingStandaloneTypes(packageName, packageDir, GENERATED_FROM_SESSION_EVENTS);
 
     generatedSessionEventTypeNames.clear();
-    for (const entry of await fs.readdir(path.join(REPO_ROOT, packageDir), { withFileTypes: true })) {
-        if (entry.isFile() && entry.name.endsWith(".java")) {
-            generatedSessionEventTypeNames.add(path.basename(entry.name, ".java"));
+    if (pendingOutput) {
+        for (const file of pendingOutput.keys()) {
+            if (path.dirname(file) === packageDir && file.endsWith(".java")) {
+                generatedSessionEventTypeNames.add(path.basename(file, ".java"));
+            }
+        }
+    } else {
+        for (const entry of await fs.readdir(path.join(OUTPUT_ROOT, packageDir), { withFileTypes: true })) {
+            if (entry.isFile() && entry.name.endsWith(".java")) {
+                generatedSessionEventTypeNames.add(path.basename(entry.name, ".java"));
+            }
         }
     }
 
@@ -1103,6 +1219,10 @@ async function generateEventVariantClass(
     packageName: string,
     packageDir: string
 ): Promise<void> {
+    await writeGeneratedFile(`${packageDir}/${variant.className}.java`, renderEventVariantClass(variant, packageName));
+}
+
+export function renderEventVariantClass(variant: EventVariant, packageName: string): string {
     const lines: string[] = [];
     const allImports = new Set<string>([
         "com.fasterxml.jackson.annotation.JsonIgnoreProperties",
@@ -1111,6 +1231,23 @@ async function generateEventVariantClass(
         "javax.annotation.processing.Generated",
     ]);
     const nestedTypes = new Map<string, JavaClassDef>();
+    const hasUnionData = [variant.dataSchema?.anyOf, variant.dataSchema?.oneOf].some(
+        (alternatives) => alternatives && alternatives.filter((alternative) => {
+            if (typeof alternative === "boolean") return alternative;
+            const types = Array.isArray(alternative.type) ? alternative.type : [alternative.type];
+            return !(
+                types.every((type) => type === "null") ||
+                alternative.const === null ||
+                alternative.enum?.every((value) => value === null)
+            );
+        }).length > 1
+    );
+    if (hasUnionData) {
+        allImports.add("com.fasterxml.jackson.annotation.JsonCreator");
+        allImports.add("com.fasterxml.jackson.annotation.JsonValue");
+        allImports.add("com.fasterxml.jackson.databind.JsonNode");
+        allImports.add("com.fasterxml.jackson.databind.node.JsonNodeFactory");
+    }
 
     // Collect data record fields
     interface FieldInfo {
@@ -1122,7 +1259,7 @@ async function generateEventVariantClass(
 
     const dataFields: FieldInfo[] = [];
 
-    if (variant.dataSchema?.properties) {
+    if (!hasUnionData && variant.dataSchema?.properties) {
         for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties)) {
             if (typeof propSchema !== "object") continue;
             const prop = propSchema as JSONSchema7;
@@ -1192,10 +1329,24 @@ async function generateEventVariantClass(
         lines.push(`    public void setData(${variant.className}Data data) { this.data = data; }`);
         lines.push("");
         // Generate data inner record
-        lines.push(`    /** Data payload for {@link ${variant.className}}. */`);
+        lines.push(hasUnionData
+            ? `    /** Raw union payload for {@link ${variant.className}}, preserving every variant's fields. */`
+            : `    /** Data payload for {@link ${variant.className}}. */`);
         lines.push(`    @JsonIgnoreProperties(ignoreUnknown = true)`);
         lines.push(`    @JsonInclude(JsonInclude.Include.NON_NULL)`);
-        if (dataFields.length === 0) {
+        if (hasUnionData) {
+            // Keep the existing nested record and no-arg constructor binary-compatible.
+            lines.push(`    public record ${variant.className}Data(JsonNode raw) {`);
+            lines.push(`        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)`);
+            lines.push(`        public ${variant.className}Data {}`);
+            lines.push("");
+            lines.push(`        public ${variant.className}Data() {`);
+            lines.push(`            this(JsonNodeFactory.instance.objectNode());`);
+            lines.push(`        }`);
+            lines.push("");
+            lines.push(`        @JsonValue`);
+            lines.push(`        public JsonNode raw() { return raw; }`);
+        } else if (dataFields.length === 0) {
             lines.push(`    public record ${variant.className}Data() {`);
         } else {
             lines.push(`    public record ${variant.className}Data(`);
@@ -1225,7 +1376,7 @@ async function generateEventVariantClass(
     const importLines = sortedImports.map((i) => `import ${i};`).join("\n");
     lines[importPlaceholderIdx] = importLines;
 
-    await writeGeneratedFile(`${packageDir}/${variant.className}.java`, lines.join("\n"));
+    return lines.join("\n");
 }
 
 // ── Standalone $ref type generation ──────────────────────────────────────────
@@ -1475,21 +1626,18 @@ function generateRpcClass(
     return { code: lines.join("\n"), imports };
 }
 
+interface RpcSchema {
+    server?: Record<string, unknown>;
+    session?: Record<string, unknown>;
+    clientSession?: Record<string, unknown>;
+    clientGlobal?: Record<string, unknown>;
+    definitions?: Record<string, JSONSchema7>;
+}
+
 async function generateRpcTypes(schemaPath: string): Promise<void> {
     console.log("\n🔌 Generating RPC types...");
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent)) as Record<string, unknown> & {
-        server?: Record<string, unknown>;
-        session?: Record<string, unknown>;
-        clientSession?: Record<string, unknown>;
-        clientGlobal?: Record<string, unknown>;
-        definitions?: Record<string, JSONSchema7>;
-    };
-
-    // Set module-level definitions for $ref resolution
-    currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
-    pendingStandaloneTypes.clear();
-    promotedNestedUnionTypes.clear();
+    const schema: RpcSchema = normalizeSchemaBrandCasing(JSON.parse(schemaContent));
     crossSchemaDefinitions.clear();
 
     // Load cross-schema definitions (session-events) so that cross-schema $ref values
@@ -1504,6 +1652,35 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
         console.warn(`[codegen] Could not load session-events schema for cross-ref resolution: ${e}`);
     }
 
+    const files = await renderRpcTypes(schema);
+    for (const [file, content] of files) await writeGeneratedFile(file, content);
+    console.log(`✅ Generated ${files.size} RPC type files`);
+}
+
+/** Plan and render all RPC types in memory, rejecting ABI/name conflicts before file writes. */
+export async function renderRpcTypes(
+    schema: RpcSchema,
+    historicalOwners: Readonly<Record<string, string>> = RPC_VARIANT_OWNERS
+): Promise<Map<string, string>> {
+    if (rpcGeneration) throw new Error("Concurrent Java RPC generation is not supported.");
+    const generation: RpcGeneration = { files: new Map(), unions: new Map() };
+    rpcGeneration = generation;
+    try {
+        await collectRpcTypes(schema);
+        generation.variantNames = planRpcVariantNames(generation, historicalOwners);
+        for (const [name, union] of generation.unions) {
+            await generatePolymorphicResultClass(name, union.schema, union.packageName, union.packageDir);
+        }
+        return generation.files;
+    } finally {
+        rpcGeneration = undefined;
+    }
+}
+
+async function collectRpcTypes(schema: RpcSchema): Promise<void> {
+    currentDefinitions = schema.definitions ?? {};
+    pendingStandaloneTypes.clear();
+    promotedNestedUnionTypes.clear();
     const packageName = "com.github.copilot.generated.rpc";
     const packageDir = `sdk/src/generated/java/com/github/copilot/generated/rpc`;
 
@@ -1613,7 +1790,6 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     // Generate standalone types discovered via $ref resolution
     await generatePendingStandaloneTypes(packageName, packageDir, GENERATED_FROM_API);
 
-    console.log(`✅ Generated ${allFiles.length} RPC type files`);
 }
 
 async function generateRpcDataClass(
@@ -2475,31 +2651,42 @@ async function main(): Promise<void> {
     console.log("🚀 Java SDK code generator");
     console.log("============================");
 
-    // Clean the generated output directory to remove orphaned files from previous runs
-    const generatedOutputDir = path.join(REPO_ROOT, "sdk/src/generated/java/com/github/copilot/generated");
-    console.log(`🧹 Cleaning output directory: ${generatedOutputDir}`);
-    await fs.rm(generatedOutputDir, { recursive: true, force: true });
-    await fs.mkdir(generatedOutputDir, { recursive: true });
-
     const sessionEventsSchemaPath = await getSessionEventsSchemaPath();
     console.log(`📄 Session events schema: ${sessionEventsSchemaPath}`);
     const apiSchemaPath = await getApiSchemaPath();
     console.log(`📄 API schema: ${apiSchemaPath}`);
 
-    await generateSessionEvents(sessionEventsSchemaPath);
-    await generateRpcTypes(apiSchemaPath);
-    await generateRpcWrappers(apiSchemaPath);
+    // Preserve the previous output on schema/ABI validation failures.
+    const files = new Map<string, string>();
+    pendingOutput = files;
+    try {
+        await generateSessionEvents(sessionEventsSchemaPath);
+        await generateRpcTypes(apiSchemaPath);
+        await generateRpcWrappers(apiSchemaPath);
 
-    // Generate package-info.java for each generated package
-    const generatedPkgDir = `sdk/src/generated/java/com/github/copilot/generated`;
-    const rpcPkgDir = `sdk/src/generated/java/com/github/copilot/generated/rpc`;
-    await generateGeneratedPackageInfo(generatedPkgDir);
-    await generateRpcPackageInfo(rpcPkgDir);
+        const generatedPkgDir = `sdk/src/generated/java/com/github/copilot/generated`;
+        const rpcPkgDir = `sdk/src/generated/java/com/github/copilot/generated/rpc`;
+        await generateGeneratedPackageInfo(generatedPkgDir);
+        await generateRpcPackageInfo(rpcPkgDir);
+    } finally {
+        pendingOutput = undefined;
+    }
+
+    const generatedOutputDir = path.join(OUTPUT_ROOT, "sdk/src/generated/java/com/github/copilot/generated");
+    console.log(`🧹 Cleaning output directory: ${generatedOutputDir}`);
+    await fs.rm(generatedOutputDir, { recursive: true, force: true });
+    await fs.mkdir(generatedOutputDir, { recursive: true });
+    for (const [file, content] of files) await writeGeneratedFile(file, content);
 
     console.log("\n✅ Java code generation complete!");
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+export function isMainModule(entrypoint: string | undefined, modulePath: string): boolean {
+    return !!entrypoint &&
+        realpathSync(path.resolve(entrypoint)) === realpathSync(modulePath);
+}
+
+if (isMainModule(process.argv[1], __filename)) {
     main().catch((err) => {
         console.error("❌ Code generation failed:", err);
         process.exit(1);

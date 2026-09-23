@@ -294,7 +294,7 @@ class TestMcpOAuth:
             if request["reason"] == "upscope":
                 assert request["wwwAuthenticateParams"] == {
                     "resourceMetadataUrl": f"{url}/.well-known/oauth-protected-resource",
-                    "scope": "mcp.write",
+                    "scope": "mcp.read mcp.write",
                     "error": "insufficient_scope",
                 }
                 return {"kind": "token", "accessToken": UPSCOPE_TOKEN}

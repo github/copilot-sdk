@@ -133,7 +133,7 @@ type _PermissionRequestedEventStaysAlignedWithSessionEventUnion = _AssertEqual<
 const _permissionRequestedEventAlignmentCheck: _PermissionRequestedEventStaysAlignedWithSessionEventUnion = true;
 
 describe("Session event type exports (#1156)", () => {
-    it.each(["efficiency", "balance", "intelligence", undefined] satisfies (
+    it.each(["efficiency", "balance", "intelligence", "fast", undefined] satisfies (
         | AutoTier
         | undefined
     )[])("exposes Auto tier %s on start and resume data", (autoTier) => {
@@ -169,7 +169,7 @@ describe("Session event type exports (#1156)", () => {
         (reason) => {
             const data: AutoTierSwitchFailedData = {
                 reason,
-                requestedAutoTier: "intelligence",
+                requestedAutoTier: "fast",
                 effectiveAutoTier: "balance",
             };
             const event: AutoTierSwitchFailedEvent = {
@@ -186,7 +186,7 @@ describe("Session event type exports (#1156)", () => {
             const asSessionEvent: SessionEvent = event;
             expect(asSessionEvent.type).toBe("session.auto_tier_switch_failed");
             expect(data.reason).toBe(reason);
-            expect(data.requestedAutoTier).toBe("intelligence");
+            expect(data.requestedAutoTier).toBe("fast");
         }
     );
 

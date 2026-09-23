@@ -13,16 +13,10 @@ export interface SchemaRevision {
         beforeSha256: string | null;
         value: unknown;
     }[];
-    insertions: {
-        path: string[];
-        after: string;
-        value: { $ref: string; description: string };
-    }[];
 }
 
 interface CanvasSchemaRevisions {
     api: SchemaRevision;
-    sessionEvents: SchemaRevision;
 }
 
 export function schemaFingerprint(value: unknown): string {
@@ -77,30 +71,6 @@ export function applySchemaRevision<T>(schema: T, revision: SchemaRevision): T {
             throw revisionMismatch(replacement.path);
         }
         parent[key] = structuredClone(replacement.value);
-    }
-    for (const insertion of revision.insertions) {
-        const { parent, key } = schemaSlot(result, insertion.path);
-        const value = parent[key];
-        if (!Array.isArray(value)) {
-            throw new Error(`Missing canvas event union: ${insertion.path.join("/")}`);
-        }
-        const variants: unknown[] = value;
-        const existing = variants.filter(
-            (variant) => isSchemaObject(variant) && variant.$ref === insertion.value.$ref
-        );
-        if (existing.length > 0) {
-            if (existing.length !== 1 || schemaFingerprint(existing[0]) !== schemaFingerprint(insertion.value)) {
-                throw revisionMismatch(insertion.path);
-            }
-            continue;
-        }
-        const anchor = variants.findIndex(
-            (variant) => isSchemaObject(variant) && variant.$ref === insertion.after
-        );
-        if (anchor === -1) {
-            throw new Error(`Missing canvas event insertion anchor: ${insertion.after}`);
-        }
-        variants.splice(anchor + 1, 0, structuredClone(insertion.value));
     }
     return result;
 }

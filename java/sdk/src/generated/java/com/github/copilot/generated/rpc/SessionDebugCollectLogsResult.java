@@ -15,7 +15,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result of collecting a redacted debug bundle.
+ * Result of collecting a session debug bundle.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -29,7 +29,7 @@ public record SessionDebugCollectLogsResult(
     @JsonProperty("kind") DebugCollectLogsResultKind kind,
     /** Actual archive path or staging directory path written. This may differ from the requested path when no-overwrite suffixing or fallback-to-temp-directory was needed. */
     @JsonProperty("path") String path,
-    /** Files included in the redacted bundle. */
+    /** Files included in the bundle. */
     @JsonProperty("entries") List<DebugCollectLogsCollectedEntry> entries,
     /** Optional files or directories that could not be included. */
     @JsonProperty("skippedEntries") List<DebugCollectLogsSkippedEntry> skippedEntries

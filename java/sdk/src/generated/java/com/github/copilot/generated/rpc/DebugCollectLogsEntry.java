@@ -27,7 +27,7 @@ public record DebugCollectLogsEntry(
     @JsonProperty("path") String path,
     /** Relative path to use inside the staged bundle/archive. */
     @JsonProperty("bundlePath") String bundlePath,
-    /** How text content from this entry should be redacted. Defaults to plain-text. */
+    /** How text content from this entry should be redacted. Defaults to plain-text. With none, no redaction is applied; the caller must ensure any necessary redaction is performed before this call. */
     @JsonProperty("redaction") DebugCollectLogsRedaction redaction,
     /** When true, collection fails if this entry cannot be read. Defaults to false, which records the entry in `skippedEntries`. */
     @JsonProperty("required") Boolean required

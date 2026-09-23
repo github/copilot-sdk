@@ -3,12 +3,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Downloads the native runtime artifacts for one platform classifier.
+ * Stages the native runtime artifacts for one platform classifier.
  *
  * Steps:
  *   1. Read the pinned version from `nodejs/package.json`.
- *   2. Download the platform tarball and `SHA256SUMS.txt` from the matching release.
- *   3. Verify the downloaded tarball against the release checksum.
+ *   2. Use the enclosing runtime checkout when present, or download the matching release.
+ *   3. Verify downloaded tarballs against the release checksum.
  *   4. Stage the hostless runtime tree, flattening the selected prebuild directory
  *      beside the package's retained top-level runtime assets.
  *   5. Write an inventory consumed by the SDK's generic classpath extractor.
@@ -21,6 +21,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { findRuntimeRoot } from '../../../scripts/runtime-layout.mjs';
 
 const excludedTopLevel = new Set([
   'app.js',
@@ -68,6 +69,17 @@ const platformPropertiesPath = path.join(resourceDir, 'platform.properties');
 const expectedPlatformProperties = `classifier=${classifier}\nversion=${version}\n`;
 const stagingSchema = 'hostless-runtime-v3';
 const stampPath = path.join(outDir, '.version');
+const runtimeRoot = findRuntimeRoot(repoRoot);
+const localPackageRoot =
+  !process.env.COPILOT_CLI_RELEASE_TARBALL && runtimeRoot
+    ? path.join(runtimeRoot, 'dist-cli')
+    : undefined;
+if (localPackageRoot && !fs.statSync(localPackageRoot, { throwIfNoEntry: false })?.isDirectory()) {
+  throw new Error(`Same-checkout CLI not found at ${localPackageRoot}; run pnpm run build:cli first`);
+}
+const sourceIdentity = localPackageRoot
+  ? fingerprintDirectory(localPackageRoot, classifier)
+  : process.env.COPILOT_CLI_RELEASE_SHA256;
 
 // Idempotence: skip the download only when every required staged artifact
 // matches the package identity recorded in the stamp.
@@ -81,12 +93,14 @@ if (
   const stampLines = fs.readFileSync(stampPath, 'utf8').trim().split('\n');
   const stampSchema = stampLines[0] || '';
   const stampVersion = stampLines[1] || '';
+  const stampSourceIdentity = stampLines[2] || '';
   const stampTreeDigest = stampLines[3] || '';
   const currentTreeDigest = digestTree(resourceDir);
   const currentPlatformProperties = fs.readFileSync(platformPropertiesPath, 'utf8');
   if (
     stampSchema === stagingSchema &&
     stampVersion === version &&
+    (!sourceIdentity || stampSourceIdentity === sourceIdentity) &&
     stampTreeDigest === currentTreeDigest &&
     currentPlatformProperties === expectedPlatformProperties
   ) {
@@ -97,74 +111,111 @@ if (
 
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(resourceDir, { recursive: true });
-
-console.log(`Downloading ${assetName} ...`);
-const releaseBase = (
-  process.env.COPILOT_CLI_DOWNLOAD_BASE_URL ??
-  'https://github.com/github/copilot-cli/releases/download'
-).replace(/\/+$/, '');
-let archive;
+const inventory = [];
 let expectedHash;
 if (process.env.COPILOT_CLI_RELEASE_TARBALL) {
-  archive = fs.readFileSync(process.env.COPILOT_CLI_RELEASE_TARBALL);
+  const archive = fs.readFileSync(process.env.COPILOT_CLI_RELEASE_TARBALL);
   expectedHash = process.env.COPILOT_CLI_RELEASE_SHA256;
+  stageArchive(archive);
+} else if (localPackageRoot) {
+  console.log(`Staging same-checkout runtime from ${localPackageRoot} ...`);
+  expectedHash = sourceIdentity;
+  stageDirectory(localPackageRoot);
 } else {
+  console.log(`Downloading ${assetName} ...`);
+  const releaseBase = (
+    process.env.COPILOT_CLI_DOWNLOAD_BASE_URL ??
+    'https://github.com/github/copilot-cli/releases/download'
+  ).replace(/\/+$/, '');
   const releaseUrl = `${releaseBase}/v${version}`;
   const checksums = (await download(`${releaseUrl}/SHA256SUMS.txt`)).toString('utf8');
   expectedHash = findChecksum(checksums, assetName);
-  archive = await download(`${releaseUrl}/${assetName}`);
+  const archive = await download(`${releaseUrl}/${assetName}`);
+  stageArchive(archive);
 }
-if (!expectedHash || !/^[a-fA-F0-9]{64}$/.test(expectedHash)) {
-  throw new Error(`Missing or invalid SHA-256 for ${assetName}`);
-}
-const actual = createHash('sha256').update(archive).digest('hex');
-if (actual !== expectedHash.toLowerCase()) {
-  console.error(`Integrity verification failed for ${assetName}`);
-  console.error(`  expected: ${expectedHash}`);
-  console.error(`  actual:   ${actual}`);
-  process.exit(1);
-}
-console.log(`Integrity verified (${expectedHash.slice(0, 20)}...).`);
 
-const inventory = [];
-const members = execFileSync('tar', ['-tzf', '-'], { encoding: 'utf8', input: archive })
-  .split(/\r?\n/)
-  .filter(Boolean);
-for (const member of members) {
-  const destinationRelative = hostlessRuntimePath(member, classifier);
-  if (destinationRelative === null) {
-    continue;
-  }
-  const listing = execFileSync('tar', ['-tvzf', '-', member], {
-    encoding: 'utf8',
-    input: archive,
-  }).trim();
-  if (listing.startsWith('d')) {
-    continue;
-  }
-  if (!listing.startsWith('-')) {
-    throw new Error(`Unsupported runtime package entry: ${member}`);
-  }
-  const content = execFileSync('tar', ['-xOzf', '-', member], {
-    encoding: null,
-    input: archive,
-    maxBuffer: 512 * 1024 * 1024,
-  });
+function stageResource(destinationRelative, content, mode) {
   const destination = path.resolve(resourceDir, destinationRelative);
   const resourceRoot = `${path.resolve(resourceDir)}${path.sep}`;
   if (!destination.startsWith(resourceRoot)) {
-    throw new Error(`Runtime package entry escapes staging directory: ${member}`);
+    throw new Error(`Runtime package entry escapes staging directory: ${destinationRelative}`);
   }
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.writeFileSync(destination, content);
-  const mode = listing.slice(0, 10).includes('x') ? 0o755 : 0o644;
   fs.chmodSync(destination, mode);
   inventory.push(`${mode.toString(8)}\t${destinationRelative.split(path.sep).join('/')}`);
 }
+
+function stageResourceFile(destinationRelative, source, mode) {
+  const destination = path.resolve(resourceDir, destinationRelative);
+  const resourceRoot = `${path.resolve(resourceDir)}${path.sep}`;
+  if (!destination.startsWith(resourceRoot)) {
+    throw new Error(`Runtime package entry escapes staging directory: ${destinationRelative}`);
+  }
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.copyFileSync(source, destination);
+  fs.chmodSync(destination, mode);
+  inventory.push(`${mode.toString(8)}\t${destinationRelative.split(path.sep).join('/')}`);
+}
+
+function stageArchive(archive) {
+  if (!expectedHash || !/^[a-fA-F0-9]{64}$/.test(expectedHash)) {
+    throw new Error(`Missing or invalid SHA-256 for ${assetName}`);
+  }
+  const actual = createHash('sha256').update(archive).digest('hex');
+  if (actual !== expectedHash.toLowerCase()) {
+    throw new Error(`Integrity verification failed for ${assetName}: expected ${expectedHash}, received ${actual}`);
+  }
+  console.log(`Integrity verified (${expectedHash.slice(0, 20)}...).`);
+
+  const members = execFileSync('tar', ['-tzf', '-'], { encoding: 'utf8', input: archive })
+    .split(/\r?\n/)
+    .filter(Boolean);
+  for (const member of members) {
+    const destinationRelative = hostlessRuntimePath(member, classifier);
+    if (destinationRelative === null) {
+      continue;
+    }
+    const listing = execFileSync('tar', ['-tvzf', '-', member], {
+      encoding: 'utf8',
+      input: archive,
+    }).trim();
+    if (listing.startsWith('d')) {
+      continue;
+    }
+    if (!listing.startsWith('-')) {
+      throw new Error(`Unsupported runtime package entry: ${member}`);
+    }
+    const content = execFileSync('tar', ['-xOzf', '-', member], {
+      encoding: null,
+      input: archive,
+      maxBuffer: 512 * 1024 * 1024,
+    });
+    stageResource(destinationRelative, content, listing.slice(0, 10).includes('x') ? 0o755 : 0o644);
+  }
+}
+
+function stageDirectory(packageRoot) {
+  for (const source of walkFiles(packageRoot)) {
+    const relative = path.relative(packageRoot, source).split(path.sep).join('/');
+    const destinationRelative = hostlessRuntimePath(`package/${relative}`, classifier);
+    if (destinationRelative === null) {
+      continue;
+    }
+    const mode = fs.statSync(source).mode & 0o111 ? 0o755 : 0o644;
+    stageResourceFile(destinationRelative, source, mode);
+  }
+}
+
 inventory.sort();
 fs.writeFileSync(inventoryPath, `${inventory.join('\n')}\n`);
 
 if (!fs.existsSync(runtimePath) || !fs.existsSync(wrapperPath)) {
+  if (localPackageRoot) {
+    throw new Error(
+      `Same-checkout CLI artifacts for ${classifier} not found under ${localPackageRoot}; run pnpm run build:cli first`,
+    );
+  }
   throw new Error(`${assetName} is missing the runtime wrapper pair`);
 }
 fs.writeFileSync(platformPropertiesPath, expectedPlatformProperties);
@@ -214,6 +265,27 @@ function walkFiles(directory) {
     }
   }
   return files;
+}
+
+function fingerprintDirectory(directory, platform) {
+  const hash = createHash('sha256');
+  for (const file of walkFiles(directory).sort()) {
+    const relative = path.relative(directory, file).split(path.sep).join('/');
+    if (hostlessRuntimePath(`package/${relative}`, platform) === null) {
+      continue;
+    }
+    const stat = fs.statSync(file);
+    hash
+      .update(relative)
+      .update('\0')
+      .update(`${stat.size}`)
+      .update('\0')
+      .update(`${stat.mtimeMs}`)
+      .update('\0')
+      .update(`${stat.mode & 0o777}`)
+      .update('\0');
+  }
+  return hash.digest('hex');
 }
 
 function digestTree(directory) {

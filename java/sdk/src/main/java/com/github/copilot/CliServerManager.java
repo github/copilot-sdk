@@ -216,7 +216,7 @@ final class CliServerManager {
         }
     }
 
-    private void awaitStderrReader() {
+    void awaitStderrReader() {
         Thread t = this.stderrThread;
         if (t != null) {
             try {

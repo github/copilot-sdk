@@ -165,6 +165,8 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         workDir,
         testInfo,
         backend: "capi",
+        replayOnly: false,
+        autoResponseIndex: 0,
         toolResultNormalizers: [...this.defaultToolResultNormalizers],
       };
     }
@@ -189,6 +191,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     // would silently overwrite the file with that subset, breaking subsequent runs.
     if (
       this.state?.backend === "capi" &&
+      !this.state.replayOnly &&
       process.env.GITHUB_ACTIONS !== "true"
     ) {
       await writeCapturesToDisk(this.exchanges, this.state);
@@ -199,6 +202,8 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
       workDir: config.workDir,
       testInfo: config.testInfo,
       backend: parseReplayBackend(config.backend),
+      replayOnly: config.replayOnly === true,
+      autoResponseIndex: 0,
       toolResultNormalizers: [...this.defaultToolResultNormalizers],
     };
 
@@ -227,10 +232,6 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     normalizeToolResultOrder(this.state.storedData.conversations);
     normalizeStoredUserMessages(this.state.storedData.conversations);
     normalizeStoredToolMessages(this.state.storedData.conversations);
-    normalizeStoredMessagesForBackend(
-      this.state.storedData.conversations,
-      this.state.backend,
-    );
   }
 
   async stop(skipWritingCache?: boolean): Promise<void> {
@@ -240,6 +241,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     // same canonical snapshots replay through each provider protocol.
     if (
       this.state?.backend === "capi" &&
+      !this.state.replayOnly &&
       !skipWritingCache &&
       process.env.GITHUB_ACTIONS !== "true"
     ) {
@@ -321,8 +323,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.requestOptions.path === "/exchanges" &&
           options.requestOptions.method === "GET"
         ) {
-          const protocol =
-            replayProtocols[this.state?.backend ?? "capi"];
+          const protocol = replayProtocols[this.state?.backend ?? "capi"];
           const parsedExchanges = await Promise.all(
             this.exchanges
               .filter((exchange) => exchange.request.url === protocol.endpoint)
@@ -431,6 +432,29 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           return;
         }
 
+        // Deterministic Auto-tier fixture responses for CAPI's `/auto`
+        // routing endpoint. Consumed one per call in fixture order so
+        // Auto-tier lifecycle scenarios (cold resume, successful
+        // activation, failed activation) can control what model `/auto`
+        // selects and, via `statusCode`, simulate an `/auto` failure.
+        if (
+          options.requestOptions.path === "/auto" &&
+          options.requestOptions.method === "POST"
+        ) {
+          const response =
+            state.storedData?.autoResponses?.[state.autoResponseIndex];
+          if (response) {
+            state.autoResponseIndex++;
+            options.onResponseStart(response.statusCode ?? 200, {
+              "content-type": "application/json",
+              ...commonResponseHeaders,
+            });
+            options.onData(Buffer.from(JSON.stringify(response.body)));
+            options.onResponseEnd();
+            return;
+          }
+        }
+
         // Keep GitHub MCP tests hermetic while still capturing the request at
         // the CAPI proxy. The tests only need a successful transport handshake;
         // no fake tools are exposed.
@@ -527,7 +551,8 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             : options.body;
         if (state.storedData && isModelRequest && normalizedBody) {
           const streamingIsRequested =
-            (JSON.parse(normalizedBody) as { stream?: boolean }).stream === true;
+            (JSON.parse(normalizedBody) as { stream?: boolean }).stream ===
+            true;
 
           const savedError = await findSavedChatCompletionError(
             state.storedData,
@@ -564,6 +589,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             normalizedBody,
             state.workDir,
             state.toolResultNormalizers,
+            state.backend,
           );
 
           if (savedResponse) {
@@ -586,6 +612,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
               normalizedBody,
               state.workDir,
               state.toolResultNormalizers,
+              state.backend,
             )
           ) {
             const headers = {
@@ -620,7 +647,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         // Fallback to normal proxying if no cached response found
         // This implicitly captures the new exchange too
         const isCI = process.env.GITHUB_ACTIONS === "true";
-        if (isCI || state.backend !== "capi") {
+        if (isCI || state.replayOnly || state.backend !== "capi") {
           await exitWithNoMatchingRequestError(
             options,
             state.testInfo,
@@ -698,6 +725,9 @@ async function writeCapturesToDisk(
       ]),
     ];
   }
+  if (state.storedData?.autoResponses?.length) {
+    data.autoResponses = state.storedData.autoResponses;
+  }
   if (data.conversations.length > 0) {
     let yamlText = yaml.stringify(data, { lineWidth: 120 });
 
@@ -715,7 +745,7 @@ async function writeCapturesToDisk(
 /**
  * Produces a human-readable explanation of why no stored conversation matched
  * a given request. For each stored conversation it reports the first reason
- * matching failed, mirroring the logic in {@link findAssistantIndexAfterPrefix}.
+ * matching failed against the uncoalesced canonical messages.
  */
 function diagnoseMatchFailure(
   requestMessages: NormalizedMessage[],
@@ -735,7 +765,7 @@ function diagnoseMatchFailure(
   for (let c = 0; c < storedData.conversations.length; c++) {
     const saved = storedData.conversations[c].messages;
 
-    // Same check as findAssistantIndexAfterPrefix: request must be a strict prefix
+    // Coalescing can only reduce the number of saved request messages.
     if (requestMessages.length >= saved.length) {
       lines.push(
         `Conversation ${c} (${saved.length} messages): ` +
@@ -837,6 +867,7 @@ async function findSavedChatCompletionResponse(
   requestBody: string | undefined,
   workDir: string,
   toolResultNormalizers: ToolResultNormalizer[],
+  backend: ReplayBackend,
 ): Promise<ChatCompletion | undefined> {
   // Normalize the incoming request the same way we normalize for caching
   const normalized = await parseAndNormalizeRequest(
@@ -856,6 +887,7 @@ async function findSavedChatCompletionResponse(
     const replyIndex = findAssistantIndexAfterPrefix(
       requestMessages,
       conversation.messages,
+      backend,
     );
     if (replyIndex !== undefined) {
       return createOpenAIResponse(
@@ -909,6 +941,7 @@ async function isRequestOnlySnapshot(
   requestBody: string | undefined,
   workDir: string,
   toolResultNormalizers: ToolResultNormalizer[],
+  backend: ReplayBackend,
 ): Promise<boolean> {
   const normalized = await parseAndNormalizeRequest(
     requestBody,
@@ -918,11 +951,14 @@ async function isRequestOnlySnapshot(
   const requestMessages = normalized.conversations[0]?.messages ?? [];
 
   for (const conversation of storedData.conversations) {
+    const messages = normalizeMessagesForBackend(
+      conversation.messages,
+      backend,
+    );
     if (
-      requestMessages.length === conversation.messages.length &&
+      requestMessages.length === messages.length &&
       requestMessages.every(
-        (msg, i) =>
-          JSON.stringify(msg) === JSON.stringify(conversation.messages[i]),
+        (msg, i) => JSON.stringify(msg) === JSON.stringify(messages[i]),
       )
     ) {
       return true;
@@ -1019,10 +1055,7 @@ function coalesceAdjacentUserMessages(requestBody: string): string {
   return JSON.stringify(request);
 }
 
-function openAIErrorBody(
-  code: string | undefined,
-  message: string,
-): unknown {
+function openAIErrorBody(code: string | undefined, message: string): unknown {
   const type = code ?? "rate_limited";
   return { error: { message, type, code: type } };
 }
@@ -1104,9 +1137,7 @@ function normalizeToolCalls(
         }
 
         if (tc.function?.name === "task") {
-          const configuredName = getBackgroundAgentName(
-            tc.function.arguments,
-          );
+          const configuredName = getBackgroundAgentName(tc.function.arguments);
           const fallbackName =
             unnamedBackgroundAgentCounter === 0
               ? "background-agent"
@@ -1378,18 +1409,16 @@ function normalizeStoredUserMessages(conversations: NormalizedConversation[]) {
   }
 }
 
-function normalizeStoredMessagesForBackend(
-  conversations: NormalizedConversation[],
+function normalizeMessagesForBackend(
+  messages: NormalizedMessage[],
   backend: ReplayBackend,
-) {
-  if (backend === "capi") return;
+): NormalizedMessage[] {
+  if (backend === "capi") return messages;
 
-  for (const conversation of conversations) {
-    conversation.messages = coalesceMessages(
-      conversation.messages,
-      backend !== "openai-completions",
-    );
-  }
+  return coalesceMessages(
+    messages.map((message) => ({ ...message })),
+    backend !== "openai-completions",
+  );
 }
 
 function coalesceMessages(
@@ -1525,15 +1554,12 @@ function normalizeGh401AuthMessages(result: string): string {
 
 function normalizeReadAgentResult(result: string): string {
   const normalized = result
+    .replace(/^Agent is idle \(waiting for messages\)\./, "Agent completed.")
     .replace(
-      /^Agent is idle \(waiting for messages\)\./,
-      "Agent completed.",
+      /^Agent completed\. (.*), status: idle,/,
+      "Agent completed. $1, status: completed,",
     )
-    .replace(/^Agent completed\. (.*), status: idle,/, "Agent completed. $1, status: completed,")
-    .replace(
-      /, total_turns: \d+(?=\r?\n|$)/,
-      ", total_turns: 0, duration: 0s",
-    )
+    .replace(/, total_turns: \d+(?=\r?\n|$)/, ", total_turns: 0, duration: 0s")
     .replace(/\r?\n\r?\n\[Turn \d+\]\r?\n/, "\n\n");
 
   return normalized
@@ -1826,37 +1852,54 @@ async function parseOpenAIResponse(
 function findAssistantIndexAfterPrefix(
   requestMessages: NormalizedMessage[],
   savedMessages: NormalizedMessage[],
+  backend: ReplayBackend,
 ): number | undefined {
   const logFile = process.env.PROXY_DEBUG_LOG;
-  const log = (msg: string) => { if (logFile) try { appendFileSync(logFile, msg + "\n"); } catch {} };
+  const log = (msg: string) => {
+    if (logFile)
+      try {
+        appendFileSync(logFile, msg + "\n");
+      } catch {}
+  };
 
   if (requestMessages.length >= savedMessages.length) {
-    log(`prefix check failed: request.length=${requestMessages.length} >= saved.length=${savedMessages.length}`);
+    log(
+      `prefix check failed: request.length=${requestMessages.length} >= saved.length=${savedMessages.length}`,
+    );
     return undefined;
   }
 
-  for (let i = 0; i < requestMessages.length; i++) {
-    const reqMsg = JSON.stringify(requestMessages[i]);
-    const savedMsg = JSON.stringify(savedMessages[i]);
-    if (reqMsg !== savedMsg) {
-      log(`mismatch at index ${i}:`);
-      log(`  REQ:   ${reqMsg.substring(0, 1000)}`);
-      log(`  SAVED: ${savedMsg.substring(0, 1000)}`);
-      return undefined;
-    }
-  }
-
-  // The next message after the prefix should be an assistant message
-  const nextIndex = requestMessages.length;
-  if (
-    nextIndex < savedMessages.length &&
-    savedMessages[nextIndex].role === "assistant"
+  for (
+    let nextIndex = requestMessages.length;
+    nextIndex < savedMessages.length;
+    nextIndex++
   ) {
-    log(`MATCH found at index ${nextIndex}`);
-    return nextIndex;
+    if (savedMessages[nextIndex].role !== "assistant") continue;
+
+    // A continuation can start after an assistant message. Never coalesce
+    // across this candidate request/response boundary.
+    const prefix = normalizeMessagesForBackend(
+      savedMessages.slice(0, nextIndex),
+      backend,
+    );
+    if (prefix.length > requestMessages.length) break;
+    if (prefix.length !== requestMessages.length) continue;
+
+    const mismatchIndex = requestMessages.findIndex(
+      (message, i) => JSON.stringify(message) !== JSON.stringify(prefix[i]),
+    );
+    if (mismatchIndex === -1) {
+      log(`MATCH found at index ${nextIndex}`);
+      return nextIndex;
+    }
+    log(`mismatch at index ${mismatchIndex} for reply index ${nextIndex}:`);
+    log(
+      `  REQ:   ${JSON.stringify(requestMessages[mismatchIndex]).substring(0, 1000)}`,
+    );
+    log(`  SAVED: ${JSON.stringify(prefix[mismatchIndex]).substring(0, 1000)}`);
   }
 
-  log(`no assistant at nextIndex=${nextIndex}, saved.length=${savedMessages.length}`);
+  log(`no matching assistant boundary, saved.length=${savedMessages.length}`);
   return undefined;
 }
 
@@ -2092,7 +2135,9 @@ type ReplayingCapiProxyState = {
   workDir: string;
   testInfo?: { file: string; line?: number };
   backend: ReplayBackend;
+  replayOnly: boolean;
   storedData?: NormalizedData | undefined;
+  autoResponseIndex: number;
   toolResultNormalizers: ToolResultNormalizer[];
 };
 
@@ -2130,6 +2175,35 @@ export interface NormalizedData {
   models: string[];
   errors?: NormalizedErrorResponse[];
   conversations: NormalizedConversation[];
+  /**
+   * Ordered fixture responses for CAPI's `POST /auto` routing endpoint,
+   * consumed one per call in array order. Used by deterministic Auto-tier
+   * lifecycle scenarios (cold resume, successful activation, failed
+   * activation) that need to control what model `/auto` selects without
+   * depending on live, non-deterministic Auto routing.
+   */
+  autoResponses?: AutoResponseStub[];
+}
+
+/**
+ * A single deterministic `/auto` fixture response. `statusCode` defaults to
+ * 200; a non-2xx value (e.g. 500) simulates an `/auto` request failure so
+ * tests can exercise failed Auto-tier activation without a real routing
+ * error.
+ */
+export interface AutoResponseStub {
+  statusCode?: number;
+  body: {
+    session_token: string;
+    selected_model: {
+      id: string;
+      name?: string;
+      capabilities?: {
+        supports: Record<string, unknown>;
+        limits: Record<string, unknown>;
+      };
+    };
+  };
 }
 
 function sortJsonKeys(obj: unknown): unknown {

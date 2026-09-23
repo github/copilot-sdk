@@ -10,8 +10,13 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.TestUtil;
@@ -326,6 +331,80 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
+    void sessionModelSetAllowedModelsParams_round_trips_exact_ids() throws Exception {
+        var mapper = new ObjectMapper();
+        var allowedModels = List.of("gpt-5", "azure/gpt-5");
+        var params = new SessionModelSetAllowedModelsParams("sess-model-policy", allowedModels);
+
+        assertEquals("sess-model-policy", params.sessionId());
+        assertEquals(allowedModels, params.allowedModels());
+        var json = mapper.readTree(mapper.writeValueAsString(params));
+        assertEquals("sess-model-policy", json.get("sessionId").asText());
+        assertEquals(mapper.valueToTree(allowedModels), json.get("allowedModels"));
+        assertEquals(params, mapper.treeToValue(json, SessionModelSetAllowedModelsParams.class));
+    }
+
+    @Test
+    void sessionModelSetAllowedModelsParams_distinguishes_clearing_from_empty_list() throws Exception {
+        var mapper = new ObjectMapper();
+        var cleared = new SessionModelSetAllowedModelsParams("sess-model-policy", null);
+
+        for (var json : List.of("""
+                {"sessionId":"sess-model-policy"}
+                """, """
+                {"sessionId":"sess-model-policy","allowedModels":null}
+                """)) {
+            assertEquals(cleared, mapper.readValue(json, SessionModelSetAllowedModelsParams.class));
+        }
+        var clearedJson = mapper.readTree(mapper.writeValueAsString(cleared));
+        assertFalse(clearedJson.has("allowedModels"));
+
+        var empty = new SessionModelSetAllowedModelsParams("sess-model-policy", List.of());
+        var emptyJson = mapper.readTree(mapper.writeValueAsString(empty));
+        assertTrue(emptyJson.get("allowedModels").isArray());
+        assertTrue(emptyJson.get("allowedModels").isEmpty());
+        assertEquals(empty, mapper.treeToValue(emptyJson, SessionModelSetAllowedModelsParams.class));
+    }
+
+    @Test
+    void sessionModelSetAllowedModelsResult_round_trips_policy_and_selection() throws Exception {
+        var mapper = new ObjectMapper();
+        var json = """
+                {"allowedModels":["gpt-5","azure/gpt-5"],"effectiveAllowedModels":["gpt-5"],
+                 "fallbackModel":"gpt-5","modelId":"gpt-5"}
+                """;
+
+        var result = mapper.readValue(json, SessionModelSetAllowedModelsResult.class);
+
+        assertEquals(List.of("gpt-5", "azure/gpt-5"), result.allowedModels());
+        assertEquals(List.of("gpt-5"), result.effectiveAllowedModels());
+        assertEquals("gpt-5", result.fallbackModel());
+        assertEquals("gpt-5", result.modelId());
+        assertEquals(mapper.readTree(json), mapper.valueToTree(result));
+    }
+
+    @Test
+    void sessionModelSetAllowedModelsResult_all_fields_are_optional() throws Exception {
+        var mapper = new ObjectMapper();
+        var empty = mapper.readValue("{}", SessionModelSetAllowedModelsResult.class);
+        assertNull(empty.allowedModels());
+        assertNull(empty.effectiveAllowedModels());
+        assertNull(empty.fallbackModel());
+        assertNull(empty.modelId());
+
+        for (var json : List.of("{}", """
+                {"modelId":"gpt-5"}
+                """, """
+                {"allowedModels":["gpt-5"]}
+                """, """
+                {"effectiveAllowedModels":[],"fallbackModel":"gpt-5"}
+                """)) {
+            var result = mapper.readValue(json, SessionModelSetAllowedModelsResult.class);
+            assertEquals(mapper.readTree(json), mapper.valueToTree(result));
+        }
+    }
+
+    @Test
     void sessionModelSwitchToParams_record() {
         var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-5", null, "high", null, null, null, null,
                 null, null, null, null, null, null, null, null);
@@ -472,6 +551,102 @@ class GeneratedRpcRecordsCoverageTest {
 
     // ── Result records ─────────────────────────────────────────────────────
 
+    @ParameterizedTest
+    @MethodSource("catalogSearchSharedErrors")
+    void catalogSearchResult_shared_errors_round_trip(Class<? extends CatalogSearchResult> subtype, String json)
+            throws Exception {
+        assertSame(CatalogSearchResult.class, subtype.getSuperclass());
+        assertCatalogErrorRoundTrip(CatalogSearchResult.class, subtype, json, CatalogSearchResult::getKind);
+    }
+
+    static Stream<Arguments> catalogSearchSharedErrors() {
+        return Stream.of(Arguments.of(CatalogNegotiationRefusedError.class, catalogNegotiationRefusedJson()),
+                Arguments.of(CatalogInvalidRequestError.class, """
+                        {"kind":"invalid-request","field":"query","message":"A query is required"}
+                        """), Arguments.of(CatalogUnavailableError.class, """
+                        {"kind":"unavailable","reason":"search-unavailable","message":"Search is unavailable"}
+                        """));
+    }
+
+    @ParameterizedTest
+    @MethodSource("catalogSelectionSharedErrors")
+    void catalogSelectionResult_shared_errors_round_trip(Class<? extends CatalogSelectionResult> subtype, String json)
+            throws Exception {
+        assertCatalogErrorRoundTrip(CatalogSelectionResult.class, subtype, json, CatalogSelectionResult::getKind);
+    }
+
+    static Stream<Arguments> catalogSelectionSharedErrors() {
+        return Stream.of(
+                Arguments.of(CatalogSelectionResultCatalogNegotiationRefusedError.class,
+                        catalogNegotiationRefusedJson()),
+                Arguments.of(CatalogSelectionResultCatalogInvalidRequestError.class, """
+                        {"kind":"invalid-request","field":"selectionRef","message":"A selection reference is required"}
+                        """), Arguments.of(CatalogSelectionResultCatalogUnavailableError.class, """
+                        {"kind":"unavailable","reason":"selection-unavailable","message":"Selection is unavailable"}
+                        """));
+    }
+
+    @ParameterizedTest
+    @MethodSource("mcpPlanInstallSharedErrors")
+    void mcpPlanInstallResult_shared_errors_round_trip(Class<? extends McpPlanInstallResult> subtype, String json)
+            throws Exception {
+        assertCatalogErrorRoundTrip(McpPlanInstallResult.class, subtype, json, McpPlanInstallResult::getKind);
+    }
+
+    static Stream<Arguments> mcpPlanInstallSharedErrors() {
+        return Stream.of(
+                Arguments.of(McpPlanInstallResultCatalogNegotiationRefusedError.class, catalogNegotiationRefusedJson()),
+                Arguments.of(McpPlanInstallResultCatalogInvalidRequestError.class, """
+                        {"kind":"invalid-request","field":"card","message":"A card is required"}
+                        """), Arguments.of(McpPlanInstallResultCatalogAuthenticationRequiredError.class, """
+                        {"kind":"authentication-required","reason":"credential-expired","message":"Sign in again"}
+                        """), Arguments.of(McpPlanInstallResultCatalogPolicyRejectedError.class, """
+                        {"kind":"policy-rejected","source":"enterprise-allowlist","message":"Installation is blocked"}
+                        """), Arguments.of(McpPlanInstallResultCatalogNetworkFailureError.class, """
+                        {"kind":"network-failure","reason":"rate-limited","statusCode":429,
+                         "retryAfterSeconds":30,"message":"Retry later"}
+                        """), Arguments.of(McpPlanInstallResultCatalogUnsafeRetrievalError.class, """
+                        {"kind":"unsafe-retrieval","reason":"blocked-address","message":"Retrieval is blocked"}
+                        """), Arguments.of(McpPlanInstallResultCatalogMalformedCardError.class, """
+                        {"kind":"malformed-card","reason":"schema-violation",
+                         "mediaType":"application/mcp-server-card+json","message":"The card does not match its schema"}
+                        """), Arguments.of(McpPlanInstallResultCatalogContractViolationError.class, """
+                        {"kind":"contract-violation","reason":"both-url-and-data","message":"Use one card source"}
+                        """), Arguments.of(McpPlanInstallResultCatalogUnavailableError.class, """
+                        {"kind":"unavailable","reason":"planning-unavailable","message":"Planning is unavailable"}
+                        """));
+    }
+
+    private static String catalogNegotiationRefusedJson() {
+        return """
+                {"kind":"negotiation-refused","reason":"unsupported-capability","runtimeProtocolVersion":3,
+                 "minimumSupportedProtocolVersion":3,
+                 "supportedCapabilities":["mcp-server-card","legacy-mcp-server-card","ai-skill-discovery",
+                                          "agent-plugin-discovery","mcp-install-planning"],
+                 "unsupportedCapabilities":["catalog-selection"],"message":"The required capability is unavailable"}
+                """;
+    }
+
+    private static <T> void assertCatalogErrorRoundTrip(Class<T> root, Class<? extends T> subtype, String json,
+            Function<T, String> kind) throws Exception {
+        var mapper = new ObjectMapper();
+        var expected = mapper.readTree(json);
+        assertTrue(root.isAssignableFrom(subtype));
+
+        var result = mapper.readValue(json, root);
+        assertInstanceOf(root, result);
+        assertEquals(subtype, result.getClass());
+        assertEquals(expected.get("kind").asText(), kind.apply(result));
+
+        var serialized = mapper.writeValueAsString(result);
+        assertEquals(expected, mapper.readTree(serialized));
+        var roundTripped = mapper.readValue(serialized, root);
+        assertInstanceOf(root, roundTripped);
+        assertEquals(subtype, roundTripped.getClass());
+        assertEquals(expected.get("kind").asText(), kind.apply(roundTripped));
+        assertEquals(expected, mapper.readTree(mapper.writeValueAsString(roundTripped)));
+    }
+
     @Test
     void pingResult_fields() {
         var ts = OffsetDateTime.now();
@@ -484,7 +659,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentListResult_with_items() {
         var item = new AgentInfo("name1", "Name One", "Desc 1", "/path/to/agent1", null, null, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         var result = new SessionAgentListResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("name1", result.agents().get(0).name());
@@ -496,7 +671,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentGetCurrentResult_nested() {
         var agent = new AgentInfo("agent-1", "Agent One", "Does things", null, null, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
         var result = new SessionAgentGetCurrentResult(agent);
         assertEquals("agent-1", result.agent().name());
         assertEquals("Agent One", result.agent().displayName());
@@ -513,7 +688,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentReloadResult_with_items() {
         var item = new AgentInfo("a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null, null, null,
-                null, null);
+                null, null, null);
         var result = new SessionAgentReloadResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("a", result.agents().get(0).name());
@@ -522,7 +697,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentSelectResult_nested() {
         var agent = new AgentInfo("selected", "Selected", "The selected agent", "/path/to/selected", null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
         var result = new SessionAgentSelectResult(agent);
         assertEquals("selected", result.agent().name());
     }
@@ -653,7 +828,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionMcpListResult_nested() {
         var metadata = new McpServerMetadata("Use this server for repository operations.");
-        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null,
+        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null, null,
                 metadata);
         var result = new SessionMcpListResult(List.of(server), null);
         assertEquals(1, result.servers().size());
@@ -681,7 +856,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToResult_record() {
-        var result = new SessionModelSwitchToResult("gpt-5", true, null, null, null, null, null, null, null);
+        var result = new SessionModelSwitchToResult("queue-model-1", "gpt-5", true, null, null, null, null, null, null,
+                null);
+        assertEquals("queue-model-1", result.queueId());
         assertEquals("gpt-5", result.modelId());
         assertEquals(true, result.deferred());
     }
@@ -703,13 +880,20 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionPluginsListResult_nested() {
-        var plugin = new Plugin("my-plugin", "marketplace-x", "1.2.3", true);
+        var plugin = new Plugin("my-plugin", "marketplace-x", "1.2.3", true, null, "/marketplaces/marketplace-x", null,
+                true, true, true);
         var result = new SessionPluginsListResult(List.of(plugin));
         assertEquals(1, result.plugins().size());
         assertEquals("my-plugin", result.plugins().get(0).name());
         assertEquals("marketplace-x", result.plugins().get(0).marketplace());
         assertEquals("1.2.3", result.plugins().get(0).version());
         assertTrue(result.plugins().get(0).enabled());
+        assertNull(result.plugins().get(0).directSourceId());
+        assertEquals("/marketplaces/marketplace-x", result.plugins().get(0).installedFrom());
+        assertNull(result.plugins().get(0).source());
+        assertTrue(result.plugins().get(0).managed());
+        assertTrue(result.plugins().get(0).managedDesiredEnabled());
+        assertTrue(result.plugins().get(0).installed());
     }
 
     @Test
@@ -831,7 +1015,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void modelsListResult_nested() {
-        var supports = new ModelCapabilitiesSupports(true, false, null);
+        var supports = new ModelCapabilitiesSupports(true, null, false, null);
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
@@ -858,13 +1042,15 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void toolsListResult_nested() {
-        var tool = new Tool("bash", "bash", "Run shell commands", Map.of("type", "object"), "Use for shell commands");
+        var tool = new Tool("bash", "bash", "Run shell commands", Map.of("type", "object"), "Use for shell commands",
+                true);
         var result = new ToolsListResult(List.of(tool));
         assertEquals(1, result.tools().size());
         assertEquals("bash", result.tools().get(0).name());
         assertEquals("bash", result.tools().get(0).namespacedName());
         assertEquals("Run shell commands", result.tools().get(0).description());
         assertEquals("Use for shell commands", result.tools().get(0).instructions());
+        assertEquals(Boolean.TRUE, result.tools().get(0).safeForTelemetry());
     }
 
     // ── SessionModelSwitchToParams nested records ──────────────────────────
@@ -873,7 +1059,7 @@ class GeneratedRpcRecordsCoverageTest {
     void sessionModelSwitchToParams_nested_records() {
         var limitsVision = new ModelCapabilitiesOverrideLimitsVision(List.of("image/png", "image/jpeg"), 10L, 5000000L);
         var limits = new ModelCapabilitiesOverrideLimits(100000L, 8192L, 128000L, limitsVision);
-        var supports = new ModelCapabilitiesOverrideSupports(true, true, null);
+        var supports = new ModelCapabilitiesOverrideSupports(true, null, true, null);
         var capabilities = new ModelCapabilitiesOverride(supports, limits);
         var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, null, capabilities, null, null,
                 null, null, null, null, null, null, null);

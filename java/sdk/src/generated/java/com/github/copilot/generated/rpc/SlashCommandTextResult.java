@@ -44,6 +44,10 @@ public final class SlashCommandTextResult extends SlashCommandInvocationResult {
     @JsonProperty("runtimeSettingsChanged")
     private Boolean runtimeSettingsChanged;
 
+    /** Present when the invocation changed the sandbox for this session only. Nothing was persisted, so consumers must mirror the change onto the live session rather than reloading settings, and must not treat it as a settings change. */
+    @JsonProperty("sandboxSessionChange")
+    private SandboxSessionChange sandboxSessionChange;
+
     public String getText() { return text; }
     public void setText(String text) { this.text = text; }
 
@@ -55,4 +59,7 @@ public final class SlashCommandTextResult extends SlashCommandInvocationResult {
 
     public Boolean getRuntimeSettingsChanged() { return runtimeSettingsChanged; }
     public void setRuntimeSettingsChanged(Boolean runtimeSettingsChanged) { this.runtimeSettingsChanged = runtimeSettingsChanged; }
+
+    public SandboxSessionChange getSandboxSessionChange() { return sandboxSessionChange; }
+    public void setSandboxSessionChange(SandboxSessionChange sandboxSessionChange) { this.sandboxSessionChange = sandboxSessionChange; }
 }

@@ -7,6 +7,7 @@
  */
 
 import fs from "fs/promises";
+import { realpathSync } from "fs";
 import type { JSONSchema7 } from "json-schema";
 import { compile } from "json-schema-to-typescript";
 import path from "path";
@@ -53,8 +54,6 @@ import {
 } from "./utils.js";
 
 const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
-// Retention must also be callable before a create/resume response exposes a session.
-const CONNECTION_SESSION_METHODS = new Set(["session.retain"]);
 const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
     "session-events.schema.json": "./session-events.js",
 };
@@ -525,9 +524,11 @@ export function filterPublicSessionEventVariants(
     return { publicVariants, excludedDefinitionNames };
 }
 
-async function generateSessionEvents(schema: JSONSchema7, source: string): Promise<void> {
+async function generateSessionEvents(schemaPath?: string): Promise<void> {
     console.log("TypeScript: generating session-events...");
 
+    const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
+    const schema = await loadSchemaJson<JSONSchema7>(resolvedPath);
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     const definitionCollections = collectDefinitionCollections(processed as Record<string, unknown>);
     const sessionEvent =
@@ -563,7 +564,7 @@ async function generateSessionEvents(schema: JSONSchema7, source: string): Promi
             bannerComment: [
                 `/**
  * AUTO-GENERATED FILE - DO NOT EDIT
- * Generated from: ${source}
+ * Generated from: session-events.schema.json
  */`,
                 opaqueTypeAliasBlock(opaqueTypeAliases),
             ]
@@ -679,9 +680,7 @@ function tsNullableResultTypeName(method: RpcMethod): string | undefined {
 }
 
 function tsResultType(method: RpcMethod): string {
-    if (isVoidSchema(getMethodResultSchema(method))) {
-        return CONNECTION_SESSION_METHODS.has(method.rpcMethod) ? "null" : "void";
-    }
+    if (isVoidSchema(getMethodResultSchema(method))) return "void";
     return tsNullableResultTypeName(method) ?? resultTypeName(method);
 }
 
@@ -796,11 +795,7 @@ import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.j
             if (paramsExternalRef) {
                 continue;
             }
-            if (
-                method.rpcMethod.startsWith("session.") &&
-                !CONNECTION_SESSION_METHODS.has(method.rpcMethod) &&
-                resolvedParams?.properties
-            ) {
+            if (method.rpcMethod.startsWith("session.") && resolvedParams?.properties) {
                 const filtered: JSONSchema7 = {
                     ...resolvedParams,
                     properties: Object.fromEntries(
@@ -895,14 +890,6 @@ function hasInternalMethods(node: Record<string, unknown>): boolean {
         lines.push(`export function createServerRpc(connection: MessageConnection) {`);
         lines.push(`    return {`);
         lines.push(...emitGroup(schema.server, "        ", false, false, false, "public"));
-        const connectionSessionMethods = Object.fromEntries(
-            Object.entries(schema.session ?? {}).filter(
-                ([, method]) => isRpcMethod(method) && CONNECTION_SESSION_METHODS.has(method.rpcMethod)
-            )
-        );
-        if (Object.keys(connectionSessionMethods).length > 0) {
-            lines.push(...emitGroup({ session: connectionSessionMethods }, "        ", false, false, false, "public"));
-        }
         lines.push(`    };`);
         lines.push(`}`);
         lines.push("");
@@ -1312,13 +1299,10 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     // Explicit schema arguments remain complete, caller-supplied inputs.
     const canvas = sessionSchemaPath || apiSchemaPath ? undefined : await loadCanvasSchemaRevisions();
     const sourceSuffix = canvas ? " + experimental/canvas.schema.json" : "";
-    const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
-    const releasedSessionSchema = await loadSchemaJson<JSONSchema7>(resolvedSessionPath);
-    const sessionSchema = canvas
-        ? applySchemaRevision(releasedSessionSchema, canvas.sessionEvents)
-        : releasedSessionSchema;
-    await generateSessionEvents(sessionSchema, `session-events.schema.json${sourceSuffix}`);
+    await generateSessionEvents(sessionSchemaPath);
     try {
+        const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
+        const sessionSchema = await loadSchemaJson<JSONSchema7>(resolvedSessionPath);
         const resolvedApiPath = apiSchemaPath ?? (await getApiSchemaPath());
         const releasedApiSchema = await loadSchemaJson<ApiSchema>(resolvedApiPath);
         const apiSchema = canvas ? applySchemaRevision(releasedApiSchema, canvas.api) : releasedApiSchema;
@@ -1338,7 +1322,29 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
 
 const __filename = fileURLToPath(import.meta.url);
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+export function isTypeScriptCodegenEntrypoint(
+    entryPath: string | undefined,
+    modulePath = __filename,
+    platform = process.platform,
+): boolean {
+    if (!entryPath) {
+        return false;
+    }
+    const canonicalize = (filePath: string) => {
+        try {
+            return realpathSync.native(filePath);
+        } catch {
+            return path.resolve(filePath);
+        }
+    };
+    const canonicalEntryPath = canonicalize(entryPath);
+    const canonicalModulePath = canonicalize(modulePath);
+    return platform === "win32"
+        ? canonicalEntryPath.toLowerCase() === canonicalModulePath.toLowerCase()
+        : canonicalEntryPath === canonicalModulePath;
+}
+
+if (isTypeScriptCodegenEntrypoint(process.argv[1])) {
     const sessionArg = process.argv[2] || undefined;
     const apiArg = process.argv[3] || undefined;
     generate(sessionArg, apiArg).catch((err) => {

@@ -1,0 +1,17 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly FIRST_SCENARIO_SESSION.
+      - role: assistant
+        content: FIRST_SCENARIO_SESSION
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly SECOND_SCENARIO_SESSION.
+      - role: assistant
+        content: SECOND_SCENARIO_SESSION

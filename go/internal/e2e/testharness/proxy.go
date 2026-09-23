@@ -130,6 +130,9 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 		p.proxyURL = ""
 	}()
 
+	releaseSignalGuard := ProtectProcessWait()
+	defer releaseSignalGuard()
+
 	// Send stop request to the server
 	if p.proxyURL != "" {
 		stopURL := p.proxyURL + "/stop"
@@ -146,6 +149,7 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 
 	exited := make(chan struct{}, 1)
 	go func() {
+		PrepareForProcessWait()
 		_ = cmd.Wait()
 		exited <- struct{}{}
 	}()
@@ -281,9 +285,11 @@ type ParsedHttpExchange struct {
 
 // ChatCompletionRequest represents an OpenAI chat completion request.
 type ChatCompletionRequest struct {
-	Model    string                  `json:"model"`
-	Messages []ChatCompletionMessage `json:"messages"`
-	Tools    []ChatCompletionTool    `json:"tools,omitempty"`
+	ToolChoice     json.RawMessage         `json:"tool_choice,omitempty"`
+	ResponseFormat map[string]any          `json:"response_format,omitempty"`
+	Model          string                  `json:"model"`
+	Messages       []ChatCompletionMessage `json:"messages"`
+	Tools          []ChatCompletionTool    `json:"tools,omitempty"`
 }
 
 // ChatCompletionMessage represents a message in the chat completion request.

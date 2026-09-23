@@ -1,0 +1,260 @@
+SHARED_CODEGEN_INPUTS = [
+    "nodejs/scripts/releaseArtifacts.ts",
+    "nodejs/src/cliVersion.ts",
+    "scripts/codegen/package-lock.json",
+    "scripts/codegen/package.json",
+    "scripts/codegen/utils.ts",
+    "scripts/runtime-layout.mjs",
+]
+
+HAND_WRITTEN_DOTNET_INPUTS = glob(
+    ["dotnet/src/**/*.cs"],
+    exclude = [
+        "dotnet/src/Generated/**",
+        "dotnet/src/bin/**",
+        "dotnet/src/obj/**",
+    ],
+)
+
+HAND_WRITTEN_GO_INPUTS = glob(
+    ["go/*.go"],
+    exclude = ["go/z*.go"],
+)
+
+genrule(
+    name = "nodejs_projection",
+    srcs = [
+        "//src/native/schema-codegen:generated/api.schema.json",
+        "//src/native/schema-codegen:generated/session-events.schema.json",
+        "scripts/codegen/typescript.ts",
+    ] + SHARED_CODEGEN_INPUTS,
+    outs = ["projections/nodejs.tar"],
+    cmd = """
+set -eu
+execroot="$$PWD"
+root="$$execroot/$(@D)/nodejs-root"
+schemas="$$execroot/$$(dirname $(location //src/native/schema-codegen:generated/api.schema.json))"
+rm -rf "$$root"
+mkdir -p "$$root"
+codegen_root="$$root"
+codegen_schemas="$$schemas"
+if command -v cygpath >/dev/null 2>&1; then
+  codegen_root="$$(cygpath -w "$$root")"
+  codegen_schemas="$$(cygpath -w "$$schemas")"
+elif pwd -W >/dev/null 2>&1; then
+  codegen_root="$$(cd "$$root" && pwd -W)"
+  codegen_schemas="$$(cd "$$schemas" && pwd -W)"
+fi
+COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
+COPILOT_CLI_SCHEMA_DIR="$$codegen_schemas" \
+COPILOT_RUNTIME_SOURCE=checkout \
+npm --prefix src/sdk/scripts/codegen run generate:ts
+tar -cf "$@" -C "$$root" .
+""",
+    tags = [
+        "local",
+        "manual",
+        "no-sandbox",
+    ],
+)
+
+genrule(
+    name = "python_projection",
+    srcs = [
+        "//src/native/schema-codegen:generated/api.schema.json",
+        "//src/native/schema-codegen:generated/session-events.schema.json",
+        "scripts/codegen/python.ts",
+    ] + SHARED_CODEGEN_INPUTS,
+    outs = ["projections/python.tar"],
+    cmd = """
+set -eu
+execroot="$$PWD"
+root="$$execroot/$(@D)/python-root"
+schemas="$$execroot/$$(dirname $(location //src/native/schema-codegen:generated/api.schema.json))"
+rm -rf "$$root"
+mkdir -p "$$root"
+codegen_root="$$root"
+codegen_schemas="$$schemas"
+if command -v cygpath >/dev/null 2>&1; then
+  codegen_root="$$(cygpath -w "$$root")"
+  codegen_schemas="$$(cygpath -w "$$schemas")"
+elif pwd -W >/dev/null 2>&1; then
+  codegen_root="$$(cd "$$root" && pwd -W)"
+  codegen_schemas="$$(cd "$$schemas" && pwd -W)"
+fi
+COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
+COPILOT_CLI_SCHEMA_DIR="$$codegen_schemas" \
+COPILOT_RUNTIME_SOURCE=checkout \
+npm --prefix src/sdk/scripts/codegen run generate:python
+tar -cf "$@" -C "$$root" .
+""",
+    tags = [
+        "local",
+        "manual",
+        "no-sandbox",
+    ],
+)
+
+genrule(
+    name = "go_projection",
+    srcs = [
+        "//src/native/schema-codegen:generated/api.schema.json",
+        "//src/native/schema-codegen:generated/session-events.schema.json",
+        "scripts/codegen/go.ts",
+    ] + HAND_WRITTEN_GO_INPUTS + SHARED_CODEGEN_INPUTS,
+    outs = ["projections/go.tar"],
+    cmd = """
+set -eu
+execroot="$$PWD"
+root="$$execroot/$(@D)/go-root"
+schemas="$$execroot/$$(dirname $(location //src/native/schema-codegen:generated/api.schema.json))"
+rm -rf "$$root"
+mkdir -p "$$root"
+codegen_root="$$root"
+codegen_schemas="$$schemas"
+if command -v cygpath >/dev/null 2>&1; then
+  codegen_root="$$(cygpath -w "$$root")"
+  codegen_schemas="$$(cygpath -w "$$schemas")"
+elif pwd -W >/dev/null 2>&1; then
+  codegen_root="$$(cd "$$root" && pwd -W)"
+  codegen_schemas="$$(cd "$$schemas" && pwd -W)"
+fi
+COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
+COPILOT_CLI_SCHEMA_DIR="$$codegen_schemas" \
+COPILOT_RUNTIME_SOURCE=checkout \
+npm --prefix src/sdk/scripts/codegen run generate:go
+tar -cf "$@" -C "$$root" .
+""",
+    tags = [
+        "local",
+        "manual",
+        "no-sandbox",
+    ],
+)
+
+genrule(
+    name = "dotnet_projection",
+    srcs = [
+        "//src/native/schema-codegen:generated/api.schema.json",
+        "//src/native/schema-codegen:generated/session-events.schema.json",
+        ".editorconfig",
+        "dotnet/global.json",
+        "dotnet/src/GitHub.Copilot.SDK.csproj",
+        "scripts/codegen/csharp.ts",
+    ] + HAND_WRITTEN_DOTNET_INPUTS + SHARED_CODEGEN_INPUTS,
+    outs = ["projections/dotnet.tar"],
+    cmd = """
+set -eu
+execroot="$$PWD"
+root="$$execroot/$(@D)/dotnet-root"
+schemas="$$execroot/$$(dirname $(location //src/native/schema-codegen:generated/api.schema.json))"
+rm -rf "$$root"
+mkdir -p "$$root"
+codegen_root="$$root"
+codegen_schemas="$$schemas"
+if command -v cygpath >/dev/null 2>&1; then
+  codegen_root="$$(cygpath -w "$$root")"
+  codegen_schemas="$$(cygpath -w "$$schemas")"
+elif pwd -W >/dev/null 2>&1; then
+  codegen_root="$$(cd "$$root" && pwd -W)"
+  codegen_schemas="$$(cd "$$schemas" && pwd -W)"
+fi
+COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
+COPILOT_CLI_SCHEMA_DIR="$$codegen_schemas" \
+COPILOT_RUNTIME_SOURCE=checkout \
+npm --prefix src/sdk/scripts/codegen run generate:csharp
+tar -cf "$@" -C "$$root" .
+""",
+    tags = [
+        "local",
+        "manual",
+        "no-sandbox",
+    ],
+)
+
+genrule(
+    name = "rust_projection",
+    srcs = [
+        "//src/native/schema-codegen:generated/api.schema.json",
+        "//src/native/schema-codegen:generated/session-events.schema.json",
+        "scripts/codegen/rust.ts",
+        "//src/sdk/rust:.rustfmt.toml",
+        "//src/sdk/rust:rust-toolchain.toml",
+    ] + SHARED_CODEGEN_INPUTS,
+    outs = ["projections/rust.tar"],
+    cmd = """
+set -eu
+execroot="$$PWD"
+root="$$execroot/$(@D)/rust-root"
+schemas="$$execroot/$$(dirname $(location //src/native/schema-codegen:generated/api.schema.json))"
+rm -rf "$$root"
+mkdir -p "$$root"
+codegen_root="$$root"
+codegen_schemas="$$schemas"
+if command -v cygpath >/dev/null 2>&1; then
+  codegen_root="$$(cygpath -w "$$root")"
+  codegen_schemas="$$(cygpath -w "$$schemas")"
+elif pwd -W >/dev/null 2>&1; then
+  codegen_root="$$(cd "$$root" && pwd -W)"
+  codegen_schemas="$$(cd "$$schemas" && pwd -W)"
+fi
+COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
+COPILOT_CLI_SCHEMA_DIR="$$codegen_schemas" \
+COPILOT_RUNTIME_SOURCE=checkout \
+npm --prefix src/sdk/scripts/codegen run generate:rust
+tar -cf "$@" -C "$$root" .
+""",
+    tags = [
+        "local",
+        "manual",
+        "no-sandbox",
+    ],
+)
+
+genrule(
+    name = "java_projection",
+    srcs = [
+        "//src/native/schema-codegen:generated/api.schema.json",
+        "//src/native/schema-codegen:generated/session-events.schema.json",
+        "java/scripts/codegen/fetch-schemas.mjs",
+        "java/scripts/codegen/java.ts",
+        "java/scripts/codegen/package-lock.json",
+        "java/scripts/codegen/package.json",
+        "nodejs/package.json",
+        "scripts/runtime-layout.mjs",
+    ],
+    outs = ["projections/java.tar"],
+    cmd = """
+set -eu
+execroot="$$PWD"
+archive_root="$$execroot/$(@D)/java-root"
+root="$$archive_root/java"
+schemas="$$execroot/$(@D)/java-schemas"
+input_schemas="$$execroot/$$(dirname $(location //src/native/schema-codegen:generated/api.schema.json))"
+rm -rf "$$archive_root" "$$schemas"
+mkdir -p "$$root" "$$schemas"
+codegen_root="$$root"
+codegen_schemas="$$schemas"
+codegen_input_schemas="$$input_schemas"
+if command -v cygpath >/dev/null 2>&1; then
+  codegen_root="$$(cygpath -w "$$root")"
+  codegen_schemas="$$(cygpath -w "$$schemas")"
+  codegen_input_schemas="$$(cygpath -w "$$input_schemas")"
+elif pwd -W >/dev/null 2>&1; then
+  codegen_root="$$(cd "$$root" && pwd -W)"
+  codegen_schemas="$$(cd "$$schemas" && pwd -W)"
+  codegen_input_schemas="$$(cd "$$input_schemas" && pwd -W)"
+fi
+COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
+COPILOT_CLI_SCHEMA_DIR="$$codegen_input_schemas" \
+COPILOT_CLI_SCHEMA_OUTPUT="$$codegen_schemas" \
+COPILOT_RUNTIME_SOURCE=checkout \
+npm --prefix src/sdk/java/scripts/codegen run generate
+tar -cf "$@" -C "$$archive_root" .
+""",
+    tags = [
+        "local",
+        "manual",
+        "no-sandbox",
+    ],
+)

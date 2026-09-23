@@ -12,10 +12,6 @@ import {
 
 const previousMethod = { params: null, result: { type: "null" } };
 const approvedMethod = { params: null, result: { $ref: "#/definitions/Acknowledgement" } };
-const retainedVariant = {
-    $ref: "#/definitions/RetainedEvent",
-    description: "Explicit persistence intent.",
-};
 const revision: SchemaRevision = {
     replacements: [
         {
@@ -29,13 +25,6 @@ const revision: SchemaRevision = {
             value: { type: "object", properties: { contractVersion: { const: 1 } } },
         },
     ],
-    insertions: [
-        {
-            path: ["definitions", "SessionEvent", "anyOf"],
-            after: "#/definitions/StartEvent",
-            value: retainedVariant,
-        },
-    ],
 };
 
 function releasedSchema() {
@@ -44,11 +33,7 @@ function releasedSchema() {
             register: structuredClone(previousMethod),
             ping: { result: { type: "string" } },
         },
-        definitions: {
-            SessionEvent: {
-                anyOf: [{ $ref: "#/definitions/StartEvent" }, { $ref: "#/definitions/InfoEvent" }],
-            },
-        },
+        definitions: {},
     };
 }
 
@@ -61,15 +46,10 @@ describe("canvas schema revisions", () => {
         expect(actual.server.register).toEqual(approvedMethod);
         expect(actual.server.ping).toEqual(released.server.ping);
         expect(actual.definitions).toHaveProperty("Acknowledgement");
-        expect(actual.definitions.SessionEvent.anyOf).toEqual([
-            { $ref: "#/definitions/StartEvent" },
-            retainedVariant,
-            { $ref: "#/definitions/InfoEvent" },
-        ]);
         expect(released).toEqual(original);
     });
 
-    it("accepts an already matching release without duplicate union members", () => {
+    it("accepts an already matching release without modifying it", () => {
         const applied = applySchemaRevision(releasedSchema(), revision);
 
         expect(applySchemaRevision(applied, revision)).toEqual(applied);
@@ -107,33 +87,6 @@ describe("canvas schema revisions", () => {
         );
     });
 
-    it("refuses a missing insertion anchor", () => {
-        const released = releasedSchema();
-        released.definitions.SessionEvent.anyOf = [];
-
-        expect(() => applySchemaRevision(released, revision)).toThrow(
-            "Missing canvas event insertion anchor"
-        );
-    });
-
-    it("refuses a conflicting existing event variant", () => {
-        const released = releasedSchema();
-        released.definitions.SessionEvent.anyOf.push({ $ref: retainedVariant.$ref });
-
-        expect(() => applySchemaRevision(released, revision)).toThrow(
-            "Canvas schema revision mismatch at definitions/SessionEvent/anyOf"
-        );
-    });
-
-    it("refuses duplicate existing event variants", () => {
-        const released = applySchemaRevision(releasedSchema(), revision);
-        released.definitions.SessionEvent.anyOf.push(retainedVariant);
-
-        expect(() => applySchemaRevision(released, revision)).toThrow(
-            "Canvas schema revision mismatch at definitions/SessionEvent/anyOf"
-        );
-    });
-
     it.each([
         { path: [] },
         { path: ["__proto__", "polluted"] },
@@ -144,13 +97,12 @@ describe("canvas schema revisions", () => {
                 {},
                 {
                     replacements: [{ path, beforeSha256: null, value: true }],
-                    insertions: [],
                 }
             )
         ).toThrow("Invalid canvas schema path");
     });
 
-    it("loads the checked-in experimental contract and explicit retained-event insertion", async () => {
+    it("projects only launch admission, with no session or event changes", async () => {
         const canvas = await loadCanvasSchemaRevisions();
 
         expect(canvas.api.replacements.map(({ path }) => path.join("/"))).toEqual([
@@ -161,14 +113,8 @@ describe("canvas schema revisions", () => {
             "definitions/ExtensionSource",
             "server/registerExtensionLaunchProvider",
             "clientGlobal/extensionLaunchProvider/resolve",
-            "session/retain",
         ]);
-        expect(canvas.sessionEvents.insertions).toEqual([
-            {
-                path: ["definitions", "SessionEvent", "anyOf"],
-                after: "#/definitions/AutopilotObjectiveChangedEvent",
-                value: expect.objectContaining({ $ref: "#/definitions/RetainedEvent" }),
-            },
-        ]);
+        expect(canvas).not.toHaveProperty("sessionEvents");
+        expect(canvas.api).not.toHaveProperty("insertions");
     });
 });

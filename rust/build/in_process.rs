@@ -4,6 +4,9 @@ use std::time::Duration;
 
 use sha2::Digest;
 
+#[path = "../src/cache_paths.rs"]
+mod cache_paths;
+
 pub(crate) fn main() {
     println!("cargo:rerun-if-env-changed=DOCS_RS");
     println!("cargo:rerun-if-env-changed=COPILOT_SKIP_CLI_DOWNLOAD");
@@ -13,6 +16,15 @@ pub(crate) fn main() {
     println!("cargo::rustc-check-cfg=cfg(has_extracted_cli)");
     println!("cargo:rerun-if-changed=cli-version.txt");
     println!("cargo:rerun-if-changed=cli-version-in-process.txt");
+
+    if std::env::var_os("CARGO_FEATURE_LOCAL_RUNTIME").is_some()
+        && std::env::var_os("CARGO_FEATURE_BUNDLED_CLI").is_none()
+    {
+        println!(
+            "cargo:warning=local-runtime is enabled — using the runtime supplied by the application"
+        );
+        return;
+    }
 
     // Only declare the package metadata rerun when it actually exists.
     // Cargo treats `rerun-if-changed` for a missing path as "always rerun"
@@ -90,7 +102,7 @@ pub(crate) fn main() {
         .map(std::path::PathBuf::from);
 
     let cache_key = format!("v{version}-{archive_name}");
-    let include_runtime = std::env::var_os("CARGO_FEATURE_BUNDLED_IN_PROCESS").is_some();
+    let include_runtime = std::env::var_os("CARGO_FEATURE_IN_PROCESS").is_some();
 
     if std::env::var_os("CARGO_FEATURE_BUNDLED_CLI").is_some() {
         let runtime_expected_hash = local_expected_hash
@@ -133,7 +145,7 @@ pub(crate) fn main() {
         // recomputes this same path from `COPILOT_SDK_CLI_VERSION` + the
         // OS-derived binary name + optional `COPILOT_CLI_EXTRACT_DIR`,
         // so we don't bake an absolute path into the crate.
-        let install_dir = extracted_install_dir(&version);
+        let install_dir = cache_paths::extracted_runtime_install_dir(&version);
         let required_paths = [
             install_dir.join(platform.runtime_wrapper_name()),
             install_dir.join("runtime.node"),
@@ -186,28 +198,6 @@ pub(crate) fn main() {
         if required_paths.iter().all(|path| path.is_file()) {
             println!("cargo:rustc-cfg=has_extracted_cli");
         }
-    }
-}
-
-/// Install directory used when `bundled-cli` is off. Mirrors the runtime
-/// convention in `src/resolve.rs::extracted_cli_path`: both sides MUST
-/// compute the same path from the same inputs, otherwise the runtime
-/// resolver won't find what build.rs extracted.
-///
-/// If `COPILOT_CLI_EXTRACT_DIR` is set the binary lives directly under
-/// that directory (no per-version subdir) — useful for vendored slots and
-/// for `.cargo/config.toml [env]`-style pinning that's symmetric between
-/// build-time write and runtime read. Otherwise the binary lives under
-/// `<platform cache>/github-copilot-sdk/cli/<sanitized version>/`.
-fn extracted_install_dir(version: &str) -> PathBuf {
-    if let Some(custom) = std::env::var_os("COPILOT_CLI_EXTRACT_DIR") {
-        PathBuf::from(custom)
-    } else {
-        let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
-        cache
-            .join("github-copilot-sdk")
-            .join("cli")
-            .join(sanitize_version(version))
     }
 }
 
@@ -785,20 +775,6 @@ fn install_cached_file_path(
     }
 }
 
-/// Replace characters outside `[a-zA-Z0-9._-]` with `_` so the version
-/// string is always safe to use as a path component. Kept in sync with
-/// `embeddedcli::sanitize_version` and `resolve::sanitize_version` so all
-/// three resolve to the same cache directory for any given version.
-fn sanitize_version(version: &str) -> String {
-    version
-        .chars()
-        .map(|c| match c {
-            'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
-            _ => '_',
-        })
-        .collect()
-}
-
 /// Read a file from the download cache, or download it (with retries) and save
 /// to cache. Verifies SHA-256 on every path. Evicts stale/corrupt cache entries
 /// automatically. Cache I/O failures are treated as cache misses — they never
@@ -861,8 +837,8 @@ fn cached_download(
     data
 }
 
-/// Maximum number of HTTP attempts (one initial + this many retries on transient errors).
-const MAX_RETRIES: u32 = 3;
+/// Maximum retries after the initial HTTP attempt for transient errors.
+const MAX_RETRIES: u32 = 5;
 
 /// Download `url` with bounded retries on transient network errors. Backoff is
 /// exponential starting at 1s. 4xx responses fail fast; 5xx and connect/read

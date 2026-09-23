@@ -37,12 +37,14 @@ func TestToolResultsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What's the weather in Paris?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -83,6 +85,8 @@ func TestToolResultsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "Check the status of the service using check_status. If it fails, say 'service is down'.",
 		})
@@ -90,7 +94,7 @@ func TestToolResultsE2E(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -135,12 +139,14 @@ func TestToolResultsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Analyze the file main.ts for issues."})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -297,6 +303,8 @@ func TestToolResultsE2E(t *testing.T) {
 			}
 		})
 
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
 		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "Use access_secret to get the API key. If access is denied, tell me it was 'access denied'.",
 		})
@@ -326,7 +334,7 @@ func TestToolResultsE2E(t *testing.T) {
 			t.Fatal("Timed out waiting for tool execution complete")
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		answer, err := finalMessage.Wait(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get final assistant message: %v", err)
 		}

@@ -84,6 +84,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
     /** Additional directories to search for skills. */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
+    /** Skill scan directories and descendants excluded from discovery. Supports `~`-relative paths. */
+    @JsonProperty("ignoredSkillsLocations") List<String> ignoredSkillsLocations,
     /** Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction. */
     @JsonProperty("includedBuiltinSkills") List<String> includedBuiltinSkills,
     /** Skill IDs that should be excluded from this session. */

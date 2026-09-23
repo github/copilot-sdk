@@ -4,10 +4,12 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::rpc::{
-    Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
-    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, ModelSwitchAutoTierRequest,
-    ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
-    SandboxConfig, SendAgentMode, TasksStartAgentRequest,
+    AcceptedEnqueueCommandResult, EnqueueCommandResult, Extension, ExtensionList, ExtensionSource,
+    ExtensionStatus, ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest,
+    FleetStartResult, ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult,
+    ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus,
+    QueuePendingItems, QueuePendingItemsKind, SandboxConfig, SendAgentMode, TasksStartAgentRequest,
+    UnsupportedEnqueueCommandResult,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
@@ -21,6 +23,7 @@ fn session_events_deserialize_auto_tier() {
             (Some(AutoTier::Efficiency), Some("efficiency")),
             (Some(AutoTier::Balance), Some("balance")),
             (Some(AutoTier::Intelligence), Some("intelligence")),
+            (Some(AutoTier::Fast), Some("fast")),
             (None, None),
         ] {
             let mut wire = serde_json::json!({
@@ -129,6 +132,42 @@ fn tasks_start_agent_request_fields_are_accessible() {
 }
 
 #[test]
+fn model_allowed_models_request_and_result_preserve_contract_fields() {
+    let replace = ModelSetAllowedModelsRequest {
+        allowed_models: Some(vec!["gpt-5.4".to_string(), "gpt-5-mini".to_string()]),
+    };
+    assert_eq!(
+        serde_json::to_value(&replace).unwrap(),
+        serde_json::json!({ "allowedModels": ["gpt-5.4", "gpt-5-mini"] })
+    );
+
+    let clear = ModelSetAllowedModelsRequest::default();
+    assert_eq!(clear.allowed_models, None);
+    assert_eq!(serde_json::to_value(&clear).unwrap(), serde_json::json!({}));
+
+    let explicit_null: ModelSetAllowedModelsRequest =
+        serde_json::from_value(serde_json::json!({ "allowedModels": null })).unwrap();
+    assert_eq!(explicit_null.allowed_models, None);
+
+    let result = ModelSetAllowedModelsResult {
+        allowed_models: Some(vec!["gpt-5.4".to_string()]),
+        effective_allowed_models: Some(vec!["gpt-5.4".to_string()]),
+        fallback_model: Some("gpt-5.4".to_string()),
+        model_id: Some("gpt-5.4".to_string()),
+    };
+    assert_eq!(
+        result.allowed_models.as_deref(),
+        Some(["gpt-5.4".to_string()].as_slice())
+    );
+    assert_eq!(
+        result.effective_allowed_models.as_deref(),
+        Some(["gpt-5.4".to_string()].as_slice())
+    );
+    assert_eq!(result.fallback_model.as_deref(), Some("gpt-5.4"));
+    assert_eq!(result.model_id.as_deref(), Some("gpt-5.4"));
+}
+
+#[test]
 fn permission_event_exposes_managed_approval_required() {
     let data: PermissionRequestedData = serde_json::from_value(serde_json::json!({
         "permissionRequest": {
@@ -181,6 +220,49 @@ fn queue_pending_message_id_is_optional_for_older_hosts() {
             .unwrap()
             .get("messageId")
             .is_none()
+    );
+}
+
+#[test]
+fn enqueue_command_result_preserves_boolean_discriminator() {
+    let accepted: EnqueueCommandResult = serde_json::from_value(serde_json::json!({
+        "queued": true,
+        "queueId": "queue-1"
+    }))
+    .unwrap();
+    assert!(matches!(
+        &accepted,
+        EnqueueCommandResult::AcceptedEnqueueCommandResult(_)
+    ));
+    assert_eq!(
+        serde_json::to_value(&accepted).unwrap(),
+        serde_json::json!({ "queued": true, "queueId": "queue-1" })
+    );
+
+    let unsupported: EnqueueCommandResult =
+        serde_json::from_value(serde_json::json!({ "queued": false, "queueId": null })).unwrap();
+    assert!(matches!(
+        &unsupported,
+        EnqueueCommandResult::UnsupportedEnqueueCommandResult(_)
+    ));
+    assert_eq!(
+        serde_json::to_value(&unsupported).unwrap(),
+        serde_json::json!({ "queued": false })
+    );
+
+    assert!(
+        serde_json::to_value(AcceptedEnqueueCommandResult {
+            queued: false,
+            queue_id: "queue-1".to_string(),
+        })
+        .is_err()
+    );
+    assert!(
+        serde_json::to_value(UnsupportedEnqueueCommandResult {
+            queued: true,
+            queue_id: None,
+        })
+        .is_err()
     );
 }
 
@@ -242,6 +324,7 @@ fn switch_auto_tier_request_serializes_each_tier() {
         (AutoTier::Efficiency, "efficiency"),
         (AutoTier::Balance, "balance"),
         (AutoTier::Intelligence, "intelligence"),
+        (AutoTier::Fast, "fast"),
     ] {
         let request = ModelSwitchAutoTierRequest {
             auto_tier: Some(tier),
@@ -257,16 +340,17 @@ fn switch_auto_tier_result_deserializes_full_snapshot() {
     let result: ModelSwitchAutoTierResult = serde_json::from_value(serde_json::json!({
         "status": "pending",
         "effectiveAutoTier": "balance",
-        "pendingAutoTier": "intelligence",
+        "pendingAutoTier": "fast",
         "activatingAutoTier": null,
-        "supersededAutoTier": null
+        "supersededAutoTier": "efficiency"
     }))
     .unwrap();
 
     assert_eq!(result.status, ModelSwitchAutoTierStatus::Pending);
     assert_eq!(result.effective_auto_tier, Some(AutoTier::Balance));
-    assert_eq!(result.pending_auto_tier, Some(AutoTier::Intelligence));
+    assert_eq!(result.pending_auto_tier, Some(AutoTier::Fast));
     assert_eq!(result.activating_auto_tier, None);
+    assert_eq!(result.superseded_auto_tier, Some(AutoTier::Efficiency));
 }
 
 #[test]

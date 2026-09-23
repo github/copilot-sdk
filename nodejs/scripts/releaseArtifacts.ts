@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    renameSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { x as extractTar } from "tar";
 import {
@@ -19,9 +27,66 @@ export interface EnsureCopilotPackageOptions {
     platform?: string;
 }
 
+export async function downloadVerifiedReleaseAsset(
+    version: string,
+    assetName: string,
+    options: Omit<EnsureCopilotPackageOptions, "platform"> = {}
+): Promise<Buffer> {
+    const baseUrl = (
+        (options.environment ?? process.env).COPILOT_CLI_DOWNLOAD_BASE_URL ??
+        "https://github.com/github/copilot-cli/releases/download"
+    ).replace(/\/+$/, "");
+    const fetcher = options.fetch ?? globalThis.fetch;
+    if (!fetcher) {
+        throw new Error("This Node.js runtime does not provide fetch().");
+    }
+    const fetchTimeoutMs = options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
+    const expectedChecksum = await getReleaseChecksum(
+        version,
+        assetName,
+        baseUrl,
+        fetcher,
+        fetchTimeoutMs
+    );
+    if (!expectedChecksum) {
+        throw new Error(`SHA256SUMS.txt does not contain ${assetName}.`);
+    }
+    const archive = await fetchWithRetry(
+        fetcher,
+        `${baseUrl}/v${version}/${assetName}`,
+        async (response) => Buffer.from(await response.arrayBuffer()),
+        fetchTimeoutMs
+    );
+    const actualChecksum = createHash("sha256").update(archive).digest("hex");
+    if (actualChecksum !== expectedChecksum) {
+        throw new Error(
+            `Checksum mismatch for ${assetName}: expected ${expectedChecksum}, got ${actualChecksum}.`
+        );
+    }
+    return archive;
+}
+
 const packageDownloads = new Map<string, Promise<string>>();
 const checksumDownloads = new Map<string, Promise<Map<string, string>>>();
 const DEFAULT_FETCH_TIMEOUT_MS = 60_000;
+
+function validateLocalPackage(
+    packageDirectory: string,
+    platform: string,
+    expectedVersion?: string
+): string | undefined {
+    const packageRoot = join(packageDirectory, platform);
+    const manifestPath = join(packageRoot, "package.json");
+    validateFile(manifestPath, `${platform} runtime package manifest`);
+    if (expectedVersion !== undefined) {
+        const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { version?: string };
+        if (manifest.version !== expectedVersion) {
+            return undefined;
+        }
+    }
+    validateFile(join(packageRoot, "prebuilds", platform, "runtime.node"), "Copilot runtime.node");
+    return packageRoot;
+}
 
 async function fetchWithRetry<T>(
     fetcher: typeof globalThis.fetch,
@@ -107,6 +172,14 @@ export async function ensureCopilotPackage(
     options: EnsureCopilotPackageOptions = {}
 ): Promise<string> {
     const platform = options.platform ?? getRuntimePlatform();
+    const environment = options.environment ?? process.env;
+    const workflowPackageDirectory = environment.COPILOT_SDK_RUNTIME_PACKAGE_DIR;
+    if (workflowPackageDirectory) {
+        const packageRoot = validateLocalPackage(workflowPackageDirectory, platform, version);
+        if (packageRoot) {
+            return packageRoot;
+        }
+    }
     // lgtm[js/trivial-conditional] This generated constant is true for internal canary builds.
     if (version === COPILOT_CLI_VERSION && COPILOT_CLI_USE_NPM_PACKAGE) {
         const packageName = `@github/copilot-${platform}`;
@@ -130,7 +203,7 @@ export async function ensureCopilotPackage(
     }
 
     const baseUrl = (
-        (options.environment ?? process.env).COPILOT_CLI_DOWNLOAD_BASE_URL ??
+        environment.COPILOT_CLI_DOWNLOAD_BASE_URL ??
         "https://github.com/github/copilot-cli/releases/download"
     ).replace(/\/+$/, "");
     const fetchTimeoutMs = options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
@@ -177,28 +250,11 @@ async function downloadCopilotPackage(
         throw new Error("This Node.js runtime does not provide fetch().");
     }
     const assetName = getRuntimeReleaseAssetName(version, platform);
-    const expectedChecksum = await getReleaseChecksum(
-        version,
-        assetName,
-        baseUrl,
-        fetcher,
-        fetchTimeoutMs
-    );
-    if (!expectedChecksum) {
-        throw new Error(`SHA256SUMS.txt does not contain ${assetName}.`);
-    }
-    const archive = await fetchWithRetry(
-        fetcher,
-        `${baseUrl}/v${version}/${assetName}`,
-        async (response) => Buffer.from(await response.arrayBuffer()),
-        fetchTimeoutMs
-    );
-    const actualChecksum = createHash("sha256").update(archive).digest("hex");
-    if (actualChecksum !== expectedChecksum) {
-        throw new Error(
-            `Checksum mismatch for ${assetName}: expected ${expectedChecksum}, got ${actualChecksum}.`
-        );
-    }
+    const archive = await downloadVerifiedReleaseAsset(version, assetName, {
+        environment: { COPILOT_CLI_DOWNLOAD_BASE_URL: baseUrl },
+        fetch: fetcher,
+        fetchTimeoutMs,
+    });
 
     mkdirSync(cacheRoot, { recursive: true });
     const stagingRoot = mkdtempSync(join(cacheRoot, ".download-"));

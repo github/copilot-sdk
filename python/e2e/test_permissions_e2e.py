@@ -215,6 +215,7 @@ class TestPermissions:
         )
         session_id = session1.session_id
         await session1.send_and_wait("What is 1+1?")
+        await session1.disconnect()
 
         # Resume with permission handler
         def on_permission_request(
@@ -321,9 +322,10 @@ class TestPermissions:
                 add_event("tool-complete", event.data.tool_call_id)
 
         unsubscribe = session.on(on_event)
+        response_task = asyncio.create_task(
+            session.send_and_wait("Run 'echo slow_handler_test'", timeout=60.0)
+        )
         try:
-            asyncio.ensure_future(session.send("Run 'echo slow_handler_test'"))
-
             await asyncio.wait_for(handler_entered, timeout=30.0)
             target_id = await asyncio.wait_for(target_tool_call_id, timeout=30.0)
 
@@ -334,9 +336,7 @@ class TestPermissions:
 
             release_handler.set_result(True)
 
-            from .testharness.helper import get_final_assistant_message
-
-            message = await get_final_assistant_message(session, timeout=60.0)
+            message = await response_task
 
             perm_start = next(
                 (
@@ -386,6 +386,8 @@ class TestPermissions:
         finally:
             if not release_handler.done():
                 release_handler.set_result(True)
+            response_task.cancel()
+            await asyncio.gather(response_task, return_exceptions=True)
             unsubscribe()
             await session.disconnect()
 

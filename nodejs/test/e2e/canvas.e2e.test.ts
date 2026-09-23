@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { approveAll, createCanvas } from "../../src/index.js";
+import { approveAll, CanvasError, createCanvas } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Canvas RPC", async () => {
@@ -178,4 +178,117 @@ describe("Canvas RPC", async () => {
 
         await session.disconnect();
     });
+
+    it.each(["open", "action", "close"] as const)(
+        "preserves structured canvas errors from %s handlers",
+        async (operation) => {
+            const errorCanvas = createCanvas({
+                id: `error-${operation}`,
+                displayName: `Error ${operation}`,
+                description: `Throws a structured error from ${operation}.`,
+                actions: [
+                    {
+                        name: "fail",
+                        handler: () => {
+                            if (operation === "action") {
+                                throw new CanvasError(
+                                    `scenario_canvas_${operation}`,
+                                    `scenario ${operation} failed`
+                                );
+                            }
+                            return null;
+                        },
+                    },
+                ],
+                open: () => {
+                    if (operation === "open") {
+                        throw new CanvasError(
+                            `scenario_canvas_${operation}`,
+                            `scenario ${operation} failed`
+                        );
+                    }
+                    return { url: "https://example.test/error-canvas" };
+                },
+                onClose: () => {
+                    if (operation === "close") {
+                        throw new CanvasError(
+                            `scenario_canvas_${operation}`,
+                            `scenario ${operation} failed`
+                        );
+                    }
+                },
+            });
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                canvases: [errorCanvas],
+            });
+
+            try {
+                const open = () =>
+                    session.rpc.canvas.open({
+                        canvasId: `error-${operation}`,
+                        instanceId: `error-${operation}-1`,
+                    });
+                if (operation === "open") {
+                    await expect(open()).rejects.toSatisfy((error: unknown) => {
+                        expect(error).toMatchObject({ code: -32603 });
+                        expect(String(error)).toContain("scenario open failed");
+                        return true;
+                    });
+                } else {
+                    await open();
+                }
+
+                const action = () =>
+                    session.rpc.canvas.action.invoke({
+                        instanceId: `error-${operation}-1`,
+                        actionName: "fail",
+                    });
+                const close = () =>
+                    session.rpc.canvas.close({ instanceId: `error-${operation}-1` });
+                if (operation === "action") {
+                    await expect(action()).rejects.toSatisfy((error: unknown) => {
+                        expect(error).toMatchObject({ code: -32603 });
+                        expect(String(error)).toContain("scenario action failed");
+                        return true;
+                    });
+                } else if (operation === "close") {
+                    await expect(close()).resolves.toBeNull();
+                }
+
+                const callback =
+                    operation === "open"
+                        ? session.clientSessionApis.canvas!.open({
+                              sessionId: session.sessionId,
+                              extensionId: "typescript-sdk-tests",
+                              canvasId: `error-${operation}`,
+                              instanceId: `error-${operation}-callback`,
+                          })
+                        : operation === "action"
+                          ? session.clientSessionApis.canvas!.invoke({
+                                sessionId: session.sessionId,
+                                extensionId: "typescript-sdk-tests",
+                                canvasId: `error-${operation}`,
+                                instanceId: `error-${operation}-1`,
+                                actionName: "fail",
+                            })
+                          : session.clientSessionApis.canvas!.close({
+                                sessionId: session.sessionId,
+                                extensionId: "typescript-sdk-tests",
+                                canvasId: `error-${operation}`,
+                                instanceId: `error-${operation}-1`,
+                            });
+                await expect(callback).rejects.toMatchObject({
+                    code: -32603,
+                    message: `scenario ${operation} failed`,
+                    data: {
+                        code: `scenario_canvas_${operation}`,
+                        message: `scenario ${operation} failed`,
+                    },
+                });
+            } finally {
+                await session.disconnect();
+            }
+        }
+    );
 });

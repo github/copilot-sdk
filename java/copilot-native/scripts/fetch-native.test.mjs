@@ -18,7 +18,7 @@ const wrapperContent = 'wrapper content';
 const stagingSchema = 'hostless-runtime-v3';
 const scriptPath = fileURLToPath(new URL('./fetch-native.mjs', import.meta.url));
 
-for (const classifier of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64', 'darwin-arm64']) {
+for (const classifier of ['linux-x64', 'linux-arm64', 'linuxmusl-x64', 'win32-x64', 'win32-arm64', 'darwin-x64', 'darwin-arm64']) {
   test(`${classifier}: complete hostless artifacts use incremental fast path without a CLI`, (t) => {
     const fixture = createFixture(t, classifier);
 
@@ -92,7 +92,9 @@ test('stages retained package assets and excludes CLI-only content', (t) => {
   fs.writeFileSync(path.join(packageRoot, 'LICENSE.md'), 'excluded');
   fs.writeFileSync(path.join(packageRoot, 'README.md'), 'excluded');
   const tarball = path.join(fixture.repoRoot, 'fixture.tgz');
-  execFileSync('tar', ['-czf', tarball, '-C', path.dirname(packageRoot), 'package']);
+  execFileSync('tar', ['-czf', path.basename(tarball), '-C', path.relative(fixture.repoRoot, path.dirname(packageRoot)), 'package'], {
+    cwd: fixture.repoRoot,
+  });
   const packageChecksum = createHash('sha256').update(fs.readFileSync(tarball)).digest('hex');
   fs.writeFileSync(
     path.join(fixture.repoRoot, 'nodejs', 'package.json'),
@@ -114,6 +116,47 @@ test('stages retained package assets and excludes CLI-only content', (t) => {
   assert.equal(fs.existsSync(path.join(resourceDir, 'LICENSE.md')), false);
   assert.equal(fs.existsSync(path.join(resourceDir, 'README.md')), false);
   assert.match(fs.readFileSync(path.join(resourceDir, 'runtime-assets.list'), 'utf8'), /ripgrep\/bin\/linux-x64\/rg/);
+});
+
+test('stages a same-checkout runtime without downloading a release', (t) => {
+  const classifier = 'darwin-arm64';
+  const fixture = createRuntimeCheckoutFixture(t, classifier);
+
+  const result = runScript(fixture, {
+    COPILOT_CLI_DOWNLOAD_BASE_URL: 'http://127.0.0.1:1/should-not-be-called',
+    COPILOT_CLI_RELEASE_TARBALL: undefined,
+    COPILOT_CLI_RELEASE_SHA256: undefined,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Staging same-checkout runtime/);
+  assert.equal(fs.readFileSync(fixture.runtimePath, 'utf8'), runtimeContent);
+  assert.equal(fs.readFileSync(fixture.wrapperPath, 'utf8'), wrapperContent);
+  assert.equal(fs.readFileSync(fixture.ripgrepPath, 'utf8'), 'ripgrep content');
+
+  fs.writeFileSync(fixture.sourceRuntimePath, 'rebuilt runtime content');
+  const rebuiltResult = runScript(fixture, {
+    COPILOT_CLI_RELEASE_TARBALL: undefined,
+    COPILOT_CLI_RELEASE_SHA256: undefined,
+  });
+
+  assert.equal(rebuiltResult.status, 0, rebuiltResult.stderr);
+  assert.equal(fs.readFileSync(fixture.runtimePath, 'utf8'), 'rebuilt runtime content');
+});
+
+test('reports how to build a missing same-checkout runtime', (t) => {
+  const classifier = 'darwin-arm64';
+  const fixture = createRuntimeCheckoutFixture(t, classifier);
+  fs.rmSync(fixture.sourceRuntimePath);
+
+  const result = runScript(fixture, {
+    COPILOT_CLI_RELEASE_TARBALL: undefined,
+    COPILOT_CLI_RELEASE_SHA256: undefined,
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Same-checkout CLI artifacts for darwin-arm64 not found/);
+  assert.match(result.stderr, /run pnpm run build:cli first/);
 });
 
 function createFixture(t, classifier) {
@@ -162,6 +205,41 @@ function createFixture(t, classifier) {
     wrapperPath,
     ripgrepPath,
     platformPropertiesPath,
+  };
+}
+
+function createRuntimeCheckoutFixture(t, classifier) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fetch-native-runtime-test-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const runtimeRoot = path.join(root, 'runtime');
+  const repoRoot = path.join(runtimeRoot, 'src', 'sdk');
+  const stagingDir = path.join(root, 'staging');
+  const packageRoot = path.join(runtimeRoot, 'dist-cli');
+  const prebuilds = path.join(packageRoot, 'prebuilds', classifier);
+  fs.mkdirSync(path.join(repoRoot, 'nodejs'), { recursive: true });
+  fs.mkdirSync(path.join(runtimeRoot, 'script'), { recursive: true });
+  fs.mkdirSync(path.join(packageRoot, 'ripgrep', 'bin', classifier), { recursive: true });
+  fs.mkdirSync(prebuilds, { recursive: true });
+  fs.writeFileSync(path.join(runtimeRoot, 'script', 'sea-build.ts'), '');
+  fs.writeFileSync(path.join(repoRoot, 'nodejs', 'package.json'), JSON.stringify({ copilotCliVersion: '0.0.0-dev' }));
+  fs.writeFileSync(path.join(prebuilds, 'runtime.node'), runtimeContent);
+  fs.writeFileSync(path.join(prebuilds, 'copilot-runtime'), wrapperContent);
+  fs.writeFileSync(path.join(packageRoot, 'ripgrep', 'bin', classifier, 'rg'), 'ripgrep content');
+  fs.chmodSync(path.join(prebuilds, 'copilot-runtime'), 0o755);
+  fs.chmodSync(path.join(packageRoot, 'ripgrep', 'bin', classifier, 'rg'), 0o755);
+
+  const resourceDir = path.join(stagingDir, classifier, 'native', classifier);
+  return {
+    root,
+    runtimeRoot,
+    classifier,
+    repoRoot,
+    stagingDir,
+    sourceRuntimePath: path.join(prebuilds, 'runtime.node'),
+    runtimePath: path.join(resourceDir, 'runtime.node'),
+    wrapperPath: path.join(resourceDir, 'copilot-runtime'),
+    ripgrepPath: path.join(resourceDir, 'ripgrep', 'bin', classifier, 'rg'),
   };
 }
 

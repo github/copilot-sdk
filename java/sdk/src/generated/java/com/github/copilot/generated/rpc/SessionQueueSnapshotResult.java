@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionQueueSnapshotResult(
+    /** Queue item identifier of a model switch that has been dequeued but not yet applied. */
+    @JsonProperty("inFlightModelChangeId") String inFlightModelChangeId,
     /** User-facing pending items in FIFO order. */
     @JsonProperty("items") List<QueuePendingItems> items,
     /** Immediate steering messages waiting for an active turn. */

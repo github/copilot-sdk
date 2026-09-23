@@ -40,8 +40,7 @@ public class TelemetryExportE2ETests(E2ETestFixture fixture, ITestOutputHelper o
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = prompt });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions { Prompt = prompt });
         Assert.NotNull(assistantMessage);
         Assert.Contains("TELEMETRY_E2E_DONE", assistantMessage!.Data.Content ?? string.Empty, StringComparison.Ordinal);
 

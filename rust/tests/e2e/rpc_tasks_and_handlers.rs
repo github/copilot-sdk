@@ -428,6 +428,7 @@ async fn should_return_expected_results_for_missing_pending_handler_requestids()
                                         "missing".to_string(),
                                     )]),
                                     kind: McpHeadersHandlePendingHeadersRefreshRequestHeadersKind::Headers,
+                                    ttl_ms: None,
                                 },
                             ),
                         },

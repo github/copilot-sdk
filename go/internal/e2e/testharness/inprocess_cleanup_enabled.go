@@ -16,3 +16,14 @@ func waitForInProcessCleanup() error {
 	}
 	return nil
 }
+
+// PrepareForProcessWait repairs signal handlers before the harness stops or
+// waits for a child process while an in-process runtime is active.
+func PrepareForProcessWait() {
+	ffihost.PrepareForChildProcessWait()
+}
+
+// ProtectProcessWait keeps signal handlers compatible while a child exits.
+func ProtectProcessWait() func() {
+	return ffihost.ProtectChildProcessWait()
+}

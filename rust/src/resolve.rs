@@ -103,22 +103,15 @@ pub(crate) fn copilot_binary_with_extract_dir(
 /// The path is recomputed from the build-time-baked
 /// `COPILOT_SDK_CLI_VERSION`, the OS-derived binary name, and the
 /// optional `COPILOT_CLI_EXTRACT_DIR` env var. This must match
-/// `build.rs::extracted_install_dir` exactly — both sides implement the
-/// same convention. We deliberately don't bake the resolved path into
-/// the crate at build time: an absolute path leaks the build machine's
-/// `$HOME` / `$LOCALAPPDATA` into the artifact, breaks sccache across
-/// machines, and prevents copying `target/` between hosts.
+/// the build script exactly; both use `cache_paths` so the convention
+/// cannot drift. We deliberately don't bake the resolved path into the
+/// crate at build time: an absolute path leaks the build machine's `$HOME`
+/// / `$LOCALAPPDATA` into the artifact, breaks sccache across machines,
+/// and prevents copying `target/` between hosts.
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 fn extracted_program(use_runtime_wrapper: bool) -> Option<PathBuf> {
     let version = env!("COPILOT_SDK_CLI_VERSION");
-    let dir = match env::var_os("COPILOT_CLI_EXTRACT_DIR") {
-        Some(custom) => PathBuf::from(custom),
-        None => dirs::cache_dir()
-            .unwrap_or_else(env::temp_dir)
-            .join("github-copilot-sdk")
-            .join("cli")
-            .join(sanitize_version(version)),
-    };
+    let dir = crate::cache_paths::extracted_runtime_install_dir(version);
 
     let path = dir.join(if use_runtime_wrapper {
         runtime_binary_name()
@@ -147,6 +140,7 @@ fn extracted_program(_use_runtime_wrapper: bool) -> Option<PathBuf> {
     None
 }
 
+#[cfg(any(feature = "bundled-cli", has_extracted_cli, test))]
 fn validate_runtime_pair(wrapper: &Path) -> Result<(), Error> {
     let wrapper_valid = wrapper
         .metadata()
@@ -218,21 +212,6 @@ fn runtime_binary_name() -> &'static str {
     } else {
         "copilot-runtime"
     }
-}
-
-/// Replace characters outside `[a-zA-Z0-9._-]` with `_`. Kept in sync
-/// with `build.rs::sanitize_version` and `embeddedcli::sanitize_version`
-/// so all three resolve to the same cache directory for any given
-/// version.
-#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
-fn sanitize_version(version: &str) -> String {
-    version
-        .chars()
-        .map(|c| match c {
-            'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
-            _ => '_',
-        })
-        .collect()
 }
 
 #[cfg(test)]

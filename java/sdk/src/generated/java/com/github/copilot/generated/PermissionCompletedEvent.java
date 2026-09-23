@@ -38,6 +38,10 @@ public final class PermissionCompletedEvent extends SessionEvent {
         @JsonProperty("requestId") String requestId,
         /** Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts */
         @JsonProperty("toolCallId") String toolCallId,
+        /** Permission-recovery episode settled by this response, when the request was escalated by Autopilot */
+        @JsonProperty("recoveryEpisodeId") String recoveryEpisodeId,
+        /** Atomic structured blocked outcome when this permission response ended an Autopilot recovery episode unsuccessfully */
+        @JsonProperty("blocker") TaskBlocker blocker,
         /** The result of the permission request */
         @JsonProperty("result") Object result,
         /** Who decided this permission request. Absent on completions recorded before this field existed, which consumers must treat as "not a human decision" rather than assuming one. Authorization records are minted only for `human_response`; an assisted-approval verdict, a host policy, an unattended fallback, and a hook resolution all produce the same `result` a person does, so this is the only field that distinguishes them. */

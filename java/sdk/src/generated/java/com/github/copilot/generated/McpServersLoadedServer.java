@@ -25,8 +25,10 @@ public record McpServersLoadedServer(
     @JsonProperty("name") String name,
     /** Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured */
     @JsonProperty("status") McpServerStatus status,
-    /** Configuration source: user, workspace, plugin, or builtin */
+    /** Configuration source: user, workspace, plugin, builtin, or managed */
     @JsonProperty("source") McpServerSource source,
+    /** Human-readable display name supplied by a managed server catalog. */
+    @JsonProperty("displayName") String displayName,
     /** Error message if the server failed to connect */
     @JsonProperty("error") String error,
     /** Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured. */

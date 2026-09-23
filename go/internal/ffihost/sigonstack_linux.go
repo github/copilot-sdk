@@ -5,6 +5,7 @@
 package ffihost
 
 import (
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -13,6 +14,7 @@ const (
 	linuxSaOnStack = 0x08000000
 	linuxSigDfl    = 0
 	linuxSigIgn    = 1
+	linuxSigChild  = 17
 	linuxMaxSignal = 31
 )
 
@@ -26,32 +28,65 @@ type linuxSigaction struct {
 }
 
 // rearmForeignSignalHandlers re-adds the SA_ONSTACK flag to any signal handler
-// installed by the native runtime (libnode/libuv, loaded via dlopen) that
-// omitted it. The Go runtime aborts with "non-Go code set up signal handler
-// without SA_ONSTACK flag" when such a signal (notably SIGCHLD, signal 17 on
-// Linux) is delivered while a Go-managed child process is reaped. libuv installs
-// a SIGCHLD handler without SA_ONSTACK, which poisons every subsequent os/exec
-// child reaped by Go in the same process.
+// installed by the native runtime that omitted it. Tokio's process-global
+// SIGCHLD registration through signal-hook-registry chains Go's handler but
+// replaces its flags without SA_ONSTACK. The Go runtime aborts with "non-Go code
+// set up signal handler without SA_ONSTACK flag" when SIGCHLD (signal 17 on
+// Linux) is delivered while a Go-managed child process is reaped.
 //
-// We preserve each foreign handler and merely OR in SA_ONSTACK, so libuv's child
+// We preserve each foreign handler and merely OR in SA_ONSTACK, so Tokio's child
 // watching keeps working while the Go runtime stays happy. Handlers left at
 // SIG_DFL/SIG_IGN and Go's own handlers (which already carry SA_ONSTACK) are
 // untouched. Best-effort: any failure is silently ignored, since the worst case
 // is the pre-existing crash.
 func rearmForeignSignalHandlers(_ uintptr) {
 	for sig := 1; sig <= linuxMaxSignal; sig++ {
-		var action linuxSigaction
-		if !linuxGetSigaction(sig, &action) {
-			continue
+		rearmLinuxSignalHandler(sig)
+	}
+}
+
+func rearmLinuxSignalHandler(sig int) {
+	var action linuxSigaction
+	if !linuxGetSigaction(sig, &action) {
+		return
+	}
+	if action.handler == linuxSigDfl || action.handler == linuxSigIgn {
+		return
+	}
+	if action.flags&linuxSaOnStack != 0 {
+		return
+	}
+	action.flags |= linuxSaOnStack
+	linuxSetSigaction(sig, &action)
+}
+
+func protectChildProcessSignalHandler() func() {
+	return protectLinuxSignalHandler(linuxSigChild)
+}
+
+func protectLinuxSignalHandler(sig int) func() {
+	stop := make(chan struct{})
+	ready := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		rearmLinuxSignalHandler(sig)
+		close(ready)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				rearmLinuxSignalHandler(sig)
+				runtime.Gosched()
+			}
 		}
-		if action.handler == linuxSigDfl || action.handler == linuxSigIgn {
-			continue
-		}
-		if action.flags&linuxSaOnStack != 0 {
-			continue
-		}
-		action.flags |= linuxSaOnStack
-		linuxSetSigaction(sig, &action)
+	}()
+	<-ready
+	return func() {
+		close(stop)
+		<-stopped
+		rearmLinuxSignalHandler(sig)
 	}
 }
 

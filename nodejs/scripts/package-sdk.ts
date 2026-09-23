@@ -10,6 +10,8 @@ import {
     RUNTIME_PLATFORMS,
 } from "../src/runtimeArtifacts.js";
 import { ensureCopilotPackage } from "./releaseArtifacts.js";
+import { resolvePreparedRuntimePath } from "./prepare-runtime.js";
+import { findRuntimeRoot } from "../../scripts/runtime-layout.mjs";
 
 const nodeRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const packagePath = join(nodeRoot, "package.json");
@@ -22,6 +24,13 @@ if (!npmCliPath) {
 }
 const requestedPlatforms = process.env.COPILOT_SDK_RUNTIME_PLATFORMS?.split(",").filter(Boolean);
 const platforms = requestedPlatforms ?? [...RUNTIME_PLATFORMS];
+const runtimeSource =
+    process.env.COPILOT_RUNTIME_SOURCE ??
+    (findRuntimeRoot(resolve(nodeRoot, "..")) ? "checkout" : undefined);
+const checkoutPackage =
+    runtimeSource === "checkout"
+        ? resolve(dirname(await resolvePreparedRuntimePath()), "..", "..")
+        : undefined;
 const stagingRoot = mkdtempSync(join(tmpdir(), "copilot-sdk-platform-packages-"));
 
 try {
@@ -30,7 +39,8 @@ try {
         if (!(RUNTIME_PLATFORMS as readonly string[]).includes(platform)) {
             throw new Error(`Unsupported runtime platform: ${platform}`);
         }
-        const releasePackage = await ensureCopilotPackage(COPILOT_CLI_VERSION, { platform });
+        const releasePackage =
+            checkoutPackage ?? (await ensureCopilotPackage(COPILOT_CLI_VERSION, { platform }));
         const runtimeWrapper = materializeRuntimeBundle(
             { packageRoot: releasePackage, platform },
             stagingRoot,
