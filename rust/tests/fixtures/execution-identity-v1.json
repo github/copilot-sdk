@@ -85,6 +85,26 @@
         }
       }
     },
+    "correctedAssistant": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000009",
+          "timestamp": "2026-09-16T00:00:03.500Z",
+          "parentId": "10000000-0000-4000-8000-000000000003",
+          "type": "assistant.message",
+          "data": {
+            "content": "",
+            "messageId": "40000000-0000-4000-8000-000000000003",
+            "originatingMessageId": "20000000-0000-4000-8000-000000000001",
+            "turnId": "0",
+            "interactionId": "30000000-0000-4000-8000-000000000003"
+          }
+        }
+      }
+    },
     "system": {
       "jsonrpc": "2.0",
       "method": "session.event",
@@ -102,6 +122,26 @@
             "messageId": "20000000-0000-4000-8000-000000000002",
             "turnId": "0",
             "interactionId": "30000000-0000-4000-8000-000000000001"
+          }
+        }
+      }
+    },
+    "workerStarted": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000010",
+          "timestamp": "2026-09-16T00:00:04.500Z",
+          "parentId": "10000000-0000-4000-8000-000000000004",
+          "agentId": "50000000-0000-4000-8000-000000000001",
+          "type": "subagent.started",
+          "data": {
+            "agentDescription": "",
+            "agentDisplayName": "",
+            "agentName": "",
+            "toolCallId": "tool-spawn-a"
           }
         }
       }

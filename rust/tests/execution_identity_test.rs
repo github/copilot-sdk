@@ -4,7 +4,8 @@
 
 use github_copilot_sdk::rpc::{QueuePendingItemsResult, SendResult};
 use github_copilot_sdk::session_events::{
-    AssistantMessageData, AssistantTurnStartData, TypedSessionEvent, UserMessageData,
+    AssistantMessageData, AssistantTurnStartData, SubagentStartedData, TypedSessionEvent,
+    UserMessageData,
 };
 use github_copilot_sdk::types::{SessionEvent, SessionEventNotification};
 use serde_json::{Value, json};
@@ -103,6 +104,29 @@ fn loop_and_interaction_keys_can_repeat_without_replacing_message_identity() {
 }
 
 #[test]
+fn spawn_and_correction_identity_preserve_distinct_relationships() {
+    let fixture = fixture();
+    let started = event(&fixture, "workerStarted");
+    let spawn = started.typed_data::<SubagentStartedData>().unwrap();
+    let worker = event(&fixture, "worker");
+    assert_eq!(started.agent_id, worker.agent_id);
+    assert_eq!(spawn.tool_call_id, "tool-spawn-a");
+    assert_ne!(
+        started.agent_id.as_deref(),
+        Some(spawn.tool_call_id.as_str())
+    );
+
+    let user = event(&fixture, "user")
+        .typed_data::<UserMessageData>()
+        .unwrap();
+    let corrected = event(&fixture, "correctedAssistant")
+        .typed_data::<AssistantMessageData>()
+        .unwrap();
+    assert_eq!(corrected.originating_message_id, user.message_id);
+    assert_ne!(corrected.interaction_id, user.interaction_id);
+}
+
+#[test]
 fn absent_identity_is_not_inferred_from_an_event_or_assistant_message_id() {
     let fixture = fixture();
     let legacy = event(&fixture, "legacy")
@@ -166,7 +190,14 @@ fn identity_fixture_contains_no_message_or_tool_content() {
         match value {
             Value::Object(fields) => {
                 for (key, value) in fields {
-                    if matches!(key.as_str(), "content" | "displayText") {
+                    if matches!(
+                        key.as_str(),
+                        "content"
+                            | "displayText"
+                            | "agentDescription"
+                            | "agentDisplayName"
+                            | "agentName"
+                    ) {
                         assert_eq!(value, "");
                     }
                     assert!(!matches!(

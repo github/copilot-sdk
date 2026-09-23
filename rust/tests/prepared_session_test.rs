@@ -1512,14 +1512,29 @@ async fn identity_delivery_preserves_duplicates_workers_and_session_isolation() 
     )
     .await;
 
-    for name in ["user", "otherSession", "system", "worker", "user", "legacy"] {
+    for name in [
+        "user",
+        "otherSession",
+        "system",
+        "worker",
+        "workerStarted",
+        "user",
+        "legacy",
+    ] {
         server.send_notification(&notifications[name]).await;
     }
     let mut conflicting_duplicate = notifications["user"].clone();
     conflicting_duplicate["params"]["event"]["data"]["messageId"] =
         fixture["sendResults"]["system"]["messageId"].clone();
     server.send_notification(&conflicting_duplicate).await;
-    for name in ["user", "system", "worker", "user", "legacy"] {
+    for name in [
+        "user",
+        "system",
+        "worker",
+        "workerStarted",
+        "user",
+        "legacy",
+    ] {
         expect_identity_event(&mut first_events, &notifications[name]).await;
     }
     expect_identity_event(&mut first_events, &conflicting_duplicate).await;

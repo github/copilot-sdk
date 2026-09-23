@@ -32,6 +32,9 @@ the generated Rust files, when an additional runtime-owned field is required.
 | `assistant.turn_start.data.{turnId,interactionId?}` | `session_events::AssistantTurnStartData` | Agent-loop iteration and optional interaction |
 | `assistant.message.data.{messageId,originatingMessageId?,turnId?,interactionId?}` | `session_events::AssistantMessageData` | Assistant-message identity, primary initiating message, and optional execution keys |
 | `event.{id,parentId?,agentId?}` | `SessionEvent`, `TypedSessionEvent` | Event identity, chronological predecessor, and optional subagent identity |
+| `subagent.started.data.toolCallId` with envelope `agentId` | `session_events::SubagentStartedData` | Initial spawning-tool/worker relationship; API spawns without a tool use the worker ID as a lifecycle fallback |
+| `session.tasks.startAgent` result `agentId` | `rpc::TasksStartAgentResult.agent_id` | Initial API-spawned worker identity |
+| `session.tasks.sendMessage` result `sent` | `rpc::TasksSendMessageResult` | Delivery status, without a message admission ID at this baseline |
 
 Use `event.typed_data::<UserMessageData>()` and the corresponding generated
 payload types for typed access. A malformed payload returns `None`; it must not
@@ -61,6 +64,7 @@ The exact accepted `messageId` connects a send to `user.message.messageId`.
 message that started the run, not the assistant message itself:
 
 * Model/tool iterations and stop-hook corrections retain the primary origin.
+  A correction can start a new interaction while retaining that origin.
 * Immediate steering does not replace the active run's origin.
 * For a batch starting a run, the last message ID is primary; earlier messages
   provide context. An empty batch has no initiating message.
@@ -100,14 +104,31 @@ lost, an arriving `user.message` alone cannot identify the application's pending
 send. That boundary needs a verified runtime-owned bridge; neither queue order
 nor repurposing `source` as a correlation nonce supplies one.
 
-The root stream also contains subagent events marked by `agentId`. This marker
-alone does not establish a worker's runtime session or its relationship to an
-application Turn. A late worker event does not belong to whichever root Turn is
-currently open. Likewise, `user.message.parentAgentTaskId` is a separate
-runtime-provided task relationship, not an AHP parent or a replacement session ID.
-Complete worker/recovery and product-telemetry joins require a verified
-runtime-owned bridge; this interface does not promise one from an under-scoped
-tuple.
+For an initial tool-spawned worker, match the scoped spawning `toolCallId` to
+`subagent.started` and retain its envelope `agentId`. An API spawn instead
+provides the returned worker ID; its lifecycle fallback is not evidence of a
+real tool call. Subsequent worker events retain that worker scope on the root
+stream, without requiring an exposed native child-session ID.
+
+This initial relationship does not establish the cause of a worker follow-up.
+At this baseline, `session.tasks.sendMessage` returns no message ID and the internal
+queued-message identity is not retained in the later worker `user.message`.
+`source` identifies a sender, not its sending Turn. Never attribute all worker
+follow-ups to the spawn Turn or the parent's current interaction at delivery.
+Recovery with no primary message similarly has no `user.message` admission or
+`originatingMessageId`. These cases need an approved causal bridge.
+
+Despite its name, `user.message.parentAgentTaskId` reflects the preparing
+`TurnIdentity`'s task identifier, not a parent interaction ID. Do not equate it
+with the distinct CAPI `X-Parent-Agent-Id` value.
+
+Product-telemetry identities also need their own verified mapping. The runtime
+can normalize non-UUID reporting session IDs, report under a parent's identity,
+fill a child event's missing interaction from root state, or remint an event
+envelope. An observed SDK session, interaction, worker, or event ID is therefore
+not a universal equality join to similarly named product fields. Keep the raw
+observations and explicit provenance; do not add a second telemetry writer or
+put these diagnostic identifiers in metric tags.
 
 ## Content-free compatibility fixtures
 
@@ -119,8 +140,9 @@ result bodies; `notifications` contains complete `session.event` notifications.
 These fixture metadata fields are not new runtime protocol fields.
 
 The fragments deliberately include distinct message/event/queue identities,
-repeated loop/interaction keys, another session, a worker, resume, and absent
-legacy keys. Message/display content is empty and tool arguments are absent.
+repeated loop/interaction keys, a correction retaining its origin, another
+session, initial worker scope, resume, and absent legacy keys. Message/display
+content and agent descriptions are empty; tool arguments are absent.
 Consumers can replay permutations and duplicates to test their own association
 logic without collecting prompts or tool output. SDK tests verify typed
 round-tripping and delivery before/after acknowledgements, across interleaved
