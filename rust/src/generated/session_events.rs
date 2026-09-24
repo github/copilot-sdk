@@ -2619,7 +2619,7 @@ pub struct UserMessageData {
     /// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_document_path_fallback_paths: Option<Vec<String>>,
-    /// Parent agent task ID for background telemetry correlated to this user turn
+    /// Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_agent_task_id: Option<String>,
     /// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
@@ -4922,7 +4922,7 @@ pub struct SubagentStartedData {
     /// Where the model input for this sub-agent came from. Present when the task planner resolved the launch (the task tool and factory agents); absent for sub-agents created through other runtime paths.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_model_source: Option<SubagentTaskModelSource>,
-    /// Tool call ID of the parent tool invocation that spawned this sub-agent
+    /// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
     pub tool_call_id: String,
 }
 
@@ -4980,7 +4980,7 @@ pub struct SubagentCompletedData {
     /// Authority or runtime mechanism responsible for sub-agent model selection
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_selection_source: Option<SubagentModelSelectionSource>,
-    /// Tool call ID of the parent tool invocation that spawned this sub-agent
+    /// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed by the sub-agent
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -5027,7 +5027,7 @@ pub struct SubagentFailedData {
     /// Authority or runtime mechanism responsible for sub-agent model selection
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_selection_source: Option<SubagentModelSelectionSource>,
-    /// Tool call ID of the parent tool invocation that spawned this sub-agent
+    /// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed before the sub-agent failed
     #[serde(skip_serializing_if = "Option::is_none")]

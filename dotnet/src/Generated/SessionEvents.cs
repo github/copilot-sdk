@@ -3601,7 +3601,7 @@ public sealed partial class UserMessageData
     [JsonPropertyName("nativeDocumentPathFallbackPaths")]
     public string[]? NativeDocumentPathFallbackPaths { get; set; }
 
-    /// <summary>Parent agent task ID for background telemetry correlated to this user turn.</summary>
+    /// <summary>Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentAgentTaskId")]
     public string? ParentAgentTaskId { get; set; }
@@ -5263,7 +5263,7 @@ public sealed partial class SubagentStartedData
     [JsonPropertyName("taskModelSource")]
     public SubagentTaskModelSource? TaskModelSource { get; set; }
 
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    /// <summary>Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
 }
@@ -5352,7 +5352,7 @@ public sealed partial class SubagentCompletedData
     [JsonPropertyName("modelSelectionSource")]
     public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
 
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    /// <summary>Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
 
@@ -5428,7 +5428,7 @@ public sealed partial class SubagentFailedData
     [JsonPropertyName("modelSelectionSource")]
     public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
 
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    /// <summary>Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
 

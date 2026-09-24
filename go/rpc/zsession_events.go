@@ -2146,7 +2146,7 @@ type UserMessageData struct {
 	MessageID *string `json:"messageId,omitempty"`
 	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
-	// Parent agent task ID for background telemetry correlated to this user turn
+	// Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id.
 	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
 	// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
 	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
@@ -2876,7 +2876,7 @@ type SubagentCompletedData struct {
 	ModelOverrideReason *string `json:"modelOverrideReason,omitempty"`
 	// Authority or runtime mechanism responsible for sub-agent model selection
 	ModelSelectionSource *SubagentModelSelectionSource `json:"modelSelectionSource,omitempty"`
-	// Tool call ID of the parent tool invocation that spawned this sub-agent
+	// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed by the sub-agent
 	TotalTokens *int64 `json:"totalTokens,omitempty"`
@@ -2913,7 +2913,7 @@ type SubagentFailedData struct {
 	ModelOverrideReason *string `json:"modelOverrideReason,omitempty"`
 	// Authority or runtime mechanism responsible for sub-agent model selection
 	ModelSelectionSource *SubagentModelSelectionSource `json:"modelSelectionSource,omitempty"`
-	// Tool call ID of the parent tool invocation that spawned this sub-agent
+	// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed before the sub-agent failed
 	TotalTokens *int64 `json:"totalTokens,omitempty"`
@@ -2948,7 +2948,7 @@ type SubagentStartedData struct {
 	Resumable *bool `json:"resumable,omitempty"`
 	// Where the model input for this sub-agent came from. Present when the task planner resolved the launch (the task tool and factory agents); absent for sub-agents created through other runtime paths.
 	TaskModelSource *SubagentTaskModelSource `json:"taskModelSource,omitempty"`
-	// Tool call ID of the parent tool invocation that spawned this sub-agent
+	// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
 	ToolCallID string `json:"toolCallId"`
 }
 

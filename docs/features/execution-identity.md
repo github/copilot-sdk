@@ -165,12 +165,13 @@ The generated `ToolExecutionStartData` now exposes optional `traceparent` and
 `tracestate` strings on `tool.execution_start.data`, including before a later
 `external_tool.requested` callback. No SDK flag, writer, or new event family is
 introduced. All six projections come from the canonical schemas in
-[runtime commit 7ab2ab8](https://github.com/github/copilot-agent-runtime/commit/7ab2ab8ea278c812664eece9feab83ef376936eb),
+[runtime commit c4e6d732](https://github.com/github/copilot-agent-runtime/commit/c4e6d7322f6ccf316e2a452b2a08a3ee956cae1a),
 delivered in [the runtime companion](https://github.com/github/copilot-agent-runtime/pull/22693).
 Use its [producer commit 27867ac0](https://github.com/github/copilot-agent-runtime/commit/27867ac02ac1606ed4d112cc613011e0ebc69ba5)
 or a release containing it: the producer also preserves the published tool-span
 context when the same canonical start is projected twice, keeping the later
-callback parent consistent. The schema checksums are unchanged from `7ab2ab8`.
+callback parent consistent. The later `c4e6d732` schema corrects four existing
+identity descriptions without changing the early-field shapes from `7ab2ab8`.
 This is an unreleased producer prerequisite, not a new published SDK/CLI floor.
 The standalone CLI release pin is unchanged; it does not supply these new fields.
 Release-generation inputs must advance through the normal release process before
@@ -207,7 +208,7 @@ is evidence of permission to execute.
 
 The unmodified schema inputs used for generation have SHA-256 checksums:
 
-* `session-events.schema.json`: `0268ec8b872b7272a011f4905cf3506b59426d930fd8d5249f4ff8b80040ffe6`
+* `session-events.schema.json`: `4f70dfad0e6e15b44247f1df4f5df29269527c308d2e10ca49f56d3acd8b69ff`
 * `api.schema.json`: `141d44c48ef5665b97032a8a400271b4140c92b2ed228fc9c84736dbd3cf4fcf`
 
 Relative to the standalone pin, these canonical inputs also contain the existing

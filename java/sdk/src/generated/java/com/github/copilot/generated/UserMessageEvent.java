@@ -61,7 +61,7 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("interactionId") String interactionId,
         /** The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it */
         @JsonProperty("turnId") String turnId,
-        /** Parent agent task ID for background telemetry correlated to this user turn */
+        /** Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id. */
         @JsonProperty("parentAgentTaskId") String parentAgentTaskId
     ) {
     }
