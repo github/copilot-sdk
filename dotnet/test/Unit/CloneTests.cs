@@ -8,6 +8,42 @@ namespace GitHub.Copilot.Test.Unit;
 
 public class CloneTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SessionConfig_Clone_PreservesSkillProviderByReference(bool resume)
+    {
+        var provider = new EmptySkillProvider();
+        SessionConfigBase original = resume
+            ? new ResumeSessionConfig { SkillProvider = provider }
+            : new SessionConfig { SkillProvider = provider };
+
+        SessionConfigBase clone = original is ResumeSessionConfig resumeConfig
+            ? resumeConfig.Clone()
+            : ((SessionConfig)original).Clone();
+
+        Assert.Same(provider, clone.SkillProvider);
+        clone.SkillProvider = null;
+        Assert.Same(provider, original.SkillProvider);
+        Assert.Null(clone.SkillProvider);
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_PreservesAbsentSkillProvider()
+    {
+        Assert.Null(new SessionConfig().Clone().SkillProvider);
+        Assert.Null(new ResumeSessionConfig().Clone().SkillProvider);
+    }
+
+    private sealed class EmptySkillProvider : SkillProvider
+    {
+        public override Task<IReadOnlyList<SkillProviderDescriptor>> ListAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<SkillProviderDescriptor>>([]);
+
+        public override Task<string> ReadAsync(string name, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+    }
+
 #pragma warning disable GHCP001
     [Fact]
     public void CopilotClientOptions_Clone_CopiesAllProperties()

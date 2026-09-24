@@ -73,6 +73,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private volatile Func<ElicitationContext, Task<ElicitationResult>>? _elicitationHandler;
     private volatile Func<ExitPlanModeRequest, ExitPlanModeInvocation, Task<ExitPlanModeResult>>? _exitPlanModeHandler;
     private volatile Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? _autoModeSwitchHandler;
+    private volatile SkillProvider? _skillProvider;
     private ImmutableArray<EventSubscription> _eventHandlers = ImmutableArray<EventSubscription>.Empty;
 
     private sealed record EventSubscription(Type EventType, Action<SessionEvent> Handler, bool RootAgentOnly);
@@ -206,6 +207,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     internal void RemoveFromClient()
     {
         ((ICollection<KeyValuePair<string, CopilotSession>>)_parentClient._sessions).Remove(new(SessionId, this));
+        _skillProvider = null;
     }
 
     /// <summary>
@@ -1250,6 +1252,24 @@ public sealed partial class CopilotSession : IAsyncDisposable
     internal void RegisterAutoModeSwitchHandler(Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? handler)
     {
         _autoModeSwitchHandler = handler;
+    }
+
+    internal void RegisterSkillProvider(SkillProvider? provider)
+    {
+        _skillProvider = provider;
+    }
+
+    internal Task<IReadOnlyList<SkillProviderDescriptor>> HandleSkillProviderListAsync(CancellationToken cancellationToken)
+    {
+        var provider = _skillProvider ?? throw new InvalidOperationException($"No skill provider registered for session {SessionId}");
+        return provider.ListAsync(cancellationToken);
+    }
+
+    internal Task<string> HandleSkillProviderReadAsync(string name, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        var provider = _skillProvider ?? throw new InvalidOperationException($"No skill provider registered for session {SessionId}");
+        return provider.ReadAsync(name, cancellationToken);
     }
 
     /// <summary>
