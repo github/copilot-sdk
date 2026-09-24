@@ -324,6 +324,7 @@ function tryEmitRustUnion(
 	parentTypeName: string,
 	jsonPropName: string,
 	ctx: RustCodegenCtx,
+	isRequired = true,
 ): string | null {
 	const variants = getUnionVariants(schema);
 	if (!variants) return null;
@@ -387,9 +388,11 @@ function tryEmitRustUnion(
 		if (
 			ctx.unionDiscriminatorProperties &&
 			!ctx.unionDiscriminatorProperties.has(discriminator) &&
-			!hasRequiredReferencedStringDiscriminator(resolvedVariants, discriminator, ctx) &&
+			(!isRequired || !hasRequiredReferencedStringDiscriminator(resolvedVariants, discriminator, ctx)) &&
 			!isAllowedUnionType
 		) {
+			// Newly recognised unions must not narrow existing optional raw metadata:
+			// consumers need malformed/future payloads intact for bounded degradation.
 			return null;
 		}
 	} else if (!ctx.allowUntaggedUnions && !isAllowedUnionType) {
@@ -783,6 +786,7 @@ function resolveRustType(
 			parentTypeName,
 			jsonPropName,
 			ctx,
+			isRequired,
 		);
 		if (unionType) {
 			return wrapOption(unionType, isRequired);
@@ -820,6 +824,7 @@ function resolveRustType(
 			parentTypeName,
 			jsonPropName,
 			ctx,
+			isRequired,
 		);
 		if (unionType) {
 			return wrapOption(unionType, isRequired);

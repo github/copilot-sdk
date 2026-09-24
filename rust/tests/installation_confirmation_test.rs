@@ -57,6 +57,21 @@ fn request(operation: &str) -> Value {
     value
 }
 
+#[test]
+fn confirmation_review_preserves_optional_unrecognised_trust() {
+    for trust in [
+        json!(42),
+        json!({"schemaVersion": "v2"}),
+        json!({"status": "future-status", "unknown": "x".repeat(4097)}),
+    ] {
+        let mut wire = request("a");
+        wire["review"]["review"]["catalogueTrust"] = trust;
+        let request: InstallationConfirmationRequest =
+            serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(serde_json::to_value(request).unwrap(), wire);
+    }
+}
+
 async fn confirm(writer: &mut (impl AsyncWrite + Unpin), id: u64, params: Value) {
     write_frame(
         writer,

@@ -260,9 +260,11 @@ maintenance.
 
 MCP installation plans expose `McpPlanTransportChoice::Package` and
 `McpPlanTransportChoice::Remote`, with typed package identity or endpoint fields.
-Catalogue candidates expose optional `CatalogTrustSnapshot` variants. Their
-required discriminators reject missing or unknown values rather than selecting
-another variant; unconstrained enums retain their `Unknown` fallback. These
+Required choice discriminators reject missing or unknown values rather than
+selecting another variant; unconstrained enums retain their `Unknown` fallback.
+Optional catalogue trust remains raw JSON so hosts can apply their existing size
+bounds and degrade malformed or future metadata without discarding candidates.
+`CatalogTrustSnapshot` is available for explicit decoding after those checks. These
 planning types do not imply that installation or activation is available on the
 connected runtime.
 

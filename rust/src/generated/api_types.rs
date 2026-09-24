@@ -3421,298 +3421,6 @@ pub struct CatalogPluginRepositorySource {
     pub repository: String,
 }
 
-/// Where and when the runtime observed the trust metadata. Observation time is not the authority's evaluation time and must not be used to infer staleness.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustProvenance {
-    /// ISO 8601 timestamp with a timezone offset at which the runtime observed the search result carrying this trust field.
-    pub observed_at: String,
-    /// Bounded authority that supplied the trust field.
-    pub source: CatalogTrustSource,
-}
-
-/// A recognised current Agent Finder T1 or T2 trust tier.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotCurrent {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: a recognised current trust tier was observed.
-    #[serde(deserialize_with = "CatalogTrustSnapshotCurrent::deserialize_status")]
-    pub status: CatalogTrustSnapshotCurrentStatus,
-    /// Service-computed T1 or T2 trust tier.
-    pub tier: CatalogTrustTier,
-}
-
-impl CatalogTrustSnapshotCurrent {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotCurrentStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "current" {
-            return Err(serde::de::Error::unknown_variant(&value, &["current"]));
-        }
-        <CatalogTrustSnapshotCurrentStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// Discriminator: the authority omitted trust metadata.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotAbsent {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the authority omitted trust metadata.
-    #[serde(deserialize_with = "CatalogTrustSnapshotAbsent::deserialize_status")]
-    pub status: CatalogTrustSnapshotAbsentStatus,
-}
-
-impl CatalogTrustSnapshotAbsent {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotAbsentStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "absent" {
-            return Err(serde::de::Error::unknown_variant(&value, &["absent"]));
-        }
-        <CatalogTrustSnapshotAbsentStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// Discriminator: the authority explicitly marked the assessment stale.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotStale {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the authority explicitly marked the assessment stale.
-    #[serde(deserialize_with = "CatalogTrustSnapshotStale::deserialize_status")]
-    pub status: CatalogTrustSnapshotStaleStatus,
-}
-
-impl CatalogTrustSnapshotStale {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotStaleStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "stale" {
-            return Err(serde::de::Error::unknown_variant(&value, &["stale"]));
-        }
-        <CatalogTrustSnapshotStaleStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// Discriminator: the authority explicitly reported a downgraded assessment.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotDowngraded {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the authority explicitly reported a downgraded assessment.
-    #[serde(deserialize_with = "CatalogTrustSnapshotDowngraded::deserialize_status")]
-    pub status: CatalogTrustSnapshotDowngradedStatus,
-}
-
-impl CatalogTrustSnapshotDowngraded {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotDowngradedStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "downgraded" {
-            return Err(serde::de::Error::unknown_variant(&value, &["downgraded"]));
-        }
-        <CatalogTrustSnapshotDowngradedStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// Discriminator: the authority explicitly revoked the assessment.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotRevoked {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the authority explicitly revoked the assessment.
-    #[serde(deserialize_with = "CatalogTrustSnapshotRevoked::deserialize_status")]
-    pub status: CatalogTrustSnapshotRevokedStatus,
-}
-
-impl CatalogTrustSnapshotRevoked {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotRevokedStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "revoked" {
-            return Err(serde::de::Error::unknown_variant(&value, &["revoked"]));
-        }
-        <CatalogTrustSnapshotRevokedStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotUnsupported {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
-    #[serde(deserialize_with = "CatalogTrustSnapshotUnsupported::deserialize_status")]
-    pub status: CatalogTrustSnapshotUnsupportedStatus,
-}
-
-impl CatalogTrustSnapshotUnsupported {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotUnsupportedStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "unsupported" {
-            return Err(serde::de::Error::unknown_variant(&value, &["unsupported"]));
-        }
-        <CatalogTrustSnapshotUnsupportedStatus>::deserialize(
-            serde::de::value::StringDeserializer::<D::Error>::new(value),
-        )
-    }
-}
-
-/// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotMalformed {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
-    #[serde(deserialize_with = "CatalogTrustSnapshotMalformed::deserialize_status")]
-    pub status: CatalogTrustSnapshotMalformedStatus,
-}
-
-impl CatalogTrustSnapshotMalformed {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotMalformedStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "malformed" {
-            return Err(serde::de::Error::unknown_variant(&value, &["malformed"]));
-        }
-        <CatalogTrustSnapshotMalformedStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
 /// An inert Agent Plugin catalog result. Its canonical catalog identity, declared version, repository source claim, and explicit compatibility tags are safe to correlate, while its descriptor, URL, raw data, and installed-plugin state remain runtime-private. This contract-only variant does not mint or expose a candidate handle.
 ///
 /// <div class="warning">
@@ -3747,7 +3455,7 @@ pub struct CatalogAgentPluginCandidate {
     pub source: CatalogPluginRepositorySource,
     /// Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility and emitted only when the caller also requires the trust-snapshot capability.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trust: Option<CatalogTrustSnapshot>,
+    pub trust: Option<serde_json::Value>,
     /// Optional version declared by the catalog source. Omitted rather than guessed when the source supplies no version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
@@ -3878,7 +3586,7 @@ pub struct CatalogAiSkillCandidate {
     pub source: CatalogCandidateSource,
     /// Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trust: Option<CatalogTrustSnapshot>,
+    pub trust: Option<serde_json::Value>,
 }
 
 impl CatalogAiSkillCandidate {
@@ -4004,7 +3712,7 @@ pub struct CatalogMcpServerCandidate {
     pub source: CatalogCandidateSource,
     /// Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trust: Option<CatalogTrustSnapshot>,
+    pub trust: Option<serde_json::Value>,
 }
 
 impl CatalogMcpServerCandidate {
@@ -4562,6 +4270,298 @@ pub struct CatalogSelectionWrongKind {
     pub kind: CatalogSelectionWrongKindKind,
     /// Human-readable explanation safe to surface. Never contains the presented reference or private candidate state.
     pub message: String,
+}
+
+/// Where and when the runtime observed the trust metadata. Observation time is not the authority's evaluation time and must not be used to infer staleness.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustProvenance {
+    /// ISO 8601 timestamp with a timezone offset at which the runtime observed the search result carrying this trust field.
+    pub observed_at: String,
+    /// Bounded authority that supplied the trust field.
+    pub source: CatalogTrustSource,
+}
+
+/// A recognised current Agent Finder T1 or T2 trust tier.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotCurrent {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: a recognised current trust tier was observed.
+    #[serde(deserialize_with = "CatalogTrustSnapshotCurrent::deserialize_status")]
+    pub status: CatalogTrustSnapshotCurrentStatus,
+    /// Service-computed T1 or T2 trust tier.
+    pub tier: CatalogTrustTier,
+}
+
+impl CatalogTrustSnapshotCurrent {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotCurrentStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "current" {
+            return Err(serde::de::Error::unknown_variant(&value, &["current"]));
+        }
+        <CatalogTrustSnapshotCurrentStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// Discriminator: the authority omitted trust metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotAbsent {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority omitted trust metadata.
+    #[serde(deserialize_with = "CatalogTrustSnapshotAbsent::deserialize_status")]
+    pub status: CatalogTrustSnapshotAbsentStatus,
+}
+
+impl CatalogTrustSnapshotAbsent {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotAbsentStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "absent" {
+            return Err(serde::de::Error::unknown_variant(&value, &["absent"]));
+        }
+        <CatalogTrustSnapshotAbsentStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// Discriminator: the authority explicitly marked the assessment stale.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotStale {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority explicitly marked the assessment stale.
+    #[serde(deserialize_with = "CatalogTrustSnapshotStale::deserialize_status")]
+    pub status: CatalogTrustSnapshotStaleStatus,
+}
+
+impl CatalogTrustSnapshotStale {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotStaleStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "stale" {
+            return Err(serde::de::Error::unknown_variant(&value, &["stale"]));
+        }
+        <CatalogTrustSnapshotStaleStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// Discriminator: the authority explicitly reported a downgraded assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotDowngraded {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority explicitly reported a downgraded assessment.
+    #[serde(deserialize_with = "CatalogTrustSnapshotDowngraded::deserialize_status")]
+    pub status: CatalogTrustSnapshotDowngradedStatus,
+}
+
+impl CatalogTrustSnapshotDowngraded {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotDowngradedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "downgraded" {
+            return Err(serde::de::Error::unknown_variant(&value, &["downgraded"]));
+        }
+        <CatalogTrustSnapshotDowngradedStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// Discriminator: the authority explicitly revoked the assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotRevoked {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority explicitly revoked the assessment.
+    #[serde(deserialize_with = "CatalogTrustSnapshotRevoked::deserialize_status")]
+    pub status: CatalogTrustSnapshotRevokedStatus,
+}
+
+impl CatalogTrustSnapshotRevoked {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotRevokedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "revoked" {
+            return Err(serde::de::Error::unknown_variant(&value, &["revoked"]));
+        }
+        <CatalogTrustSnapshotRevokedStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotUnsupported {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
+    #[serde(deserialize_with = "CatalogTrustSnapshotUnsupported::deserialize_status")]
+    pub status: CatalogTrustSnapshotUnsupportedStatus,
+}
+
+impl CatalogTrustSnapshotUnsupported {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotUnsupportedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "unsupported" {
+            return Err(serde::de::Error::unknown_variant(&value, &["unsupported"]));
+        }
+        <CatalogTrustSnapshotUnsupportedStatus>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
+}
+
+/// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotMalformed {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+    #[serde(deserialize_with = "CatalogTrustSnapshotMalformed::deserialize_status")]
+    pub status: CatalogTrustSnapshotMalformedStatus,
+}
+
+impl CatalogTrustSnapshotMalformed {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotMalformedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "malformed" {
+            return Err(serde::de::Error::unknown_variant(&value, &["malformed"]));
+        }
+        <CatalogTrustSnapshotMalformedStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
 }
 
 /// No transport this runtime can use is available for the requested server.
@@ -8424,7 +8424,7 @@ pub struct McpInstallationReviewInstall {
     pub action: McpInstallationReviewInstallAction,
     /// Original catalogue trust metadata, not a verification claim.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub catalogue_trust: Option<CatalogTrustSnapshot>,
+    pub catalogue_trust: Option<serde_json::Value>,
     /// The configuration change for the selected alternative only.
     pub configuration_change: McpPlanConfigurationChange,
     /// Complete effective remote configuration for final input-free installation review.
@@ -33075,245 +33075,6 @@ pub enum CatalogAgentPluginMediaType {
     Unknown,
 }
 
-/// Authority-computed exposure eligibility, kept separate from tier. The current tier-only Agent Finder response maps to `unknown`, never to a locally inferred eligibility.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustEligibility {
-    /// Eligible for default catalogue exposure.
-    #[serde(rename = "default")]
-    Default,
-    /// Eligible only when expanded or community results are requested.
-    #[serde(rename = "expanded")]
-    Expanded,
-    /// Not eligible for normal catalogue exposure.
-    #[serde(rename = "hidden")]
-    Hidden,
-    /// The authority did not supply an eligibility decision.
-    #[serde(rename = "unknown")]
-    UnknownValue,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Bounded authority that supplied a catalogue trust observation
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSource {
-    /// GitHub Agent Finder supplied the trust field on its search result.
-    #[serde(rename = "agent-finder")]
-    AgentFinder,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Schema version of the catalogue trust snapshot envelope
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotSchemaVersion {
-    /// Initial envelope carrying one bounded service tier or one explicit unavailable state.
-    #[serde(rename = "v1")]
-    V1,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// A recognised T1 or T2 service tier was observed.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotCurrentStatus {
-    /// A recognised T1 or T2 service tier was observed.
-    #[serde(rename = "current")]
-    Current,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Service-computed trust tier currently emitted by Agent Finder. It is independent of search score, popularity, and client-side ranking.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustTier {
-    /// Tier one as assigned by the catalogue authority.
-    T1,
-    /// Tier two as assigned by the catalogue authority.
-    T2,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The authority omitted trust metadata.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotAbsentStatus {
-    /// The authority omitted trust metadata.
-    #[serde(rename = "absent")]
-    Absent,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The authority explicitly marked its assessment stale.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotStaleStatus {
-    /// The authority explicitly marked its assessment stale.
-    #[serde(rename = "stale")]
-    Stale,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The authority explicitly reported a downgraded assessment.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotDowngradedStatus {
-    /// The authority explicitly reported a downgraded assessment.
-    #[serde(rename = "downgraded")]
-    Downgraded,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The authority explicitly revoked its assessment.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotRevokedStatus {
-    /// The authority explicitly revoked its assessment.
-    #[serde(rename = "revoked")]
-    Revoked,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The authority supplied a bounded trust value this runtime does not understand.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotUnsupportedStatus {
-    /// The authority supplied a bounded trust value this runtime does not understand.
-    #[serde(rename = "unsupported")]
-    Unsupported,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The trust field was empty, unbounded, or had the wrong JSON type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotMalformedStatus {
-    /// The trust field was empty, unbounded, or had the wrong JSON type.
-    #[serde(rename = "malformed")]
-    Malformed,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// A versioned, bounded trust observation carried unchanged with a catalog candidate and its private handle context. Current observations require a recognised T1/T2 tier; every non-current state structurally forbids a tier. Eligibility remains `unknown` while Agent Finder supplies no exposure decision, and states absent from its current wire are never inferred from age, relevance, popularity, or a tier transition.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CatalogTrustSnapshot {
-    Current(CatalogTrustSnapshotCurrent),
-    Absent(CatalogTrustSnapshotAbsent),
-    Stale(CatalogTrustSnapshotStale),
-    Downgraded(CatalogTrustSnapshotDowngraded),
-    Revoked(CatalogTrustSnapshotRevoked),
-    Unsupported(CatalogTrustSnapshotUnsupported),
-    Malformed(CatalogTrustSnapshotMalformed),
-}
-
 /// Typed non-installable state for an AI skill candidate
 ///
 /// <div class="warning">
@@ -34237,6 +33998,245 @@ pub enum CatalogSelectionResult {
     NegotiationRefused(CatalogNegotiationRefusedError),
     InvalidRequest(CatalogInvalidRequestError),
     Unavailable(CatalogUnavailableError),
+}
+
+/// Authority-computed exposure eligibility, kept separate from tier. The current tier-only Agent Finder response maps to `unknown`, never to a locally inferred eligibility.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustEligibility {
+    /// Eligible for default catalogue exposure.
+    #[serde(rename = "default")]
+    Default,
+    /// Eligible only when expanded or community results are requested.
+    #[serde(rename = "expanded")]
+    Expanded,
+    /// Not eligible for normal catalogue exposure.
+    #[serde(rename = "hidden")]
+    Hidden,
+    /// The authority did not supply an eligibility decision.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Bounded authority that supplied a catalogue trust observation
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSource {
+    /// GitHub Agent Finder supplied the trust field on its search result.
+    #[serde(rename = "agent-finder")]
+    AgentFinder,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Schema version of the catalogue trust snapshot envelope
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotSchemaVersion {
+    /// Initial envelope carrying one bounded service tier or one explicit unavailable state.
+    #[serde(rename = "v1")]
+    V1,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// A recognised T1 or T2 service tier was observed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotCurrentStatus {
+    /// A recognised T1 or T2 service tier was observed.
+    #[serde(rename = "current")]
+    Current,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Service-computed trust tier currently emitted by Agent Finder. It is independent of search score, popularity, and client-side ranking.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustTier {
+    /// Tier one as assigned by the catalogue authority.
+    T1,
+    /// Tier two as assigned by the catalogue authority.
+    T2,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority omitted trust metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotAbsentStatus {
+    /// The authority omitted trust metadata.
+    #[serde(rename = "absent")]
+    Absent,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority explicitly marked its assessment stale.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotStaleStatus {
+    /// The authority explicitly marked its assessment stale.
+    #[serde(rename = "stale")]
+    Stale,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority explicitly reported a downgraded assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotDowngradedStatus {
+    /// The authority explicitly reported a downgraded assessment.
+    #[serde(rename = "downgraded")]
+    Downgraded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority explicitly revoked its assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotRevokedStatus {
+    /// The authority explicitly revoked its assessment.
+    #[serde(rename = "revoked")]
+    Revoked,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority supplied a bounded trust value this runtime does not understand.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotUnsupportedStatus {
+    /// The authority supplied a bounded trust value this runtime does not understand.
+    #[serde(rename = "unsupported")]
+    Unsupported,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The trust field was empty, unbounded, or had the wrong JSON type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotMalformedStatus {
+    /// The trust field was empty, unbounded, or had the wrong JSON type.
+    #[serde(rename = "malformed")]
+    Malformed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// A versioned, bounded trust observation carried unchanged with a catalog candidate and its private handle context. Current observations require a recognised T1/T2 tier; every non-current state structurally forbids a tier. Eligibility remains `unknown` while Agent Finder supplies no exposure decision, and states absent from its current wire are never inferred from age, relevance, popularity, or a tier transition.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CatalogTrustSnapshot {
+    Current(CatalogTrustSnapshotCurrent),
+    Absent(CatalogTrustSnapshotAbsent),
+    Stale(CatalogTrustSnapshotStale),
+    Downgraded(CatalogTrustSnapshotDowngraded),
+    Revoked(CatalogTrustSnapshotRevoked),
+    Unsupported(CatalogTrustSnapshotUnsupported),
+    Malformed(CatalogTrustSnapshotMalformed),
 }
 
 /// Discriminator: no usable transport is available

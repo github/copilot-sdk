@@ -186,6 +186,39 @@ pub struct Container`);
         }
     );
 
+    it.each(["anyOf", "oneOf"] as const)(
+        "preserves raw optional metadata when newly recognising referenced %s discriminators",
+        (keyword) => {
+            const code = generateApiTypesCode({
+                definitions: {
+                    Status: { type: "string", enum: ["known", "unavailable"] },
+                    Snapshot: {
+                        title: "Snapshot",
+                        [keyword]: ["known", "unavailable"].map((status) => ({
+                            type: "object",
+                            required: ["status"],
+                            properties: {
+                                status: { $ref: "#/definitions/Status", const: status },
+                            },
+                        })),
+                    },
+                    Container: {
+                        type: "object",
+                        required: ["requiredSnapshot"],
+                        properties: {
+                            requiredSnapshot: { $ref: "#/definitions/Snapshot" },
+                            optionalSnapshot: { $ref: "#/definitions/Snapshot" },
+                        },
+                    },
+                },
+            } as ApiSchema);
+
+            expect(code).toContain("pub required_snapshot: Snapshot,");
+            expect(code).toContain("pub optional_snapshot: Option<serde_json::Value>,");
+            expect(code).not.toContain("pub optional_snapshot: Option<Snapshot>,");
+        }
+    );
+
     it.each([true, false])(
         "validates a reference's sibling constant without changing its enum (required: %s)",
         (required) => {

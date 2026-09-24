@@ -201,7 +201,7 @@ fn digest_algorithm_enforces_its_field_constraint() {
 }
 
 #[test]
-fn candidate_trust_preserves_each_named_variant() {
+fn candidate_trust_preserves_raw_metadata_and_standalone_typed_variants() {
     for status in [
         "current",
         "absent",
@@ -226,9 +226,9 @@ fn candidate_trust_preserves_each_named_variant() {
         let mut wire = search_result_wire()["candidates"][0].clone();
         wire["trust"] = trust.clone();
         let candidate: CatalogMcpServerCandidate = serde_json::from_value(wire.clone()).unwrap();
-        let snapshot = candidate.trust.as_ref().unwrap();
+        let snapshot: CatalogTrustSnapshot = serde_json::from_value(trust.clone()).unwrap();
         assert!(matches!(
-            (status, snapshot),
+            (status, &snapshot),
             ("current", CatalogTrustSnapshot::Current(_))
                 | ("absent", CatalogTrustSnapshot::Absent(_))
                 | ("stale", CatalogTrustSnapshot::Stale(_))
@@ -237,8 +237,106 @@ fn candidate_trust_preserves_each_named_variant() {
                 | ("unsupported", CatalogTrustSnapshot::Unsupported(_))
                 | ("malformed", CatalogTrustSnapshot::Malformed(_))
         ));
+        assert_eq!(candidate.trust.as_ref().unwrap(), &trust);
         assert_eq!(serde_json::to_value(snapshot).unwrap(), trust);
         assert_eq!(serde_json::to_value(candidate).unwrap(), wire);
+    }
+}
+
+#[test]
+fn optional_trust_does_not_reject_candidates_or_discard_unbounded_metadata() {
+    let current = json!({
+        "schemaVersion": "v1",
+        "status": "current",
+        "tier": "T1",
+        "eligibility": "unknown",
+        "provenance": {
+            "source": "agent-finder",
+            "observedAt": "2026-09-02T11:00:00Z"
+        }
+    });
+    let mut inputs = vec![
+        json!(42),
+        json!("private-invalid"),
+        json!([]),
+        json!({}),
+        json!({"schemaVersion": "v2"}),
+        json!({"schemaVersion": "v2", "status": null, "eligibility": 42}),
+        json!({"schemaVersion": "v2", "provenance": {"observedAt": "changed-format"}}),
+        json!({"schemaVersion": "v2", "extra": "x".repeat(4097)}),
+    ];
+    for (field, value) in [
+        ("schemaVersion", "v2"),
+        ("status", "future-status"),
+        ("eligibility", "approved"),
+        ("tier", "T3"),
+    ] {
+        let mut snapshot = current.clone();
+        snapshot[field] = json!(value);
+        inputs.push(snapshot);
+    }
+    let mut unknown_authority = current.clone();
+    unknown_authority["provenance"]["source"] = json!("future-authority");
+    inputs.push(unknown_authority);
+    for field in [
+        "schemaVersion",
+        "status",
+        "eligibility",
+        "provenance",
+        "tier",
+    ] {
+        let mut snapshot = current.clone();
+        snapshot.as_object_mut().unwrap().remove(field);
+        inputs.push(snapshot);
+    }
+    for time in ["not-a-date", "2026-09-18T10:00:00", "2026-02-30T10:00:00Z"] {
+        let mut snapshot = current.clone();
+        snapshot["provenance"]["observedAt"] = json!(time);
+        inputs.push(snapshot);
+    }
+    // Hosts must receive both sides of their bounds intact before projecting trust.
+    for extra in [
+        json!("x".repeat(4096)),
+        json!("x".repeat(4097)),
+        json!({ "x".repeat(64): 0 }),
+        json!({ "x".repeat(65): "private-key" }),
+        json!([[["bounded"]]]),
+        json!([[[["too-deep"]]]]),
+        json!([[[[[["private-depth"]]]]]]),
+        json!(vec![0; 119]),
+        json!(vec![0; 120]),
+        json!(vec![0; 129]),
+    ] {
+        let mut snapshot = current.clone();
+        snapshot["extra"] = extra;
+        inputs.push(snapshot);
+    }
+
+    for trust in inputs {
+        let mut wire = search_result_wire();
+        for candidate in wire["candidates"].as_array_mut().unwrap() {
+            candidate["trust"] = trust.clone();
+        }
+        let result: CatalogSearchResult = serde_json::from_value(wire).unwrap();
+        let CatalogSearchResult::Succeeded(result) = result else {
+            panic!("optional trust must not discard a successful search");
+        };
+        assert_eq!(result.candidates.len(), 2);
+        for candidate in result.candidates {
+            assert_eq!(serde_json::to_value(candidate).unwrap()["trust"], trust);
+        }
+    }
+}
+
+#[test]
+fn optional_trust_keeps_missing_and_null_metadata_unavailable() {
+    for trust in [None, Some(Value::Null)] {
+        let mut wire = search_result_wire()["candidates"][0].clone();
+        if let Some(trust) = trust {
+            wire["trust"] = trust;
+        }
+        let candidate: CatalogMcpServerCandidate = serde_json::from_value(wire).unwrap();
+        assert!(candidate.trust.is_none());
     }
 }
 
