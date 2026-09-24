@@ -1893,6 +1893,16 @@ pub enum AskUserVariant {
     Elicitation,
 }
 
+/// Cached model metadata used by the runtime to validate session creation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CachedModel {
+    /// Model identifier.
+    pub id: String,
+    /// Whether the model supports configurable reasoning effort.
+    pub supports_reasoning_effort: bool,
+}
+
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -1951,6 +1961,14 @@ pub struct SessionConfig {
     pub session_id: Option<SessionId>,
     /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     pub model: Option<String>,
+    /// Cached model catalog for runtime validation during `session.create`.
+    ///
+    /// `None` omits the catalog and preserves normal runtime model discovery.
+    /// `Some(vec![])` supplies an authoritative empty catalog. A populated
+    /// catalog supplies only model IDs and reasoning-effort support; the
+    /// runtime owns validation and the asynchronous post-create refresh.
+    /// This field is not sent on `session.resume`.
+    pub cached_models: Option<Vec<CachedModel>>,
     /// Exact model IDs this session may use. When unset, the host imposes no
     /// model restriction. The runtime validates configured IDs, rejects an
     /// explicit empty list, and intersects the list with applicable model
@@ -2326,6 +2344,7 @@ impl std::fmt::Debug for SessionConfig {
         f.debug_struct("SessionConfig")
             .field("session_id", &self.session_id)
             .field("model", &self.model)
+            .field("cached_models", &self.cached_models)
             .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
@@ -2479,6 +2498,7 @@ impl Default for SessionConfig {
         Self {
             session_id: None,
             model: None,
+            cached_models: None,
             allowed_models: None,
             client_name: None,
             reasoning_effort: None,
@@ -2653,6 +2673,7 @@ impl SessionConfig {
         let wire = crate::wire::SessionCreateWire {
             session_id,
             model: self.model,
+            cached_models: self.cached_models,
             allowed_models: self.allowed_models,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
@@ -2877,6 +2898,14 @@ impl SessionConfig {
     /// Set the model identifier (e.g. `"claude-sonnet-4"`).
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Set the cached catalog for session creation. An empty list is authoritative.
+    ///
+    /// See [`cached_models`](Self::cached_models).
+    pub fn with_cached_models(mut self, models: Vec<CachedModel>) -> Self {
+        self.cached_models = Some(models);
         self
     }
 
@@ -6372,6 +6401,62 @@ mod tests {
         ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
+
+    #[test]
+    fn cached_models_unset_is_omitted_on_create() {
+        let config = SessionConfig::default();
+        assert!(config.cached_models.is_none());
+        let (wire, _) = config.into_wire(None).unwrap();
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("cachedModels").is_none());
+    }
+
+    #[test]
+    fn cached_models_empty_is_preserved_on_create() {
+        let config = SessionConfig {
+            cached_models: Some(vec![]),
+            ..Default::default()
+        };
+        let (wire, _) = config.into_wire(None).unwrap();
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["cachedModels"], json!([]));
+    }
+
+    #[test]
+    fn cached_models_populated_serializes_only_validation_fields() {
+        let config = SessionConfig::default().with_cached_models(vec![
+            crate::CachedModel {
+                id: "reasoning-model".into(),
+                supports_reasoning_effort: true,
+            },
+            crate::CachedModel {
+                id: "non-reasoning-model".into(),
+                supports_reasoning_effort: false,
+            },
+        ]);
+        let (wire, _) = config.into_wire(None).unwrap();
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            json["cachedModels"],
+            json!([
+                {"id": "reasoning-model", "supportsReasoningEffort": true},
+                {"id": "non-reasoning-model", "supportsReasoningEffort": false}
+            ])
+        );
+        assert!(json.get("cached_models").is_none());
+    }
+
+    #[test]
+    fn cached_models_is_not_sent_on_resume() {
+        let (wire, _) = ResumeSessionConfig::new(SessionId::from("resume-cached-models"))
+            .with_model("reasoning-model")
+            .with_reasoning_effort("high")
+            .into_wire()
+            .unwrap();
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("cachedModels").is_none());
+        assert!(json.get("cached_models").is_none());
+    }
 
     #[test]
     fn permission_response_capability_is_publicly_exported() {
