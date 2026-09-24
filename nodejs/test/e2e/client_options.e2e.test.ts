@@ -15,7 +15,6 @@ const captureIndex = process.argv.indexOf("--capture-file");
 const captureFile = captureIndex >= 0 ? process.argv[captureIndex + 1] : undefined;
 const requests = [];
 const clientResponses = [];
-let extensionRegistrationId;
 
 function saveCapture() {
   if (!captureFile) {
@@ -86,10 +85,6 @@ function handleMessage(message) {
   if (!message.method) {
     clientResponses.push(message);
     saveCapture();
-    if (message.id === 9001 && extensionRegistrationId !== undefined) {
-      writeResponse(extensionRegistrationId, {});
-      extensionRegistrationId = undefined;
-    }
     return;
   }
 
@@ -107,7 +102,7 @@ function handleMessage(message) {
   }
 
   if (message.method === "registerExtensionLaunchProvider") {
-    extensionRegistrationId = message.id;
+    writeResponse(message.id, { contractVersion: 1 });
     writeRequest(9001, "extensionLaunchProvider.resolve", {
       id: "project:node-e2e",
       name: "node-e2e",
@@ -404,7 +399,7 @@ describe("Client options", async () => {
         await resumed.disconnect();
     });
 
-    it("should register and invoke an extension launch provider during startup", async () => {
+    it("should register before invoking an extension launch provider", async () => {
         const cliPath = path.join(workDir, `fake-cli-extension-provider-${Date.now()}.js`);
         const capturePath = path.join(workDir, `fake-cli-extension-provider-${Date.now()}.json`);
         fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
@@ -443,35 +438,40 @@ describe("Client options", async () => {
 
         await client.start();
 
-        expect(observedRequest).toEqual({
-            id: "project:node-e2e",
-            name: "node-e2e",
-            modulePath: "/extensions/node-e2e.mjs",
-            source: "project",
-        });
-        const capture = JSON.parse(fs.readFileSync(capturePath, "utf8")) as {
-            requests: { method: string }[];
-            clientResponses: {
-                id: number;
-                result: {
-                    launch: { executable: string; args: string[]; env: Record<string, string> };
-                };
-            }[];
-        };
-        expect(capture.requests.map((request) => request.method)).toContain(
+        await expect
+            .poll(() => observedRequest)
+            .toEqual({
+                id: "project:node-e2e",
+                name: "node-e2e",
+                modulePath: "/extensions/node-e2e.mjs",
+                source: "project",
+            });
+        const readCapture = () =>
+            JSON.parse(fs.readFileSync(capturePath, "utf8")) as {
+                requests: { method: string }[];
+                clientResponses: {
+                    id: number;
+                    result: {
+                        launch: { executable: string; args: string[]; env: Record<string, string> };
+                    };
+                }[];
+            };
+        expect(readCapture().requests.map((request) => request.method)).toContain(
             "registerExtensionLaunchProvider"
         );
-        expect(capture.clientResponses).toContainEqual({
-            jsonrpc: "2.0",
-            id: 9001,
-            result: {
-                launch: {
-                    executable: "node",
-                    args: ["extension-host"],
-                    env: { EXTENSION_SOURCE: "node" },
+        await expect
+            .poll(() => readCapture().clientResponses)
+            .toContainEqual({
+                jsonrpc: "2.0",
+                id: 9001,
+                result: {
+                    launch: {
+                        executable: "node",
+                        args: ["extension-host"],
+                        env: { EXTENSION_SOURCE: "node" },
+                    },
                 },
-            },
-        });
+            });
     });
 
     it("should send empty-mode custom agent locality defaults in initial requests", async () => {

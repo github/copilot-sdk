@@ -11,7 +11,8 @@
         "test/copilot-request-handler.test.ts",
         "test/ffiRuntimeHost.test.ts",
         "test/session-event-types.test.ts",
-        "test/message-source.test.ts"
+        "test/message-source.test.ts",
+        "test/extension-launch-provider.test.ts"
     ],
     "exclude": ["node_modules", "dist"]
 }

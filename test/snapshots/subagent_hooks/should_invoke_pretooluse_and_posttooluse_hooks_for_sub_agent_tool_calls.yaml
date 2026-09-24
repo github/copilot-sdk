@@ -314,7 +314,6 @@ conversations:
 
           </system_notification>
       - role: assistant
-        content: I've launched an explore agent to read subagent-test.txt. Waiting for it to complete...
         tool_calls:
           - id: toolcall_2
             type: function

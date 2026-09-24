@@ -18,27 +18,12 @@ const sdkEntryPoint = process.env.COPILOT_CLI_PATH
 const { approveAll, RuntimeConnection } = (await import(
     sdkEntryPoint
 )) as typeof import("../../src/index.js");
-const cliPath = process.env.COPILOT_CLI_PATH ?? (await getLegacyCliPathForTests());
-const cliDistDirectory = process.env.COPILOT_EXTENSION_SDK_PATH
-    ? dirname(process.env.COPILOT_EXTENSION_SDK_PATH)
-    : dirname(cliPath);
+const cliPath = await getLegacyCliPathForTests();
 const factoryTestContext = await createSdkTestContext({
     copilotClientOptions: {
         connection: RuntimeConnection.forStdio({ path: cliPath }),
         env: {
             COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS,AGENT_FACTORIES",
-        },
-        extensionLaunchProvider: {
-            resolve: async (request) => ({
-                launch: {
-                    executable: "node",
-                    args: [join(cliDistDirectory, "preloads", "extension_bootstrap.mjs")],
-                    env: {
-                        COPILOT_CLI_DIST_DIR: cliDistDirectory,
-                        EXTENSION_PATH: request.modulePath,
-                    },
-                },
-            }),
         },
     },
 });

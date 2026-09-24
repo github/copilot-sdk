@@ -1,0 +1,221 @@
+{
+  "$comment": "Reviewed experimental Node-only canvas contract. This is a schema input, not a released CLI version or runtime capability assertion.",
+  "provenance": {
+    "predecessor": {
+      "cliVersion": "1.0.89-0",
+      "apiSchemaSha256": "a445b552b6ecef536b89f3d08cc73b6fbbe8fe0e503daae8974578529d62bc83"
+    },
+    "canonical": {
+      "repository": "github/copilot-agent-runtime",
+      "commit": "ef0ce220610ceedc7243e2eaedaf75ea403248b5",
+      "apiSchemaSha256": "7f1a7491eb34b4b7552a2af49b993fe3718bb476d3ae241c6842048956126335",
+      "definitions": "src/native/sdk-contract/src/api/rpc.rs"
+    },
+    "fingerprint": "SHA-256 of scripts/codegen/utils.ts stableStringify output"
+  },
+  "api": {
+    "replacements": [
+      {
+        "path": [
+          "definitions",
+          "ExtensionLaunchProfile"
+        ],
+        "beforeSha256": "796c245ca25c8db7f10437251bffe1a4500ef5e28f92f6dc90e093bf5b2af5af",
+        "value": {
+          "type": "object",
+          "properties": {
+            "executable": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Executable used to launch the extension entrypoint."
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Opaque integrator-defined arguments passed to the executable. The runtime does not append the extension entrypoint."
+            },
+            "env": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Opaque integrator-defined environment variables. Runtime-owned COPILOT_SDK_PATH, SESSION_ID, and COPILOT_EXTENSION_PARENT_PID values take precedence."
+            }
+          },
+          "required": [
+            "executable",
+            "args",
+            "env"
+          ],
+          "additionalProperties": false,
+          "description": "Opaque integrator-owned process launch profile for one extension entrypoint.",
+          "title": "ExtensionLaunchProfile",
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "definitions",
+          "ExtensionLaunchProviderRegistrationResult"
+        ],
+        "beforeSha256": null,
+        "value": {
+          "type": "object",
+          "properties": {
+            "contractVersion": {
+              "type": "integer",
+              "minimum": 0,
+              "const": 1,
+              "description": "Supported launch-admission version. Hosts must require version 1 before session startup."
+            }
+          },
+          "required": [
+            "contractVersion"
+          ],
+          "additionalProperties": false,
+          "description": "Authoritative capability acknowledgement for the registered extension launch provider.",
+          "title": "ExtensionLaunchProviderRegistrationResult",
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "definitions",
+          "ExtensionLaunchProviderResolveRequest"
+        ],
+        "beforeSha256": "dad7ed71eb5e07faf614f827bd753a8e3828f8e177dd0b482e44b73ac4c5e72c",
+        "value": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Source-qualified extension identifier."
+            },
+            "name": {
+              "type": "string",
+              "description": "Human-readable extension name."
+            },
+            "modulePath": {
+              "type": "string",
+              "description": "Absolute path to the discovered extension entrypoint."
+            },
+            "source": {
+              "$ref": "#/definitions/ExtensionSource",
+              "description": "Discovery source for the extension entrypoint."
+            },
+            "sessionId": {
+              "type": "string",
+              "description": "Owning runtime session identifier, when known."
+            },
+            "defaultLaunch": {
+              "$ref": "#/definitions/ExtensionLaunchProfile",
+              "description": "Original, unexecuted runtime bootstrap with environment overrides, not inherited values. Omitted when no built-in launcher exists. Return unchanged to preserve original-path execution."
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "modulePath",
+            "source"
+          ],
+          "additionalProperties": false,
+          "description": "A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.",
+          "title": "ExtensionLaunchProviderResolveRequest",
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "definitions",
+          "ExtensionLaunchProviderResolveResult"
+        ],
+        "beforeSha256": "3e27c78ee6be64dabbe9805a13e563bf9c56b627f575208d2d7c66bab12804a9",
+        "value": {
+          "type": "object",
+          "properties": {
+            "launch": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ExtensionLaunchProfile",
+                  "description": "Opaque integrator-owned process launch profile for one extension entrypoint."
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Approved launch profile, or absent/null to deny this candidate without fallback."
+            }
+          },
+          "additionalProperties": false,
+          "description": "The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.",
+          "title": "ExtensionLaunchProviderResolveResult",
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "definitions",
+          "ExtensionSource"
+        ],
+        "beforeSha256": "58a2258b134f7eb4d008719d7e3d7c4fb3cdbb699b63e9477e36c47c092be2d4",
+        "value": {
+          "type": "string",
+          "enum": [
+            "project",
+            "user",
+            "plugin",
+            "session"
+          ],
+          "description": "Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)",
+          "title": "ExtensionSource",
+          "x-enumDescriptions": {
+            "project": "Extension discovered from the current project's .github/extensions directory.",
+            "user": "Extension discovered from the user's ~/.copilot/extensions directory.",
+            "plugin": "Extension contributed by an installed plugin.",
+            "session": "Extension discovered from the current session's state directory (loaded only for this session)."
+          }
+        }
+      },
+      {
+        "path": [
+          "server",
+          "registerExtensionLaunchProvider"
+        ],
+        "beforeSha256": "1994969d70c4c0718055be5543386db0a61d83a739e1a0954adf320ad61de467",
+        "value": {
+          "rpcMethod": "registerExtensionLaunchProvider",
+          "description": "Registers the calling SDK connection as the authoritative extension launch provider. Call before session startup and check contractVersion. Without registration, the built-in launcher is unchanged.",
+          "params": null,
+          "result": {
+            "$ref": "#/definitions/ExtensionLaunchProviderRegistrationResult",
+            "description": "Authoritative capability acknowledgement for the registered extension launch provider."
+          },
+          "stability": "experimental"
+        }
+      },
+      {
+        "path": [
+          "clientGlobal",
+          "extensionLaunchProvider",
+          "resolve"
+        ],
+        "beforeSha256": "221dcedfb17a4b83ddf9f07666a9b34e0d3cfc135fecfe15a47904ebea09aa36",
+        "value": {
+          "rpcMethod": "extensionLaunchProvider.resolve",
+          "description": "Requests approval before each extension launch or reload. Return defaultLaunch unchanged to preserve the runtime bootstrap. Missing/null launch, errors, disconnect, cancellation, and the 15-second deadline fail closed. Approval does not sandbox or freeze mutable sources.",
+          "params": {
+            "$ref": "#/definitions/ExtensionLaunchProviderResolveRequest",
+            "description": "A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile."
+          },
+          "result": {
+            "$ref": "#/definitions/ExtensionLaunchProviderResolveResult",
+            "description": "The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher."
+          },
+          "stability": "experimental"
+        }
+      }
+    ]
+  }
+}

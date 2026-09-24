@@ -132,7 +132,7 @@ new CopilotClient(options?: CopilotClientOptions)
 - `mode?: "empty" | "copilot-cli"` - Defaulting strategy. Use `"empty"` for multi-user server mode; defaults to `"copilot-cli"`.
 - `workingDirectory?: string` - Working directory for the runtime process (default: current process cwd).
 - `baseDirectory?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When not set, the runtime defaults to `~/.copilot`. Ignored when connecting via `RuntimeConnection.forUri`.
-- `extensionLaunchProvider?: ExtensionLaunchProvider` - Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
+- `extensionLaunchProvider?: ExtensionLaunchProvider` - Experimental, connection-owned extension launch admission. Requires explicit runtime contract version 1; see [Extension launch admission](#extension-launch-admission-experimental).
 - `logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all"` - Log level. When omitted, the runtime uses its own default (currently `"info"`).
 - `env?: Record<string, string | undefined>` - Environment variables for the runtime process. When omitted, inherits `process.env`.
 - `gitHubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
@@ -149,6 +149,90 @@ new CopilotClient(options?: CopilotClientOptions)
 ##### `start(): Promise<void>`
 
 Start the CLI server and establish connection.
+
+##### Extension launch admission (experimental)
+
+Configure `extensionLaunchProvider` before starting the client. The SDK attaches
+the handler before the RPC handshake, registers it once per connection, and requires
+`{ contractVersion: 1 }` before allowing session creation or resume. An older
+runtime's null acknowledgement, an unsupported version, or a registration error
+rejects startup. Omitting the option preserves legacy launching.
+
+Canvas embedding is limited to **existing, already-persisted chats**. The host
+must establish durability through its ordinary chat/session lifecycle before
+approving a launch. This SDK contract does not persist a new or zero-turn chat;
+canvas-first persistence is deferred.
+
+```typescript
+// persistedSessionId comes from the host's already-persisted chat selection.
+const client = new CopilotClient({
+    extensionLaunchProvider: {
+        async resolve(request, cancellation) {
+            if (request.sessionId !== persistedSessionId || request.defaultLaunch === undefined) {
+                return { launch: null };
+            }
+            // approveRevision is the embedding application's source-admission routine.
+            if (!(await approveRevision(request, cancellation))) {
+                return { launch: null };
+            }
+            return { launch: request.defaultLaunch };
+        },
+    },
+});
+const session = await client.resumeSession(persistedSessionId, {
+    requestExtensions: true,
+    enableScriptSafety: true,
+});
+```
+
+The request preserves the source-qualified ID, name, original module path,
+source (`project`, `user`, `plugin`, or `session`), and optional `sessionId` and
+`defaultLaunch`. The latter is the runtime's unexecuted executable, arguments,
+and bootstrap environment overrides, not its inherited environment. Do not
+invent missing session IDs or reconstruct private bootstrap paths.
+
+The handler must respond within the runtime's 15-second deadline. An absent/null
+launch, callback error, timeout, or cancellation denies execution without a
+fallback. The optional transport cancellation token also signals disconnect and
+stop. Reconnection requires a fresh registration; approvals are not cached or
+replayed. A shared runtime may keep a disconnected provider authoritative to
+prevent a fallback to legacy launching. If it rejects replacement registration,
+the SDK surfaces that error; it does not take over the old registration. Restarting
+an SDK-owned runtime permits fresh negotiation. Shared-runtime reattachment
+requires support from the runtime contract.
+
+This contract does not sandbox Node, freeze files or dependencies, or
+implement source-revision approval or immediate revocation.
+
+For an already-durable session, approve the source revision before returning the
+launch recipe: top-level extension code can have effects before resume returns,
+`joinSession`, or canvas open. The SDK does not infer durability from a session ID
+or a successful resume. Create/resume completion is not registry readiness; wait for the expected
+entry in `session.rpc.canvas.list()` or a registry-change event before opening it.
+
+For read-only shell-command classification from the first new extension operation,
+pass `enableScriptSafety: true` in the initial `createSession` and `resumeSession`
+configurations, rather than only updating options after they return. Commands
+classified as read-only may run without a permission prompt, subject to runtime
+and managed policy. This is not blanket tool approval, a policy override, or
+retroactive protection for already-running extensions.
+
+The setting is in-memory, not a durable session preference. An omitted cold-resume
+setting uses the runtime default (classification disabled); omission on a resident
+resume preserves the current value. Hosts requiring classification should supply
+`true` on every create and cold resume. Explicit `false` and omission are forwarded
+without an SDK default.
+
+These bindings require a runtime implementing the launch-v1 contract and initial
+script-safety configuration. The checked-in CLI pin alone
+does not establish their availability; an older runtime rejects these opt-in
+operations. Publishing and qualifying a matching SDK/runtime pair is a separate
+release step.
+
+These experimental high-level bindings are currently Node-only. Generated wire
+types or an earlier launch-provider API in another SDK do not establish equivalent
+launch-v1, cancellation, or initial script-safety behavior.
+High-level parity in the other SDKs is a separate follow-up.
 
 ##### `stop(): Promise<Error[]>`
 
@@ -1309,6 +1393,25 @@ npm --prefix nodejs run test:unit
 For native Vitest selectors on E2Es, use the
 [prepared-runtime instructions](../CONTRIBUTING.md#testing-an-unreleased-runtime-api);
 the SDK facade does not forward selectors.
+
+Run `npm run generate` to regenerate bindings from the checksum-verified pinned
+CLI schemas. The default Node generator also applies the reviewed experimental
+[canvas schema revision](../scripts/codegen/experimental/canvas.schema.json).
+That checked-in input records the canonical producer schema hashes, the exact
+released predecessor fingerprints, and the launch-v1 API fragments; it does not
+invent a CLI release or change the downloaded schemas. Session events use the
+unmodified release schema; no no-turn persistence API or event is projected.
+
+The revision accepts only its recorded predecessor or an already matching
+canonical field. Unexpected changes fail generation rather than silently
+overriding a newer contract. When the runtime contract is released, review and
+remove the corresponding revision entries as part of the normal pin update.
+Other language generators remain on the release schema, and explicit schema
+arguments to the Node generator remain complete caller-supplied inputs.
+
+This makes ordinary codegen reproducible, not the experimental runtime available.
+The launch-version acknowledgement and compatible-runtime requirements above
+still apply.
 
 ## License
 

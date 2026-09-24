@@ -31,14 +31,20 @@ import type {
     OpenCanvasInstance,
     RemoteSessionMode,
     CurrentToolMetadata,
+    SessionOpenOptions,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
     ExtensionLaunchProfile,
+    ExtensionLaunchProviderHandler,
+    ExtensionLaunchProviderRegistrationResult,
     ExtensionLaunchProviderResolveRequest,
     ExtensionLaunchProviderResolveResult,
+    ExtensionSource,
+} from "./generated/rpc.js";
+export type {
     GitHubTokenAcquireReason,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
@@ -391,15 +397,6 @@ export interface CopilotClientOptions {
     builtinPluginDirectories?: readonly string[];
 
     /**
-     * Connection-level extension launch profile provider.
-     * When set, the client registers the provider during startup before any
-     * session can be created.
-     *
-     * @experimental
-     */
-    extensionLaunchProvider?: ExtensionLaunchProvider;
-
-    /**
      * Log level for the Copilot runtime. When omitted, the runtime uses its
      * own default (currently `"info"`).
      */
@@ -497,6 +494,31 @@ export interface CopilotClientOptions {
      * @experimental
      */
     requestHandler?: CopilotRequestHandler;
+
+    /**
+     * Connection-owned extension launch admission handler.
+     *
+     * Attached before the RPC handshake. `start()` registers it and requires an explicit
+     * contract-version-1 acknowledgement before create/resume can proceed.
+     * Missing support, invalid acknowledgements, and registration errors reject
+     * startup; they never opt back into the runtime's legacy launcher.
+     *
+     * Each resolve receives the original source identity and optional runtime
+     * session/default-launch context. For canvas admission, the caller must
+     * already have a durable session and approve the source before returning
+     * `defaultLaunch` unchanged. This API does not persist a new or zero-turn
+     * chat. An absent or null launch denies
+     * execution. The optional cancellation token is cancelled on request
+     * cancellation, disconnect, or stop; late results are not reused.
+     *
+     * Reconnecting negotiates a new registration and resolves each launch anew.
+     * A runtime that keeps a disconnected provider authoritative may refuse
+     * replacement; that error is propagated rather than bypassing the old owner.
+     * Omitting this option preserves legacy runtime extension behavior.
+     *
+     * @experimental
+     */
+    extensionLaunchProvider?: ExtensionLaunchProvider;
 
     /**
      * Experimental. Receives GitHub telemetry events the runtime forwards to
@@ -2587,6 +2609,18 @@ export interface SessionConfigBase {
      * reconstruct changes from earlier untracked turns.
      */
     enableFileChangeTracking?: boolean;
+
+    /**
+     * Enables read-only classification of built-in shell commands. When true,
+     * commands classified as read-only may run without a permission prompt,
+     * subject to runtime policy. This is not an extension sandbox.
+     *
+     * Applied during session creation or resume, before new extension
+     * initialization. Omission preserves the runtime's existing behavior.
+     *
+     * @experimental
+     */
+    enableScriptSafety?: SessionOpenOptions["enableScriptSafety"];
 
     /**
      * Limits applied to this session's current accounting window.

@@ -57,11 +57,12 @@ const shortReadAgent: NormalizedMessage = {
   ],
 };
 const notifications = [
-  { wording: "verbose", notification: rawNotification, readAgent },
+  { wording: "verbose", notification: rawNotification, readAgent, earlyReply },
   {
     wording: "short idle",
     notification: shortIdleNotification,
     readAgent: shortReadAgent,
+    earlyReply: shortReadAgent,
   },
 ];
 
@@ -110,12 +111,57 @@ function expectReply(
   expect(actual.tool_calls).toEqual(expected.tool_calls);
 }
 
+test.each([false, true])(
+  "continues the emitted early-idle reply without changing its content, streaming=%s",
+  async (streaming) => {
+    const proxy = new ReplayingCapiProxy(
+      "http://127.0.0.1:1",
+      snapshotPath,
+      import.meta.dirname,
+    );
+    const url = await proxy.start();
+    const messages: (NormalizedMessage | ChatCompletionMessage)[] = [
+      ...original.slice(0, 5),
+      shortIdleNotification,
+    ];
+    const request = () =>
+      fetch(`${url}/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          model: stored.models[0],
+          messages,
+          stream: streaming,
+        }),
+      });
+    try {
+      const first = await request();
+      expect(first.status, await first.clone().text()).toBe(200);
+      const reply = await readReply(first, streaming);
+      expectReply(reply, shortReadAgent);
+      messages.push(
+        {
+          role: "assistant",
+          content: reply.content,
+          tool_calls: reply.tool_calls,
+          refusal: null,
+        },
+        toolResult,
+      );
+      const response = await request();
+      expect(response.status, await response.clone().text()).toBe(200);
+      expectReply(await readReply(response, streaming), finalAnswer);
+    } finally {
+      await proxy.stop(true);
+    }
+  },
+);
+
 for (const timing of ["before", "after"] as const) {
   for (const streaming of [false, true]) {
     test.each(notifications)(
       `replays $wording notification ${timing} the parent reply, streaming=${streaming}`,
-      async ({ notification, readAgent }) => {
-        const earlyReply = { ...waiting, tool_calls: readAgent.tool_calls };
+      async ({ notification, readAgent, earlyReply }) => {
         const proxy = new ReplayingCapiProxy(
           "http://127.0.0.1:1",
           snapshotPath,
@@ -164,8 +210,7 @@ for (const timing of ["before", "after"] as const) {
 
   test.each(notifications)(
     `rejects invalid $wording notifications and tool histories with ${timing} completion`,
-    async ({ notification, readAgent }) => {
-      const earlyReply = { ...waiting, tool_calls: readAgent.tool_calls };
+    async ({ notification, readAgent, earlyReply }) => {
       const proxy = new ReplayingCapiProxy(
         "http://127.0.0.1:1",
         snapshotPath,
@@ -242,6 +287,18 @@ for (const timing of ["before", "after"] as const) {
           toolResult,
         ],
       ];
+      if (timing === "before") {
+        malformed.push([
+          ...prefix,
+          notification,
+          {
+            ...earlyReply,
+            content:
+              earlyReply.content === undefined ? waiting.content : undefined,
+          },
+          toolResult,
+        ]);
+      }
       const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
       const consoleError = vi
         .spyOn(console, "error")
@@ -273,27 +330,24 @@ test("timing and wording alternatives retain the full result and final continuat
     toolResult,
     finalAnswer,
   ]);
-  for (const [originalIndex, alternativeIndex] of [
-    [3, 5],
-    [4, 6],
-  ]) {
-    expect(stored.conversations[alternativeIndex].messages).toEqual(
-      stored.conversations[originalIndex].messages.map((message) => {
-        if (
-          message.role === "user" &&
-          message.content === notification.content
-        ) {
-          return shortIdleNotification;
-        }
-        if (
-          message.tool_calls?.some(
-            (call) => call.function.name === "read_agent",
-          )
-        ) {
-          return { ...message, tool_calls: shortReadAgent.tool_calls };
-        }
-        return message;
-      }),
-    );
-  }
+  expect(stored.conversations[5].messages).toEqual(
+    original.map((message) => {
+      if (message.role === "user" && message.content === notification.content) {
+        return shortIdleNotification;
+      }
+      if (
+        message.tool_calls?.some((call) => call.function?.name === "read_agent")
+      ) {
+        return { ...message, tool_calls: shortReadAgent.tool_calls };
+      }
+      return message;
+    }),
+  );
+  expect(stored.conversations[6].messages).toEqual([
+    ...original.slice(0, 5),
+    shortIdleNotification,
+    shortReadAgent,
+    toolResult,
+    finalAnswer,
+  ]);
 });
