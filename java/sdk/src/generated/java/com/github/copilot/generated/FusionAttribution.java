@@ -21,6 +21,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FusionAttribution(
+    /** Whether this model request consumed a user steering message rather than only internal Fusion work. */
+    @JsonProperty("hasUserSteering") Boolean hasUserSteering,
     /** Stable identifier for the HydraFusion turn that produced the event. */
     @JsonProperty("fusionId") String fusionId,
     /** Idempotency identifier for the authoritative commit, when the event belongs to the selected output. */

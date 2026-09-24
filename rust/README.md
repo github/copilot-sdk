@@ -102,6 +102,7 @@ transports.
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 | `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
+| `installation_confirmation_handler` | `Option<Arc<dyn InstallationConfirmationHandler>>` | Experimental connection-global human installation review |
 
 With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport loads the native runtime library adjacent to that resolved runtime bundle. There is no PATH scanning.
 
@@ -256,6 +257,48 @@ let forked = client
 New RPCs land in the namespace immediately as the schema regenerates;
 helpers are added on top only when an ergonomic story is worth the
 maintenance.
+
+Nullable schema fields use `Option<T>` even when the object is reached through a
+named reference. Required nullable fields serialise `None` as explicit JSON
+`null`, preserving uninitialised context metadata and commands that clear an
+override. Optional fields retain their existing omission behaviour.
+
+MCP installation plans expose `McpPlanTransportChoice::Package` and
+`McpPlanTransportChoice::Remote`, with typed package identity or endpoint fields.
+Required choice discriminators reject missing or unknown values rather than
+selecting another variant; unconstrained enums retain their `Unknown` fallback.
+Optional catalogue trust remains raw JSON so hosts can apply their existing size
+bounds and degrade malformed or future metadata without discarding candidates.
+`CatalogTrustSnapshot` is available for explicit decoding after those checks. These
+planning types do not imply that installation or activation is available on the
+connected runtime.
+
+#### Installation confirmation (experimental)
+
+Set `ClientOptions::with_installation_confirmation_handler` to receive the
+runtime's `installations.confirm` callback through
+`installation_confirmation::InstallationConfirmationHandler`. The handler receives
+the generated `InstallationConfirmationRequest` and an
+`InstallationConfirmationContext`, and returns only an explicit
+`InstallationDecision`. The SDK echoes the original challenge and review
+fingerprint; it never infers approval.
+
+Match `operation_id` and `policy_session_id` against the original action on this
+exact connection before presenting the complete review. Missing legacy session
+metadata does not select a default session. Refuse unknown operations or
+incomplete reviews. Concurrent reviews are independent and do not block the
+request router.
+
+`context.request_cancelled()` follows the runtime's numeric `$/cancelRequest`,
+including runtime-enforced expiry. `context.connection_closed()` is a separate
+signal for loss of the original connection. Either retires the pending handler
+future, so separately spawned UI work must observe these signals too. Dropping
+an outbound installation or OAuth future does not cancel that operation.
+
+This callback requires a matching runtime contract. It neither registers an
+installation capability nor supplies absent prepare, apply, removal or OAuth
+methods. Generated presence and transport tests are not proof of a functional
+installer; the pinned published runtime can remain unsupported.
 
 ### Handler Traits
 

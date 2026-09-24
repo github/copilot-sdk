@@ -38,7 +38,7 @@ public final class SystemNotificationEvent extends SessionEvent {
         @JsonProperty("content") String content,
         /** Structured metadata identifying what triggered this notification */
         @JsonProperty("kind") Object kind,
-        /** Responses reasoning settings anchored before this model-facing message, for cache-stable history replay */
+        /** Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility */
         @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning
     ) {
     }

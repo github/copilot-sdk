@@ -37,7 +37,7 @@ public final class UserMessageEvent extends SessionEvent {
     public record UserMessageEventData(
         /** The user's message text as displayed in the timeline */
         @JsonProperty("content") String content,
-        /** Responses reasoning settings anchored before this model-facing message, for cache-stable history replay */
+        /** Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility */
         @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning,
         /** Stable identity of the logical user message, matching the ID returned by send and retained by pending queue snapshots */
         @JsonProperty("messageId") String messageId,

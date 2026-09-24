@@ -32,6 +32,8 @@ pub mod github_token;
 pub mod handler;
 /// Lifecycle hook callbacks (pre/post tool use, prompt submission, session start/end).
 pub mod hooks;
+/// Connection-global human confirmation for experimental installation operations.
+pub mod installation_confirmation;
 mod jsonrpc;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
@@ -353,6 +355,12 @@ pub struct ClientOptions {
     /// of sessions.
     pub extension_launch_provider:
         Option<Arc<dyn crate::extension_launch_provider::ExtensionLaunchProvider>>,
+    /// Connection-global human review handler for `installations.confirm` (experimental).
+    ///
+    /// This receives requests without session routing or inferred operation authority.
+    /// It does not register or enable installation capabilities on the runtime.
+    pub installation_confirmation_handler:
+        Option<Arc<dyn crate::installation_confirmation::InstallationConfirmationHandler>>,
     /// Connection-level GitHub telemetry forwarding callback (experimental).
     ///
     /// When set, every session created or resumed on this client opts into
@@ -544,6 +552,13 @@ impl std::fmt::Debug for ClientOptions {
             .field(
                 "extension_launch_provider",
                 &self.extension_launch_provider.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "installation_confirmation_handler",
+                &self
+                    .installation_confirmation_handler
+                    .as_ref()
+                    .map(|_| "<set>"),
             )
             .field(
                 "on_github_telemetry",
@@ -800,6 +815,7 @@ impl Default for ClientOptions {
             session_fs: None,
             request_handler: None,
             extension_launch_provider: None,
+            installation_confirmation_handler: None,
             on_github_telemetry: None,
             on_get_trace_context: None,
             telemetry: None,
@@ -968,6 +984,15 @@ impl ClientOptions {
         P: crate::extension_launch_provider::ExtensionLaunchProvider,
     {
         self.extension_launch_provider = Some(Arc::new(provider));
+        self
+    }
+
+    /// Install a connection-global human confirmation handler (experimental).
+    pub fn with_installation_confirmation_handler<H>(mut self, handler: H) -> Self
+    where
+        H: crate::installation_confirmation::InstallationConfirmationHandler,
+    {
+        self.installation_confirmation_handler = Some(Arc::new(handler));
         self
     }
 
@@ -1204,6 +1229,7 @@ struct ClientInner {
     /// [`ClientOptions::request_handler`] is set.
     llm_inference: OnceLock<Arc<copilot_request_handler::CopilotRequestDispatcher>>,
     extension_launch_provider: Arc<extension_launch_provider::ExtensionLaunchProviderDispatcher>,
+    installation_confirmation: Arc<installation_confirmation::InstallationConfirmationDispatcher>,
     /// Connection-level GitHub telemetry forwarding callback, set from
     /// [`ClientOptions::on_github_telemetry`]. Drives the
     /// `enableGitHubTelemetryForwarding` wire flag and the
@@ -1354,6 +1380,7 @@ impl Client {
         let session_fs_config = options.session_fs.clone();
         let request_handler = options.request_handler.clone();
         let extension_launch_provider = options.extension_launch_provider.clone();
+        let installation_confirmation_handler = options.installation_confirmation_handler.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
@@ -1569,6 +1596,10 @@ impl Client {
             }
         };
         timings.transport_setup_ms = StartupTimings::millis(transport_setup_start.elapsed());
+        client
+            .inner
+            .installation_confirmation
+            .set_handler(installation_confirmation_handler);
         debug!(
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start transport setup complete"
@@ -1588,15 +1619,8 @@ impl Client {
             let _ = client.inner.llm_inference.set(dispatcher.clone());
             dispatcher
         });
+        client.inner.router.ensure_started(&client.inner);
         if client.inner.extension_launch_provider.is_configured() {
-            client.inner.router.ensure_started(
-                &client.inner.notification_tx,
-                &client.inner.request_rx,
-                client.inner.extension_launch_provider.clone(),
-                request_dispatcher.clone(),
-                client.inner.on_github_telemetry.clone(),
-                client.inner.github_token_registry.clone(),
-            );
             client.rpc().register_extension_launch_provider().await?;
         }
         if !builtin_plugin_directories.is_empty() {
@@ -1628,18 +1652,8 @@ impl Client {
                 "Client::start session filesystem setup complete"
             );
         }
-        if let Some(dispatcher) = request_dispatcher {
+        if request_dispatcher.is_some() {
             let llm_inference_start = Instant::now();
-            // Start the router early (before any session is registered) so the
-            // startup model catalog request is dispatched to the handler.
-            client.inner.router.ensure_started(
-                &client.inner.notification_tx,
-                &client.inner.request_rx,
-                client.inner.extension_launch_provider.clone(),
-                Some(dispatcher.clone()),
-                client.inner.on_github_telemetry.clone(),
-                client.inner.github_token_registry.clone(),
-            );
             client.rpc().llm_inference().set_provider().await?;
             let llm_inference_elapsed = llm_inference_start.elapsed();
             timings.llm_handler_ms = Some(StartupTimings::millis(llm_inference_elapsed));
@@ -1732,6 +1746,23 @@ impl Client {
             ClientMode::default(),
             None,
         )
+    }
+
+    /// Construct a client with a confirmation handler for framed transport tests.
+    #[doc(hidden)]
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn from_streams_with_installation_confirmation_handler(
+        reader: impl AsyncRead + Unpin + Send + 'static,
+        writer: impl AsyncWrite + Unpin + Send + 'static,
+        cwd: PathBuf,
+        handler: Arc<dyn crate::installation_confirmation::InstallationConfirmationHandler>,
+    ) -> Result<Self> {
+        let client = Self::from_streams(reader, writer, cwd)?;
+        client
+            .inner
+            .installation_confirmation
+            .set_handler(Some(handler));
+        Ok(client)
     }
 
     /// Construct a [`Client`] from raw streams with a
@@ -1899,6 +1930,8 @@ impl Client {
                 extension_launch_provider,
             ),
         );
+        let installation_confirmation =
+            Arc::new(installation_confirmation::InstallationConfirmationDispatcher::new());
         let client = Self {
             inner: Arc::new(ClientInner {
                 child: parking_lot::Mutex::new(child),
@@ -1920,6 +1953,7 @@ impl Client {
                 session_fs_sqlite_declared,
                 llm_inference: OnceLock::new(),
                 extension_launch_provider: extension_launch_provider.clone(),
+                installation_confirmation: installation_confirmation.clone(),
                 on_github_telemetry,
                 on_get_trace_context,
                 effective_connection_token,
@@ -1930,6 +1964,7 @@ impl Client {
         };
         github_token_registry.set_client(Arc::downgrade(&client.inner));
         extension_launch_provider.set_client(Arc::downgrade(&client.inner));
+        installation_confirmation.set_client(Arc::downgrade(&client.inner));
         client.spawn_lifecycle_dispatcher();
         debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
@@ -2361,14 +2396,7 @@ impl Client {
         &self,
         session_id: &SessionId,
     ) -> crate::router::SessionRegistration {
-        self.inner.router.ensure_started(
-            &self.inner.notification_tx,
-            &self.inner.request_rx,
-            self.inner.extension_launch_provider.clone(),
-            self.inner.llm_inference.get().cloned(),
-            self.inner.on_github_telemetry.clone(),
-            self.inner.github_token_registry.clone(),
-        );
+        self.inner.router.ensure_started(&self.inner);
         self.inner.router.register(session_id)
     }
 
@@ -2402,14 +2430,7 @@ impl Client {
         &self,
         provider: Arc<dyn GitHubTokenProvider>,
     ) -> github_token::GitHubTokenRegistration {
-        self.inner.router.ensure_started(
-            &self.inner.notification_tx,
-            &self.inner.request_rx,
-            self.inner.extension_launch_provider.clone(),
-            self.inner.llm_inference.get().cloned(),
-            self.inner.on_github_telemetry.clone(),
-            self.inner.github_token_registry.clone(),
-        );
+        self.inner.router.ensure_started(&self.inner);
         let id = self.inner.github_token_registry.register(provider);
         github_token::GitHubTokenRegistration::new(self.inner.github_token_registry.clone(), id)
     }
@@ -2635,14 +2656,7 @@ impl Client {
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
     pub fn start_router_for_test(&self) {
-        self.inner.router.ensure_started(
-            &self.inner.notification_tx,
-            &self.inner.request_rx,
-            self.inner.extension_launch_provider.clone(),
-            self.inner.llm_inference.get().cloned(),
-            self.inner.on_github_telemetry.clone(),
-            self.inner.github_token_registry.clone(),
-        );
+        self.inner.router.ensure_started(&self.inner);
     }
 
     #[cfg(feature = "test-support")]
@@ -2827,6 +2841,7 @@ impl Client {
         info!(pid = ?pid, "stopping CLI process");
         let mut errors: Vec<Error> = Vec::new();
         self.inner.extension_launch_provider.clear();
+        self.inner.installation_confirmation.clear();
 
         // Snapshot the registered session IDs without holding the router
         // lock across the detach RPCs.
@@ -2962,6 +2977,7 @@ impl Client {
         let pid = self.pid();
         info!(pid = ?pid, "force-stopping CLI process");
         self.inner.extension_launch_provider.clear();
+        self.inner.installation_confirmation.clear();
         if let Some(process_tree) = self.inner.process_tree.lock().take()
             && let Err(error) = process_tree.terminate()
         {
@@ -3028,6 +3044,7 @@ impl Client {
 
 impl Drop for ClientInner {
     fn drop(&mut self) {
+        self.rpc.force_close();
         let pid = self.child.lock().as_ref().and_then(Child::id);
         if let Some(process_tree) = self.process_tree.lock().take()
             && let Err(error) = process_tree.terminate()
@@ -3044,7 +3061,6 @@ impl Drop for ClientInner {
         #[cfg(feature = "in-process")]
         {
             if let Some(host) = self.ffi_host.lock().take() {
-                self.rpc.force_close();
                 host.close();
             }
         }
@@ -3804,6 +3820,9 @@ mod tests {
                 llm_inference: OnceLock::new(),
                 extension_launch_provider: Arc::new(
                     extension_launch_provider::ExtensionLaunchProviderDispatcher::new(None),
+                ),
+                installation_confirmation: Arc::new(
+                    installation_confirmation::InstallationConfirmationDispatcher::new(),
                 ),
                 on_github_telemetry: None,
                 on_get_trace_context: None,

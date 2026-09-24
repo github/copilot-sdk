@@ -2148,7 +2148,7 @@ type UserMessageData struct {
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
 	// Parent agent task ID for background telemetry correlated to this user turn
 	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
-	// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+	// Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility
 	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 	// Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
 	Source *string `json:"source,omitempty"`
@@ -2961,7 +2961,7 @@ type SystemNotificationData struct {
 	Content string `json:"content"`
 	// Structured metadata identifying what triggered this notification
 	Kind SystemNotification `json:"kind"`
-	// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+	// Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility
 	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
 }
 
@@ -3693,6 +3693,8 @@ type FusionAttribution struct {
 	ConversationScope *string `json:"conversationScope,omitempty"`
 	// Stable identifier for the HydraFusion turn that produced the event.
 	FusionID string `json:"fusionId"`
+	// Whether this model request consumed a user steering message rather than only internal Fusion work.
+	HasUserSteering *bool `json:"hasUserSteering,omitempty"`
 	// HydraFusion orchestration pattern selected for the turn.
 	Pattern string `json:"pattern"`
 	// Identifier of the concrete phase that produced the event.
@@ -3854,6 +3856,8 @@ type MCPOauthRequiredStaticClientConfig struct {
 	GrantType *MCPOauthRequiredStaticClientConfigGrantType `json:"grantType,omitempty"`
 	// Whether this is a public OAuth client
 	PublicClient *bool `json:"publicClient,omitempty"`
+	// Configured OAuth scope string used when the server challenge omits scope or provides an empty scope
+	Scope *string `json:"scope,omitempty"`
 }
 
 // OAuth WWW-Authenticate parameters parsed from an MCP auth challenge
@@ -4826,7 +4830,7 @@ func (r PersistedBinaryImage) Type() PersistedBinaryResultType {
 	return PersistedBinaryResultType(r.Discriminator)
 }
 
-// Original request-level and effective conversation reasoning effort for a Responses history boundary
+// Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
 type ResponsesReasoning struct {
 	// Effective effort selected before this message, independent of the response-level reasoning field
 	Effort string `json:"effort"`

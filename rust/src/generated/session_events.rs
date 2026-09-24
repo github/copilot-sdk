@@ -2102,7 +2102,7 @@ pub struct CompactionCompleteCompactionTokensUsed {
     pub output_tokens: Option<i64>,
 }
 
-/// Original request-level and effective conversation reasoning effort for a Responses history boundary
+/// Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResponsesReasoning {
@@ -2622,7 +2622,7 @@ pub struct UserMessageData {
     /// Parent agent task ID for background telemetry correlated to this user turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_agent_task_id: Option<String>,
-    /// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+    /// Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility
     #[serde(skip_serializing_if = "Option::is_none")]
     pub responses_reasoning: Option<ResponsesReasoning>,
     /// Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
@@ -3076,6 +3076,9 @@ pub struct FusionAttribution {
     pub conversation_scope: Option<String>,
     /// Stable identifier for the HydraFusion turn that produced the event.
     pub fusion_id: String,
+    /// Whether this model request consumed a user steering message rather than only internal Fusion work.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_user_steering: Option<bool>,
     /// HydraFusion orchestration pattern selected for the turn.
     pub pattern: String,
     /// Identifier of the concrete phase that produced the event.
@@ -5188,7 +5191,7 @@ pub struct SystemNotificationData {
     pub content: String,
     /// Structured metadata identifying what triggered this notification
     pub kind: serde_json::Value,
-    /// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
+    /// Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility
     #[serde(skip_serializing_if = "Option::is_none")]
     pub responses_reasoning: Option<ResponsesReasoning>,
 }
@@ -6851,6 +6854,9 @@ pub struct McpOauthRequiredStaticClientConfig {
     /// Whether this is a public OAuth client
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_client: Option<bool>,
+    /// Configured OAuth scope string used when the server challenge omits scope or provides an empty scope
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
 }
 
 /// OAuth WWW-Authenticate parameters parsed from an MCP auth challenge

@@ -220,7 +220,7 @@ interface RustCodegenCtx {
 	experimentalTypeNames: Set<string>;
 	/** Schema definitions for $ref resolution. */
 	definitions?: DefinitionCollections;
-	/** When set, only these const-valued properties are accepted as union discriminators. */
+	/** Discriminator names accepted in addition to required, enum-referenced string constants. */
 	unionDiscriminatorProperties?: Set<string>;
 	/** Whether unions without a const-valued discriminator should be emitted. */
 	allowUntaggedUnions: boolean;
@@ -299,11 +299,32 @@ function findRustDiscriminator(variants: RustUnionVariant[]): string | null {
 	return null;
 }
 
+function hasRequiredReferencedStringDiscriminator(
+	variants: RustUnionVariant[],
+	discriminator: string,
+	ctx: RustCodegenCtx,
+): boolean {
+	return variants.every(({ schema }) => {
+		const property = schema.properties?.[discriminator];
+		if (
+			!schema.required?.includes(discriminator) ||
+			typeof property !== "object" ||
+			!property.$ref ||
+			typeof property.const !== "string"
+		) {
+			return false;
+		}
+		const referenced = resolveRef(property.$ref, ctx.definitions);
+		return referenced?.type === "string" && referenced.enum?.includes(property.const) === true;
+	});
+}
+
 function tryEmitRustUnion(
 	schema: JSONSchema7,
 	parentTypeName: string,
 	jsonPropName: string,
 	ctx: RustCodegenCtx,
+	isRequired = true,
 ): string | null {
 	const variants = getUnionVariants(schema);
 	if (!variants) return null;
@@ -313,7 +334,7 @@ function tryEmitRustUnion(
 
 	const enumName =
 		(typeof schema.title === "string" && schema.title) ||
-		parentTypeName + toPascalCase(jsonPropName);
+		parentTypeName + (jsonPropName ? toPascalCase(jsonPropName) : "");
 	const isAllowedUnionType = ctx.allowedUnionTypeNames.has(enumName);
 
 	const resolvedVariants: RustUnionVariant[] = [];
@@ -367,8 +388,11 @@ function tryEmitRustUnion(
 		if (
 			ctx.unionDiscriminatorProperties &&
 			!ctx.unionDiscriminatorProperties.has(discriminator) &&
+			(!isRequired || !hasRequiredReferencedStringDiscriminator(resolvedVariants, discriminator, ctx)) &&
 			!isAllowedUnionType
 		) {
+			// Newly recognised unions must not narrow existing optional raw metadata:
+			// consumers need malformed/future payloads intact for bounded degradation.
 			return null;
 		}
 	} else if (!ctx.allowUntaggedUnions && !isAllowedUnionType) {
@@ -459,7 +483,7 @@ function makeCtx(
 		unionDiscriminatorProperties:
 			options.unionDiscriminatorProperties === null
 				? undefined
-				: (options.unionDiscriminatorProperties ?? new Set(["kind"])),
+				: (options.unionDiscriminatorProperties ?? new Set(["kind", "action"])),
 		allowUntaggedUnions: options.allowUntaggedUnions ?? false,
 		allowedUnionTypeNames: new Set(options.allowedUnionTypeNames ?? []),
 		strictBooleanConstFields: new Map(),
@@ -705,6 +729,24 @@ function rustRefTypeName(ref: string, definitions?: DefinitionCollections): stri
 	return toPascalCase(externalRef?.definitionName ?? refTypeName(ref, definitions));
 }
 
+function isRustNullableSchema(
+	schema: JSONSchema7,
+	definitions: DefinitionCollections | undefined,
+	seen = new Set<JSONSchema7>(),
+): boolean {
+	const resolved = resolveSchema(schema, definitions);
+	if (!resolved || seen.has(resolved)) return false;
+	seen.add(resolved);
+	return resolved.type === "null" ||
+		(Array.isArray(resolved.type) && resolved.type.includes("null")) ||
+		(getUnionVariants(resolved)?.some(
+			(variant) => typeof variant === "object" && isRustNullableSchema(variant, definitions, seen),
+		) ?? false) ||
+		(resolved.type === undefined && (resolved.allOf?.every(
+			(variant) => typeof variant === "object" && isRustNullableSchema(variant, definitions, new Set(seen)),
+		) ?? false));
+}
+
 /**
  * Map a JSON Schema to a Rust type string. Emits nested type definitions as
  * side effects into ctx.
@@ -739,12 +781,13 @@ function resolveRustType(
 				);
 				return wrapOption(typeName, isRequired);
 			}
-			if (isObjectSchema(resolved)) {
-				emitRustStruct(typeName, resolved, ctx);
-				return wrapOption(typeName, isRequired);
+			const objectSchema = resolveObjectSchema(resolved, ctx.definitions);
+			if (objectSchema && isObjectSchema(objectSchema)) {
+				emitRustStruct(typeName, objectSchema, ctx);
+				return wrapOption(typeName, isRequired && !isRustNullableSchema(resolved, ctx.definitions));
 			}
 			return resolveRustType(
-				resolved,
+				getUnionVariants(resolved) ? { ...resolved, title: resolved.title ?? typeName } : resolved,
 				parentTypeName,
 				jsonPropName,
 				isRequired,
@@ -761,9 +804,10 @@ function resolveRustType(
 			parentTypeName,
 			jsonPropName,
 			ctx,
+			isRequired,
 		);
 		if (unionType) {
-			return wrapOption(unionType, isRequired);
+			return wrapOption(unionType, isRequired && !isRustNullableSchema(propSchema, ctx.definitions));
 		}
 
 		const nonNull = (propSchema.anyOf as JSONSchema7[]).filter(
@@ -798,9 +842,10 @@ function resolveRustType(
 			parentTypeName,
 			jsonPropName,
 			ctx,
+			isRequired,
 		);
 		if (unionType) {
-			return wrapOption(unionType, isRequired);
+			return wrapOption(unionType, isRequired && !isRustNullableSchema(propSchema, ctx.definitions));
 		}
 
 		const nonNull = (propSchema.oneOf as JSONSchema7[]).filter(
@@ -814,7 +859,7 @@ function resolveRustType(
 				true,
 				ctx,
 			);
-			return wrapOption(innerType, isRequired);
+			return wrapOption(innerType, isRequired && !isRustNullableSchema(propSchema, ctx.definitions));
 		}
 		return wrapOption("serde_json::Value", isRequired);
 	}
@@ -1644,6 +1689,7 @@ export function generateApiTypesCode(
 		{ group: apiSchema.server, isSession: false },
 		{ group: apiSchema.session, isSession: true },
 		{ group: apiSchema.clientSession, isSession: false },
+		{ group: apiSchema.clientGlobal, isSession: false },
 	]) {
 		if (group) {
 			methodEntries.push(

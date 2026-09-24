@@ -1205,6 +1205,7 @@ class FusionAttribution:
     synthetic_model: str
     commit_id: str | None = None
     conversation_scope: str | None = None
+    has_user_steering: bool | None = None
     phase_id: str | None = None
     phase_kind: str | None = None
     role: str | None = None
@@ -1220,6 +1221,7 @@ class FusionAttribution:
         synthetic_model = from_str(obj.get("syntheticModel"))
         commit_id = from_union([from_none, from_str], obj.get("commitId"))
         conversation_scope = from_union([from_none, from_str], obj.get("conversationScope"))
+        has_user_steering = from_union([from_none, from_bool], obj.get("hasUserSteering"))
         phase_id = from_union([from_none, from_str], obj.get("phaseId"))
         phase_kind = from_union([from_none, from_str], obj.get("phaseKind"))
         role = from_union([from_none, from_str], obj.get("role"))
@@ -1232,6 +1234,7 @@ class FusionAttribution:
             synthetic_model=synthetic_model,
             commit_id=commit_id,
             conversation_scope=conversation_scope,
+            has_user_steering=has_user_steering,
             phase_id=phase_id,
             phase_kind=phase_kind,
             role=role,
@@ -1249,6 +1252,8 @@ class FusionAttribution:
             result["commitId"] = from_union([from_none, from_str], self.commit_id)
         if self.conversation_scope is not None:
             result["conversationScope"] = from_union([from_none, from_str], self.conversation_scope)
+        if self.has_user_steering is not None:
+            result["hasUserSteering"] = from_union([from_none, from_bool], self.has_user_steering)
         if self.phase_id is not None:
             result["phaseId"] = from_union([from_none, from_str], self.phase_id)
         if self.phase_kind is not None:
@@ -5632,6 +5637,7 @@ class McpOauthRequiredStaticClientConfig:
     client_secret: str | None = None
     grant_type: str | None = None
     public_client: bool | None = None
+    scope: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "McpOauthRequiredStaticClientConfig":
@@ -5640,11 +5646,13 @@ class McpOauthRequiredStaticClientConfig:
         client_secret = from_union([from_none, from_str], obj.get("clientSecret"))
         grant_type = from_union([from_none, from_str], obj.get("grantType"))
         public_client = from_union([from_none, from_bool], obj.get("publicClient"))
+        scope = from_union([from_none, from_str], obj.get("scope"))
         return McpOauthRequiredStaticClientConfig(
             client_id=client_id,
             client_secret=client_secret,
             grant_type=grant_type,
             public_client=public_client,
+            scope=scope,
         )
 
     def to_dict(self) -> dict:
@@ -5656,6 +5664,8 @@ class McpOauthRequiredStaticClientConfig:
             result["grantType"] = from_union([from_none, from_str], self.grant_type)
         if self.public_client is not None:
             result["publicClient"] = from_union([from_none, from_bool], self.public_client)
+        if self.scope is not None:
+            result["scope"] = from_union([from_none, from_str], self.scope)
         return result
 
 
@@ -8133,7 +8143,7 @@ class PromptCacheBreakData:
 
 @dataclass
 class ResponsesReasoning:
-    "Original request-level and effective conversation reasoning effort for a Responses history boundary"
+    "Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility"
     effort: str
     initial_effort: str
     model: str

@@ -28,6 +28,8 @@ public record McpOauthRequiredStaticClientConfig(
     /** Whether this is a public OAuth client */
     @JsonProperty("publicClient") Boolean publicClient,
     /** Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server). */
-    @JsonProperty("grantType") String grantType
+    @JsonProperty("grantType") String grantType,
+    /** Configured OAuth scope string used when the server challenge omits scope or provides an empty scope */
+    @JsonProperty("scope") String scope
 ) {
 }

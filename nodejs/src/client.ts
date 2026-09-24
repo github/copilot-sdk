@@ -47,6 +47,10 @@ import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
 import { COPILOT_CLI_VERSION } from "./cliVersion.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
+import {
+    createInstallationConfirmationAdapter,
+    type InstallationConfirmationHandler,
+} from "./installationConfirmation.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import { getTraceContext } from "./telemetry.js";
 import { toJsonSchema } from "./schema.js";
@@ -477,6 +481,7 @@ export class CopilotClient {
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
     private extensionLaunchProvider?: ExtensionLaunchProvider;
+    private installationConfirmationHandler?: InstallationConfirmationHandler;
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
@@ -676,6 +681,7 @@ export class CopilotClient {
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
         this.extensionLaunchProvider = options.extensionLaunchProvider;
+        this.installationConfirmationHandler = options.installationConfirmationHandler;
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
 
@@ -3083,7 +3089,14 @@ export class CopilotClient {
         // Register client *global* API handlers (e.g. LLM inference) on the
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
-        registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
+        const globalHandlers = { ...this.clientGlobalHandlers };
+        if (this.installationConfirmationHandler) {
+            globalHandlers.installations = createInstallationConfirmationAdapter(
+                this.connection,
+                this.installationConfirmationHandler
+            );
+        }
+        registerClientGlobalApiHandlers(this.connection, globalHandlers);
 
         // `hooks.invoke` is an internal RPC method: the runtime calls it to
         // invoke a hook callback on the client. Route each call to the matching
