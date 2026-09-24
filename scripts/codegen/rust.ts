@@ -729,6 +729,24 @@ function rustRefTypeName(ref: string, definitions?: DefinitionCollections): stri
 	return toPascalCase(externalRef?.definitionName ?? refTypeName(ref, definitions));
 }
 
+function isRustNullableSchema(
+	schema: JSONSchema7,
+	definitions: DefinitionCollections | undefined,
+	seen = new Set<JSONSchema7>(),
+): boolean {
+	const resolved = resolveSchema(schema, definitions);
+	if (!resolved || seen.has(resolved)) return false;
+	seen.add(resolved);
+	return resolved.type === "null" ||
+		(Array.isArray(resolved.type) && resolved.type.includes("null")) ||
+		(getUnionVariants(resolved)?.some(
+			(variant) => typeof variant === "object" && isRustNullableSchema(variant, definitions, seen),
+		) ?? false) ||
+		(resolved.type === undefined && (resolved.allOf?.every(
+			(variant) => typeof variant === "object" && isRustNullableSchema(variant, definitions, new Set(seen)),
+		) ?? false));
+}
+
 /**
  * Map a JSON Schema to a Rust type string. Emits nested type definitions as
  * side effects into ctx.
@@ -766,7 +784,7 @@ function resolveRustType(
 			const objectSchema = resolveObjectSchema(resolved, ctx.definitions);
 			if (objectSchema && isObjectSchema(objectSchema)) {
 				emitRustStruct(typeName, objectSchema, ctx);
-				return wrapOption(typeName, isRequired);
+				return wrapOption(typeName, isRequired && !isRustNullableSchema(resolved, ctx.definitions));
 			}
 			return resolveRustType(
 				getUnionVariants(resolved) ? { ...resolved, title: resolved.title ?? typeName } : resolved,
@@ -789,7 +807,7 @@ function resolveRustType(
 			isRequired,
 		);
 		if (unionType) {
-			return wrapOption(unionType, isRequired);
+			return wrapOption(unionType, isRequired && !isRustNullableSchema(propSchema, ctx.definitions));
 		}
 
 		const nonNull = (propSchema.anyOf as JSONSchema7[]).filter(
@@ -827,7 +845,7 @@ function resolveRustType(
 			isRequired,
 		);
 		if (unionType) {
-			return wrapOption(unionType, isRequired);
+			return wrapOption(unionType, isRequired && !isRustNullableSchema(propSchema, ctx.definitions));
 		}
 
 		const nonNull = (propSchema.oneOf as JSONSchema7[]).filter(
@@ -841,7 +859,7 @@ function resolveRustType(
 				true,
 				ctx,
 			);
-			return wrapOption(innerType, isRequired);
+			return wrapOption(innerType, isRequired && !isRustNullableSchema(propSchema, ctx.definitions));
 		}
 		return wrapOption("serde_json::Value", isRequired);
 	}

@@ -258,6 +258,11 @@ New RPCs land in the namespace immediately as the schema regenerates;
 helpers are added on top only when an ergonomic story is worth the
 maintenance.
 
+Nullable schema fields use `Option<T>` even when the object is reached through a
+named reference. Required nullable fields serialise `None` as explicit JSON
+`null`, preserving uninitialised context metadata and commands that clear an
+override. Optional fields retain their existing omission behaviour.
+
 MCP installation plans expose `McpPlanTransportChoice::Package` and
 `McpPlanTransportChoice::Remote`, with typed package identity or endpoint fields.
 Required choice discriminators reject missing or unknown values rather than

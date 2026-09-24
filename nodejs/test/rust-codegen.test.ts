@@ -22,6 +22,125 @@ describe("Rust codegen entrypoint", () => {
 });
 
 describe("Rust API type codegen", () => {
+    it.each(["anyOf", "oneOf", "type"] as const)(
+        "retains nullability through %s object references and reference chains",
+        (keyword) => {
+            const payload: JSONSchema7 = {
+                type: "object",
+                required: ["tokenCount"],
+                properties: { tokenCount: { type: "integer" } },
+            };
+            const nullable: JSONSchema7 =
+                keyword === "type"
+                    ? { ...payload, type: ["object", "null"] }
+                    : { [keyword]: [payload, { type: "null" }] };
+            const code = generateApiTypesCode({
+                definitions: {
+                    NullablePayload: nullable,
+                    Alias: { $ref: "#/definitions/NullablePayload" },
+                    TransitiveAlias: { $ref: "#/definitions/Alias" },
+                    Container: {
+                        type: "object",
+                        required: ["direct", "transitive", "items"],
+                        properties: {
+                            direct: { $ref: "#/definitions/NullablePayload" },
+                            transitive: { $ref: "#/definitions/TransitiveAlias" },
+                            optional: { $ref: "#/definitions/NullablePayload" },
+                            items: {
+                                type: "array",
+                                items: { $ref: "#/definitions/NullablePayload" },
+                            },
+                        },
+                    },
+                },
+            } as ApiSchema);
+
+            const directType = keyword === "type" ? "ContainerDirect" : "NullablePayload";
+            const transitiveType = keyword === "type" ? "ContainerTransitive" : "TransitiveAlias";
+            const optionalType = keyword === "type" ? "ContainerOptional" : "NullablePayload";
+            const itemType = keyword === "type" ? "ContainerItemsItem" : "NullablePayload";
+            expect(code).toContain(`pub direct: Option<${directType}>,`);
+            expect(code).toContain(`pub transitive: Option<${transitiveType}>,`);
+            expect(code).toContain(`pub optional: Option<${optionalType}>,`);
+            expect(code).toContain(`pub items: Vec<Option<${itemType}>>,`);
+            expect(code).not.toContain("Option<Option<");
+            expect(code).toContain(`pub struct ${directType} {
+    pub token_count: i64,
+}`);
+            expect(code).toContain(`pub struct ${transitiveType} {
+    pub token_count: i64,
+}`);
+            expect(code).toContain(`pub struct Container {
+    pub direct: Option<${directType}>,`);
+            expect(code).toContain(`#[serde(skip_serializing_if = "Option::is_none")]
+    pub optional: Option<${optionalType}>,`);
+        }
+    );
+
+    it.each(["anyOf", "oneOf", "allOf"] as const)(
+        "retains nullability when a referenced %s wrapper points to another nullable definition",
+        (keyword) => {
+            const code = generateApiTypesCode({
+                definitions: {
+                    NullablePayload: {
+                        anyOf: [
+                            {
+                                type: "object",
+                                required: ["value"],
+                                properties: { value: { type: "string" } },
+                            },
+                            { type: "null" },
+                        ],
+                    },
+                    Wrapper: { [keyword]: [{ $ref: "#/definitions/NullablePayload" }] },
+                    NonNullableWrapper: {
+                        allOf: [{ $ref: "#/definitions/NullablePayload" }, { type: "object" }],
+                    },
+                    Container: {
+                        type: "object",
+                        required: ["payload", "nonNullable"],
+                        properties: {
+                            payload: { $ref: "#/definitions/Wrapper" },
+                            nonNullable: { $ref: "#/definitions/NonNullableWrapper" },
+                        },
+                    },
+                },
+            } as ApiSchema);
+
+            expect(code).toContain("pub payload: Option<Wrapper>,");
+            expect(code).toContain("pub non_nullable: NonNullableWrapper,");
+        }
+    );
+
+    it.each(["anyOf", "oneOf"] as const)(
+        "keeps null in a referenced multi-variant %s discriminated union",
+        (keyword) => {
+            const code = generateApiTypesCode({
+                definitions: {
+                    Outcome: {
+                        title: "Outcome",
+                        [keyword]: [
+                            ...["ready", "pending"].map((kind) => ({
+                                type: "object",
+                                required: ["kind"],
+                                properties: { kind: { type: "string", const: kind } },
+                            })),
+                            { type: "null" },
+                        ],
+                    },
+                    Container: {
+                        type: "object",
+                        required: ["outcome"],
+                        properties: { outcome: { $ref: "#/definitions/Outcome" } },
+                    },
+                },
+            } as ApiSchema);
+
+            expect(code).toContain("pub outcome: Option<Outcome>,");
+            expect(code).toContain("pub enum Outcome {");
+        }
+    );
+
     it("retains named action unions inside single-variant reference wrappers without titles", () => {
         const code = generateApiTypesCode({
             definitions: {

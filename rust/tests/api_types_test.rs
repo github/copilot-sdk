@@ -6,15 +6,160 @@
 use github_copilot_sdk::rpc::{
     AcceptedEnqueueCommandResult, EnqueueCommandResult, Extension, ExtensionList, ExtensionSource,
     ExtensionStatus, ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest,
-    FleetStartResult, ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult,
-    ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus,
-    QueuePendingItems, QueuePendingItemsKind, SandboxConfig, SendAgentMode, TasksStartAgentRequest,
-    UnsupportedEnqueueCommandResult,
+    FleetStartResult, MetadataContextAttributionResult, MetadataContextInfoResult,
+    ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest,
+    ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
+    SandboxConfig, SendAgentMode, SessionContextAttribution, SessionMetadataContextInfoResult,
+    SessionMetadataGetContextAttributionResult, SessionMetadataSnapshot,
+    SessionMetadataSnapshotResult, TasksStartAgentRequest, UnsupportedEnqueueCommandResult,
+    UpdateSubagentSettingsRequest, WorkspaceSummary,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
 };
 use github_copilot_sdk::{AutoTier, AutoTierPreference, SetModelOptions};
+
+#[test]
+fn context_info_preserves_null_before_initialisation_and_populated_token_fields() {
+    let metadata: MetadataContextInfoResult =
+        serde_json::from_value(serde_json::json!({})).unwrap();
+    let session: SessionMetadataContextInfoResult =
+        serde_json::from_value(serde_json::json!({})).unwrap();
+    assert!(metadata.context_info.is_none());
+    assert!(session.context_info.is_none());
+    assert_eq!(
+        serde_json::to_value(metadata).unwrap(),
+        serde_json::json!({ "contextInfo": null })
+    );
+    assert_eq!(
+        serde_json::to_value(session).unwrap(),
+        serde_json::json!({ "contextInfo": null })
+    );
+    for context in [
+        serde_json::Value::Null,
+        serde_json::json!({
+            "modelName": "test-model",
+            "systemTokens": 10,
+            "conversationTokens": 20,
+            "toolDefinitionsTokens": 30,
+            "mcpToolsTokens": 5,
+            "totalTokens": 60,
+            "promptTokenLimit": 100,
+            "compactionThreshold": 80,
+            "limit": 120,
+            "bufferTokens": 25
+        }),
+    ] {
+        let wire = serde_json::json!({ "contextInfo": context });
+        let metadata: MetadataContextInfoResult = serde_json::from_value(wire.clone()).unwrap();
+        let session: SessionMetadataContextInfoResult =
+            serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(metadata.context_info.is_none(), context.is_null());
+        assert_eq!(session.context_info.is_none(), context.is_null());
+        assert_eq!(serde_json::to_value(metadata).unwrap(), wire);
+        assert_eq!(serde_json::to_value(session).unwrap(), wire);
+    }
+    for malformed in [
+        serde_json::json!(42),
+        serde_json::json!({ "modelName": "incomplete" }),
+    ] {
+        let wire = serde_json::json!({ "contextInfo": malformed });
+        assert!(serde_json::from_value::<MetadataContextInfoResult>(wire.clone()).is_err());
+        assert!(serde_json::from_value::<SessionMetadataContextInfoResult>(wire).is_err());
+    }
+}
+
+#[test]
+fn context_attribution_preserves_null_and_populated_metadata() {
+    let metadata: MetadataContextAttributionResult =
+        serde_json::from_value(serde_json::json!({})).unwrap();
+    let session: SessionMetadataGetContextAttributionResult =
+        serde_json::from_value(serde_json::json!({})).unwrap();
+    assert!(metadata.context_attribution.is_none());
+    assert!(session.context_attribution.is_none());
+    assert_eq!(
+        serde_json::to_value(metadata).unwrap(),
+        serde_json::json!({ "contextAttribution": null })
+    );
+    assert_eq!(
+        serde_json::to_value(session).unwrap(),
+        serde_json::json!({ "contextAttribution": null })
+    );
+    for context in [
+        serde_json::Value::Null,
+        serde_json::to_value(SessionContextAttribution {
+            model_id: "test-model".to_string(),
+            model_source: "selected".to_string(),
+            ..Default::default()
+        })
+        .unwrap(),
+    ] {
+        let wire = serde_json::json!({ "contextAttribution": context });
+        let metadata: MetadataContextAttributionResult =
+            serde_json::from_value(wire.clone()).unwrap();
+        let session: SessionMetadataGetContextAttributionResult =
+            serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(metadata.context_attribution.is_none(), context.is_null());
+        assert_eq!(session.context_attribution.is_none(), context.is_null());
+        assert_eq!(serde_json::to_value(metadata).unwrap(), wire);
+        assert_eq!(serde_json::to_value(session).unwrap(), wire);
+    }
+}
+
+#[test]
+fn workspace_metadata_preserves_null_and_populated_snapshots() {
+    for workspace in [
+        None,
+        Some(WorkspaceSummary {
+            id: "session-with-workspace".to_string(),
+            cwd: Some("/workspace".to_string()),
+            ..Default::default()
+        }),
+    ] {
+        let missing = workspace.is_none();
+        let wire = serde_json::to_value(SessionMetadataSnapshot {
+            workspace,
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(wire["workspace"].is_null(), missing);
+        let metadata: SessionMetadataSnapshot = serde_json::from_value(wire.clone()).unwrap();
+        let session: SessionMetadataSnapshotResult = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(metadata.workspace.is_none(), missing);
+        assert_eq!(session.workspace.is_none(), missing);
+        assert_eq!(serde_json::to_value(metadata).unwrap(), wire);
+        assert_eq!(serde_json::to_value(session).unwrap(), wire);
+
+        let mut absent = wire;
+        absent.as_object_mut().unwrap().remove("workspace");
+        let metadata: SessionMetadataSnapshot = serde_json::from_value(absent.clone()).unwrap();
+        let session: SessionMetadataSnapshotResult = serde_json::from_value(absent).unwrap();
+        assert!(metadata.workspace.is_none());
+        assert!(session.workspace.is_none());
+        assert!(serde_json::to_value(metadata).unwrap()["workspace"].is_null());
+        assert!(serde_json::to_value(session).unwrap()["workspace"].is_null());
+    }
+}
+
+#[test]
+fn subagent_settings_preserve_explicit_null_for_clearing_overrides() {
+    let request: UpdateSubagentSettingsRequest =
+        serde_json::from_value(serde_json::json!({})).unwrap();
+    assert!(request.subagents.is_none());
+    assert_eq!(
+        serde_json::to_value(request).unwrap(),
+        serde_json::json!({ "subagents": null })
+    );
+    for subagents in [
+        serde_json::Value::Null,
+        serde_json::json!({ "maxConcurrency": 2 }),
+    ] {
+        let wire = serde_json::json!({ "subagents": subagents });
+        let request: UpdateSubagentSettingsRequest = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(request.subagents.is_none(), subagents.is_null());
+        assert_eq!(serde_json::to_value(request).unwrap(), wire);
+    }
+}
 
 #[test]
 fn session_events_deserialize_auto_tier() {

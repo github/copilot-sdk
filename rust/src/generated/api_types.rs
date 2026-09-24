@@ -11648,7 +11648,7 @@ pub struct SessionContextAttribution {
 #[serde(rename_all = "camelCase")]
 pub struct MetadataContextAttributionResult {
     /// Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
-    pub context_attribution: SessionContextAttribution,
+    pub context_attribution: Option<SessionContextAttribution>,
 }
 
 /// Parameters for the heaviest-messages query.
@@ -11749,7 +11749,7 @@ pub struct SessionContextInfo {
 #[serde(rename_all = "camelCase")]
 pub struct MetadataContextInfoResult {
     /// Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
-    pub context_info: SessionContextInfo,
+    pub context_info: Option<SessionContextInfo>,
 }
 
 /// Indicates whether the local session is currently processing a turn or background continuation.
@@ -18859,7 +18859,7 @@ pub struct SessionMetadataSnapshot {
     /// Absolute path to the session's current working directory
     pub working_directory: String,
     /// Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags).
-    pub workspace: WorkspaceSummary,
+    pub workspace: Option<WorkspaceSummary>,
     /// Absolute path to the session's workspace directory on disk, or null if the session has no associated workspace
     pub workspace_path: Option<String>,
 }
@@ -23441,7 +23441,7 @@ pub struct UIUnregisterDirectAutoModeSwitchHandlerResult {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSubagentSettingsRequest {
     /// Subagent settings to apply, or null to clear the live session override
-    pub subagents: SubagentSettings,
+    pub subagents: Option<SubagentSettings>,
 }
 
 /// Request count and cost metrics for this model
@@ -30616,7 +30616,7 @@ pub struct SessionMetadataSnapshotResult {
     /// Absolute path to the session's current working directory
     pub working_directory: String,
     /// Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags).
-    pub workspace: WorkspaceSummary,
+    pub workspace: Option<WorkspaceSummary>,
     /// Absolute path to the session's workspace directory on disk, or null if the session has no associated workspace
     pub workspace_path: Option<String>,
 }
@@ -30710,7 +30710,7 @@ pub struct SessionMetadataActivityResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionMetadataContextInfoResult {
     /// Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
-    pub context_info: SessionContextInfo,
+    pub context_info: Option<SessionContextInfo>,
 }
 
 /// Identifies the target session.
@@ -30740,7 +30740,7 @@ pub struct SessionMetadataGetContextAttributionParams {
 #[serde(rename_all = "camelCase")]
 pub struct SessionMetadataGetContextAttributionResult {
     /// Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
-    pub context_attribution: SessionContextAttribution,
+    pub context_attribution: Option<SessionContextAttribution>,
 }
 
 /// The heaviest individual messages in the session's context window, most-expensive first.
