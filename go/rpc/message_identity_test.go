@@ -6,6 +6,64 @@ import (
 	"testing"
 )
 
+func checkAdmissionCorrelationJSON[T any](t *testing.T, base string) {
+	t.Helper()
+	for _, value := range []any{nil, "01234567-89ab-4cde-8f01-23456789abcd",
+		"01234567-89AB-4CDE-8F01-23456789ABCD", "not-a-uuid", ""} {
+		var expected map[string]any
+		if err := json.Unmarshal([]byte(base), &expected); err != nil {
+			t.Fatal(err)
+		}
+		if value != nil {
+			expected["clientCorrelationId"] = value
+		}
+		encoded, err := json.Marshal(expected)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, input := range [][]byte{encoded, append(encoded[:len(encoded)-1:len(encoded)-1], []byte(`,"futureField":true}`)...)} {
+			var decoded T
+			if err := json.Unmarshal(input, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			roundTrip, err := json.Marshal(decoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var actual map[string]any
+			if err := json.Unmarshal(roundTrip, &actual); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(actual, expected) {
+				t.Fatalf("round trip changed admission metadata: got %#v, want %#v", actual, expected)
+			}
+		}
+	}
+	var decoded T
+	input := base[:len(base)-1] + `,"clientCorrelationId":null}`
+	if err := json.Unmarshal([]byte(input), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actual map[string]any
+	if err := json.Unmarshal(encoded, &actual); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := actual["clientCorrelationId"]; exists {
+		t.Fatal("nil admission metadata must be omitted")
+	}
+}
+
+func TestAdmissionCorrelationJSONCompatibility(t *testing.T) {
+	checkAdmissionCorrelationJSON[SendRequest](t, `{"prompt":"hello"}`)
+	checkAdmissionCorrelationJSON[SendMessageItem](t, `{"prompt":"hello"}`)
+	checkAdmissionCorrelationJSON[QueuePendingItems](t, `{"id":"queue-1","messageId":"canonical-1","kind":"message","displayText":"hello","agentMode":"interactive"}`)
+	checkAdmissionCorrelationJSON[UserMessageData](t, `{"content":"hello","messageId":"canonical-1","interactionId":"agent-loop-1"}`)
+}
+
 func TestQueuePendingItemsMessageIDJSONCompatibility(t *testing.T) {
 	var item QueuePendingItems
 	if err := json.Unmarshal([]byte(`{

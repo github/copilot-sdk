@@ -43,6 +43,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public class MessageOptions {
 
     private String prompt;
+    private String clientCorrelationId;
     private List<MessageAttachment> attachments;
     private String mode;
     private MessageSource source;
@@ -93,6 +94,29 @@ public class MessageOptions {
      */
     public MessageOptions setPrompt(String prompt) {
         this.prompt = prompt;
+        return this;
+    }
+
+    /**
+     * Gets the caller-owned diagnostic UUID for this RPC admission.
+     *
+     * @return the correlation value, or {@code null} when unset
+     */
+    public String getClientCorrelationId() {
+        return clientCorrelationId;
+    }
+
+    /**
+     * Sets optional caller-owned admission metadata, sent unchanged. Supported
+     * runtimes echo accepted UUIDs only with RUNTIME_ADMISSION_TRACE_CONTEXT
+     * enabled. This is not an idempotency key; the SDK never generates a value.
+     *
+     * @param clientCorrelationId
+     *            the diagnostic UUID, or {@code null} to omit it
+     * @return this options instance for method chaining
+     */
+    public MessageOptions setClientCorrelationId(String clientCorrelationId) {
+        this.clientCorrelationId = clientCorrelationId;
         return this;
     }
 
@@ -265,6 +289,7 @@ public class MessageOptions {
     public MessageOptions clone() {
         MessageOptions copy = new MessageOptions();
         copy.prompt = this.prompt;
+        copy.clientCorrelationId = this.clientCorrelationId;
         copy.attachments = this.attachments != null ? new ArrayList<>(this.attachments) : null;
         copy.mode = this.mode;
         copy.source = this.source;

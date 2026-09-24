@@ -1125,6 +1125,9 @@ export class CopilotSession {
             ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
             prompt: options.prompt,
+            ...(options.clientCorrelationId == null
+                ? {}
+                : { clientCorrelationId: options.clientCorrelationId }),
             source: options.source,
             displayPrompt: options.displayPrompt,
             attachments: options.attachments,

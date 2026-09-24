@@ -12604,6 +12604,7 @@ class UserMessageData:
     content: str
     agent_mode: UserMessageAgentMode | None = None
     attachments: list[Attachment] | None = None
+    client_correlation_id: str | None = None
     delivery: UserMessageDelivery | None = None
     interaction_id: str | None = None
     is_autopilot_continuation: bool | None = None
@@ -12622,6 +12623,7 @@ class UserMessageData:
         content = from_str(obj.get("content"))
         agent_mode = from_union([from_none, lambda x: parse_enum(UserMessageAgentMode, x)], obj.get("agentMode"))
         attachments = from_union([from_none, lambda x: from_list(_load_Attachment, x)], obj.get("attachments"))
+        client_correlation_id = from_union([from_none, from_str], obj.get("clientCorrelationId"))
         delivery = from_union([from_none, lambda x: parse_enum(UserMessageDelivery, x)], obj.get("delivery"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         is_autopilot_continuation = from_union([from_none, from_bool], obj.get("isAutopilotContinuation"))
@@ -12637,6 +12639,7 @@ class UserMessageData:
             content=content,
             agent_mode=agent_mode,
             attachments=attachments,
+            client_correlation_id=client_correlation_id,
             delivery=delivery,
             interaction_id=interaction_id,
             is_autopilot_continuation=is_autopilot_continuation,
@@ -12657,6 +12660,8 @@ class UserMessageData:
             result["agentMode"] = from_union([from_none, lambda x: to_enum(UserMessageAgentMode, x)], self.agent_mode)
         if self.attachments is not None:
             result["attachments"] = from_union([from_none, lambda x: from_list(lambda x: x.to_dict(), x)], self.attachments)
+        if self.client_correlation_id is not None:
+            result["clientCorrelationId"] = from_union([from_none, from_str], self.client_correlation_id)
         if self.delivery is not None:
             result["delivery"] = from_union([from_none, lambda x: to_enum(UserMessageDelivery, x)], self.delivery)
         if self.interaction_id is not None:

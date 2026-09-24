@@ -2134,6 +2134,8 @@ type UserMessageData struct {
 	AgentMode *UserMessageAgentMode `json:"agentMode,omitempty"`
 	// Files, selections, or GitHub references attached to the message
 	Attachments []Attachment `json:"attachments,omitzero"`
+	// Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous.
+	ClientCorrelationID *string `json:"clientCorrelationId,omitempty"`
 	// The user's message text as displayed in the timeline
 	Content string `json:"content"`
 	// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.

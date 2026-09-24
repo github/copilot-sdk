@@ -4303,6 +4303,10 @@ export interface UserMessageData {
    */
   attachments?: Attachment[];
   /**
+   * Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous.
+   */
+  clientCorrelationId?: string;
+  /**
    * The user's message text as displayed in the timeline
    */
   content: string;

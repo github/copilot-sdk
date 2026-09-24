@@ -2358,6 +2358,17 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
         escapeDescription: false,
     });
 
+    // Preserve existing data positions; retain the cancellation position with an overload below.
+    if (method.rpcMethod === "session.send") {
+        const index = parameterDescriptions.findIndex(({ name }) => name === "clientCorrelationId");
+        if (index !== -1) {
+            const [parameter] = sigParams.splice(index, 1);
+            const [description] = parameterDescriptions.splice(index, 1);
+            sigParams.splice(sigParams.length - 1, 0, parameter);
+            parameterDescriptions.splice(parameterDescriptions.length - 1, 0, description);
+        }
+    }
+
     const taskType = !isVoidSchema(resultSchema) ? `Task<${resultClassName}>` : "Task";
     const localRequestName = localRequestVariableName(paramEntries, useRequestParameter);
     lines.push("");
@@ -2378,6 +2389,20 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
         lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_session.Rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`, `${indent}}`);
     } else {
         lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_session.Rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`, `${indent}}`);
+    }
+
+    if (method.rpcMethod === "session.send" && parameterDescriptions.some(({ name }) => name === "clientCorrelationId")) {
+        // Retain the old CLR signature; defaults on the extended overload preserve source calls.
+        const previousIndexes = parameterDescriptions.flatMap(({ name }, index) => name === "clientCorrelationId" ? [] : [index]);
+        const previousParameters = previousIndexes.map((index) => sigParams[index].replace(/ = (?:null|default)$/, ""));
+        const previousDescriptions = previousIndexes.map((index) => parameterDescriptions[index]);
+        const previousArguments = previousDescriptions.filter(({ name }) => name !== "cancellationToken").map(({ name }) => name);
+        lines.push("");
+        pushRpcMethodXmlDocs(lines, method, indent, previousDescriptions, resultSchema);
+        if (method.stability === "experimental" && !groupExperimental) pushExperimentalAttribute(lines, indent);
+        if (method.deprecated && !groupDeprecated) pushObsoleteAttributes(lines, indent);
+        lines.push(`${indent}${methodVisibility} ${taskType} ${methodName}Async(${previousParameters.join(", ")})`);
+        lines.push(`${indent}    => ${methodName}Async(${previousArguments.join(", ")}, clientCorrelationId: null, cancellationToken: cancellationToken);`);
     }
 }
 

@@ -40,6 +40,44 @@ function renderPayload(dataSchema: JSONSchema7): string {
     }, "com.github.copilot.generated");
 }
 
+test("admission correlation preserves existing Java record constructors", async () => {
+    const schema: JSONSchema7 = {
+        type: "object",
+        properties: {
+            prompt: { type: "string" },
+            clientCorrelationId: { type: "string" },
+            displayPrompt: { type: "string" },
+        },
+        required: ["prompt"],
+    };
+    const files = await renderRpcTypes({
+        session: {
+            send: {
+                rpcMethod: "session.send",
+                params: { ...schema, title: "SessionSendParams" },
+            },
+        },
+    }, {});
+    const code = [...files.values()].join("\n");
+    assert.match(code, /public SessionSendParams\(String prompt, String displayPrompt\)/);
+    assert.match(code, /this\(prompt, null, displayPrompt\);/);
+
+    const event = renderEventVariantClass({
+        typeName: "user.message",
+        className: "UserMessageEvent",
+        dataSchema: {
+            type: "object",
+            properties: {
+                content: { type: "string" },
+                clientCorrelationId: { type: "string" },
+                messageId: { type: "string" },
+            },
+        },
+    }, "com.github.copilot.generated");
+    assert.match(event, /public UserMessageEventData\(String content, String messageId\)/);
+    assert.match(event, /this\(content, null, messageId\);/);
+});
+
 for (const keyword of ["anyOf", "oneOf"] as const) {
     test(`root ${keyword} payload preserves raw JSON and existing data descriptors`, () => {
         const source = renderPayload({

@@ -2602,6 +2602,9 @@ pub struct UserMessageData {
     /// Files, selections, or GitHub references attached to the message
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<serde_json::Value>>,
+    /// Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_correlation_id: Option<String>,
     /// The user's message text as displayed in the timeline
     pub content: String,
     /// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.

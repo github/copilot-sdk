@@ -3572,6 +3572,11 @@ public sealed partial class UserMessageData
     [JsonPropertyName("attachments")]
     public Attachment[]? Attachments { get; set; }
 
+    /// <summary>Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("clientCorrelationId")]
+    public string? ClientCorrelationId { get; set; }
+
     /// <summary>The user's message text as displayed in the timeline.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }

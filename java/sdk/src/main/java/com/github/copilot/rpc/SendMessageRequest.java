@@ -31,6 +31,9 @@ public final class SendMessageRequest {
     @JsonProperty("prompt")
     private String prompt;
 
+    @JsonProperty("clientCorrelationId")
+    private String clientCorrelationId;
+
     @JsonProperty("attachments")
     private List<MessageAttachment> attachments;
 
@@ -80,6 +83,19 @@ public final class SendMessageRequest {
     /** Sets the message prompt. @param prompt the prompt text */
     public void setPrompt(String prompt) {
         this.prompt = prompt;
+    }
+
+    /** Gets the caller-owned admission UUID. @return the value, or {@code null} */
+    public String getClientCorrelationId() {
+        return clientCorrelationId;
+    }
+
+    /**
+     * Sets admission metadata. @param clientCorrelationId the value, or
+     * {@code null}
+     */
+    public void setClientCorrelationId(String clientCorrelationId) {
+        this.clientCorrelationId = clientCorrelationId;
     }
 
     /** Gets the attachments. @return the list of attachments */

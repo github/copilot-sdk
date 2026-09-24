@@ -6064,12 +6064,13 @@ func (r *SendAttachmentsToMessageParams) UnmarshalJSON(data []byte) error {
 
 func (r *SendMessageItem) UnmarshalJSON(data []byte) error {
 	type rawSendMessageItem struct {
-		Attachments   []json.RawMessage `json:"attachments,omitzero"`
-		Billable      *bool             `json:"billable,omitempty"`
-		DisplayPrompt *string           `json:"displayPrompt,omitempty"`
-		Prompt        string            `json:"prompt"`
-		RequiredTool  *string           `json:"requiredTool,omitempty"`
-		Source        *string           `json:"source,omitempty"`
+		Attachments         []json.RawMessage `json:"attachments,omitzero"`
+		Billable            *bool             `json:"billable,omitempty"`
+		ClientCorrelationID *string           `json:"clientCorrelationId,omitempty"`
+		DisplayPrompt       *string           `json:"displayPrompt,omitempty"`
+		Prompt              string            `json:"prompt"`
+		RequiredTool        *string           `json:"requiredTool,omitempty"`
+		Source              *string           `json:"source,omitempty"`
 	}
 	var raw rawSendMessageItem
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -6086,6 +6087,7 @@ func (r *SendMessageItem) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.Billable = raw.Billable
+	r.ClientCorrelationID = raw.ClientCorrelationID
 	r.DisplayPrompt = raw.DisplayPrompt
 	r.Prompt = raw.Prompt
 	r.RequiredTool = raw.RequiredTool
@@ -6095,20 +6097,21 @@ func (r *SendMessageItem) UnmarshalJSON(data []byte) error {
 
 func (r *SendRequest) UnmarshalJSON(data []byte) error {
 	type rawSendRequest struct {
-		AgentMode      *SendAgentMode    `json:"agentMode,omitempty"`
-		Attachments    []json.RawMessage `json:"attachments,omitzero"`
-		Billable       *bool             `json:"billable,omitempty"`
-		DisplayPrompt  *string           `json:"displayPrompt,omitempty"`
-		Mode           *SendMode         `json:"mode,omitempty"`
-		Prepend        *bool             `json:"prepend,omitempty"`
-		Prompt         string            `json:"prompt"`
-		RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
-		RequiredTool   *string           `json:"requiredTool,omitempty"`
-		ResponseFormat *ResponseFormat   `json:"responseFormat,omitempty"`
-		Source         *string           `json:"source,omitempty"`
-		Traceparent    *string           `json:"traceparent,omitempty"`
-		Tracestate     *string           `json:"tracestate,omitempty"`
-		Wait           *bool             `json:"wait,omitempty"`
+		AgentMode           *SendAgentMode    `json:"agentMode,omitempty"`
+		Attachments         []json.RawMessage `json:"attachments,omitzero"`
+		Billable            *bool             `json:"billable,omitempty"`
+		ClientCorrelationID *string           `json:"clientCorrelationId,omitempty"`
+		DisplayPrompt       *string           `json:"displayPrompt,omitempty"`
+		Mode                *SendMode         `json:"mode,omitempty"`
+		Prepend             *bool             `json:"prepend,omitempty"`
+		Prompt              string            `json:"prompt"`
+		RequestHeaders      map[string]string `json:"requestHeaders,omitzero"`
+		RequiredTool        *string           `json:"requiredTool,omitempty"`
+		ResponseFormat      *ResponseFormat   `json:"responseFormat,omitempty"`
+		Source              *string           `json:"source,omitempty"`
+		Traceparent         *string           `json:"traceparent,omitempty"`
+		Tracestate          *string           `json:"tracestate,omitempty"`
+		Wait                *bool             `json:"wait,omitempty"`
 	}
 	var raw rawSendRequest
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -6126,6 +6129,7 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.Billable = raw.Billable
+	r.ClientCorrelationID = raw.ClientCorrelationID
 	r.DisplayPrompt = raw.DisplayPrompt
 	r.Mode = raw.Mode
 	r.Prepend = raw.Prepend

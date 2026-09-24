@@ -110,10 +110,11 @@ the oldest pending send, queue position, or display text.
    its waiting future is cancelled after dispatch. Missing interaction, worker,
    or recovery keys are not supplied by the event's chronological `parentId`.
 
-The supported send request has no caller-supplied message ID. If the response is
-lost, an arriving `user.message` alone cannot identify the application's pending
-send. That boundary needs a verified runtime-owned bridge; neither queue order
-nor repurposing `source` as a correlation nonce supplies one.
+The supported send request has no caller-supplied canonical message ID. Without
+the optional admission support [below](#optional-rpc-admission-correlation), a lost
+response leaves an arriving `user.message` unable to identify the application's
+pending send. Neither queue order nor repurposing `source` as a correlation nonce
+supplies that bridge.
 
 For an initial tool-spawned worker, match the scoped spawning `toolCallId` to
 `subagent.started` and retain its envelope `agentId`. An API spawn instead
@@ -158,6 +159,90 @@ envelope before root projection. Knowing an occurrence ID also does not resolve
 the missing cause of a worker follow-up or recovery submission. Keep raw
 observations and explicit provenance; do not add a second telemetry writer or
 put diagnostic identifiers in metric tags.
+
+## Optional RPC admission correlation
+
+`clientCorrelationId` is optional, caller-owned diagnostic metadata for a single
+RPC input. Any SDK client can use it to reconcile an admission with observed
+runtime evidence. The SDK does not generate values, associate them with
+application measurement units, or publish telemetry. Application-specific
+measurement envelopes stay outside this contract.
+
+The new convenience options are:
+
+| SDK | Single-message option |
+| --- | --- |
+| Node.js | `MessageOptions.clientCorrelationId` |
+| Python | `client_correlation_id` keyword on `send`, `send_and_wait`, and `send_and_wait_typed` |
+| Go | `MessageOptions.ClientCorrelationID` (`*string`) |
+| .NET | `MessageOptions.ClientCorrelationId` |
+| Java | `MessageOptions.setClientCorrelationId` |
+| Rust | `MessageOptions::with_client_correlation_id` |
+
+Generated `session.send` requests expose the same optional string. For
+`session.sendMessages`, set it on individual `SendMessageItem` values, including
+preceding context items. There is no batch-level correlation field. Unset
+convenience options are omitted, not sent as JSON null. Cloning an options value
+preserves explicitly supplied metadata; independent sends do not inherit it.
+
+SDKs forward supplied strings unchanged, without UUID parsing, lowercasing, or
+semantic validation. A supporting native runtime echoes only valid lowercase,
+hyphenated 36-character UUIDs when its independent
+`RUNTIME_ADMISSION_TRACE_CONTEXT` flag is enabled. This flag is off by default.
+Missing, invalid, disabled, or unsupported metadata is ignored without failing
+the product send. Receiving an optional field is not proof that another runtime
+or connection supports it.
+
+The echo appears on the actual admitted `user.message.data.clientCorrelationId`
+and its genuinely owned pending message row. Canonical `messageId`, queue `id`,
+event `id`, and agent-loop `interactionId` retain their existing meanings.
+Snapshot-only or hydrated rows do not acquire correlation metadata. Immediate
+steering still exposes text-only steering rows; never reconstruct identity from
+that text, row order, or timing. Preserve ordinary request headers and W3C trace
+context independently.
+
+This value is not an idempotency key, authorization, or permission to retry.
+Reusing a UUID does not deduplicate submissions; several admissions with the
+same value remain ambiguous. Retain observed canonical message IDs and existing
+application command/Turn ownership. Missing evidence must remain missing.
+
+### Release prerequisites and the existing Rust raw API
+
+These typed additions come from canonical runtime source
+`8001dfcc37b6f40bf63b2eef79fdea8ea3a7796f`. That source checkpoint is local and its
+publication is blocked; it is not a released runtime or an available dependency
+pin. This SDK's bundled CLI floor, dependency versions, and release-schema pin
+are unchanged. Normal reviewed runtime publication, SDK generation/release, and
+runtime-version plus flag verification are required before consuming the new
+typed contract in a deployed fleet. The default CLI is not claimed to emit it.
+
+The released Rust SDK 1.0.14 calls its convenience type `MessageOptions`, not
+`SendOptions`. It has neither this typed field nor a convenience extension map.
+It does expose the public
+`Session::client().call(method, Option<serde_json::Value>)` API. A caller can use
+that existing raw JSON-RPC seam without an unreleased SDK dependency, supplying
+the accepted `Session::id()` and exact optional metadata. Raw
+`SessionEvent.data` and raw RPC results preserve new and unknown fields; 1.0.14
+generated typed payloads do not expose the new field.
+
+Raw calls do not apply the convenience helper's wait guard, attachment
+preparation, or trace-provider injection. Callers must preserve their existing
+command ownership, serialization, cancellation handling, and request/trace
+context. Do not issue a second send as a fallback after uncertain dispatch.
+A controlled-peer SDK test proves transport forwarding, not deployed runtime
+support or an end-to-end telemetry join.
+
+The complete canonical generation inputs have SHA-256 checksums:
+
+* `api.schema.json`: `4584674516106f39048a3347d4fb8a222ec9baf00527dbd59b99f006296ad2e8`
+* `session-events.schema.json`: `b40db84f3232adbbfd7c6e8469c41d189f0ea6fe2dd4baecef79651182e2fc0c`
+
+All six projections are generated together. Existing early tool trace context
+and source fields are preserved. The .NET generated send method retains
+existing positional data arguments and its previous CLR signature, including the
+cancellation token. The extended overload adds correlation before its final
+cancellation parameter. Java records retain constructors that omit the new
+optional component.
 
 ## Live client-tool trace context
 
@@ -206,7 +291,8 @@ context, but a callback cache cannot retroactively parent earlier execution.
 Never delay tools waiting for telemetry. Neither a start event nor trace context
 is evidence of permission to execute.
 
-The unmodified schema inputs used for generation have SHA-256 checksums:
+The earlier unmodified schema inputs for the tool-context-only checkpoint had
+SHA-256 checksums (the current inputs are listed in the admission section above):
 
 * `session-events.schema.json`: `4f70dfad0e6e15b44247f1df4f5df29269527c308d2e10ca49f56d3acd8b69ff`
 * `api.schema.json`: `141d44c48ef5665b97032a8a400271b4140c92b2ed228fc9c84736dbd3cf4fcf`

@@ -12,9 +12,84 @@ import (
 	"time"
 
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
+	"github.com/github/copilot-sdk/go/rpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 )
+
+func TestSession_SendAdmissionCorrelation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for _, value := range []any{nil, "01234567-89ab-4cde-8f01-23456789abcd",
+		"01234567-89AB-4CDE-8F01-23456789ABCD", "not-a-uuid", ""} {
+		var correlation *string
+		if value != nil {
+			id := value.(string)
+			correlation = &id
+		}
+		for _, generated := range []bool{false, true} {
+			want := map[string]any{"sessionId": "session-1", "prompt": "hello"}
+			if correlation != nil {
+				want["clientCorrelationId"] = *correlation
+			}
+			params := captureMessageSourceRequest(t, nil, nil, func(session *Session) {
+				var messageID string
+				var err error
+				if generated {
+					result, rpcErr := session.RPC.Send(ctx, &rpc.SendRequest{
+						Prompt: "hello", ClientCorrelationID: correlation,
+					})
+					err = rpcErr
+					if result != nil {
+						messageID = result.MessageID
+					}
+				} else {
+					messageID, err = session.Send(ctx, MessageOptions{
+						Prompt: "hello", ClientCorrelationID: correlation,
+					})
+				}
+				if err != nil || messageID != "message-1" {
+					t.Fatalf("send result = %q, %v", messageID, err)
+				}
+			})
+			if !reflect.DeepEqual(params, want) {
+				t.Fatalf("admission metadata changed: got %#v, want %#v", params, want)
+			}
+		}
+	}
+}
+
+func TestSession_SendMessagesAdmissionCorrelationStaysPerItem(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	id := "01234567-89ab-4cde-8f01-23456789abcd"
+	ids := []string{"context-id", "plain-id", "reused-id"}
+	params := captureSessionRPCRequest(t, "session.sendMessages", map[string]any{"messageIds": ids},
+		nil, nil, false, func(session *Session) {
+			result, err := session.RPC.SendMessages(ctx, &rpc.SendMessagesRequest{Messages: []rpc.SendMessageItem{
+				{Prompt: "context", ClientCorrelationID: &id},
+				{Prompt: "plain"},
+				{Prompt: "reused", ClientCorrelationID: &id},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(result.MessageIDs, ids) {
+				t.Fatalf("canonical message IDs changed: %#v", result.MessageIDs)
+			}
+		})
+	want := map[string]any{
+		"sessionId": "session-1",
+		"messages": []any{
+			map[string]any{"prompt": "context", "clientCorrelationId": id},
+			map[string]any{"prompt": "plain"},
+			map[string]any{"prompt": "reused", "clientCorrelationId": id},
+		},
+	}
+	if !reflect.DeepEqual(params, want) {
+		t.Fatalf("unexpected batch wire request: %#v", params)
+	}
+}
 
 func messageSourceTestCases() []struct {
 	name  string
@@ -203,6 +278,12 @@ func captureMessageSourceRequest(t *testing.T, rpcError *jsonrpc2.Error, events 
 
 func captureSessionSendRequest(t *testing.T, rpcError *jsonrpc2.Error, events []SessionEvent, beforeResponse bool, invoke func(*Session)) map[string]any {
 	t.Helper()
+	return captureSessionRPCRequest(t, "session.send", map[string]any{"messageId": "message-1"},
+		rpcError, events, beforeResponse, invoke)
+}
+
+func captureSessionRPCRequest(t *testing.T, method string, result map[string]any, rpcError *jsonrpc2.Error, events []SessionEvent, beforeResponse bool, invoke func(*Session)) map[string]any {
+	t.Helper()
 
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
@@ -235,15 +316,15 @@ func captureSessionSendRequest(t *testing.T, rpcError *jsonrpc2.Error, events []
 			errCh <- err
 			return
 		}
-		if request.Method != "session.send" {
-			errCh <- fmt.Errorf("expected session.send, got %s", request.Method)
+		if request.Method != method {
+			errCh <- fmt.Errorf("expected %s, got %s", method, request.Method)
 			return
 		}
 		response := map[string]any{"jsonrpc": "2.0", "id": request.ID}
 		if rpcError != nil {
 			response["error"] = rpcError
 		} else {
-			response["result"] = map[string]any{"messageId": "message-1"}
+			response["result"] = result
 		}
 		data, err := json.Marshal(response)
 		if err != nil {

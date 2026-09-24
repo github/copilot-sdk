@@ -2482,6 +2482,10 @@ type MessageOptions struct {
 	ResponseSchema map[string]any
 	// Prompt is the message to send
 	Prompt string
+	// ClientCorrelationID is an optional caller-owned diagnostic UUID for this RPC
+	// admission, sent unchanged. Supported runtimes echo accepted values only with
+	// RUNTIME_ADMISSION_TRACE_CONTEXT enabled. It is not an idempotency key.
+	ClientCorrelationID *string
 	// Source identifies the message origin independently of Mode and AgentMode.
 	// The empty value omits source from the request, preserving runtime defaults.
 	Source MessageSource
@@ -2963,17 +2967,18 @@ type sessionAbortRequest struct {
 }
 
 type sessionSendRequest struct {
-	ResponseFormat *rpc.ResponseFormat `json:"responseFormat,omitempty"`
-	SessionID      string              `json:"sessionId"`
-	Prompt         string              `json:"prompt"`
-	Source         MessageSource       `json:"source,omitempty"`
-	DisplayPrompt  string              `json:"displayPrompt,omitempty"`
-	Attachments    []Attachment        `json:"attachments,omitempty"`
-	Mode           string              `json:"mode,omitempty"`
-	AgentMode      AgentMode           `json:"agentMode,omitempty"`
-	Traceparent    string              `json:"traceparent,omitempty"`
-	Tracestate     string              `json:"tracestate,omitempty"`
-	RequestHeaders map[string]string   `json:"requestHeaders,omitempty"`
+	ResponseFormat      *rpc.ResponseFormat `json:"responseFormat,omitempty"`
+	SessionID           string              `json:"sessionId"`
+	Prompt              string              `json:"prompt"`
+	ClientCorrelationID *string             `json:"clientCorrelationId,omitempty"`
+	Source              MessageSource       `json:"source,omitempty"`
+	DisplayPrompt       string              `json:"displayPrompt,omitempty"`
+	Attachments         []Attachment        `json:"attachments,omitempty"`
+	Mode                string              `json:"mode,omitempty"`
+	AgentMode           AgentMode           `json:"agentMode,omitempty"`
+	Traceparent         string              `json:"traceparent,omitempty"`
+	Tracestate          string              `json:"tracestate,omitempty"`
+	RequestHeaders      map[string]string   `json:"requestHeaders,omitempty"`
 }
 
 // sessionSendResponse is the response from session.send

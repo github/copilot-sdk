@@ -1360,6 +1360,7 @@ export function renderEventVariantClass(variant: EventVariant, packageName: stri
             }
             lines.push(`    ) {`);
         }
+        lines.push(...renderAdmissionCompatibilityConstructor(`${variant.className}Data`, dataFields, "        "));
         // Render nested types inside Data record
         for (const [, nested] of nestedTypes) {
             lines.push(...renderNestedType(nested, 2, nestedTypes, allImports));
@@ -1564,6 +1565,25 @@ function schemaAllowsNull(schema: JSONSchema7): boolean {
     );
 }
 
+/** Preserve pre-admission constructor descriptors while adding optional record components. */
+function renderAdmissionCompatibilityConstructor(
+    className: string,
+    fields: { javaName: string; javaType: string }[],
+    indent: string,
+): string[] {
+    const types = new Set(["SessionSendParams", "SendMessageItem", "QueuePendingItems", "UserMessageEventData"]);
+    if (!types.has(className) || !fields.some((field) => field.javaName === "clientCorrelationId")) return [];
+    const previous = fields.filter((field) => field.javaName !== "clientCorrelationId");
+    const parameters = previous.map((field) => `${field.javaType} ${field.javaName}`).join(", ");
+    const arguments_ = fields.map((field) => field.javaName === "clientCorrelationId" ? "null" : field.javaName).join(", ");
+    return [
+        `${indent}/** Creates a value without optional admission correlation metadata. */`,
+        `${indent}public ${className}(${parameters}) {`,
+        `${indent}    this(${arguments_});`,
+        `${indent}}`,
+    ];
+}
+
 /** Generate a Java record for a JSON Schema object type. Returns the class content. */
 function generateRpcClass(
     className: string,
@@ -1614,6 +1634,8 @@ function generateRpcClass(
         }
         lines.push(`) {`);
     }
+
+    lines.push(...renderAdmissionCompatibilityConstructor(className, fields, "    "));
 
     // Add nested types as nested records/enums inside this record
     for (const [, nested] of localNestedTypes) {

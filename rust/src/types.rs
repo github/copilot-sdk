@@ -5535,6 +5535,10 @@ pub struct MessageOptions {
     pub response_schema: Option<Value>,
     /// The user prompt to send.
     pub prompt: String,
+    /// Optional caller-owned diagnostic UUID for this RPC admission.
+    /// Sent unchanged; supported runtimes echo accepted values only when
+    /// `RUNTIME_ADMISSION_TRACE_CONTEXT` is enabled. Not an idempotency key.
+    pub client_correlation_id: Option<String>,
     /// Optional message provenance. When `None`, the field is omitted,
     /// preserving the runtime's default for user messages.
     pub source: Option<MessageSource>,
@@ -5577,6 +5581,7 @@ impl MessageOptions {
     pub fn new(prompt: impl Into<String>) -> Self {
         Self {
             prompt: prompt.into(),
+            client_correlation_id: None,
             response_schema: None,
             source: None,
             mode: None,
@@ -5588,6 +5593,12 @@ impl MessageOptions {
             tracestate: None,
             display_prompt: None,
         }
+    }
+
+    /// Set an opaque caller-owned admission UUID without generating or validating it.
+    pub fn with_client_correlation_id(mut self, client_correlation_id: impl Into<String>) -> Self {
+        self.client_correlation_id = Some(client_correlation_id.into());
+        self
     }
 
     /// Set the message provenance without changing its delivery mode.

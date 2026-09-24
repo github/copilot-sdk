@@ -324,6 +324,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             SessionId = SessionId,
             Prompt = options.Prompt,
+            ClientCorrelationId = options.ClientCorrelationId,
             DisplayPrompt = options.DisplayPrompt,
             Attachments = options.Attachments,
             Mode = options.Mode,
@@ -2281,6 +2282,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         public string SessionId { get; init; } = string.Empty;
         public string Prompt { get; init; } = string.Empty;
+        public string? ClientCorrelationId { get; init; }
         public string? DisplayPrompt { get; init; }
         public IList<Attachment>? Attachments { get; init; }
         public string? Mode { get; init; }

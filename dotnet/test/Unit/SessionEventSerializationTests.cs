@@ -4,12 +4,67 @@
 
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+using GitHub.Copilot.Rpc;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
 
+[JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(QueuePendingItems))]
+internal partial class RpcAdmissionJsonContext : JsonSerializerContext;
+
 public class SessionEventSerializationTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("01234567-89ab-4cde-8f01-23456789abcd")]
+    [InlineData("01234567-89AB-4CDE-8F01-23456789ABCD")]
+    [InlineData("not-a-uuid")]
+    [InlineData("")]
+    public void RpcAdmissionCorrelation_RoundTrips_Optional_Projections(string? correlation)
+    {
+        var metadata = new JsonObject { ["futureField"] = true };
+        if (correlation is not null)
+        {
+            metadata["clientCorrelationId"] = correlation;
+        }
+        var row = metadata.DeepClone().AsObject();
+        row["id"] = "queue-1";
+        row["messageId"] = "canonical-1";
+        row["kind"] = "message";
+        row["displayText"] = "hello";
+        row["agentMode"] = "interactive";
+        var pending = JsonSerializer.Deserialize(row.ToJsonString(), RpcAdmissionJsonContext.Default.QueuePendingItems)!;
+        Assert.Equal(correlation, pending.ClientCorrelationId);
+        Assert.Equal("canonical-1", pending.MessageId);
+        Assert.Equal("queue-1", pending.Id);
+        Assert.Equal(correlation is not null, JsonNode.Parse(JsonSerializer.Serialize(pending, RpcAdmissionJsonContext.Default.QueuePendingItems))!.AsObject().ContainsKey("clientCorrelationId"));
+
+        var data = metadata.DeepClone().AsObject();
+        data["content"] = "hello";
+        data["messageId"] = "canonical-1";
+        data["interactionId"] = "agent-loop-1";
+        var envelope = new JsonObject
+        {
+            ["id"] = "11111111-1111-1111-1111-111111111111",
+            ["timestamp"] = "2026-09-18T22:00:00+00:00",
+            ["parentId"] = null,
+            ["type"] = "user.message",
+            ["data"] = data,
+        };
+        var decoded = Assert.IsType<UserMessageEvent>(SessionEvent.FromJson(envelope.ToJsonString()));
+        Assert.Equal(correlation, decoded.Data.ClientCorrelationId);
+        Assert.Equal("canonical-1", decoded.Data.MessageId);
+        Assert.Equal("agent-loop-1", decoded.Data.InteractionId);
+        Assert.Equal(correlation is not null, JsonNode.Parse(decoded.ToJson())!["data"]!.AsObject().ContainsKey("clientCorrelationId"));
+
+        row["clientCorrelationId"] = null;
+        pending = JsonSerializer.Deserialize(row.ToJsonString(), RpcAdmissionJsonContext.Default.QueuePendingItems)!;
+        Assert.Null(pending.ClientCorrelationId);
+        Assert.False(JsonNode.Parse(JsonSerializer.Serialize(pending, RpcAdmissionJsonContext.Default.QueuePendingItems))!.AsObject().ContainsKey("clientCorrelationId"));
+    }
+
     [Theory]
     [InlineData("session.idle", "{}")]
     [InlineData("user.message", """{"content":"hello"}""")]

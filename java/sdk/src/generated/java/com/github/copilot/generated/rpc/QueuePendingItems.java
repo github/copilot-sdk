@@ -25,6 +25,8 @@ public record QueuePendingItems(
     @JsonProperty("id") String id,
     /** Stable identity of the queued user message. Present for message rows and absent for slash commands and model changes. */
     @JsonProperty("messageId") String messageId,
+    /** Caller-owned diagnostic UUID from the exact accepted native session.send or sendMessages item, when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted for unsupported or identity-less rows, including snapshot-only mirrors. Not an idempotency key, authorization, or permission to retry; repeated values remain ambiguous. */
+    @JsonProperty("clientCorrelationId") String clientCorrelationId,
     /** Whether this item is a queued user message or a queued slash command / model change */
     @JsonProperty("kind") QueuePendingItemsKind kind,
     /** Human-readable text to display for this queue entry in the UI */
@@ -32,4 +34,8 @@ public record QueuePendingItems(
     /** Agent mode stored on this queued entry, as stamped when it was enqueued. Items without an explicit mode report interactive. This is not necessarily the mode that will constrain the turn: a plan or autopilot session applies its own write gate, continuation loop and permission posture to every drained item regardless of the mode stored here. */
     @JsonProperty("agentMode") SendAgentMode agentMode
 ) {
+    /** Creates a value without optional admission correlation metadata. */
+    public QueuePendingItems(String id, String messageId, QueuePendingItemsKind kind, String displayText, SendAgentMode agentMode) {
+        this(id, messageId, null, kind, displayText, agentMode);
+    }
 }

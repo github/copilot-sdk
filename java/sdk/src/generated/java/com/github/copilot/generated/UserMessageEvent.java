@@ -41,6 +41,8 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning,
         /** Stable identity of the logical user message, matching the ID returned by send and retained by pending queue snapshots */
         @JsonProperty("messageId") String messageId,
+        /** Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous. */
+        @JsonProperty("clientCorrelationId") String clientCorrelationId,
         /** Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching */
         @JsonProperty("transformedContent") String transformedContent,
         /** Files, selections, or GitHub references attached to the message */
@@ -64,5 +66,9 @@ public final class UserMessageEvent extends SessionEvent {
         /** Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id. */
         @JsonProperty("parentAgentTaskId") String parentAgentTaskId
     ) {
+        /** Creates a value without optional admission correlation metadata. */
+        public UserMessageEventData(String content, ResponsesReasoning responsesReasoning, String messageId, String transformedContent, List<Object> attachments, List<String> supportedNativeDocumentMimeTypes, List<String> nativeDocumentPathFallbackPaths, String source, UserMessageDelivery delivery, UserMessageAgentMode agentMode, Boolean isAutopilotContinuation, String interactionId, String turnId, String parentAgentTaskId) {
+            this(content, responsesReasoning, messageId, null, transformedContent, attachments, supportedNativeDocumentMimeTypes, nativeDocumentPathFallbackPaths, source, delivery, agentMode, isAutopilotContinuation, interactionId, turnId, parentAgentTaskId);
+        }
     }
 }

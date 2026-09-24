@@ -13,12 +13,62 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.copilot.AllowCopilotExperimental;
 import com.github.copilot.generated.UserMessageEvent.UserMessageEventData;
 import com.github.copilot.generated.rpc.QueuePendingItems;
+import com.github.copilot.generated.rpc.QueuePendingItemsKind;
+import com.github.copilot.generated.rpc.SendAgentMode;
+import com.github.copilot.generated.rpc.SendMessageItem;
+import com.github.copilot.generated.rpc.SessionSendParams;
 
+@AllowCopilotExperimental
 class MessageIdentitySerializationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Test
+    void testPreviousRecordConstructorsStillOmitCorrelation() {
+        var item = new SendMessageItem("hello", null, null, null, null, null);
+        var row = new QueuePendingItems("queue-1", "canonical-1", QueuePendingItemsKind.MESSAGE, "hello",
+                SendAgentMode.INTERACTIVE);
+        var send = new SessionSendParams(null, "hello", null, null, null, null, null, null, null, null, null, null,
+                null, null, null);
+        assertNull(item.clientCorrelationId());
+        assertNull(row.clientCorrelationId());
+        assertNull(send.clientCorrelationId());
+        assertEquals("canonical-1", row.messageId());
+    }
+
+    @Test
+    void testAdmissionCorrelationOptionalRoundTrips() throws Exception {
+        for (String value : new String[]{null, "01234567-89ab-4cde-8f01-23456789abcd",
+                "01234567-89AB-4CDE-8F01-23456789ABCD", "not-a-uuid", ""}) {
+            for (var type : new Class<?>[]{SessionSendParams.class, SendMessageItem.class, QueuePendingItems.class,
+                    UserMessageEventData.class}) {
+                var wire = MAPPER.createObjectNode();
+                if (type == QueuePendingItems.class) {
+                    wire.put("id", "queue-1").put("messageId", "canonical-1").put("kind", "message")
+                            .put("displayText", "hello").put("agentMode", "interactive");
+                } else if (type == UserMessageEventData.class) {
+                    wire.put("content", "hello").put("messageId", "canonical-1").put("interactionId", "agent-loop-1");
+                } else {
+                    wire.put("prompt", "hello");
+                }
+                if (value != null) {
+                    wire.put("clientCorrelationId", value);
+                }
+                var decoded = MAPPER.readValue(wire.toString(), type);
+                assertEquals(wire, MAPPER.valueToTree(decoded));
+                wire.put("futureField", true);
+                decoded = MAPPER.treeToValue(wire, type);
+                wire.remove("futureField");
+                assertEquals(wire, MAPPER.valueToTree(decoded));
+                wire.putNull("clientCorrelationId");
+                decoded = MAPPER.treeToValue(wire, type);
+                assertFalse(MAPPER.<JsonNode>valueToTree(decoded).has("clientCorrelationId"));
+            }
+        }
+    }
 
     @Test
     void testQueuePendingMessageIdUsesCamelCaseAndIsOptional() throws Exception {
@@ -67,24 +117,16 @@ class MessageIdentitySerializationTest {
 
     @Test
     void testToolStartTraceContextIsOptionalAndPreserved() throws Exception {
-        for (var context : new String[] {
-                "{}",
-                """
-                        {"traceparent":"00-11111111111111111111111111111111-2222222222222222-01","tracestate":"vendor=value"}
-                        """,
-                """
-                        {"traceparent":"00-11111111111111111111111111111111-2222222222222222-00"}
-                        """,
-                """
-                        {"traceparent":"invalid","tracestate":"invalid"}
-                        """,
-                """
-                        {"traceparent":""}
-                        """
-        }) {
-            var wire = MAPPER.createObjectNode()
-                    .put("toolCallId", "tool-call-a")
-                    .put("toolName", "client-tool");
+        for (var context : new String[]{"{}", """
+                {"traceparent":"00-11111111111111111111111111111111-2222222222222222-01","tracestate":"vendor=value"}
+                """, """
+                {"traceparent":"00-11111111111111111111111111111111-2222222222222222-00"}
+                """, """
+                {"traceparent":"invalid","tracestate":"invalid"}
+                """, """
+                {"traceparent":""}
+                """}) {
+            var wire = MAPPER.createObjectNode().put("toolCallId", "tool-call-a").put("toolName", "client-tool");
             wire.setAll(MAPPER.readValue(context, ObjectNode.class));
             var data = MAPPER.treeToValue(wire, ToolExecutionStartEvent.ToolExecutionStartEventData.class);
 

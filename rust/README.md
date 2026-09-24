@@ -857,6 +857,14 @@ session.rpc().send(request).await?;
 
 Both paths use ordinary `session.send`. Source does not select a delivery mode or set billing flags; the runtime applies its existing source behavior. `send_and_wait` still completes on `session.idle` and may return `Ok(None)` when no assistant message was emitted. Genuine errors still propagate.
 
+For optional, caller-owned RPC admission metadata, use
+`MessageOptions::with_client_correlation_id` or the generated send request's
+`client_correlation_id` field. Batch requests carry it per `SendMessageItem`,
+never on the batch. The SDK does not generate or validate UUIDs and omits unset
+values. See [RPC admission correlation](../docs/features/execution-identity.md#optional-rpc-admission-correlation)
+for runtime/release prerequisites, default-off echo behavior, and the public
+raw-call seam available to existing Rust SDK 1.0.14 callers.
+
 ### Progress Reporting (`send_and_wait`)
 
 For fire-and-forget messaging where you need to block until the agent finishes:

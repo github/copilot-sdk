@@ -52,6 +52,39 @@ describe("C# root event payload unions", () => {
 });
 
 describe("C# RPC codegen", () => {
+    it("preserves positional send arguments and the existing CLR signature", () => {
+        const code = generateRpcCode({
+            session: {
+                send: {
+                    rpcMethod: "session.send",
+                    params: {
+                        title: "SendRequest",
+                        type: "object",
+                        properties: {
+                            sessionId: { type: "string" },
+                            prompt: { type: "string" },
+                            clientCorrelationId: { type: "string" },
+                            displayPrompt: { type: "string" },
+                            wait: { type: "boolean" },
+                        },
+                        required: ["sessionId", "prompt"],
+                    },
+                },
+            },
+        });
+
+        expect(code).toContain(
+            "SendAsync(string prompt, string? displayPrompt = null, bool? wait = null, string? clientCorrelationId = null, CancellationToken cancellationToken = default)"
+        );
+        expect(code).toContain("ClientCorrelationId = clientCorrelationId");
+        expect(code).toContain(
+            "SendAsync(string prompt, string? displayPrompt, bool? wait, CancellationToken cancellationToken)"
+        );
+        expect(code).toContain(
+            "=> SendAsync(prompt, displayPrompt, wait, clientCorrelationId: null, cancellationToken: cancellationToken);"
+        );
+    });
+
     it.each(["uninstall", "update"])(
         "separates the session wire envelope from the shared plugins %s request",
         (method) => {

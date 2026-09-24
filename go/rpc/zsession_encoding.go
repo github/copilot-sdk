@@ -976,6 +976,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	type rawUserMessageData struct {
 		AgentMode                        *UserMessageAgentMode `json:"agentMode,omitempty"`
 		Attachments                      []json.RawMessage     `json:"attachments,omitzero"`
+		ClientCorrelationID              *string               `json:"clientCorrelationId,omitempty"`
 		Content                          string                `json:"content"`
 		Delivery                         *UserMessageDelivery  `json:"delivery,omitempty"`
 		InteractionID                    *string               `json:"interactionId,omitempty"`
@@ -1004,6 +1005,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 			r.Attachments = append(r.Attachments, value)
 		}
 	}
+	r.ClientCorrelationID = raw.ClientCorrelationID
 	r.Content = raw.Content
 	r.Delivery = raw.Delivery
 	r.InteractionID = raw.InteractionID

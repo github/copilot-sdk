@@ -11369,6 +11369,11 @@ type QueuePendingItems struct {
 	// the turn: a plan or autopilot session applies its own write gate, continuation loop and
 	// permission posture to every drained item regardless of the mode stored here.
 	AgentMode SendAgentMode `json:"agentMode"`
+	// Caller-owned diagnostic UUID from the exact accepted native session.send or sendMessages
+	// item, when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted for unsupported or
+	// identity-less rows, including snapshot-only mirrors. Not an idempotency key,
+	// authorization, or permission to retry; repeated values remain ambiguous.
+	ClientCorrelationID *string `json:"clientCorrelationId,omitempty"`
 	// Human-readable text to display for this queue entry in the UI
 	DisplayText string `json:"displayText"`
 	// Stable opaque id for the canonical queued item. Batch rows share one id.
@@ -12167,6 +12172,11 @@ type SendMessageItem struct {
 	// Internal: Billable is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Billable *bool `json:"billable,omitempty"`
+	// Optional caller-generated diagnostic UUID for this item only, with the same validation
+	// and opt-in native echo as session.send.clientCorrelationId. The batch has no
+	// request-level correlation value; each item retains its own value, including preceding
+	// context messages. Reused values do not deduplicate messages and remain ambiguous.
+	ClientCorrelationID *string `json:"clientCorrelationId,omitempty"`
 	// If provided, this is shown in the timeline instead of `prompt`
 	DisplayPrompt *string `json:"displayPrompt,omitempty"`
 	// The user message text
@@ -12252,6 +12262,12 @@ type SendRequest struct {
 	// If false, this message will not trigger a Premium Request Unit charge. User messages
 	// default to billable.
 	Billable *bool `json:"billable,omitempty"`
+	// Optional caller-generated diagnostic UUID for this single message. Native sessions with
+	// RUNTIME_ADMISSION_TRACE_CONTEXT enabled echo the exact lowercase, hyphenated 36-character
+	// UUID on user.message and its existing pending message row. Missing, invalid, disabled, or
+	// unsupported metadata is ignored without rejecting the send. Does not change messageId,
+	// deduplicate submissions, authorize work, or make an uncertain retry safe.
+	ClientCorrelationID *string `json:"clientCorrelationId,omitempty"`
 	// If provided, this is shown in the timeline instead of `prompt`
 	DisplayPrompt *string `json:"displayPrompt,omitempty"`
 	// How to deliver the message. `enqueue` (default) appends to the message queue. `immediate`
@@ -32218,6 +32234,9 @@ func (a *SessionRPC) Send(ctx context.Context, params *SendRequest) (*SendResult
 		}
 		if params.Billable != nil {
 			req["billable"] = *params.Billable
+		}
+		if params.ClientCorrelationID != nil {
+			req["clientCorrelationId"] = *params.ClientCorrelationID
 		}
 		if params.DisplayPrompt != nil {
 			req["displayPrompt"] = *params.DisplayPrompt
