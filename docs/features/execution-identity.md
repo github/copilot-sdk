@@ -143,11 +143,13 @@ ID, account for reporting-session normalization, and retain session/agent
 provenance. Supplied event IDs are preserved during replay; a duplicate does not
 establish a new occurrence. An end event has its own ID, not its start event's ID.
 
-That product bridge is not an OpenTelemetry occurrence join. At this baseline,
-chat spans do not carry the root event ID; host-known trace parentage is a
-separate relationship. Worker chat spans can cover multiple loop iterations,
-so overwriting one span attribute cannot preserve all occurrence identities.
-Runtime emission and collector/query support need their own verified contract.
+CLI 1.0.85 does not put that occurrence ID on OpenTelemetry chat spans. The
+updated runtime companion adds `copilot.runtime.event_id` from the observed
+Turn-start event, behind the default-off `RUNTIME_OPERATION_TRACE_CONTEXT`
+flag. Worker iterations use bounded child spans rather than overwriting a
+multi-iteration invocation span. This adds no SDK identity or metric tag.
+Host-known trace parentage and collector/query availability remain separate
+relationships and verification requirements.
 
 This is not a universal equality join for all product records. The runtime can
 normalize non-UUID reporting session IDs, report under a parent's identity,
@@ -165,6 +167,10 @@ The generated `ToolExecutionStartData` now exposes optional `traceparent` and
 introduced. All six projections come from the canonical schemas in
 [runtime commit 7ab2ab8](https://github.com/github/copilot-agent-runtime/commit/7ab2ab8ea278c812664eece9feab83ef376936eb),
 delivered in [the runtime companion](https://github.com/github/copilot-agent-runtime/pull/22693).
+Use its [producer commit 27867ac0](https://github.com/github/copilot-agent-runtime/commit/27867ac02ac1606ed4d112cc613011e0ebc69ba5)
+or a release containing it: the producer also preserves the published tool-span
+context when the same canonical start is projected twice, keeping the later
+callback parent consistent. The schema checksums are unchanged from `7ab2ab8`.
 This is an unreleased producer prerequisite, not a new published SDK/CLI floor.
 The standalone CLI release pin is unchanged; it does not supply these new fields.
 Release-generation inputs must advance through the normal release process before
