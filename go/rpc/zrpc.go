@@ -1744,9 +1744,10 @@ type CatalogResourceIdentity string
 // removed.
 type CatalogResourceVersion string
 
-// An explicit numbered-page request. The SDK treats the token as opaque; only the runtime
-// decodes it and changes its targetPage. Authority validation binds navigation to the
-// original search. No snapshot stability or token TTL is promised.
+// An explicit numbered-page request. SDK consumers treat the token as opaque. For bound
+// search, the runtime unwraps an expiring owner-bound reference to the private authority
+// token; only the runtime changes the authority token's targetPage. Legacy unbound
+// navigation keeps its authority-issued token semantics. No snapshot stability is promised.
 // Experimental: CatalogSearchPage is part of an experimental API and may change or be
 // removed.
 type CatalogSearchPage struct {
@@ -1754,8 +1755,9 @@ type CatalogSearchPage struct {
 	// navigation window ceil(1000 / pageSize). Repeat the search without page to discover newly
 	// available pages beyond that signed pageCount.
 	Number int32 `json:"number"`
-	// Opaque authority-issued pagination token from an earlier response. Never decode, modify
-	// or log it in an SDK consumer.
+	// Opaque pagination token from an earlier response, owner-bound when session-bound search
+	// was requested. Never decode, modify or log it in an SDK consumer. Expired or foreign
+	// bound references require a fresh bound search, not a legacy retry.
 	Token string `json:"token"`
 }
 
@@ -1781,9 +1783,11 @@ type CatalogSearchPagination struct {
 	PageCount int64 `json:"pageCount"`
 	// Page size bound to the search, equal to the effective request limit.
 	PageSize int32 `json:"pageSize"`
-	// Opaque authority-issued pagination token. Only the runtime decodes it or changes
-	// targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created
-	// expiry or cache.
+	// Opaque pagination token. Session-bound search returns an expiring runtime-owned reference
+	// retaining the exact private authority token, original search and authority. Legacy
+	// unbound search returns the authority token unchanged, without a runtime-created expiry.
+	// Only the runtime unwraps tokens or changes targetPage; SDK consumers must not decode,
+	// modify or log them.
 	Token string `json:"token"`
 	// Backend-reported count for this response, not the number of returned candidates. Its
 	// relationship to the full query result set is unknown.
@@ -1811,6 +1815,9 @@ type CatalogSearchRequest struct {
 	// catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh
 	// first-page search.
 	Page *CatalogSearchPage `json:"page,omitempty"`
+	// Select an existing attached local session. Requires authenticated, session-bound search.
+	// The runtime never creates, resumes or reconfigures a session to honour this selector.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
 	// Free-text search query. Persisted as tool input for session continuity, but omitted from
 	// telemetry.
 	Query string `json:"query"`
@@ -5325,6 +5332,77 @@ type HooksDiscoverResult struct {
 	Warnings []string `json:"warnings"`
 }
 
+// One connection-owned, expiring request for a trusted host's explicit user decision.
+// Experimental: InstallationConfirmationRequest is part of an experimental API and may
+// change or be removed.
+type InstallationConfirmationRequest struct {
+	// Opaque one-use challenge. Return unchanged; never log or persist.
+	ConfirmationID string `json:"confirmationId"`
+	// Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it.
+	ExpiresAt string `json:"expiresAt"`
+	// Random identifier of this installation operation, not a plan handle.
+	OperationID string `json:"operationId"`
+	// Original engine-resolved selector for a bound operation, never a dispatch default.
+	// Bound MCP confirmation always includes it; correlate it with the original pending action.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
+	// Resource-specific review to present before collecting the user's decision.
+	Review InstallationReview `json:"review"`
+	// Opaque commitment to the exact review and inputs. Return unchanged; never log.
+	ReviewFingerprint string `json:"reviewFingerprint"`
+}
+
+// A response is meaningful only on the connection and request that issued its challenge.
+// Experimental: InstallationConfirmationResponse is part of an experimental API and may
+// change or be removed.
+type InstallationConfirmationResponse struct {
+	// Exact challenge from the request.
+	ConfirmationID string `json:"confirmationId"`
+	// Fresh explicit user decision. There is no default.
+	Decision InstallationDecision `json:"decision"`
+	// Exact review commitment from the request.
+	ReviewFingerprint string `json:"reviewFingerprint"`
+}
+
+// Experimental: InstallationReview is part of an experimental API and may change or be
+// removed.
+type InstallationReview struct {
+	// Reviewed resource discriminator.
+	Resource InstallationReviewResource `json:"resource"`
+	// The exact MCP action and its reviewed changes.
+	Review MCPInstallationReview `json:"review"`
+}
+
+// One connection-owned, expiring request for a trusted host's explicit user decision.
+// Experimental: InstallationsConfirmRequest is part of an experimental API and may change
+// or be removed.
+type InstallationsConfirmRequest struct {
+	// Opaque one-use challenge. Return unchanged; never log or persist.
+	ConfirmationID string `json:"confirmationId"`
+	// Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it.
+	ExpiresAt string `json:"expiresAt"`
+	// Random identifier of this installation operation, not a plan handle.
+	OperationID string `json:"operationId"`
+	// Original engine-resolved selector for a bound operation, never a dispatch default.
+	// Bound MCP confirmation always includes it; correlate it with the original pending action.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
+	// Resource-specific review to present before collecting the user's decision.
+	Review InstallationReview `json:"review"`
+	// Opaque commitment to the exact review and inputs. Return unchanged; never log.
+	ReviewFingerprint string `json:"reviewFingerprint"`
+}
+
+// A response is meaningful only on the connection and request that issued its challenge.
+// Experimental: InstallationsConfirmResult is part of an experimental API and may change or
+// be removed.
+type InstallationsConfirmResult struct {
+	// Exact challenge from the request.
+	ConfirmationID string `json:"confirmationId"`
+	// Fresh explicit user decision. There is no default.
+	Decision InstallationDecision `json:"decision"`
+	// Exact review commitment from the request.
+	ReviewFingerprint string `json:"reviewFingerprint"`
+}
+
 // Installed plugin record from global state, with marketplace, version, install time,
 // enabled state, cache path, and source.
 // Experimental: InstalledPlugin is part of an experimental API and may change or be removed.
@@ -5996,6 +6074,30 @@ type MCPAllowedServer struct {
 	RedactedNote *string `json:"redactedNote,omitempty"`
 }
 
+// Applies exactly one previously prepared operation on its original connection.
+// Experimental: MCPApplyInstallRequest is part of an experimental API and may change or be
+// removed.
+type MCPApplyInstallRequest struct {
+	// Capabilities required by the original prepared operation.
+	Contract CatalogClientContract `json:"contract"`
+	// Runtime-issued ID already returned by prepareInstall, never reused or rebound.
+	OperationID string `json:"operationId"`
+	// Same existing attached or privately borrowed session as preparation.
+	PolicySessionID string `json:"policySessionId"`
+}
+
+// One-use application of the exact retained removal plan.
+// Experimental: MCPApplyUninstallRequest is part of an experimental API and may change or
+// be removed.
+type MCPApplyUninstallRequest struct {
+	// Required authenticated bound installation capabilities.
+	Contract CatalogClientContract `json:"contract"`
+	// Opaque original removal plan, consumed once.
+	PlanHandle string `json:"planHandle"`
+	// Same existing selected session as removal preparation.
+	PolicySessionID string `json:"policySessionId"`
+}
+
 // MCP server, tool name, and arguments to invoke from an MCP App view.
 // Experimental: MCPAppsCallToolRequest is part of an experimental API and may change or be
 // removed.
@@ -6319,6 +6421,8 @@ type MCPDiagnosticSourceConfiguration struct {
 // Experimental: MCPDisableRequest is part of an experimental API and may change or be
 // removed.
 type MCPDisableRequest struct {
+	// Required for an owned installation; omission preserves only manual-server behaviour.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to disable
 	ServerName string `json:"serverName"`
 }
@@ -6346,6 +6450,8 @@ type MCPDiscoverResult struct {
 // Experimental: MCPEnableRequest is part of an experimental API and may change or be
 // removed.
 type MCPEnableRequest struct {
+	// Exact receipt identity for explicit owned activation in this session.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to enable
 	ServerName string `json:"serverName"`
 }
@@ -6502,6 +6608,517 @@ type MCPHostState struct {
 	PendingConnections []string `json:"pendingConnections"`
 }
 
+// One Registry string-valued configuration entry for the selected transport.
+// Experimental: MCPInstallationInput is part of an experimental API and may change or be
+// removed.
+type MCPInstallationInput struct {
+	// Exact category declared by the selected choice.
+	Category MCPPlanValueCategory `json:"category"`
+	// Exact key declared by the selected choice.
+	Key string `json:"key"`
+	// Explicit non-secret value. Secret placeholders use a separate input channel.
+	Value string `json:"value"`
+}
+
+// Read-only or recovery management result, never permission to activate or replay.
+// Experimental: MCPInstallationManagementOutcome is part of an experimental API and may
+// change or be removed.
+type MCPInstallationManagementOutcome interface {
+	mcpInstallationManagementOutcome()
+	Kind() MCPInstallationManagementOutcomeKind
+}
+
+type RawMCPInstallationManagementOutcomeData struct {
+	Discriminator MCPInstallationManagementOutcomeKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationManagementOutcomeData) mcpInstallationManagementOutcome() {}
+func (r RawMCPInstallationManagementOutcomeData) Kind() MCPInstallationManagementOutcomeKind {
+	return r.Discriminator
+}
+
+type MCPInstallationManagementOutcomeInstallPrepared struct {
+	// Known original operation identity, returned before callback or effects.
+	Operation MCPPreparedInstall `json:"operation"`
+}
+
+func (MCPInstallationManagementOutcomeInstallPrepared) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeInstallPrepared) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindInstallPrepared
+}
+
+type MCPInstallationManagementOutcomeListed struct {
+	// Owned receipts visible to the selected account and host.
+	Installations []MCPInstallationSummary `json:"installations"`
+}
+
+func (MCPInstallationManagementOutcomeListed) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeListed) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindListed
+}
+
+type MCPInstallationManagementOutcomeOperation struct {
+	// Original-connection operation snapshot.
+	Operation MCPInstallationOperationStatus `json:"operation"`
+}
+
+func (MCPInstallationManagementOutcomeOperation) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeOperation) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindOperation
+}
+
+type MCPInstallationManagementOutcomeRecovered struct {
+	// Freshly inspected receipts after successful durable reconciliation.
+	Installations []MCPInstallationSummary `json:"installations"`
+}
+
+func (MCPInstallationManagementOutcomeRecovered) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeRecovered) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindRecovered
+}
+
+// Already-confirmed durable work must be reconciled before new mutations or inventory.
+type MCPInstallationManagementOutcomeRecoveryRequired struct {
+}
+
+func (MCPInstallationManagementOutcomeRecoveryRequired) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeRecoveryRequired) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindRecoveryRequired
+}
+
+type MCPInstallationManagementOutcomeRefused struct {
+	// Specific bounded refusal.
+	Reason MCPInstallationFailureReason `json:"reason"`
+}
+
+func (MCPInstallationManagementOutcomeRefused) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeRefused) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindRefused
+}
+
+type MCPInstallationManagementOutcomeUninstallPlanned struct {
+	// Original owned removal plan and operation.
+	Plan MCPUninstallPlan `json:"plan"`
+}
+
+func (MCPInstallationManagementOutcomeUninstallPlanned) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeUninstallPlanned) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindUninstallPlanned
+}
+
+// Management result with contract receipt, or a typed request/negotiation refusal.
+// Experimental: MCPInstallationManagementResult is part of an experimental API and may
+// change or be removed.
+type MCPInstallationManagementResult interface {
+	mcpInstallationManagementResult()
+	mcpInstallationManagementResultKind() MCPInstallationManagementResultKind
+}
+
+type RawMCPInstallationManagementResultData struct {
+	Discriminator MCPInstallationManagementResultKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationManagementResultData) mcpInstallationManagementResult() {}
+func (r RawMCPInstallationManagementResultData) mcpInstallationManagementResultKind() MCPInstallationManagementResultKind {
+	return r.Discriminator
+}
+func (CatalogInvalidRequestError) mcpInstallationManagementResult() {}
+func (CatalogInvalidRequestError) mcpInstallationManagementResultKind() MCPInstallationManagementResultKind {
+	return MCPInstallationManagementResultKindInvalidRequest
+}
+func (CatalogNegotiationRefusedError) mcpInstallationManagementResult() {}
+func (CatalogNegotiationRefusedError) mcpInstallationManagementResultKind() MCPInstallationManagementResultKind {
+	return MCPInstallationManagementResultKindNegotiationRefused
+}
+
+type MCPInstallationManagementResultOutcome struct {
+	// Capabilities actually honoured for this request.
+	Negotiated CatalogNegotiatedContract `json:"negotiated"`
+	// Observed management outcome.
+	Outcome MCPInstallationManagementOutcome `json:"outcome"`
+}
+
+func (MCPInstallationManagementResultOutcome) mcpInstallationManagementResult() {}
+func (MCPInstallationManagementResultOutcome) mcpInstallationManagementResultKind() MCPInstallationManagementResultKind {
+	return MCPInstallationManagementResultKindOutcome
+}
+
+// Existing-operation control. A new session selector is deliberately not accepted.
+// Experimental: MCPInstallationOperationRequest is part of an experimental API and may
+// change or be removed.
+type MCPInstallationOperationRequest struct {
+	// Original installation wire capability; new-work authentication is not reacquired.
+	Contract CatalogClientContract `json:"contract"`
+	// Exact runtime-issued operation ID on the original connection.
+	OperationID string `json:"operationId"`
+}
+
+// Status snapshot from the original connection, independent of new-work account
+// availability.
+// Experimental: MCPInstallationOperationStatus is part of an experimental API and may
+// change or be removed.
+type MCPInstallationOperationStatus interface {
+	mcpInstallationOperationStatus()
+	Phase() MCPInstallationOperationStatusPhase
+}
+
+type RawMCPInstallationOperationStatusData struct {
+	Discriminator MCPInstallationOperationStatusPhase
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationOperationStatusData) mcpInstallationOperationStatus() {}
+func (r RawMCPInstallationOperationStatusData) Phase() MCPInstallationOperationStatusPhase {
+	return r.Discriminator
+}
+
+type MCPInstallationOperationStatusApplying struct {
+	// Whether applying was asked to cancel; already-started effects retain their lease.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOperationStatusApplying) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusApplying) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhaseApplying
+}
+
+type MCPInstallationOperationStatusAwaitingConfirmation struct {
+	// Whether the pending human callback was asked to cancel.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOperationStatusAwaitingConfirmation) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusAwaitingConfirmation) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhaseAwaitingConfirmation
+}
+
+type MCPInstallationOperationStatusCompleted struct {
+	// Whether cancellation was requested before the terminal result.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+	// Immutable terminal receipt.
+	Outcome MCPInstallationOutcome `json:"outcome"`
+}
+
+func (MCPInstallationOperationStatusCompleted) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusCompleted) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhaseCompleted
+}
+
+type MCPInstallationOperationStatusPrepared struct {
+	// Whether the inert prepared operation was asked to cancel.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOperationStatusPrepared) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusPrepared) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhasePrepared
+}
+
+type MCPInstallationOperationStatusPreparing struct {
+	// Whether cancellation has been requested, not proof that a write was undone.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOperationStatusPreparing) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusPreparing) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhasePreparing
+}
+
+type MCPInstallationOperationStatusRevalidating struct {
+	// Whether source or authority revalidation was asked to cancel.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOperationStatusRevalidating) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusRevalidating) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhaseRevalidating
+}
+
+// Terminal mutation result. Uncertainty is not approval, rollback or permission to replay.
+// Experimental: MCPInstallationOutcome is part of an experimental API and may change or be
+// removed.
+type MCPInstallationOutcome interface {
+	mcpInstallationOutcome()
+	Kind() MCPInstallationOutcomeKind
+}
+
+type RawMCPInstallationOutcomeData struct {
+	Discriminator MCPInstallationOutcomeKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationOutcomeData) mcpInstallationOutcome() {}
+func (r RawMCPInstallationOutcomeData) Kind() MCPInstallationOutcomeKind {
+	return r.Discriminator
+}
+
+type MCPInstallationOutcomeCancelled struct {
+	// Original operation cancelled before a terminal application result.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOutcomeCancelled) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeCancelled) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindCancelled
+}
+
+type MCPInstallationOutcomeDeclined struct {
+	// Original operation explicitly declined by the user.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOutcomeDeclined) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeDeclined) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindDeclined
+}
+
+type MCPInstallationOutcomeInstalled struct {
+	// Durable installation succeeded but final transaction cleanup remains.
+	CleanupPending bool `json:"cleanupPending"`
+	// Receipt identity produced by the confirmed transaction.
+	Installation MCPInstallationSummary `json:"installation"`
+}
+
+func (MCPInstallationOutcomeInstalled) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeInstalled) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindInstalled
+}
+
+// A write may have completed. Recover and inspect durable state before retrying.
+type MCPInstallationOutcomeRecoveryRequired struct {
+	// Operation whose durable result must be recovered and inspected.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOutcomeRecoveryRequired) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeRecoveryRequired) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindRecoveryRequired
+}
+
+type MCPInstallationOutcomeRefused struct {
+	// Present once an operation has been allocated; never a plan handle.
+	OperationID *string `json:"operationId,omitempty"`
+	// Specific bounded refusal, never a success-shaped fallback.
+	Reason MCPInstallationFailureReason `json:"reason"`
+}
+
+func (MCPInstallationOutcomeRefused) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeRefused) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindRefused
+}
+
+// The durable transaction was aborted or fully compensated.
+type MCPInstallationOutcomeRolledBack struct {
+	// Original connection-owned operation.
+	OperationID string `json:"operationId"`
+	// Cause of the fully aborted or compensated operation.
+	Reason MCPInstallationFailureReason `json:"reason"`
+}
+
+func (MCPInstallationOutcomeRolledBack) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeRolledBack) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindRolledBack
+}
+
+type MCPInstallationOutcomeUninstalled struct {
+	// Durable removal succeeded but final cleanup remains.
+	CleanupPending bool `json:"cleanupPending"`
+	// Exact removed receipt identity.
+	InstallationID string `json:"installationId"`
+	// Original removal operation.
+	OperationID string `json:"operationId"`
+	// Any grants in the incumbent shared OAuth store remain unowned and retained.
+	PreservedSharedAuthentication bool `json:"preservedSharedAuthentication"`
+	// Exact owned input slots removed, excluding shared OAuth credentials.
+	RemovedOwnedSecrets int64 `json:"removedOwnedSecrets"`
+	// Whether protected pre-install configuration was restored.
+	RestoredPreviousConfiguration bool `json:"restoredPreviousConfiguration"`
+}
+
+func (MCPInstallationOutcomeUninstalled) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeUninstalled) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindUninstalled
+}
+
+// Final remote configuration, not a template. The producer refuses configured
+// secrets and external-value expansion before presenting this review.
+// Experimental: MCPInstallationRemoteConfiguration is part of an experimental API and may
+// change or be removed.
+type MCPInstallationRemoteConfiguration struct {
+	// Literal configured headers, excluding separately authorised OAuth tokens.
+	Headers map[string]string `json:"headers"`
+	// Configured tool selection, not permission to invoke those tools.
+	Tools []string `json:"tools"`
+	// Transport in the effective persisted remote configuration.
+	Transport MCPPlanRemoteTransport `json:"transport"`
+	// Exact resolved endpoint, without templates or secret placeholders.
+	URL string `json:"url"`
+}
+
+// An installation result together with the exact honoured contract, or a negotiation
+// refusal.
+// Experimental: MCPInstallationResult is part of an experimental API and may change or be
+// removed.
+type MCPInstallationResult interface {
+	mcpInstallationResult()
+	mcpInstallationResultKind() MCPInstallationResultKind
+}
+
+type RawMCPInstallationResultData struct {
+	Discriminator MCPInstallationResultKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationResultData) mcpInstallationResult() {}
+func (r RawMCPInstallationResultData) mcpInstallationResultKind() MCPInstallationResultKind {
+	return r.Discriminator
+}
+func (CatalogInvalidRequestError) mcpInstallationResult() {}
+func (CatalogInvalidRequestError) mcpInstallationResultKind() MCPInstallationResultKind {
+	return MCPInstallationResultKindInvalidRequest
+}
+func (CatalogNegotiationRefusedError) mcpInstallationResult() {}
+func (CatalogNegotiationRefusedError) mcpInstallationResultKind() MCPInstallationResultKind {
+	return MCPInstallationResultKindNegotiationRefused
+}
+
+type MCPInstallationResultOutcome struct {
+	// Capabilities actually honoured for this request.
+	Negotiated CatalogNegotiatedContract `json:"negotiated"`
+	// Terminal result of the original operation.
+	Outcome MCPInstallationOutcome `json:"outcome"`
+}
+
+func (MCPInstallationResultOutcome) mcpInstallationResult() {}
+func (MCPInstallationResultOutcome) mcpInstallationResultKind() MCPInstallationResultKind {
+	return MCPInstallationResultKindOutcome
+}
+
+// Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.
+// Experimental: MCPInstallationReview is part of an experimental API and may change or be
+// removed.
+type MCPInstallationReview interface {
+	mcpInstallationReview()
+	Action() MCPInstallationReviewAction
+}
+
+type RawMCPInstallationReviewData struct {
+	Discriminator MCPInstallationReviewAction
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationReviewData) mcpInstallationReview() {}
+func (r RawMCPInstallationReviewData) Action() MCPInstallationReviewAction {
+	return r.Discriminator
+}
+
+type MCPInstallationReviewInstall struct {
+	// Original catalogue trust metadata, not a verification claim.
+	CatalogueTrust CatalogTrustSnapshot `json:"catalogueTrust,omitempty"`
+	// The configuration change for the selected alternative only.
+	ConfigurationChange MCPPlanConfigurationChange `json:"configurationChange"`
+	// Complete effective remote configuration for final input-free installation review.
+	// Earlier private selection reviews and package choices omit this field.
+	// The owned remote resource requires it before issuing confirmation.
+	EffectiveConfiguration *MCPInstallationRemoteConfiguration `json:"effectiveConfiguration,omitempty"`
+	// Identity from the retained plan, not caller display text.
+	Identity MCPPlanResourceIdentity `json:"identity"`
+	// Non-secret values supplied for this selected alternative.
+	Inputs []MCPInstallationInput `json:"inputs"`
+	// Policy decision bound to this plan.
+	Policy MCPPlanPolicyResult `json:"policy"`
+	// Original source identity and content commitment.
+	Provenance MCPPlanProvenance `json:"provenance"`
+	// Explicit reviewed backend selection; no backend is accessed when no secrets are supplied.
+	SecretStorage MCPInstallationSecretStorage `json:"secretStorage"`
+	// Only the selected alternative is applied.
+	SelectedChoice MCPPlanTransportChoice `json:"selectedChoice"`
+	// Exact reviewed placeholders supplied separately. Never secret values.
+	SuppliedSecrets []string `json:"suppliedSecrets"`
+	// Exact reviewed user-scope destination.
+	Target MCPPlanTarget `json:"target"`
+}
+
+func (MCPInstallationReviewInstall) mcpInstallationReview() {}
+func (MCPInstallationReviewInstall) Action() MCPInstallationReviewAction {
+	return MCPInstallationReviewActionInstall
+}
+
+type MCPInstallationReviewUninstall struct {
+	// Identity from the installed receipt.
+	Identity MCPPlanResourceIdentity `json:"identity"`
+	// Receipt-owned installation being removed.
+	InstallationID string `json:"installationId"`
+	// Exact planner-owned secret slots to remove, excluding shared OAuth grants.
+	OwnedSecretCount int64 `json:"ownedSecretCount"`
+	// Current removal policy, independent of permission to activate the server.
+	Policy MCPPlanPolicyResult `json:"policy"`
+	// Shared profile authentication is deliberately retained, not pending cleanup.
+	PreservesSharedAuthentication bool `json:"preservesSharedAuthentication"`
+	// Source identity and content commitment retained by the installed receipt.
+	Provenance MCPPlanProvenance `json:"provenance"`
+	// Whether uninstall restores a protected pre-install configuration.
+	RestoresPreviousConfiguration bool `json:"restoresPreviousConfiguration"`
+	// Exact destination, checked for intervening changes before mutation.
+	Target MCPPlanTarget `json:"target"`
+}
+
+func (MCPInstallationReviewUninstall) mcpInstallationReview() {}
+func (MCPInstallationReviewUninstall) Action() MCPInstallationReviewAction {
+	return MCPInstallationReviewActionUninstall
+}
+
+// A request-local value for one exact reviewed placeholder. Never logged or persisted in a
+// plan.
+// Experimental: MCPInstallationSecret is part of an experimental API and may change or be
+// removed.
+type MCPInstallationSecret struct {
+	// Exact placeholder from the selected choice, not a caller-chosen backend identifier.
+	Placeholder string `json:"placeholder"`
+	// Fresh explicit secret value. It is omitted from confirmation reviews and telemetry.
+	Value string `json:"value"`
+}
+
+// New-work inventory or recovery request under an explicitly selected existing session.
+// Experimental: MCPInstallationsRequest is part of an experimental API and may change or be
+// removed.
+type MCPInstallationsRequest struct {
+	// Required authenticated bound installation contract.
+	Contract CatalogClientContract `json:"contract"`
+	// Existing selected local session on this connection.
+	PolicySessionID string `json:"policySessionId"`
+}
+
+// Durable configuration ownership is distinct from session-specific usability.
+// Experimental: MCPInstallationSummary is part of an experimental API and may change or be
+// removed.
+type MCPInstallationSummary struct {
+	// Exact alternative retained in the installing receipt.
+	ChoiceID string `json:"choiceId"`
+	// Identity retained from the validated original plan.
+	Identity MCPPlanResourceIdentity `json:"identity"`
+	// Exact durable installation receipt identity.
+	InstallationID string `json:"installationId"`
+	// Original installing operation, not a fresh management operation.
+	OperationID string `json:"operationId"`
+	// Ownership or setup state, never inferred proof of tool usability.
+	State MCPInstallationState `json:"state"`
+}
+
 // A normalised, inert description of what installing an MCP server would involve. Carries
 // no raw card, no install specification, and no secret value.
 // Experimental: MCPInstallPlan is part of an experimental API and may change or be removed.
@@ -6587,6 +7204,25 @@ type MCPOauthAuthenticationStateChangedRequest struct {
 	ServerName *string `json:"serverName,omitempty"`
 }
 
+// Targets only the original prepared/applying owned login on this exact session requester.
+// Experimental: MCPOauthCancelLoginRequest is part of an experimental API and may change or
+// be removed.
+type MCPOauthCancelLoginRequest struct {
+	// The same authoritative installation identity supplied during preparation.
+	ExpectedInstallationID string `json:"expectedInstallationId"`
+	// Runtime-issued login handle known before the effectful login request begins.
+	LoginID string `json:"loginId"`
+}
+
+// Honest terminal cancellation result; persistence or recovery failures remain RPC errors.
+// Experimental: MCPOauthCancelLoginResult is part of an experimental API and may change or
+// be removed.
+type MCPOauthCancelLoginResult struct {
+	// True after cancellation settles, false when the original login already connected
+	// successfully.
+	Cancelled bool `json:"cancelled"`
+}
+
 // Pending MCP OAuth request ID and host-provided token or cancellation response.
 // Experimental: MCPOauthHandlePendingRequest is part of an experimental API and may change
 // or be removed.
@@ -6628,6 +7264,8 @@ type MCPOauthLoginRequest struct {
 	// ephemeral host-owned secret, uses it for this authentication attempt and does not persist
 	// it.
 	ClientSecret *string `json:"clientSecret,omitempty"`
+	// Exact owned receipt identity. Owned login never uses an implicit helper session.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// When true, clears any cached OAuth token for the server and runs a full new
 	// authorization. Use when the user explicitly wants to switch accounts or believes their
 	// session is stuck.
@@ -6635,6 +7273,9 @@ type MCPOauthLoginRequest struct {
 	// Optional OAuth grant type override for this login. Defaults to the server configuration,
 	// or authorization_code when no grant type is specified.
 	GrantType *MCPOauthLoginGrantType `json:"grantType,omitempty"`
+	// Required for owned login. Consumes the exact prepareLogin handle once.
+	// Set forceReauth and display options during preparation, not consumption.
+	LoginID *string `json:"loginId,omitempty"`
 	// Optional override indicating whether the static OAuth client is public. When false, the
 	// runtime treats it as confidential and uses the per-login clientSecret if provided,
 	// otherwise retrieving the client secret from the MCP OAuth secret store.
@@ -6654,6 +7295,10 @@ type MCPOauthLoginResult struct {
 	// returning and continues the flow in the background; completion is signaled via
 	// session.mcp_server_status_changed.
 	AuthorizationURL *string `json:"authorizationUrl,omitempty"`
+	// Runtime-issued owned flow identity; never a server name or installation operation ID.
+	LoginID *string `json:"loginId,omitempty"`
+	// Explicit outcome for owned sign-in. Manual callers retain their legacy response shape.
+	Status *MCPOwnedOauthLoginStatus `json:"status,omitempty"`
 }
 
 // Host response to the pending OAuth request.
@@ -6696,10 +7341,40 @@ func (MCPOauthPendingRequestResponseToken) Kind() MCPOauthPendingRequestResponse
 	return MCPOauthPendingRequestResponseKindToken
 }
 
+// Effect-free preparation bound to the existing local session, requester and installation,
+// with frozen options.
+// Experimental: MCPOauthPrepareLoginRequest is part of an experimental API and may change
+// or be removed.
+type MCPOauthPrepareLoginRequest struct {
+	// Text shown on the loopback callback page after successful authorisation.
+	CallbackSuccessMessage *string `json:"callbackSuccessMessage,omitempty"`
+	// Display name used by the incumbent OAuth client-registration flow.
+	ClientName *string `json:"clientName,omitempty"`
+	// Exact installation identity from owned inventory, never a server-name alias.
+	ExpectedInstallationID string `json:"expectedInstallationId"`
+	// Request a new authorisation rather than accepting a usable cached grant.
+	ForceReauth *bool `json:"forceReauth,omitempty"`
+	// Name recorded by the authoritative owned installation receipt.
+	ServerName string `json:"serverName"`
+}
+
+// An inert runtime-issued login handle. Preparation alone performs no activation or OAuth
+// work.
+// Experimental: MCPOauthPrepareLoginResult is part of an experimental API and may change or
+// be removed.
+type MCPOauthPrepareLoginResult struct {
+	// Original expiry, not extended by consumption, retries or cancellation.
+	ExpiresAt time.Time `json:"expiresAt"`
+	// Retain with the original requester and use for one login or cancellation.
+	LoginID string `json:"loginId"`
+}
+
 // Remote MCP server name for a passive OAuth status probe.
 // Experimental: MCPOauthProbeRequest is part of an experimental API and may change or be
 // removed.
 type MCPOauthProbeRequest struct {
+	// Exact owned receipt identity; probing never activates a dormant installation.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the configured remote MCP server to probe.
 	ServerName string `json:"serverName"`
 }
@@ -6816,6 +7491,8 @@ type MCPPlanConfigurationChange struct {
 type MCPPlanInstallRequest struct {
 	// Protocol version and capabilities the caller requires.
 	Contract CatalogClientContract `json:"contract"`
+	// The same existing attached session that owns the original catalogue candidate.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
 	// Configuration scope the plan targets. Defaults to user scope when omitted.
 	Scope *MCPPlanScope `json:"scope,omitempty"`
 	// What to plan: either a candidate handle from a previous search, or a card supplied
@@ -7223,6 +7900,50 @@ func (r MCPPlanTransportChoiceRemote) Transport() MCPPlanTransportChoiceTranspor
 	return MCPPlanTransportChoiceTransport(r.Discriminator)
 }
 
+// Read-only preparation of one owned removal under fresh selected-session authority.
+// Experimental: MCPPlanUninstallRequest is part of an experimental API and may change or be
+// removed.
+type MCPPlanUninstallRequest struct {
+	// Required authenticated bound installation capabilities.
+	Contract CatalogClientContract `json:"contract"`
+	// Exact receipt to inspect, not a server-name guess.
+	InstallationID string `json:"installationId"`
+	// Existing selected session on the original connection.
+	PolicySessionID string `json:"policySessionId"`
+}
+
+// Inert, runtime-owned admission. The operation ID is known before confirmation or effects.
+// Experimental: MCPPreparedInstall is part of an experimental API and may change or be
+// removed.
+type MCPPreparedInstall struct {
+	// Original plan expiry in Unix epoch milliseconds; preparation does not extend it.
+	ExpiresAtEpochMs int64 `json:"expiresAtEpochMs"`
+	// Original connection-owned operation, known before the first confirmation callback.
+	OperationID string `json:"operationId"`
+}
+
+// Side-effect-free preparation of one original bound, input-free remote MCP choice.
+// Experimental: MCPPrepareInstallRequest is part of an experimental API and may change or
+// be removed.
+type MCPPrepareInstallRequest struct {
+	// Exact selected alternative from that plan.
+	ChoiceID string `json:"choiceId"`
+	// Required bound catalogue and confirmed remote installation capabilities.
+	Contract CatalogClientContract `json:"contract"`
+	// Must be empty for the initial input-free remote installation capability.
+	Inputs []MCPInstallationInput `json:"inputs"`
+	// Original single-use bound plan, never a client-authored configuration.
+	PlanHandle string `json:"planHandle"`
+	// An existing local session attached to this connection, not permission to attach one.
+	PolicySessionID string `json:"policySessionId"`
+	// Must be empty; this capability does not allocate configured-input secrets.
+	Secrets []MCPInstallationSecret `json:"secrets"`
+	// The trusted host presents this choice alongside the exact secret placeholders.
+	SecretStorage MCPInstallationSecretStorage `json:"secretStorage"`
+	// The exact original source, used transiently only after confirmation.
+	Source MCPServerCardReference `json:"source"`
+}
+
 // Registration parameters for an external MCP client.
 // Experimental: MCPRegisterExternalClientRequest is part of an experimental API and may
 // change or be removed.
@@ -7453,6 +8174,8 @@ type MCPRestartServerRequest struct {
 	// Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart
 	// the server with its already-registered configuration (config-free restart-by-name).
 	Config MCPSerializableServerConfig `json:"config,omitempty"`
+	// Exact receipt identity for an explicit owned restart; configuration overrides are refused.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to restart
 	ServerName string `json:"serverName"`
 }
@@ -7921,6 +8644,8 @@ type MCPStartServerRequest struct {
 	// MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server
 	// with its already-registered configuration (config-free start-by-name).
 	Config MCPSerializableServerConfig `json:"config,omitempty"`
+	// Exact receipt identity for explicit owned activation in this session.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to start
 	ServerName string `json:"serverName"`
 }
@@ -7941,6 +8666,8 @@ type MCPStartServersResult struct {
 // Experimental: MCPStopServerRequest is part of an experimental API and may change or be
 // removed.
 type MCPStopServerRequest struct {
+	// Exact owned receipt identity. Stop also forgets this session's durable activation.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to stop
 	ServerName string `json:"serverName"`
 }
@@ -7973,6 +8700,26 @@ type MCPToolUI struct {
 	ResourceURI *string `json:"resourceUri,omitempty"`
 	// Tool visibility advertised by the server. When absent, MCP Apps defaults apply.
 	Visibility []MCPToolUIVisibility `json:"visibility,omitzero"`
+}
+
+// Exact inert removal plan. No configuration or credentials have changed.
+// Experimental: MCPUninstallPlan is part of an experimental API and may change or be
+// removed.
+type MCPUninstallPlan struct {
+	// Original wall-clock expiry in milliseconds. Applying never renews it.
+	ExpiresAtEpochMs int64 `json:"expiresAtEpochMs"`
+	// Original owned receipt being removed.
+	Installation MCPInstallationSummary `json:"installation"`
+	// The original operation, inspectable and cancellable on this same connection.
+	OperationID string `json:"operationId"`
+	// Exact configured input slots owned by this installation, never shared OAuth tokens.
+	OwnedSecretCount int64 `json:"ownedSecretCount"`
+	// One-use original connection and authority-bound plan handle.
+	PlanHandle string `json:"planHandle"`
+	// Shared authentication is deliberately retained; revocation is a separate action.
+	PreservesSharedAuthentication bool `json:"preservesSharedAuthentication"`
+	// Whether removal restores a protected earlier configuration.
+	RestoresPreviousConfiguration bool `json:"restoresPreviousConfiguration"`
 }
 
 // Server name identifying the external client to remove.
@@ -13602,6 +14349,53 @@ type SessionMCPEnableResult struct {
 // Experimental: SessionMCPOauthAuthenticationStateChangedResult is part of an experimental
 // API and may change or be removed.
 type SessionMCPOauthAuthenticationStateChangedResult struct {
+}
+
+// Targets only the original prepared/applying owned login on this exact session requester.
+// Experimental: SessionMCPOauthCancelLoginRequest is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthCancelLoginRequest struct {
+	// The same authoritative installation identity supplied during preparation.
+	ExpectedInstallationID string `json:"expectedInstallationId"`
+	// Runtime-issued login handle known before the effectful login request begins.
+	LoginID string `json:"loginId"`
+}
+
+// Honest terminal cancellation result; persistence or recovery failures remain RPC errors.
+// Experimental: SessionMCPOauthCancelLoginResult is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthCancelLoginResult struct {
+	// True after cancellation settles, false when the original login already connected
+	// successfully.
+	Cancelled bool `json:"cancelled"`
+}
+
+// Effect-free preparation bound to the existing local session, requester and installation,
+// with frozen options.
+// Experimental: SessionMCPOauthPrepareLoginRequest is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthPrepareLoginRequest struct {
+	// Text shown on the loopback callback page after successful authorisation.
+	CallbackSuccessMessage *string `json:"callbackSuccessMessage,omitempty"`
+	// Display name used by the incumbent OAuth client-registration flow.
+	ClientName *string `json:"clientName,omitempty"`
+	// Exact installation identity from owned inventory, never a server-name alias.
+	ExpectedInstallationID string `json:"expectedInstallationId"`
+	// Request a new authorisation rather than accepting a usable cached grant.
+	ForceReauth *bool `json:"forceReauth,omitempty"`
+	// Name recorded by the authoritative owned installation receipt.
+	ServerName string `json:"serverName"`
+}
+
+// An inert runtime-issued login handle. Preparation alone performs no activation or OAuth
+// work.
+// Experimental: SessionMCPOauthPrepareLoginResult is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthPrepareLoginResult struct {
+	// Original expiry, not extended by consumption, retries or cancellation.
+	ExpiresAt time.Time `json:"expiresAt"`
+	// Retain with the original requester and use for one login or cancellation.
+	LoginID string `json:"loginId"`
 }
 
 // Experimental: SessionMCPRegisterExternalClientResult is part of an experimental API and
@@ -19278,11 +20072,20 @@ const (
 	// Understands explicit numbered navigation and authority-reported pagination metadata with
 	// opaque tokens. Advertised and granted only when requested.
 	CatalogCapabilityCatalogSearchPagination CatalogCapability = "catalog-search-pagination"
+	// Captures the exact existing native session, account, host and connection for
+	// authenticated catalogue search, selection and planning. Requires
+	// catalog-search-credential-required; does not grant installation or create a session.
+	CatalogCapabilityCatalogSearchSessionBound CatalogCapability = "catalog-search-session-bound"
 	// Understands exact candidate selection through model-safe opaque references and host-only
 	// candidate-handle hand-off.
 	CatalogCapabilityCatalogSelection CatalogCapability = "catalog-selection"
 	// Understands the legacy `application/mcp-server+json` media type.
 	CatalogCapabilityLegacyMCPServerCard CatalogCapability = "legacy-mcp-server-card"
+	// Understands effect-free preparation, exact human-confirmed apply and owned removal for
+	// fully resolved personal remote MCP choices without supplied inputs or configured secrets.
+	// Advertised only when the real producer and lower owned admission are linked; requires
+	// original connection and bound session authority for new work.
+	CatalogCapabilityMCPConfirmedRemoteInstallation CatalogCapability = "mcp-confirmed-remote-installation"
 	// Understands side-effect-free MCP install-plan requests, results, and plan handles;
 	// `planning-unavailable` separately reports that planning is not enabled.
 	CatalogCapabilityMCPInstallPlanning CatalogCapability = "mcp-install-planning"
@@ -19366,6 +20169,8 @@ const (
 	// The pagination token or target was invalid, or the authority rejected the continuation.
 	// Repeat the search without page.
 	CatalogInvalidRequestFieldPage CatalogInvalidRequestField = "page"
+	// The selected existing attached session was missing, malformed or unavailable.
+	CatalogInvalidRequestFieldPolicySessionID CatalogInvalidRequestField = "policySessionId"
 	// The search query was empty or longer than permitted.
 	CatalogInvalidRequestFieldQuery CatalogInvalidRequestField = "query"
 	// The requested configuration scope is not one this runtime writes.
@@ -20512,6 +21317,27 @@ const (
 	IndexedSearchStateStarting IndexedSearchState = "starting"
 )
 
+// Explicit user decisions, never inferred from a permission grant or model response.
+// Experimental: InstallationDecision is part of an experimental API and may change or be
+// removed.
+type InstallationDecision string
+
+const (
+	// The user cancelled the pending decision without granting consent.
+	InstallationDecisionCancel InstallationDecision = "cancel"
+	// The user explicitly approved the exact review on this request.
+	InstallationDecisionConfirm InstallationDecision = "confirm"
+	// The user declined the reviewed operation.
+	InstallationDecisionDecline InstallationDecision = "decline"
+)
+
+// Reviewed resource discriminator.
+type InstallationReviewResource string
+
+const (
+	InstallationReviewResourceMCP InstallationReviewResource = "mcp"
+)
+
 // Constant value. Always "github".
 type InstalledPluginSourceGitHubSource string
 
@@ -20796,6 +21622,156 @@ const (
 	MCPHeadersHandlePendingHeadersRefreshRequestKindNone    MCPHeadersHandlePendingHeadersRefreshRequestKind = "none"
 )
 
+// Bounded refusal categories, without echoing handles, credentials or configuration.
+// Experimental: MCPInstallationFailureReason is part of an experimental API and may change
+// or be removed.
+type MCPInstallationFailureReason string
+
+const (
+	// The original operation was cancelled.
+	MCPInstallationFailureReasonCancelled MCPInstallationFailureReason = "cancelled"
+	// Required installation capabilities were omitted.
+	MCPInstallationFailureReasonCapabilityRequired MCPInstallationFailureReason = "capability-required"
+	// Configuration changed after the reviewed snapshot.
+	MCPInstallationFailureReasonConfigurationChanged MCPInstallationFailureReason = "configuration-changed"
+	// Installed configuration no longer matches ownership evidence.
+	MCPInstallationFailureReasonConfigurationModified MCPInstallationFailureReason = "configuration-modified"
+	// The confirmation response is malformed or mismatched.
+	MCPInstallationFailureReasonConfirmationInvalid MCPInstallationFailureReason = "confirmation-invalid"
+	// The original host cannot receive human confirmation.
+	MCPInstallationFailureReasonConfirmationUnavailable MCPInstallationFailureReason = "confirmation-unavailable"
+	// The handle belongs to a different runtime, session or connection.
+	MCPInstallationFailureReasonForeignRuntime MCPInstallationFailureReason = "foreign-runtime"
+	// The selected choice or request is unsupported or malformed.
+	MCPInstallationFailureReasonInvalidRequest MCPInstallationFailureReason = "invalid-request"
+	// Required owned admission and lifecycle support is absent.
+	MCPInstallationFailureReasonLifecycleUnavailable MCPInstallationFailureReason = "lifecycle-unavailable"
+	// The bounded original-connection operation limit was reached.
+	MCPInstallationFailureReasonOperationLimit MCPInstallationFailureReason = "operation-limit"
+	// The original plan deadline elapsed.
+	MCPInstallationFailureReasonPlanExpired MCPInstallationFailureReason = "plan-expired"
+	// The one-use plan or prepared operation was already consumed.
+	MCPInstallationFailureReasonPlanReplayed MCPInstallationFailureReason = "plan-replayed"
+	// The original authority or policy changed.
+	MCPInstallationFailureReasonPolicyChanged MCPInstallationFailureReason = "policy-changed"
+	// Existing authenticated session and host authority is unavailable.
+	MCPInstallationFailureReasonPolicyContextUnavailable MCPInstallationFailureReason = "policy-context-unavailable"
+	// Current managed policy refuses the operation.
+	MCPInstallationFailureReasonPolicyDenied MCPInstallationFailureReason = "policy-denied"
+	// Authoritative Registry interpretation is unavailable.
+	MCPInstallationFailureReasonRegistryUnavailable MCPInstallationFailureReason = "registry-unavailable"
+	// Fresh bound planning is required.
+	MCPInstallationFailureReasonReplanRequired MCPInstallationFailureReason = "replan-required"
+	// No matching owned resource or original operation exists.
+	MCPInstallationFailureReasonResourceNotFound MCPInstallationFailureReason = "resource-not-found"
+	// The selected secret backend is unavailable.
+	MCPInstallationFailureReasonSecretStoreUnavailable MCPInstallationFailureReason = "secret-store-unavailable"
+	// The source differs from the retained commitment.
+	MCPInstallationFailureReasonSourceChanged MCPInstallationFailureReason = "source-changed"
+	// Exact original source revalidation is unsupported.
+	MCPInstallationFailureReasonSourceRevalidationUnavailable MCPInstallationFailureReason = "source-revalidation-unavailable"
+	// The original source could not be retrieved safely.
+	MCPInstallationFailureReasonSourceUnavailable MCPInstallationFailureReason = "source-unavailable"
+	// A storage operation failed; inspect any allocated operation before retrying.
+	MCPInstallationFailureReasonWriteFailed MCPInstallationFailureReason = "write-failed"
+)
+
+// Kind discriminator for MCPInstallationManagementOutcome.
+type MCPInstallationManagementOutcomeKind string
+
+const (
+	MCPInstallationManagementOutcomeKindInstallPrepared  MCPInstallationManagementOutcomeKind = "install-prepared"
+	MCPInstallationManagementOutcomeKindListed           MCPInstallationManagementOutcomeKind = "listed"
+	MCPInstallationManagementOutcomeKindOperation        MCPInstallationManagementOutcomeKind = "operation"
+	MCPInstallationManagementOutcomeKindRecovered        MCPInstallationManagementOutcomeKind = "recovered"
+	MCPInstallationManagementOutcomeKindRecoveryRequired MCPInstallationManagementOutcomeKind = "recovery-required"
+	MCPInstallationManagementOutcomeKindRefused          MCPInstallationManagementOutcomeKind = "refused"
+	MCPInstallationManagementOutcomeKindUninstallPlanned MCPInstallationManagementOutcomeKind = "uninstall-planned"
+)
+
+// Kind discriminator for MCPInstallationManagementResult.
+type MCPInstallationManagementResultKind string
+
+const (
+	MCPInstallationManagementResultKindInvalidRequest     MCPInstallationManagementResultKind = "invalid-request"
+	MCPInstallationManagementResultKindNegotiationRefused MCPInstallationManagementResultKind = "negotiation-refused"
+	MCPInstallationManagementResultKindOutcome            MCPInstallationManagementResultKind = "outcome"
+)
+
+// Phase discriminator for MCPInstallationOperationStatus.
+type MCPInstallationOperationStatusPhase string
+
+const (
+	MCPInstallationOperationStatusPhaseApplying             MCPInstallationOperationStatusPhase = "applying"
+	MCPInstallationOperationStatusPhaseAwaitingConfirmation MCPInstallationOperationStatusPhase = "awaiting-confirmation"
+	MCPInstallationOperationStatusPhaseCompleted            MCPInstallationOperationStatusPhase = "completed"
+	MCPInstallationOperationStatusPhasePrepared             MCPInstallationOperationStatusPhase = "prepared"
+	MCPInstallationOperationStatusPhasePreparing            MCPInstallationOperationStatusPhase = "preparing"
+	MCPInstallationOperationStatusPhaseRevalidating         MCPInstallationOperationStatusPhase = "revalidating"
+)
+
+// Kind discriminator for MCPInstallationOutcome.
+type MCPInstallationOutcomeKind string
+
+const (
+	MCPInstallationOutcomeKindCancelled        MCPInstallationOutcomeKind = "cancelled"
+	MCPInstallationOutcomeKindDeclined         MCPInstallationOutcomeKind = "declined"
+	MCPInstallationOutcomeKindInstalled        MCPInstallationOutcomeKind = "installed"
+	MCPInstallationOutcomeKindRecoveryRequired MCPInstallationOutcomeKind = "recovery-required"
+	MCPInstallationOutcomeKindRefused          MCPInstallationOutcomeKind = "refused"
+	MCPInstallationOutcomeKindRolledBack       MCPInstallationOutcomeKind = "rolled-back"
+	MCPInstallationOutcomeKindUninstalled      MCPInstallationOutcomeKind = "uninstalled"
+)
+
+// Kind discriminator for MCPInstallationResult.
+type MCPInstallationResultKind string
+
+const (
+	MCPInstallationResultKindInvalidRequest     MCPInstallationResultKind = "invalid-request"
+	MCPInstallationResultKindNegotiationRefused MCPInstallationResultKind = "negotiation-refused"
+	MCPInstallationResultKindOutcome            MCPInstallationResultKind = "outcome"
+)
+
+// Action discriminator for MCPInstallationReview.
+type MCPInstallationReviewAction string
+
+const (
+	MCPInstallationReviewActionInstall   MCPInstallationReviewAction = "install"
+	MCPInstallationReviewActionUninstall MCPInstallationReviewAction = "uninstall"
+)
+
+// Explicit backend selection is part of the final review; failures never switch backends.
+// Experimental: MCPInstallationSecretStorage is part of an experimental API and may change
+// or be removed.
+type MCPInstallationSecretStorage string
+
+const (
+	// The selected operating-system keychain, without fallback to file storage.
+	MCPInstallationSecretStorageKeychain MCPInstallationSecretStorage = "keychain"
+	// The explicitly selected private file backend.
+	MCPInstallationSecretStoragePrivateFile MCPInstallationSecretStorage = "private-file"
+)
+
+// Configuration ownership and setup observations, distinct from tool permissions.
+// Experimental: MCPInstallationState is part of an experimental API and may change or be
+// removed.
+type MCPInstallationState string
+
+const (
+	// The selected server could not be activated.
+	MCPInstallationStateActivationFailed MCPInstallationState = "activation-failed"
+	// The selected authorised session reports an active installation.
+	MCPInstallationStateActive MCPInstallationState = "active"
+	// The selected server requires explicit sign-in.
+	MCPInstallationStateAuthenticationRequired MCPInstallationState = "authentication-required"
+	// Owned configuration no longer matches its receipt.
+	MCPInstallationStateConfigurationModified MCPInstallationState = "configuration-modified"
+	// Owned configuration exists; inventory alone does not grant activation.
+	MCPInstallationStateNeedsSetup MCPInstallationState = "needs-setup"
+	// Confirmed durable work or unsafe evidence requires recovery.
+	MCPInstallationStateRecoveryRequired MCPInstallationState = "recovery-required"
+)
+
 // OAuth grant type override for this login.
 // Experimental: MCPOauthLoginGrantType is part of an experimental API and may change or be
 // removed.
@@ -20842,6 +21818,18 @@ const (
 	MCPOauthProbeResultStatusFailed         MCPOauthProbeResultStatus = "failed"
 	MCPOauthProbeResultStatusNeedsAuth      MCPOauthProbeResultStatus = "needs-auth"
 	MCPOauthProbeResultStatusNoAuthRequired MCPOauthProbeResultStatus = "no-auth-required"
+)
+
+// Outcome of starting the original prepared owned login.
+// Experimental: MCPOwnedOauthLoginStatus is part of an experimental API and may change or
+// be removed.
+type MCPOwnedOauthLoginStatus string
+
+const (
+	// The original requester may open the returned authorisation URL.
+	MCPOwnedOauthLoginStatusAwaitingBrowser MCPOwnedOauthLoginStatus = "awaiting-browser"
+	// Cached credentials were accepted and the original server finished reconnecting.
+	MCPOwnedOauthLoginStatusConnected MCPOwnedOauthLoginStatus = "connected"
 )
 
 // Whether a planned configuration change would create or modify an entry
@@ -23793,6 +24781,51 @@ func (a *ServerManagedSettingsAPI) Read(ctx context.Context) (*ManagedSettingsRe
 // Experimental: ServerMCPAPI contains experimental APIs that may change or be removed.
 type ServerMCPAPI serverAPI
 
+// ApplyInstall consumes a retained prepared MCP operation once, revalidates its original
+// authority, requests explicit human consent through installations.confirm on the original
+// connection, then revalidates source and applies the sealed transaction. An uncertain
+// result requires original-operation inspection or recovery, never replay.
+//
+// RPC method: mcp.applyInstall.
+//
+// Parameters: Applies exactly one previously prepared operation on its original connection.
+//
+// Returns: An installation result together with the exact honoured contract, or a
+// negotiation refusal.
+func (a *ServerMCPAPI) ApplyInstall(ctx context.Context, params *MCPApplyInstallRequest) (MCPInstallationResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.applyInstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ApplyUninstall consumes the original owned-removal plan once and requests fresh exact
+// human confirmation on its original connection. Drift is refused; unrelated manual
+// configuration and shared OAuth credentials are preserved.
+//
+// RPC method: mcp.applyUninstall.
+//
+// Parameters: One-use application of the exact retained removal plan.
+//
+// Returns: An installation result together with the exact honoured contract, or a
+// negotiation refusal.
+func (a *ServerMCPAPI) ApplyUninstall(ctx context.Context, params *MCPApplyUninstallRequest) (MCPInstallationResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.applyUninstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // Discovers MCP servers from user, workspace, plugin, and builtin sources.
 //
 // RPC method: mcp.discover.
@@ -23836,6 +24869,53 @@ func (a *ServerMCPAPI) PlanInstall(ctx context.Context, params *MCPPlanInstallRe
 		return nil, err
 	}
 	result, err := unmarshalMCPPlanInstallResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// PlanUninstall prepares a read-only removal plan for an exact owned receipt under the
+// selected existing session. Returns the original operation ID before confirmation; neither
+// planning nor abandonment changes configuration or shared OAuth credentials.
+//
+// RPC method: mcp.planUninstall.
+//
+// Parameters: Read-only preparation of one owned removal under fresh selected-session
+// authority.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPAPI) PlanUninstall(ctx context.Context, params *MCPPlanUninstallRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.planUninstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// PrepareInstall consumes a bound catalogue plan and retains one exact fully resolved
+// personal remote MCP operation requiring no supplied values or configured secrets. Returns
+// its runtime operation ID and original expiry before any confirmation, activation, writer
+// initialisation or installation effect. Register the original connection, operation and
+// selected-session binding before calling applyInstall. Missing lower owned admission is
+// unavailable, never a raw-config fallback.
+//
+// RPC method: mcp.prepareInstall.
+//
+// Parameters: Side-effect-free preparation of one original bound, input-free remote MCP
+// choice.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPAPI) PrepareInstall(ctx context.Context, params *MCPPrepareInstallRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.prepareInstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -23966,6 +25046,103 @@ func (a *ServerMCPConfigAPI) Update(ctx context.Context, params *MCPConfigUpdate
 // Experimental: Config returns experimental APIs that may change or be removed.
 func (s *ServerMCPAPI) Config() *ServerMCPConfigAPI {
 	return (*ServerMCPConfigAPI)(s)
+}
+
+// Experimental: ServerMCPInstallationsAPI contains experimental APIs that may change or be
+// removed.
+type ServerMCPInstallationsAPI serverAPI
+
+// Cancel requests cancellation of a known operation on its original connection, including
+// before apply or confirmation. Already-started effects retain their transaction lease and
+// report an honest terminal or recovery outcome.
+//
+// RPC method: mcp.installations.cancel.
+//
+// Parameters: Existing-operation control. A new session selector is deliberately not
+// accepted.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPInstallationsAPI) Cancel(ctx context.Context, params *MCPInstallationOperationRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.installations.cancel", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// List reads receipt-owned MCP inventory for the selected account and host without
+// activating servers or reconstructing missing ownership. Configuration ownership does not
+// prove session-specific usability.
+//
+// RPC method: mcp.installations.list.
+//
+// Parameters: New-work inventory or recovery request under an explicitly selected existing
+// session.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPInstallationsAPI) List(ctx context.Context, params *MCPInstallationsRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.installations.list", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Recover reconciles already-confirmed durable MCP transactions, then inspects owned
+// inventory. Does not replay apply or reconstruct deleted ownership metadata; unresolved or
+// unsafe evidence remains an explicit refusal.
+//
+// RPC method: mcp.installations.recover.
+//
+// Parameters: New-work inventory or recovery request under an explicitly selected existing
+// session.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPInstallationsAPI) Recover(ctx context.Context, params *MCPInstallationsRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.installations.recover", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Status inspects a known operation only on its original connection. Remains available
+// after account or selected-session loss; does not acquire new authority or rebind an
+// operation.
+//
+// RPC method: mcp.installations.status.
+//
+// Parameters: Existing-operation control. A new session selector is deliberately not
+// accepted.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPInstallationsAPI) Status(ctx context.Context, params *MCPInstallationOperationRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.installations.status", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Experimental: Installations returns experimental APIs that may change or be removed.
+func (s *ServerMCPAPI) Installations() *ServerMCPInstallationsAPI {
+	return (*ServerMCPInstallationsAPI)(s)
 }
 
 // Experimental: ServerModelsAPI contains experimental APIs that may change or be removed.
@@ -27342,6 +28519,9 @@ func (a *MCPAPI) CancelSamplingExecution(ctx context.Context, params *MCPCancelS
 func (a *MCPAPI) Disable(ctx context.Context, params *MCPDisableRequest) (*SessionMCPDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.disable", req)
@@ -27363,6 +28543,9 @@ func (a *MCPAPI) Disable(ctx context.Context, params *MCPDisableRequest) (*Sessi
 func (a *MCPAPI) Enable(ctx context.Context, params *MCPEnableRequest) (*SessionMCPEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.enable", req)
@@ -27547,6 +28730,9 @@ func (a *MCPAPI) RestartServer(ctx context.Context, params *MCPRestartServerRequ
 		if params.Config != nil {
 			req["config"] = params.Config
 		}
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.restartServer", req)
@@ -27604,6 +28790,9 @@ func (a *MCPAPI) StartServer(ctx context.Context, params *MCPStartServerRequest)
 		if params.Config != nil {
 			req["config"] = params.Config
 		}
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.startServer", req)
@@ -27625,6 +28814,9 @@ func (a *MCPAPI) StartServer(ctx context.Context, params *MCPStartServerRequest)
 func (a *MCPAPI) StopServer(ctx context.Context, params *MCPStopServerRequest) (*SessionMCPStopServerResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.stopServer", req)
@@ -27856,6 +29048,33 @@ func (a *MCPOauthAPI) AuthenticationStateChanged(ctx context.Context, params *MC
 	return &result, nil
 }
 
+// CancelLogin cancels the exact owned OAuth login issued to this original session
+// requester, without clearing shared credentials.
+//
+// RPC method: session.mcp.oauth.cancelLogin.
+//
+// Parameters: Targets only the original prepared/applying owned login on this exact session
+// requester.
+//
+// Returns: Honest terminal cancellation result; persistence or recovery failures remain RPC
+// errors.
+func (a *MCPOauthAPI) CancelLogin(ctx context.Context, params *SessionMCPOauthCancelLoginRequest) (*SessionMCPOauthCancelLoginResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["expectedInstallationId"] = params.ExpectedInstallationID
+		req["loginId"] = params.LoginID
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.cancelLogin", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthCancelLoginResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // HandlePendingRequest resolves a pending MCP OAuth request with a host-provided token or
 // cancellation. The pending request is emitted as mcp.oauth_required with the data
 // necessary to authorize the request.
@@ -27882,7 +29101,9 @@ func (a *MCPOauthAPI) HandlePendingRequest(ctx context.Context, params *MCPOauth
 	return &result, nil
 }
 
-// Login starts OAuth authentication for a remote MCP server.
+// Login starts OAuth authentication for a remote MCP server. Owned servers require the
+// original one-use prepareLogin handle and exact installation ID; manual servers retain the
+// existing direct login behaviour.
 //
 // RPC method: session.mcp.oauth.login.
 //
@@ -27906,11 +29127,17 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 		if params.ClientSecret != nil {
 			req["clientSecret"] = *params.ClientSecret
 		}
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		if params.ForceReauth != nil {
 			req["forceReauth"] = *params.ForceReauth
 		}
 		if params.GrantType != nil {
 			req["grantType"] = *params.GrantType
+		}
+		if params.LoginID != nil {
+			req["loginId"] = *params.LoginID
 		}
 		if params.PublicClient != nil {
 			req["publicClient"] = *params.PublicClient
@@ -27922,6 +29149,43 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 		return nil, err
 	}
 	var result MCPOauthLoginResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// PrepareLogin prepares an inert, expiring owned OAuth login bound to the original session
+// requester and exact installation. Does not activate, connect, read credentials or open a
+// browser.
+//
+// RPC method: session.mcp.oauth.prepareLogin.
+//
+// Parameters: Effect-free preparation bound to the existing local session, requester and
+// installation, with frozen options.
+//
+// Returns: An inert runtime-issued login handle. Preparation alone performs no activation
+// or OAuth work.
+func (a *MCPOauthAPI) PrepareLogin(ctx context.Context, params *SessionMCPOauthPrepareLoginRequest) (*SessionMCPOauthPrepareLoginResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.CallbackSuccessMessage != nil {
+			req["callbackSuccessMessage"] = *params.CallbackSuccessMessage
+		}
+		if params.ClientName != nil {
+			req["clientName"] = *params.ClientName
+		}
+		req["expectedInstallationId"] = params.ExpectedInstallationID
+		if params.ForceReauth != nil {
+			req["forceReauth"] = *params.ForceReauth
+		}
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.prepareLogin", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthPrepareLoginResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -27944,6 +29208,9 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 func (a *MCPOauthAPI) Probe(ctx context.Context, params *MCPOauthProbeRequest) (MCPOauthProbeResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.oauth.probe", req)
@@ -34776,6 +36043,24 @@ type HooksHandler interface {
 	Invoke(request *HookInvokeRequest) (*HookInvokeResponse, error)
 }
 
+// Experimental: InstallationsHandler contains experimental APIs that may change or be
+// removed.
+type InstallationsHandler interface {
+	// Confirm requests a fresh explicit human decision for one sealed installation operation on
+	// its original connection. Present the complete typed review, return the original challenge
+	// and fingerprint, and never infer approval. The expiresAt deadline, connection closure or
+	// standard JSON-RPC $/cancelRequest retires the request; late replies grant no authority.
+	//
+	// RPC method: installations.confirm.
+	//
+	// Parameters: One connection-owned, expiring request for a trusted host's explicit user
+	// decision.
+	//
+	// Returns: A response is meaningful only on the connection and request that issued its
+	// challenge.
+	Confirm(request *InstallationsConfirmRequest) (*InstallationsConfirmResult, error)
+}
+
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
 // removed.
 type LlmInferenceHandler interface {
@@ -34816,6 +36101,7 @@ type ClientGlobalAPIHandlers struct {
 	GitHubTelemetry         GitHubTelemetryHandler
 	GitHubToken             GitHubTokenHandler
 	Hooks                   HooksHandler
+	Installations           InstallationsHandler
 	LlmInference            LlmInferenceHandler
 }
 
@@ -34891,6 +36177,24 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, &jsonrpc2.Error{Code: -32603, Message: "No hooks client-global handler registered"}
 		}
 		result, err := handlers.Hooks.Invoke(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("installations.confirm", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request InstallationsConfirmRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.Installations == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No installations client-global handler registered"}
+		}
+		result, err := handlers.Installations.Confirm(&request)
 		if err != nil {
 			return nil, clientGlobalHandlerError(err)
 		}

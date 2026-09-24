@@ -29,6 +29,8 @@ public record SessionMcpStartServerParams(
     /** Name of the MCP server to start */
     @JsonProperty("serverName") String serverName,
     /** MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name). */
-    @JsonProperty("config") Object config
+    @JsonProperty("config") Object config,
+    /** Exact receipt identity for explicit owned activation in this session. */
+    @JsonProperty("expectedInstallationId") String expectedInstallationId
 ) {
 }

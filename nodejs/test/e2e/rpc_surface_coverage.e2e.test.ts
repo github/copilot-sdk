@@ -313,7 +313,23 @@ describe("Generated RPC surface coverage", () => {
             ...collectRuntimeFunctions(session.rpc, "session"),
         ]);
 
-        expect(inventory).toHaveLength(355);
+        expect(inventory).toHaveLength(365);
+        const boundInstallationMethods = [
+            "mcp.prepareInstall",
+            "mcp.applyInstall",
+            "mcp.planUninstall",
+            "mcp.applyUninstall",
+            "mcp.installations.list",
+            "mcp.installations.recover",
+            "mcp.installations.status",
+            "mcp.installations.cancel",
+        ];
+        for (const wireMethod of boundInstallationMethods) {
+            expect(
+                inventory.filter((method) => method.wireMethod === wireMethod),
+                `Missing generated server RPC ${wireMethod}`
+            ).toEqual([expect.objectContaining({ scope: "server", path: wireMethod })]);
+        }
         expect([...runtimeFunctions.keys()].sort()).toEqual(
             inventory.map((method) => `${method.scope}.${method.path}`)
         );

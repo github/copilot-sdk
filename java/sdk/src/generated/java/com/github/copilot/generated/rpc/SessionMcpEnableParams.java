@@ -26,6 +26,8 @@ import javax.annotation.processing.Generated;
 public record SessionMcpEnableParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Exact receipt identity for explicit owned activation in this session. */
+    @JsonProperty("expectedInstallationId") String expectedInstallationId,
     /** Name of the MCP server to enable */
     @JsonProperty("serverName") String serverName
 ) {

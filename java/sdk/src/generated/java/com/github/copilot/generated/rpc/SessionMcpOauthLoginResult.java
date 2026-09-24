@@ -24,6 +24,10 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionMcpOauthLoginResult(
+    /** Runtime-issued owned flow identity; never a server name or installation operation ID. */
+    @JsonProperty("loginId") String loginId,
+    /** Explicit outcome for owned sign-in. Manual callers retain their legacy response shape. */
+    @JsonProperty("status") McpOwnedOauthLoginStatus status,
     /** URL the caller should open in a browser to complete OAuth. Omitted when cached tokens were still valid and no browser interaction was needed — the server is already reconnected in that case. When present, the runtime starts the callback listener before returning and continues the flow in the background; completion is signaled via session.mcp_server_status_changed. */
     @JsonProperty("authorizationUrl") String authorizationUrl
 ) {

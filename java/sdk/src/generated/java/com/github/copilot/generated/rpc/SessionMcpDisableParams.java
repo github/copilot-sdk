@@ -26,6 +26,8 @@ import javax.annotation.processing.Generated;
 public record SessionMcpDisableParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Required for an owned installation; omission preserves only manual-server behaviour. */
+    @JsonProperty("expectedInstallationId") String expectedInstallationId,
     /** Name of the MCP server to disable */
     @JsonProperty("serverName") String serverName
 ) {

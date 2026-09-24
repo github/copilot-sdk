@@ -10,6 +10,11 @@
 import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
+import type { InstallationConfirmationHandler } from "./installationConfirmation.js";
+export type {
+    InstallationConfirmationContext,
+    InstallationConfirmationHandler,
+} from "./installationConfirmation.js";
 import type {
     AttachmentExtensionContext as GeneratedExtensionContextAttachment,
     AutoTier,
@@ -59,6 +64,11 @@ export type {
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
     GitHubTelemetryClientInfo,
+    InstallationConfirmationRequest,
+    InstallationConfirmationResponse,
+    InstallationDecision,
+    InstallationReview,
+    McpInstallationReview,
 } from "./generated/rpc.js";
 
 /**
@@ -413,6 +423,13 @@ export interface CopilotClientOptions {
      * @experimental
      */
     extensionLaunchProvider?: ExtensionLaunchProvider;
+
+    /**
+     * Connection-global human review for experimental installation operations.
+     * Does not register or enable installation capabilities on the runtime.
+     * @experimental
+     */
+    installationConfirmationHandler?: InstallationConfirmationHandler;
 
     /**
      * Log level for the Copilot runtime. When omitted, the runtime uses its

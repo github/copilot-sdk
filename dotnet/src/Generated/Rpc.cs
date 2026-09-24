@@ -2319,11 +2319,18 @@ public partial class McpPlanInstallSourceCard : McpPlanInstallSource
 
 /// <summary>A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class McpPlanInstallRequest
+public sealed class McpPlanInstallRequest
 {
     /// <summary>Protocol version and capabilities the caller requires.</summary>
     [JsonPropertyName("contract")]
     public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>The same existing attached session that owns the original catalogue candidate.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("policySessionId")]
+    public string? PolicySessionId { get; set; }
 
     /// <summary>Configuration scope the plan targets. Defaults to user scope when omitted.</summary>
     [JsonPropertyName("scope")]
@@ -2332,6 +2339,757 @@ internal sealed class McpPlanInstallRequest
     /// <summary>What to plan: either a candidate handle from a previous search, or a card supplied directly.</summary>
     [JsonPropertyName("source")]
     public McpPlanInstallSource Source { get => field ??= new(); set; }
+}
+
+/// <summary>Management result with contract receipt, or a typed request/negotiation refusal.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpInstallationManagementResultOutcome), "outcome")]
+[JsonDerivedType(typeof(McpInstallationManagementResultNegotiationRefused), "negotiation-refused")]
+[JsonDerivedType(typeof(McpInstallationManagementResultInvalidRequest), "invalid-request")]
+public partial class McpInstallationManagementResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>Read-only or recovery management result, never permission to activate or replay.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpInstallationManagementOutcomeRecoveryRequired), "recovery-required")]
+[JsonDerivedType(typeof(McpInstallationManagementOutcomeInstallPrepared), "install-prepared")]
+[JsonDerivedType(typeof(McpInstallationManagementOutcomeListed), "listed")]
+[JsonDerivedType(typeof(McpInstallationManagementOutcomeRecovered), "recovered")]
+[JsonDerivedType(typeof(McpInstallationManagementOutcomeUninstallPlanned), "uninstall-planned")]
+[JsonDerivedType(typeof(McpInstallationManagementOutcomeOperation), "operation")]
+[JsonDerivedType(typeof(McpInstallationManagementOutcomeRefused), "refused")]
+public partial class McpInstallationManagementOutcome
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>Already-confirmed durable work must be reconciled before new mutations or inventory.</summary>
+/// <remarks>The <c>recovery-required</c> variant of <see cref="McpInstallationManagementOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationManagementOutcomeRecoveryRequired : McpInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "recovery-required";
+}
+
+/// <summary>Inert, runtime-owned admission. The operation ID is known before confirmation or effects.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class McpPreparedInstall
+{
+    /// <summary>Original plan expiry in Unix epoch milliseconds; preparation does not extend it.</summary>
+    [JsonPropertyName("expiresAtEpochMs")]
+    public long ExpiresAtEpochMs { get; set; }
+
+    /// <summary>Original connection-owned operation, known before the first confirmation callback.</summary>
+    [JsonPropertyName("operationId")]
+    public string OperationId { get; set; } = string.Empty;
+}
+
+/// <summary>The <c>install-prepared</c> variant of <see cref="McpInstallationManagementOutcome"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationManagementOutcomeInstallPrepared : McpInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "install-prepared";
+
+    /// <summary>Known original operation identity, returned before callback or effects.</summary>
+    [JsonPropertyName("operation")]
+    public required McpPreparedInstall Operation { get; set; }
+}
+
+/// <summary>Durable configuration ownership is distinct from session-specific usability.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class McpInstallationSummary
+{
+    /// <summary>Exact alternative retained in the installing receipt.</summary>
+    [JsonPropertyName("choiceId")]
+    public string ChoiceId { get; set; } = string.Empty;
+
+    /// <summary>Identity retained from the validated original plan.</summary>
+    [JsonPropertyName("identity")]
+    public McpPlanResourceIdentity Identity { get => field ??= new(); set; }
+
+    /// <summary>Exact durable installation receipt identity.</summary>
+    [JsonPropertyName("installationId")]
+    public string InstallationId { get; set; } = string.Empty;
+
+    /// <summary>Original installing operation, not a fresh management operation.</summary>
+    [JsonPropertyName("operationId")]
+    public string OperationId { get; set; } = string.Empty;
+
+    /// <summary>Ownership or setup state, never inferred proof of tool usability.</summary>
+    [JsonPropertyName("state")]
+    public McpInstallationState State { get; set; }
+}
+
+/// <summary>The <c>listed</c> variant of <see cref="McpInstallationManagementOutcome"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationManagementOutcomeListed : McpInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "listed";
+
+    /// <summary>Owned receipts visible to the selected account and host.</summary>
+    [JsonPropertyName("installations")]
+    public required IList<McpInstallationSummary> Installations { get; set; }
+}
+
+/// <summary>The <c>recovered</c> variant of <see cref="McpInstallationManagementOutcome"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationManagementOutcomeRecovered : McpInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "recovered";
+
+    /// <summary>Freshly inspected receipts after successful durable reconciliation.</summary>
+    [JsonPropertyName("installations")]
+    public required IList<McpInstallationSummary> Installations { get; set; }
+}
+
+/// <summary>Exact inert removal plan. No configuration or credentials have changed.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class McpUninstallPlan
+{
+    /// <summary>Original wall-clock expiry in milliseconds. Applying never renews it.</summary>
+    [JsonPropertyName("expiresAtEpochMs")]
+    public long ExpiresAtEpochMs { get; set; }
+
+    /// <summary>Original owned receipt being removed.</summary>
+    [JsonPropertyName("installation")]
+    public McpInstallationSummary Installation { get => field ??= new(); set; }
+
+    /// <summary>The original operation, inspectable and cancellable on this same connection.</summary>
+    [JsonPropertyName("operationId")]
+    public string OperationId { get; set; } = string.Empty;
+
+    /// <summary>Exact configured input slots owned by this installation, never shared OAuth tokens.</summary>
+    [JsonPropertyName("ownedSecretCount")]
+    public long OwnedSecretCount { get; set; }
+
+    /// <summary>One-use original connection and authority-bound plan handle.</summary>
+    [JsonPropertyName("planHandle")]
+    public string PlanHandle { get; set; } = string.Empty;
+
+    /// <summary>Shared authentication is deliberately retained; revocation is a separate action.</summary>
+    [JsonPropertyName("preservesSharedAuthentication")]
+    public bool PreservesSharedAuthentication { get; set; }
+
+    /// <summary>Whether removal restores a protected earlier configuration.</summary>
+    [JsonPropertyName("restoresPreviousConfiguration")]
+    public bool RestoresPreviousConfiguration { get; set; }
+}
+
+/// <summary>The <c>uninstall-planned</c> variant of <see cref="McpInstallationManagementOutcome"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationManagementOutcomeUninstallPlanned : McpInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "uninstall-planned";
+
+    /// <summary>Original owned removal plan and operation.</summary>
+    [JsonPropertyName("plan")]
+    public required McpUninstallPlan Plan { get; set; }
+}
+
+/// <summary>Status snapshot from the original connection, independent of new-work account availability.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>phase</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "phase",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpInstallationOperationStatusPreparing), "preparing")]
+[JsonDerivedType(typeof(McpInstallationOperationStatusPrepared), "prepared")]
+[JsonDerivedType(typeof(McpInstallationOperationStatusAwaitingConfirmation), "awaiting-confirmation")]
+[JsonDerivedType(typeof(McpInstallationOperationStatusRevalidating), "revalidating")]
+[JsonDerivedType(typeof(McpInstallationOperationStatusApplying), "applying")]
+[JsonDerivedType(typeof(McpInstallationOperationStatusCompleted), "completed")]
+public partial class McpInstallationOperationStatus
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("phase")]
+    public virtual string Phase { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>preparing</c> variant of <see cref="McpInstallationOperationStatus"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOperationStatusPreparing : McpInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "preparing";
+
+    /// <summary>Whether cancellation has been requested, not proof that a write was undone.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>The <c>prepared</c> variant of <see cref="McpInstallationOperationStatus"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOperationStatusPrepared : McpInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "prepared";
+
+    /// <summary>Whether the inert prepared operation was asked to cancel.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>The <c>awaiting-confirmation</c> variant of <see cref="McpInstallationOperationStatus"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOperationStatusAwaitingConfirmation : McpInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "awaiting-confirmation";
+
+    /// <summary>Whether the pending human callback was asked to cancel.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>The <c>revalidating</c> variant of <see cref="McpInstallationOperationStatus"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOperationStatusRevalidating : McpInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "revalidating";
+
+    /// <summary>Whether source or authority revalidation was asked to cancel.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>The <c>applying</c> variant of <see cref="McpInstallationOperationStatus"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOperationStatusApplying : McpInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "applying";
+
+    /// <summary>Whether applying was asked to cancel; already-started effects retain their lease.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>Terminal mutation result. Uncertainty is not approval, rollback or permission to replay.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpInstallationOutcomeInstalled), "installed")]
+[JsonDerivedType(typeof(McpInstallationOutcomeUninstalled), "uninstalled")]
+[JsonDerivedType(typeof(McpInstallationOutcomeRolledBack), "rolled-back")]
+[JsonDerivedType(typeof(McpInstallationOutcomeRecoveryRequired), "recovery-required")]
+[JsonDerivedType(typeof(McpInstallationOutcomeDeclined), "declined")]
+[JsonDerivedType(typeof(McpInstallationOutcomeCancelled), "cancelled")]
+[JsonDerivedType(typeof(McpInstallationOutcomeRefused), "refused")]
+public partial class McpInstallationOutcome
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>installed</c> variant of <see cref="McpInstallationOutcome"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOutcomeInstalled : McpInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "installed";
+
+    /// <summary>Durable installation succeeded but final transaction cleanup remains.</summary>
+    [JsonPropertyName("cleanupPending")]
+    public required bool CleanupPending { get; set; }
+
+    /// <summary>Receipt identity produced by the confirmed transaction.</summary>
+    [JsonPropertyName("installation")]
+    public required McpInstallationSummary Installation { get; set; }
+}
+
+/// <summary>The <c>uninstalled</c> variant of <see cref="McpInstallationOutcome"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOutcomeUninstalled : McpInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "uninstalled";
+
+    /// <summary>Durable removal succeeded but final cleanup remains.</summary>
+    [JsonPropertyName("cleanupPending")]
+    public required bool CleanupPending { get; set; }
+
+    /// <summary>Exact removed receipt identity.</summary>
+    [JsonPropertyName("installationId")]
+    public required string InstallationId { get; set; }
+
+    /// <summary>Original removal operation.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+
+    /// <summary>Any grants in the incumbent shared OAuth store remain unowned and retained.</summary>
+    [JsonPropertyName("preservedSharedAuthentication")]
+    public required bool PreservedSharedAuthentication { get; set; }
+
+    /// <summary>Exact owned input slots removed, excluding shared OAuth credentials.</summary>
+    [JsonPropertyName("removedOwnedSecrets")]
+    public required long RemovedOwnedSecrets { get; set; }
+
+    /// <summary>Whether protected pre-install configuration was restored.</summary>
+    [JsonPropertyName("restoredPreviousConfiguration")]
+    public required bool RestoredPreviousConfiguration { get; set; }
+}
+
+/// <summary>The durable transaction was aborted or fully compensated.</summary>
+/// <remarks>The <c>rolled-back</c> variant of <see cref="McpInstallationOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOutcomeRolledBack : McpInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "rolled-back";
+
+    /// <summary>Original connection-owned operation.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+
+    /// <summary>Cause of the fully aborted or compensated operation.</summary>
+    [JsonPropertyName("reason")]
+    public required McpInstallationFailureReason Reason { get; set; }
+}
+
+/// <summary>A write may have completed. Recover and inspect durable state before retrying.</summary>
+/// <remarks>The <c>recovery-required</c> variant of <see cref="McpInstallationOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOutcomeRecoveryRequired : McpInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "recovery-required";
+
+    /// <summary>Operation whose durable result must be recovered and inspected.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>The <c>declined</c> variant of <see cref="McpInstallationOutcome"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOutcomeDeclined : McpInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "declined";
+
+    /// <summary>Original operation explicitly declined by the user.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>The <c>cancelled</c> variant of <see cref="McpInstallationOutcome"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOutcomeCancelled : McpInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "cancelled";
+
+    /// <summary>Original operation cancelled before a terminal application result.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>The <c>refused</c> variant of <see cref="McpInstallationOutcome"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOutcomeRefused : McpInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "refused";
+
+    /// <summary>Present once an operation has been allocated; never a plan handle.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("operationId")]
+    public string? OperationId { get; set; }
+
+    /// <summary>Specific bounded refusal, never a success-shaped fallback.</summary>
+    [JsonPropertyName("reason")]
+    public required McpInstallationFailureReason Reason { get; set; }
+}
+
+/// <summary>The <c>completed</c> variant of <see cref="McpInstallationOperationStatus"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationOperationStatusCompleted : McpInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "completed";
+
+    /// <summary>Whether cancellation was requested before the terminal result.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+
+    /// <summary>Immutable terminal receipt.</summary>
+    [JsonPropertyName("outcome")]
+    public required McpInstallationOutcome Outcome { get; set; }
+}
+
+/// <summary>The <c>operation</c> variant of <see cref="McpInstallationManagementOutcome"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationManagementOutcomeOperation : McpInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "operation";
+
+    /// <summary>Original-connection operation snapshot.</summary>
+    [JsonPropertyName("operation")]
+    public required McpInstallationOperationStatus Operation { get; set; }
+}
+
+/// <summary>The <c>refused</c> variant of <see cref="McpInstallationManagementOutcome"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationManagementOutcomeRefused : McpInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "refused";
+
+    /// <summary>Specific bounded refusal.</summary>
+    [JsonPropertyName("reason")]
+    public required McpInstallationFailureReason Reason { get; set; }
+}
+
+/// <summary>The <c>outcome</c> variant of <see cref="McpInstallationManagementResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationManagementResultOutcome : McpInstallationManagementResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "outcome";
+
+    /// <summary>Capabilities actually honoured for this request.</summary>
+    [JsonPropertyName("negotiated")]
+    public required CatalogNegotiatedContract Negotiated { get; set; }
+
+    /// <summary>Observed management outcome.</summary>
+    [JsonPropertyName("outcome")]
+    public required McpInstallationManagementOutcome Outcome { get; set; }
+}
+
+/// <summary>The caller's protocol version or required capabilities cannot be honoured. Returned instead of a partial or ambiguous success.</summary>
+/// <remarks>The <c>negotiation-refused</c> variant of <see cref="McpInstallationManagementResult"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationManagementResultNegotiationRefused : McpInstallationManagementResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "negotiation-refused";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Lowest caller protocol version this runtime will serve.</summary>
+    [JsonPropertyName("minimumSupportedProtocolVersion")]
+    public required long MinimumSupportedProtocolVersion { get; set; }
+
+    /// <summary>Whether the version or the capability set was the problem.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogNegotiationRefusedReason Reason { get; set; }
+
+    /// <summary>Protocol version of the runtime that refused the request.</summary>
+    [JsonPropertyName("runtimeProtocolVersion")]
+    public required long RuntimeProtocolVersion { get; set; }
+
+    /// <summary>Capabilities this runtime can safely advertise to this caller. The complete five-capability protocol-3 legacy set is always present; every capability added after that baseline appears only when the caller required it, so an older closed-enum decoder can still consume a refusal. This list does not imply that every deployment has enabled every operation.</summary>
+    [JsonPropertyName("supportedCapabilities")]
+    public required IList<string> SupportedCapabilities { get; set; }
+
+    /// <summary>The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.</summary>
+    [JsonPropertyName("unsupportedCapabilities")]
+    public required IList<string> UnsupportedCapabilities { get; set; }
+}
+
+/// <summary>The request was rejected because a bounded field fell outside its permitted range or a required field was unusable. Pagination may also be rejected by the authority after a continuation request; repeat the search without page.</summary>
+/// <remarks>The <c>invalid-request</c> variant of <see cref="McpInstallationManagementResult"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationManagementResultInvalidRequest : McpInstallationManagementResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "invalid-request";
+
+    /// <summary>Which request field was rejected.</summary>
+    [JsonPropertyName("field")]
+    public required CatalogInvalidRequestField Field { get; set; }
+
+    /// <summary>Human-readable explanation, safe to surface. Never echoes the offending value, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+/// <summary>One Registry string-valued configuration entry for the selected transport.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class McpInstallationInput
+{
+    /// <summary>Exact category declared by the selected choice.</summary>
+    [JsonPropertyName("category")]
+    public McpPlanValueCategory Category { get; set; }
+
+    /// <summary>Exact key declared by the selected choice.</summary>
+    [JsonPropertyName("key")]
+    public string Key { get; set; } = string.Empty;
+
+    /// <summary>Explicit non-secret value. Secret placeholders use a separate input channel.</summary>
+    [JsonPropertyName("value")]
+    public string Value { get; set; } = string.Empty;
+}
+
+/// <summary>A request-local value for one exact reviewed placeholder. Never logged or persisted in a plan.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class McpInstallationSecret
+{
+    /// <summary>Exact placeholder from the selected choice, not a caller-chosen backend identifier.</summary>
+    [JsonPropertyName("placeholder")]
+    public string Placeholder { get; set; } = string.Empty;
+
+    /// <summary>Fresh explicit secret value. It is omitted from confirmation reviews and telemetry.</summary>
+    [JsonPropertyName("value")]
+    public string Value { get; set; } = string.Empty;
+}
+
+/// <summary>Side-effect-free preparation of one original bound, input-free remote MCP choice.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpPrepareInstallRequest
+{
+    /// <summary>Exact selected alternative from that plan.</summary>
+    [JsonPropertyName("choiceId")]
+    public string ChoiceId { get; set; } = string.Empty;
+
+    /// <summary>Required bound catalogue and confirmed remote installation capabilities.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Must be empty for the initial input-free remote installation capability.</summary>
+    [JsonPropertyName("inputs")]
+    public IList<McpInstallationInput> Inputs { get => field ??= []; set; }
+
+    /// <summary>Original single-use bound plan, never a client-authored configuration.</summary>
+    [JsonPropertyName("planHandle")]
+    public string PlanHandle { get; set; } = string.Empty;
+
+    /// <summary>An existing local session attached to this connection, not permission to attach one.</summary>
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
+
+    /// <summary>Must be empty; this capability does not allocate configured-input secrets.</summary>
+    [JsonPropertyName("secrets")]
+    public IList<McpInstallationSecret> Secrets { get => field ??= []; set; }
+
+    /// <summary>The trusted host presents this choice alongside the exact secret placeholders.</summary>
+    [JsonPropertyName("secretStorage")]
+    public McpInstallationSecretStorage SecretStorage { get; set; }
+
+    /// <summary>The exact original source, used transiently only after confirmation.</summary>
+    [JsonPropertyName("source")]
+    public McpServerCardReference Source { get => field ??= new(); set; }
+}
+
+/// <summary>An installation result together with the exact honoured contract, or a negotiation refusal.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpInstallationResultOutcome), "outcome")]
+[JsonDerivedType(typeof(McpInstallationResultNegotiationRefused), "negotiation-refused")]
+[JsonDerivedType(typeof(McpInstallationResultInvalidRequest), "invalid-request")]
+public partial class McpInstallationResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>outcome</c> variant of <see cref="McpInstallationResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationResultOutcome : McpInstallationResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "outcome";
+
+    /// <summary>Capabilities actually honoured for this request.</summary>
+    [JsonPropertyName("negotiated")]
+    public required CatalogNegotiatedContract Negotiated { get; set; }
+
+    /// <summary>Terminal result of the original operation.</summary>
+    [JsonPropertyName("outcome")]
+    public required McpInstallationOutcome Outcome { get; set; }
+}
+
+/// <summary>The caller's protocol version or required capabilities cannot be honoured. Returned instead of a partial or ambiguous success.</summary>
+/// <remarks>The <c>negotiation-refused</c> variant of <see cref="McpInstallationResult"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationResultNegotiationRefused : McpInstallationResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "negotiation-refused";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Lowest caller protocol version this runtime will serve.</summary>
+    [JsonPropertyName("minimumSupportedProtocolVersion")]
+    public required long MinimumSupportedProtocolVersion { get; set; }
+
+    /// <summary>Whether the version or the capability set was the problem.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogNegotiationRefusedReason Reason { get; set; }
+
+    /// <summary>Protocol version of the runtime that refused the request.</summary>
+    [JsonPropertyName("runtimeProtocolVersion")]
+    public required long RuntimeProtocolVersion { get; set; }
+
+    /// <summary>Capabilities this runtime can safely advertise to this caller. The complete five-capability protocol-3 legacy set is always present; every capability added after that baseline appears only when the caller required it, so an older closed-enum decoder can still consume a refusal. This list does not imply that every deployment has enabled every operation.</summary>
+    [JsonPropertyName("supportedCapabilities")]
+    public required IList<string> SupportedCapabilities { get; set; }
+
+    /// <summary>The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.</summary>
+    [JsonPropertyName("unsupportedCapabilities")]
+    public required IList<string> UnsupportedCapabilities { get; set; }
+}
+
+/// <summary>The request was rejected because a bounded field fell outside its permitted range or a required field was unusable. Pagination may also be rejected by the authority after a continuation request; repeat the search without page.</summary>
+/// <remarks>The <c>invalid-request</c> variant of <see cref="McpInstallationResult"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationResultInvalidRequest : McpInstallationResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "invalid-request";
+
+    /// <summary>Which request field was rejected.</summary>
+    [JsonPropertyName("field")]
+    public required CatalogInvalidRequestField Field { get; set; }
+
+    /// <summary>Human-readable explanation, safe to surface. Never echoes the offending value, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+/// <summary>Applies exactly one previously prepared operation on its original connection.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpApplyInstallRequest
+{
+    /// <summary>Capabilities required by the original prepared operation.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Runtime-issued ID already returned by prepareInstall, never reused or rebound.</summary>
+    [JsonPropertyName("operationId")]
+    public string OperationId { get; set; } = string.Empty;
+
+    /// <summary>Same existing attached or privately borrowed session as preparation.</summary>
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Read-only preparation of one owned removal under fresh selected-session authority.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpPlanUninstallRequest
+{
+    /// <summary>Required authenticated bound installation capabilities.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Exact receipt to inspect, not a server-name guess.</summary>
+    [JsonPropertyName("installationId")]
+    public string InstallationId { get; set; } = string.Empty;
+
+    /// <summary>Existing selected session on the original connection.</summary>
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
+}
+
+/// <summary>One-use application of the exact retained removal plan.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpApplyUninstallRequest
+{
+    /// <summary>Required authenticated bound installation capabilities.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Opaque original removal plan, consumed once.</summary>
+    [JsonPropertyName("planHandle")]
+    public string PlanHandle { get; set; } = string.Empty;
+
+    /// <summary>Same existing selected session as removal preparation.</summary>
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
 }
 
 /// <summary>User-configured MCP servers, keyed by server name.</summary>
@@ -2407,6 +3165,32 @@ internal sealed class McpConfigDisableRequest
     /// <summary>Names of MCP servers to disable. Each server is added to the persisted disabled list so new sessions skip it. Already-disabled names are ignored. Active sessions keep their current connections until they end.</summary>
     [JsonPropertyName("names")]
     public IList<string> Names { get => field ??= []; set; }
+}
+
+/// <summary>New-work inventory or recovery request under an explicitly selected existing session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpInstallationsRequest
+{
+    /// <summary>Required authenticated bound installation contract.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Existing selected local session on this connection.</summary>
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Existing-operation control. A new session selector is deliberately not accepted.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpInstallationOperationRequest
+{
+    /// <summary>Original installation wire capability; new-work authentication is not reacquired.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Exact runtime-issued operation ID on the original connection.</summary>
+    [JsonPropertyName("operationId")]
+    public string OperationId { get; set; } = string.Empty;
 }
 
 /// <summary>Installed plugin that contributes a discovered extension.</summary>
@@ -3040,7 +3824,7 @@ public sealed class CatalogSearchPagination
     [JsonPropertyName("pageSize")]
     public int PageSize { get; set; }
 
-    /// <summary>Opaque authority-issued pagination token. Only the runtime decodes it or changes targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created expiry or cache.</summary>
+    /// <summary>Opaque pagination token. Session-bound search returns an expiring runtime-owned reference retaining the exact private authority token, original search and authority. Legacy unbound search returns the authority token unchanged, without a runtime-created expiry. Only the runtime unwraps tokens or changes targetPage; SDK consumers must not decode, modify or log them.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [MaxLength(4096)]
@@ -3325,7 +4109,7 @@ public partial class CatalogSearchResultUnavailable : CatalogSearchResult
     public required CatalogUnavailableReason Reason { get; set; }
 }
 
-/// <summary>An explicit numbered-page request. The SDK treats the token as opaque; only the runtime decodes it and changes its targetPage. Authority validation binds navigation to the original search. No snapshot stability or token TTL is promised.</summary>
+/// <summary>An explicit numbered-page request. SDK consumers treat the token as opaque. For bound search, the runtime unwraps an expiring owner-bound reference to the private authority token; only the runtime changes the authority token's targetPage. Legacy unbound navigation keeps its authority-issued token semantics. No snapshot stability is promised.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class CatalogSearchPage
 {
@@ -3333,7 +4117,7 @@ public sealed class CatalogSearchPage
     [JsonPropertyName("number")]
     public int Number { get; set; }
 
-    /// <summary>Opaque authority-issued pagination token from an earlier response. Never decode, modify or log it in an SDK consumer.</summary>
+    /// <summary>Opaque pagination token from an earlier response, owner-bound when session-bound search was requested. Never decode, modify or log it in an SDK consumer. Expired or foreign bound references require a fresh bound search, not a legacy retry.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [MaxLength(4096)]
@@ -3343,7 +4127,7 @@ public sealed class CatalogSearchPage
 
 /// <summary>A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class CatalogSearchRequest
+public sealed class CatalogSearchRequest
 {
     /// <summary>Protocol version and capabilities the caller requires.</summary>
     [JsonPropertyName("contract")]
@@ -3360,6 +4144,16 @@ internal sealed class CatalogSearchRequest
     /// <summary>Numbered navigation using metadata from an earlier response. Requires catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh first-page search.</summary>
     [JsonPropertyName("page")]
     public CatalogSearchPage? Page { get; set; }
+
+    /// <summary>
+    /// Select an existing attached local session. Requires authenticated, session-bound search.
+    /// The runtime never creates, resumes or reconfigures a session to honour this selector.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("policySessionId")]
+    public string? PolicySessionId { get; set; }
 
     /// <summary>Free-text search query. Persisted as tool input for session continuity, but omitted from telemetry.</summary>
     [RegularExpression("\\S")]
@@ -12583,8 +13377,28 @@ internal sealed class McpListToolsRequest
 
 /// <summary>Name of the MCP server to enable for the session.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class McpEnableRequest
+public sealed class McpEnableRequest
 {
+    /// <summary>Exact receipt identity for explicit owned activation in this session.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
+    /// <summary>Name of the MCP server to enable.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+}
+
+/// <summary>Name of the MCP server to enable for the session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpEnableRequestWithSession
+{
+    /// <summary>Exact receipt identity for explicit owned activation in this session.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
     /// <summary>Name of the MCP server to enable.</summary>
     [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
@@ -12599,8 +13413,28 @@ internal sealed class McpEnableRequest
 
 /// <summary>Name of the MCP server to disable for the session.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class McpDisableRequest
+public sealed class McpDisableRequest
 {
+    /// <summary>Required for an owned installation; omission preserves only manual-server behaviour.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
+    /// <summary>Name of the MCP server to disable.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+}
+
+/// <summary>Name of the MCP server to disable for the session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpDisableRequestWithSession
+{
+    /// <summary>Required for an owned installation; omission preserves only manual-server behaviour.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
     /// <summary>Name of the MCP server to disable.</summary>
     [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
@@ -12853,11 +13687,32 @@ internal sealed class McpConfigureGitHubRequest
 
 /// <summary>Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class McpStartServerRequest
+public sealed class McpStartServerRequest
 {
     /// <summary>MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name).</summary>
     [JsonPropertyName("config")]
     public JsonElement? Config { get; set; }
+
+    /// <summary>Exact receipt identity for explicit owned activation in this session.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
+    /// <summary>Name of the MCP server to start.</summary>
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+}
+
+/// <summary>Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpStartServerRequestWithSession
+{
+    /// <summary>MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name).</summary>
+    [JsonPropertyName("config")]
+    public JsonElement? Config { get; set; }
+
+    /// <summary>Exact receipt identity for explicit owned activation in this session.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
 
     /// <summary>Name of the MCP server to start.</summary>
     [JsonPropertyName("serverName")]
@@ -12870,11 +13725,32 @@ internal sealed class McpStartServerRequest
 
 /// <summary>Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class McpRestartServerRequest
+public sealed class McpRestartServerRequest
 {
     /// <summary>Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart the server with its already-registered configuration (config-free restart-by-name).</summary>
     [JsonPropertyName("config")]
     public JsonElement? Config { get; set; }
+
+    /// <summary>Exact receipt identity for an explicit owned restart; configuration overrides are refused.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
+    /// <summary>Name of the MCP server to restart.</summary>
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+}
+
+/// <summary>Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpRestartServerRequestWithSession
+{
+    /// <summary>Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart the server with its already-registered configuration (config-free restart-by-name).</summary>
+    [JsonPropertyName("config")]
+    public JsonElement? Config { get; set; }
+
+    /// <summary>Exact receipt identity for an explicit owned restart; configuration overrides are refused.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
 
     /// <summary>Name of the MCP server to restart.</summary>
     [JsonPropertyName("serverName")]
@@ -12887,8 +13763,25 @@ internal sealed class McpRestartServerRequest
 
 /// <summary>Server name for an individual MCP server stop.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class McpStopServerRequest
+public sealed class McpStopServerRequest
 {
+    /// <summary>Exact owned receipt identity. Stop also forgets this session's durable activation.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
+    /// <summary>Name of the MCP server to stop.</summary>
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+}
+
+/// <summary>Server name for an individual MCP server stop.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpStopServerRequestWithSession
+{
+    /// <summary>Exact owned receipt identity. Stop also forgets this session's durable activation.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
     /// <summary>Name of the MCP server to stop.</summary>
     [JsonPropertyName("serverName")]
     public string ServerName { get; set; } = string.Empty;
@@ -13037,6 +13930,52 @@ internal sealed class McpOauthAuthenticationStateChangedRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>An inert runtime-issued login handle. Preparation alone performs no activation or OAuth work.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionMcpOauthPrepareLoginResult
+{
+    /// <summary>Original expiry, not extended by consumption, retries or cancellation.</summary>
+    [JsonPropertyName("expiresAt")]
+    public DateTimeOffset ExpiresAt { get; set; }
+
+    /// <summary>Retain with the original requester and use for one login or cancellation.</summary>
+    [JsonPropertyName("loginId")]
+    public string LoginId { get; set; } = string.Empty;
+}
+
+/// <summary>Effect-free preparation bound to the existing local session, requester and installation, with frozen options.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionMcpOauthPrepareLoginRequest
+{
+    /// <summary>Text shown on the loopback callback page after successful authorisation.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(2048)]
+    [JsonPropertyName("callbackSuccessMessage")]
+    public string? CallbackSuccessMessage { get; set; }
+
+    /// <summary>Display name used by the incumbent OAuth client-registration flow.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(2048)]
+    [JsonPropertyName("clientName")]
+    public string? ClientName { get; set; }
+
+    /// <summary>Exact installation identity from owned inventory, never a server-name alias.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string ExpectedInstallationId { get; set; } = string.Empty;
+
+    /// <summary>Request a new authorisation rather than accepting a usable cached grant.</summary>
+    [JsonPropertyName("forceReauth")]
+    public bool? ForceReauth { get; set; }
+
+    /// <summary>Name recorded by the authoritative owned installation receipt.</summary>
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class McpOauthLoginResult
@@ -13046,11 +13985,19 @@ public sealed class McpOauthLoginResult
     [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("authorizationUrl")]
     public string? AuthorizationUrl { get; set; }
+
+    /// <summary>Runtime-issued owned flow identity; never a server name or installation operation ID.</summary>
+    [JsonPropertyName("loginId")]
+    public string? LoginId { get; set; }
+
+    /// <summary>Explicit outcome for owned sign-in. Manual callers retain their legacy response shape.</summary>
+    [JsonPropertyName("status")]
+    public McpOwnedOauthLoginStatus? Status { get; set; }
 }
 
 /// <summary>Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class McpOauthLoginRequest
+public sealed class McpOauthLoginRequest
 {
     /// <summary>Optional override for the body text shown on the OAuth loopback callback success page. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass surface-specific copy telling the user where to return.</summary>
     [JsonPropertyName("callbackSuccessMessage")]
@@ -13068,6 +14015,10 @@ internal sealed class McpOauthLoginRequest
     [JsonPropertyName("clientSecret")]
     public string? ClientSecret { get; set; }
 
+    /// <summary>Exact owned receipt identity. Owned login never uses an implicit helper session.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
     /// <summary>When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.</summary>
     [JsonPropertyName("forceReauth")]
     public bool? ForceReauth { get; set; }
@@ -13075,6 +14026,64 @@ internal sealed class McpOauthLoginRequest
     /// <summary>Optional OAuth grant type override for this login. Defaults to the server configuration, or authorization_code when no grant type is specified.</summary>
     [JsonPropertyName("grantType")]
     public McpOauthLoginGrantType? GrantType { get; set; }
+
+    /// <summary>
+    /// Required for owned login. Consumes the exact prepareLogin handle once.
+    /// Set forceReauth and display options during preparation, not consumption.
+    /// </summary>
+    [JsonPropertyName("loginId")]
+    public string? LoginId { get; set; }
+
+    /// <summary>Optional override indicating whether the static OAuth client is public. When false, the runtime treats it as confidential and uses the per-login clientSecret if provided, otherwise retrieving the client secret from the MCP OAuth secret store.</summary>
+    [JsonPropertyName("publicClient")]
+    public bool? PublicClient { get; set; }
+
+    /// <summary>Name of the remote MCP server to authenticate.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+}
+
+/// <summary>Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpOauthLoginRequestWithSession
+{
+    /// <summary>Optional override for the body text shown on the OAuth loopback callback success page. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass surface-specific copy telling the user where to return.</summary>
+    [JsonPropertyName("callbackSuccessMessage")]
+    public string? CallbackSuccessMessage { get; set; }
+
+    /// <summary>Optional OAuth client ID override for this login. When set, the runtime uses this pre-registered static client instead of dynamic client registration.</summary>
+    [JsonPropertyName("clientId")]
+    public string? ClientId { get; set; }
+
+    /// <summary>Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.</summary>
+    [JsonPropertyName("clientName")]
+    public string? ClientName { get; set; }
+
+    /// <summary>Optional OAuth client secret override for this login. The runtime treats this as an ephemeral host-owned secret, uses it for this authentication attempt and does not persist it.</summary>
+    [JsonPropertyName("clientSecret")]
+    public string? ClientSecret { get; set; }
+
+    /// <summary>Exact owned receipt identity. Owned login never uses an implicit helper session.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
+    /// <summary>When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.</summary>
+    [JsonPropertyName("forceReauth")]
+    public bool? ForceReauth { get; set; }
+
+    /// <summary>Optional OAuth grant type override for this login. Defaults to the server configuration, or authorization_code when no grant type is specified.</summary>
+    [JsonPropertyName("grantType")]
+    public McpOauthLoginGrantType? GrantType { get; set; }
+
+    /// <summary>
+    /// Required for owned login. Consumes the exact prepareLogin handle once.
+    /// Set forceReauth and display options during preparation, not consumption.
+    /// </summary>
+    [JsonPropertyName("loginId")]
+    public string? LoginId { get; set; }
 
     /// <summary>Optional override indicating whether the static OAuth client is public. When false, the runtime treats it as confidential and uses the per-login clientSecret if provided, otherwise retrieving the client secret from the MCP OAuth secret store.</summary>
     [JsonPropertyName("publicClient")]
@@ -13178,14 +14187,60 @@ public partial class McpOauthProbeResultFailed : McpOauthProbeResult
 
 /// <summary>Remote MCP server name for a passive OAuth status probe.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class McpOauthProbeRequest
+public sealed class McpOauthProbeRequest
 {
+    /// <summary>Exact owned receipt identity; probing never activates a dormant installation.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
     /// <summary>Name of the configured remote MCP server to probe.</summary>
     [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [JsonPropertyName("serverName")]
     public string ServerName { get; set; } = string.Empty;
+}
+
+/// <summary>Remote MCP server name for a passive OAuth status probe.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpOauthProbeRequestWithSession
+{
+    /// <summary>Exact owned receipt identity; probing never activates a dormant installation.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string? ExpectedInstallationId { get; set; }
+
+    /// <summary>Name of the configured remote MCP server to probe.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Honest terminal cancellation result; persistence or recovery failures remain RPC errors.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionMcpOauthCancelLoginResult
+{
+    /// <summary>True after cancellation settles, false when the original login already connected successfully.</summary>
+    [JsonPropertyName("cancelled")]
+    public bool Cancelled { get; set; }
+}
+
+/// <summary>Targets only the original prepared/applying owned login on this exact session requester.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionMcpOauthCancelLoginRequest
+{
+    /// <summary>The same authoritative installation identity supplied during preparation.</summary>
+    [JsonPropertyName("expectedInstallationId")]
+    public string ExpectedInstallationId { get; set; } = string.Empty;
+
+    /// <summary>Runtime-issued login handle known before the effectful login request begins.</summary>
+    [JsonPropertyName("loginId")]
+    public string LoginId { get; set; } = string.Empty;
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -23303,6 +24358,221 @@ public sealed class GitHubTokenAcquireRequest
     public string? SessionId { get; set; }
 }
 
+/// <summary>A response is meaningful only on the connection and request that issued its challenge.</summary>
+public sealed class InstallationsConfirmResult
+{
+    /// <summary>Exact challenge from the request.</summary>
+    [JsonPropertyName("confirmationId")]
+    public string ConfirmationId { get; set; } = string.Empty;
+
+    /// <summary>Fresh explicit user decision. There is no default.</summary>
+    [JsonPropertyName("decision")]
+    public InstallationDecision Decision { get; set; }
+
+    /// <summary>Exact review commitment from the request.</summary>
+    [JsonPropertyName("reviewFingerprint")]
+    public string ReviewFingerprint { get; set; } = string.Empty;
+}
+
+/// <summary>Only resource kinds with an implemented installation engine have a review variant.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>resource</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "resource",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(InstallationReviewMcp), "mcp")]
+public partial class InstallationReview
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("resource")]
+    public virtual string Resource { get; set; } = string.Empty;
+}
+
+
+/// <summary>Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>action</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "action",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpInstallationReviewInstall), "install")]
+[JsonDerivedType(typeof(McpInstallationReviewUninstall), "uninstall")]
+public partial class McpInstallationReview
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("action")]
+    public virtual string Action { get; set; } = string.Empty;
+}
+
+
+/// <summary>
+/// Final remote configuration, not a template. The producer refuses configured
+/// secrets and external-value expansion before presenting this review.
+/// </summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class McpInstallationRemoteConfiguration
+{
+    /// <summary>Literal configured headers, excluding separately authorised OAuth tokens.</summary>
+    [JsonPropertyName("headers")]
+    public IDictionary<string, string> Headers { get => field ??= new Dictionary<string, string>(); set; }
+
+    /// <summary>Configured tool selection, not permission to invoke those tools.</summary>
+    [JsonPropertyName("tools")]
+    public IList<string> Tools { get => field ??= []; set; }
+
+    /// <summary>Transport in the effective persisted remote configuration.</summary>
+    [JsonPropertyName("transport")]
+    public McpPlanRemoteTransport Transport { get; set; }
+
+    /// <summary>Exact resolved endpoint, without templates or secret placeholders.</summary>
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
+}
+
+/// <summary>The <c>install</c> variant of <see cref="McpInstallationReview"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationReviewInstall : McpInstallationReview
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Action => "install";
+
+    /// <summary>Original catalogue trust metadata, not a verification claim.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("catalogueTrust")]
+    public CatalogTrustSnapshot? CatalogueTrust { get; set; }
+
+    /// <summary>The configuration change for the selected alternative only.</summary>
+    [JsonPropertyName("configurationChange")]
+    public required McpPlanConfigurationChange ConfigurationChange { get; set; }
+
+    /// <summary>
+    /// Complete effective remote configuration for final input-free installation review.
+    /// Earlier private selection reviews and package choices omit this field.
+    /// The owned remote resource requires it before issuing confirmation.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("effectiveConfiguration")]
+    public McpInstallationRemoteConfiguration? EffectiveConfiguration { get; set; }
+
+    /// <summary>Identity from the retained plan, not caller display text.</summary>
+    [JsonPropertyName("identity")]
+    public required McpPlanResourceIdentity Identity { get; set; }
+
+    /// <summary>Non-secret values supplied for this selected alternative.</summary>
+    [JsonPropertyName("inputs")]
+    public required IList<McpInstallationInput> Inputs { get; set; }
+
+    /// <summary>Policy decision bound to this plan.</summary>
+    [JsonPropertyName("policy")]
+    public required McpPlanPolicyResult Policy { get; set; }
+
+    /// <summary>Original source identity and content commitment.</summary>
+    [JsonPropertyName("provenance")]
+    public required McpPlanProvenance Provenance { get; set; }
+
+    /// <summary>Explicit reviewed backend selection; no backend is accessed when no secrets are supplied.</summary>
+    [JsonPropertyName("secretStorage")]
+    public required McpInstallationSecretStorage SecretStorage { get; set; }
+
+    /// <summary>Only the selected alternative is applied.</summary>
+    [JsonPropertyName("selectedChoice")]
+    public required McpPlanTransportChoice SelectedChoice { get; set; }
+
+    /// <summary>Exact reviewed placeholders supplied separately. Never secret values.</summary>
+    [JsonPropertyName("suppliedSecrets")]
+    public required IList<string> SuppliedSecrets { get; set; }
+
+    /// <summary>Exact reviewed user-scope destination.</summary>
+    [JsonPropertyName("target")]
+    public required McpPlanTarget Target { get; set; }
+}
+
+/// <summary>The <c>uninstall</c> variant of <see cref="McpInstallationReview"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class McpInstallationReviewUninstall : McpInstallationReview
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Action => "uninstall";
+
+    /// <summary>Identity from the installed receipt.</summary>
+    [JsonPropertyName("identity")]
+    public required McpPlanResourceIdentity Identity { get; set; }
+
+    /// <summary>Receipt-owned installation being removed.</summary>
+    [JsonPropertyName("installationId")]
+    public required string InstallationId { get; set; }
+
+    /// <summary>Exact planner-owned secret slots to remove, excluding shared OAuth grants.</summary>
+    [JsonPropertyName("ownedSecretCount")]
+    public required long OwnedSecretCount { get; set; }
+
+    /// <summary>Current removal policy, independent of permission to activate the server.</summary>
+    [JsonPropertyName("policy")]
+    public required McpPlanPolicyResult Policy { get; set; }
+
+    /// <summary>Shared profile authentication is deliberately retained, not pending cleanup.</summary>
+    [JsonPropertyName("preservesSharedAuthentication")]
+    public required bool PreservesSharedAuthentication { get; set; }
+
+    /// <summary>Source identity and content commitment retained by the installed receipt.</summary>
+    [JsonPropertyName("provenance")]
+    public required McpPlanProvenance Provenance { get; set; }
+
+    /// <summary>Whether uninstall restores a protected pre-install configuration.</summary>
+    [JsonPropertyName("restoresPreviousConfiguration")]
+    public required bool RestoresPreviousConfiguration { get; set; }
+
+    /// <summary>Exact destination, checked for intervening changes before mutation.</summary>
+    [JsonPropertyName("target")]
+    public required McpPlanTarget Target { get; set; }
+}
+
+/// <summary>The <c>mcp</c> variant of <see cref="InstallationReview"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class InstallationReviewMcp : InstallationReview
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Resource => "mcp";
+
+    /// <summary>The exact MCP action and its reviewed changes.</summary>
+    [JsonPropertyName("review")]
+    public required McpInstallationReview Review { get; set; }
+}
+
+/// <summary>One connection-owned, expiring request for a trusted host's explicit user decision.</summary>
+public sealed class InstallationsConfirmRequest
+{
+    /// <summary>Opaque one-use challenge. Return unchanged; never log or persist.</summary>
+    [JsonPropertyName("confirmationId")]
+    public string ConfirmationId { get; set; } = string.Empty;
+
+    /// <summary>Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it.</summary>
+    [JsonPropertyName("expiresAt")]
+    public string ExpiresAt { get; set; } = string.Empty;
+
+    /// <summary>Random identifier of this installation operation, not a plan handle.</summary>
+    [JsonPropertyName("operationId")]
+    public string OperationId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Original engine-resolved selector for a bound operation, never a dispatch default.
+    /// Bound MCP confirmation always includes it; correlate it with the original pending action.
+    /// </summary>
+    [JsonPropertyName("policySessionId")]
+    public string? PolicySessionId { get; set; }
+
+    /// <summary>Resource-specific review to present before collecting the user's decision.</summary>
+    [JsonPropertyName("review")]
+    public InstallationReview Review { get => field ??= new(); set; }
+
+    /// <summary>Opaque commitment to the exact review and inputs. Return unchanged; never log.</summary>
+    [JsonPropertyName("reviewFingerprint")]
+    public string ReviewFingerprint { get; set; } = string.Empty;
+}
+
 /// <summary>Closed set of public task kinds a connection can negotiate.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -23934,6 +25204,12 @@ public readonly struct CatalogCapability : IEquatable<CatalogCapability>
 
     /// <summary>Requires an eligible credential for the selected GitHub.com account before search egress and prohibits client-side anonymous retry, including after HTTP 401 or 403. The credential is scoped to the fixed catalog authority without redirect forwarding. Neither a grant nor successful response proves that the authority accepted the identity or selected a particular backend. Preserve this requirement on every page and retry; callers omitting it retain optional authentication.</summary>
     public static CatalogCapability CatalogSearchCredentialRequired { get; } = new("catalog-search-credential-required");
+
+    /// <summary>Captures the exact existing native session, account, host and connection for authenticated catalogue search, selection and planning. Requires catalog-search-credential-required; does not grant installation or create a session.</summary>
+    public static CatalogCapability CatalogSearchSessionBound { get; } = new("catalog-search-session-bound");
+
+    /// <summary>Understands effect-free preparation, exact human-confirmed apply and owned removal for fully resolved personal remote MCP choices without supplied inputs or configured secrets. Advertised only when the real producer and lower owned admission are linked; requires original connection and bound session authority for new work.</summary>
+    public static CatalogCapability McpConfirmedRemoteInstallation { get; } = new("mcp-confirmed-remote-installation");
 
     /// <summary>Returns a value indicating whether two <see cref="CatalogCapability"/> instances are equivalent.</summary>
     public static bool operator ==(CatalogCapability left, CatalogCapability right) => left.Equals(right);
@@ -24904,6 +26180,9 @@ public readonly struct CatalogInvalidRequestField : IEquatable<CatalogInvalidReq
     /// <summary>Gets the value associated with this <see cref="CatalogInvalidRequestField"/>.</summary>
     public string Value => _value ?? string.Empty;
 
+    /// <summary>The selected existing attached session was missing, malformed or unavailable.</summary>
+    public static CatalogInvalidRequestField PolicySessionId { get; } = new("policySessionId");
+
     /// <summary>The search query was empty or longer than permitted.</summary>
     public static CatalogInvalidRequestField Query { get; } = new("query");
 
@@ -25614,6 +26893,270 @@ public readonly struct CatalogUnavailableReason : IEquatable<CatalogUnavailableR
         public override void Write(Utf8JsonWriter writer, CatalogUnavailableReason value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogUnavailableReason));
+        }
+    }
+}
+
+
+/// <summary>Configuration ownership and setup observations, distinct from tool permissions.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpInstallationState : IEquatable<McpInstallationState>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpInstallationState"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpInstallationState"/>.</param>
+    [JsonConstructor]
+    public McpInstallationState(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpInstallationState"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Owned configuration exists; inventory alone does not grant activation.</summary>
+    public static McpInstallationState NeedsSetup { get; } = new("needs-setup");
+
+    /// <summary>The selected authorised session reports an active installation.</summary>
+    public static McpInstallationState Active { get; } = new("active");
+
+    /// <summary>The selected server requires explicit sign-in.</summary>
+    public static McpInstallationState AuthenticationRequired { get; } = new("authentication-required");
+
+    /// <summary>The selected server could not be activated.</summary>
+    public static McpInstallationState ActivationFailed { get; } = new("activation-failed");
+
+    /// <summary>Owned configuration no longer matches its receipt.</summary>
+    public static McpInstallationState ConfigurationModified { get; } = new("configuration-modified");
+
+    /// <summary>Confirmed durable work or unsafe evidence requires recovery.</summary>
+    public static McpInstallationState RecoveryRequired { get; } = new("recovery-required");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpInstallationState"/> instances are equivalent.</summary>
+    public static bool operator ==(McpInstallationState left, McpInstallationState right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpInstallationState"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpInstallationState left, McpInstallationState right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpInstallationState other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpInstallationState other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpInstallationState}"/> for serializing <see cref="McpInstallationState"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpInstallationState>
+    {
+        /// <inheritdoc />
+        public override McpInstallationState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpInstallationState value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpInstallationState));
+        }
+    }
+}
+
+
+/// <summary>Bounded refusal categories, without echoing handles, credentials or configuration.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpInstallationFailureReason : IEquatable<McpInstallationFailureReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpInstallationFailureReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpInstallationFailureReason"/>.</param>
+    [JsonConstructor]
+    public McpInstallationFailureReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpInstallationFailureReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The selected choice or request is unsupported or malformed.</summary>
+    public static McpInstallationFailureReason InvalidRequest { get; } = new("invalid-request");
+
+    /// <summary>The bounded original-connection operation limit was reached.</summary>
+    public static McpInstallationFailureReason OperationLimit { get; } = new("operation-limit");
+
+    /// <summary>The original operation was cancelled.</summary>
+    public static McpInstallationFailureReason Cancelled { get; } = new("cancelled");
+
+    /// <summary>Required installation capabilities were omitted.</summary>
+    public static McpInstallationFailureReason CapabilityRequired { get; } = new("capability-required");
+
+    /// <summary>The original host cannot receive human confirmation.</summary>
+    public static McpInstallationFailureReason ConfirmationUnavailable { get; } = new("confirmation-unavailable");
+
+    /// <summary>The confirmation response is malformed or mismatched.</summary>
+    public static McpInstallationFailureReason ConfirmationInvalid { get; } = new("confirmation-invalid");
+
+    /// <summary>Existing authenticated session and host authority is unavailable.</summary>
+    public static McpInstallationFailureReason PolicyContextUnavailable { get; } = new("policy-context-unavailable");
+
+    /// <summary>The original authority or policy changed.</summary>
+    public static McpInstallationFailureReason PolicyChanged { get; } = new("policy-changed");
+
+    /// <summary>Current managed policy refuses the operation.</summary>
+    public static McpInstallationFailureReason PolicyDenied { get; } = new("policy-denied");
+
+    /// <summary>Configuration changed after the reviewed snapshot.</summary>
+    public static McpInstallationFailureReason ConfigurationChanged { get; } = new("configuration-changed");
+
+    /// <summary>Installed configuration no longer matches ownership evidence.</summary>
+    public static McpInstallationFailureReason ConfigurationModified { get; } = new("configuration-modified");
+
+    /// <summary>No matching owned resource or original operation exists.</summary>
+    public static McpInstallationFailureReason ResourceNotFound { get; } = new("resource-not-found");
+
+    /// <summary>The original plan deadline elapsed.</summary>
+    public static McpInstallationFailureReason PlanExpired { get; } = new("plan-expired");
+
+    /// <summary>The one-use plan or prepared operation was already consumed.</summary>
+    public static McpInstallationFailureReason PlanReplayed { get; } = new("plan-replayed");
+
+    /// <summary>The handle belongs to a different runtime, session or connection.</summary>
+    public static McpInstallationFailureReason ForeignRuntime { get; } = new("foreign-runtime");
+
+    /// <summary>Fresh bound planning is required.</summary>
+    public static McpInstallationFailureReason ReplanRequired { get; } = new("replan-required");
+
+    /// <summary>Exact original source revalidation is unsupported.</summary>
+    public static McpInstallationFailureReason SourceRevalidationUnavailable { get; } = new("source-revalidation-unavailable");
+
+    /// <summary>The source differs from the retained commitment.</summary>
+    public static McpInstallationFailureReason SourceChanged { get; } = new("source-changed");
+
+    /// <summary>The original source could not be retrieved safely.</summary>
+    public static McpInstallationFailureReason SourceUnavailable { get; } = new("source-unavailable");
+
+    /// <summary>Authoritative Registry interpretation is unavailable.</summary>
+    public static McpInstallationFailureReason RegistryUnavailable { get; } = new("registry-unavailable");
+
+    /// <summary>The selected secret backend is unavailable.</summary>
+    public static McpInstallationFailureReason SecretStoreUnavailable { get; } = new("secret-store-unavailable");
+
+    /// <summary>Required owned admission and lifecycle support is absent.</summary>
+    public static McpInstallationFailureReason LifecycleUnavailable { get; } = new("lifecycle-unavailable");
+
+    /// <summary>A storage operation failed; inspect any allocated operation before retrying.</summary>
+    public static McpInstallationFailureReason WriteFailed { get; } = new("write-failed");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpInstallationFailureReason"/> instances are equivalent.</summary>
+    public static bool operator ==(McpInstallationFailureReason left, McpInstallationFailureReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpInstallationFailureReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpInstallationFailureReason left, McpInstallationFailureReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpInstallationFailureReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpInstallationFailureReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpInstallationFailureReason}"/> for serializing <see cref="McpInstallationFailureReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpInstallationFailureReason>
+    {
+        /// <inheritdoc />
+        public override McpInstallationFailureReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpInstallationFailureReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpInstallationFailureReason));
+        }
+    }
+}
+
+
+/// <summary>Explicit backend selection is part of the final review; failures never switch backends.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpInstallationSecretStorage : IEquatable<McpInstallationSecretStorage>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpInstallationSecretStorage"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpInstallationSecretStorage"/>.</param>
+    [JsonConstructor]
+    public McpInstallationSecretStorage(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpInstallationSecretStorage"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The selected operating-system keychain, without fallback to file storage.</summary>
+    public static McpInstallationSecretStorage Keychain { get; } = new("keychain");
+
+    /// <summary>The explicitly selected private file backend.</summary>
+    public static McpInstallationSecretStorage PrivateFile { get; } = new("private-file");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpInstallationSecretStorage"/> instances are equivalent.</summary>
+    public static bool operator ==(McpInstallationSecretStorage left, McpInstallationSecretStorage right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpInstallationSecretStorage"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpInstallationSecretStorage left, McpInstallationSecretStorage right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpInstallationSecretStorage other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpInstallationSecretStorage other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpInstallationSecretStorage}"/> for serializing <see cref="McpInstallationSecretStorage"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpInstallationSecretStorage>
+    {
+        /// <inheritdoc />
+        public override McpInstallationSecretStorage Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpInstallationSecretStorage value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpInstallationSecretStorage));
         }
     }
 }
@@ -31209,6 +32752,69 @@ public readonly struct McpSetEnvValueModeDetails : IEquatable<McpSetEnvValueMode
         public override void Write(Utf8JsonWriter writer, McpSetEnvValueModeDetails value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpSetEnvValueModeDetails));
+        }
+    }
+}
+
+
+/// <summary>Outcome of starting the original prepared owned login.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpOwnedOauthLoginStatus : IEquatable<McpOwnedOauthLoginStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpOwnedOauthLoginStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpOwnedOauthLoginStatus"/>.</param>
+    [JsonConstructor]
+    public McpOwnedOauthLoginStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpOwnedOauthLoginStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The original requester may open the returned authorisation URL.</summary>
+    public static McpOwnedOauthLoginStatus AwaitingBrowser { get; } = new("awaiting-browser");
+
+    /// <summary>Cached credentials were accepted and the original server finished reconnecting.</summary>
+    public static McpOwnedOauthLoginStatus Connected { get; } = new("connected");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpOwnedOauthLoginStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(McpOwnedOauthLoginStatus left, McpOwnedOauthLoginStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpOwnedOauthLoginStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpOwnedOauthLoginStatus left, McpOwnedOauthLoginStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpOwnedOauthLoginStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpOwnedOauthLoginStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpOwnedOauthLoginStatus}"/> for serializing <see cref="McpOwnedOauthLoginStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpOwnedOauthLoginStatus>
+    {
+        /// <inheritdoc />
+        public override McpOwnedOauthLoginStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpOwnedOauthLoginStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpOwnedOauthLoginStatus));
         }
     }
 }
@@ -37027,6 +38633,72 @@ public readonly struct GitHubTokenAcquireReason : IEquatable<GitHubTokenAcquireR
 }
 
 
+/// <summary>Explicit user decisions, never inferred from a permission grant or model response.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct InstallationDecision : IEquatable<InstallationDecision>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="InstallationDecision"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="InstallationDecision"/>.</param>
+    [JsonConstructor]
+    public InstallationDecision(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="InstallationDecision"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The user explicitly approved the exact review on this request.</summary>
+    public static InstallationDecision Confirm { get; } = new("confirm");
+
+    /// <summary>The user declined the reviewed operation.</summary>
+    public static InstallationDecision Decline { get; } = new("decline");
+
+    /// <summary>The user cancelled the pending decision without granting consent.</summary>
+    public static InstallationDecision Cancel { get; } = new("cancel");
+
+    /// <summary>Returns a value indicating whether two <see cref="InstallationDecision"/> instances are equivalent.</summary>
+    public static bool operator ==(InstallationDecision left, InstallationDecision right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="InstallationDecision"/> instances are not equivalent.</summary>
+    public static bool operator !=(InstallationDecision left, InstallationDecision right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is InstallationDecision other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(InstallationDecision other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{InstallationDecision}"/> for serializing <see cref="InstallationDecision"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<InstallationDecision>
+    {
+        /// <inheritdoc />
+        public override InstallationDecision Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, InstallationDecision value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstallationDecision));
+        }
+    }
+}
+
+
 /// <summary>Provides server-scoped RPC methods (no session required).</summary>
 public sealed class ServerRpc
 {
@@ -37419,8 +39091,97 @@ public sealed class ServerMcpApi
         return await CopilotClient.InvokeRpcAsync<McpPlanInstallResult>(_rpc, "mcp.planInstall", [request], cancellationToken);
     }
 
+    /// <summary>Requests a side-effect-free MCP install plan from a catalog candidate handle or a caller-supplied card. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with planning available returns a normalised plan and opaque single-use plan handle; a runtime without it returns the typed planning-unavailable result. A completed plan reports resource identity, provenance, eligible transport choices, the user-scope target, required typed values and secret placeholders, the policy result, the configuration changes installing would make, and whether a reload would be needed. Planning never writes configuration, stores a secret, or reloads MCP servers, so abandoning a plan needs no call and leaves nothing behind.</summary>
+    /// <param name="request">A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal. Nothing is written in either case.</returns>
+    public async Task<McpPlanInstallResult> PlanInstallWithRequestAsync(McpPlanInstallRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return await CopilotClient.InvokeRpcAsync<McpPlanInstallResult>(_rpc, "mcp.planInstall", [request], cancellationToken);
+    }
+
+    /// <summary>Consumes a bound catalogue plan and retains one exact fully resolved personal remote MCP operation requiring no supplied values or configured secrets. Returns its runtime operation ID and original expiry before any confirmation, activation, writer initialisation or installation effect. Register the original connection, operation and selected-session binding before calling applyInstall. Missing lower owned admission is unavailable, never a raw-config fallback.</summary>
+    /// <param name="contract">Required bound catalogue and confirmed remote installation capabilities.</param>
+    /// <param name="planHandle">Original single-use bound plan, never a client-authored configuration.</param>
+    /// <param name="choiceId">Exact selected alternative from that plan.</param>
+    /// <param name="policySessionId">An existing local session attached to this connection, not permission to attach one.</param>
+    /// <param name="inputs">Must be empty for the initial input-free remote installation capability.</param>
+    /// <param name="secrets">Must be empty; this capability does not allocate configured-input secrets.</param>
+    /// <param name="source">The exact original source, used transiently only after confirmation.</param>
+    /// <param name="secretStorage">The trusted host presents this choice alongside the exact secret placeholders.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Management result with contract receipt, or a typed request/negotiation refusal.</returns>
+    public async Task<McpInstallationManagementResult> PrepareInstallAsync(CatalogClientContract contract, string planHandle, string choiceId, string policySessionId, IList<McpInstallationInput> inputs, IList<McpInstallationSecret> secrets, McpServerCardReference source, McpInstallationSecretStorage secretStorage, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(planHandle);
+        ArgumentNullException.ThrowIfNull(choiceId);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+        ArgumentNullException.ThrowIfNull(inputs);
+        ArgumentNullException.ThrowIfNull(secrets);
+        ArgumentNullException.ThrowIfNull(source);
+
+        var request = new McpPrepareInstallRequest { Contract = contract, PlanHandle = planHandle, ChoiceId = choiceId, PolicySessionId = policySessionId, Inputs = inputs, Secrets = secrets, Source = source, SecretStorage = secretStorage };
+        return await CopilotClient.InvokeRpcAsync<McpInstallationManagementResult>(_rpc, "mcp.prepareInstall", [request], cancellationToken);
+    }
+
+    /// <summary>Consumes a retained prepared MCP operation once, revalidates its original authority, requests explicit human consent through installations.confirm on the original connection, then revalidates source and applies the sealed transaction. An uncertain result requires original-operation inspection or recovery, never replay.</summary>
+    /// <param name="contract">Capabilities required by the original prepared operation.</param>
+    /// <param name="operationId">Runtime-issued ID already returned by prepareInstall, never reused or rebound.</param>
+    /// <param name="policySessionId">Same existing attached or privately borrowed session as preparation.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>An installation result together with the exact honoured contract, or a negotiation refusal.</returns>
+    public async Task<McpInstallationResult> ApplyInstallAsync(CatalogClientContract contract, string operationId, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new McpApplyInstallRequest { Contract = contract, OperationId = operationId, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<McpInstallationResult>(_rpc, "mcp.applyInstall", [request], cancellationToken);
+    }
+
+    /// <summary>Prepares a read-only removal plan for an exact owned receipt under the selected existing session. Returns the original operation ID before confirmation; neither planning nor abandonment changes configuration or shared OAuth credentials.</summary>
+    /// <param name="contract">Required authenticated bound installation capabilities.</param>
+    /// <param name="installationId">Exact receipt to inspect, not a server-name guess.</param>
+    /// <param name="policySessionId">Existing selected session on the original connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Management result with contract receipt, or a typed request/negotiation refusal.</returns>
+    public async Task<McpInstallationManagementResult> PlanUninstallAsync(CatalogClientContract contract, string installationId, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(installationId);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new McpPlanUninstallRequest { Contract = contract, InstallationId = installationId, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<McpInstallationManagementResult>(_rpc, "mcp.planUninstall", [request], cancellationToken);
+    }
+
+    /// <summary>Consumes the original owned-removal plan once and requests fresh exact human confirmation on its original connection. Drift is refused; unrelated manual configuration and shared OAuth credentials are preserved.</summary>
+    /// <param name="contract">Required authenticated bound installation capabilities.</param>
+    /// <param name="planHandle">Opaque original removal plan, consumed once.</param>
+    /// <param name="policySessionId">Same existing selected session as removal preparation.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>An installation result together with the exact honoured contract, or a negotiation refusal.</returns>
+    public async Task<McpInstallationResult> ApplyUninstallAsync(CatalogClientContract contract, string planHandle, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(planHandle);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new McpApplyUninstallRequest { Contract = contract, PlanHandle = planHandle, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<McpInstallationResult>(_rpc, "mcp.applyUninstall", [request], cancellationToken);
+    }
+
     /// <summary>Config APIs.</summary>
     public ServerMcpConfigApi Config =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
+    /// <summary>Installations APIs.</summary>
+    public ServerMcpInstallationsApi Installations =>
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
@@ -37513,6 +39274,74 @@ public sealed class ServerMcpConfigApi
     }
 }
 
+/// <summary>Provides server-scoped McpInstallations APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerMcpInstallationsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerMcpInstallationsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Reads receipt-owned MCP inventory for the selected account and host without activating servers or reconstructing missing ownership. Configuration ownership does not prove session-specific usability.</summary>
+    /// <param name="contract">Required authenticated bound installation contract.</param>
+    /// <param name="policySessionId">Existing selected local session on this connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Management result with contract receipt, or a typed request/negotiation refusal.</returns>
+    public async Task<McpInstallationManagementResult> ListAsync(CatalogClientContract contract, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new McpInstallationsRequest { Contract = contract, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<McpInstallationManagementResult>(_rpc, "mcp.installations.list", [request], cancellationToken);
+    }
+
+    /// <summary>Reconciles already-confirmed durable MCP transactions, then inspects owned inventory. Does not replay apply or reconstruct deleted ownership metadata; unresolved or unsafe evidence remains an explicit refusal.</summary>
+    /// <param name="contract">Required authenticated bound installation contract.</param>
+    /// <param name="policySessionId">Existing selected local session on this connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Management result with contract receipt, or a typed request/negotiation refusal.</returns>
+    public async Task<McpInstallationManagementResult> RecoverAsync(CatalogClientContract contract, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new McpInstallationsRequest { Contract = contract, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<McpInstallationManagementResult>(_rpc, "mcp.installations.recover", [request], cancellationToken);
+    }
+
+    /// <summary>Inspects a known operation only on its original connection. Remains available after account or selected-session loss; does not acquire new authority or rebind an operation.</summary>
+    /// <param name="contract">Original installation wire capability; new-work authentication is not reacquired.</param>
+    /// <param name="operationId">Exact runtime-issued operation ID on the original connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Management result with contract receipt, or a typed request/negotiation refusal.</returns>
+    public async Task<McpInstallationManagementResult> StatusAsync(CatalogClientContract contract, string operationId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(operationId);
+
+        var request = new McpInstallationOperationRequest { Contract = contract, OperationId = operationId };
+        return await CopilotClient.InvokeRpcAsync<McpInstallationManagementResult>(_rpc, "mcp.installations.status", [request], cancellationToken);
+    }
+
+    /// <summary>Requests cancellation of a known operation on its original connection, including before apply or confirmation. Already-started effects retain their transaction lease and report an honest terminal or recovery outcome.</summary>
+    /// <param name="contract">Original installation wire capability; new-work authentication is not reacquired.</param>
+    /// <param name="operationId">Exact runtime-issued operation ID on the original connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Management result with contract receipt, or a typed request/negotiation refusal.</returns>
+    public async Task<McpInstallationManagementResult> CancelAsync(CatalogClientContract contract, string operationId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(operationId);
+
+        var request = new McpInstallationOperationRequest { Contract = contract, OperationId = operationId };
+        return await CopilotClient.InvokeRpcAsync<McpInstallationManagementResult>(_rpc, "mcp.installations.cancel", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides server-scoped Extensions APIs.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class ServerExtensionsApi
@@ -37580,6 +39409,16 @@ public sealed class ServerCatalogApi
         ArgumentNullException.ThrowIfNull(query);
 
         var request = new CatalogSearchRequest { Contract = contract, Query = query, Limit = limit, Kinds = kinds, Page = page };
+        return await CopilotClient.InvokeRpcAsync<CatalogSearchResult>(_rpc, "catalog.search", [request], cancellationToken);
+    }
+
+    /// <summary>Requests a bounded catalog search. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with search available returns inert candidate summaries, each with an opaque single-use handle scoped to this runtime instance; a runtime without it returns the typed search-unavailable result. Public authorities may be searched anonymously, while an authority that requires credentials yields the typed authentication-required result. All returned text, URLs, and package metadata are untrusted external data and can never trigger instructions, tools, or installation. Read-only: nothing is installed, configured, or persisted.</summary>
+    /// <param name="request">A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.</returns>
+    public async Task<CatalogSearchResult> SearchWithRequestAsync(CatalogSearchRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
         return await CopilotClient.InvokeRpcAsync<CatalogSearchResult>(_rpc, "catalog.search", [request], cancellationToken);
     }
 
@@ -40942,8 +42781,19 @@ public sealed class McpApi
         ArgumentNullException.ThrowIfNull(serverName);
         _session.ThrowIfDisposed();
 
-        var request = new McpEnableRequest { SessionId = _session.SessionId, ServerName = serverName };
+        var request = new McpEnableRequestWithSession { SessionId = _session.SessionId, ServerName = serverName };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.enable", [request], cancellationToken);
+    }
+
+    /// <summary>Enables an MCP server for the session.</summary>
+    /// <param name="request">Name of the MCP server to enable for the session.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task EnableWithRequestAsync(McpEnableRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _session.ThrowIfDisposed();
+        var wireRequest = new McpEnableRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, ExpectedInstallationId = request.ExpectedInstallationId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.enable", [wireRequest], cancellationToken);
     }
 
     /// <summary>Disables an MCP server for the session.</summary>
@@ -40954,8 +42804,19 @@ public sealed class McpApi
         ArgumentNullException.ThrowIfNull(serverName);
         _session.ThrowIfDisposed();
 
-        var request = new McpDisableRequest { SessionId = _session.SessionId, ServerName = serverName };
+        var request = new McpDisableRequestWithSession { SessionId = _session.SessionId, ServerName = serverName };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.disable", [request], cancellationToken);
+    }
+
+    /// <summary>Disables an MCP server for the session.</summary>
+    /// <param name="request">Name of the MCP server to disable for the session.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task DisableWithRequestAsync(McpDisableRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _session.ThrowIfDisposed();
+        var wireRequest = new McpDisableRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, ExpectedInstallationId = request.ExpectedInstallationId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.disable", [wireRequest], cancellationToken);
     }
 
     /// <summary>Reloads MCP server connections for the session.</summary>
@@ -41065,8 +42926,19 @@ public sealed class McpApi
         ArgumentNullException.ThrowIfNull(serverName);
         _session.ThrowIfDisposed();
 
-        var request = new McpStartServerRequest { SessionId = _session.SessionId, ServerName = serverName, Config = CopilotClient.ToJsonElementForWire(config) };
+        var request = new McpStartServerRequestWithSession { SessionId = _session.SessionId, ServerName = serverName, Config = CopilotClient.ToJsonElementForWire(config) };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.startServer", [request], cancellationToken);
+    }
+
+    /// <summary>Starts an individual MCP server on the live session. Omit `config` for a config-free start-by-name of an already-configured server (reuses the server's already-registered configuration); supply `config` to start from a caller-supplied configuration. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server.</summary>
+    /// <param name="request">Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task StartServerWithRequestAsync(McpStartServerRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _session.ThrowIfDisposed();
+        var wireRequest = new McpStartServerRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, Config = request.Config, ExpectedInstallationId = request.ExpectedInstallationId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.startServer", [wireRequest], cancellationToken);
     }
 
     /// <summary>Restarts an individual MCP server on the live session (stops then starts). Omit `config` for a config-free restart-by-name of an already-configured server; supply `config` to restart with a replacement configuration. Session-scoped and ephemeral: does NOT modify persistent user configuration (`mcp.config.*`).</summary>
@@ -41078,8 +42950,19 @@ public sealed class McpApi
         ArgumentNullException.ThrowIfNull(serverName);
         _session.ThrowIfDisposed();
 
-        var request = new McpRestartServerRequest { SessionId = _session.SessionId, ServerName = serverName, Config = CopilotClient.ToJsonElementForWire(config) };
+        var request = new McpRestartServerRequestWithSession { SessionId = _session.SessionId, ServerName = serverName, Config = CopilotClient.ToJsonElementForWire(config) };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.restartServer", [request], cancellationToken);
+    }
+
+    /// <summary>Restarts an individual MCP server on the live session (stops then starts). Omit `config` for a config-free restart-by-name of an already-configured server; supply `config` to restart with a replacement configuration. Session-scoped and ephemeral: does NOT modify persistent user configuration (`mcp.config.*`).</summary>
+    /// <param name="request">Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task RestartServerWithRequestAsync(McpRestartServerRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _session.ThrowIfDisposed();
+        var wireRequest = new McpRestartServerRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, Config = request.Config, ExpectedInstallationId = request.ExpectedInstallationId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.restartServer", [wireRequest], cancellationToken);
     }
 
     /// <summary>Stops an individual MCP server on the session's host.</summary>
@@ -41090,8 +42973,19 @@ public sealed class McpApi
         ArgumentNullException.ThrowIfNull(serverName);
         _session.ThrowIfDisposed();
 
-        var request = new McpStopServerRequest { SessionId = _session.SessionId, ServerName = serverName };
+        var request = new McpStopServerRequestWithSession { SessionId = _session.SessionId, ServerName = serverName };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.stopServer", [request], cancellationToken);
+    }
+
+    /// <summary>Stops an individual MCP server on the session's host.</summary>
+    /// <param name="request">Server name for an individual MCP server stop.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task StopServerWithRequestAsync(McpStopServerRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _session.ThrowIfDisposed();
+        var wireRequest = new McpStopServerRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, ExpectedInstallationId = request.ExpectedInstallationId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.stopServer", [wireRequest], cancellationToken);
     }
 
     /// <summary>Registers a pre-connected external MCP client (e.g. IDE) on the session's host. The caller retains lifecycle ownership of the client and transport. Marked internal because the `client` and `transport` arguments are in-process MCP SDK instances that cannot be serialized across the JSON-RPC boundary; once the CLI moves on top of the SDK, external clients will be expressed as transport configs the runtime can construct itself.</summary>
@@ -41194,7 +43088,25 @@ public sealed class McpOauthApi
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.oauth.authenticationStateChanged", [request], cancellationToken);
     }
 
-    /// <summary>Starts OAuth authentication for a remote MCP server.</summary>
+    /// <summary>Prepares an inert, expiring owned OAuth login bound to the original session requester and exact installation. Does not activate, connect, read credentials or open a browser.</summary>
+    /// <param name="serverName">Name recorded by the authoritative owned installation receipt.</param>
+    /// <param name="expectedInstallationId">Exact installation identity from owned inventory, never a server-name alias.</param>
+    /// <param name="forceReauth">Request a new authorisation rather than accepting a usable cached grant.</param>
+    /// <param name="clientName">Display name used by the incumbent OAuth client-registration flow.</param>
+    /// <param name="callbackSuccessMessage">Text shown on the loopback callback page after successful authorisation.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>An inert runtime-issued login handle. Preparation alone performs no activation or OAuth work.</returns>
+    public async Task<SessionMcpOauthPrepareLoginResult> PrepareLoginAsync(string serverName, string expectedInstallationId, bool? forceReauth = null, string? clientName = null, string? callbackSuccessMessage = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        ArgumentNullException.ThrowIfNull(expectedInstallationId);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionMcpOauthPrepareLoginRequest { SessionId = _session.SessionId, ServerName = serverName, ExpectedInstallationId = expectedInstallationId, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage };
+        return await CopilotClient.InvokeRpcAsync<SessionMcpOauthPrepareLoginResult>(_session.Rpc, "session.mcp.oauth.prepareLogin", [request], cancellationToken);
+    }
+
+    /// <summary>Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.</summary>
     /// <param name="serverName">Name of the remote MCP server to authenticate.</param>
     /// <param name="forceReauth">When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.</param>
     /// <param name="clientName">Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.</param>
@@ -41210,8 +43122,20 @@ public sealed class McpOauthApi
         ArgumentNullException.ThrowIfNull(serverName);
         _session.ThrowIfDisposed();
 
-        var request = new McpOauthLoginRequest { SessionId = _session.SessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage, ClientId = clientId, ClientSecret = clientSecret, PublicClient = publicClient, GrantType = grantType };
+        var request = new McpOauthLoginRequestWithSession { SessionId = _session.SessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage, ClientId = clientId, ClientSecret = clientSecret, PublicClient = publicClient, GrantType = grantType };
         return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_session.Rpc, "session.mcp.oauth.login", [request], cancellationToken);
+    }
+
+    /// <summary>Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.</summary>
+    /// <param name="request">Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.</returns>
+    public async Task<McpOauthLoginResult> LoginWithRequestAsync(McpOauthLoginRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _session.ThrowIfDisposed();
+        var wireRequest = new McpOauthLoginRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, ForceReauth = request.ForceReauth, ClientName = request.ClientName, CallbackSuccessMessage = request.CallbackSuccessMessage, ClientId = request.ClientId, ClientSecret = request.ClientSecret, PublicClient = request.PublicClient, GrantType = request.GrantType, LoginId = request.LoginId, ExpectedInstallationId = request.ExpectedInstallationId };
+        return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_session.Rpc, "session.mcp.oauth.login", [wireRequest], cancellationToken);
     }
 
     /// <summary>Passively probes a configured remote MCP server to classify whether OAuth is required or a cached/override token is accepted. Does not start OAuth, emit pending OAuth requests, or mutate MCP connection state.</summary>
@@ -41223,8 +43147,35 @@ public sealed class McpOauthApi
         ArgumentNullException.ThrowIfNull(serverName);
         _session.ThrowIfDisposed();
 
-        var request = new McpOauthProbeRequest { SessionId = _session.SessionId, ServerName = serverName };
+        var request = new McpOauthProbeRequestWithSession { SessionId = _session.SessionId, ServerName = serverName };
         return await CopilotClient.InvokeRpcAsync<McpOauthProbeResult>(_session.Rpc, "session.mcp.oauth.probe", [request], cancellationToken);
+    }
+
+    /// <summary>Passively probes a configured remote MCP server to classify whether OAuth is required or a cached/override token is accepted. Does not start OAuth, emit pending OAuth requests, or mutate MCP connection state.</summary>
+    /// <param name="request">Remote MCP server name for a passive OAuth status probe.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Passive MCP OAuth probe result. `authenticated` means the server accepted the probe request while an OAuth-origin access token was attached; it does not prove the server required or independently validated that token. The probe does not make a second unauthenticated request. Failed is an expected probe-domain outcome; JSON-RPC errors are reserved for API-call failures.</returns>
+    public async Task<McpOauthProbeResult> ProbeWithRequestAsync(McpOauthProbeRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _session.ThrowIfDisposed();
+        var wireRequest = new McpOauthProbeRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, ExpectedInstallationId = request.ExpectedInstallationId };
+        return await CopilotClient.InvokeRpcAsync<McpOauthProbeResult>(_session.Rpc, "session.mcp.oauth.probe", [wireRequest], cancellationToken);
+    }
+
+    /// <summary>Cancels the exact owned OAuth login issued to this original session requester, without clearing shared credentials.</summary>
+    /// <param name="expectedInstallationId">The same authoritative installation identity supplied during preparation.</param>
+    /// <param name="loginId">Runtime-issued login handle known before the effectful login request begins.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Honest terminal cancellation result; persistence or recovery failures remain RPC errors.</returns>
+    public async Task<SessionMcpOauthCancelLoginResult> CancelLoginAsync(string expectedInstallationId, string loginId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(expectedInstallationId);
+        ArgumentNullException.ThrowIfNull(loginId);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionMcpOauthCancelLoginRequest { SessionId = _session.SessionId, ExpectedInstallationId = expectedInstallationId, LoginId = loginId };
+        return await CopilotClient.InvokeRpcAsync<SessionMcpOauthCancelLoginResult>(_session.Rpc, "session.mcp.oauth.cancelLogin", [request], cancellationToken);
     }
 
     /// <summary>Responds to a pending MCP OAuth authorization request by its request id.</summary>
@@ -44187,6 +46138,17 @@ public interface IGitHubTokenHandler
     Task<GitHubTokenAcquireResult> GetTokenAsync(GitHubTokenAcquireRequest request, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Handles `installations` client global API methods.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public interface IInstallationsHandler
+{
+    /// <summary>Requests a fresh explicit human decision for one sealed installation operation on its original connection. Present the complete typed review, return the original challenge and fingerprint, and never infer approval. The expiresAt deadline, connection closure or standard JSON-RPC $/cancelRequest retires the request; late replies grant no authority.</summary>
+    /// <param name="request">One connection-owned, expiring request for a trusted host's explicit user decision.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>A response is meaningful only on the connection and request that issued its challenge.</returns>
+    Task<InstallationsConfirmResult> ConfirmAsync(InstallationsConfirmRequest request, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Provides all client global API handler groups for a connection.</summary>
 public sealed class ClientGlobalApiHandlers
 {
@@ -44201,6 +46163,9 @@ public sealed class ClientGlobalApiHandlers
 
     /// <summary>Optional handler for GitHubToken client global API methods.</summary>
     public IGitHubTokenHandler? GitHubToken { get; set; }
+
+    /// <summary>Optional handler for Installations client global API methods.</summary>
+    public IInstallationsHandler? Installations { get; set; }
 }
 
 /// <summary>Registers client global API handlers on a JSON-RPC connection.</summary>
@@ -44238,6 +46203,11 @@ internal static class ClientGlobalApiRegistration
         {
             var handler = handlers.GitHubToken ?? throw new InvalidOperationException("No gitHubToken client-global handler registered");
             return await handler.GetTokenAsync(request, cancellationToken);
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("installations.confirm", (Func<InstallationsConfirmRequest, CancellationToken, ValueTask<InstallationsConfirmResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = handlers.Installations ?? throw new InvalidOperationException("No installations client-global handler registered");
+            return await handler.ConfirmAsync(request, cancellationToken);
         }), singleObjectParam: true);
     }
 }
@@ -44943,6 +46913,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(IList<AuthValidationError>))]
 [JsonSerializable(typeof(IList<SessionAuthStatus>))]
 [JsonSerializable(typeof(IList<SessionsClientMetadataEntry>))]
+[JsonSerializable(typeof(InstallationReview))]
+[JsonSerializable(typeof(InstallationsConfirmRequest))]
+[JsonSerializable(typeof(InstallationsConfirmResult))]
 [JsonSerializable(typeof(InstalledPlugin))]
 [JsonSerializable(typeof(InstalledPluginInfo))]
 [JsonSerializable(typeof(InstructionDiscoveryPath))]
@@ -44979,6 +46952,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(MarketplaceRefreshResult))]
 [JsonSerializable(typeof(MarketplaceRemoveResult))]
 [JsonSerializable(typeof(McpAllowedServer))]
+[JsonSerializable(typeof(McpApplyInstallRequest))]
+[JsonSerializable(typeof(McpApplyUninstallRequest))]
 [JsonSerializable(typeof(McpAppsCallToolRequest))]
 [JsonSerializable(typeof(McpAppsDiagnoseCapability))]
 [JsonSerializable(typeof(McpAppsDiagnoseRequest))]
@@ -45006,9 +46981,11 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpDiagnosticDetails))]
 [JsonSerializable(typeof(McpDiagnosticSourceConfiguration))]
 [JsonSerializable(typeof(McpDisableRequest))]
+[JsonSerializable(typeof(McpDisableRequestWithSession))]
 [JsonSerializable(typeof(McpDiscoverRequest))]
 [JsonSerializable(typeof(McpDiscoverResult))]
 [JsonSerializable(typeof(McpEnableRequest))]
+[JsonSerializable(typeof(McpEnableRequestWithSession))]
 [JsonSerializable(typeof(McpExecuteSamplingParams))]
 [JsonSerializable(typeof(McpExecuteSamplingRequest))]
 [JsonSerializable(typeof(McpExecuteSamplingResult))]
@@ -45019,6 +46996,18 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpHeadersHandlePendingHeadersRefreshRequestResult))]
 [JsonSerializable(typeof(McpHostState))]
 [JsonSerializable(typeof(McpInstallPlan))]
+[JsonSerializable(typeof(McpInstallationInput))]
+[JsonSerializable(typeof(McpInstallationManagementOutcome))]
+[JsonSerializable(typeof(McpInstallationManagementResult))]
+[JsonSerializable(typeof(McpInstallationOperationRequest))]
+[JsonSerializable(typeof(McpInstallationOperationStatus))]
+[JsonSerializable(typeof(McpInstallationOutcome))]
+[JsonSerializable(typeof(McpInstallationRemoteConfiguration))]
+[JsonSerializable(typeof(McpInstallationResult))]
+[JsonSerializable(typeof(McpInstallationReview))]
+[JsonSerializable(typeof(McpInstallationSecret))]
+[JsonSerializable(typeof(McpInstallationSummary))]
+[JsonSerializable(typeof(McpInstallationsRequest))]
 [JsonSerializable(typeof(McpIsServerRunningRequest))]
 [JsonSerializable(typeof(McpIsServerRunningResult))]
 [JsonSerializable(typeof(McpListToolsRequest))]
@@ -45027,9 +47016,11 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpOauthHandlePendingRequest))]
 [JsonSerializable(typeof(McpOauthHandlePendingResult))]
 [JsonSerializable(typeof(McpOauthLoginRequest))]
+[JsonSerializable(typeof(McpOauthLoginRequestWithSession))]
 [JsonSerializable(typeof(McpOauthLoginResult))]
 [JsonSerializable(typeof(McpOauthPendingRequestResponse))]
 [JsonSerializable(typeof(McpOauthProbeRequest))]
+[JsonSerializable(typeof(McpOauthProbeRequestWithSession))]
 [JsonSerializable(typeof(McpOauthProbeResult))]
 [JsonSerializable(typeof(McpOauthRespondRequest))]
 [JsonSerializable(typeof(McpOauthRespondResult))]
@@ -45044,6 +47035,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpPlanSecretPlaceholder))]
 [JsonSerializable(typeof(McpPlanTarget))]
 [JsonSerializable(typeof(McpPlanTransportChoice))]
+[JsonSerializable(typeof(McpPlanUninstallRequest))]
+[JsonSerializable(typeof(McpPrepareInstallRequest))]
+[JsonSerializable(typeof(McpPreparedInstall))]
 [JsonSerializable(typeof(McpRegisterExternalClientRequest))]
 [JsonSerializable(typeof(McpReloadWithConfigRequest))]
 [JsonSerializable(typeof(McpRemoveGitHubResult))]
@@ -45059,6 +47053,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpResourcesReadRequest))]
 [JsonSerializable(typeof(McpResourcesReadResult))]
 [JsonSerializable(typeof(McpRestartServerRequest))]
+[JsonSerializable(typeof(McpRestartServerRequestWithSession))]
 [JsonSerializable(typeof(McpSamplingExecutionResult))]
 [JsonSerializable(typeof(McpServer))]
 [JsonSerializable(typeof(McpServerCardReference))]
@@ -45071,11 +47066,14 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpSourcePlugin))]
 [JsonSerializable(typeof(McpSourceRef))]
 [JsonSerializable(typeof(McpStartServerRequest))]
+[JsonSerializable(typeof(McpStartServerRequestWithSession))]
 [JsonSerializable(typeof(McpStartServersResult))]
 [JsonSerializable(typeof(McpStopServerRequest))]
+[JsonSerializable(typeof(McpStopServerRequestWithSession))]
 [JsonSerializable(typeof(McpTaskMetadata))]
 [JsonSerializable(typeof(McpToolUi))]
 [JsonSerializable(typeof(McpTools))]
+[JsonSerializable(typeof(McpUninstallPlan))]
 [JsonSerializable(typeof(McpUnregisterExternalClientRequest))]
 [JsonSerializable(typeof(MetadataContextAttributionResult))]
 [JsonSerializable(typeof(MetadataContextAttributionResultContextAttribution))]
@@ -45420,6 +47418,10 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionMcpAppsGetHostContextRequest))]
 [JsonSerializable(typeof(SessionMcpListRequest))]
 [JsonSerializable(typeof(SessionMcpMoveLoadingToBackgroundRequest))]
+[JsonSerializable(typeof(SessionMcpOauthCancelLoginRequest))]
+[JsonSerializable(typeof(SessionMcpOauthCancelLoginResult))]
+[JsonSerializable(typeof(SessionMcpOauthPrepareLoginRequest))]
+[JsonSerializable(typeof(SessionMcpOauthPrepareLoginResult))]
 [JsonSerializable(typeof(SessionMcpReloadRequest))]
 [JsonSerializable(typeof(SessionMcpRemoveGitHubRequest))]
 [JsonSerializable(typeof(SessionMetadataActivityRequest))]

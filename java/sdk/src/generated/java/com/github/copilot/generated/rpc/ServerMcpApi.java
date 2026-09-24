@@ -23,11 +23,14 @@ public final class ServerMcpApi {
 
     /** API methods for the {@code mcp.config} sub-namespace. */
     public final ServerMcpConfigApi config;
+    /** API methods for the {@code mcp.installations} sub-namespace. */
+    public final ServerMcpInstallationsApi installations;
 
     /** @param caller the RPC transport function */
     ServerMcpApi(RpcCaller caller) {
         this.caller = caller;
         this.config = new ServerMcpConfigApi(caller);
+        this.installations = new ServerMcpInstallationsApi(caller);
     }
 
     /**
@@ -50,6 +53,50 @@ public final class ServerMcpApi {
     @CopilotExperimental
     public CompletableFuture<McpPlanInstallResult> planInstall(McpPlanInstallParams params) {
         return caller.invoke("mcp.planInstall", params, McpPlanInstallResult.class);
+    }
+
+    /**
+     * Side-effect-free preparation of one original bound, input-free remote MCP choice.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<McpInstallationManagementResult> prepareInstall(McpPrepareInstallParams params) {
+        return caller.invoke("mcp.prepareInstall", params, McpInstallationManagementResult.class);
+    }
+
+    /**
+     * Applies exactly one previously prepared operation on its original connection.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<McpInstallationResult> applyInstall(McpApplyInstallParams params) {
+        return caller.invoke("mcp.applyInstall", params, McpInstallationResult.class);
+    }
+
+    /**
+     * Read-only preparation of one owned removal under fresh selected-session authority.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<McpInstallationManagementResult> planUninstall(McpPlanUninstallParams params) {
+        return caller.invoke("mcp.planUninstall", params, McpInstallationManagementResult.class);
+    }
+
+    /**
+     * One-use application of the exact retained removal plan.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<McpInstallationResult> applyUninstall(McpApplyUninstallParams params) {
+        return caller.invoke("mcp.applyUninstall", params, McpInstallationResult.class);
     }
 
 }

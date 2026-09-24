@@ -575,6 +575,7 @@ async fn should_report_error_when_mcp_host_is_not_initialized() {
 
                 expect_err_contains(
                     session.rpc().mcp().enable(McpEnableRequest {
+                        expected_installation_id: None,
                         server_name: "missing-server".to_string(),
                     }),
                     "No MCP host initialized",
@@ -582,6 +583,7 @@ async fn should_report_error_when_mcp_host_is_not_initialized() {
                 .await;
                 expect_err_contains(
                     session.rpc().mcp().disable(McpDisableRequest {
+                        expected_installation_id: None,
                         server_name: "missing-server".to_string(),
                     }),
                     "No MCP host initialized",
@@ -594,6 +596,8 @@ async fn should_report_error_when_mcp_host_is_not_initialized() {
                 .await;
                 expect_err_contains(
                     session.rpc().mcp().oauth().login(McpOauthLoginRequest {
+                        expected_installation_id: None,
+                        login_id: None,
                         server_name: "missing-server".to_string(),
                         callback_success_message: None,
                         client_name: None,
@@ -634,6 +638,8 @@ async fn should_report_error_when_mcp_oauth_server_is_not_configured() {
 
                 expect_err_contains(
                     session.rpc().mcp().oauth().login(McpOauthLoginRequest {
+                        expected_installation_id: None,
+                        login_id: None,
                         server_name: "missing-server".to_string(),
                         callback_success_message: None,
                         client_name: None,
@@ -676,6 +682,8 @@ async fn should_report_error_when_mcp_oauth_server_is_not_remote() {
 
                 expect_err_contains(
                     session.rpc().mcp().oauth().login(McpOauthLoginRequest {
+                        expected_installation_id: None,
+                        login_id: None,
                         server_name: server_name.to_string(),
                         callback_success_message: Some("Done".to_string()),
                         client_name: Some("SDK E2E".to_string()),

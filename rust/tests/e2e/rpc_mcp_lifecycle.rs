@@ -123,6 +123,7 @@ async fn should_stop_running_mcp_server() {
                     .rpc()
                     .mcp()
                     .stop_server(McpStopServerRequest {
+                        expected_installation_id: None,
                         server_name: server_name.to_string(),
                     })
                     .await

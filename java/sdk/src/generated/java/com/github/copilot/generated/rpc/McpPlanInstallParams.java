@@ -29,6 +29,8 @@ public record McpPlanInstallParams(
     /** What to plan: either a candidate handle from a previous search, or a card supplied directly. */
     @JsonProperty("source") Object source,
     /** Configuration scope the plan targets. Defaults to user scope when omitted. */
-    @JsonProperty("scope") McpPlanScope scope
+    @JsonProperty("scope") McpPlanScope scope,
+    /** The same existing attached session that owns the original catalogue candidate. */
+    @JsonProperty("policySessionId") String policySessionId
 ) {
 }

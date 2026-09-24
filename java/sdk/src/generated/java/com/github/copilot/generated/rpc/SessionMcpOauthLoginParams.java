@@ -41,6 +41,11 @@ public record SessionMcpOauthLoginParams(
     /** Optional override indicating whether the static OAuth client is public. When false, the runtime treats it as confidential and uses the per-login clientSecret if provided, otherwise retrieving the client secret from the MCP OAuth secret store. */
     @JsonProperty("publicClient") Boolean publicClient,
     /** Optional OAuth grant type override for this login. Defaults to the server configuration, or authorization_code when no grant type is specified. */
-    @JsonProperty("grantType") McpOauthLoginGrantType grantType
+    @JsonProperty("grantType") McpOauthLoginGrantType grantType,
+    /** Required for owned login. Consumes the exact prepareLogin handle once.
+Set forceReauth and display options during preparation, not consumption. */
+    @JsonProperty("loginId") String loginId,
+    /** Exact owned receipt identity. Owned login never uses an implicit helper session. */
+    @JsonProperty("expectedInstallationId") String expectedInstallationId
 ) {
 }

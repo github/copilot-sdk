@@ -1670,6 +1670,94 @@ function resolveMethodParamsSchema(method: RpcMethod): JSONSchema7 | undefined {
     );
 }
 
+type RpcParameterEntry = [string, JSONSchema7 | boolean];
+
+function legacyParameterEntries(
+    method: RpcMethod,
+    params: JSONSchema7 | undefined,
+    entries: RpcParameterEntry[],
+): RpcParameterEntry[] | undefined {
+    if (!params || !("x-csharp-legacy-parameters" in params)) return undefined;
+    const names = params["x-csharp-legacy-parameters"];
+    const invalid = (reason: string): never => {
+        throw new Error(`Invalid x-csharp-legacy-parameters for ${method.rpcMethod}: ${reason}`);
+    };
+    if (!Array.isArray(names) || !names.every((name): name is string => typeof name === "string")) {
+        return invalid("expected an array of parameter names");
+    }
+    if (getNullableInner(method.params) || getNullableInner(resolveSchema(method.params, rpcDefinitions))) {
+        return invalid("nullable request parameters already have a request-object entry");
+    }
+    if (new Set(names).size !== names.length) return invalid("duplicate parameter names");
+    const properties = new Map(entries);
+    const legacy: RpcParameterEntry[] = [];
+    const required = new Set(params.required ?? []);
+    let optionalSeen = false;
+    for (const name of names) {
+        const property = properties.get(name);
+        if (!property || typeof property !== "object") return invalid(`unknown or non-object parameter ${name}`);
+        if (required.has(name)) {
+            if (optionalSeen) return invalid("required parameters must precede optional parameters");
+        } else {
+            optionalSeen = true;
+        }
+        legacy.push([name, property]);
+    }
+    const additions = entries.filter(([name]) => !names.includes(name));
+    if (!additions.length) return invalid("expected at least one additional optional parameter");
+    if (additions.some(([name]) => required.has(name))) return invalid("cannot omit a required parameter");
+    return legacy;
+}
+
+function validateRequestEntryNames(node: Record<string, unknown>): void {
+    const occupied = new Set(Object.entries(node).map(([name, value]) =>
+        `${toPascalCase(name)}${isRpcMethod(value) ? "Async" : ""}`));
+    for (const [name, method] of Object.entries(node)) {
+        if (!isRpcMethod(method)) continue;
+        const params = resolveMethodParamsSchema(method);
+        if (!params || !("x-csharp-legacy-parameters" in params)) continue;
+        const expandedName = `${toPascalCase(name)}WithRequestAsync`;
+        if (occupied.has(expandedName)) {
+            throw new Error(`Generated request entry ${expandedName} collides in ${method.rpcMethod}`);
+        }
+        occupied.add(expandedName);
+    }
+}
+
+function emitRequestObjectMethod(
+    name: string,
+    method: RpcMethod,
+    requestClassName: string,
+    wireRequestClassName: string,
+    assignments: string[] | undefined,
+    resultClassName: string,
+    lines: string[],
+    indent: string,
+    groupExperimental: boolean,
+    groupDeprecated: boolean,
+): void {
+    const resultSchema = getMethodResultSchema(method);
+    const taskType = isVoidSchema(resultSchema) ? "Task" : `Task<${resultClassName}>`;
+    const visibility = method.visibility === "internal" ? "internal" : "public";
+    const session = assignments !== undefined;
+    lines.push("");
+    pushRpcMethodXmlDocs(lines, method, indent, [
+        { name: "request", description: rpcParamsDescription(method, resolveMethodParamsSchema(method)) },
+        { name: "cancellationToken", description: CANCELLATION_TOKEN_DESCRIPTION, escapeDescription: false },
+    ], resultSchema);
+    if (method.stability === "experimental" && !groupExperimental) pushExperimentalAttribute(lines, indent);
+    if (method.deprecated && !groupDeprecated) pushObsoleteAttributes(lines, indent);
+    lines.push(`${indent}${visibility} async ${taskType} ${name}WithRequestAsync(${requestClassName} request, CancellationToken cancellationToken = default)`);
+    lines.push(`${indent}{`, `${indent}    ArgumentNullException.ThrowIfNull(request);`);
+    if (session) {
+        lines.push(`${indent}    _session.ThrowIfDisposed();`);
+        lines.push(`${indent}    var wireRequest = new ${wireRequestClassName} { ${assignments.join(", ")} };`);
+    }
+    const invocation = `CopilotClient.InvokeRpcAsync${isVoidSchema(resultSchema) ? "" : `<${resultClassName}>`}`;
+    lines.push(`${indent}    ${isVoidSchema(resultSchema) ? "" : "return "}await ${invocation}(${session ? "_session.Rpc" : "_rpc"}, "${method.rpcMethod}", [${session ? "wireRequest" : "request"}], cancellationToken);`);
+    lines.push(`${indent}}`);
+}
+
 function stableStringify(value: unknown): string {
     if (Array.isArray(value)) {
         return `[${value.map((item) => stableStringify(item)).join(",")}]`;
@@ -1946,6 +2034,7 @@ function emitRpcResultType(typeName: string, schema: JSONSchema7, visibility: "p
  * Emit ServerRpc as an instance class (like SessionRpc but without sessionId).
  */
 function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]): string[] {
+    validateRequestEntryNames(node);
     const result: string[] = [];
 
     // Find top-level groups (e.g. "models", "tools", "account")
@@ -1996,6 +2085,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
 }
 
 function emitServerApiClass(className: string, node: Record<string, unknown>, classes: string[]): string[] {
+    validateRequestEntryNames(node);
     const parts: string[] = [];
     const lines: string[] = [];
     const displayName = className.replace(/^Server/, "").replace(/Api$/, "");
@@ -2072,6 +2162,7 @@ function emitServerInstanceMethod(
     const effectiveParams = resolveMethodParamsSchema(method);
     const paramEntries = effectiveParams?.properties ? Object.entries(effectiveParams.properties) : [];
     const requiredSet = new Set(effectiveParams?.required || []);
+    const legacyEntries = legacyParameterEntries(method, effectiveParams, paramEntries);
 
     // Sort so required params come before optional (C# requires defaults at end)
     paramEntries.sort((a, b) => {
@@ -2086,7 +2177,7 @@ function emitServerInstanceMethod(
         if (method.stability === "experimental" && !nonExperimentalRpcTypes.has(requestClassName)) {
             experimentalRpcTypes.add(requestClassName);
         }
-        const reqClass = emitRpcClass(requestClassName, effectiveParams!, "internal", classes, requestClassName, true);
+        const reqClass = emitRpcClass(requestClassName, effectiveParams!, legacyEntries ? methodVisibility : "internal", classes, requestClassName, true);
         if (reqClass) classes.push(reqClass);
     }
 
@@ -2095,7 +2186,7 @@ function emitServerInstanceMethod(
     const argumentNullChecks: string[] = [];
     const parameterDescriptions: Array<{ name: string; description?: string; escapeDescription?: boolean }> = [];
 
-    for (const [pName, pSchema] of paramEntries) {
+    for (const [pName, pSchema] of legacyEntries ?? paramEntries) {
         if (typeof pSchema !== "object") continue;
         const isReq = requiredSet.has(pName);
         const jsonSchema = pSchema as JSONSchema7;
@@ -2178,9 +2269,13 @@ function emitServerInstanceMethod(
         }
     }
     lines.push(`${indent}}`);
+    if (legacyEntries && requestClassName) {
+        emitRequestObjectMethod(methodName, method, requestClassName, requestClassName, undefined, resultClassName, lines, indent, groupExperimental, groupDeprecated);
+    }
 }
 
 function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[]): string[] {
+    validateRequestEntryNames(node);
     const result: string[] = [];
     const groups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
     const topLevelMethods = Object.entries(node).filter(([, v]) => isRpcMethod(v));
@@ -2252,6 +2347,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     const effectiveParams = resolveMethodParamsSchema(method);
     const paramEntries = (effectiveParams?.properties ? Object.entries(effectiveParams.properties) : []).filter(([k]) => k !== "sessionId");
     const requiredSet = new Set(effectiveParams?.required || []);
+    const legacyEntries = legacyParameterEntries(method, effectiveParams, paramEntries);
     const useRequestParameter =
         paramEntries.length > 0 &&
         !!getNullableInner(method.params) &&
@@ -2265,7 +2361,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     });
 
     const requestClassName = paramsTypeName(method);
-    const wireRequestClassName = useRequestParameter || hasSessionRequestEnvelope(effectiveParams)
+    const wireRequestClassName = useRequestParameter || legacyEntries || hasSessionRequestEnvelope(effectiveParams)
         ? `${requestClassName}WithSession`
         : requestClassName;
     if (method.stability === "experimental" && !nonExperimentalRpcTypes.has(requestClassName)) {
@@ -2275,7 +2371,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
         }
     }
     if (effectiveParams?.properties && Object.keys(effectiveParams.properties).length > 0) {
-        if (useRequestParameter) {
+        if (useRequestParameter || legacyEntries) {
             const publicParams: JSONSchema7 = {
                 ...effectiveParams,
                 properties: Object.fromEntries(paramEntries),
@@ -2314,7 +2410,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
             bodyAssignments.push(`${csharpName} = request?.${csharpName}`);
         }
     } else {
-        for (const [pName, pSchema] of paramEntries) {
+        for (const [pName, pSchema] of legacyEntries ?? paramEntries) {
             if (typeof pSchema !== "object") continue;
             const isReq = requiredSet.has(pName);
             const jsonSchema = pSchema as JSONSchema7;
@@ -2379,9 +2475,15 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     } else {
         lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_session.Rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`, `${indent}}`);
     }
+    if (legacyEntries) {
+        const assignments = ["SessionId = _session.SessionId", ...paramEntries.flatMap(([name, schema]) =>
+            typeof schema === "object" ? [`${toCSharpPropertyName(name, schema)} = request.${toCSharpPropertyName(name, schema)}`] : [])];
+        emitRequestObjectMethod(methodName, method, requestClassName, wireRequestClassName, assignments, resultClassName, lines, indent, groupExperimental, groupDeprecated);
+    }
 }
 
 function emitSessionApiClass(className: string, node: Record<string, unknown>, classes: string[]): string[] {
+    validateRequestEntryNames(node);
     const parts: string[] = [];
     const displayName = className.replace(/Api$/, "");
     const groupExperimental = isNodeFullyExperimental(node);

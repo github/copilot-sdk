@@ -718,7 +718,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
  * Generated from: api.schema.json
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 `);
 
     const externalSchemaRefs = collectExternalSchemaRefNames(schema);
@@ -1178,7 +1178,7 @@ export function emitClientSessionApiRegistration(clientSchema: Record<string, un
  * incoming call to the registered handler regardless of which (if any)
  * runtime session triggered it.
  */
-function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>): string[] {
+export function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>): string[] {
     const lines: string[] = [];
     const groups = collectClientGroups(clientSchema);
 
@@ -1211,11 +1211,11 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
                 includeDeprecated: method.deprecated && !groupDeprecated,
                 includeExperimental: method.stability === "experimental" && !groupExperimental,
             });
-            if (hasParams) {
-                lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
-            } else {
-                lines.push(`    ${name}(): Promise<${rType}>;`);
-            }
+            const args = [
+                ...(hasParams ? [`params: ${pType}`] : []),
+                ...(!method.notification ? ["token?: CancellationToken"] : []),
+            ];
+            lines.push(`    ${name}(${args.join(", ")}): Promise<${rType}>;`);
         }
         lines.push(`}`);
         lines.push("");
@@ -1238,6 +1238,8 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
     lines.push(` * Unlike session-scoped client APIs, these methods carry no implicit`);
     lines.push(` * \`sessionId\` dispatch key — a single set of handlers serves the entire`);
     lines.push(` * connection.`);
+    lines.push(` * Request handlers receive the transport's cancellation token; connection`);
+    lines.push(` * disposal is a separate lifetime signal and does not cancel that token.`);
     lines.push(` */`);
     lines.push(`export function registerClientGlobalApiHandlers(`);
     lines.push(`    connection: MessageConnection,`);
@@ -1271,16 +1273,16 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
                     lines.push(`    });`);
                 }
             } else if (hasParams) {
-                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}) => {`);
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}, token: CancellationToken) => {`);
                 lines.push(`        const handler = handlers.${groupName};`);
                 lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);
-                lines.push(`        return handler.${name}(params);`);
+                lines.push(`        return handler.${name}(params, token);`);
                 lines.push(`    });`);
             } else {
-                lines.push(`    connection.onRequest("${method.rpcMethod}", async () => {`);
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async (token: CancellationToken) => {`);
                 lines.push(`        const handler = handlers.${groupName};`);
                 lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);
-                lines.push(`        return handler.${name}();`);
+                lines.push(`        return handler.${name}(token);`);
                 lines.push(`    });`);
             }
         }

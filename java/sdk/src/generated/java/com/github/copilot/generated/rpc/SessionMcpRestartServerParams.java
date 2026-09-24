@@ -29,6 +29,8 @@ public record SessionMcpRestartServerParams(
     /** Name of the MCP server to restart */
     @JsonProperty("serverName") String serverName,
     /** Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart the server with its already-registered configuration (config-free restart-by-name). */
-    @JsonProperty("config") Object config
+    @JsonProperty("config") Object config,
+    /** Exact receipt identity for an explicit owned restart; configuration overrides are refused. */
+    @JsonProperty("expectedInstallationId") String expectedInstallationId
 ) {
 }

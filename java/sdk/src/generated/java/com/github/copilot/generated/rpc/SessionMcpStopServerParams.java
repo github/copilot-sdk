@@ -26,6 +26,8 @@ import javax.annotation.processing.Generated;
 public record SessionMcpStopServerParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Exact owned receipt identity. Stop also forgets this session's durable activation. */
+    @JsonProperty("expectedInstallationId") String expectedInstallationId,
     /** Name of the MCP server to stop */
     @JsonProperty("serverName") String serverName
 ) {

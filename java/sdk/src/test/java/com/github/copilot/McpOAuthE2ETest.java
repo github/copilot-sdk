@@ -80,8 +80,12 @@ public class McpOAuthE2ETest {
                                 new McpHttpServerConfig().setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                         .get()) {
             waitForMcpServerStatus(session, "oauth-cimd-mcp", McpServerStatus.NEEDS_AUTH, new AtomicReference<>());
-            var result = session.getRpc().mcp.oauth.login(new SessionMcpOauthLoginParams(session.getSessionId(),
-                    "oauth-cimd-mcp", null, null, null, null, null, null, null)).get(30, TimeUnit.SECONDS);
+            var loginParams = new SessionMcpOauthLoginParams(session.getSessionId(), "oauth-cimd-mcp", null, null, null,
+                    null, null, null, null, null, null);
+            var wireParams = MAPPER.valueToTree(loginParams);
+            assertFalse(wireParams.has("loginId"));
+            assertFalse(wireParams.has("expectedInstallationId"));
+            var result = session.getRpc().mcp.oauth.login(loginParams).get(30, TimeUnit.SECONDS);
             assertNotNull(result.authorizationUrl());
             var clientId = List.of(URI.create(result.authorizationUrl()).getQuery().split("&")).stream()
                     .filter(part -> part.startsWith("client_id=")).findFirst()

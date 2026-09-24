@@ -979,6 +979,13 @@ impl<'a> ClientRpcMcp<'a> {
         }
     }
 
+    /// `mcp.installations.*` sub-namespace.
+    pub fn installations(&self) -> ClientRpcMcpInstallations<'a> {
+        ClientRpcMcpInstallations {
+            client: self.client,
+        }
+    }
+
     /// Discovers MCP servers from user, workspace, plugin, and builtin sources.
     ///
     /// Wire method: `mcp.discover`.
@@ -1034,6 +1041,130 @@ impl<'a> ClientRpcMcp<'a> {
         let _value = self
             .client
             .call(rpc_methods::MCP_PLANINSTALL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Consumes a bound catalogue plan and retains one exact fully resolved personal remote MCP operation requiring no supplied values or configured secrets. Returns its runtime operation ID and original expiry before any confirmation, activation, writer initialisation or installation effect. Register the original connection, operation and selected-session binding before calling applyInstall. Missing lower owned admission is unavailable, never a raw-config fallback.
+    ///
+    /// Wire method: `mcp.prepareInstall`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Side-effect-free preparation of one original bound, input-free remote MCP choice.
+    ///
+    /// # Returns
+    ///
+    /// Management result with contract receipt, or a typed request/negotiation refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn prepare_install(
+        &self,
+        params: McpPrepareInstallRequest,
+    ) -> Result<McpInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_PREPAREINSTALL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Consumes a retained prepared MCP operation once, revalidates its original authority, requests explicit human consent through installations.confirm on the original connection, then revalidates source and applies the sealed transaction. An uncertain result requires original-operation inspection or recovery, never replay.
+    ///
+    /// Wire method: `mcp.applyInstall`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Applies exactly one previously prepared operation on its original connection.
+    ///
+    /// # Returns
+    ///
+    /// An installation result together with the exact honoured contract, or a negotiation refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn apply_install(
+        &self,
+        params: McpApplyInstallRequest,
+    ) -> Result<McpInstallationResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_APPLYINSTALL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Prepares a read-only removal plan for an exact owned receipt under the selected existing session. Returns the original operation ID before confirmation; neither planning nor abandonment changes configuration or shared OAuth credentials.
+    ///
+    /// Wire method: `mcp.planUninstall`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Read-only preparation of one owned removal under fresh selected-session authority.
+    ///
+    /// # Returns
+    ///
+    /// Management result with contract receipt, or a typed request/negotiation refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn plan_uninstall(
+        &self,
+        params: McpPlanUninstallRequest,
+    ) -> Result<McpInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_PLANUNINSTALL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Consumes the original owned-removal plan once and requests fresh exact human confirmation on its original connection. Drift is refused; unrelated manual configuration and shared OAuth credentials are preserved.
+    ///
+    /// Wire method: `mcp.applyUninstall`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - One-use application of the exact retained removal plan.
+    ///
+    /// # Returns
+    ///
+    /// An installation result together with the exact honoured contract, or a negotiation refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn apply_uninstall(
+        &self,
+        params: McpApplyUninstallRequest,
+    ) -> Result<McpInstallationResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_APPLYUNINSTALL, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -1208,6 +1339,138 @@ impl<'a> ClientRpcMcpConfig<'a> {
             .call(rpc_methods::MCP_CONFIG_RELOAD, Some(wire_params))
             .await?;
         Ok(())
+    }
+}
+
+/// `mcp.installations.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcMcpInstallations<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcMcpInstallations<'a> {
+    /// Reads receipt-owned MCP inventory for the selected account and host without activating servers or reconstructing missing ownership. Configuration ownership does not prove session-specific usability.
+    ///
+    /// Wire method: `mcp.installations.list`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - New-work inventory or recovery request under an explicitly selected existing session.
+    ///
+    /// # Returns
+    ///
+    /// Management result with contract receipt, or a typed request/negotiation refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list(
+        &self,
+        params: McpInstallationsRequest,
+    ) -> Result<McpInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_INSTALLATIONS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reconciles already-confirmed durable MCP transactions, then inspects owned inventory. Does not replay apply or reconstruct deleted ownership metadata; unresolved or unsafe evidence remains an explicit refusal.
+    ///
+    /// Wire method: `mcp.installations.recover`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - New-work inventory or recovery request under an explicitly selected existing session.
+    ///
+    /// # Returns
+    ///
+    /// Management result with contract receipt, or a typed request/negotiation refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn recover(
+        &self,
+        params: McpInstallationsRequest,
+    ) -> Result<McpInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_INSTALLATIONS_RECOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Inspects a known operation only on its original connection. Remains available after account or selected-session loss; does not acquire new authority or rebind an operation.
+    ///
+    /// Wire method: `mcp.installations.status`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Existing-operation control. A new session selector is deliberately not accepted.
+    ///
+    /// # Returns
+    ///
+    /// Management result with contract receipt, or a typed request/negotiation refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn status(
+        &self,
+        params: McpInstallationOperationRequest,
+    ) -> Result<McpInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_INSTALLATIONS_STATUS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Requests cancellation of a known operation on its original connection, including before apply or confirmation. Already-started effects retain their transaction lease and report an honest terminal or recovery outcome.
+    ///
+    /// Wire method: `mcp.installations.cancel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Existing-operation control. A new session selector is deliberately not accepted.
+    ///
+    /// # Returns
+    ///
+    /// Management result with contract receipt, or a typed request/negotiation refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn cancel(
+        &self,
+        params: McpInstallationOperationRequest,
+    ) -> Result<McpInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_INSTALLATIONS_CANCEL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
     }
 }
 
@@ -7625,7 +7888,43 @@ impl<'a> SessionRpcMcpOauth<'a> {
         Ok(())
     }
 
-    /// Starts OAuth authentication for a remote MCP server.
+    /// Prepares an inert, expiring owned OAuth login bound to the original session requester and exact installation. Does not activate, connect, read credentials or open a browser.
+    ///
+    /// Wire method: `session.mcp.oauth.prepareLogin`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Effect-free preparation bound to the existing local session, requester and installation, with frozen options.
+    ///
+    /// # Returns
+    ///
+    /// An inert runtime-issued login handle. Preparation alone performs no activation or OAuth work.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn prepare_login(
+        &self,
+        params: SessionMcpOauthPrepareLoginParams,
+    ) -> Result<McpOauthPrepareLoginResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_OAUTH_PREPARELOGIN,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.
     ///
     /// Wire method: `session.mcp.oauth.login`.
     ///
@@ -7681,6 +7980,42 @@ impl<'a> SessionRpcMcpOauth<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_MCP_OAUTH_PROBE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Cancels the exact owned OAuth login issued to this original session requester, without clearing shared credentials.
+    ///
+    /// Wire method: `session.mcp.oauth.cancelLogin`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Targets only the original prepared/applying owned login on this exact session requester.
+    ///
+    /// # Returns
+    ///
+    /// Honest terminal cancellation result; persistence or recovery failures remain RPC errors.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn cancel_login(
+        &self,
+        params: SessionMcpOauthCancelLoginParams,
+    ) -> Result<McpOauthCancelLoginResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_OAUTH_CANCELLOGIN,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

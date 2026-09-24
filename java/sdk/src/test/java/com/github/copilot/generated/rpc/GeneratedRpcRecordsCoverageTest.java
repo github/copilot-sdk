@@ -275,16 +275,18 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionMcpDisableParams_record() {
-        var params = new SessionMcpDisableParams("sess-25", "mcp-server-1");
+        var params = new SessionMcpDisableParams("sess-25", null, "mcp-server-1");
         assertEquals("sess-25", params.sessionId());
         assertEquals("mcp-server-1", params.serverName());
+        assertNull(params.expectedInstallationId());
     }
 
     @Test
     void sessionMcpEnableParams_record() {
-        var params = new SessionMcpEnableParams("sess-26", "mcp-server-2");
+        var params = new SessionMcpEnableParams("sess-26", null, "mcp-server-2");
         assertEquals("sess-26", params.sessionId());
         assertEquals("mcp-server-2", params.serverName());
+        assertNull(params.expectedInstallationId());
     }
 
     @Test

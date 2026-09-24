@@ -3,7 +3,7 @@
  * Generated from: api.schema.json
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 
 import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
@@ -648,7 +648,11 @@ export type CatalogCapability =
   /** Understands exact candidate selection through model-safe opaque references and host-only candidate-handle hand-off. */
   | "catalog-selection"
   /** Requires an eligible credential for the selected GitHub.com account before search egress and prohibits client-side anonymous retry, including after HTTP 401 or 403. The credential is scoped to the fixed catalog authority without redirect forwarding. Neither a grant nor successful response proves that the authority accepted the identity or selected a particular backend. Preserve this requirement on every page and retry; callers omitting it retain optional authentication. */
-  | "catalog-search-credential-required";
+  | "catalog-search-credential-required"
+  /** Captures the exact existing native session, account, host and connection for authenticated catalogue search, selection and planning. Requires catalog-search-credential-required; does not grant installation or create a session. */
+  | "catalog-search-session-bound"
+  /** Understands effect-free preparation, exact human-confirmed apply and owned removal for fully resolved personal remote MCP choices without supplied inputs or configured secrets. Advertised only when the real producer and lower owned admission are linked; requires original connection and bound session authority for new work. */
+  | "mcp-confirmed-remote-installation";
 /**
  * Bounded extensible wire-feature identifier. Known values are described by `CatalogCapability`; newer callers may send future identifiers so an older runtime can return a typed negotiation refusal instead of failing schema validation. Capability negotiation establishes contract understanding, while each operation's result separately reports runtime availability.
  *
@@ -715,6 +719,8 @@ export type CatalogHandleRejectionReason =
  */
 /** @experimental */
 export type CatalogInvalidRequestField =
+  /** The selected existing attached session was missing, malformed or unavailable. */
+  | "policySessionId"
   /** The search query was empty or longer than permitted. */
   | "query"
   /** The requested result count fell outside its permitted range. */
@@ -2006,6 +2012,259 @@ export type HistoryRewindOutcome =
   /** Files and conversation were rewound, but obsolete file snapshots could not be removed; only conversation-and-files rewinds produce this. */
   | "snapshot-prune-failed";
 /**
+ * Only resource kinds with an implemented installation engine have a review variant.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstallationReview".
+ */
+/** @experimental */
+export type InstallationReview = {
+  review: McpInstallationReview;
+  /**
+   * Reviewed resource discriminator.
+   */
+  resource: "mcp";
+};
+/**
+ * Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpInstallationReview".
+ */
+/** @experimental */
+export type McpInstallationReview =
+  | {
+      identity: McpPlanResourceIdentity;
+      provenance: McpPlanProvenance;
+      catalogueTrust?: CatalogTrustSnapshot;
+      target: McpPlanTarget;
+      policy: McpPlanPolicyResult;
+      selectedChoice: McpPlanTransportChoice;
+      configurationChange: McpPlanConfigurationChange;
+      /**
+       * Non-secret values supplied for this selected alternative.
+       */
+      inputs: McpInstallationInput[];
+      /**
+       * Exact reviewed placeholders supplied separately. Never secret values.
+       */
+      suppliedSecrets: McpPlanSecretReference[];
+      secretStorage: McpInstallationSecretStorage;
+      effectiveConfiguration?: McpInstallationRemoteConfiguration;
+      /**
+       * Exact reviewed installation action.
+       */
+      action: "install";
+    }
+  | {
+      /**
+       * Receipt-owned installation being removed.
+       */
+      installationId: string;
+      identity: McpPlanResourceIdentity;
+      provenance: McpPlanProvenance;
+      target: McpPlanTarget;
+      policy: McpPlanPolicyResult;
+      /**
+       * Whether uninstall restores a protected pre-install configuration.
+       */
+      restoresPreviousConfiguration: boolean;
+      /**
+       * Exact planner-owned secret slots to remove, excluding shared OAuth grants.
+       */
+      ownedSecretCount: number;
+      /**
+       * Shared profile authentication is deliberately retained, not pending cleanup.
+       */
+      preservesSharedAuthentication: boolean;
+      /**
+       * Exact reviewed installation action.
+       */
+      action: "uninstall";
+    };
+/**
+ * Configuration scope an MCP install plan targets
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanScope".
+ */
+/** @experimental */
+export type McpPlanScope = /** The user's own MCP configuration. */ "user";
+/**
+ * What policy decided for a planned server
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanPolicyDecision".
+ */
+/** @experimental */
+export type McpPlanPolicyDecision =
+  /** Policy permits the server. */
+  | "allowed"
+  /** Policy forbids the server, so the plan cannot be applied. */
+  | "blocked"
+  /** Policy permits the server only after an explicit approval. */
+  | "requires-approval";
+/**
+ * One eligible way to run the server, represented as a tagged package or remote variant so package identity and endpoint states cannot contradict the install method.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanTransportChoice".
+ */
+/** @experimental */
+export type McpPlanTransportChoice = McpPlanTransportChoicePackage | McpPlanTransportChoiceRemote;
+/**
+ * Transport exposed by a locally launched package
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanPackageTransport".
+ */
+/** @experimental */
+export type McpPlanPackageTransport =
+  /** A locally launched process spoken to over standard input and output. */
+  "stdio";
+/**
+ * Discriminator for a package-backed transport choice
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanPackageInstallMethod".
+ */
+/** @experimental */
+export type McpPlanPackageInstallMethod = /** Install and run a local package. */ "package";
+/**
+ * One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRequiredValue".
+ */
+/** @experimental */
+export type McpPlanRequiredValue = McpPlanRequiredValueScalar | McpPlanRequiredValueEnum;
+/**
+ * Discriminator for a scalar required value
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRequiredValueScalarKind".
+ */
+/** @experimental */
+export type McpPlanRequiredValueScalarKind = /** The value uses one scalar type. */ "scalar";
+/**
+ * Where a required value is applied when the planned server is launched
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanValueCategory".
+ */
+/** @experimental */
+export type McpPlanValueCategory =
+  /** Set as an environment variable on the launched process. */
+  | "environment-variable"
+  /** Passed to the runtime that launches the package. */
+  | "runtime-argument"
+  /** Passed to the packaged server itself. */
+  | "package-argument"
+  /** Sent as a request header to a remote endpoint. */
+  | "header"
+  /** Substituted into the remote endpoint URL. */
+  | "url-variable";
+/**
+ * Scalar type a required value must conform to
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanScalarValueType".
+ */
+/** @experimental */
+export type McpPlanScalarValueType =
+  /** Free text. */
+  | "string"
+  /** A number. */
+  | "number"
+  /** A boolean. */
+  | "boolean"
+  /** A filesystem path. */
+  | "path";
+/**
+ * Discriminator for an enumerated required value
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRequiredValueEnumKind".
+ */
+/** @experimental */
+export type McpPlanRequiredValueEnumKind = /** The value uses a fixed non-empty enumeration. */ "enum";
+/**
+ * Discriminator for an enumerated required value
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanEnumValueType".
+ */
+/** @experimental */
+export type McpPlanEnumValueType = /** One of a fixed, non-empty set of permitted values. */ "enum";
+/**
+ * A runtime-assigned secret placeholder. The identifier is carried once, inside the placeholder, so it cannot contradict a separate secret-id field.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanSecretReference".
+ */
+/** @experimental */
+export type McpPlanSecretReference = string;
+/**
+ * Transport exposed by a remote endpoint
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRemoteTransport".
+ */
+/** @experimental */
+export type McpPlanRemoteTransport =
+  /** An HTTP endpoint. */
+  | "http"
+  /** A streamable HTTP endpoint. */
+  | "streamable-http"
+  /** A server-sent events endpoint. */
+  | "sse";
+/**
+ * Discriminator for a remote-endpoint transport choice
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRemoteInstallMethod".
+ */
+/** @experimental */
+export type McpPlanRemoteInstallMethod = /** Connect to a remote endpoint. */ "remote";
+/**
+ * Whether a planned configuration change would create or modify an entry
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanConfigurationOperation".
+ */
+/** @experimental */
+export type McpPlanConfigurationOperation =
+  /** Creates a configuration entry that does not exist yet. */
+  | "add"
+  /** Modifies a configuration entry that already exists. */
+  | "update";
+/**
+ * Explicit backend selection is part of the final review; failures never switch backends.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpInstallationSecretStorage".
+ */
+/** @experimental */
+export type McpInstallationSecretStorage =
+  /** The selected operating-system keychain, without fallback to file storage. */
+  | "keychain"
+  /** The explicitly selected private file backend. */
+  | "private-file";
+/**
+ * Explicit user decisions, never inferred from a permission grant or model response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstallationDecision".
+ */
+/** @experimental */
+export type InstallationDecision =
+  /** The user explicitly approved the exact review on this request. */
+  | "confirm"
+  /** The user declined the reviewed operation. */
+  | "decline"
+  /** The user cancelled the pending decision without granting consent. */
+  | "cancel";
+/**
  * Source for direct repo installs (when marketplace is empty)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2350,161 +2609,371 @@ export type McpHeadersHandlePendingHeadersRefreshRequest =
       kind: "error";
     };
 /**
- * One eligible way to run the server, represented as a tagged package or remote variant so package identity and endpoint states cannot contradict the install method.
+ * Bounded refusal categories, without echoing handles, credentials or configuration.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanTransportChoice".
+ * via the `definition` "McpInstallationFailureReason".
  */
 /** @experimental */
-export type McpPlanTransportChoice = McpPlanTransportChoicePackage | McpPlanTransportChoiceRemote;
+export type McpInstallationFailureReason =
+  /** The selected choice or request is unsupported or malformed. */
+  | "invalid-request"
+  /** The bounded original-connection operation limit was reached. */
+  | "operation-limit"
+  /** The original operation was cancelled. */
+  | "cancelled"
+  /** Required installation capabilities were omitted. */
+  | "capability-required"
+  /** The original host cannot receive human confirmation. */
+  | "confirmation-unavailable"
+  /** The confirmation response is malformed or mismatched. */
+  | "confirmation-invalid"
+  /** Existing authenticated session and host authority is unavailable. */
+  | "policy-context-unavailable"
+  /** The original authority or policy changed. */
+  | "policy-changed"
+  /** Current managed policy refuses the operation. */
+  | "policy-denied"
+  /** Configuration changed after the reviewed snapshot. */
+  | "configuration-changed"
+  /** Installed configuration no longer matches ownership evidence. */
+  | "configuration-modified"
+  /** No matching owned resource or original operation exists. */
+  | "resource-not-found"
+  /** The original plan deadline elapsed. */
+  | "plan-expired"
+  /** The one-use plan or prepared operation was already consumed. */
+  | "plan-replayed"
+  /** The handle belongs to a different runtime, session or connection. */
+  | "foreign-runtime"
+  /** Fresh bound planning is required. */
+  | "replan-required"
+  /** Exact original source revalidation is unsupported. */
+  | "source-revalidation-unavailable"
+  /** The source differs from the retained commitment. */
+  | "source-changed"
+  /** The original source could not be retrieved safely. */
+  | "source-unavailable"
+  /** Authoritative Registry interpretation is unavailable. */
+  | "registry-unavailable"
+  /** The selected secret backend is unavailable. */
+  | "secret-store-unavailable"
+  /** Required owned admission and lifecycle support is absent. */
+  | "lifecycle-unavailable"
+  /** A storage operation failed; inspect any allocated operation before retrying. */
+  | "write-failed";
 /**
- * Transport exposed by a locally launched package
+ * Read-only or recovery management result, never permission to activate or replay.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanPackageTransport".
+ * via the `definition` "McpInstallationManagementOutcome".
  */
 /** @experimental */
-export type McpPlanPackageTransport =
-  /** A locally launched process spoken to over standard input and output. */
-  "stdio";
+export type McpInstallationManagementOutcome =
+  | {
+      /**
+       * Installation management outcome discriminator.
+       */
+      kind: "recovery-required";
+    }
+  | {
+      operation: McpPreparedInstall;
+      /**
+       * Installation management outcome discriminator.
+       */
+      kind: "install-prepared";
+    }
+  | {
+      /**
+       * Owned receipts visible to the selected account and host.
+       */
+      installations: McpInstallationSummary[];
+      /**
+       * Installation management outcome discriminator.
+       */
+      kind: "listed";
+    }
+  | {
+      /**
+       * Freshly inspected receipts after successful durable reconciliation.
+       */
+      installations: McpInstallationSummary[];
+      /**
+       * Installation management outcome discriminator.
+       */
+      kind: "recovered";
+    }
+  | {
+      plan: McpUninstallPlan;
+      /**
+       * Installation management outcome discriminator.
+       */
+      kind: "uninstall-planned";
+    }
+  | {
+      operation: McpInstallationOperationStatus;
+      /**
+       * Installation management outcome discriminator.
+       */
+      kind: "operation";
+    }
+  | {
+      reason: McpInstallationFailureReason;
+      /**
+       * Installation management outcome discriminator.
+       */
+      kind: "refused";
+    };
 /**
- * Discriminator for a package-backed transport choice
+ * Configuration ownership and setup observations, distinct from tool permissions.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanPackageInstallMethod".
+ * via the `definition` "McpInstallationState".
  */
 /** @experimental */
-export type McpPlanPackageInstallMethod = /** Install and run a local package. */ "package";
+export type McpInstallationState =
+  /** Owned configuration exists; inventory alone does not grant activation. */
+  | "needs-setup"
+  /** The selected authorised session reports an active installation. */
+  | "active"
+  /** The selected server requires explicit sign-in. */
+  | "authentication-required"
+  /** The selected server could not be activated. */
+  | "activation-failed"
+  /** Owned configuration no longer matches its receipt. */
+  | "configuration-modified"
+  /** Confirmed durable work or unsafe evidence requires recovery. */
+  | "recovery-required";
 /**
- * One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type.
+ * Status snapshot from the original connection, independent of new-work account availability.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanRequiredValue".
+ * via the `definition` "McpInstallationOperationStatus".
  */
 /** @experimental */
-export type McpPlanRequiredValue = McpPlanRequiredValueScalar | McpPlanRequiredValueEnum;
+export type McpInstallationOperationStatus =
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether cancellation has been requested, not proof that a write was undone.
+       */
+      cancellationRequested: boolean;
+      /**
+       * Original operation progress discriminator.
+       */
+      phase: "preparing";
+    }
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether the inert prepared operation was asked to cancel.
+       */
+      cancellationRequested: boolean;
+      /**
+       * Original operation progress discriminator.
+       */
+      phase: "prepared";
+    }
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether the pending human callback was asked to cancel.
+       */
+      cancellationRequested: boolean;
+      /**
+       * Original operation progress discriminator.
+       */
+      phase: "awaiting-confirmation";
+    }
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether source or authority revalidation was asked to cancel.
+       */
+      cancellationRequested: boolean;
+      /**
+       * Original operation progress discriminator.
+       */
+      phase: "revalidating";
+    }
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether applying was asked to cancel; already-started effects retain their lease.
+       */
+      cancellationRequested: boolean;
+      /**
+       * Original operation progress discriminator.
+       */
+      phase: "applying";
+    }
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether cancellation was requested before the terminal result.
+       */
+      cancellationRequested: boolean;
+      outcome: McpInstallationOutcome;
+      /**
+       * Original operation progress discriminator.
+       */
+      phase: "completed";
+    };
 /**
- * Discriminator for a scalar required value
+ * Terminal mutation result. Uncertainty is not approval, rollback or permission to replay.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanRequiredValueScalarKind".
+ * via the `definition` "McpInstallationOutcome".
  */
 /** @experimental */
-export type McpPlanRequiredValueScalarKind = /** The value uses one scalar type. */ "scalar";
+export type McpInstallationOutcome =
+  | {
+      installation: McpInstallationSummary;
+      /**
+       * Durable installation succeeded but final transaction cleanup remains.
+       */
+      cleanupPending: boolean;
+      /**
+       * Terminal installation outcome discriminator.
+       */
+      kind: "installed";
+    }
+  | {
+      /**
+       * Exact removed receipt identity.
+       */
+      installationId: string;
+      /**
+       * Original removal operation.
+       */
+      operationId: string;
+      /**
+       * Durable removal succeeded but final cleanup remains.
+       */
+      cleanupPending: boolean;
+      /**
+       * Whether protected pre-install configuration was restored.
+       */
+      restoredPreviousConfiguration: boolean;
+      /**
+       * Exact owned input slots removed, excluding shared OAuth credentials.
+       */
+      removedOwnedSecrets: number;
+      /**
+       * Any grants in the incumbent shared OAuth store remain unowned and retained.
+       */
+      preservedSharedAuthentication: boolean;
+      /**
+       * Terminal installation outcome discriminator.
+       */
+      kind: "uninstalled";
+    }
+  | {
+      reason: McpInstallationFailureReason;
+      /**
+       * Original connection-owned operation.
+       */
+      operationId: string;
+      /**
+       * Terminal installation outcome discriminator.
+       */
+      kind: "rolled-back";
+    }
+  | {
+      /**
+       * Operation whose durable result must be recovered and inspected.
+       */
+      operationId: string;
+      /**
+       * Terminal installation outcome discriminator.
+       */
+      kind: "recovery-required";
+    }
+  | {
+      /**
+       * Original operation explicitly declined by the user.
+       */
+      operationId: string;
+      /**
+       * Terminal installation outcome discriminator.
+       */
+      kind: "declined";
+    }
+  | {
+      /**
+       * Original operation cancelled before a terminal application result.
+       */
+      operationId: string;
+      /**
+       * Terminal installation outcome discriminator.
+       */
+      kind: "cancelled";
+    }
+  | {
+      reason: McpInstallationFailureReason;
+      /**
+       * Present once an operation has been allocated; never a plan handle.
+       */
+      operationId?: string;
+      /**
+       * Terminal installation outcome discriminator.
+       */
+      kind: "refused";
+    };
 /**
- * Where a required value is applied when the planned server is launched
+ * Management result with contract receipt, or a typed request/negotiation refusal.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanValueCategory".
+ * via the `definition` "McpInstallationManagementResult".
  */
 /** @experimental */
-export type McpPlanValueCategory =
-  /** Set as an environment variable on the launched process. */
-  | "environment-variable"
-  /** Passed to the runtime that launches the package. */
-  | "runtime-argument"
-  /** Passed to the packaged server itself. */
-  | "package-argument"
-  /** Sent as a request header to a remote endpoint. */
-  | "header"
-  /** Substituted into the remote endpoint URL. */
-  | "url-variable";
+export type McpInstallationManagementResult =
+  | {
+      /**
+       * A handled management outcome with an honoured contract.
+       */
+      kind: "outcome";
+      outcome: McpInstallationManagementOutcome;
+      negotiated: CatalogNegotiatedContract;
+    }
+  | CatalogNegotiationRefusedError
+  | CatalogInvalidRequestError;
 /**
- * Scalar type a required value must conform to
+ * An installation result together with the exact honoured contract, or a negotiation refusal.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanScalarValueType".
+ * via the `definition` "McpInstallationResult".
  */
 /** @experimental */
-export type McpPlanScalarValueType =
-  /** Free text. */
-  | "string"
-  /** A number. */
-  | "number"
-  /** A boolean. */
-  | "boolean"
-  /** A filesystem path. */
-  | "path";
-/**
- * Discriminator for an enumerated required value
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanRequiredValueEnumKind".
- */
-/** @experimental */
-export type McpPlanRequiredValueEnumKind = /** The value uses a fixed non-empty enumeration. */ "enum";
-/**
- * Discriminator for an enumerated required value
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanEnumValueType".
- */
-/** @experimental */
-export type McpPlanEnumValueType = /** One of a fixed, non-empty set of permitted values. */ "enum";
-/**
- * A runtime-assigned secret placeholder. The identifier is carried once, inside the placeholder, so it cannot contradict a separate secret-id field.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanSecretReference".
- */
-/** @experimental */
-export type McpPlanSecretReference = string;
-/**
- * Transport exposed by a remote endpoint
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanRemoteTransport".
- */
-/** @experimental */
-export type McpPlanRemoteTransport =
-  /** An HTTP endpoint. */
-  | "http"
-  /** A streamable HTTP endpoint. */
-  | "streamable-http"
-  /** A server-sent events endpoint. */
-  | "sse";
-/**
- * Discriminator for a remote-endpoint transport choice
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanRemoteInstallMethod".
- */
-/** @experimental */
-export type McpPlanRemoteInstallMethod = /** Connect to a remote endpoint. */ "remote";
-/**
- * Configuration scope an MCP install plan targets
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanScope".
- */
-/** @experimental */
-export type McpPlanScope = /** The user's own MCP configuration. */ "user";
-/**
- * What policy decided for a planned server
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanPolicyDecision".
- */
-/** @experimental */
-export type McpPlanPolicyDecision =
-  /** Policy permits the server. */
-  | "allowed"
-  /** Policy forbids the server, so the plan cannot be applied. */
-  | "blocked"
-  /** Policy permits the server only after an explicit approval. */
-  | "requires-approval";
-/**
- * Whether a planned configuration change would create or modify an entry
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanConfigurationOperation".
- */
-/** @experimental */
-export type McpPlanConfigurationOperation =
-  /** Creates a configuration entry that does not exist yet. */
-  | "add"
-  /** Modifies a configuration entry that already exists. */
-  | "update";
+export type McpInstallationResult =
+  | {
+      /**
+       * A handled operation outcome with an honoured contract.
+       */
+      kind: "outcome";
+      outcome: McpInstallationOutcome;
+      negotiated: CatalogNegotiatedContract;
+    }
+  | CatalogNegotiationRefusedError
+  | CatalogInvalidRequestError;
 /**
  * Consumer allowed to call an MCP tool.
  *
@@ -2561,6 +3030,18 @@ export type McpOauthLoginGrantType =
   | "authorization_code"
   /** Headless OAuth flow where a confidential client authenticates directly with a client secret. */
   | "client_credentials";
+/**
+ * Outcome of starting the original prepared owned login.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOwnedOauthLoginStatus".
+ */
+/** @experimental */
+export type McpOwnedOauthLoginStatus =
+  /** The original requester may open the returned authorisation URL. */
+  | "awaiting-browser"
+  /** Cached credentials were accepted and the original server finished reconnecting. */
+  | "connected";
 /**
  * Why a passive MCP OAuth probe determined authentication is needed.
  *
@@ -7321,7 +7802,7 @@ export interface CatalogPolicyRejectedError {
   message: string;
 }
 /**
- * An explicit numbered-page request. The SDK treats the token as opaque; only the runtime decodes it and changes its targetPage. Authority validation binds navigation to the original search. No snapshot stability or token TTL is promised.
+ * An explicit numbered-page request. SDK consumers treat the token as opaque. For bound search, the runtime unwraps an expiring owner-bound reference to the private authority token; only the runtime changes the authority token's targetPage. Legacy unbound navigation keeps its authority-issued token semantics. No snapshot stability is promised.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogSearchPage".
@@ -7329,7 +7810,7 @@ export interface CatalogPolicyRejectedError {
 /** @experimental */
 export interface CatalogSearchPage {
   /**
-   * Opaque authority-issued pagination token from an earlier response. Never decode, modify or log it in an SDK consumer.
+   * Opaque pagination token from an earlier response, owner-bound when session-bound search was requested. Never decode, modify or log it in an SDK consumer. Expired or foreign bound references require a fresh bound search, not a legacy retry.
    */
   token: string;
   /**
@@ -7346,7 +7827,7 @@ export interface CatalogSearchPage {
 /** @experimental */
 export interface CatalogSearchPagination {
   /**
-   * Opaque authority-issued pagination token. Only the runtime decodes it or changes targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created expiry or cache.
+   * Opaque pagination token. Session-bound search returns an expiring runtime-owned reference retaining the exact private authority token, original search and authority. Legacy unbound search returns the authority token unchanged, without a runtime-created expiry. Only the runtime unwraps tokens or changes targetPage; SDK consumers must not decode, modify or log them.
    */
   token: string;
   /**
@@ -7384,6 +7865,11 @@ export interface CatalogSearchPagination {
 /** @experimental */
 export interface CatalogSearchRequest {
   contract: CatalogClientContract;
+  /**
+   * Select an existing attached local session. Requires authenticated, session-bound search.
+   * The runtime never creates, resumes or reconfigures a session to honour this selector.
+   */
+  policySessionId?: string;
   /**
    * Free-text search query. Persisted as tool input for session continuity, but omitted from telemetry.
    */
@@ -11251,6 +11737,348 @@ export interface HooksDiscoverResult {
   errors: string[];
 }
 /**
+ * One connection-owned, expiring request for a trusted host's explicit user decision.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstallationConfirmationRequest".
+ */
+/** @experimental */
+export interface InstallationConfirmationRequest {
+  /**
+   * Original engine-resolved selector for a bound operation, never a dispatch default.
+   * Bound MCP confirmation always includes it; correlate it with the original pending action.
+   */
+  policySessionId?: string;
+  /**
+   * Opaque one-use challenge. Return unchanged; never log or persist.
+   */
+  confirmationId: string;
+  /**
+   * Random identifier of this installation operation, not a plan handle.
+   */
+  operationId: string;
+  /**
+   * Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it.
+   */
+  expiresAt: string;
+  /**
+   * Opaque commitment to the exact review and inputs. Return unchanged; never log.
+   */
+  reviewFingerprint: string;
+  review: InstallationReview;
+}
+/**
+ * Normalised identity of the MCP server a plan targets, independent of how the card spelled it.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanResourceIdentity".
+ */
+/** @experimental */
+export interface McpPlanResourceIdentity {
+  /**
+   * Canonical, normalised name of the server, for example `io.github.owner/server`.
+   */
+  canonicalName: string;
+  /**
+   * Local configuration key the server would be recorded under.
+   */
+  serverName: string;
+  /**
+   * Version advertised by the card, when it declares one.
+   */
+  version?: string;
+  /**
+   * Registry identifier of the server, when it came from a registry.
+   */
+  registryId?: string;
+}
+/**
+ * Provenance of the exact validated JSON MCP card content bound privately to a completed plan and its opaque handle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanProvenance".
+ */
+/** @experimental */
+export interface McpPlanProvenance {
+  /**
+   * Authority associated with the validated card, without path, query, or credentials. Inert untrusted data.
+   */
+  authority: string;
+  /**
+   * ISO 8601 timestamp at which the runtime completed strict parsing and schema validation of the card content.
+   */
+  validatedAt: string;
+  cardDigest: CardDigest;
+  mediaType: McpServerCardMediaType;
+}
+/**
+ * Where a plan would be written.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanTarget".
+ */
+/** @experimental */
+export interface McpPlanTarget {
+  scope: McpPlanScope;
+  /**
+   * Configuration key the server would be recorded under within that scope.
+   */
+  configKey: string;
+}
+/**
+ * Outcome of evaluating the planned server against registry and enterprise policy. Evaluation is read-only.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanPolicyResult".
+ */
+/** @experimental */
+export interface McpPlanPolicyResult {
+  decision: McpPlanPolicyDecision;
+  source: McpPlanPolicySource;
+  /**
+   * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+   */
+  reason?: string;
+}
+/**
+ * An eligible local-package transport choice. Package identity is required and a remote endpoint cannot be represented.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanTransportChoicePackage".
+ */
+/** @experimental */
+export interface McpPlanTransportChoicePackage {
+  /**
+   * Stable identifier for this choice within the plan, used to select it when the plan is applied.
+   */
+  choiceId: string;
+  transport: McpPlanPackageTransport;
+  installMethod: McpPlanPackageInstallMethod;
+  /**
+   * Packaging ecosystem, for example `oci` or `npm`.
+   */
+  packageType: string;
+  /**
+   * Package identifier. Inert untrusted data.
+   */
+  packageIdentifier: string;
+  /**
+   * Typed values this choice requires, excluding secrets.
+   */
+  requiredValues: McpPlanRequiredValue[];
+  /**
+   * Secrets this choice requires, referenced by placeholder only.
+   */
+  secretPlaceholders: McpPlanSecretPlaceholder[];
+}
+/**
+ * One non-secret scalar value a transport choice needs before it can be applied.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRequiredValueScalar".
+ */
+/** @experimental */
+export interface McpPlanRequiredValueScalar {
+  kind: McpPlanRequiredValueScalarKind;
+  /**
+   * Key the value is supplied under. Inert untrusted data.
+   */
+  key: string;
+  category: McpPlanValueCategory;
+  valueType: McpPlanScalarValueType;
+  /**
+   * Whether the value must be present for the plan to be applicable.
+   */
+  required: boolean;
+  /**
+   * Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
+   */
+  defaultValue?: string;
+  /**
+   * Human-readable label from the card. Inert untrusted text.
+   */
+  title?: string;
+  /**
+   * Human-readable explanation from the card. Inert untrusted text.
+   */
+  description?: string;
+  /**
+   * Whether the value may be supplied more than once.
+   */
+  isRepeated: boolean;
+}
+/**
+ * One enumerated non-secret value a transport choice needs before it can be applied. The permitted values are structurally required.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRequiredValueEnum".
+ */
+/** @experimental */
+export interface McpPlanRequiredValueEnum {
+  kind: McpPlanRequiredValueEnumKind;
+  /**
+   * Key the value is supplied under. Inert untrusted data.
+   */
+  key: string;
+  category: McpPlanValueCategory;
+  valueType: McpPlanEnumValueType;
+  /**
+   * Whether the value must be present for the plan to be applicable.
+   */
+  required: boolean;
+  /**
+   * Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
+   */
+  defaultValue?: string;
+  /**
+   * Human-readable label from the card. Inert untrusted text.
+   */
+  title?: string;
+  /**
+   * Human-readable explanation from the card. Inert untrusted text.
+   */
+  description?: string;
+  /**
+   * Non-empty permitted value set. Inert untrusted data.
+   *
+   * @minItems 1
+   */
+  enumValues: [string, ...string[]];
+  /**
+   * Whether the value may be supplied more than once.
+   */
+  isRepeated: boolean;
+}
+/**
+ * A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanSecretPlaceholder".
+ */
+/** @experimental */
+export interface McpPlanSecretPlaceholder {
+  /**
+   * Key the secret is supplied under. Inert untrusted data.
+   */
+  key: string;
+  placeholder: McpPlanSecretReference;
+  /**
+   * Human-readable label from the card. Inert untrusted text.
+   */
+  title?: string;
+}
+/**
+ * An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanTransportChoiceRemote".
+ */
+/** @experimental */
+export interface McpPlanTransportChoiceRemote {
+  /**
+   * Stable identifier for this choice within the plan, used to select it when the plan is applied.
+   */
+  choiceId: string;
+  transport: McpPlanRemoteTransport;
+  installMethod: McpPlanRemoteInstallMethod;
+  /**
+   * Endpoint URL. Inert untrusted data.
+   */
+  endpoint: string;
+  /**
+   * Typed values this choice requires, excluding secrets.
+   */
+  requiredValues: McpPlanRequiredValue[];
+  /**
+   * Secrets this choice requires, referenced by placeholder only.
+   */
+  secretPlaceholders: McpPlanSecretPlaceholder[];
+}
+/**
+ * The configuration-change alternative for the transportChoices entry at the same index. Only the selected alternative is applied; entries are not cumulative. The payload stays behind the runtime boundary.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanConfigurationChange".
+ */
+/** @experimental */
+export interface McpPlanConfigurationChange {
+  operation: McpPlanConfigurationOperation;
+  scope: McpPlanScope;
+  /**
+   * Configuration key the change applies to.
+   */
+  configKey: string;
+  /**
+   * Names of the configuration fields the change would set, without their values.
+   */
+  changedFields: string[];
+  /**
+   * Secret placeholders the written configuration would reference. The constrained placeholder type cannot carry a literal secret value.
+   */
+  secretReferences: McpPlanSecretReference[];
+}
+/**
+ * One Registry string-valued configuration entry for the selected transport.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpInstallationInput".
+ */
+/** @experimental */
+export interface McpInstallationInput {
+  category: McpPlanValueCategory;
+  /**
+   * Exact key declared by the selected choice.
+   */
+  key: string;
+  /**
+   * Explicit non-secret value. Secret placeholders use a separate input channel.
+   */
+  value: string;
+}
+/**
+ * Final remote configuration, not a template. The producer refuses configured
+ * secrets and external-value expansion before presenting this review.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpInstallationRemoteConfiguration".
+ */
+/** @experimental */
+export interface McpInstallationRemoteConfiguration {
+  transport: McpPlanRemoteTransport;
+  /**
+   * Exact resolved endpoint, without templates or secret placeholders.
+   */
+  url: string;
+  /**
+   * Literal configured headers, excluding separately authorised OAuth tokens.
+   */
+  headers: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Configured tool selection, not permission to invoke those tools.
+   */
+  tools: string[];
+}
+/**
+ * A response is meaningful only on the connection and request that issued its challenge.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstallationConfirmationResponse".
+ */
+/** @experimental */
+export interface InstallationConfirmationResponse {
+  /**
+   * Exact challenge from the request.
+   */
+  confirmationId: string;
+  /**
+   * Exact review commitment from the request.
+   */
+  reviewFingerprint: string;
+  decision: InstallationDecision;
+}
+/**
  * Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -12139,6 +12967,42 @@ export interface McpAllowedServer {
   redactedNote?: string;
 }
 /**
+ * Applies exactly one previously prepared operation on its original connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpApplyInstallRequest".
+ */
+/** @experimental */
+export interface McpApplyInstallRequest {
+  contract: CatalogClientContract;
+  /**
+   * Runtime-issued ID already returned by prepareInstall, never reused or rebound.
+   */
+  operationId: string;
+  /**
+   * Same existing attached or privately borrowed session as preparation.
+   */
+  policySessionId: string;
+}
+/**
+ * One-use application of the exact retained removal plan.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpApplyUninstallRequest".
+ */
+/** @experimental */
+export interface McpApplyUninstallRequest {
+  contract: CatalogClientContract;
+  /**
+   * Opaque original removal plan, consumed once.
+   */
+  planHandle: string;
+  /**
+   * Same existing selected session as removal preparation.
+   */
+  policySessionId: string;
+}
+/**
  * MCP server, tool name, and arguments to invoke from an MCP App view.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -12783,6 +13647,10 @@ export interface McpConfigureGitHubResult {
 /** @experimental */
 export interface McpDisableRequest {
   /**
+   * Required for an owned installation; omission preserves only manual-server behaviour.
+   */
+  expectedInstallationId?: string;
+  /**
    * Name of the MCP server to disable
    */
   serverName: string;
@@ -12825,6 +13693,10 @@ export interface McpDiscoverResult {
  */
 /** @experimental */
 export interface McpEnableRequest {
+  /**
+   * Exact receipt identity for explicit owned activation in this session.
+   */
+  expectedInstallationId?: string;
   /**
    * Name of the MCP server to enable
    */
@@ -13014,6 +13886,122 @@ export interface McpServerNeedsAuthInfo {
   timestamp: number;
 }
 /**
+ * Inert, runtime-owned admission. The operation ID is known before confirmation or effects.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPreparedInstall".
+ */
+/** @experimental */
+export interface McpPreparedInstall {
+  /**
+   * Original connection-owned operation, known before the first confirmation callback.
+   */
+  operationId: string;
+  /**
+   * Original plan expiry in Unix epoch milliseconds; preparation does not extend it.
+   */
+  expiresAtEpochMs: number;
+}
+/**
+ * Durable configuration ownership is distinct from session-specific usability.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpInstallationSummary".
+ */
+/** @experimental */
+export interface McpInstallationSummary {
+  /**
+   * Exact durable installation receipt identity.
+   */
+  installationId: string;
+  /**
+   * Original installing operation, not a fresh management operation.
+   */
+  operationId: string;
+  identity: McpPlanResourceIdentity;
+  /**
+   * Exact alternative retained in the installing receipt.
+   */
+  choiceId: string;
+  state: McpInstallationState;
+}
+/**
+ * Exact inert removal plan. No configuration or credentials have changed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpUninstallPlan".
+ */
+/** @experimental */
+export interface McpUninstallPlan {
+  /**
+   * One-use original connection and authority-bound plan handle.
+   */
+  planHandle: string;
+  /**
+   * The original operation, inspectable and cancellable on this same connection.
+   */
+  operationId: string;
+  /**
+   * Original wall-clock expiry in milliseconds. Applying never renews it.
+   */
+  expiresAtEpochMs: number;
+  installation: McpInstallationSummary;
+  /**
+   * Whether removal restores a protected earlier configuration.
+   */
+  restoresPreviousConfiguration: boolean;
+  /**
+   * Exact configured input slots owned by this installation, never shared OAuth tokens.
+   */
+  ownedSecretCount: number;
+  /**
+   * Shared authentication is deliberately retained; revocation is a separate action.
+   */
+  preservesSharedAuthentication: boolean;
+}
+/**
+ * Existing-operation control. A new session selector is deliberately not accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpInstallationOperationRequest".
+ */
+/** @experimental */
+export interface McpInstallationOperationRequest {
+  contract: CatalogClientContract;
+  /**
+   * Exact runtime-issued operation ID on the original connection.
+   */
+  operationId: string;
+}
+/**
+ * A request-local value for one exact reviewed placeholder. Never logged or persisted in a plan.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpInstallationSecret".
+ */
+/** @experimental */
+export interface McpInstallationSecret {
+  placeholder: McpPlanSecretReference;
+  /**
+   * Fresh explicit secret value. It is omitted from confirmation reviews and telemetry.
+   */
+  value: string;
+}
+/**
+ * New-work inventory or recovery request under an explicitly selected existing session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpInstallationsRequest".
+ */
+/** @experimental */
+export interface McpInstallationsRequest {
+  contract: CatalogClientContract;
+  /**
+   * Existing selected local session on this connection.
+   */
+  policySessionId: string;
+}
+/**
  * A normalised, inert description of what installing an MCP server would involve. Carries no raw card, no install specification, and no secret value.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -13056,256 +14044,6 @@ export interface McpInstallPlan {
    * True only when every eligible transport choice needs additional values or secrets. False means at least one choice needs no additional configuration, not that every choice is ready. A later apply operation must validate the selected choice's own inputs, secrets and policy after explicit confirmation.
    */
   requiresInteractiveConfiguration: boolean;
-}
-/**
- * Normalised identity of the MCP server a plan targets, independent of how the card spelled it.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanResourceIdentity".
- */
-/** @experimental */
-export interface McpPlanResourceIdentity {
-  /**
-   * Canonical, normalised name of the server, for example `io.github.owner/server`.
-   */
-  canonicalName: string;
-  /**
-   * Local configuration key the server would be recorded under.
-   */
-  serverName: string;
-  /**
-   * Version advertised by the card, when it declares one.
-   */
-  version?: string;
-  /**
-   * Registry identifier of the server, when it came from a registry.
-   */
-  registryId?: string;
-}
-/**
- * Provenance of the exact validated JSON MCP card content bound privately to a completed plan and its opaque handle.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanProvenance".
- */
-/** @experimental */
-export interface McpPlanProvenance {
-  /**
-   * Authority associated with the validated card, without path, query, or credentials. Inert untrusted data.
-   */
-  authority: string;
-  /**
-   * ISO 8601 timestamp at which the runtime completed strict parsing and schema validation of the card content.
-   */
-  validatedAt: string;
-  cardDigest: CardDigest;
-  mediaType: McpServerCardMediaType;
-}
-/**
- * An eligible local-package transport choice. Package identity is required and a remote endpoint cannot be represented.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanTransportChoicePackage".
- */
-/** @experimental */
-export interface McpPlanTransportChoicePackage {
-  /**
-   * Stable identifier for this choice within the plan, used to select it when the plan is applied.
-   */
-  choiceId: string;
-  transport: McpPlanPackageTransport;
-  installMethod: McpPlanPackageInstallMethod;
-  /**
-   * Packaging ecosystem, for example `oci` or `npm`.
-   */
-  packageType: string;
-  /**
-   * Package identifier. Inert untrusted data.
-   */
-  packageIdentifier: string;
-  /**
-   * Typed values this choice requires, excluding secrets.
-   */
-  requiredValues: McpPlanRequiredValue[];
-  /**
-   * Secrets this choice requires, referenced by placeholder only.
-   */
-  secretPlaceholders: McpPlanSecretPlaceholder[];
-}
-/**
- * One non-secret scalar value a transport choice needs before it can be applied.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanRequiredValueScalar".
- */
-/** @experimental */
-export interface McpPlanRequiredValueScalar {
-  kind: McpPlanRequiredValueScalarKind;
-  /**
-   * Key the value is supplied under. Inert untrusted data.
-   */
-  key: string;
-  category: McpPlanValueCategory;
-  valueType: McpPlanScalarValueType;
-  /**
-   * Whether the value must be present for the plan to be applicable.
-   */
-  required: boolean;
-  /**
-   * Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
-   */
-  defaultValue?: string;
-  /**
-   * Human-readable label from the card. Inert untrusted text.
-   */
-  title?: string;
-  /**
-   * Human-readable explanation from the card. Inert untrusted text.
-   */
-  description?: string;
-  /**
-   * Whether the value may be supplied more than once.
-   */
-  isRepeated: boolean;
-}
-/**
- * One enumerated non-secret value a transport choice needs before it can be applied. The permitted values are structurally required.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanRequiredValueEnum".
- */
-/** @experimental */
-export interface McpPlanRequiredValueEnum {
-  kind: McpPlanRequiredValueEnumKind;
-  /**
-   * Key the value is supplied under. Inert untrusted data.
-   */
-  key: string;
-  category: McpPlanValueCategory;
-  valueType: McpPlanEnumValueType;
-  /**
-   * Whether the value must be present for the plan to be applicable.
-   */
-  required: boolean;
-  /**
-   * Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
-   */
-  defaultValue?: string;
-  /**
-   * Human-readable label from the card. Inert untrusted text.
-   */
-  title?: string;
-  /**
-   * Human-readable explanation from the card. Inert untrusted text.
-   */
-  description?: string;
-  /**
-   * Non-empty permitted value set. Inert untrusted data.
-   *
-   * @minItems 1
-   */
-  enumValues: [string, ...string[]];
-  /**
-   * Whether the value may be supplied more than once.
-   */
-  isRepeated: boolean;
-}
-/**
- * A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanSecretPlaceholder".
- */
-/** @experimental */
-export interface McpPlanSecretPlaceholder {
-  /**
-   * Key the secret is supplied under. Inert untrusted data.
-   */
-  key: string;
-  placeholder: McpPlanSecretReference;
-  /**
-   * Human-readable label from the card. Inert untrusted text.
-   */
-  title?: string;
-}
-/**
- * An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanTransportChoiceRemote".
- */
-/** @experimental */
-export interface McpPlanTransportChoiceRemote {
-  /**
-   * Stable identifier for this choice within the plan, used to select it when the plan is applied.
-   */
-  choiceId: string;
-  transport: McpPlanRemoteTransport;
-  installMethod: McpPlanRemoteInstallMethod;
-  /**
-   * Endpoint URL. Inert untrusted data.
-   */
-  endpoint: string;
-  /**
-   * Typed values this choice requires, excluding secrets.
-   */
-  requiredValues: McpPlanRequiredValue[];
-  /**
-   * Secrets this choice requires, referenced by placeholder only.
-   */
-  secretPlaceholders: McpPlanSecretPlaceholder[];
-}
-/**
- * Where a plan would be written.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanTarget".
- */
-/** @experimental */
-export interface McpPlanTarget {
-  scope: McpPlanScope;
-  /**
-   * Configuration key the server would be recorded under within that scope.
-   */
-  configKey: string;
-}
-/**
- * Outcome of evaluating the planned server against registry and enterprise policy. Evaluation is read-only.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanPolicyResult".
- */
-/** @experimental */
-export interface McpPlanPolicyResult {
-  decision: McpPlanPolicyDecision;
-  source: McpPlanPolicySource;
-  /**
-   * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
-   */
-  reason?: string;
-}
-/**
- * The configuration-change alternative for the transportChoices entry at the same index. Only the selected alternative is applied; entries are not cumulative. The payload stays behind the runtime boundary.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpPlanConfigurationChange".
- */
-/** @experimental */
-export interface McpPlanConfigurationChange {
-  operation: McpPlanConfigurationOperation;
-  scope: McpPlanScope;
-  /**
-   * Configuration key the change applies to.
-   */
-  configKey: string;
-  /**
-   * Names of the configuration fields the change would set, without their values.
-   */
-  changedFields: string[];
-  /**
-   * Secret placeholders the written configuration would reference. The constrained placeholder type cannot carry a literal secret value.
-   */
-  secretReferences: McpPlanSecretReference[];
 }
 /**
  * Server name to check running status for.
@@ -13412,6 +14150,36 @@ export interface McpOauthAuthenticationStateChangedRequest {
   refreshSessionToken?: boolean;
 }
 /**
+ * Targets only the original prepared/applying owned login on this exact session requester.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthCancelLoginRequest".
+ */
+/** @experimental */
+export interface McpOauthCancelLoginRequest {
+  /**
+   * The same authoritative installation identity supplied during preparation.
+   */
+  expectedInstallationId: string;
+  /**
+   * Runtime-issued login handle known before the effectful login request begins.
+   */
+  loginId: string;
+}
+/**
+ * Honest terminal cancellation result; persistence or recovery failures remain RPC errors.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthCancelLoginResult".
+ */
+/** @experimental */
+export interface McpOauthCancelLoginResult {
+  /**
+   * True after cancellation settles, false when the original login already connected successfully.
+   */
+  cancelled: boolean;
+}
+/**
  * Pending MCP OAuth request ID and host-provided token or cancellation response.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -13475,6 +14243,15 @@ export interface McpOauthLoginRequest {
    */
   publicClient?: boolean;
   grantType?: McpOauthLoginGrantType;
+  /**
+   * Required for owned login. Consumes the exact prepareLogin handle once.
+   * Set forceReauth and display options during preparation, not consumption.
+   */
+  loginId?: string;
+  /**
+   * Exact owned receipt identity. Owned login never uses an implicit helper session.
+   */
+  expectedInstallationId?: string;
 }
 /**
  * OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.
@@ -13485,9 +14262,60 @@ export interface McpOauthLoginRequest {
 /** @experimental */
 export interface McpOauthLoginResult {
   /**
+   * Runtime-issued owned flow identity; never a server name or installation operation ID.
+   */
+  loginId?: string;
+  status?: McpOwnedOauthLoginStatus;
+  /**
    * URL the caller should open in a browser to complete OAuth. Omitted when cached tokens were still valid and no browser interaction was needed — the server is already reconnected in that case. When present, the runtime starts the callback listener before returning and continues the flow in the background; completion is signaled via session.mcp_server_status_changed.
    */
   authorizationUrl?: string;
+}
+/**
+ * Effect-free preparation bound to the existing local session, requester and installation, with frozen options.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthPrepareLoginRequest".
+ */
+/** @experimental */
+export interface McpOauthPrepareLoginRequest {
+  /**
+   * Name recorded by the authoritative owned installation receipt.
+   */
+  serverName: string;
+  /**
+   * Exact installation identity from owned inventory, never a server-name alias.
+   */
+  expectedInstallationId: string;
+  /**
+   * Request a new authorisation rather than accepting a usable cached grant.
+   */
+  forceReauth?: boolean;
+  /**
+   * Display name used by the incumbent OAuth client-registration flow.
+   */
+  clientName?: string;
+  /**
+   * Text shown on the loopback callback page after successful authorisation.
+   */
+  callbackSuccessMessage?: string;
+}
+/**
+ * An inert runtime-issued login handle. Preparation alone performs no activation or OAuth work.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthPrepareLoginResult".
+ */
+/** @experimental */
+export interface McpOauthPrepareLoginResult {
+  /**
+   * Retain with the original requester and use for one login or cancellation.
+   */
+  loginId: string;
+  /**
+   * Original expiry, not extended by consumption, retries or cancellation.
+   */
+  expiresAt: string;
 }
 /**
  * Remote MCP server name for a passive OAuth status probe.
@@ -13497,6 +14325,10 @@ export interface McpOauthLoginResult {
  */
 /** @experimental */
 export interface McpOauthProbeRequest {
+  /**
+   * Exact owned receipt identity; probing never activates a dormant installation.
+   */
+  expectedInstallationId?: string;
   /**
    * Name of the configured remote MCP server to probe.
    */
@@ -13554,6 +14386,10 @@ export interface McpPlanInstallRequest {
   contract: CatalogClientContract;
   source: McpPlanInstallSource;
   scope?: McpPlanScope;
+  /**
+   * The same existing attached session that owns the original catalogue candidate.
+   */
+  policySessionId?: string;
 }
 /**
  * Plan from a candidate returned by a previous catalog search.
@@ -13613,6 +14449,56 @@ export interface McpServerCardEmbedded {
    * The card document verbatim, treated as inert untrusted bytes. The runtime parses and validates it; the host is not expected to interpret it. Never logged.
    */
   data: string;
+}
+/**
+ * Read-only preparation of one owned removal under fresh selected-session authority.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanUninstallRequest".
+ */
+/** @experimental */
+export interface McpPlanUninstallRequest {
+  contract: CatalogClientContract;
+  /**
+   * Exact receipt to inspect, not a server-name guess.
+   */
+  installationId: string;
+  /**
+   * Existing selected session on the original connection.
+   */
+  policySessionId: string;
+}
+/**
+ * Side-effect-free preparation of one original bound, input-free remote MCP choice.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPrepareInstallRequest".
+ */
+/** @experimental */
+export interface McpPrepareInstallRequest {
+  contract: CatalogClientContract;
+  /**
+   * Original single-use bound plan, never a client-authored configuration.
+   */
+  planHandle: string;
+  /**
+   * Exact selected alternative from that plan.
+   */
+  choiceId: string;
+  /**
+   * An existing local session attached to this connection, not permission to attach one.
+   */
+  policySessionId: string;
+  /**
+   * Must be empty for the initial input-free remote installation capability.
+   */
+  inputs: McpInstallationInput[];
+  /**
+   * Must be empty; this capability does not allocate configured-input secrets.
+   */
+  secrets: McpInstallationSecret[];
+  source: McpServerCardReference;
+  secretStorage: McpInstallationSecretStorage;
 }
 /**
  * Registration parameters for an external MCP client.
@@ -13994,6 +14880,10 @@ export interface McpRestartServerRequest {
    */
   serverName: string;
   config?: McpSerializableServerConfig;
+  /**
+   * Exact receipt identity for an explicit owned restart; configuration overrides are refused.
+   */
+  expectedInstallationId?: string;
 }
 /**
  * Outcome of an MCP sampling execution: success result, failure error, or cancellation.
@@ -14171,6 +15061,10 @@ export interface McpStartServerRequest {
    */
   serverName: string;
   config?: McpSerializableServerConfig;
+  /**
+   * Exact receipt identity for explicit owned activation in this session.
+   */
+  expectedInstallationId?: string;
 }
 /**
  * MCP server startup filtering result.
@@ -14201,6 +15095,10 @@ export interface McpStartServersResult {
  */
 /** @experimental */
 export interface McpStopServerRequest {
+  /**
+   * Exact owned receipt identity. Stop also forgets this session's durable activation.
+   */
+  expectedInstallationId?: string;
   /**
    * Name of the MCP server to stop
    */
@@ -27108,6 +28006,82 @@ export interface SessionAgentListRequest {
   includePrompt?: boolean;
 }
 /**
+ * An inert runtime-issued login handle. Preparation alone performs no activation or OAuth work.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthPrepareLoginResult".
+ */
+/** @experimental */
+export interface SessionMcpOauthPrepareLoginResult {
+  /**
+   * Retain with the original requester and use for one login or cancellation.
+   */
+  loginId: string;
+  /**
+   * Original expiry, not extended by consumption, retries or cancellation.
+   */
+  expiresAt: string;
+}
+/**
+ * Effect-free preparation bound to the existing local session, requester and installation, with frozen options.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthPrepareLoginRequest".
+ */
+/** @experimental */
+export interface SessionMcpOauthPrepareLoginRequest {
+  /**
+   * Name recorded by the authoritative owned installation receipt.
+   */
+  serverName: string;
+  /**
+   * Exact installation identity from owned inventory, never a server-name alias.
+   */
+  expectedInstallationId: string;
+  /**
+   * Request a new authorisation rather than accepting a usable cached grant.
+   */
+  forceReauth?: boolean;
+  /**
+   * Display name used by the incumbent OAuth client-registration flow.
+   */
+  clientName?: string;
+  /**
+   * Text shown on the loopback callback page after successful authorisation.
+   */
+  callbackSuccessMessage?: string;
+}
+/**
+ * Honest terminal cancellation result; persistence or recovery failures remain RPC errors.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthCancelLoginResult".
+ */
+/** @experimental */
+export interface SessionMcpOauthCancelLoginResult {
+  /**
+   * True after cancellation settles, false when the original login already connected successfully.
+   */
+  cancelled: boolean;
+}
+/**
+ * Targets only the original prepared/applying owned login on this exact session requester.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthCancelLoginRequest".
+ */
+/** @experimental */
+export interface SessionMcpOauthCancelLoginRequest {
+  /**
+   * The same authoritative installation identity supplied during preparation.
+   */
+  expectedInstallationId: string;
+  /**
+   * Runtime-issued login handle known before the effectful login request begins.
+   */
+  loginId: string;
+}
+/**
  * Standard MCP CallToolResult
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -27226,6 +28200,55 @@ export interface SessionFsSqliteExistsRequest {
    * Target session identifier
    */
   sessionId: string;
+}
+/**
+ * A response is meaningful only on the connection and request that issued its challenge.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstallationsConfirmResult".
+ */
+/** @experimental */
+export interface InstallationsConfirmResult {
+  /**
+   * Exact challenge from the request.
+   */
+  confirmationId: string;
+  /**
+   * Exact review commitment from the request.
+   */
+  reviewFingerprint: string;
+  decision: InstallationDecision;
+}
+/**
+ * One connection-owned, expiring request for a trusted host's explicit user decision.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstallationsConfirmRequest".
+ */
+/** @experimental */
+export interface InstallationsConfirmRequest {
+  /**
+   * Original engine-resolved selector for a bound operation, never a dispatch default.
+   * Bound MCP confirmation always includes it; correlate it with the original pending action.
+   */
+  policySessionId?: string;
+  /**
+   * Opaque one-use challenge. Return unchanged; never log or persist.
+   */
+  confirmationId: string;
+  /**
+   * Random identifier of this installation operation, not a plan handle.
+   */
+  operationId: string;
+  /**
+   * Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it.
+   */
+  expiresAt: string;
+  /**
+   * Opaque commitment to the exact review and inputs. Return unchanged; never log.
+   */
+  reviewFingerprint: string;
+  review: InstallationReview;
 }
 
 /** Create typed server-scoped RPC methods (no session required). */
@@ -27421,6 +28444,81 @@ export function createServerRpc(connection: MessageConnection) {
              */
             planInstall: async (params: McpPlanInstallRequest): Promise<McpPlanInstallResult> =>
                 connection.sendRequest("mcp.planInstall", params),
+            /**
+             * Consumes a bound catalogue plan and retains one exact fully resolved personal remote MCP operation requiring no supplied values or configured secrets. Returns its runtime operation ID and original expiry before any confirmation, activation, writer initialisation or installation effect. Register the original connection, operation and selected-session binding before calling applyInstall. Missing lower owned admission is unavailable, never a raw-config fallback.
+             *
+             * @param params Side-effect-free preparation of one original bound, input-free remote MCP choice.
+             *
+             * @returns Management result with contract receipt, or a typed request/negotiation refusal.
+             */
+            prepareInstall: async (params: McpPrepareInstallRequest): Promise<McpInstallationManagementResult> =>
+                connection.sendRequest("mcp.prepareInstall", params),
+            /**
+             * Consumes a retained prepared MCP operation once, revalidates its original authority, requests explicit human consent through installations.confirm on the original connection, then revalidates source and applies the sealed transaction. An uncertain result requires original-operation inspection or recovery, never replay.
+             *
+             * @param params Applies exactly one previously prepared operation on its original connection.
+             *
+             * @returns An installation result together with the exact honoured contract, or a negotiation refusal.
+             */
+            applyInstall: async (params: McpApplyInstallRequest): Promise<McpInstallationResult> =>
+                connection.sendRequest("mcp.applyInstall", params),
+            /**
+             * Prepares a read-only removal plan for an exact owned receipt under the selected existing session. Returns the original operation ID before confirmation; neither planning nor abandonment changes configuration or shared OAuth credentials.
+             *
+             * @param params Read-only preparation of one owned removal under fresh selected-session authority.
+             *
+             * @returns Management result with contract receipt, or a typed request/negotiation refusal.
+             */
+            planUninstall: async (params: McpPlanUninstallRequest): Promise<McpInstallationManagementResult> =>
+                connection.sendRequest("mcp.planUninstall", params),
+            /**
+             * Consumes the original owned-removal plan once and requests fresh exact human confirmation on its original connection. Drift is refused; unrelated manual configuration and shared OAuth credentials are preserved.
+             *
+             * @param params One-use application of the exact retained removal plan.
+             *
+             * @returns An installation result together with the exact honoured contract, or a negotiation refusal.
+             */
+            applyUninstall: async (params: McpApplyUninstallRequest): Promise<McpInstallationResult> =>
+                connection.sendRequest("mcp.applyUninstall", params),
+            /** @experimental */
+            installations: {
+                /**
+                 * Reads receipt-owned MCP inventory for the selected account and host without activating servers or reconstructing missing ownership. Configuration ownership does not prove session-specific usability.
+                 *
+                 * @param params New-work inventory or recovery request under an explicitly selected existing session.
+                 *
+                 * @returns Management result with contract receipt, or a typed request/negotiation refusal.
+                 */
+                list: async (params: McpInstallationsRequest): Promise<McpInstallationManagementResult> =>
+                    connection.sendRequest("mcp.installations.list", params),
+                /**
+                 * Reconciles already-confirmed durable MCP transactions, then inspects owned inventory. Does not replay apply or reconstruct deleted ownership metadata; unresolved or unsafe evidence remains an explicit refusal.
+                 *
+                 * @param params New-work inventory or recovery request under an explicitly selected existing session.
+                 *
+                 * @returns Management result with contract receipt, or a typed request/negotiation refusal.
+                 */
+                recover: async (params: McpInstallationsRequest): Promise<McpInstallationManagementResult> =>
+                    connection.sendRequest("mcp.installations.recover", params),
+                /**
+                 * Inspects a known operation only on its original connection. Remains available after account or selected-session loss; does not acquire new authority or rebind an operation.
+                 *
+                 * @param params Existing-operation control. A new session selector is deliberately not accepted.
+                 *
+                 * @returns Management result with contract receipt, or a typed request/negotiation refusal.
+                 */
+                status: async (params: McpInstallationOperationRequest): Promise<McpInstallationManagementResult> =>
+                    connection.sendRequest("mcp.installations.status", params),
+                /**
+                 * Requests cancellation of a known operation on its original connection, including before apply or confirmation. Already-started effects retain their transaction lease and report an honest terminal or recovery outcome.
+                 *
+                 * @param params Existing-operation control. A new session selector is deliberately not accepted.
+                 *
+                 * @returns Management result with contract receipt, or a typed request/negotiation refusal.
+                 */
+                cancel: async (params: McpInstallationOperationRequest): Promise<McpInstallationManagementResult> =>
+                    connection.sendRequest("mcp.installations.cancel", params),
+            },
         },
         /** @experimental */
         extensions: {
@@ -29175,7 +30273,16 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 authenticationStateChanged: async (params: McpOauthAuthenticationStateChangedRequest): Promise<void> =>
                     connection.sendRequest("session.mcp.oauth.authenticationStateChanged", { sessionId, ...params }),
                 /**
-                 * Starts OAuth authentication for a remote MCP server.
+                 * Prepares an inert, expiring owned OAuth login bound to the original session requester and exact installation. Does not activate, connect, read credentials or open a browser.
+                 *
+                 * @param params Effect-free preparation bound to the existing local session, requester and installation, with frozen options.
+                 *
+                 * @returns An inert runtime-issued login handle. Preparation alone performs no activation or OAuth work.
+                 */
+                prepareLogin: async (params: SessionMcpOauthPrepareLoginRequest): Promise<SessionMcpOauthPrepareLoginResult> =>
+                    connection.sendRequest("session.mcp.oauth.prepareLogin", { sessionId, ...params }),
+                /**
+                 * Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.
                  *
                  * @param params Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
                  *
@@ -29192,6 +30299,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                  */
                 probe: async (params: McpOauthProbeRequest): Promise<McpOauthProbeResult> =>
                     connection.sendRequest("session.mcp.oauth.probe", { sessionId, ...params }),
+                /**
+                 * Cancels the exact owned OAuth login issued to this original session requester, without clearing shared credentials.
+                 *
+                 * @param params Targets only the original prepared/applying owned login on this exact session requester.
+                 *
+                 * @returns Honest terminal cancellation result; persistence or recovery failures remain RPC errors.
+                 */
+                cancelLogin: async (params: SessionMcpOauthCancelLoginRequest): Promise<SessionMcpOauthCancelLoginResult> =>
+                    connection.sendRequest("session.mcp.oauth.cancelLogin", { sessionId, ...params }),
                 /**
                  * Responds to a pending MCP OAuth authorization request by its request id.
                  *
@@ -31214,7 +32330,7 @@ export interface ExtensionLaunchProviderHandler {
      *
      * @returns The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
      */
-    resolve(params: ExtensionLaunchProviderResolveRequest): Promise<ExtensionLaunchProviderResolveResult>;
+    resolve(params: ExtensionLaunchProviderResolveRequest, token?: CancellationToken): Promise<ExtensionLaunchProviderResolveResult>;
 }
 
 /** Handler for `llmInference` client global API methods. */
@@ -31227,7 +32343,7 @@ export interface LlmInferenceHandler {
      *
      * @returns Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
      */
-    httpRequestStart(params: LlmInferenceHttpRequestStartRequest): Promise<LlmInferenceHttpRequestStartResult>;
+    httpRequestStart(params: LlmInferenceHttpRequestStartRequest, token?: CancellationToken): Promise<LlmInferenceHttpRequestStartResult>;
     /**
      * Delivers a body byte range (or a cancellation signal) for a request previously announced via httpRequestStart, correlated by requestId. The runtime fires at least one chunk per request — when there is no body, a single chunk with empty data and end=true. Mid-stream the runtime may send a chunk with cancel=true to abort the request; the SDK then stops issuing httpResponseChunk frames and may emit a terminal httpResponseChunk with error set.
      *
@@ -31235,7 +32351,7 @@ export interface LlmInferenceHandler {
      *
      * @returns Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
      */
-    httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest): Promise<LlmInferenceHttpRequestChunkResult>;
+    httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest, token?: CancellationToken): Promise<LlmInferenceHttpRequestChunkResult>;
 }
 
 /** Handler for `gitHubTelemetry` client global API methods. */
@@ -31259,7 +32375,20 @@ export interface GitHubTokenHandler {
      *
      * @returns SDK host response to a GitHub credential request.
      */
-    getToken(params: GitHubTokenAcquireRequest): Promise<GitHubTokenAcquireResult>;
+    getToken(params: GitHubTokenAcquireRequest, token?: CancellationToken): Promise<GitHubTokenAcquireResult>;
+}
+
+/** Handler for `installations` client global API methods. */
+/** @experimental */
+export interface InstallationsHandler {
+    /**
+     * Requests a fresh explicit human decision for one sealed installation operation on its original connection. Present the complete typed review, return the original challenge and fingerprint, and never infer approval. The expiresAt deadline, connection closure or standard JSON-RPC $/cancelRequest retires the request; late replies grant no authority.
+     *
+     * @param params One connection-owned, expiring request for a trusted host's explicit user decision.
+     *
+     * @returns A response is meaningful only on the connection and request that issued its challenge.
+     */
+    confirm(params: InstallationsConfirmRequest, token?: CancellationToken): Promise<InstallationsConfirmResult>;
 }
 
 /** All client global API handler groups. */
@@ -31268,6 +32397,7 @@ export interface ClientGlobalApiHandlers {
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
     gitHubToken?: GitHubTokenHandler;
+    installations?: InstallationsHandler;
 }
 
 /**
@@ -31276,34 +32406,41 @@ export interface ClientGlobalApiHandlers {
  * Unlike session-scoped client APIs, these methods carry no implicit
  * `sessionId` dispatch key — a single set of handlers serves the entire
  * connection.
+ * Request handlers receive the transport's cancellation token; connection
+ * disposal is a separate lifetime signal and does not cancel that token.
  */
 export function registerClientGlobalApiHandlers(
     connection: MessageConnection,
     handlers: ClientGlobalApiHandlers,
 ): void {
-    connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest) => {
+    connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest, token: CancellationToken) => {
         const handler = handlers.extensionLaunchProvider;
         if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");
-        return handler.resolve(params);
+        return handler.resolve(params, token);
     });
-    connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
+    connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest, token: CancellationToken) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");
-        return handler.httpRequestStart(params);
+        return handler.httpRequestStart(params, token);
     });
-    connection.onRequest("llmInference.httpRequestChunk", async (params: LlmInferenceHttpRequestChunkRequest) => {
+    connection.onRequest("llmInference.httpRequestChunk", async (params: LlmInferenceHttpRequestChunkRequest, token: CancellationToken) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");
-        return handler.httpRequestChunk(params);
+        return handler.httpRequestChunk(params, token);
     });
     connection.onNotification("gitHubTelemetry.event", async (params: GitHubTelemetryNotification) => {
         const handler = handlers.gitHubTelemetry;
         if (!handler) return;
         await handler.event(params);
     });
-    connection.onRequest("gitHubToken.getToken", async (params: GitHubTokenAcquireRequest) => {
+    connection.onRequest("gitHubToken.getToken", async (params: GitHubTokenAcquireRequest, token: CancellationToken) => {
         const handler = handlers.gitHubToken;
         if (!handler) throw new Error("No gitHubToken client-global handler registered");
-        return handler.getToken(params);
+        return handler.getToken(params, token);
+    });
+    connection.onRequest("installations.confirm", async (params: InstallationsConfirmRequest, token: CancellationToken) => {
+        const handler = handlers.installations;
+        if (!handler) throw new Error("No installations client-global handler registered");
+        return handler.confirm(params, token);
     });
 }
