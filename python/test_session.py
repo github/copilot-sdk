@@ -659,6 +659,78 @@ async def test_discovered_tool_requires_handler():
 
 
 @pytest.mark.asyncio
+async def test_discovery_cannot_replace_existing_tools():
+    client = Mock(request=AsyncMock())
+    session = CopilotSession("session-1", client)
+    original = Tool("existing", "Existing tool", lambda _: ToolResult("original"))
+    session._register_tools([original])
+
+    with pytest.raises(ValueError, match="already registered"):
+        await session._register_discovered_tools(
+            [Tool("existing", "Replacement", lambda _: ToolResult("replacement"))]
+        )
+
+    client.request.assert_not_awaited()
+    assert session._get_tool_handler("existing") is original.handler
+
+
+@pytest.mark.asyncio
+async def test_concurrent_discoveries_preserve_both_catalogs():
+    catalogs = []
+
+    async def request(method, params):
+        assert method == "session.tools.set"
+        catalogs.append({tool["name"] for tool in params["tools"]})
+        await asyncio.sleep(0)
+        return {}
+
+    session = CopilotSession("session-1", Mock(request=AsyncMock(side_effect=request)))
+    first = Tool("first", "First", lambda _: ToolResult("first"))
+    second = Tool("second", "Second", lambda _: ToolResult("second"))
+    await asyncio.gather(
+        session._register_discovered_tools([first]),
+        session._register_discovered_tools([second]),
+    )
+
+    assert catalogs[-1] == {"first", "second"}
+    assert session._get_tool_handler("first") is first.handler
+    assert session._get_tool_handler("second") is second.handler
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_registration_failure_retains_callable_tools():
+    client = Mock(request=AsyncMock(side_effect=TimeoutError("response lost")))
+    session = CopilotSession("session-1", client)
+    tool = Tool("discovered", "Discovered", lambda _: ToolResult("result"))
+
+    with pytest.raises(TimeoutError):
+        await session._register_discovered_tools([tool])
+
+    # The CLI may have applied the update before the response was lost.
+    assert session._get_tool_handler("discovered") is tool.handler
+    assert session._registered_tools["discovered"] is tool
+
+
+@pytest.mark.asyncio
+async def test_invalid_discovered_schema_does_not_publish_local_state():
+    client = Mock(request=AsyncMock())
+    session = CopilotSession("session-1", client)
+    tool = Tool(
+        "invalid",
+        "Invalid schema",
+        lambda _: ToolResult("result"),
+        parameters={"not_json": object()},
+    )
+
+    with pytest.raises(TypeError):
+        await session._register_discovered_tools([tool])
+
+    client.request.assert_not_awaited()
+    assert session._get_tool_handler("invalid") is None
+    assert "invalid" not in session._registered_tools
+
+
+@pytest.mark.asyncio
 async def test_disconnect_from_tool_task_does_not_cancel_detach_request():
     client = Mock()
     client.request = AsyncMock(return_value={"success": True})

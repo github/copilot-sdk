@@ -517,11 +517,20 @@ async def search_tools(invocation: ToolInvocation) -> ToolResult:
 ```
 
 Register `search_tools` as a `Tool` named `tool_search_tool` with
-`overrides_built_in_tool=True`. Every returned tool needs a handler. The SDK
-registers the definitions and handlers before returning their names to the
-model as tool references. This uses
-the runtime's experimental live-tool registration RPC; callers do not need to
-call `session.tools.set` or handle `external_tool.requested` themselves.
+`overrides_built_in_tool=True`, and enable tool search for the session. The runtime
+must expose that search tool; current runtimes require a deferred tool inventory
+before they activate it. Returning definitions does not change that activation rule.
+
+Every returned tool needs a handler and a new, unique name. The SDK preserves
+previously registered tools, installs the new handlers, and registers the expanded
+catalog before completing the search. For tools already loaded, return their names
+in `tool_references` instead of redeclaring them.
+
+This feature uses the runtime's experimental `session.tools.set` RPC internally.
+Do not mix it with direct calls to that RPC: the SDK owns the complete custom-tool
+catalog for this connection to the session. On an explicit RPC rejection it rolls
+back the new handlers. On a timeout or connection failure, it retains them because
+the runtime may already have applied the registration.
 
 ## Auto routing tiers
 

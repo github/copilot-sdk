@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
+import json
 import logging
 import os
 import pathlib
@@ -2432,6 +2433,11 @@ class CopilotSession:
                 tool_result = result  # type: ignore[assignment]
 
             if tool_result.tools is not None:
+                if (
+                    self._destroyed
+                    or self._pending_external_tools.get(request_id) is not asyncio.current_task()
+                ):
+                    return
                 if tool_name != _TOOL_SEARCH_TOOL_NAME or tool_result.result_type != "success":
                     raise ValueError(
                         "ToolResult.tools is only valid for successful tool_search_tool calls"
@@ -2913,7 +2919,13 @@ class CopilotSession:
 
         async with self._tool_catalog_lock:
             with self._tool_handlers_lock:
+                if self._destroyed:
+                    raise RuntimeError("Cannot register discovered tools on a disconnected session")
                 previous = self._registered_tools
+                if previous.keys() & set(names):
+                    raise ValueError(
+                        "discovered tool names are already registered; use tool_references instead"
+                    )
                 merged = {**previous, **{tool.name: tool for tool in tools}}
                 definitions = [
                     ProtocolExternalToolDefinition(
@@ -2928,28 +2940,24 @@ class CopilotSession:
                     )
                     for tool in merged.values()
                 ]
+                request = ToolsSetRequest(tools=definitions)
+                json.dumps(request.to_dict())  # Validate before publishing handlers.
                 self._registered_tools = merged
                 # The CLI may apply tools.set before its reply reaches us.
-                provisioned = [tool.name for tool in tools if tool.name not in self._tool_handlers]
                 for tool in tools:
-                    if tool.name in provisioned and tool.handler is not None:
+                    if tool.handler is not None:
                         self._tool_handlers[tool.name] = tool.handler
             try:
-                await self.rpc.tools.set(ToolsSetRequest(tools=definitions))
+                await self.rpc.tools.set(request)
             except JsonRpcError:
                 # A response error means the CLI rejected the update. Transport
                 # failures are ambiguous, so retain handlers for tools it may have applied.
                 with self._tool_handlers_lock:
                     if not self._destroyed:
                         self._registered_tools = previous
-                        for name in provisioned:
+                        for name in names:
                             self._tool_handlers.pop(name, None)
                 raise
-            with self._tool_handlers_lock:
-                if not self._destroyed:
-                    for tool in tools:
-                        if tool.handler is not None:
-                            self._tool_handlers[tool.name] = tool.handler
         return names
 
     def _get_tool_handler(self, name: str) -> ToolHandler | None:
