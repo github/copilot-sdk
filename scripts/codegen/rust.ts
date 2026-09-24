@@ -220,7 +220,7 @@ interface RustCodegenCtx {
 	experimentalTypeNames: Set<string>;
 	/** Schema definitions for $ref resolution. */
 	definitions?: DefinitionCollections;
-	/** When set, only these const-valued properties are accepted as union discriminators. */
+	/** Discriminator names accepted in addition to required, enum-referenced string constants. */
 	unionDiscriminatorProperties?: Set<string>;
 	/** Whether unions without a const-valued discriminator should be emitted. */
 	allowUntaggedUnions: boolean;
@@ -299,6 +299,26 @@ function findRustDiscriminator(variants: RustUnionVariant[]): string | null {
 	return null;
 }
 
+function hasRequiredReferencedStringDiscriminator(
+	variants: RustUnionVariant[],
+	discriminator: string,
+	ctx: RustCodegenCtx,
+): boolean {
+	return variants.every(({ schema }) => {
+		const property = schema.properties?.[discriminator];
+		if (
+			!schema.required?.includes(discriminator) ||
+			typeof property !== "object" ||
+			!property.$ref ||
+			typeof property.const !== "string"
+		) {
+			return false;
+		}
+		const referenced = resolveRef(property.$ref, ctx.definitions);
+		return referenced?.type === "string" && referenced.enum?.includes(property.const) === true;
+	});
+}
+
 function tryEmitRustUnion(
 	schema: JSONSchema7,
 	parentTypeName: string,
@@ -313,7 +333,7 @@ function tryEmitRustUnion(
 
 	const enumName =
 		(typeof schema.title === "string" && schema.title) ||
-		parentTypeName + toPascalCase(jsonPropName);
+		parentTypeName + (jsonPropName ? toPascalCase(jsonPropName) : "");
 	const isAllowedUnionType = ctx.allowedUnionTypeNames.has(enumName);
 
 	const resolvedVariants: RustUnionVariant[] = [];
@@ -367,6 +387,7 @@ function tryEmitRustUnion(
 		if (
 			ctx.unionDiscriminatorProperties &&
 			!ctx.unionDiscriminatorProperties.has(discriminator) &&
+			!hasRequiredReferencedStringDiscriminator(resolvedVariants, discriminator, ctx) &&
 			!isAllowedUnionType
 		) {
 			return null;
@@ -459,7 +480,7 @@ function makeCtx(
 		unionDiscriminatorProperties:
 			options.unionDiscriminatorProperties === null
 				? undefined
-				: (options.unionDiscriminatorProperties ?? new Set(["kind"])),
+				: (options.unionDiscriminatorProperties ?? new Set(["kind", "action"])),
 		allowUntaggedUnions: options.allowUntaggedUnions ?? false,
 		allowedUnionTypeNames: new Set(options.allowedUnionTypeNames ?? []),
 		strictBooleanConstFields: new Map(),
@@ -739,12 +760,13 @@ function resolveRustType(
 				);
 				return wrapOption(typeName, isRequired);
 			}
-			if (isObjectSchema(resolved)) {
-				emitRustStruct(typeName, resolved, ctx);
+			const objectSchema = resolveObjectSchema(resolved, ctx.definitions);
+			if (objectSchema && isObjectSchema(objectSchema)) {
+				emitRustStruct(typeName, objectSchema, ctx);
 				return wrapOption(typeName, isRequired);
 			}
 			return resolveRustType(
-				resolved,
+				getUnionVariants(resolved) ? { ...resolved, title: resolved.title ?? typeName } : resolved,
 				parentTypeName,
 				jsonPropName,
 				isRequired,
@@ -1644,6 +1666,7 @@ export function generateApiTypesCode(
 		{ group: apiSchema.server, isSession: false },
 		{ group: apiSchema.session, isSession: true },
 		{ group: apiSchema.clientSession, isSession: false },
+		{ group: apiSchema.clientGlobal, isSession: false },
 	]) {
 		if (group) {
 			methodEntries.push(

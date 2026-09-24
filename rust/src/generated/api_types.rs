@@ -903,6 +903,20 @@ pub mod rpc_methods {
     pub const CANVAS_CLOSE: &str = "canvas.close";
     /// `canvas.action.invoke`
     pub const CANVAS_ACTION_INVOKE: &str = "canvas.action.invoke";
+    /// `hooks.invoke`
+    pub const HOOKS_INVOKE: &str = "hooks.invoke";
+    /// `extensionLaunchProvider.resolve`
+    pub const EXTENSIONLAUNCHPROVIDER_RESOLVE: &str = "extensionLaunchProvider.resolve";
+    /// `llmInference.httpRequestStart`
+    pub const LLMINFERENCE_HTTPREQUESTSTART: &str = "llmInference.httpRequestStart";
+    /// `llmInference.httpRequestChunk`
+    pub const LLMINFERENCE_HTTPREQUESTCHUNK: &str = "llmInference.httpRequestChunk";
+    /// `gitHubTelemetry.event`
+    pub const GITHUBTELEMETRY_EVENT: &str = "gitHubTelemetry.event";
+    /// `gitHubToken.getToken`
+    pub const GITHUBTOKEN_GETTOKEN: &str = "gitHubToken.getToken";
+    /// `installations.confirm`
+    pub const INSTALLATIONS_CONFIRM: &str = "installations.confirm";
 }
 
 ///
@@ -3407,6 +3421,298 @@ pub struct CatalogPluginRepositorySource {
     pub repository: String,
 }
 
+/// Where and when the runtime observed the trust metadata. Observation time is not the authority's evaluation time and must not be used to infer staleness.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustProvenance {
+    /// ISO 8601 timestamp with a timezone offset at which the runtime observed the search result carrying this trust field.
+    pub observed_at: String,
+    /// Bounded authority that supplied the trust field.
+    pub source: CatalogTrustSource,
+}
+
+/// A recognised current Agent Finder T1 or T2 trust tier.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotCurrent {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: a recognised current trust tier was observed.
+    #[serde(deserialize_with = "CatalogTrustSnapshotCurrent::deserialize_status")]
+    pub status: CatalogTrustSnapshotCurrentStatus,
+    /// Service-computed T1 or T2 trust tier.
+    pub tier: CatalogTrustTier,
+}
+
+impl CatalogTrustSnapshotCurrent {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotCurrentStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "current" {
+            return Err(serde::de::Error::unknown_variant(&value, &["current"]));
+        }
+        <CatalogTrustSnapshotCurrentStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// Discriminator: the authority omitted trust metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotAbsent {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority omitted trust metadata.
+    #[serde(deserialize_with = "CatalogTrustSnapshotAbsent::deserialize_status")]
+    pub status: CatalogTrustSnapshotAbsentStatus,
+}
+
+impl CatalogTrustSnapshotAbsent {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotAbsentStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "absent" {
+            return Err(serde::de::Error::unknown_variant(&value, &["absent"]));
+        }
+        <CatalogTrustSnapshotAbsentStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// Discriminator: the authority explicitly marked the assessment stale.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotStale {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority explicitly marked the assessment stale.
+    #[serde(deserialize_with = "CatalogTrustSnapshotStale::deserialize_status")]
+    pub status: CatalogTrustSnapshotStaleStatus,
+}
+
+impl CatalogTrustSnapshotStale {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotStaleStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "stale" {
+            return Err(serde::de::Error::unknown_variant(&value, &["stale"]));
+        }
+        <CatalogTrustSnapshotStaleStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// Discriminator: the authority explicitly reported a downgraded assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotDowngraded {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority explicitly reported a downgraded assessment.
+    #[serde(deserialize_with = "CatalogTrustSnapshotDowngraded::deserialize_status")]
+    pub status: CatalogTrustSnapshotDowngradedStatus,
+}
+
+impl CatalogTrustSnapshotDowngraded {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotDowngradedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "downgraded" {
+            return Err(serde::de::Error::unknown_variant(&value, &["downgraded"]));
+        }
+        <CatalogTrustSnapshotDowngradedStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// Discriminator: the authority explicitly revoked the assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotRevoked {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority explicitly revoked the assessment.
+    #[serde(deserialize_with = "CatalogTrustSnapshotRevoked::deserialize_status")]
+    pub status: CatalogTrustSnapshotRevokedStatus,
+}
+
+impl CatalogTrustSnapshotRevoked {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotRevokedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "revoked" {
+            return Err(serde::de::Error::unknown_variant(&value, &["revoked"]));
+        }
+        <CatalogTrustSnapshotRevokedStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotUnsupported {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
+    #[serde(deserialize_with = "CatalogTrustSnapshotUnsupported::deserialize_status")]
+    pub status: CatalogTrustSnapshotUnsupportedStatus,
+}
+
+impl CatalogTrustSnapshotUnsupported {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotUnsupportedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "unsupported" {
+            return Err(serde::de::Error::unknown_variant(&value, &["unsupported"]));
+        }
+        <CatalogTrustSnapshotUnsupportedStatus>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
+}
+
+/// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTrustSnapshotMalformed {
+    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
+    pub eligibility: CatalogTrustEligibility,
+    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
+    pub provenance: CatalogTrustProvenance,
+    /// Schema version of this runtime-owned snapshot envelope.
+    pub schema_version: CatalogTrustSnapshotSchemaVersion,
+    /// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
+    #[serde(deserialize_with = "CatalogTrustSnapshotMalformed::deserialize_status")]
+    pub status: CatalogTrustSnapshotMalformedStatus,
+}
+
+impl CatalogTrustSnapshotMalformed {
+    fn deserialize_status<'de, D>(
+        deserializer: D,
+    ) -> Result<CatalogTrustSnapshotMalformedStatus, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "malformed" {
+            return Err(serde::de::Error::unknown_variant(&value, &["malformed"]));
+        }
+        <CatalogTrustSnapshotMalformedStatus>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
 /// An inert Agent Plugin catalog result. Its canonical catalog identity, declared version, repository source claim, and explicit compatibility tags are safe to correlate, while its descriptor, URL, raw data, and installed-plugin state remain runtime-private. This contract-only variant does not mint or expose a candidate handle.
 ///
 /// <div class="warning">
@@ -3441,7 +3747,7 @@ pub struct CatalogAgentPluginCandidate {
     pub source: CatalogPluginRepositorySource,
     /// Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility and emitted only when the caller also requires the trust-snapshot capability.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trust: Option<serde_json::Value>,
+    pub trust: Option<CatalogTrustSnapshot>,
     /// Optional version declared by the catalog source. Omitted rather than guessed when the source supplies no version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
@@ -3572,7 +3878,7 @@ pub struct CatalogAiSkillCandidate {
     pub source: CatalogCandidateSource,
     /// Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trust: Option<serde_json::Value>,
+    pub trust: Option<CatalogTrustSnapshot>,
 }
 
 impl CatalogAiSkillCandidate {
@@ -3698,7 +4004,7 @@ pub struct CatalogMcpServerCandidate {
     pub source: CatalogCandidateSource,
     /// Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trust: Option<serde_json::Value>,
+    pub trust: Option<CatalogTrustSnapshot>,
 }
 
 impl CatalogMcpServerCandidate {
@@ -3989,6 +4295,10 @@ pub struct CatalogSearchRequest {
     /// Numbered navigation using metadata from an earlier response. Requires catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh first-page search.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page: Option<CatalogSearchPage>,
+    /// Select an existing attached local session. Requires authenticated, session-bound search.
+    /// The runtime never creates, resumes or reconfigures a session to honour this selector.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_session_id: Option<String>,
     /// Free-text search query. Persisted as tool input for session continuity, but omitted from telemetry.
     pub query: String,
 }
@@ -4252,298 +4562,6 @@ pub struct CatalogSelectionWrongKind {
     pub kind: CatalogSelectionWrongKindKind,
     /// Human-readable explanation safe to surface. Never contains the presented reference or private candidate state.
     pub message: String,
-}
-
-/// Where and when the runtime observed the trust metadata. Observation time is not the authority's evaluation time and must not be used to infer staleness.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustProvenance {
-    /// ISO 8601 timestamp with a timezone offset at which the runtime observed the search result carrying this trust field.
-    pub observed_at: String,
-    /// Bounded authority that supplied the trust field.
-    pub source: CatalogTrustSource,
-}
-
-/// Discriminator: the authority omitted trust metadata.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotAbsent {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the authority omitted trust metadata.
-    #[serde(deserialize_with = "CatalogTrustSnapshotAbsent::deserialize_status")]
-    pub status: CatalogTrustSnapshotAbsentStatus,
-}
-
-impl CatalogTrustSnapshotAbsent {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotAbsentStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "absent" {
-            return Err(serde::de::Error::unknown_variant(&value, &["absent"]));
-        }
-        <CatalogTrustSnapshotAbsentStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// A recognised current Agent Finder T1 or T2 trust tier.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotCurrent {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: a recognised current trust tier was observed.
-    #[serde(deserialize_with = "CatalogTrustSnapshotCurrent::deserialize_status")]
-    pub status: CatalogTrustSnapshotCurrentStatus,
-    /// Service-computed T1 or T2 trust tier.
-    pub tier: CatalogTrustTier,
-}
-
-impl CatalogTrustSnapshotCurrent {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotCurrentStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "current" {
-            return Err(serde::de::Error::unknown_variant(&value, &["current"]));
-        }
-        <CatalogTrustSnapshotCurrentStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// Discriminator: the authority explicitly reported a downgraded assessment.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotDowngraded {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the authority explicitly reported a downgraded assessment.
-    #[serde(deserialize_with = "CatalogTrustSnapshotDowngraded::deserialize_status")]
-    pub status: CatalogTrustSnapshotDowngradedStatus,
-}
-
-impl CatalogTrustSnapshotDowngraded {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotDowngradedStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "downgraded" {
-            return Err(serde::de::Error::unknown_variant(&value, &["downgraded"]));
-        }
-        <CatalogTrustSnapshotDowngradedStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotMalformed {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.
-    #[serde(deserialize_with = "CatalogTrustSnapshotMalformed::deserialize_status")]
-    pub status: CatalogTrustSnapshotMalformedStatus,
-}
-
-impl CatalogTrustSnapshotMalformed {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotMalformedStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "malformed" {
-            return Err(serde::de::Error::unknown_variant(&value, &["malformed"]));
-        }
-        <CatalogTrustSnapshotMalformedStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// Discriminator: the authority explicitly revoked the assessment.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotRevoked {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the authority explicitly revoked the assessment.
-    #[serde(deserialize_with = "CatalogTrustSnapshotRevoked::deserialize_status")]
-    pub status: CatalogTrustSnapshotRevokedStatus,
-}
-
-impl CatalogTrustSnapshotRevoked {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotRevokedStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "revoked" {
-            return Err(serde::de::Error::unknown_variant(&value, &["revoked"]));
-        }
-        <CatalogTrustSnapshotRevokedStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// Discriminator: the authority explicitly marked the assessment stale.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotStale {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the authority explicitly marked the assessment stale.
-    #[serde(deserialize_with = "CatalogTrustSnapshotStale::deserialize_status")]
-    pub status: CatalogTrustSnapshotStaleStatus,
-}
-
-impl CatalogTrustSnapshotStale {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotStaleStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "stale" {
-            return Err(serde::de::Error::unknown_variant(&value, &["stale"]));
-        }
-        <CatalogTrustSnapshotStaleStatus>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogTrustSnapshotUnsupported {
-    /// Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.
-    pub eligibility: CatalogTrustEligibility,
-    /// Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.
-    pub provenance: CatalogTrustProvenance,
-    /// Schema version of this runtime-owned snapshot envelope.
-    pub schema_version: CatalogTrustSnapshotSchemaVersion,
-    /// Discriminator: the authority supplied a bounded trust value this runtime does not understand.
-    #[serde(deserialize_with = "CatalogTrustSnapshotUnsupported::deserialize_status")]
-    pub status: CatalogTrustSnapshotUnsupportedStatus,
-}
-
-impl CatalogTrustSnapshotUnsupported {
-    fn deserialize_status<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogTrustSnapshotUnsupportedStatus, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "unsupported" {
-            return Err(serde::de::Error::unknown_variant(&value, &["unsupported"]));
-        }
-        <CatalogTrustSnapshotUnsupportedStatus>::deserialize(
-            serde::de::value::StringDeserializer::<D::Error>::new(value),
-        )
-    }
 }
 
 /// No transport this runtime can use is available for the requested server.
@@ -7967,6 +7985,13 @@ pub struct HistoryTruncateResult {
 }
 
 /// Runtime-owned wire payload for a server-to-client hook callback invocation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct HookInvokeRequest {
@@ -7976,6 +8001,13 @@ pub(crate) struct HookInvokeRequest {
 }
 
 /// Optional output returned by an SDK callback hook.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct HookInvokeResponse {
@@ -8019,6 +8051,486 @@ pub struct HooksDiscoverResult {
     pub hooks: Vec<DiscoveredHook>,
     /// Non-fatal source-loading warnings. Discovery remains complete for the affected source, although the source had a recoverable issue. Repository-settings warnings are prefixed with their project path when attribution is available.
     pub warnings: Vec<String>,
+}
+
+/// The configuration-change alternative for the transportChoices entry at the same index. Only the selected alternative is applied; entries are not cumulative. The payload stays behind the runtime boundary.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanConfigurationChange {
+    /// Names of the configuration fields the change would set, without their values.
+    pub changed_fields: Vec<String>,
+    /// Configuration key the change applies to.
+    pub config_key: String,
+    /// Whether the change would create a new entry or modify an existing one.
+    pub operation: McpPlanConfigurationOperation,
+    /// Scope the change would be written to.
+    pub scope: McpPlanScope,
+    /// Secret placeholders the written configuration would reference. The constrained placeholder type cannot carry a literal secret value.
+    pub secret_references: Vec<String>,
+}
+
+/// Final remote configuration, not a template. The producer refuses configured
+/// secrets and external-value expansion before presenting this review.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationRemoteConfiguration {
+    pub headers: HashMap<String, String>,
+    pub tools: Vec<String>,
+    pub transport: McpPlanRemoteTransport,
+    pub url: String,
+}
+
+/// Normalised identity of the MCP server a plan targets, independent of how the card spelled it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanResourceIdentity {
+    /// Canonical, normalised name of the server, for example `io.github.owner/server`.
+    pub canonical_name: String,
+    /// Registry identifier of the server, when it came from a registry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registry_id: Option<String>,
+    /// Local configuration key the server would be recorded under.
+    pub server_name: String,
+    /// Version advertised by the card, when it declares one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+/// One Registry string-valued configuration entry for the selected transport.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationInput {
+    /// Exact category declared by the selected choice.
+    pub category: McpPlanValueCategory,
+    /// Exact key declared by the selected choice.
+    pub key: String,
+    /// Explicit non-secret value. Secret placeholders use a separate input channel.
+    pub value: String,
+}
+
+/// Outcome of evaluating the planned server against registry and enterprise policy. Evaluation is read-only.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanPolicyResult {
+    /// What policy decided for this server.
+    pub decision: McpPlanPolicyDecision,
+    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Which authority produced the decision.
+    pub source: McpPlanPolicySource,
+}
+
+/// Provenance of the exact validated JSON MCP card content bound privately to a completed plan and its opaque handle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanProvenance {
+    /// Authority associated with the validated card, without path, query, or credentials. Inert untrusted data.
+    pub authority: String,
+    /// Semantic digest of the exact validated JSON content bound to the plan handle.
+    pub card_digest: CardDigest,
+    /// JSON MCP media type the validated card was interpreted as.
+    pub media_type: McpServerCardMediaType,
+    /// ISO 8601 timestamp at which the runtime completed strict parsing and schema validation of the card content.
+    pub validated_at: String,
+}
+
+/// One non-secret scalar value a transport choice needs before it can be applied.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanRequiredValueScalar {
+    /// Where the value is applied when the server is launched.
+    pub category: McpPlanValueCategory,
+    /// Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<String>,
+    /// Human-readable explanation from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Whether the value may be supplied more than once.
+    pub is_repeated: bool,
+    /// Key the value is supplied under. Inert untrusted data.
+    pub key: String,
+    /// Discriminator: this required value uses a scalar type.
+    #[serde(deserialize_with = "McpPlanRequiredValueScalar::deserialize_kind")]
+    pub kind: McpPlanRequiredValueScalarKind,
+    /// Whether the value must be present for the plan to be applicable.
+    pub required: bool,
+    /// Human-readable label from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Scalar type the value must conform to.
+    pub value_type: McpPlanScalarValueType,
+}
+
+impl McpPlanRequiredValueScalar {
+    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpPlanRequiredValueScalarKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "scalar" {
+            return Err(serde::de::Error::unknown_variant(&value, &["scalar"]));
+        }
+        <McpPlanRequiredValueScalarKind>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// One enumerated non-secret value a transport choice needs before it can be applied. The permitted values are structurally required.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanRequiredValueEnum {
+    /// Where the value is applied when the server is launched.
+    pub category: McpPlanValueCategory,
+    /// Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<String>,
+    /// Human-readable explanation from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Non-empty permitted value set. Inert untrusted data.
+    pub enum_values: Vec<String>,
+    /// Whether the value may be supplied more than once.
+    pub is_repeated: bool,
+    /// Key the value is supplied under. Inert untrusted data.
+    pub key: String,
+    /// Discriminator: this required value uses a fixed enumeration.
+    #[serde(deserialize_with = "McpPlanRequiredValueEnum::deserialize_kind")]
+    pub kind: McpPlanRequiredValueEnumKind,
+    /// Whether the value must be present for the plan to be applicable.
+    pub required: bool,
+    /// Human-readable label from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Discriminator: the value must be one of `enumValues`.
+    #[serde(deserialize_with = "McpPlanRequiredValueEnum::deserialize_value_type")]
+    pub value_type: McpPlanEnumValueType,
+}
+
+impl McpPlanRequiredValueEnum {
+    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpPlanRequiredValueEnumKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "enum" {
+            return Err(serde::de::Error::unknown_variant(&value, &["enum"]));
+        }
+        <McpPlanRequiredValueEnumKind>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
+
+    fn deserialize_value_type<'de, D>(deserializer: D) -> Result<McpPlanEnumValueType, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "enum" {
+            return Err(serde::de::Error::unknown_variant(&value, &["enum"]));
+        }
+        <McpPlanEnumValueType>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(
+            value,
+        ))
+    }
+}
+
+/// A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanSecretPlaceholder {
+    /// Key the secret is supplied under. Inert untrusted data.
+    pub key: String,
+    /// The runtime-assigned `${secret:<id>}` placeholder written into configuration in place of the value.
+    pub placeholder: String,
+    /// Human-readable label from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+}
+
+/// An eligible local-package transport choice. Package identity is required and a remote endpoint cannot be represented.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanTransportChoicePackage {
+    /// Stable identifier for this choice within the plan, used to select it when the plan is applied.
+    pub choice_id: String,
+    /// Discriminator: this choice runs a local package
+    #[serde(deserialize_with = "McpPlanTransportChoicePackage::deserialize_install_method")]
+    pub install_method: McpPlanPackageInstallMethod,
+    /// Package identifier. Inert untrusted data.
+    pub package_identifier: String,
+    /// Packaging ecosystem, for example `oci` or `npm`.
+    pub package_type: String,
+    /// Typed values this choice requires, excluding secrets.
+    pub required_values: Vec<McpPlanRequiredValue>,
+    /// Secrets this choice requires, referenced by placeholder only.
+    pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
+    /// Local process transport this package choice would use.
+    pub transport: McpPlanPackageTransport,
+}
+
+impl McpPlanTransportChoicePackage {
+    fn deserialize_install_method<'de, D>(
+        deserializer: D,
+    ) -> Result<McpPlanPackageInstallMethod, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "package" {
+            return Err(serde::de::Error::unknown_variant(&value, &["package"]));
+        }
+        <McpPlanPackageInstallMethod>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
+}
+
+/// An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanTransportChoiceRemote {
+    /// Stable identifier for this choice within the plan, used to select it when the plan is applied.
+    pub choice_id: String,
+    /// Endpoint URL. Inert untrusted data.
+    pub endpoint: String,
+    /// Discriminator: this choice connects to a remote endpoint
+    #[serde(deserialize_with = "McpPlanTransportChoiceRemote::deserialize_install_method")]
+    pub install_method: McpPlanRemoteInstallMethod,
+    /// Typed values this choice requires, excluding secrets.
+    pub required_values: Vec<McpPlanRequiredValue>,
+    /// Secrets this choice requires, referenced by placeholder only.
+    pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
+    /// Endpoint transport this remote choice would use.
+    pub transport: McpPlanRemoteTransport,
+}
+
+impl McpPlanTransportChoiceRemote {
+    fn deserialize_install_method<'de, D>(
+        deserializer: D,
+    ) -> Result<McpPlanRemoteInstallMethod, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "remote" {
+            return Err(serde::de::Error::unknown_variant(&value, &["remote"]));
+        }
+        <McpPlanRemoteInstallMethod>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
+}
+
+/// Where a plan would be written.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanTarget {
+    /// Configuration key the server would be recorded under within that scope.
+    pub config_key: String,
+    /// Configuration scope the plan targets.
+    pub scope: McpPlanScope,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationReviewInstall {
+    pub action: McpInstallationReviewInstallAction,
+    /// Original catalogue trust metadata, not a verification claim.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalogue_trust: Option<CatalogTrustSnapshot>,
+    /// The configuration change for the selected alternative only.
+    pub configuration_change: McpPlanConfigurationChange,
+    /// Complete effective remote configuration for final input-free installation review.
+    /// Earlier private selection reviews and package choices omit this field.
+    /// The owned remote resource requires it before issuing confirmation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_configuration: Option<McpInstallationRemoteConfiguration>,
+    /// Identity from the retained plan, not caller display text.
+    pub identity: McpPlanResourceIdentity,
+    /// Non-secret values supplied for this selected alternative.
+    pub inputs: Vec<McpInstallationInput>,
+    /// Policy decision bound to this plan.
+    pub policy: McpPlanPolicyResult,
+    /// Original source identity and content commitment.
+    pub provenance: McpPlanProvenance,
+    /// Explicit reviewed backend selection; no backend is accessed when no secrets are supplied.
+    pub secret_storage: McpInstallationSecretStorage,
+    /// Only the selected alternative is applied.
+    pub selected_choice: McpPlanTransportChoice,
+    /// Exact reviewed placeholders supplied separately. Never secret values.
+    pub supplied_secrets: Vec<String>,
+    /// Exact reviewed user-scope destination.
+    pub target: McpPlanTarget,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationReviewUninstall {
+    pub action: McpInstallationReviewUninstallAction,
+    /// Identity from the installed receipt.
+    pub identity: McpPlanResourceIdentity,
+    /// Receipt-owned installation being removed.
+    pub installation_id: String,
+    /// Exact planner-owned secret slots to remove, excluding shared OAuth grants.
+    pub owned_secret_count: i64,
+    /// Current removal policy, independent of permission to activate the server.
+    pub policy: McpPlanPolicyResult,
+    /// Shared profile authentication is deliberately retained, not pending cleanup.
+    pub preserves_shared_authentication: bool,
+    /// Source identity and content commitment retained by the installed receipt.
+    pub provenance: McpPlanProvenance,
+    /// Whether uninstall restores a protected pre-install configuration.
+    pub restores_previous_configuration: bool,
+    /// Exact destination, checked for intervening changes before mutation.
+    pub target: McpPlanTarget,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallationReview {
+    pub resource: InstallationReviewResource,
+    /// The exact MCP action and its reviewed changes.
+    pub review: McpInstallationReview,
+}
+
+/// One connection-owned, expiring request for a trusted host's explicit user decision.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallationConfirmationRequest {
+    /// Opaque one-use challenge. Return unchanged; never log or persist.
+    pub confirmation_id: String,
+    /// Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it.
+    pub expires_at: String,
+    /// Random identifier of this installation operation, not a plan handle.
+    pub operation_id: String,
+    /// Original engine-resolved selector for a bound operation, never a dispatch default.
+    /// Bound MCP confirmation always includes it; correlate it with the original pending action.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_session_id: Option<String>,
+    /// Resource-specific review to present before collecting the user's decision.
+    pub review: InstallationReview,
+    /// Opaque commitment to the exact review and inputs. Return unchanged; never log.
+    pub review_fingerprint: String,
+}
+
+/// A response is meaningful only on the connection and request that issued its challenge.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallationConfirmationResponse {
+    /// Exact challenge from the request.
+    pub confirmation_id: String,
+    /// Fresh explicit user decision. There is no default.
+    pub decision: InstallationDecision,
+    /// Exact review commitment from the request.
+    pub review_fingerprint: String,
 }
 
 /// Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
@@ -8351,6 +8863,13 @@ pub struct JsonSchemaResponseFormat {
 }
 
 /// A request body chunk or cancellation signal.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmInferenceHttpRequestChunkRequest {
@@ -8376,11 +8895,25 @@ pub struct LlmInferenceHttpRequestChunkRequest {
 }
 
 /// Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmInferenceHttpRequestChunkResult {}
 
 /// The head of an outbound model-layer HTTP request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmInferenceHttpRequestStartRequest {
@@ -8413,6 +8946,13 @@ pub struct LlmInferenceHttpRequestStartRequest {
 }
 
 /// Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmInferenceHttpRequestStartResult {}
@@ -9606,110 +10146,6 @@ pub struct McpHostState {
     pub pending_connections: Vec<String>,
 }
 
-/// The configuration-change alternative for the transportChoices entry at the same index. Only the selected alternative is applied; entries are not cumulative. The payload stays behind the runtime boundary.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanConfigurationChange {
-    /// Names of the configuration fields the change would set, without their values.
-    pub changed_fields: Vec<String>,
-    /// Configuration key the change applies to.
-    pub config_key: String,
-    /// Whether the change would create a new entry or modify an existing one.
-    pub operation: McpPlanConfigurationOperation,
-    /// Scope the change would be written to.
-    pub scope: McpPlanScope,
-    /// Secret placeholders the written configuration would reference. The constrained placeholder type cannot carry a literal secret value.
-    pub secret_references: Vec<String>,
-}
-
-/// Normalised identity of the MCP server a plan targets, independent of how the card spelled it.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanResourceIdentity {
-    /// Canonical, normalised name of the server, for example `io.github.owner/server`.
-    pub canonical_name: String,
-    /// Registry identifier of the server, when it came from a registry.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub registry_id: Option<String>,
-    /// Local configuration key the server would be recorded under.
-    pub server_name: String,
-    /// Version advertised by the card, when it declares one.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
-}
-
-/// Outcome of evaluating the planned server against registry and enterprise policy. Evaluation is read-only.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanPolicyResult {
-    /// What policy decided for this server.
-    pub decision: McpPlanPolicyDecision,
-    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
-    /// Which authority produced the decision.
-    pub source: McpPlanPolicySource,
-}
-
-/// Provenance of the exact validated JSON MCP card content bound privately to a completed plan and its opaque handle.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanProvenance {
-    /// Authority associated with the validated card, without path, query, or credentials. Inert untrusted data.
-    pub authority: String,
-    /// Semantic digest of the exact validated JSON content bound to the plan handle.
-    pub card_digest: CardDigest,
-    /// JSON MCP media type the validated card was interpreted as.
-    pub media_type: McpServerCardMediaType,
-    /// ISO 8601 timestamp at which the runtime completed strict parsing and schema validation of the card content.
-    pub validated_at: String,
-}
-
-/// Where a plan would be written.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanTarget {
-    /// Configuration key the server would be recorded under within that scope.
-    pub config_key: String,
-    /// Configuration scope the plan targets.
-    pub scope: McpPlanScope,
-}
-
 /// A normalised, inert description of what installing an MCP server would involve. Carries no raw card, no install specification, and no secret value.
 ///
 /// <div class="warning">
@@ -9743,7 +10179,7 @@ pub struct McpInstallPlan {
     /// Configuration scope and key the plan would write to.
     pub target: McpPlanTarget,
     /// Every eligible transport, so a host can present an explicit choice. A completed plan always has at least one; when none is eligible, planning returns `CatalogUnavailableTransportError` instead.
-    pub transport_choices: Vec<serde_json::Value>,
+    pub transport_choices: Vec<McpPlanTransportChoice>,
 }
 
 /// Server name to check running status for.
@@ -10232,235 +10668,14 @@ impl McpPlanInstallSourceCard {
 pub struct McpPlanInstallRequest {
     /// Protocol version and capabilities the caller requires.
     pub contract: CatalogClientContract,
+    /// The same existing attached session that owns the original catalogue candidate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_session_id: Option<String>,
     /// Configuration scope the plan targets. Defaults to user scope when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<McpPlanScope>,
     /// What to plan: either a candidate handle from a previous search, or a card supplied directly.
     pub source: McpPlanInstallSource,
-}
-
-/// One non-secret scalar value a transport choice needs before it can be applied.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanRequiredValueScalar {
-    /// Where the value is applied when the server is launched.
-    pub category: McpPlanValueCategory,
-    /// Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_value: Option<String>,
-    /// Human-readable explanation from the card. Inert untrusted text.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Whether the value may be supplied more than once.
-    pub is_repeated: bool,
-    /// Key the value is supplied under. Inert untrusted data.
-    pub key: String,
-    /// Discriminator: this required value uses a scalar type.
-    #[serde(deserialize_with = "McpPlanRequiredValueScalar::deserialize_kind")]
-    pub kind: McpPlanRequiredValueScalarKind,
-    /// Whether the value must be present for the plan to be applicable.
-    pub required: bool,
-    /// Human-readable label from the card. Inert untrusted text.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    /// Scalar type the value must conform to.
-    pub value_type: McpPlanScalarValueType,
-}
-
-impl McpPlanRequiredValueScalar {
-    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpPlanRequiredValueScalarKind, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "scalar" {
-            return Err(serde::de::Error::unknown_variant(&value, &["scalar"]));
-        }
-        <McpPlanRequiredValueScalarKind>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// One enumerated non-secret value a transport choice needs before it can be applied. The permitted values are structurally required.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanRequiredValueEnum {
-    /// Where the value is applied when the server is launched.
-    pub category: McpPlanValueCategory,
-    /// Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_value: Option<String>,
-    /// Human-readable explanation from the card. Inert untrusted text.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Non-empty permitted value set. Inert untrusted data.
-    pub enum_values: Vec<String>,
-    /// Whether the value may be supplied more than once.
-    pub is_repeated: bool,
-    /// Key the value is supplied under. Inert untrusted data.
-    pub key: String,
-    /// Discriminator: this required value uses a fixed enumeration.
-    #[serde(deserialize_with = "McpPlanRequiredValueEnum::deserialize_kind")]
-    pub kind: McpPlanRequiredValueEnumKind,
-    /// Whether the value must be present for the plan to be applicable.
-    pub required: bool,
-    /// Human-readable label from the card. Inert untrusted text.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    /// Discriminator: the value must be one of `enumValues`.
-    #[serde(deserialize_with = "McpPlanRequiredValueEnum::deserialize_value_type")]
-    pub value_type: McpPlanEnumValueType,
-}
-
-impl McpPlanRequiredValueEnum {
-    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpPlanRequiredValueEnumKind, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "enum" {
-            return Err(serde::de::Error::unknown_variant(&value, &["enum"]));
-        }
-        <McpPlanRequiredValueEnumKind>::deserialize(
-            serde::de::value::StringDeserializer::<D::Error>::new(value),
-        )
-    }
-
-    fn deserialize_value_type<'de, D>(deserializer: D) -> Result<McpPlanEnumValueType, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "enum" {
-            return Err(serde::de::Error::unknown_variant(&value, &["enum"]));
-        }
-        <McpPlanEnumValueType>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(
-            value,
-        ))
-    }
-}
-
-/// A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanSecretPlaceholder {
-    /// Key the secret is supplied under. Inert untrusted data.
-    pub key: String,
-    /// The runtime-assigned `${secret:<id>}` placeholder written into configuration in place of the value.
-    pub placeholder: String,
-    /// Human-readable label from the card. Inert untrusted text.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-}
-
-/// An eligible local-package transport choice. Package identity is required and a remote endpoint cannot be represented.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanTransportChoicePackage {
-    /// Stable identifier for this choice within the plan, used to select it when the plan is applied.
-    pub choice_id: String,
-    /// Discriminator: this choice runs a local package
-    #[serde(deserialize_with = "McpPlanTransportChoicePackage::deserialize_install_method")]
-    pub install_method: McpPlanPackageInstallMethod,
-    /// Package identifier. Inert untrusted data.
-    pub package_identifier: String,
-    /// Packaging ecosystem, for example `oci` or `npm`.
-    pub package_type: String,
-    /// Typed values this choice requires, excluding secrets.
-    pub required_values: Vec<McpPlanRequiredValue>,
-    /// Secrets this choice requires, referenced by placeholder only.
-    pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
-    /// Local process transport this package choice would use.
-    pub transport: McpPlanPackageTransport,
-}
-
-impl McpPlanTransportChoicePackage {
-    fn deserialize_install_method<'de, D>(
-        deserializer: D,
-    ) -> Result<McpPlanPackageInstallMethod, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "package" {
-            return Err(serde::de::Error::unknown_variant(&value, &["package"]));
-        }
-        <McpPlanPackageInstallMethod>::deserialize(
-            serde::de::value::StringDeserializer::<D::Error>::new(value),
-        )
-    }
-}
-
-/// An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanTransportChoiceRemote {
-    /// Stable identifier for this choice within the plan, used to select it when the plan is applied.
-    pub choice_id: String,
-    /// Endpoint URL. Inert untrusted data.
-    pub endpoint: String,
-    /// Discriminator: this choice connects to a remote endpoint
-    #[serde(deserialize_with = "McpPlanTransportChoiceRemote::deserialize_install_method")]
-    pub install_method: McpPlanRemoteInstallMethod,
-    /// Typed values this choice requires, excluding secrets.
-    pub required_values: Vec<McpPlanRequiredValue>,
-    /// Secrets this choice requires, referenced by placeholder only.
-    pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
-    /// Endpoint transport this remote choice would use.
-    pub transport: McpPlanRemoteTransport,
-}
-
-impl McpPlanTransportChoiceRemote {
-    fn deserialize_install_method<'de, D>(
-        deserializer: D,
-    ) -> Result<McpPlanRemoteInstallMethod, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "remote" {
-            return Err(serde::de::Error::unknown_variant(&value, &["remote"]));
-        }
-        <McpPlanRemoteInstallMethod>::deserialize(
-            serde::de::value::StringDeserializer::<D::Error>::new(value),
-        )
-    }
 }
 
 /// Registration parameters for an external MCP client.
@@ -10985,6 +11200,9 @@ pub struct McpServerConfigHttp {
     /// Whether the configured OAuth client is public and does not require a client secret.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oauth_public_client: Option<bool>,
+    /// Non-empty array of valid RFC 6749 scope-token strings to request for the statically configured OAuth client when the server challenge omits scope or provides an empty scope. Requires a non-empty oauthClientId. These scopes take precedence over protected-resource metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oauth_scopes: Option<Vec<String>>,
     /// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc: Option<serde_json::Value>,
@@ -11341,7 +11559,7 @@ pub struct MemoryConfiguration {
 /// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MetadataContextAttributionResultContextAttributionCategories {
+pub struct SessionContextAttributionCategories {
     /// Output reserve plus post-blocking-threshold buffer.
     pub buffer: i64,
     /// Custom-instructions tokens (0 when none are configured).
@@ -11361,14 +11579,14 @@ pub struct MetadataContextAttributionResultContextAttributionCategories {
 /// Successful compaction history for the session.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MetadataContextAttributionResultContextAttributionCompactions {
+pub struct SessionContextAttributionCompactions {
     /// Number of successful compactions in this session.
     pub count: i64,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MetadataContextAttributionResultContextAttributionEntriesItem {
+pub struct SessionContextAttributionEntriesItem {
     /// Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attributes: Option<HashMap<String, String>>,
@@ -11386,19 +11604,26 @@ pub struct MetadataContextAttributionResultContextAttributionEntriesItem {
 }
 
 /// Per-source token attribution snapshot for the current context window. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MetadataContextAttributionResultContextAttribution {
+pub struct SessionContextAttribution {
     /// Output reserve plus the tokens past the buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`.
     pub buffer_tokens: i64,
     /// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
-    pub categories: MetadataContextAttributionResultContextAttributionCategories,
+    pub categories: SessionContextAttributionCategories,
     /// Successful compaction history for the session.
-    pub compactions: MetadataContextAttributionResultContextAttributionCompactions,
+    pub compactions: SessionContextAttributionCompactions,
     /// Token count at which background compaction starts. Mirrors `SessionContextInfo.compactionThreshold`.
     pub compaction_threshold: i64,
     /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
-    pub entries: Vec<MetadataContextAttributionResultContextAttributionEntriesItem>,
+    pub entries: Vec<SessionContextAttributionEntriesItem>,
     /// Prompt limit plus the model's output reserve: the full context window `categories.freeSpace` and `categories.buffer` are measured against. Mirrors `SessionContextInfo.limit`.
     pub limit: i64,
     /// The concrete model id the entire breakdown was tokenized against (feeds the per-model token multiplier). Under `Auto` (Free/Student) this is the resolved model, not the literal `auto` sentinel, so totals are not undercounted. A single-model approximation of a potentially multi-model Auto session.
@@ -11423,7 +11648,7 @@ pub struct MetadataContextAttributionResultContextAttribution {
 #[serde(rename_all = "camelCase")]
 pub struct MetadataContextAttributionResult {
     /// Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
-    pub context_attribution: Option<MetadataContextAttributionResultContextAttribution>,
+    pub context_attribution: SessionContextAttribution,
 }
 
 /// Parameters for the heaviest-messages query.
@@ -11480,9 +11705,16 @@ pub struct MetadataContextInfoRequest {
 }
 
 /// Token-usage breakdown for the session's current context window
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MetadataContextInfoResultContextInfo {
+pub struct SessionContextInfo {
     /// Output reserve plus tokens after the buffer-exhaustion blocking threshold (default 95%)
     pub buffer_tokens: i64,
     /// Token count at which background compaction starts (configurable percentage of promptTokenLimit)
@@ -11517,7 +11749,7 @@ pub struct MetadataContextInfoResultContextInfo {
 #[serde(rename_all = "camelCase")]
 pub struct MetadataContextInfoResult {
     /// Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
-    pub context_info: Option<MetadataContextInfoResultContextInfo>,
+    pub context_info: SessionContextInfo,
 }
 
 /// Indicates whether the local session is currently processing a turn or background continuation.
@@ -14986,6 +15218,20 @@ pub struct ProtocolExternalToolDefinition {
     pub title: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolMarkerSectionOverrideTransform {
+    /// Section override action discriminator.
+    pub action: ProtocolMarkerSectionOverrideTransformAction,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolMarkerSectionOverridePreserve {
+    /// Section override action discriminator.
+    pub action: ProtocolMarkerSectionOverridePreserveAction,
+}
+
 ///
 /// <div class="warning">
 ///
@@ -17318,15 +17564,6 @@ pub struct SendMessageItem {
     pub(crate) source: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SendMessagesRequestResponseFormat {
-    /// JSON Schema and provider options for the turn's output.
-    pub json_schema: JsonSchemaResponseFormat,
-    /// Output format discriminator. Currently only json_schema is supported.
-    pub r#type: SendMessagesRequestResponseFormatType,
-}
-
 /// Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
 ///
 /// <div class="warning">
@@ -17354,7 +17591,7 @@ pub struct SendMessagesRequest {
     pub request_headers: Option<HashMap<String, String>>,
     /// Provider-native output format for the whole turn, including an empty message batch and all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_format: Option<SendMessagesRequestResponseFormat>,
+    pub response_format: Option<ResponseFormat>,
     /// W3C Trace Context traceparent header for distributed tracing of this agent turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traceparent: Option<String>,
@@ -17379,15 +17616,6 @@ pub struct SendMessagesRequest {
 pub struct SendMessagesResult {
     /// Unique identifiers assigned to the messages, one per provided message in order. For a batch that starts a run, assistant messages use the final ID as originatingMessageId throughout that run, including tool iterations and stop-hook corrections. Immediate steering does not replace the active run's origin. Empty when no messages were provided; that run has no originatingMessageId.
     pub message_ids: Vec<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SendRequestResponseFormat {
-    /// JSON Schema and provider options for the turn's output.
-    pub json_schema: JsonSchemaResponseFormat,
-    /// Output format discriminator. Currently only json_schema is supported.
-    pub r#type: SendRequestResponseFormatType,
 }
 
 /// Parameters for sending a user message to the session
@@ -17429,7 +17657,7 @@ pub struct SendRequest {
     pub required_tool: Option<String>,
     /// Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_format: Option<SendRequestResponseFormat>,
+    pub response_format: Option<ResponseFormat>,
     /// Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -17708,119 +17936,6 @@ pub struct SessionAuthSwitchRequest {
 pub struct SessionBulkDeleteResult {
     /// Map of sessionId -> bytes freed by removing the session's workspace directory. Sessions whose deletion failed are omitted from this map (failures are logged on the server but not surfaced per-id; check the map for absent IDs to detect them).
     pub freed_bytes: HashMap<String, i64>,
-}
-
-/// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionContextAttributionCategories {
-    /// Output reserve plus post-blocking-threshold buffer.
-    pub buffer: i64,
-    /// Custom-instructions tokens (0 when none are configured).
-    pub custom_instructions: i64,
-    /// Remaining unused window capacity (clamped at 0).
-    pub free_space: i64,
-    /// MCP tool-definition tokens.
-    pub mcp_tools: i64,
-    /// Conversation (user/assistant/tool) message tokens.
-    pub messages: i64,
-    /// System prompt tokens, excluding custom instructions.
-    pub system_prompt: i64,
-    /// Non-MCP tool-definition tokens.
-    pub system_tools: i64,
-}
-
-/// Successful compaction history for the session.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionContextAttributionCompactions {
-    /// Number of successful compactions in this session.
-    pub count: i64,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionContextAttributionEntriesItem {
-    /// Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<HashMap<String, String>>,
-    /// Identifier for this entry, formed by joining its `kind` and source name (e.g. `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP registries), and as the `parentId` target for nesting. Distinct from the human-facing `label`.
-    pub id: String,
-    /// Source category for this entry. Not a closed set — tolerate unknown values. Known values today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
-    pub kind: String,
-    /// Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be localized/reformatted without notice — do not key off it.
-    pub label: String,
-    /// Optional `id` of the parent entry: e.g. a `plugin` entry parenting its `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries. Omitted for top-level entries.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_id: Option<String>,
-    /// Token count currently in context attributable to this entry.
-    pub tokens: i64,
-}
-
-/// Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionContextAttribution {
-    /// Output reserve plus the tokens past the buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`.
-    pub buffer_tokens: i64,
-    /// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
-    pub categories: SessionContextAttributionCategories,
-    /// Successful compaction history for the session.
-    pub compactions: SessionContextAttributionCompactions,
-    /// Token count at which background compaction starts. Mirrors `SessionContextInfo.compactionThreshold`.
-    pub compaction_threshold: i64,
-    /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
-    pub entries: Vec<SessionContextAttributionEntriesItem>,
-    /// Prompt limit plus the model's output reserve: the full context window `categories.freeSpace` and `categories.buffer` are measured against. Mirrors `SessionContextInfo.limit`.
-    pub limit: i64,
-    /// The concrete model id the entire breakdown was tokenized against (feeds the per-model token multiplier). Under `Auto` (Free/Student) this is the resolved model, not the literal `auto` sentinel, so totals are not undercounted. A single-model approximation of a potentially multi-model Auto session.
-    pub model_id: String,
-    /// How `modelId` was chosen. Not a closed set — tolerate unknown values. Known values today: `autoResolved` (the model Auto resolved to), `selected` (the user's explicitly selected model), `default` (a fallback before any model is known).
-    pub model_source: String,
-    /// Maximum prompt tokens the resolved model accepts — the denominator for a `##k/###k` context-usage display. Mirrors `SessionContextInfo.promptTokenLimit`.
-    pub prompt_token_limit: i64,
-    /// Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
-    pub total_tokens: i64,
-}
-
-/// Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionContextInfo {
-    /// Output reserve plus tokens after the buffer-exhaustion blocking threshold (default 95%)
-    pub buffer_tokens: i64,
-    /// Token count at which background compaction starts (configurable percentage of promptTokenLimit)
-    pub compaction_threshold: i64,
-    /// Tokens consumed by user/assistant/tool messages
-    pub conversation_tokens: i64,
-    /// Prompt token limit plus the model's full output token limit.
-    pub limit: i64,
-    /// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
-    pub mcp_tools_tokens: i64,
-    /// The model used for token counting
-    pub model_name: String,
-    /// Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified)
-    pub prompt_token_limit: i64,
-    /// Tokens consumed by the system prompt
-    pub system_tokens: i64,
-    /// Tokens consumed by tool definitions sent to the model (excludes deferred tools)
-    pub tool_definitions_tokens: i64,
-    /// Sum of system, conversation and tool-definition tokens
-    pub total_tokens: i64,
 }
 
 /// The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.
@@ -18657,9 +18772,16 @@ pub struct SessionManagedSettings {
 }
 
 /// Public-facing projection of workspace metadata for SDK / TUI consumers
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionMetadataSnapshotWorkspace {
+pub struct WorkspaceSummary {
     /// Branch checked out at session start, if any
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
@@ -18737,7 +18859,7 @@ pub struct SessionMetadataSnapshot {
     /// Absolute path to the session's current working directory
     pub working_directory: String,
     /// Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags).
-    pub workspace: Option<SessionMetadataSnapshotWorkspace>,
+    pub workspace: WorkspaceSummary,
     /// Absolute path to the session's workspace directory on disk, or null if the session has no associated workspace
     pub workspace_path: Option<String>,
 }
@@ -23307,24 +23429,6 @@ pub struct UIUnregisterDirectAutoModeSwitchHandlerResult {
     pub unregistered: bool,
 }
 
-/// Configured per-agent subagent overrides
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateSubagentSettingsRequestSubagents {
-    /// Per-agent settings keyed by subagent agent_type
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub agents: Option<HashMap<String, SubagentSettingsEntry>>,
-    /// Names of subagents the user has turned off; they cannot be dispatched
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub disabled_subagents: Option<Vec<String>>,
-    /// Maximum number of subagents that can run concurrently; applies to usage-based billing users only
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_concurrency: Option<i32>,
-    /// Maximum subagent nesting depth; applies to usage-based billing users only
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_depth: Option<i32>,
-}
-
 /// Subagent settings to apply to the current session
 ///
 /// <div class="warning">
@@ -23337,7 +23441,7 @@ pub struct UpdateSubagentSettingsRequestSubagents {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSubagentSettingsRequest {
     /// Subagent settings to apply, or null to clear the live session override
-    pub subagents: Option<UpdateSubagentSettingsRequestSubagents>,
+    pub subagents: SubagentSettings,
 }
 
 /// Request count and cost metrics for this model
@@ -25127,48 +25231,6 @@ pub struct WorkspacesStatFileResult {
 pub struct WorkspacesTruncateSummariesRequest {
     /// Number of newest summaries to keep.
     pub keep_count: i64,
-}
-
-/// Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags).
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkspaceSummary {
-    /// Branch checked out at session start, if any
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub branch: Option<String>,
-    /// ISO 8601 timestamp when the workspace was created
-    #[serde(rename = "created_at", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
-    /// Current working directory at session start
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
-    /// Resolved git root for cwd, if any
-    #[serde(rename = "git_root", skip_serializing_if = "Option::is_none")]
-    pub git_root: Option<String>,
-    /// Repository host type, if known
-    #[serde(rename = "host_type", skip_serializing_if = "Option::is_none")]
-    pub host_type: Option<WorkspaceSummaryHostType>,
-    /// Workspace identifier (1:1 with sessionId)
-    pub id: String,
-    /// Display name for the session, if set
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    /// Repository identifier in 'owner/repo' or 'org/project/repo' format, if any
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub repository: Option<String>,
-    /// ISO 8601 timestamp when the workspace was last updated
-    #[serde(rename = "updated_at", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
-    /// Whether the display name was explicitly set by the user
-    #[serde(rename = "user_named", skip_serializing_if = "Option::is_none")]
-    pub user_named: Option<bool>,
 }
 
 /// Workspace metadata fields to update.
@@ -30508,41 +30570,6 @@ pub struct SessionMetadataSnapshotParams {
     pub session_id: SessionId,
 }
 
-/// Public-facing projection of workspace metadata for SDK / TUI consumers
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionMetadataSnapshotResultWorkspace {
-    /// Branch checked out at session start, if any
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub branch: Option<String>,
-    /// ISO 8601 timestamp when the workspace was created
-    #[serde(rename = "created_at", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
-    /// Current working directory at session start
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
-    /// Resolved git root for cwd, if any
-    #[serde(rename = "git_root", skip_serializing_if = "Option::is_none")]
-    pub git_root: Option<String>,
-    /// Repository host type, if known
-    #[serde(rename = "host_type", skip_serializing_if = "Option::is_none")]
-    pub host_type: Option<WorkspaceSummaryHostType>,
-    /// Workspace identifier (1:1 with sessionId)
-    pub id: String,
-    /// Display name for the session, if set
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    /// Repository identifier in 'owner/repo' or 'org/project/repo' format, if any
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub repository: Option<String>,
-    /// ISO 8601 timestamp when the workspace was last updated
-    #[serde(rename = "updated_at", skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
-    /// Whether the display name was explicitly set by the user
-    #[serde(rename = "user_named", skip_serializing_if = "Option::is_none")]
-    pub user_named: Option<bool>,
-}
-
 /// Point-in-time snapshot of slow-changing session identifier and state fields
 ///
 /// <div class="warning">
@@ -30589,7 +30616,7 @@ pub struct SessionMetadataSnapshotResult {
     /// Absolute path to the session's current working directory
     pub working_directory: String,
     /// Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags).
-    pub workspace: Option<SessionMetadataSnapshotResultWorkspace>,
+    pub workspace: WorkspaceSummary,
     /// Absolute path to the session's workspace directory on disk, or null if the session has no associated workspace
     pub workspace_path: Option<String>,
 }
@@ -30671,32 +30698,6 @@ pub struct SessionMetadataActivityResult {
     pub has_active_work: bool,
 }
 
-/// Token-usage breakdown for the session's current context window
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionMetadataContextInfoResultContextInfo {
-    /// Output reserve plus tokens after the buffer-exhaustion blocking threshold (default 95%)
-    pub buffer_tokens: i64,
-    /// Token count at which background compaction starts (configurable percentage of promptTokenLimit)
-    pub compaction_threshold: i64,
-    /// Tokens consumed by user/assistant/tool messages
-    pub conversation_tokens: i64,
-    /// Prompt token limit plus the model's full output token limit.
-    pub limit: i64,
-    /// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
-    pub mcp_tools_tokens: i64,
-    /// The model used for token counting
-    pub model_name: String,
-    /// Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified)
-    pub prompt_token_limit: i64,
-    /// Tokens consumed by the system prompt
-    pub system_tokens: i64,
-    /// Tokens consumed by tool definitions sent to the model (excludes deferred tools)
-    pub tool_definitions_tokens: i64,
-    /// Sum of system, conversation and tool-definition tokens
-    pub total_tokens: i64,
-}
-
 /// Token breakdown for the session's current context window, or null if uninitialized.
 ///
 /// <div class="warning">
@@ -30709,7 +30710,7 @@ pub struct SessionMetadataContextInfoResultContextInfo {
 #[serde(rename_all = "camelCase")]
 pub struct SessionMetadataContextInfoResult {
     /// Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
-    pub context_info: Option<SessionMetadataContextInfoResultContextInfo>,
+    pub context_info: SessionContextInfo,
 }
 
 /// Identifies the target session.
@@ -30727,79 +30728,6 @@ pub struct SessionMetadataGetContextAttributionParams {
     pub session_id: SessionId,
 }
 
-/// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionMetadataGetContextAttributionResultContextAttributionCategories {
-    /// Output reserve plus post-blocking-threshold buffer.
-    pub buffer: i64,
-    /// Custom-instructions tokens (0 when none are configured).
-    pub custom_instructions: i64,
-    /// Remaining unused window capacity (clamped at 0).
-    pub free_space: i64,
-    /// MCP tool-definition tokens.
-    pub mcp_tools: i64,
-    /// Conversation (user/assistant/tool) message tokens.
-    pub messages: i64,
-    /// System prompt tokens, excluding custom instructions.
-    pub system_prompt: i64,
-    /// Non-MCP tool-definition tokens.
-    pub system_tools: i64,
-}
-
-/// Successful compaction history for the session.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionMetadataGetContextAttributionResultContextAttributionCompactions {
-    /// Number of successful compactions in this session.
-    pub count: i64,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionMetadataGetContextAttributionResultContextAttributionEntriesItem {
-    /// Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<HashMap<String, String>>,
-    /// Identifier for this entry, formed by joining its `kind` and source name (e.g. `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP registries), and as the `parentId` target for nesting. Distinct from the human-facing `label`.
-    pub id: String,
-    /// Source category for this entry. Not a closed set — tolerate unknown values. Known values today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
-    pub kind: String,
-    /// Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be localized/reformatted without notice — do not key off it.
-    pub label: String,
-    /// Optional `id` of the parent entry: e.g. a `plugin` entry parenting its `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries. Omitted for top-level entries.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_id: Option<String>,
-    /// Token count currently in context attributable to this entry.
-    pub tokens: i64,
-}
-
-/// Per-source token attribution snapshot for the current context window. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionMetadataGetContextAttributionResultContextAttribution {
-    /// Output reserve plus the tokens past the buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`.
-    pub buffer_tokens: i64,
-    /// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
-    pub categories: SessionMetadataGetContextAttributionResultContextAttributionCategories,
-    /// Successful compaction history for the session.
-    pub compactions: SessionMetadataGetContextAttributionResultContextAttributionCompactions,
-    /// Token count at which background compaction starts. Mirrors `SessionContextInfo.compactionThreshold`.
-    pub compaction_threshold: i64,
-    /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
-    pub entries: Vec<SessionMetadataGetContextAttributionResultContextAttributionEntriesItem>,
-    /// Prompt limit plus the model's output reserve: the full context window `categories.freeSpace` and `categories.buffer` are measured against. Mirrors `SessionContextInfo.limit`.
-    pub limit: i64,
-    /// The concrete model id the entire breakdown was tokenized against (feeds the per-model token multiplier). Under `Auto` (Free/Student) this is the resolved model, not the literal `auto` sentinel, so totals are not undercounted. A single-model approximation of a potentially multi-model Auto session.
-    pub model_id: String,
-    /// How `modelId` was chosen. Not a closed set — tolerate unknown values. Known values today: `autoResolved` (the model Auto resolved to), `selected` (the user's explicitly selected model), `default` (a fallback before any model is known).
-    pub model_source: String,
-    /// Maximum prompt tokens the resolved model accepts — the denominator for a `##k/###k` context-usage display. Mirrors `SessionContextInfo.promptTokenLimit`.
-    pub prompt_token_limit: i64,
-    /// Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
-    pub total_tokens: i64,
-}
-
 /// Per-source attribution breakdown for the session's current context window, or null if uninitialized.
 ///
 /// <div class="warning">
@@ -30812,7 +30740,7 @@ pub struct SessionMetadataGetContextAttributionResultContextAttribution {
 #[serde(rename_all = "camelCase")]
 pub struct SessionMetadataGetContextAttributionResult {
     /// Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
-    pub context_attribution: Option<SessionMetadataGetContextAttributionResultContextAttribution>,
+    pub context_attribution: SessionContextAttribution,
 }
 
 /// The heaviest individual messages in the session's context window, most-expensive first.
@@ -32127,6 +32055,40 @@ pub struct CanvasOpenResult {
     pub url: Option<String>,
 }
 
+/// Optional output returned by an SDK callback hook.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct HooksInvokeResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<serde_json::Value>,
+}
+
+/// A response is meaningful only on the connection and request that issued its challenge.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallationsConfirmResult {
+    /// Exact challenge from the request.
+    pub confirmation_id: String,
+    /// Fresh explicit user decision. There is no default.
+    pub decision: InstallationDecision,
+    /// Exact review commitment from the request.
+    pub review_fingerprint: String,
+}
+
 /// Validation errors from the most recent authentication attempt.
 ///
 /// <div class="warning">
@@ -33113,6 +33075,245 @@ pub enum CatalogAgentPluginMediaType {
     Unknown,
 }
 
+/// Authority-computed exposure eligibility, kept separate from tier. The current tier-only Agent Finder response maps to `unknown`, never to a locally inferred eligibility.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustEligibility {
+    /// Eligible for default catalogue exposure.
+    #[serde(rename = "default")]
+    Default,
+    /// Eligible only when expanded or community results are requested.
+    #[serde(rename = "expanded")]
+    Expanded,
+    /// Not eligible for normal catalogue exposure.
+    #[serde(rename = "hidden")]
+    Hidden,
+    /// The authority did not supply an eligibility decision.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Bounded authority that supplied a catalogue trust observation
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSource {
+    /// GitHub Agent Finder supplied the trust field on its search result.
+    #[serde(rename = "agent-finder")]
+    AgentFinder,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Schema version of the catalogue trust snapshot envelope
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotSchemaVersion {
+    /// Initial envelope carrying one bounded service tier or one explicit unavailable state.
+    #[serde(rename = "v1")]
+    V1,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// A recognised T1 or T2 service tier was observed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotCurrentStatus {
+    /// A recognised T1 or T2 service tier was observed.
+    #[serde(rename = "current")]
+    Current,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Service-computed trust tier currently emitted by Agent Finder. It is independent of search score, popularity, and client-side ranking.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustTier {
+    /// Tier one as assigned by the catalogue authority.
+    T1,
+    /// Tier two as assigned by the catalogue authority.
+    T2,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority omitted trust metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotAbsentStatus {
+    /// The authority omitted trust metadata.
+    #[serde(rename = "absent")]
+    Absent,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority explicitly marked its assessment stale.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotStaleStatus {
+    /// The authority explicitly marked its assessment stale.
+    #[serde(rename = "stale")]
+    Stale,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority explicitly reported a downgraded assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotDowngradedStatus {
+    /// The authority explicitly reported a downgraded assessment.
+    #[serde(rename = "downgraded")]
+    Downgraded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority explicitly revoked its assessment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotRevokedStatus {
+    /// The authority explicitly revoked its assessment.
+    #[serde(rename = "revoked")]
+    Revoked,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The authority supplied a bounded trust value this runtime does not understand.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotUnsupportedStatus {
+    /// The authority supplied a bounded trust value this runtime does not understand.
+    #[serde(rename = "unsupported")]
+    Unsupported,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The trust field was empty, unbounded, or had the wrong JSON type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogTrustSnapshotMalformedStatus {
+    /// The trust field was empty, unbounded, or had the wrong JSON type.
+    #[serde(rename = "malformed")]
+    Malformed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// A versioned, bounded trust observation carried unchanged with a catalog candidate and its private handle context. Current observations require a recognised T1/T2 tier; every non-current state structurally forbids a tier. Eligibility remains `unknown` while Agent Finder supplies no exposure decision, and states absent from its current wire are never inferred from age, relevance, popularity, or a tier transition.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CatalogTrustSnapshot {
+    Current(CatalogTrustSnapshotCurrent),
+    Absent(CatalogTrustSnapshotAbsent),
+    Stale(CatalogTrustSnapshotStale),
+    Downgraded(CatalogTrustSnapshotDowngraded),
+    Revoked(CatalogTrustSnapshotRevoked),
+    Unsupported(CatalogTrustSnapshotUnsupported),
+    Malformed(CatalogTrustSnapshotMalformed),
+}
+
 /// Typed non-installable state for an AI skill candidate
 ///
 /// <div class="warning">
@@ -33378,6 +33579,9 @@ pub enum CatalogCapability {
     /// Requires an eligible credential for the selected GitHub.com account before search egress and prohibits client-side anonymous retry, including after HTTP 401 or 403. The credential is scoped to the fixed catalog authority without redirect forwarding. Neither a grant nor successful response proves that the authority accepted the identity or selected a particular backend. Preserve this requirement on every page and retry; callers omitting it retain optional authentication.
     #[serde(rename = "catalog-search-credential-required")]
     CatalogSearchCredentialRequired,
+    /// Captures the exact existing native session, account, host and connection for authenticated catalogue search, selection and planning. Requires catalog-search-credential-required; does not grant installation or create a session.
+    #[serde(rename = "catalog-search-session-bound")]
+    CatalogSearchSessionBound,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -33497,6 +33701,9 @@ pub enum CatalogHandleRejectionReason {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CatalogInvalidRequestField {
+    /// The selected existing attached session was missing, malformed or unavailable.
+    #[serde(rename = "policySessionId")]
+    PolicySessionId,
     /// The search query was empty or longer than permitted.
     #[serde(rename = "query")]
     Query,
@@ -34030,225 +34237,6 @@ pub enum CatalogSelectionResult {
     NegotiationRefused(CatalogNegotiationRefusedError),
     InvalidRequest(CatalogInvalidRequestError),
     Unavailable(CatalogUnavailableError),
-}
-
-/// Authority-computed exposure eligibility, kept separate from tier. The current tier-only Agent Finder response maps to `unknown`, never to a locally inferred eligibility.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustEligibility {
-    /// Eligible for default catalogue exposure.
-    #[serde(rename = "default")]
-    Default,
-    /// Eligible only when expanded or community results are requested.
-    #[serde(rename = "expanded")]
-    Expanded,
-    /// Not eligible for normal catalogue exposure.
-    #[serde(rename = "hidden")]
-    Hidden,
-    /// The authority did not supply an eligibility decision.
-    #[serde(rename = "unknown")]
-    UnknownValue,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Bounded authority that supplied a catalogue trust observation
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSource {
-    /// GitHub Agent Finder supplied the trust field on its search result.
-    #[serde(rename = "agent-finder")]
-    AgentFinder,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Schema version of the catalogue trust snapshot envelope
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotSchemaVersion {
-    /// Initial envelope carrying one bounded service tier or one explicit unavailable state.
-    #[serde(rename = "v1")]
-    V1,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The authority omitted trust metadata.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotAbsentStatus {
-    /// The authority omitted trust metadata.
-    #[serde(rename = "absent")]
-    Absent,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// A recognised T1 or T2 service tier was observed.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotCurrentStatus {
-    /// A recognised T1 or T2 service tier was observed.
-    #[serde(rename = "current")]
-    Current,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Service-computed trust tier currently emitted by Agent Finder. It is independent of search score, popularity, and client-side ranking.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustTier {
-    /// Tier one as assigned by the catalogue authority.
-    T1,
-    /// Tier two as assigned by the catalogue authority.
-    T2,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The authority explicitly reported a downgraded assessment.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotDowngradedStatus {
-    /// The authority explicitly reported a downgraded assessment.
-    #[serde(rename = "downgraded")]
-    Downgraded,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The trust field was empty, unbounded, or had the wrong JSON type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotMalformedStatus {
-    /// The trust field was empty, unbounded, or had the wrong JSON type.
-    #[serde(rename = "malformed")]
-    Malformed,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The authority explicitly revoked its assessment.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotRevokedStatus {
-    /// The authority explicitly revoked its assessment.
-    #[serde(rename = "revoked")]
-    Revoked,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The authority explicitly marked its assessment stale.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotStaleStatus {
-    /// The authority explicitly marked its assessment stale.
-    #[serde(rename = "stale")]
-    Stale,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The authority supplied a bounded trust value this runtime does not understand.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CatalogTrustSnapshotUnsupportedStatus {
-    /// The authority supplied a bounded trust value this runtime does not understand.
-    #[serde(rename = "unsupported")]
-    Unsupported,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
 }
 
 /// Discriminator: no usable transport is available
@@ -35325,6 +35313,13 @@ pub enum FactoryRunFailureKind {
 }
 
 /// Why the runtime is requesting a GitHub credential.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GitHubTokenAcquireReason {
     /// The runtime is acquiring the registration's first credential.
@@ -35522,6 +35517,383 @@ pub enum HistoryRewindOutcome {
     Unknown,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InstallationReviewResource {
+    #[serde(rename = "mcp")]
+    #[default]
+    Mcp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationReviewInstallAction {
+    #[serde(rename = "install")]
+    #[default]
+    Install,
+}
+
+/// Whether a planned configuration change would create or modify an entry
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanConfigurationOperation {
+    /// Creates a configuration entry that does not exist yet.
+    #[serde(rename = "add")]
+    Add,
+    /// Modifies a configuration entry that already exists.
+    #[serde(rename = "update")]
+    Update,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Configuration scope an MCP install plan targets
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanScope {
+    /// The user's own MCP configuration.
+    #[serde(rename = "user")]
+    User,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Transport exposed by a remote endpoint
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRemoteTransport {
+    /// An HTTP endpoint.
+    #[serde(rename = "http")]
+    Http,
+    /// A streamable HTTP endpoint.
+    #[serde(rename = "streamable-http")]
+    StreamableHttp,
+    /// A server-sent events endpoint.
+    #[serde(rename = "sse")]
+    Sse,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Where a required value is applied when the planned server is launched
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanValueCategory {
+    /// Set as an environment variable on the launched process.
+    #[serde(rename = "environment-variable")]
+    EnvironmentVariable,
+    /// Passed to the runtime that launches the package.
+    #[serde(rename = "runtime-argument")]
+    RuntimeArgument,
+    /// Passed to the packaged server itself.
+    #[serde(rename = "package-argument")]
+    PackageArgument,
+    /// Sent as a request header to a remote endpoint.
+    #[serde(rename = "header")]
+    Header,
+    /// Substituted into the remote endpoint URL.
+    #[serde(rename = "url-variable")]
+    UrlVariable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// What policy decided for a planned server
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanPolicyDecision {
+    /// Policy permits the server.
+    #[serde(rename = "allowed")]
+    Allowed,
+    /// Policy forbids the server, so the plan cannot be applied.
+    #[serde(rename = "blocked")]
+    Blocked,
+    /// Policy permits the server only after an explicit approval.
+    #[serde(rename = "requires-approval")]
+    RequiresApproval,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Explicit backend selection is part of the final review; failures never switch backends.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationSecretStorage {
+    /// The selected operating-system keychain, without fallback to file storage.
+    #[serde(rename = "keychain")]
+    Keychain,
+    /// The explicitly selected private file backend.
+    #[serde(rename = "private-file")]
+    PrivateFile,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for a package-backed transport choice
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanPackageInstallMethod {
+    /// Install and run a local package.
+    #[serde(rename = "package")]
+    Package,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for a scalar required value
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRequiredValueScalarKind {
+    /// The value uses one scalar type.
+    #[serde(rename = "scalar")]
+    Scalar,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Scalar type a required value must conform to
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanScalarValueType {
+    /// Free text.
+    #[serde(rename = "string")]
+    String,
+    /// A number.
+    #[serde(rename = "number")]
+    Number,
+    /// A boolean.
+    #[serde(rename = "boolean")]
+    Boolean,
+    /// A filesystem path.
+    #[serde(rename = "path")]
+    Path,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for an enumerated required value
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRequiredValueEnumKind {
+    /// The value uses a fixed non-empty enumeration.
+    #[serde(rename = "enum")]
+    Enum,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for an enumerated required value
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanEnumValueType {
+    /// One of a fixed, non-empty set of permitted values.
+    #[serde(rename = "enum")]
+    Enum,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpPlanRequiredValue {
+    Scalar(McpPlanRequiredValueScalar),
+    Enum(McpPlanRequiredValueEnum),
+}
+
+/// Transport exposed by a locally launched package
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanPackageTransport {
+    /// A locally launched process spoken to over standard input and output.
+    #[serde(rename = "stdio")]
+    Stdio,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for a remote-endpoint transport choice
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRemoteInstallMethod {
+    /// Connect to a remote endpoint.
+    #[serde(rename = "remote")]
+    Remote,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// One eligible way to run the server, represented as a tagged package or remote variant so package identity and endpoint states cannot contradict the install method.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpPlanTransportChoice {
+    Package(McpPlanTransportChoicePackage),
+    Remote(McpPlanTransportChoiceRemote),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationReviewUninstallAction {
+    #[serde(rename = "uninstall")]
+    #[default]
+    Uninstall,
+}
+
+/// Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpInstallationReview {
+    Install(McpInstallationReviewInstall),
+    Uninstall(McpInstallationReviewUninstall),
+}
+
+/// Explicit user decisions, never inferred from a permission grant or model response.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InstallationDecision {
+    /// The user explicitly approved the exact review on this request.
+    #[serde(rename = "confirm")]
+    Confirm,
+    /// The user declined the reviewed operation.
+    #[serde(rename = "decline")]
+    Decline,
+    /// The user cancelled the pending decision without granting consent.
+    #[serde(rename = "cancel")]
+    Cancel,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Constant value. Always "github".
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InstalledPluginSourceGitHubSource {
@@ -35662,6 +36034,13 @@ pub enum InstructionSourceType {
 }
 
 /// Transport the runtime would otherwise use for this request. `http` (the default when absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message channel where each body chunk maps to one WebSocket message and the `binary` flag distinguishes text from binary frames. The SDK consumer uses this to decide whether to service the request with an HTTP client or a WebSocket client. It is the one piece of request metadata the consumer cannot reliably infer from the URL or headers alone.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LlmInferenceHttpRequestStartTransport {
     /// Plain HTTP or SSE response. Each body chunk is an opaque byte range; the response is a status line, headers, and a (possibly streamed) body.
@@ -35975,72 +36354,6 @@ pub enum McpHeadersHandlePendingHeadersRefreshRequest {
     Error(McpHeadersHandlePendingHeadersRefreshRequestError),
 }
 
-/// Whether a planned configuration change would create or modify an entry
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanConfigurationOperation {
-    /// Creates a configuration entry that does not exist yet.
-    #[serde(rename = "add")]
-    Add,
-    /// Modifies a configuration entry that already exists.
-    #[serde(rename = "update")]
-    Update,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Configuration scope an MCP install plan targets
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanScope {
-    /// The user's own MCP configuration.
-    #[serde(rename = "user")]
-    User,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// What policy decided for a planned server
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanPolicyDecision {
-    /// Policy permits the server.
-    #[serde(rename = "allowed")]
-    Allowed,
-    /// Policy forbids the server, so the plan cannot be applied.
-    #[serde(rename = "blocked")]
-    Blocked,
-    /// Policy permits the server only after an explicit approval.
-    #[serde(rename = "requires-approval")]
-    RequiresApproval,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Consumer allowed to call an MCP tool.
 ///
 /// <div class="warning">
@@ -36190,25 +36503,6 @@ pub enum McpOauthProbeResult {
     Failed(McpOauthProbeResultFailed),
 }
 
-/// Discriminator for an enumerated required value
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanEnumValueType {
-    /// One of a fixed, non-empty set of permitted values.
-    #[serde(rename = "enum")]
-    Enum,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Discriminator: a plan was computed and nothing was changed
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpPlanInstallPlannedKind {
@@ -36347,200 +36641,6 @@ pub enum McpPlanInstallResult {
     UnavailableTransport(CatalogUnavailableTransportError),
     NotInstallable(CatalogNotInstallableError),
     Unavailable(CatalogUnavailableError),
-}
-
-/// Discriminator for a package-backed transport choice
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanPackageInstallMethod {
-    /// Install and run a local package.
-    #[serde(rename = "package")]
-    Package,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Transport exposed by a locally launched package
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanPackageTransport {
-    /// A locally launched process spoken to over standard input and output.
-    #[serde(rename = "stdio")]
-    Stdio,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Discriminator for a remote-endpoint transport choice
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanRemoteInstallMethod {
-    /// Connect to a remote endpoint.
-    #[serde(rename = "remote")]
-    Remote,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Transport exposed by a remote endpoint
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanRemoteTransport {
-    /// An HTTP endpoint.
-    #[serde(rename = "http")]
-    Http,
-    /// A streamable HTTP endpoint.
-    #[serde(rename = "streamable-http")]
-    StreamableHttp,
-    /// A server-sent events endpoint.
-    #[serde(rename = "sse")]
-    Sse,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Where a required value is applied when the planned server is launched
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanValueCategory {
-    /// Set as an environment variable on the launched process.
-    #[serde(rename = "environment-variable")]
-    EnvironmentVariable,
-    /// Passed to the runtime that launches the package.
-    #[serde(rename = "runtime-argument")]
-    RuntimeArgument,
-    /// Passed to the packaged server itself.
-    #[serde(rename = "package-argument")]
-    PackageArgument,
-    /// Sent as a request header to a remote endpoint.
-    #[serde(rename = "header")]
-    Header,
-    /// Substituted into the remote endpoint URL.
-    #[serde(rename = "url-variable")]
-    UrlVariable,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Discriminator for a scalar required value
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanRequiredValueScalarKind {
-    /// The value uses one scalar type.
-    #[serde(rename = "scalar")]
-    Scalar,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Scalar type a required value must conform to
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanScalarValueType {
-    /// Free text.
-    #[serde(rename = "string")]
-    String,
-    /// A number.
-    #[serde(rename = "number")]
-    Number,
-    /// A boolean.
-    #[serde(rename = "boolean")]
-    Boolean,
-    /// A filesystem path.
-    #[serde(rename = "path")]
-    Path,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Discriminator for an enumerated required value
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanRequiredValueEnumKind {
-    /// The value uses a fixed non-empty enumeration.
-    #[serde(rename = "enum")]
-    Enum,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum McpPlanRequiredValue {
-    Scalar(McpPlanRequiredValueScalar),
-    Enum(McpPlanRequiredValueEnum),
 }
 
 /// Outcome of the sampling inference. 'success' produced a response; 'failure' encountered an error (including agent-side rejection by content filter or criteria); 'cancelled' the caller cancelled this execution via cancelSamplingExecution.
@@ -37825,6 +37925,36 @@ pub enum ProtocolExternalToolDefer {
     Unknown,
 }
 
+/// Section override action discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProtocolMarkerSectionOverrideTransformAction {
+    #[serde(rename = "transform")]
+    #[default]
+    Transform,
+}
+
+/// Section override action discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProtocolMarkerSectionOverridePreserveAction {
+    #[serde(rename = "preserve")]
+    #[default]
+    Preserve,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ProtocolMarkerSectionOverride {
+    Transform(ProtocolMarkerSectionOverrideTransform),
+    Preserve(ProtocolMarkerSectionOverridePreserve),
+}
+
 ///
 /// <div class="warning">
 ///
@@ -38311,22 +38441,6 @@ pub enum SandboxSessionChange {
     #[default]
     #[serde(other)]
     Unknown,
-}
-
-/// Output format discriminator. Currently only json_schema is supported.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SendMessagesRequestResponseFormatType {
-    #[serde(rename = "json_schema")]
-    #[default]
-    JsonSchema,
-}
-
-/// Output format discriminator. Currently only json_schema is supported.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SendRequestResponseFormatType {
-    #[serde(rename = "json_schema")]
-    #[default]
-    JsonSchema,
 }
 
 /// Session capability enabled for this session

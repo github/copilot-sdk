@@ -1811,6 +1811,9 @@ type CatalogSearchRequest struct {
 	// catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh
 	// first-page search.
 	Page *CatalogSearchPage `json:"page,omitempty"`
+	// Select an existing attached local session. Requires authenticated, session-bound search.
+	// The runtime never creates, resumes or reconfigures a session to honour this selector.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
 	// Free-text search query. Persisted as tool input for session continuity, but omitted from
 	// telemetry.
 	Query string `json:"query"`
@@ -5248,6 +5251,76 @@ type HooksDiscoverResult struct {
 	Warnings []string `json:"warnings"`
 }
 
+// One connection-owned, expiring request for a trusted host's explicit user decision.
+// Experimental: InstallationConfirmationRequest is part of an experimental API and may
+// change or be removed.
+type InstallationConfirmationRequest struct {
+	// Opaque one-use challenge. Return unchanged; never log or persist.
+	ConfirmationID string `json:"confirmationId"`
+	// Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it.
+	ExpiresAt string `json:"expiresAt"`
+	// Random identifier of this installation operation, not a plan handle.
+	OperationID string `json:"operationId"`
+	// Original engine-resolved selector for a bound operation, never a dispatch default.
+	// Bound MCP confirmation always includes it; correlate it with the original pending action.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
+	// Resource-specific review to present before collecting the user's decision.
+	Review InstallationReview `json:"review"`
+	// Opaque commitment to the exact review and inputs. Return unchanged; never log.
+	ReviewFingerprint string `json:"reviewFingerprint"`
+}
+
+// A response is meaningful only on the connection and request that issued its challenge.
+// Experimental: InstallationConfirmationResponse is part of an experimental API and may
+// change or be removed.
+type InstallationConfirmationResponse struct {
+	// Exact challenge from the request.
+	ConfirmationID string `json:"confirmationId"`
+	// Fresh explicit user decision. There is no default.
+	Decision InstallationDecision `json:"decision"`
+	// Exact review commitment from the request.
+	ReviewFingerprint string `json:"reviewFingerprint"`
+}
+
+// Experimental: InstallationReview is part of an experimental API and may change or be
+// removed.
+type InstallationReview struct {
+	Resource InstallationReviewResource `json:"resource"`
+	// The exact MCP action and its reviewed changes.
+	Review MCPInstallationReview `json:"review"`
+}
+
+// One connection-owned, expiring request for a trusted host's explicit user decision.
+// Experimental: InstallationsConfirmRequest is part of an experimental API and may change
+// or be removed.
+type InstallationsConfirmRequest struct {
+	// Opaque one-use challenge. Return unchanged; never log or persist.
+	ConfirmationID string `json:"confirmationId"`
+	// Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it.
+	ExpiresAt string `json:"expiresAt"`
+	// Random identifier of this installation operation, not a plan handle.
+	OperationID string `json:"operationId"`
+	// Original engine-resolved selector for a bound operation, never a dispatch default.
+	// Bound MCP confirmation always includes it; correlate it with the original pending action.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
+	// Resource-specific review to present before collecting the user's decision.
+	Review InstallationReview `json:"review"`
+	// Opaque commitment to the exact review and inputs. Return unchanged; never log.
+	ReviewFingerprint string `json:"reviewFingerprint"`
+}
+
+// A response is meaningful only on the connection and request that issued its challenge.
+// Experimental: InstallationsConfirmResult is part of an experimental API and may change or
+// be removed.
+type InstallationsConfirmResult struct {
+	// Exact challenge from the request.
+	ConfirmationID string `json:"confirmationId"`
+	// Fresh explicit user decision. There is no default.
+	Decision InstallationDecision `json:"decision"`
+	// Exact review commitment from the request.
+	ReviewFingerprint string `json:"reviewFingerprint"`
+}
+
 // Installed plugin record from global state, with marketplace, version, install time,
 // enabled state, cache path, and source.
 // Experimental: InstalledPlugin is part of an experimental API and may change or be removed.
@@ -6401,6 +6474,103 @@ type MCPHostState struct {
 	PendingConnections []string `json:"pendingConnections"`
 }
 
+// One Registry string-valued configuration entry for the selected transport.
+// Experimental: MCPInstallationInput is part of an experimental API and may change or be
+// removed.
+type MCPInstallationInput struct {
+	// Exact category declared by the selected choice.
+	Category MCPPlanValueCategory `json:"category"`
+	// Exact key declared by the selected choice.
+	Key string `json:"key"`
+	// Explicit non-secret value. Secret placeholders use a separate input channel.
+	Value string `json:"value"`
+}
+
+// Final remote configuration, not a template. The producer refuses configured
+// secrets and external-value expansion before presenting this review.
+// Experimental: MCPInstallationRemoteConfiguration is part of an experimental API and may
+// change or be removed.
+type MCPInstallationRemoteConfiguration struct {
+	Headers   map[string]string      `json:"headers"`
+	Tools     []string               `json:"tools"`
+	Transport MCPPlanRemoteTransport `json:"transport"`
+	URL       string                 `json:"url"`
+}
+
+// Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.
+// Experimental: MCPInstallationReview is part of an experimental API and may change or be
+// removed.
+type MCPInstallationReview interface {
+	mcpInstallationReview()
+	Action() MCPInstallationReviewAction
+}
+
+type RawMCPInstallationReviewData struct {
+	Discriminator MCPInstallationReviewAction
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationReviewData) mcpInstallationReview() {}
+func (r RawMCPInstallationReviewData) Action() MCPInstallationReviewAction {
+	return r.Discriminator
+}
+
+type MCPInstallationReviewInstall struct {
+	// Original catalogue trust metadata, not a verification claim.
+	CatalogueTrust CatalogTrustSnapshot `json:"catalogueTrust,omitempty"`
+	// The configuration change for the selected alternative only.
+	ConfigurationChange MCPPlanConfigurationChange `json:"configurationChange"`
+	// Complete effective remote configuration for final input-free installation review.
+	// Earlier private selection reviews and package choices omit this field.
+	// The owned remote resource requires it before issuing confirmation.
+	EffectiveConfiguration *MCPInstallationRemoteConfiguration `json:"effectiveConfiguration,omitempty"`
+	// Identity from the retained plan, not caller display text.
+	Identity MCPPlanResourceIdentity `json:"identity"`
+	// Non-secret values supplied for this selected alternative.
+	Inputs []MCPInstallationInput `json:"inputs"`
+	// Policy decision bound to this plan.
+	Policy MCPPlanPolicyResult `json:"policy"`
+	// Original source identity and content commitment.
+	Provenance MCPPlanProvenance `json:"provenance"`
+	// Explicit reviewed backend selection; no backend is accessed when no secrets are supplied.
+	SecretStorage MCPInstallationSecretStorage `json:"secretStorage"`
+	// Only the selected alternative is applied.
+	SelectedChoice MCPPlanTransportChoice `json:"selectedChoice"`
+	// Exact reviewed placeholders supplied separately. Never secret values.
+	SuppliedSecrets []string `json:"suppliedSecrets"`
+	// Exact reviewed user-scope destination.
+	Target MCPPlanTarget `json:"target"`
+}
+
+func (MCPInstallationReviewInstall) mcpInstallationReview() {}
+func (MCPInstallationReviewInstall) Action() MCPInstallationReviewAction {
+	return MCPInstallationReviewActionInstall
+}
+
+type MCPInstallationReviewUninstall struct {
+	// Identity from the installed receipt.
+	Identity MCPPlanResourceIdentity `json:"identity"`
+	// Receipt-owned installation being removed.
+	InstallationID string `json:"installationId"`
+	// Exact planner-owned secret slots to remove, excluding shared OAuth grants.
+	OwnedSecretCount int64 `json:"ownedSecretCount"`
+	// Current removal policy, independent of permission to activate the server.
+	Policy MCPPlanPolicyResult `json:"policy"`
+	// Shared profile authentication is deliberately retained, not pending cleanup.
+	PreservesSharedAuthentication bool `json:"preservesSharedAuthentication"`
+	// Source identity and content commitment retained by the installed receipt.
+	Provenance MCPPlanProvenance `json:"provenance"`
+	// Whether uninstall restores a protected pre-install configuration.
+	RestoresPreviousConfiguration bool `json:"restoresPreviousConfiguration"`
+	// Exact destination, checked for intervening changes before mutation.
+	Target MCPPlanTarget `json:"target"`
+}
+
+func (MCPInstallationReviewUninstall) mcpInstallationReview() {}
+func (MCPInstallationReviewUninstall) Action() MCPInstallationReviewAction {
+	return MCPInstallationReviewActionUninstall
+}
+
 // A normalised, inert description of what installing an MCP server would involve. Carries
 // no raw card, no install specification, and no secret value.
 // Experimental: MCPInstallPlan is part of an experimental API and may change or be removed.
@@ -6715,6 +6885,8 @@ type MCPPlanConfigurationChange struct {
 type MCPPlanInstallRequest struct {
 	// Protocol version and capabilities the caller requires.
 	Contract CatalogClientContract `json:"contract"`
+	// The same existing attached session that owns the original catalogue candidate.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
 	// Configuration scope the plan targets. Defaults to user scope when omitted.
 	Scope *MCPPlanScope `json:"scope,omitempty"`
 	// What to plan: either a candidate handle from a previous search, or a card supplied
@@ -7448,6 +7620,11 @@ type MCPServerConfigHTTP struct {
 	OauthGrantType *MCPServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
 	// Whether the configured OAuth client is public and does not require a client secret.
 	OauthPublicClient *bool `json:"oauthPublicClient,omitempty"`
+	// Non-empty array of valid RFC 6749 scope-token strings to request for the statically
+	// configured OAuth client when the server challenge omits scope or provides an empty scope.
+	// Requires a non-empty oauthClientId. These scopes take precedence over protected-resource
+	// metadata.
+	OauthScopes []string `json:"oauthScopes,omitzero"`
 	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
 	Oidc MCPServerAuthConfig `json:"oidc,omitempty"`
 	// Telemetry-obfuscation policy for this server's tools.
@@ -19085,6 +19262,10 @@ const (
 	// Understands explicit numbered navigation and authority-reported pagination metadata with
 	// opaque tokens. Advertised and granted only when requested.
 	CatalogCapabilityCatalogSearchPagination CatalogCapability = "catalog-search-pagination"
+	// Captures the exact existing native session, account, host and connection for
+	// authenticated catalogue search, selection and planning. Requires
+	// catalog-search-credential-required; does not grant installation or create a session.
+	CatalogCapabilityCatalogSearchSessionBound CatalogCapability = "catalog-search-session-bound"
 	// Understands exact candidate selection through model-safe opaque references and host-only
 	// candidate-handle hand-off.
 	CatalogCapabilityCatalogSelection CatalogCapability = "catalog-selection"
@@ -19173,6 +19354,8 @@ const (
 	// The pagination token or target was invalid, or the authority rejected the continuation.
 	// Repeat the search without page.
 	CatalogInvalidRequestFieldPage CatalogInvalidRequestField = "page"
+	// The selected existing attached session was missing, malformed or unavailable.
+	CatalogInvalidRequestFieldPolicySessionID CatalogInvalidRequestField = "policySessionId"
 	// The search query was empty or longer than permitted.
 	CatalogInvalidRequestFieldQuery CatalogInvalidRequestField = "query"
 	// The requested configuration scope is not one this runtime writes.
@@ -20251,6 +20434,26 @@ const (
 	IndexedSearchStateStarting IndexedSearchState = "starting"
 )
 
+// Explicit user decisions, never inferred from a permission grant or model response.
+// Experimental: InstallationDecision is part of an experimental API and may change or be
+// removed.
+type InstallationDecision string
+
+const (
+	// The user cancelled the pending decision without granting consent.
+	InstallationDecisionCancel InstallationDecision = "cancel"
+	// The user explicitly approved the exact review on this request.
+	InstallationDecisionConfirm InstallationDecision = "confirm"
+	// The user declined the reviewed operation.
+	InstallationDecisionDecline InstallationDecision = "decline"
+)
+
+type InstallationReviewResource string
+
+const (
+	InstallationReviewResourceMCP InstallationReviewResource = "mcp"
+)
+
 // Constant value. Always "github".
 type InstalledPluginSourceGitHubSource string
 
@@ -20505,6 +20708,26 @@ const (
 	MCPHeadersHandlePendingHeadersRefreshRequestKindError   MCPHeadersHandlePendingHeadersRefreshRequestKind = "error"
 	MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders MCPHeadersHandlePendingHeadersRefreshRequestKind = "headers"
 	MCPHeadersHandlePendingHeadersRefreshRequestKindNone    MCPHeadersHandlePendingHeadersRefreshRequestKind = "none"
+)
+
+// Action discriminator for MCPInstallationReview.
+type MCPInstallationReviewAction string
+
+const (
+	MCPInstallationReviewActionInstall   MCPInstallationReviewAction = "install"
+	MCPInstallationReviewActionUninstall MCPInstallationReviewAction = "uninstall"
+)
+
+// Explicit backend selection is part of the final review; failures never switch backends.
+// Experimental: MCPInstallationSecretStorage is part of an experimental API and may change
+// or be removed.
+type MCPInstallationSecretStorage string
+
+const (
+	// The selected operating-system keychain, without fallback to file storage.
+	MCPInstallationSecretStorageKeychain MCPInstallationSecretStorage = "keychain"
+	// The explicitly selected private file backend.
+	MCPInstallationSecretStoragePrivateFile MCPInstallationSecretStorage = "private-file"
 )
 
 // OAuth grant type override for this login.
@@ -34353,6 +34576,24 @@ type HooksHandler interface {
 	Invoke(request *HookInvokeRequest) (*HookInvokeResponse, error)
 }
 
+// Experimental: InstallationsHandler contains experimental APIs that may change or be
+// removed.
+type InstallationsHandler interface {
+	// Confirm requests a fresh explicit human decision for one sealed installation operation on
+	// its original connection. Present the complete typed review, return the original challenge
+	// and fingerprint, and never infer approval. The expiresAt deadline, connection closure or
+	// standard JSON-RPC $/cancelRequest retires the request; late replies grant no authority.
+	//
+	// RPC method: installations.confirm.
+	//
+	// Parameters: One connection-owned, expiring request for a trusted host's explicit user
+	// decision.
+	//
+	// Returns: A response is meaningful only on the connection and request that issued its
+	// challenge.
+	Confirm(request *InstallationsConfirmRequest) (*InstallationsConfirmResult, error)
+}
+
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
 // removed.
 type LlmInferenceHandler interface {
@@ -34393,6 +34634,7 @@ type ClientGlobalAPIHandlers struct {
 	GitHubTelemetry         GitHubTelemetryHandler
 	GitHubToken             GitHubTokenHandler
 	Hooks                   HooksHandler
+	Installations           InstallationsHandler
 	LlmInference            LlmInferenceHandler
 }
 
@@ -34468,6 +34710,24 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, &jsonrpc2.Error{Code: -32603, Message: "No hooks client-global handler registered"}
 		}
 		result, err := handlers.Hooks.Invoke(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("installations.confirm", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request InstallationsConfirmRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.Installations == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No installations client-global handler registered"}
+		}
+		result, err := handlers.Installations.Confirm(&request)
 		if err != nil {
 			return nil, clientGlobalHandlerError(err)
 		}

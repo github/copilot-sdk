@@ -3,7 +3,8 @@
 use github_copilot_sdk::rpc::{
     CardDigest, CardDigestAlgorithm, CatalogAgentPluginCandidateKind, CatalogAiSkillCandidateKind,
     CatalogCandidate, CatalogMcpServerCandidate, CatalogMcpServerCandidateKind,
-    CatalogMcpServerInstallability, CatalogSearchResult, McpServerCardMediaType,
+    CatalogMcpServerInstallability, CatalogSearchResult, CatalogTrustSnapshot,
+    McpServerCardMediaType,
 };
 use serde_json::{Value, json};
 
@@ -197,4 +198,64 @@ fn digest_algorithm_enforces_its_field_constraint() {
     wire["algorithm"] = json!("future-algorithm");
     let error = serde_json::from_value::<CardDigest>(wire).unwrap_err();
     assert!(error.to_string().contains("sha256-rfc8785"));
+}
+
+#[test]
+fn candidate_trust_preserves_each_named_variant() {
+    for status in [
+        "current",
+        "absent",
+        "stale",
+        "downgraded",
+        "revoked",
+        "unsupported",
+        "malformed",
+    ] {
+        let mut trust = json!({
+            "schemaVersion": "v1",
+            "status": status,
+            "eligibility": "unknown",
+            "provenance": {
+                "source": "agent-finder",
+                "observedAt": "2026-09-02T11:00:00Z"
+            }
+        });
+        if status == "current" {
+            trust["tier"] = json!("T1");
+        }
+        let mut wire = search_result_wire()["candidates"][0].clone();
+        wire["trust"] = trust.clone();
+        let candidate: CatalogMcpServerCandidate = serde_json::from_value(wire.clone()).unwrap();
+        let snapshot = candidate.trust.as_ref().unwrap();
+        assert!(matches!(
+            (status, snapshot),
+            ("current", CatalogTrustSnapshot::Current(_))
+                | ("absent", CatalogTrustSnapshot::Absent(_))
+                | ("stale", CatalogTrustSnapshot::Stale(_))
+                | ("downgraded", CatalogTrustSnapshot::Downgraded(_))
+                | ("revoked", CatalogTrustSnapshot::Revoked(_))
+                | ("unsupported", CatalogTrustSnapshot::Unsupported(_))
+                | ("malformed", CatalogTrustSnapshot::Malformed(_))
+        ));
+        assert_eq!(serde_json::to_value(snapshot).unwrap(), trust);
+        assert_eq!(serde_json::to_value(candidate).unwrap(), wire);
+    }
+}
+
+#[test]
+fn trust_rejects_unknown_and_missing_discriminators() {
+    for status in [None, Some(Value::Null), Some(json!("future-status"))] {
+        let mut wire = json!({
+            "schemaVersion": "v1",
+            "eligibility": "unknown",
+            "provenance": {
+                "source": "agent-finder",
+                "observedAt": "2026-09-02T11:00:00Z"
+            }
+        });
+        if let Some(status) = status {
+            wire["status"] = status;
+        }
+        assert!(serde_json::from_value::<CatalogTrustSnapshot>(wire).is_err());
+    }
 }

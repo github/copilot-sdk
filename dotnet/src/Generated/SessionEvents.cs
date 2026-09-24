@@ -3606,7 +3606,7 @@ public sealed partial class UserMessageData
     [JsonPropertyName("parentAgentTaskId")]
     public string? ParentAgentTaskId { get; set; }
 
-    /// <summary>Responses reasoning settings anchored before this model-facing message, for cache-stable history replay.</summary>
+    /// <summary>Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("responsesReasoning")]
     public ResponsesReasoning? ResponsesReasoning { get; set; }
@@ -5598,7 +5598,7 @@ public sealed partial class SystemNotificationData
     [JsonPropertyName("kind")]
     public required SystemNotification Kind { get; set; }
 
-    /// <summary>Responses reasoning settings anchored before this model-facing message, for cache-stable history replay.</summary>
+    /// <summary>Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("responsesReasoning")]
     public ResponsesReasoning? ResponsesReasoning { get; set; }
@@ -7282,7 +7282,7 @@ public sealed partial class CompactionCompleteCompactionTokensUsed
     public long? OutputTokens { get; set; }
 }
 
-/// <summary>Original request-level and effective conversation reasoning effort for a Responses history boundary.</summary>
+/// <summary>Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility.</summary>
 /// <remarks>Nested data type for <c>ResponsesReasoning</c>.</remarks>
 public sealed partial class ResponsesReasoning
 {
@@ -8263,6 +8263,11 @@ public sealed partial class FusionAttribution
     /// <summary>Stable identifier for the HydraFusion turn that produced the event.</summary>
     [JsonPropertyName("fusionId")]
     public required string FusionId { get; set; }
+
+    /// <summary>Whether this model request consumed a user steering message rather than only internal Fusion work.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hasUserSteering")]
+    public bool? HasUserSteering { get; set; }
 
     /// <summary>HydraFusion orchestration pattern selected for the turn.</summary>
     [JsonPropertyName("pattern")]
@@ -11853,6 +11858,11 @@ public sealed partial class McpOauthRequiredStaticClientConfig
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("publicClient")]
     public bool? PublicClient { get; set; }
+
+    /// <summary>Configured OAuth scope string used when the server challenge omits scope or provides an empty scope.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("scope")]
+    public string? Scope { get; set; }
 }
 
 /// <summary>OAuth WWW-Authenticate parameters parsed from an MCP auth challenge.</summary>

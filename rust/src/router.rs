@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use tokio::sync::{broadcast, mpsc};
 use tracing::warn;
 
-use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest};
+use crate::jsonrpc::JsonRpcRequest;
 use crate::types::{SessionEventNotification, SessionId};
 
 /// Identity of one specific registration of a session ID.
@@ -142,29 +142,24 @@ impl SessionRouter {
 
     /// Start the router tasks if not already running.
     ///
-    /// Takes the notification broadcast and request channel from the Client.
-    /// If `request_rx` is `None` (already taken by `take_request_rx()`),
+    /// Takes the notification broadcast and request channel from the client.
+    /// If its request receiver was already taken by `take_request_rx()`,
     /// only notification routing is available.
-    pub(crate) fn ensure_started(
-        &self,
-        notification_tx: &broadcast::Sender<JsonRpcNotification>,
-        request_rx: &Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
-        extension_launch_provider: Arc<
-            crate::extension_launch_provider::ExtensionLaunchProviderDispatcher,
-        >,
-        llm_inference: Option<Arc<crate::copilot_request_handler::CopilotRequestDispatcher>>,
-        github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
-        github_token_registry: Arc<crate::github_token::GitHubTokenRegistry>,
-    ) {
+    pub(crate) fn ensure_started(&self, client: &crate::ClientInner) {
         let mut started = self.started.lock();
         if *started {
             return;
         }
         *started = true;
+        let extension_launch_provider = client.extension_launch_provider.clone();
+        let llm_inference = client.llm_inference.get().cloned();
+        let github_telemetry = client.on_github_telemetry.clone();
+        let github_token_registry = client.github_token_registry.clone();
+        let installation_confirmation = client.installation_confirmation.clone();
 
         // Notification routing task
         let sessions = self.sessions.clone();
-        let mut notif_rx = notification_tx.subscribe();
+        let mut notif_rx = client.notification_tx.subscribe();
         tokio::spawn(async move {
             loop {
                 match notif_rx.recv().await {
@@ -255,10 +250,14 @@ impl SessionRouter {
         });
 
         // Request routing task (if request_rx is available)
-        if let Some(mut rx) = request_rx.lock().take() {
+        if let Some(mut rx) = client.request_rx.lock().take() {
             let sessions = self.sessions.clone();
             tokio::spawn(async move {
                 while let Some(request) = rx.recv().await {
+                    if request.method == crate::installation_confirmation::CONFIRM_METHOD {
+                        installation_confirmation.dispatch(request);
+                        continue;
+                    }
                     if request.method == crate::extension_launch_provider::RESOLVE_METHOD {
                         extension_launch_provider.dispatch(request).await;
                         continue;

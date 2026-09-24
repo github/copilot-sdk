@@ -1,5 +1,6 @@
 import type { ApiSchema } from "../../scripts/codegen/utils.ts";
 import type { JSONSchema7 } from "json-schema";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -21,6 +22,170 @@ describe("Rust codegen entrypoint", () => {
 });
 
 describe("Rust API type codegen", () => {
+    it("retains named action unions inside single-variant reference wrappers without titles", () => {
+        const code = generateApiTypesCode({
+            definitions: {
+                Request: {
+                    type: "object",
+                    required: ["review"],
+                    properties: { review: { $ref: "#/definitions/Review" } },
+                },
+                Review: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            required: ["resource", "review"],
+                            properties: {
+                                resource: { type: "string", const: "mcp" },
+                                review: { $ref: "#/definitions/ActionReview" },
+                            },
+                        },
+                    ],
+                },
+                ActionReview: {
+                    anyOf: ["install", "uninstall"].map((action) => ({
+                        type: "object",
+                        required: ["action", "identity"],
+                        properties: {
+                            action: { type: "string", const: action },
+                            identity: { type: "string" },
+                        },
+                    })),
+                },
+            },
+        } as ApiSchema);
+
+        expect(code).toContain("pub review: Review,");
+        expect(code).toContain("pub review: ActionReview,");
+        expect(code).toContain(`pub enum ActionReview {
+    Install(ActionReviewInstall),
+    Uninstall(ActionReviewUninstall),
+}`);
+        expect(code).not.toContain("RequestReview");
+        expect(code).not.toContain("ActionReviewValue");
+        expect(code).not.toContain("serde_json::Value,");
+        expect(code).toContain(`#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Request`);
+    });
+
+    it("preserves the published MCP transport choice schema as a typed union", () => {
+        // Exact selected definitions from CLI 1.0.89-1 api.schema.json:
+        // sha256 a445b552b6ecef536b89f3d08cc73b6fbbe8fe0e503daae8974578529d62bc83.
+        const schema = JSON.parse(
+            readFileSync(
+                new URL("./fixtures/mcp-plan-transport-choice.schema.json", import.meta.url),
+                "utf8"
+            )
+        ) as ApiSchema;
+        schema.definitions!.Plan = {
+            type: "object",
+            required: ["transportChoices"],
+            properties: {
+                transportChoices: {
+                    type: "array",
+                    items: { $ref: "#/definitions/McpPlanTransportChoice" },
+                },
+            },
+        };
+        const code = generateApiTypesCode(schema);
+
+        expect(code).toContain(`#[serde(untagged)]
+pub enum McpPlanTransportChoice {
+    Package(McpPlanTransportChoicePackage),
+    Remote(McpPlanTransportChoiceRemote),
+}`);
+        expect(code).toContain("pub transport_choices: Vec<McpPlanTransportChoice>,");
+        expect(code).toContain("pub required_values: Vec<McpPlanRequiredValue>,");
+        expect(code).toContain("pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,");
+        expect(code).toContain(
+            'deserialize_with = "McpPlanTransportChoicePackage::deserialize_install_method"'
+        );
+        expect(code).toContain(
+            'deserialize_with = "McpPlanTransportChoiceRemote::deserialize_install_method"'
+        );
+        expect(code).toContain('if value != "package"');
+        expect(code).toContain('if value != "remote"');
+        expect(code).not.toContain("Vec<serde_json::Value>");
+    });
+
+    it.each(["anyOf", "oneOf"] as const)(
+        "supports arbitrary required enum-reference discriminators in %s unions",
+        (keyword) => {
+            const code = generateApiTypesCode({
+                definitions: {
+                    Mode: { type: "string", enum: ["first", "second"] },
+                    Choice: {
+                        title: "Choice",
+                        [keyword]: ["first", "second"].map((value) => ({
+                            type: "object",
+                            required: ["mode", "value"],
+                            properties: {
+                                mode: { $ref: "#/definitions/Mode", const: value },
+                                value: { type: "string" },
+                            },
+                        })),
+                    },
+                    Container: {
+                        type: "object",
+                        required: ["choice"],
+                        properties: { choice: { $ref: "#/definitions/Choice" } },
+                    },
+                },
+            } as ApiSchema);
+
+            expect(code).toContain(`#[serde(untagged)]
+pub enum Choice {
+    First(ChoiceFirst),
+    Second(ChoiceSecond),
+}`);
+            expect(code).toContain(`#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Container`);
+            expect(code).toContain("pub choice: Choice,");
+        }
+    );
+
+    it.each(["optional", "duplicate", "missing", "number", "inline", "outside-enum"] as const)(
+        "retains the JSON fallback for %s discriminators without a supported union",
+        (invalid) => {
+            const variants: JSONSchema7[] = ["first", "second"].map((value) => ({
+                type: "object",
+                required: invalid === "optional" ? ["value"] : ["mode", "value"],
+                properties: {
+                    mode:
+                        invalid === "missing"
+                            ? { type: "string" }
+                            : invalid === "number"
+                              ? { type: "integer", const: value === "first" ? 1 : 2 }
+                              : invalid === "inline"
+                                ? { type: "string", const: value }
+                                : {
+                                      $ref: "#/definitions/Mode",
+                                      const: invalid === "duplicate" ? "same" : value,
+                                  },
+                    value: { type: "string" },
+                },
+            }));
+            const code = generateApiTypesCode({
+                definitions: {
+                    Mode: {
+                        type: "string",
+                        enum: invalid === "outside-enum" ? ["different"] : ["first", "second"],
+                    },
+                    Container: {
+                        type: "object",
+                        required: ["choice"],
+                        properties: { choice: { anyOf: variants } },
+                    },
+                },
+            } as ApiSchema);
+
+            expect(code).toContain("pub choice: serde_json::Value,");
+            expect(code).not.toContain("pub enum ContainerChoice");
+        }
+    );
+
     it.each([true, false])(
         "validates a reference's sibling constant without changing its enum (required: %s)",
         (required) => {

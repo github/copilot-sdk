@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.
+ * A response is meaningful only on the connection and request that issued its challenge.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,14 +23,12 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record McpPlanInstallParams(
-    /** Protocol version and capabilities the caller requires. */
-    @JsonProperty("contract") CatalogClientContract contract,
-    /** The same existing attached session that owns the original catalogue candidate. */
-    @JsonProperty("policySessionId") String policySessionId,
-    /** What to plan: either a candidate handle from a previous search, or a card supplied directly. */
-    @JsonProperty("source") Object source,
-    /** Configuration scope the plan targets. Defaults to user scope when omitted. */
-    @JsonProperty("scope") McpPlanScope scope
+public record InstallationsConfirmResult(
+    /** Exact challenge from the request. */
+    @JsonProperty("confirmationId") String confirmationId,
+    /** Exact review commitment from the request. */
+    @JsonProperty("reviewFingerprint") String reviewFingerprint,
+    /** Fresh explicit user decision. There is no default. */
+    @JsonProperty("decision") InstallationDecision decision
 ) {
 }
