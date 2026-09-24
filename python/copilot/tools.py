@@ -52,6 +52,8 @@ class ToolResult:
     session_log: str | None = None
     tool_telemetry: dict[str, Any] | None = None
     tool_references: list[str] | None = None
+    # For tool_search_tool: register these definitions and make them callable now.
+    tools: list[Tool] | None = field(default=None, kw_only=True)
     _from_exception: bool = field(default=False, repr=False)
 
 

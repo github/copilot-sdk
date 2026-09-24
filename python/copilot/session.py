@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
+import json
 import logging
 import os
 import pathlib
@@ -45,6 +46,7 @@ from .generated.rpc import (
     LogRequest,
     MCPOauthHandlePendingRequest,
     MCPOauthPendingRequestResponse,
+    MCPServerConfigDeferTools,
     ModelSwitchAutoTierResult,
     ModelSwitchToRequest,
     PermissionDecision,
@@ -52,10 +54,12 @@ from .generated.rpc import (
     PermissionDecisionContext,
     PermissionDecisionRequest,
     PermissionDecisionUserNotAvailable,
+    ProtocolExternalToolDefinition,
     ProviderTokenAcquireRequest,
     ProviderTokenAcquireResult,
     SessionLogLevel,
     SessionRpc,
+    ToolsSetRequest,
     UIElicitationRequest,
     UIElicitationResponse,
     UIElicitationResponseAction,
@@ -1647,7 +1651,9 @@ class CopilotSession:
         self._event_handlers: set[Callable[[SessionEvent], None]] = set()
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
+        self._registered_tools: dict[str, Tool] = {}
         self._tool_handlers_lock = threading.Lock()
+        self._tool_catalog_lock = asyncio.Lock()
         self._pending_external_tools: dict[str, asyncio.Task[None]] = {}
         self._permission_handler: _PermissionHandlerFn | None = None
         self._permission_handler_lock = threading.Lock()
@@ -2426,6 +2432,21 @@ class CopilotSession:
             else:
                 tool_result = result  # type: ignore[assignment]
 
+            if tool_result.tools is not None:
+                if (
+                    self._destroyed
+                    or self._pending_external_tools.get(request_id) is not asyncio.current_task()
+                ):
+                    return
+                if tool_name != _TOOL_SEARCH_TOOL_NAME or tool_result.result_type != "success":
+                    raise ValueError(
+                        "ToolResult.tools is only valid for successful tool_search_tool calls"
+                    )
+                names = await self._register_discovered_tools(tool_result.tools)
+                tool_result.tool_references = list(
+                    dict.fromkeys([*(tool_result.tool_references or []), *names])
+                )
+
             # Exception-originated failures (from define_tool's exception handler) are
             # sent via the top-level error param so the CLI formats them with its
             # standard "Failed to execute..." message. Deliberate user-returned
@@ -2879,12 +2900,65 @@ class CopilotSession:
         """
         with self._tool_handlers_lock:
             self._tool_handlers.clear()
+            self._registered_tools = {tool.name: tool for tool in tools or []}
             if not tools:
                 return
             for tool in tools:
                 if not tool.name or not tool.handler:
                     continue
                 self._tool_handlers[tool.name] = tool.handler
+
+    async def _register_discovered_tools(self, tools: list[Tool]) -> list[str]:
+        if not tools:
+            return []
+        names = [tool.name for tool in tools]
+        if any(not name for name in names) or len(set(names)) != len(names):
+            raise ValueError("discovered tools must have unique, nonempty names")
+        if any(tool.handler is None for tool in tools):
+            raise ValueError("discovered tools must have handlers")
+
+        async with self._tool_catalog_lock:
+            with self._tool_handlers_lock:
+                if self._destroyed:
+                    raise RuntimeError("Cannot register discovered tools on a disconnected session")
+                previous = self._registered_tools
+                if previous.keys() & set(names):
+                    raise ValueError(
+                        "discovered tool names are already registered; use tool_references instead"
+                    )
+                merged = {**previous, **{tool.name: tool for tool in tools}}
+                definitions = [
+                    ProtocolExternalToolDefinition(
+                        name=tool.name,
+                        description=tool.description,
+                        parameters=tool.parameters,
+                        overrides_built_in_tool=tool.overrides_built_in_tool,
+                        skip_permission=tool.skip_permission,
+                        defer=MCPServerConfigDeferTools(tool.defer or "auto"),
+                        metadata=tool.metadata,
+                        is_terminal=tool.is_terminal,
+                    )
+                    for tool in merged.values()
+                ]
+                request = ToolsSetRequest(tools=definitions)
+                json.dumps(request.to_dict())  # Validate before publishing handlers.
+                self._registered_tools = merged
+                # The CLI may apply tools.set before its reply reaches us.
+                for tool in tools:
+                    if tool.handler is not None:
+                        self._tool_handlers[tool.name] = tool.handler
+            try:
+                await self.rpc.tools.set(request)
+            except JsonRpcError:
+                # A response error means the CLI rejected the update. Transport
+                # failures are ambiguous, so retain handlers for tools it may have applied.
+                with self._tool_handlers_lock:
+                    if not self._destroyed:
+                        self._registered_tools = previous
+                        for name in names:
+                            self._tool_handlers.pop(name, None)
+                raise
+        return names
 
     def _get_tool_handler(self, name: str) -> ToolHandler | None:
         """
@@ -3287,6 +3361,7 @@ class CopilotSession:
                 self._event_handlers.clear()
             with self._tool_handlers_lock:
                 self._tool_handlers.clear()
+                self._registered_tools.clear()
             with self._permission_handler_lock:
                 self._permission_handler = None
             with self._command_handlers_lock:

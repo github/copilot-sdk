@@ -494,6 +494,44 @@ async def lookup_issue(params: LookupParams) -> str:
     # your logic
 ```
 
+#### Discovering Tools During Tool Search
+
+An override named `tool_search_tool` can return tool definitions that were not
+registered when the session started. Return them as `ToolResult(tools=[...])`:
+
+```python
+async def search_tools(invocation: ToolInvocation) -> ToolResult:
+    discovered = await find_tools(invocation.arguments)
+    return ToolResult(
+        text_result_for_llm="Loaded matching tools.",
+        tools=[
+            Tool(
+                name=item.name,
+                description=item.description,
+                parameters=item.schema,
+                handler=item.handler,
+            )
+            for item in discovered
+        ],
+    )
+```
+
+Register `search_tools` as a `Tool` named `tool_search_tool` with
+`overrides_built_in_tool=True`, and enable tool search for the session. The runtime
+must expose that search tool; current runtimes require a deferred tool inventory
+before they activate it. Returning definitions does not change that activation rule.
+
+Every returned tool needs a handler and a new, unique name. The SDK preserves
+previously registered tools, installs the new handlers, and registers the expanded
+catalog before completing the search. For tools already loaded, return their names
+in `tool_references` instead of redeclaring them.
+
+This feature uses the runtime's experimental `session.tools.set` RPC internally.
+Do not mix it with direct calls to that RPC: the SDK owns the complete custom-tool
+catalog for this connection to the session. On an explicit RPC rejection it rolls
+back the new handlers. On a timeout or connection failure, it retains them because
+the runtime may already have applied the registration.
+
 ## Auto routing tiers
 
 Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
