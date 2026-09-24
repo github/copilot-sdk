@@ -1,9 +1,11 @@
 import { PassThrough } from "node:stream";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
+    CancellationTokenSource,
     createMessageConnection,
     StreamMessageReader,
     StreamMessageWriter,
+    type CancellationToken,
 } from "vscode-jsonrpc/node.js";
 import {
     registerClientGlobalApiHandlers,
@@ -54,7 +56,12 @@ describe("client-global API transport", () => {
         const completed = vi.fn();
         void response.then(completed);
 
-        await vi.waitFor(() => expect(handler).toHaveBeenCalledWith(request));
+        await vi.waitFor(() =>
+            expect(handler).toHaveBeenCalledWith(
+                request,
+                expect.objectContaining({ isCancellationRequested: false })
+            )
+        );
         expect(completed).not.toHaveBeenCalled();
         const launch = { executable: "/app/extension-host", args: ["example"], env: {} };
         release({ launch });
@@ -132,5 +139,47 @@ describe("client-global API transport", () => {
         await expect(
             server.sendRequest("extensionLaunchProvider.resolve", request)
         ).rejects.toThrow("Host review unavailable");
+    });
+
+    it("forwards real request cancellation to the pending global handler", async () => {
+        const cancellation = new CancellationTokenSource();
+        onTestFinished(() => cancellation.dispose());
+        let observed: CancellationToken | undefined;
+        let started!: () => void;
+        const entered = new Promise<void>((resolve) => {
+            started = resolve;
+        });
+        const server = connect({
+            extensionLaunchProvider: {
+                resolve: async (_params, token?: CancellationToken) => {
+                    observed = token;
+                    started();
+                    if (token && !token.isCancellationRequested) {
+                        await new Promise<void>((resolve) => {
+                            const subscription = token.onCancellationRequested(() => {
+                                subscription.dispose();
+                                resolve();
+                            });
+                        });
+                    }
+                    return {};
+                },
+            },
+        });
+        const response = server.sendRequest(
+            "extensionLaunchProvider.resolve",
+            request,
+            cancellation.token
+        );
+
+        try {
+            await entered;
+            expect(observed).toBeDefined();
+            expect(observed?.isCancellationRequested).toBe(false);
+        } finally {
+            cancellation.cancel();
+            await expect(response).resolves.toEqual({});
+        }
+        expect(observed?.isCancellationRequested).toBe(true);
     });
 });

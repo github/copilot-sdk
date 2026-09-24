@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { emitClientSessionApiRegistration as emitGoClientSessionApiRegistration } from "../../scripts/codegen/go.ts";
 import { emitClientSessionApiRegistration as emitPythonClientSessionApiRegistration } from "../../scripts/codegen/python.ts";
-import { emitClientSessionApiRegistration as emitTypeScriptClientSessionApiRegistration } from "../../scripts/codegen/typescript.ts";
+import {
+    emitClientGlobalApiRegistration as emitTypeScriptClientGlobalApiRegistration,
+    emitClientSessionApiRegistration as emitTypeScriptClientSessionApiRegistration,
+} from "../../scripts/codegen/typescript.ts";
 
 const clientSessionSchema: Record<string, unknown> = {
     mixed: {
@@ -71,6 +74,53 @@ describe("client-session API codegen", () => {
         expect(allInternalCode).toContain("export interface ClientSessionApiHandlers {");
         expect(allInternalCode).toContain("export function registerClientSessionApiHandlers(");
         expect(allInternalCode).not.toContain("InternalOnlyHandler");
+    });
+
+    describe("client-global API codegen", () => {
+        it("preserves request cancellation without changing notification handlers", () => {
+            const code = emitTypeScriptClientGlobalApiRegistration({
+                callbacks: {
+                    withParams: {
+                        rpcMethod: "callbacks.withParams",
+                        params: {
+                            type: "object",
+                            title: "CallbackRequest",
+                            properties: { id: { type: "string" } },
+                        },
+                        result: { type: "object", title: "CallbackResult", properties: {} },
+                    },
+                    withoutParams: {
+                        rpcMethod: "callbacks.withoutParams",
+                        result: { type: "object", title: "CallbackResult", properties: {} },
+                    },
+                    notified: {
+                        rpcMethod: "callbacks.notified",
+                        notification: true,
+                        params: {
+                            type: "object",
+                            title: "CallbackRequest",
+                            properties: { id: { type: "string" } },
+                        },
+                    },
+                },
+            }).join("\n");
+
+            expect(code).toContain(
+                "withParams(params: CallbackRequest, token?: CancellationToken)"
+            );
+            expect(code).toContain("withoutParams(token?: CancellationToken)");
+            expect(code).toContain("return handler.withParams(params, token)");
+            expect(code).toContain("return handler.withoutParams(token)");
+            expect(code).toContain("notified(params: CallbackRequest): Promise<void>");
+            expect(code).toContain("await handler.notified(params)");
+            expect(code).not.toContain("handler.notified(params, token)");
+        });
+
+        it("keeps internal methods out of global registration", () => {
+            const code = emitTypeScriptClientGlobalApiRegistration(clientSessionSchema).join("\n");
+            expectOnlyPublicClientSessionHandlers(code);
+            expect(code).not.toContain("InternalOnlyHandler");
+        });
     });
 
     it("excludes internal methods from Go handlers", () => {

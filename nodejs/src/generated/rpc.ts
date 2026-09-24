@@ -3,7 +3,7 @@
  * Generated from: api.schema.json
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 
 import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
@@ -30857,7 +30857,7 @@ export interface ExtensionLaunchProviderHandler {
      *
      * @returns The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
      */
-    resolve(params: ExtensionLaunchProviderResolveRequest): Promise<ExtensionLaunchProviderResolveResult>;
+    resolve(params: ExtensionLaunchProviderResolveRequest, token?: CancellationToken): Promise<ExtensionLaunchProviderResolveResult>;
 }
 
 /** Handler for `llmInference` client global API methods. */
@@ -30870,7 +30870,7 @@ export interface LlmInferenceHandler {
      *
      * @returns Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
      */
-    httpRequestStart(params: LlmInferenceHttpRequestStartRequest): Promise<LlmInferenceHttpRequestStartResult>;
+    httpRequestStart(params: LlmInferenceHttpRequestStartRequest, token?: CancellationToken): Promise<LlmInferenceHttpRequestStartResult>;
     /**
      * Delivers a body byte range (or a cancellation signal) for a request previously announced via httpRequestStart, correlated by requestId. The runtime fires at least one chunk per request — when there is no body, a single chunk with empty data and end=true. Mid-stream the runtime may send a chunk with cancel=true to abort the request; the SDK then stops issuing httpResponseChunk frames and may emit a terminal httpResponseChunk with error set.
      *
@@ -30878,7 +30878,7 @@ export interface LlmInferenceHandler {
      *
      * @returns Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
      */
-    httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest): Promise<LlmInferenceHttpRequestChunkResult>;
+    httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest, token?: CancellationToken): Promise<LlmInferenceHttpRequestChunkResult>;
 }
 
 /** Handler for `gitHubTelemetry` client global API methods. */
@@ -30902,7 +30902,7 @@ export interface GitHubTokenHandler {
      *
      * @returns SDK host response to a GitHub credential request.
      */
-    getToken(params: GitHubTokenAcquireRequest): Promise<GitHubTokenAcquireResult>;
+    getToken(params: GitHubTokenAcquireRequest, token?: CancellationToken): Promise<GitHubTokenAcquireResult>;
 }
 
 /** All client global API handler groups. */
@@ -30919,34 +30919,36 @@ export interface ClientGlobalApiHandlers {
  * Unlike session-scoped client APIs, these methods carry no implicit
  * `sessionId` dispatch key — a single set of handlers serves the entire
  * connection.
+ * Request handlers receive the transport's cancellation token; connection
+ * disposal is a separate lifetime signal and does not cancel that token.
  */
 export function registerClientGlobalApiHandlers(
     connection: MessageConnection,
     handlers: ClientGlobalApiHandlers,
 ): void {
-    connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest) => {
+    connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest, token: CancellationToken) => {
         const handler = handlers.extensionLaunchProvider;
         if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");
-        return handler.resolve(params);
+        return handler.resolve(params, token);
     });
-    connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
+    connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest, token: CancellationToken) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");
-        return handler.httpRequestStart(params);
+        return handler.httpRequestStart(params, token);
     });
-    connection.onRequest("llmInference.httpRequestChunk", async (params: LlmInferenceHttpRequestChunkRequest) => {
+    connection.onRequest("llmInference.httpRequestChunk", async (params: LlmInferenceHttpRequestChunkRequest, token: CancellationToken) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");
-        return handler.httpRequestChunk(params);
+        return handler.httpRequestChunk(params, token);
     });
     connection.onNotification("gitHubTelemetry.event", async (params: GitHubTelemetryNotification) => {
         const handler = handlers.gitHubTelemetry;
         if (!handler) return;
         await handler.event(params);
     });
-    connection.onRequest("gitHubToken.getToken", async (params: GitHubTokenAcquireRequest) => {
+    connection.onRequest("gitHubToken.getToken", async (params: GitHubTokenAcquireRequest, token: CancellationToken) => {
         const handler = handlers.gitHubToken;
         if (!handler) throw new Error("No gitHubToken client-global handler registered");
-        return handler.getToken(params);
+        return handler.getToken(params, token);
     });
 }
