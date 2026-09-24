@@ -218,6 +218,27 @@ npm --prefix java/scripts/codegen ci
 npm run generate
 ```
 
+A standalone checkout can also consume schemas exported by a separate runtime
+checkout through the same facade:
+
+```bash
+npm run generate -- --runtime-source checkout --schema-dir /absolute/path/to/runtime/generated
+```
+
+Generate both `api.schema.json` and `session-events.schema.json` in the runtime
+checkout first, using that revision's supported commands. Keep them from the
+same immutable runtime revision and record the producer commit and both file
+digests when handing off an unreleased API. The equivalent generator environment
+is `COPILOT_RUNTIME_SOURCE=checkout` with `COPILOT_CLI_SCHEMA_DIR` pointing to
+their shared directory. Missing or invalid schemas fail rather than falling
+back to a published package.
+
+This selects generation inputs only: it does not publish or install a runtime,
+change the CLI release pin, or make a new RPC callable on an older runtime.
+Use the matching runtime build for integration checks and retain capability
+checks for unsupported runtimes. Do not replace installed package sources or
+edit generated files to emulate an unreleased contract.
+
 Do not replace runtime-checkout pins with a published version to make setup
 work. If the shared CLI version is `0.0.0-dev`, it is a development placeholder:
 local work still uses same-checkout artifacts. Release snapshot export, not
