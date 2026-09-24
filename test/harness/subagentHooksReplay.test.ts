@@ -110,6 +110,38 @@ function expectReply(
   expect(actual.tool_calls).toEqual(expected.tool_calls);
 }
 
+test.each([false, true])(
+  "continues an early idle notification without waiting commentary, streaming=%s",
+  async (streaming) => {
+    const proxy = new ReplayingCapiProxy(
+      "http://127.0.0.1:1",
+      snapshotPath,
+      import.meta.dirname,
+    );
+    const url = await proxy.start();
+    try {
+      const response = await fetch(`${url}/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          model: stored.models[0],
+          messages: [
+            ...original.slice(0, 5),
+            shortIdleNotification,
+            { ...shortReadAgent, content: null },
+            toolResult,
+          ],
+          stream: streaming,
+        }),
+      });
+      expect(response.status, await response.clone().text()).toBe(200);
+      expectReply(await readReply(response, streaming), finalAnswer);
+    } finally {
+      await proxy.stop(true);
+    }
+  },
+);
+
 for (const timing of ["before", "after"] as const) {
   for (const streaming of [false, true]) {
     test.each(notifications)(
@@ -162,10 +194,20 @@ for (const timing of ["before", "after"] as const) {
     );
   }
 
-  test.each(notifications)(
+  test.each([
+    ...notifications.map((entry) => ({
+      ...entry,
+      earlyReply: { ...waiting, tool_calls: entry.readAgent.tool_calls },
+    })),
+    {
+      wording: "short idle without waiting commentary",
+      notification: shortIdleNotification,
+      readAgent: shortReadAgent,
+      earlyReply: shortReadAgent,
+    },
+  ])(
     `rejects invalid $wording notifications and tool histories with ${timing} completion`,
-    async ({ notification, readAgent }) => {
-      const earlyReply = { ...waiting, tool_calls: readAgent.tool_calls };
+    async ({ notification, readAgent, earlyReply }) => {
       const proxy = new ReplayingCapiProxy(
         "http://127.0.0.1:1",
         snapshotPath,
@@ -265,7 +307,7 @@ for (const timing of ["before", "after"] as const) {
 }
 
 test("timing and wording alternatives retain the full result and final continuation", () => {
-  expect(stored.conversations).toHaveLength(7);
+  expect(stored.conversations).toHaveLength(8);
   expect(stored.conversations[4].messages).toEqual([
     ...original.slice(0, 5),
     notification,
@@ -287,7 +329,7 @@ test("timing and wording alternatives retain the full result and final continuat
         }
         if (
           message.tool_calls?.some(
-            (call) => call.function.name === "read_agent",
+            (call) => call.function?.name === "read_agent",
           )
         ) {
           return { ...message, tool_calls: shortReadAgent.tool_calls };
@@ -296,4 +338,11 @@ test("timing and wording alternatives retain the full result and final continuat
       }),
     );
   }
+  expect(stored.conversations[7].messages).toEqual([
+    ...original.slice(0, 5),
+    shortIdleNotification,
+    shortReadAgent,
+    toolResult,
+    finalAnswer,
+  ]);
 });
