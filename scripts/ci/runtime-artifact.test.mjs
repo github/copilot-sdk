@@ -14,6 +14,50 @@ import { fileURLToPath } from "node:url";
 
 import { prepareRuntimeArtifact, restoreRuntimeArtifact, stageRuntimeSchemas } from "./runtime-artifact.mjs";
 
+await test("keeps test fixtures out of the caller's GitHub command files and runtime output", (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdk-runtime-artifact-isolation-"));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const environmentFile = path.join(root, "github-env");
+    const outputFile = path.join(root, "github-output");
+    const outputDirectory = path.join(root, "caller-output");
+    const marker = path.join(outputDirectory, "marker");
+    writeFixture(environmentFile, "EXISTING_ENV=unchanged\n");
+    writeFixture(outputFile, "existing-output=unchanged\n");
+    writeFixture(marker, "caller-owned output");
+    const environment = { ...process.env };
+    // Start a fresh runner rather than inheriting the parent's test-child protocol.
+    delete environment.NODE_TEST_CONTEXT;
+
+    const result = spawnSync(
+        process.execPath,
+        [
+            "--test",
+            "--test-reporter=tap",
+            "--test-name-pattern=^(preserves complete|selects an explicit|prepares artifacts)",
+            fileURLToPath(import.meta.url),
+        ],
+        {
+            encoding: "utf8",
+            env: {
+                ...environment,
+                GITHUB_ENV: environmentFile,
+                GITHUB_OUTPUT: outputFile,
+                COPILOT_RUNTIME_TARGET: `${process.platform}-${process.arch}`,
+                COPILOT_RUNTIME_OUTPUT_DIRECTORY: outputDirectory,
+            },
+        },
+    );
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /^ok \d+ - preserves complete checked-in Rust release pins$/m);
+    assert.match(result.stdout, /^ok \d+ - selects an explicit musl target without falling back to the GNU artifact$/m);
+    assert.match(result.stdout, /^ok \d+ - prepares artifacts from an exported SDK layout$/m);
+    assert.equal(fs.readFileSync(environmentFile, "utf8"), "EXISTING_ENV=unchanged\n");
+    assert.equal(fs.readFileSync(outputFile, "utf8"), "existing-output=unchanged\n");
+    assert.equal(fs.readFileSync(marker, "utf8"), "caller-owned output");
+    assert.deepEqual(fs.readdirSync(outputDirectory), ["marker"]);
+});
+
 await test("stages all same-checkout runtime inputs", (t) => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdk-runtime-artifact-"));
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -36,7 +80,7 @@ await test("stages all same-checkout runtime inputs", (t) => {
     writeFixture(path.join(runtimeRoot, "dist-cli", "prebuilds", target, wrapperName), "wrapper");
     fs.mkdirSync(path.join(sdkRoot, "rust"), { recursive: true });
 
-    const values = prepareRuntimeArtifact({ runtimeRoot, sdkRoot, outputDirectory, environmentFile });
+    const values = prepareRuntimeArtifact({ runtimeRoot, sdkRoot, target, outputDirectory, environmentFile });
 
     assert.equal(fs.readFileSync(values.COPILOT_RUNTIME_BINARY_PATH, "utf8"), "executable");
     assert.equal(fs.readFileSync(values.COPILOT_RUNTIME_LIBRARY_PATH, "utf8"), "runtime");
@@ -88,7 +132,7 @@ await test("preserves complete checked-in Rust release pins", (t) => {
         sdkRoot,
         target,
         outputDirectory: path.join(root, "output"),
-        environmentFile: undefined,
+        environmentFile: path.join(root, "environment"),
     });
 
     assert.equal(fs.readFileSync(path.join(rustDirectory, "cli-version.txt"), "utf8"), releasePin);
@@ -111,7 +155,7 @@ await test("selects an explicit musl target without falling back to the GNU arti
         sdkRoot,
         target,
         outputDirectory,
-        environmentFile: undefined,
+        environmentFile: path.join(root, "environment"),
     });
 
     assert.match(values.COPILOT_CLI_PATH, /prebuilds\/linuxmusl-arm64\/copilot-runtime$/);
@@ -142,7 +186,7 @@ await test("rejects a GNU artifact when a musl target is requested", (t) => {
                 sdkRoot: path.join(runtimeRoot, "src/sdk"),
                 target: "linuxmusl-arm64",
                 outputDirectory: path.join(root, "out"),
-                environmentFile: undefined,
+                environmentFile: path.join(root, "environment"),
             }),
         /dist-bin[/\\]linuxmusl-arm64[/\\]copilot/,
     );
@@ -230,6 +274,7 @@ await test("rejects an incomplete runtime artifact", (t) => {
                 runtimeRoot: root,
                 sdkRoot: path.join(root, "src/sdk"),
                 outputDirectory: path.join(root, "out"),
+                environmentFile: path.join(root, "environment"),
             }),
         /CLI executable not found/,
     );
@@ -246,7 +291,12 @@ await test("prepares artifacts from an exported SDK layout", (t) => {
 
     const result = spawnSync(process.execPath, [script, "prepare"], {
         encoding: "utf8",
-        env: { ...process.env, GITHUB_ENV: path.join(root, "environment") },
+        env: {
+            ...process.env,
+            COPILOT_RUNTIME_TARGET: `${process.platform}-${process.arch}`,
+            COPILOT_RUNTIME_OUTPUT_DIRECTORY: path.join(root, "output"),
+            GITHUB_ENV: path.join(root, "environment"),
+        },
     });
 
     assert.equal(result.status, 0, result.stderr);
