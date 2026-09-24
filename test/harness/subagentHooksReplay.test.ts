@@ -57,11 +57,12 @@ const shortReadAgent: NormalizedMessage = {
   ],
 };
 const notifications = [
-  { wording: "verbose", notification: rawNotification, readAgent },
+  { wording: "verbose", notification: rawNotification, readAgent, earlyReply },
   {
     wording: "short idle",
     notification: shortIdleNotification,
     readAgent: shortReadAgent,
+    earlyReply: shortReadAgent,
   },
 ];
 
@@ -111,7 +112,7 @@ function expectReply(
 }
 
 test.each([false, true])(
-  "continues an early idle notification without waiting commentary, streaming=%s",
+  "continues the emitted early-idle reply without changing its content, streaming=%s",
   async (streaming) => {
     const proxy = new ReplayingCapiProxy(
       "http://127.0.0.1:1",
@@ -119,21 +120,35 @@ test.each([false, true])(
       import.meta.dirname,
     );
     const url = await proxy.start();
-    try {
-      const response = await fetch(`${url}/chat/completions`, {
+    const messages: (NormalizedMessage | ChatCompletionMessage)[] = [
+      ...original.slice(0, 5),
+      shortIdleNotification,
+    ];
+    const request = () =>
+      fetch(`${url}/chat/completions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           model: stored.models[0],
-          messages: [
-            ...original.slice(0, 5),
-            shortIdleNotification,
-            { ...shortReadAgent, content: null },
-            toolResult,
-          ],
+          messages,
           stream: streaming,
         }),
       });
+    try {
+      const first = await request();
+      expect(first.status, await first.clone().text()).toBe(200);
+      const reply = await readReply(first, streaming);
+      expectReply(reply, shortReadAgent);
+      messages.push(
+        {
+          role: "assistant",
+          content: reply.content,
+          tool_calls: reply.tool_calls,
+          refusal: null,
+        },
+        toolResult,
+      );
+      const response = await request();
       expect(response.status, await response.clone().text()).toBe(200);
       expectReply(await readReply(response, streaming), finalAnswer);
     } finally {
@@ -146,8 +161,7 @@ for (const timing of ["before", "after"] as const) {
   for (const streaming of [false, true]) {
     test.each(notifications)(
       `replays $wording notification ${timing} the parent reply, streaming=${streaming}`,
-      async ({ notification, readAgent }) => {
-        const earlyReply = { ...waiting, tool_calls: readAgent.tool_calls };
+      async ({ notification, readAgent, earlyReply }) => {
         const proxy = new ReplayingCapiProxy(
           "http://127.0.0.1:1",
           snapshotPath,
@@ -194,18 +208,7 @@ for (const timing of ["before", "after"] as const) {
     );
   }
 
-  test.each([
-    ...notifications.map((entry) => ({
-      ...entry,
-      earlyReply: { ...waiting, tool_calls: entry.readAgent.tool_calls },
-    })),
-    {
-      wording: "short idle without waiting commentary",
-      notification: shortIdleNotification,
-      readAgent: shortReadAgent,
-      earlyReply: shortReadAgent,
-    },
-  ])(
+  test.each(notifications)(
     `rejects invalid $wording notifications and tool histories with ${timing} completion`,
     async ({ notification, readAgent, earlyReply }) => {
       const proxy = new ReplayingCapiProxy(
@@ -284,6 +287,18 @@ for (const timing of ["before", "after"] as const) {
           toolResult,
         ],
       ];
+      if (timing === "before") {
+        malformed.push([
+          ...prefix,
+          notification,
+          {
+            ...earlyReply,
+            content:
+              earlyReply.content === undefined ? waiting.content : undefined,
+          },
+          toolResult,
+        ]);
+      }
       const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
       const consoleError = vi
         .spyOn(console, "error")
@@ -307,7 +322,7 @@ for (const timing of ["before", "after"] as const) {
 }
 
 test("timing and wording alternatives retain the full result and final continuation", () => {
-  expect(stored.conversations).toHaveLength(8);
+  expect(stored.conversations).toHaveLength(7);
   expect(stored.conversations[4].messages).toEqual([
     ...original.slice(0, 5),
     notification,
@@ -315,30 +330,20 @@ test("timing and wording alternatives retain the full result and final continuat
     toolResult,
     finalAnswer,
   ]);
-  for (const [originalIndex, alternativeIndex] of [
-    [3, 5],
-    [4, 6],
-  ]) {
-    expect(stored.conversations[alternativeIndex].messages).toEqual(
-      stored.conversations[originalIndex].messages.map((message) => {
-        if (
-          message.role === "user" &&
-          message.content === notification.content
-        ) {
-          return shortIdleNotification;
-        }
-        if (
-          message.tool_calls?.some(
-            (call) => call.function?.name === "read_agent",
-          )
-        ) {
-          return { ...message, tool_calls: shortReadAgent.tool_calls };
-        }
-        return message;
-      }),
-    );
-  }
-  expect(stored.conversations[7].messages).toEqual([
+  expect(stored.conversations[5].messages).toEqual(
+    original.map((message) => {
+      if (message.role === "user" && message.content === notification.content) {
+        return shortIdleNotification;
+      }
+      if (
+        message.tool_calls?.some((call) => call.function?.name === "read_agent")
+      ) {
+        return { ...message, tool_calls: shortReadAgent.tool_calls };
+      }
+      return message;
+    }),
+  );
+  expect(stored.conversations[6].messages).toEqual([
     ...original.slice(0, 5),
     shortIdleNotification,
     shortReadAgent,
