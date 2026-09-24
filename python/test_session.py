@@ -10,6 +10,7 @@ import pytest
 
 from _session_test_helpers import get_next_event_of_type, wait_for_event
 from copilot import AgentMessageSource, MessageSource
+from copilot._jsonrpc import JsonRpcError
 from copilot.session import Attachment, CopilotSession
 from copilot.session_events import (
     AssistantMessageData,
@@ -492,6 +493,168 @@ async def test_external_tool_completed_cancels_blocked_handler():
 
     await asyncio.wait_for(cancelled.wait(), timeout=1)
     await asyncio.sleep(0)
+    client.request.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_tool_search_result_loads_new_tool_before_resuming_the_model():
+    requests = []
+    replied = asyncio.Event()
+
+    async def request(method, params):
+        requests.append((method, params))
+        if method == "session.tools.getCurrentMetadata":
+            return {"tools": []}
+        if method == "session.tools.set":
+            return {}
+        if method == "session.tools.handlePendingToolCall":
+            replied.set()
+            return {"success": True}
+        raise AssertionError(method)
+
+    client = Mock(request=AsyncMock(side_effect=request))
+    session = CopilotSession("session-1", client)
+    discovered = Tool(
+        "get_shipping_eta",
+        "Look up a shipping ETA",
+        lambda _invocation: ToolResult(text_result_for_llm="2 business days"),
+    )
+
+    async def search(_invocation):
+        return ToolResult(tools=[discovered])
+
+    session._register_tools(
+        [Tool("tool_search_tool", "Find tools", search, overrides_built_in_tool=True)]
+    )
+    session._dispatch_event(
+        _event(
+            ExternalToolRequestedData(
+                request_id="search-request",
+                session_id="session-1",
+                tool_call_id="search-call",
+                tool_name="tool_search_tool",
+                arguments={"paths": ["shipping"]},
+            ),
+            SessionEventType.EXTERNAL_TOOL_REQUESTED,
+        )
+    )
+    await asyncio.wait_for(replied.wait(), timeout=1)
+
+    methods = [method for method, _ in requests]
+    assert methods.index("session.tools.set") < methods.index("session.tools.handlePendingToolCall")
+    definitions = next(
+        params["tools"] for method, params in requests if method == "session.tools.set"
+    )
+    assert {tool["name"] for tool in definitions} == {"tool_search_tool", "get_shipping_eta"}
+    search_result = next(
+        params["result"]
+        for method, params in requests
+        if method == "session.tools.handlePendingToolCall"
+    )
+    assert search_result["toolReferences"] == ["get_shipping_eta"]
+
+    replied.clear()
+    session._dispatch_event(
+        _event(
+            ExternalToolRequestedData(
+                request_id="eta-request",
+                session_id="session-1",
+                tool_call_id="eta-call",
+                tool_name="get_shipping_eta",
+            ),
+            SessionEventType.EXTERNAL_TOOL_REQUESTED,
+        )
+    )
+    await asyncio.wait_for(replied.wait(), timeout=1)
+    assert requests[-1][1]["result"]["textResultForLlm"] == "2 business days"
+
+
+@pytest.mark.asyncio
+async def test_discovered_handler_is_ready_while_registration_rpc_is_pending():
+    handled = asyncio.Event()
+    results = []
+
+    async def request(method, params):
+        if method == "session.tools.set":
+            session._dispatch_event(
+                _event(
+                    ExternalToolRequestedData(
+                        request_id="independent-request",
+                        session_id="session-1",
+                        tool_call_id="independent-call",
+                        tool_name="get_shipping_eta",
+                    ),
+                    SessionEventType.EXTERNAL_TOOL_REQUESTED,
+                )
+            )
+            await asyncio.wait_for(handled.wait(), timeout=1)
+            return {}
+        if method == "session.tools.handlePendingToolCall":
+            results.append(params)
+            handled.set()
+            return {"success": True}
+        raise AssertionError(method)
+
+    session = CopilotSession("session-1", Mock(request=AsyncMock(side_effect=request)))
+    discovered = Tool("get_shipping_eta", "Look up an ETA", lambda _: ToolResult("2 days"))
+
+    assert await session._register_discovered_tools([discovered]) == ["get_shipping_eta"]
+    assert results[0]["result"]["textResultForLlm"] == "2 days"
+
+
+@pytest.mark.asyncio
+async def test_tool_search_registration_failure_does_not_install_local_handler():
+    replied = asyncio.Event()
+    responses = []
+
+    async def request(method, params):
+        if method == "session.tools.getCurrentMetadata":
+            return {"tools": []}
+        if method == "session.tools.set":
+            raise JsonRpcError(-32000, "registration rejected")
+        if method == "session.tools.handlePendingToolCall":
+            responses.append(params)
+            replied.set()
+            return {"success": True}
+        raise AssertionError(method)
+
+    session = CopilotSession("session-1", Mock(request=AsyncMock(side_effect=request)))
+    discovered = Tool("get_shipping_eta", "Look up an ETA", lambda _: ToolResult("2 days"))
+    session._register_tools(
+        [
+            Tool(
+                "tool_search_tool",
+                "Find tools",
+                lambda _: ToolResult(tools=[discovered]),
+                overrides_built_in_tool=True,
+            )
+        ]
+    )
+    session._dispatch_event(
+        _event(
+            ExternalToolRequestedData(
+                request_id="search-request",
+                session_id="session-1",
+                tool_call_id="search-call",
+                tool_name="tool_search_tool",
+            ),
+            SessionEventType.EXTERNAL_TOOL_REQUESTED,
+        )
+    )
+    await asyncio.wait_for(replied.wait(), timeout=1)
+
+    assert session._get_tool_handler("get_shipping_eta") is None
+    assert "registration rejected" in responses[0]["error"]
+
+
+@pytest.mark.asyncio
+async def test_discovered_tool_requires_handler():
+    client = Mock(request=AsyncMock())
+    session = CopilotSession("session-1", client)
+
+    with pytest.raises(ValueError, match="discovered tools must have handlers"):
+        await session._register_discovered_tools([Tool("get_shipping_eta", "Look up an ETA")])
+
     client.request.assert_not_awaited()
 
 

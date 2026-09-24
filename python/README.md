@@ -494,6 +494,35 @@ async def lookup_issue(params: LookupParams) -> str:
     # your logic
 ```
 
+#### Discovering Tools During Tool Search
+
+An override named `tool_search_tool` can return tool definitions that were not
+registered when the session started. Return them as `ToolResult(tools=[...])`:
+
+```python
+async def search_tools(invocation: ToolInvocation) -> ToolResult:
+    discovered = await find_tools(invocation.arguments)
+    return ToolResult(
+        text_result_for_llm="Loaded matching tools.",
+        tools=[
+            Tool(
+                name=item.name,
+                description=item.description,
+                parameters=item.schema,
+                handler=item.handler,
+            )
+            for item in discovered
+        ],
+    )
+```
+
+Register `search_tools` as a `Tool` named `tool_search_tool` with
+`overrides_built_in_tool=True`. Every returned tool needs a handler. The SDK
+registers the definitions and handlers before returning their names to the
+model as tool references. This uses
+the runtime's experimental live-tool registration RPC; callers do not need to
+call `session.tools.set` or handle `external_tool.requested` themselves.
+
 ## Auto routing tiers
 
 Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
