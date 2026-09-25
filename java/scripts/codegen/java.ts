@@ -13,6 +13,7 @@ import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
 import { RPC_VARIANT_OWNERS } from "./rpc-variant-owners.js";
+import { hasLegacyParameters, isOmittableRequest, LEGACY_PARAMETERS_KEY, readLegacyParameters, validateLegacyUntypedMarkers, type LegacyParameters } from "../../../scripts/codegen/legacy-parameters.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1617,14 +1618,15 @@ export function generateRpcClass(
     _nestedTypes: Map<string, { code: string }>,
     _packageName: string,
     visibility: "public" | "internal" = "public",
-    preserveRequiredNulls = false
+    preserveRequiredNulls = false,
+    omittedProperties: ReadonlySet<string> = new Set()
 ): { code: string; imports: Set<string> } {
     const imports = new Set<string>();
     const localNestedTypes = new Map<string, JavaClassDef>();
     const lines: string[] = [];
     const visModifier = visibility === "public" ? "public " : "";
 
-    const properties = Object.entries(schema.properties || {});
+    const properties = Object.entries(schema.properties || {}).filter(([propName]) => !omittedProperties.has(propName));
     const required = new Set(schema.required || []);
     const fields = properties.flatMap(([propName, propSchema]) => {
         if (typeof propSchema !== "object") return [];
@@ -1704,6 +1706,165 @@ export function generateRpcClass(
         lines.push(`    }`);
     }
 
+    // A request record drops its additions instead; a response record keeps every component.
+    const recordLegacy = omittedProperties.size === 0
+        ? readLegacyParameters(schema, className, { ordered: true })
+        : undefined;
+    if (recordLegacy) {
+        if (legacyFieldNames) {
+            throw new Error(`Conflicting compatibility constructors for ${className}`);
+        }
+        const legacyNames = new Set(recordLegacy.legacy);
+        const legacyFields = fields.filter((field) => legacyNames.has(field.propName));
+        lines.push(``);
+        lines.push(`    /**`);
+        lines.push(`     * Creates a record with the components it had before later optional fields were added.`);
+        lines.push(`     *`);
+        for (const field of legacyFields) {
+            lines.push(`     * @param ${field.javaName} ${javadocText(field.description || field.propName)}`);
+        }
+        lines.push(`     */`);
+        lines.push(`    public ${className}(`);
+        legacyFields.forEach((field, index) => {
+            lines.push(`        ${field.javaType} ${field.javaName}${index < legacyFields.length - 1 ? "," : ""}`);
+        });
+        lines.push(`    ) {`);
+        lines.push(`        this(${fields.map((field) => (legacyNames.has(field.propName) ? field.javaName : "null")).join(", ")});`);
+        lines.push(`    }`);
+    }
+
+    lines.push(`}`);
+
+    return { code: lines.join("\n"), imports };
+}
+
+/** Sections whose requests the SDK sends, and the properties the SDK supplies itself. */
+const LEGACY_REQUEST_IMPLICIT_PROPERTIES: Readonly<Record<string, readonly string[]>> = {
+    server: [],
+    session: ["sessionId"],
+};
+
+/**
+ * Reads a method's `x-legacy-parameters`. The Java projection keeps the existing params
+ * record with only the legacy components and adds an extensible request class.
+ */
+function javaLegacyParameters(
+    method: { rpcMethod: string; params: JSONSchema7 | null },
+    sectionName: string
+): LegacyParameters | undefined {
+    const params = resolveMethodParamsSchema(method as RpcMethodNode);
+    if (!hasLegacyParameters(params)) return undefined;
+    const implicit = LEGACY_REQUEST_IMPLICIT_PROPERTIES[sectionName];
+    if (!implicit) {
+        throw new Error(`Invalid ${LEGACY_PARAMETERS_KEY} for ${method.rpcMethod}: only server and session requests are supported`);
+    }
+    if (resolveMethodParamsUnionSchema(method as RpcMethodNode)) {
+        throw new Error(`Invalid ${LEGACY_PARAMETERS_KEY} for ${method.rpcMethod}: union requests are not supported`);
+    }
+    return readLegacyParameters(params, method.rpcMethod, {
+        implicit,
+        optional: isOmittableRequest(method.params) || methodParamsAreOptional(method as RpcMethodNode),
+        nullable: !!method.params && schemaAllowsNull(method.params),
+    });
+}
+
+/** The extensible request class for a method that declares `x-legacy-parameters`. */
+function legacyRequestClassName(method: { rpcMethod: string; params: JSONSchema7 | null }): string {
+    return extractRefName(method.params) ?? `${rpcMethodToClassName(method.rpcMethod)}Request`;
+}
+
+function javadocText(text: string): string {
+    return text.replace(/\s+/g, " ").replaceAll("*/", "* /").trim();
+}
+
+/**
+ * Generate the extensible request class for a method with `x-legacy-parameters`.
+ * Required inputs are constructor arguments; optional inputs have fluent setters, so
+ * later optional properties add setters without changing the constructor.
+ */
+export function generateLegacyRequestClass(
+    className: string,
+    schema: JSONSchema7,
+    legacy: LegacyParameters
+): { code: string; imports: Set<string> } {
+    const imports = new Set<string>(["java.util.Objects"]);
+    const localNestedTypes = new Map<string, JavaClassDef>();
+    const properties = schema.properties ?? {};
+    const fields = [...legacy.legacy, ...legacy.additions].map((propName) => {
+        const prop = properties[propName] as JSONSchema7;
+        const result = schemaTypeToJava(prop, false, className, propName, localNestedTypes);
+        for (const imp of result.imports) imports.add(imp);
+        const required = legacy.required.has(propName);
+        return {
+            propName,
+            javaName: toCamelCase(propName),
+            accessor: toPascalCase(propName),
+            javaType: result.javaType,
+            description: javadocText(prop.description ?? `The {@code ${propName}} property.`),
+            required,
+            nullable: schemaAllowsNull(prop),
+        };
+    });
+    const required = fields.filter((field) => field.required);
+    const optional = fields.filter((field) => !field.required);
+
+    const lines: string[] = [];
+    lines.push(`@JsonInclude(JsonInclude.Include.NON_NULL)`);
+    lines.push(`public final class ${className} {`);
+    for (const field of fields) {
+        lines.push(``);
+        lines.push(`    /** ${field.description} */`);
+        if (field.required && field.nullable) {
+            lines.push(`    @JsonInclude(JsonInclude.Include.ALWAYS)`);
+        }
+        lines.push(`    @JsonProperty("${field.propName}")`);
+        lines.push(`    private ${field.required ? "final " : ""}${field.javaType} ${field.javaName};`);
+    }
+
+    lines.push(``);
+    lines.push(`    /**`);
+    lines.push(`     * Creates a request with its required inputs.`);
+    if (required.length > 0) lines.push(`     *`);
+    for (const field of required) {
+        lines.push(`     * @param ${field.javaName} ${field.description}`);
+    }
+    lines.push(`     */`);
+    lines.push(`    public ${className}(${required.map((field) => `${field.javaType} ${field.javaName}`).join(", ")}) {`);
+    for (const field of required) {
+        const value = field.nullable ? field.javaName : `Objects.requireNonNull(${field.javaName}, "${field.javaName}")`;
+        lines.push(`        this.${field.javaName} = ${value};`);
+    }
+    lines.push(`    }`);
+
+    for (const field of fields) {
+        lines.push(``);
+        lines.push(`    /**`);
+        lines.push(`     * Returns the {@code ${field.propName}} property.`);
+        lines.push(`     *`);
+        lines.push(`     * @return ${field.description}`);
+        lines.push(`     */`);
+        lines.push(`    public ${field.javaType} get${field.accessor}() {`);
+        lines.push(`        return ${field.javaName};`);
+        lines.push(`    }`);
+    }
+
+    for (const field of optional) {
+        lines.push(``);
+        lines.push(`    /**`);
+        lines.push(`     * Sets the {@code ${field.propName}} property.`);
+        lines.push(`     *`);
+        lines.push(`     * @param value ${field.description}`);
+        lines.push(`     * @return this request`);
+        lines.push(`     */`);
+        lines.push(`    public ${className} set${field.accessor}(${field.javaType} value) {`);
+        lines.push(`        this.${field.javaName} = value;`);
+        lines.push(`        return this;`);
+        lines.push(`    }`);
+    }
+
+    for (const [, nested] of localNestedTypes) {
+        lines.push(...renderNestedType(nested, 1, new Map(), imports));
+    }
     lines.push(`}`);
 
     return { code: lines.join("\n"), imports };
@@ -1722,6 +1883,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
     const schema: RpcSchema = normalizeSchemaBrandCasing(JSON.parse(schemaContent));
     crossSchemaDefinitions.clear();
+    validateLegacyUntypedMarkers(schema, "api.schema.json");
 
     // Load cross-schema definitions (session-events) so that cross-schema $ref values
     // like "session-events.schema.json#/definitions/Foo" can be resolved.
@@ -1788,6 +1950,7 @@ async function collectRpcTypes(schema: RpcSchema): Promise<void> {
 
     const generatedClasses = new Map<string, boolean>();
     const allFiles: string[] = [];
+    const legacyRequests: { className: string; schema: JSONSchema7; legacy: LegacyParameters; method: RpcMethod }[] = [];
 
     for (const [sectionName, sectionNode] of sections) {
         const methods = collectRpcMethods(sectionNode);
@@ -1821,9 +1984,13 @@ async function collectRpcTypes(schema: RpcSchema): Promise<void> {
             }
             if (paramsSchema && typeof paramsSchema === "object" && paramsSchema.properties) {
                 const paramsClassName = `${className}Params`;
+                const legacy = javaLegacyParameters(method, sectionName);
                 if (!generatedClasses.has(paramsClassName)) {
                     generatedClasses.set(paramsClassName, true);
-                    allFiles.push(await generateRpcDataClass(paramsClassName, paramsSchema, packageName, packageDir, method.rpcMethod, "params", method.stability, method.deprecated === true));
+                    allFiles.push(await generateRpcDataClass(paramsClassName, paramsSchema, packageName, packageDir, method.rpcMethod, "params", method.stability, method.deprecated === true, new Set(legacy?.additions)));
+                }
+                if (legacy) {
+                    legacyRequests.push({ className: legacyRequestClassName(method), schema: paramsSchema, legacy, method });
                 }
             }
 
@@ -1877,6 +2044,63 @@ async function collectRpcTypes(schema: RpcSchema): Promise<void> {
     // Generate standalone types discovered via $ref resolution
     await generatePendingStandaloneTypes(packageName, packageDir, GENERATED_FROM_API);
 
+    // Request classes are written last so any generated type with the same name is a conflict.
+    for (const request of legacyRequests) {
+        await generateLegacyRequestFile(request.className, request.schema, request.legacy, request.method, packageName, packageDir);
+    }
+}
+
+async function generateLegacyRequestFile(
+    className: string,
+    schema: JSONSchema7,
+    legacy: LegacyParameters,
+    method: RpcMethod,
+    packageName: string,
+    packageDir: string
+): Promise<void> {
+    const relativePath = `${packageDir}/${className}.java`;
+    if (rpcGeneration?.files.has(relativePath)) {
+        throw new Error(`Conflicting Java RPC output "${relativePath}" for the ${method.rpcMethod} request class.`);
+    }
+    const { code, imports } = generateLegacyRequestClass(className, schema, legacy);
+    const experimental = method.stability === "experimental";
+
+    const lines: string[] = [];
+    lines.push(COPYRIGHT);
+    lines.push("");
+    lines.push(AUTO_GENERATED_HEADER);
+    lines.push(GENERATED_FROM_API);
+    lines.push("");
+    lines.push(`package ${packageName};`);
+    lines.push("");
+    const allImports = new Set<string>([
+        "com.fasterxml.jackson.annotation.JsonInclude",
+        "com.fasterxml.jackson.annotation.JsonProperty",
+        "javax.annotation.processing.Generated",
+        ...imports,
+    ]);
+    if (experimental) allImports.add("com.github.copilot.CopilotExperimental");
+    for (const imp of [...allImports].sort()) {
+        lines.push(`import ${imp};`);
+    }
+    lines.push("");
+    lines.push(`/**`);
+    lines.push(` * ${schema.description ? javadocText(schema.description) : `Request for the {@code ${method.rpcMethod}} RPC method.`}`);
+    lines.push(` * <p>`);
+    lines.push(` * Required inputs are constructor arguments. Optional inputs have fluent setters.`);
+    if (experimental) {
+        lines.push(` *`);
+        lines.push(` * @apiNote This method is experimental and may change in a future version.`);
+    }
+    lines.push(` * @since 1.0.0`);
+    lines.push(` */`);
+    if (method.deprecated) lines.push(`@Deprecated`);
+    if (experimental) lines.push(`@CopilotExperimental`);
+    lines.push(GENERATED_ANNOTATION);
+    lines.push(code);
+    lines.push("");
+
+    await writeGeneratedFile(relativePath, lines.join("\n"));
 }
 
 async function generateRpcDataClass(
@@ -1887,10 +2111,11 @@ async function generateRpcDataClass(
     rpcMethod: string,
     kind: "params" | "result",
     stability?: string,
-    deprecated?: boolean
+    deprecated?: boolean,
+    omittedProperties: ReadonlySet<string> = new Set()
 ): Promise<string> {
     const nestedTypes = new Map<string, { code: string }>();
-    const { code, imports } = generateRpcClass(className, schema, nestedTypes, packageName, "public", kind === "params");
+    const { code, imports } = generateRpcClass(className, schema, nestedTypes, packageName, "public", kind === "params", omittedProperties);
 
     const lines: string[] = [];
     lines.push(COPYRIGHT);
@@ -2140,7 +2365,7 @@ function generateApiMethod(
     method: RpcMethodNode,
     isSession: boolean,
     sessionIdExpr: string
-): { lines: string[]; needsMapper: boolean; needsExperimentalImport: boolean } {
+): { lines: string[]; needsMapper: boolean; needsExperimentalImport: boolean; legacyRequestClass?: string } {
     const resultClass = wrapperResultClassName(method);
     const paramsClass = wrapperParamsClassName(method, isSession);
     const hasSessionId = methodHasSessionId(method);
@@ -2223,7 +2448,24 @@ function generateApiMethod(
     lines.push(`    }`);
     lines.push(``);
 
-    return { lines, needsMapper, needsExperimentalImport: method.stability === "experimental" };
+    const legacy = hasExtraParams ? javaLegacyParameters(method, isSession ? "session" : "server") : undefined;
+    if (legacy) {
+        const requestClass = legacyRequestClassName(method);
+        pushJavadoc([`     * <p>`, `     * Accepts the extensible request, including inputs added after the params record.`], false);
+        lines.push(`    public CompletableFuture<${resultClass}> ${key}(${requestClass} request) {`);
+        if (isSession) {
+            needsMapper = true;
+            lines.push(`        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));`);
+            lines.push(`        _p.put("sessionId", ${sessionIdExpr});`);
+            lines.push(`        return caller.invoke("${method.rpcMethod}", _p, ${wrapperResultTypeExpression(resultClass)});`);
+        } else {
+            lines.push(`        return caller.invoke("${method.rpcMethod}", Objects.requireNonNull(request, "request"), ${wrapperResultTypeExpression(resultClass)});`);
+        }
+        lines.push(`    }`);
+        lines.push(``);
+    }
+
+    return { lines, needsMapper, needsExperimentalImport: method.stability === "experimental", legacyRequestClass: legacy ? legacyRequestClassName(method) : undefined };
 }
 
 /**
@@ -2272,10 +2514,11 @@ async function generateNamespaceApiFile(
         addWrapperResultImports(resultClass, allImports, packageName);
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
-        const { lines, needsMapper: nm, needsExperimentalImport } = generateApiMethod(key, method, isSession, sessionIdExpr);
+        const { lines, needsMapper: nm, needsExperimentalImport, legacyRequestClass } = generateApiMethod(key, method, isSession, sessionIdExpr);
         methodLines.push(...lines);
         if (nm) needsMapper = true;
         if (needsExperimentalImport) allImports.add("com.github.copilot.CopilotExperimental");
+        if (legacyRequestClass) allImports.add("java.util.Objects");
     }
 
     // Build class body
@@ -2392,10 +2635,11 @@ async function generateRpcRootFile(
         addWrapperResultImports(resultClass, allImports, packageName);
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
-        const { lines, needsMapper: nm, needsExperimentalImport } = generateApiMethod(key, method, isSession, sessionIdExpr);
+        const { lines, needsMapper: nm, needsExperimentalImport, legacyRequestClass } = generateApiMethod(key, method, isSession, sessionIdExpr);
         methodLines.push(...lines);
         if (nm) needsMapper = true;
         if (needsExperimentalImport) allImports.add("com.github.copilot.CopilotExperimental");
+        if (legacyRequestClass) allImports.add("java.util.Objects");
     }
 
     // Build file content
@@ -2605,13 +2849,24 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
     console.log("\n🔧 Generating RPC wrapper classes...");
 
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent)) as {
-        server?: Record<string, unknown>;
-        session?: Record<string, unknown>;
-        clientSession?: Record<string, unknown>;
-        definitions?: Record<string, JSONSchema7>;
-    };
+    await emitRpcWrappers(normalizeSchemaBrandCasing(JSON.parse(schemaContent)) as RpcSchema);
+    console.log(`✅ RPC wrapper classes generated`);
+}
 
+/** Render the RPC wrapper classes in memory. */
+export async function renderRpcWrappers(schema: RpcSchema): Promise<Map<string, string>> {
+    if (pendingOutput) throw new Error("Concurrent Java RPC wrapper generation is not supported.");
+    const files = new Map<string, string>();
+    pendingOutput = files;
+    try {
+        await emitRpcWrappers(schema);
+        return files;
+    } finally {
+        pendingOutput = undefined;
+    }
+}
+
+async function emitRpcWrappers(schema: RpcSchema): Promise<void> {
     // Set module-level definitions for $ref resolution in wrapper helpers
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
 
@@ -2633,8 +2888,6 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
         const sessionTree = buildNamespaceTree(schema.session);
         await generateRpcRootFile("session", sessionTree, true, packageName, packageDir);
     }
-
-    console.log(`✅ RPC wrapper classes generated`);
 }
 
 // ── Package-info generation ──────────────────────────────────────────────────

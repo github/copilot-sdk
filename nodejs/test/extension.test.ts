@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CopilotClient } from "../src/client.js";
 import { approveAll } from "../src/index.js";
-import { createCanvas, defineFactory, defineWorkflow, joinSession } from "../src/extension.js";
+import { createCanvas, defineWorkflow, joinSession } from "../src/extension.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 describe("joinSession", () => {
@@ -93,29 +93,8 @@ describe("joinSession", () => {
         await joinSession({ workflows: [workflow] });
 
         expect(resumeForExtension.mock.calls[0]![2]).toEqual({
-            factories: undefined,
             workflows: [workflow],
         });
-    });
-
-    it("rejects mixed factory and workflow contributions", async () => {
-        process.env.SESSION_ID = "session-123";
-        const factory = defineFactory({
-            meta: { name: "legacy", description: "Legacy", phases: [] },
-            run: async () => null,
-        });
-        const workflow = defineWorkflow({
-            meta: { name: "review", description: "Review", phases: [] },
-            run: async () => null,
-        });
-
-        await expect(
-            joinSession({
-                // @ts-expect-error Contribution generations are mutually exclusive.
-                factories: [factory],
-                workflows: [workflow],
-            })
-        ).rejects.toThrow("cannot register both factories and workflows");
     });
 
     it("exports the canvas helper from the extension surface", () => {

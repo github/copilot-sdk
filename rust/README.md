@@ -102,6 +102,7 @@ transports.
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 | `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
+| `installation_confirmation_handler` | `Option<Arc<dyn InstallationConfirmationHandler>>` | Experimental connection-global human installation review |
 
 With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport loads the native runtime library adjacent to that resolved runtime bundle. There is no PATH scanning.
 
@@ -256,6 +257,121 @@ let forked = client
 New RPCs land in the namespace immediately as the schema regenerates;
 helpers are added on top only when an ergonomic story is worth the
 maintenance.
+
+Nullable schema fields use `Option<T>` even when the object is reached through a
+named reference. Required nullable fields serialise `None` as explicit JSON
+`null`, preserving uninitialised context metadata and commands that clear an
+override. Optional fields retain their existing omission behaviour.
+
+MCP installation plans expose `McpPlanTransportChoice::Package` and
+`McpPlanTransportChoice::Remote`, with typed package identity or endpoint fields.
+Required choice discriminators reject missing or unknown values rather than
+selecting another variant; unconstrained enums retain their `Unknown` fallback.
+Optional catalogue trust remains raw JSON so hosts can apply their existing size
+bounds and degrade malformed or future metadata without discarding candidates.
+`CatalogTrustSnapshot` is available for explicit decoding after those checks. These
+planning types do not imply that installation or activation is available on the
+connected runtime.
+
+#### Installation confirmation (experimental)
+
+Only the Node.js and Rust SDKs can configure this receiver today. The Python, Go,
+.NET and Java SDKs cannot yet, and fail closed: an `installations.confirm` request
+gets an error or method-not-found, which the runtime treats as no consent
+([github/copilot-agent-runtime#22844](https://github.com/github/copilot-agent-runtime/issues/22844)).
+
+Set `ClientOptions::with_installation_confirmation_handler` to receive the
+runtime's `installations.confirm` callback through
+`installation_confirmation::InstallationConfirmationHandler`. The handler receives
+the generated `InstallationConfirmationRequest` and an
+`InstallationConfirmationContext`, and returns only an explicit
+`InstallationDecision`. The SDK echoes the original challenge and review
+fingerprint; it never infers approval.
+
+Match `operation_id` and `policy_session_id` against the original action on this
+exact connection before presenting the complete review. Missing legacy session
+metadata does not select a default session. Refuse unknown operations or
+incomplete reviews. Concurrent reviews are independent and do not block the
+request router.
+
+`context.request_cancelled()` follows the runtime's numeric `$/cancelRequest`,
+including runtime-enforced expiry. `context.connection_closed()` is a separate
+signal for loss of the original connection. Either retires the pending handler
+future, so separately spawned UI work must observe these signals too. Dropping
+an outbound installation or OAuth future does not cancel that operation.
+
+Call `client.rpc().mcp().prepare_install(...)` before `apply_install(...)`.
+Register its inert runtime-issued `operation_id`, original expiry and captured
+session on this client before applying. Removal uses `plan_uninstall(...)` then
+`apply_uninstall(...)`; its `operation_id` identifies the operation, while
+`plan_handle` is the one-use removal input. Never interchange them. The
+`installations()` namespace exposes `list`, `recover`, `status` and `cancel`.
+Control uncertain work using its original connection and operation ID, without
+selecting a replacement session or replaying apply.
+
+Owned OAuth uses `session.rpc().mcp().oauth().prepare_login(...)` to return
+`login_id` before browser, network or cached-reconnect work. Keep that ID with
+the original session and `expected_installation_id` for `login(...)` and
+`cancel_login(...)`. Preparation freezes reauthentication and display options.
+Dropping the login future is not a substitute for `cancel_login(...)`.
+Manual MCP OAuth retains its direct `login(...)` path.
+
+These methods require a matching runtime and available owned-lifecycle support.
+Capability negotiation does not promise availability; preserve typed refusals
+instead of falling back to raw configuration writes. Generated presence and
+transport tests do not establish live OAuth, activation or cross-process recovery.
+
+Experimental generated DTOs can gain fields and change raw unions to typed
+variants. Existing exhaustive struct literals must add the new fields explicitly
+(for example, `expected_installation_id: None` for a manual MCP request), or use
+`..Default::default()` where that type supports it. This is a source migration,
+not full source compatibility. Absent optional fields retain their wire omission
+behaviour; existing handwritten builder calls remain compatible.
+
+#### Generated type-name migration
+
+Resolving a named object through a schema wrapper now uses the canonical schema
+name. Where that resolution directly records the earlier containing-property
+name, a generated `pub type` alias retains it. Aliases point directly to an emitted
+type; conflicting names or targets fail generation rather than selecting one.
+Nested helper names are not reconstructed by comparing old and new type graphs.
+
+The affected request/result surfaces are experimental. Earlier nested helpers
+did not consistently repeat their owning type's experimental annotation. The
+complete naming disposition is:
+
+| Earlier generated name | Canonical name | Disposition |
+| --- | --- | --- |
+| `InstallationConfirmationRequestReview` | `InstallationReview` | Direct alias; typed review migration below |
+| `MetadataContextAttributionResultContextAttribution` | `SessionContextAttribution` | Direct alias |
+| `MetadataContextInfoResultContextInfo` | `SessionContextInfo` | Direct alias |
+| `SendMessagesRequestResponseFormat` | `ResponseFormat` | Direct alias |
+| `SendRequestResponseFormat` | `ResponseFormat` | Direct alias |
+| `SessionMetadataSnapshotWorkspace` | `WorkspaceSummary` | Direct alias |
+| `UpdateSubagentSettingsRequestSubagents` | `SubagentSettings` | Direct alias |
+| `SessionMetadataSnapshotResultWorkspace` | `WorkspaceSummary` | Direct alias |
+| `SessionMetadataContextInfoResultContextInfo` | `SessionContextInfo` | Direct alias |
+| `SessionMetadataGetContextAttributionResultContextAttribution` | `SessionContextAttribution` | Direct alias |
+| `MetadataContextAttributionResultContextAttributionCategories` | `SessionContextAttributionCategories` | Import the canonical nested helper |
+| `MetadataContextAttributionResultContextAttributionCompactions` | `SessionContextAttributionCompactions` | Import the canonical nested helper |
+| `MetadataContextAttributionResultContextAttributionEntriesItem` | `SessionContextAttributionEntriesItem` | Import the canonical nested helper |
+| `SessionMetadataGetContextAttributionResultContextAttributionCategories` | `SessionContextAttributionCategories` | Import the canonical nested helper |
+| `SessionMetadataGetContextAttributionResultContextAttributionCompactions` | `SessionContextAttributionCompactions` | Import the canonical nested helper |
+| `SessionMetadataGetContextAttributionResultContextAttributionEntriesItem` | `SessionContextAttributionEntriesItem` | Import the canonical nested helper |
+| `InstallationConfirmationRequestReviewResource` | `InstallationReviewResource` | Import the canonical nested enum |
+| `SendMessagesRequestResponseFormatType` | `ResponseFormatType` | Import the canonical nested enum |
+| `SendRequestResponseFormatType` | `ResponseFormatType` | Import the canonical nested enum |
+
+Retaining a name does not restore an incorrect earlier field representation.
+In particular, `InstallationReview` remains a struct, but its `review` field is
+now the required `McpInstallationReview` enum, not arbitrary JSON. Existing
+constructors must supply `McpInstallationReview::Install(...)` or
+`McpInstallationReview::Uninstall(...)`; the alias does not coerce raw JSON.
+Correctly nullable fields require handling `Option<T>` even when the old generated
+field incorrectly omitted it. The subagent-settings alias retains the same fields
+and existing `Option`/JSON-null behaviour, including clearing an override with
+`subagents: None`. These are specific migration rules, not blanket source
+compatibility.
 
 ### Handler Traits
 

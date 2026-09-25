@@ -72,7 +72,8 @@ public static class TestHelper
         TimeSpan? timeout = null,
         string? timeoutMessage = null,
         Func<Exception, bool>? transientExceptionFilter = null,
-        TimeSpan? pollInterval = null)
+        TimeSpan? pollInterval = null,
+        Func<string>? timeoutMessageFactory = null)
     {
         using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
         Exception? lastTransientException = null;
@@ -115,11 +116,47 @@ public static class TestHelper
             lastTransientException = ex;
         }
 
+        var message = timeoutMessageFactory?.Invoke() ?? timeoutMessage ?? "Timed out waiting for condition.";
         throw lastTransientException is null
-            ? new TimeoutException(timeoutMessage ?? "Timed out waiting for condition.")
-            : new TimeoutException(timeoutMessage ?? "Timed out waiting for condition.", lastTransientException);
+            ? new TimeoutException(message)
+            : new TimeoutException(message, lastTransientException);
     }
 
     public static bool IsTransientFileSystemException(Exception exception)
         => exception is IOException or UnauthorizedAccessException;
+
+    public static string ExtensionLaunchMarkers(string homeDir, string extensionId)
+    {
+        try
+        {
+            var logsDir = Path.Join(homeDir, "logs");
+            if (!Directory.Exists(logsDir))
+            {
+                return "<no process logs>";
+            }
+
+            var extensionName = extensionId[(extensionId.LastIndexOf(':') + 1)..];
+            var launches = new List<string>();
+            foreach (var path in Directory.EnumerateFiles(logsDir, "process-*.log"))
+            {
+                using var reader = new StreamReader(path);
+                if (reader.ReadLine()?.Contains(extensionName, StringComparison.Ordinal) != true)
+                {
+                    continue;
+                }
+
+                var markers = File.ReadLines(path)
+                    .Where(line => line.StartsWith("=== ", StringComparison.Ordinal)
+                        && !line.Contains("module=", StringComparison.Ordinal));
+                var summary = string.Join("; ", markers);
+                launches.Add(summary.Length == 0 ? "<no lifecycle markers>" : summary);
+            }
+
+            return launches.Count == 0 ? "<no matching launch logs>" : string.Join(" | ", launches);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return $"<launch logs unavailable: {error.GetType().Name}>";
+        }
+    }
 }

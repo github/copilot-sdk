@@ -245,18 +245,18 @@ public class RpcSurfaceCoverageE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     }
 
     [Fact]
-    public async Task Factory_Rpcs_Project_Run_Journal_And_Agent_State()
+    public async Task Workflow_Rpcs_Project_Run_Journal_And_Agent_State()
     {
         var (client, capturePath) = await CreateClientAsync();
         await using (client)
         await using (var session = await Ctx.CreateSessionAsync(client, new SessionConfig()))
         {
-            var run = await session.Rpc.Factory.RunAsync(
-                "rpc-factory",
+            var run = await session.Rpc.Workflow.RunAsync(
+                "rpc-workflow",
                 ParseJson("""{ "input": 42 }"""),
-                new RunOptions
+                new WorkflowRunOptions
                 {
-                    Limits = new FactoryRunLimits
+                    Limits = new WorkflowRunLimits
                     {
                         MaxAiCredits = 2.5,
                         MaxConcurrentSubagents = 2,
@@ -266,47 +266,47 @@ public class RpcSurfaceCoverageE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                     LogPhaseNames = true,
                     NotifyOnComplete = false,
                 });
-            Assert.Equal("factory-run-1", run.RunId);
-            Assert.Equal(FactoryRunStatus.Running, run.Status);
+            Assert.Equal("workflow-run-1", run.RunId);
+            Assert.Equal(WorkflowRunStatus.Running, run.Status);
             Assert.Equal(1, run.Attempt);
             Assert.Equal("running", run.Result!.Value.GetProperty("value").GetString());
             Assert.Equal(1, run.Snapshot!.Value.GetProperty("step").GetInt32());
 
-            var resumed = await session.Rpc.Factory.ResumeAsync(
-                "factory-run-1",
-                new FactoryRunLimits { MaxTotalSubagents = 8 },
+            var resumed = await session.Rpc.Workflow.ResumeAsync(
+                "workflow-run-1",
+                new WorkflowRunLimits { MaxTotalSubagents = 8 },
                 notifyOnComplete: true,
                 logPhaseNames: false);
-            Assert.Equal("rpc-factory", resumed.FactoryName);
-            Assert.Equal(FactoryRunStatus.Running, resumed.Run.Status);
+            Assert.Equal("rpc-workflow", resumed.WorkflowName);
+            Assert.Equal(WorkflowRunStatus.Running, resumed.Run.Status);
             Assert.Equal(2, resumed.Run.Attempt);
 
-            var current = await session.Rpc.Factory.GetRunAsync("factory-run-1");
-            Assert.Equal("factory-run-1", current.RunId);
-            Assert.Equal(FactoryRunStatus.Running, current.Status);
+            var current = await session.Rpc.Workflow.GetRunAsync("workflow-run-1");
+            Assert.Equal("workflow-run-1", current.RunId);
+            Assert.Equal(WorkflowRunStatus.Running, current.Status);
 
-            var paused = await session.Rpc.Factory.PauseAsync("factory-run-1");
-            Assert.Equal(FactoryRunStatus.Paused, paused.Status);
+            var paused = await session.Rpc.Workflow.PauseAsync("workflow-run-1");
+            Assert.Equal(WorkflowRunStatus.Paused, paused.Status);
             Assert.Equal("caller requested pause", paused.Reason);
             Assert.Equal(2, paused.Snapshot!.Value.GetProperty("step").GetInt32());
 
-            await session.Rpc.Factory.LogAsync(
-                "factory-run-1",
+            await session.Rpc.Workflow.LogAsync(
+                "workflow-run-1",
                 "execution-token-1",
                 [
-                    new FactoryLogLine
+                    new WorkflowLogLine
                     {
-                        Kind = FactoryLogLineKind.Log,
+                        Kind = WorkflowLogLineKind.Log,
                         Seq = 7,
-                        Text = "Factory progress",
+                        Text = "Workflow progress",
                     },
                 ]);
 
-            var agent = await session.Rpc.Factory.AgentAsync(
-                "factory-run-1",
+            var agent = await session.Rpc.Workflow.AgentAsync(
+                "workflow-run-1",
                 "execution-token-1",
                 "Complete the RPC task.",
-                new FactoryAgentOptions
+                new WorkflowAgentOptions
                 {
                     Agent = "explore",
                     Label = "rpc-agent",
@@ -315,15 +315,15 @@ public class RpcSurfaceCoverageE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 });
             Assert.Equal("agent-result", agent.Result!.Value.GetProperty("answer").GetString());
 
-            var journal = await session.Rpc.Factory.Journal.GetAsync(
-                "factory-run-1",
+            var journal = await session.Rpc.Workflow.Journal.GetAsync(
+                "workflow-run-1",
                 "execution-token-1",
                 "checkpoint");
             Assert.True(journal.Hit);
             Assert.Equal(7, journal.ResultJson!.Value.GetProperty("checkpoint").GetInt32());
 
-            await session.Rpc.Factory.Journal.PutAsync(
-                "factory-run-1",
+            await session.Rpc.Workflow.Journal.PutAsync(
+                "workflow-run-1",
                 "execution-token-1",
                 "checkpoint",
                 ParseJson("""{ "checkpoint": 8 }"""));
@@ -332,28 +332,28 @@ public class RpcSurfaceCoverageE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var requests = await RpcSurfaceTestCli.ReadRequestsAsync(capturePath);
         AssertCalledExactlyOnce(
             requests,
-            "session.factory.run",
-            "session.factory.resume",
-            "session.factory.getRun",
-            "session.factory.pause",
-            "session.factory.log",
-            "session.factory.agent",
-            "session.factory.journal.get",
-            "session.factory.journal.put");
+            "session.workflow.run",
+            "session.workflow.resume",
+            "session.workflow.getRun",
+            "session.workflow.pause",
+            "session.workflow.log",
+            "session.workflow.agent",
+            "session.workflow.journal.get",
+            "session.workflow.journal.put");
 
-        var runRequest = GetParams(FindRequest(requests, "session.factory.run"));
+        var runRequest = GetParams(FindRequest(requests, "session.workflow.run"));
         Assert.Equal(42, runRequest.GetProperty("args").GetProperty("input").GetInt32());
         Assert.Equal(2.5, runRequest.GetProperty("options").GetProperty("limits").GetProperty("maxAiCredits").GetDouble());
         Assert.True(runRequest.GetProperty("options").GetProperty("logPhaseNames").GetBoolean());
 
-        var factoryLog = GetParams(FindRequest(requests, "session.factory.log"));
+        var factoryLog = GetParams(FindRequest(requests, "session.workflow.log"));
         Assert.Equal("execution-token-1", factoryLog.GetProperty("executionToken").GetString());
         var line = Assert.Single(factoryLog.GetProperty("lines").EnumerateArray());
         Assert.Equal("log", line.GetProperty("kind").GetString());
         Assert.Equal(7, line.GetProperty("seq").GetInt64());
-        Assert.Equal("Factory progress", line.GetProperty("text").GetString());
+        Assert.Equal("Workflow progress", line.GetProperty("text").GetString());
 
-        var journalPut = GetParams(FindRequest(requests, "session.factory.journal.put"));
+        var journalPut = GetParams(FindRequest(requests, "session.workflow.journal.put"));
         Assert.Equal("checkpoint", journalPut.GetProperty("key").GetString());
         Assert.Equal(8, journalPut.GetProperty("resultJson").GetProperty("checkpoint").GetInt32());
     }

@@ -33,6 +33,10 @@ public final class SlashCommandInvocationResultSetModel extends SlashCommandInvo
     @JsonProperty("model")
     private String model;
 
+    /** Auto routing profile selected by the command, when the model is Auto. */
+    @JsonProperty("autoTier")
+    private AutoTier autoTier;
+
     /** Settings scope modified by the command. */
     @JsonProperty("scope")
     private String scope;
@@ -59,6 +63,9 @@ public final class SlashCommandInvocationResultSetModel extends SlashCommandInvo
 
     public String getModel() { return model; }
     public void setModel(String model) { this.model = model; }
+
+    public AutoTier getAutoTier() { return autoTier; }
+    public void setAutoTier(AutoTier autoTier) { this.autoTier = autoTier; }
 
     public String getScope() { return scope; }
     public void setScope(String scope) { this.scope = scope; }

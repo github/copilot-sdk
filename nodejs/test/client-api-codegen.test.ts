@@ -1,8 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { PassThrough } from "node:stream";
+import { runInNewContext } from "node:vm";
+import { ModuleKind, transpileModule } from "typescript";
+import { describe, expect, it, onTestFinished } from "vitest";
+import {
+    CancellationTokenSource,
+    createMessageConnection,
+    StreamMessageReader,
+    StreamMessageWriter,
+    type CancellationToken,
+    type MessageConnection,
+} from "vscode-jsonrpc/node.js";
 
 import { emitClientSessionApiRegistration as emitGoClientSessionApiRegistration } from "../../scripts/codegen/go.ts";
 import { emitClientSessionApiRegistration as emitPythonClientSessionApiRegistration } from "../../scripts/codegen/python.ts";
-import { emitClientSessionApiRegistration as emitTypeScriptClientSessionApiRegistration } from "../../scripts/codegen/typescript.ts";
+import {
+    emitClientGlobalApiRegistration as emitTypeScriptClientGlobalApiRegistration,
+    emitClientSessionApiRegistration as emitTypeScriptClientSessionApiRegistration,
+} from "../../scripts/codegen/typescript.ts";
 
 const clientSessionSchema: Record<string, unknown> = {
     mixed: {
@@ -71,6 +85,156 @@ describe("client-session API codegen", () => {
         expect(allInternalCode).toContain("export interface ClientSessionApiHandlers {");
         expect(allInternalCode).toContain("export function registerClientSessionApiHandlers(");
         expect(allInternalCode).not.toContain("InternalOnlyHandler");
+    });
+
+    describe("client-global API codegen", () => {
+        it.each([true, false])(
+            "forwards real framed cancellation through emitted registration (params: %s)",
+            async (hasParams) => {
+                const code = emitTypeScriptClientGlobalApiRegistration({
+                    callbacks: {
+                        review: {
+                            rpcMethod: "callbacks.review",
+                            ...(hasParams
+                                ? {
+                                      params: {
+                                          type: "object",
+                                          title: "ReviewRequest",
+                                          properties: { operationId: { type: "string" } },
+                                          required: ["operationId"],
+                                      },
+                                  }
+                                : {}),
+                            result: { type: "object", title: "ReviewResult" },
+                        },
+                    },
+                }).join("\n");
+                const generated: {
+                    registerClientGlobalApiHandlers?: (
+                        connection: MessageConnection,
+                        handlers: Record<string, unknown>
+                    ) => void;
+                } = {};
+                runInNewContext(
+                    transpileModule(code, { compilerOptions: { module: ModuleKind.CommonJS } })
+                        .outputText,
+                    { exports: generated }
+                );
+                if (!generated.registerClientGlobalApiHandlers) {
+                    throw new Error("Generated global registration is missing");
+                }
+
+                const inbound = new PassThrough();
+                const outbound = new PassThrough();
+                const client = createMessageConnection(
+                    new StreamMessageReader(inbound),
+                    new StreamMessageWriter(outbound)
+                );
+                const server = createMessageConnection(
+                    new StreamMessageReader(outbound),
+                    new StreamMessageWriter(inbound)
+                );
+                const cancellation = new CancellationTokenSource();
+                onTestFinished(() => {
+                    cancellation.cancel();
+                    cancellation.dispose();
+                    client.dispose();
+                    server.dispose();
+                    inbound.destroy();
+                    outbound.destroy();
+                });
+                let received!: () => void;
+                const entered = new Promise<void>((resolve) => {
+                    received = resolve;
+                });
+                let observed: CancellationToken | undefined;
+                const review = async (token?: CancellationToken) => {
+                    observed = token;
+                    received();
+                    if (!token) throw new Error("Missing original request cancellation");
+                    if (!token.isCancellationRequested) {
+                        await new Promise<void>((resolve) => {
+                            const subscription = token.onCancellationRequested(() => {
+                                subscription.dispose();
+                                resolve();
+                            });
+                        });
+                    }
+                    return { decision: "cancel" };
+                };
+                generated.registerClientGlobalApiHandlers(client, {
+                    callbacks: {
+                        review: hasParams
+                            ? (_params: unknown, token?: CancellationToken) => review(token)
+                            : review,
+                    },
+                });
+                client.listen();
+                server.listen();
+                const response = hasParams
+                    ? server.sendRequest(
+                          "callbacks.review",
+                          { operationId: "original" },
+                          cancellation.token
+                      )
+                    : server.sendRequest("callbacks.review", cancellation.token);
+                const result = response.then(
+                    (value: unknown) => ({ value }),
+                    (error: unknown) => ({ error })
+                );
+                await entered;
+                const initiallyCancelled = observed?.isCancellationRequested;
+                cancellation.cancel();
+                expect(await result).toEqual({ value: { decision: "cancel" } });
+                expect(initiallyCancelled).toBe(false);
+                expect(observed?.isCancellationRequested).toBe(true);
+            }
+        );
+
+        it("preserves request cancellation without changing notification handlers", () => {
+            const code = emitTypeScriptClientGlobalApiRegistration({
+                callbacks: {
+                    withParams: {
+                        rpcMethod: "callbacks.withParams",
+                        params: {
+                            type: "object",
+                            title: "CallbackRequest",
+                            properties: { id: { type: "string" } },
+                        },
+                        result: { type: "object", title: "CallbackResult", properties: {} },
+                    },
+                    withoutParams: {
+                        rpcMethod: "callbacks.withoutParams",
+                        result: { type: "object", title: "CallbackResult", properties: {} },
+                    },
+                    notified: {
+                        rpcMethod: "callbacks.notified",
+                        notification: true,
+                        params: {
+                            type: "object",
+                            title: "CallbackRequest",
+                            properties: { id: { type: "string" } },
+                        },
+                    },
+                },
+            }).join("\n");
+
+            expect(code).toContain(
+                "withParams(params: CallbackRequest, token?: CancellationToken)"
+            );
+            expect(code).toContain("withoutParams(token?: CancellationToken)");
+            expect(code).toContain("return handler.withParams(params, token)");
+            expect(code).toContain("return handler.withoutParams(token)");
+            expect(code).toContain("notified(params: CallbackRequest): Promise<void>");
+            expect(code).toContain("await handler.notified(params)");
+            expect(code).not.toContain("handler.notified(params, token)");
+        });
+
+        it("keeps internal methods out of global registration", () => {
+            const code = emitTypeScriptClientGlobalApiRegistration(clientSessionSchema).join("\n");
+            expectOnlyPublicClientSessionHandlers(code);
+            expect(code).not.toContain("InternalOnlyHandler");
+        });
     });
 
     it("excludes internal methods from Go handlers", () => {

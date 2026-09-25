@@ -47,6 +47,10 @@ import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
 import { COPILOT_CLI_VERSION } from "./cliVersion.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
+import {
+    createInstallationConfirmationAdapter,
+    type InstallationConfirmationHandler,
+} from "./installationConfirmation.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import { getTraceContext } from "./telemetry.js";
 import { toJsonSchema } from "./schema.js";
@@ -93,11 +97,9 @@ import type {
     TypedSessionLifecycleHandler,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
-import type { FactoryHandle } from "./factory.js";
 import type { WorkflowHandle } from "./workflow.js";
 
 interface ExtensionOrchestrationContributions {
-    factories?: FactoryHandle[];
     workflows?: WorkflowHandle[];
 }
 
@@ -477,6 +479,7 @@ export class CopilotClient {
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
     private extensionLaunchProvider?: ExtensionLaunchProvider;
+    private installationConfirmationHandler?: InstallationConfirmationHandler;
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
@@ -676,6 +679,7 @@ export class CopilotClient {
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
         this.extensionLaunchProvider = options.extensionLaunchProvider;
+        this.installationConfirmationHandler = options.installationConfirmationHandler;
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
 
@@ -1817,20 +1821,7 @@ export class CopilotClient {
     async resumeSessionForExtension(
         sessionId: string,
         config: ResumeSessionConfig,
-        factories?: FactoryHandle[],
-        extensionOptions?: ExtensionJoinOptions
-    ): Promise<CopilotSession>;
-    /** @internal */
-    async resumeSessionForExtension(
-        sessionId: string,
-        config: ResumeSessionConfig,
-        contributions?: ExtensionOrchestrationContributions,
-        extensionOptions?: ExtensionJoinOptions
-    ): Promise<CopilotSession>;
-    async resumeSessionForExtension(
-        sessionId: string,
-        config: ResumeSessionConfig,
-        contributions: FactoryHandle[] | ExtensionOrchestrationContributions = {},
+        contributions: ExtensionOrchestrationContributions = {},
         extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
         return this.resumeSessionInternal(sessionId, config, contributions, extensionOptions);
@@ -1839,15 +1830,10 @@ export class CopilotClient {
     private async resumeSessionInternal(
         sessionId: string,
         config: ResumeSessionConfig,
-        contributions: FactoryHandle[] | ExtensionOrchestrationContributions = {},
+        contributions: ExtensionOrchestrationContributions = {},
         extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
-        const { factories, workflows } = Array.isArray(contributions)
-            ? { factories: contributions, workflows: undefined }
-            : contributions;
-        if (factories !== undefined && workflows !== undefined) {
-            throw new Error("Session configuration cannot include both factories and workflows");
-        }
+        const { workflows } = contributions;
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
@@ -1871,7 +1857,6 @@ export class CopilotClient {
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
-        session.registerFactories(factories);
         session.registerWorkflows(workflows);
         const {
             wireProvider: bearerWireProvider,
@@ -1958,7 +1943,6 @@ export class CopilotClient {
                 })),
                 toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
-                factories: factories?.map((factory) => factory.meta),
                 workflows: workflows?.map((workflow) => workflow.meta),
                 requestCanvasRenderer: config.requestCanvasRenderer,
                 requestExtensions: config.requestExtensions,
@@ -3086,7 +3070,14 @@ export class CopilotClient {
         // Register client *global* API handlers (e.g. LLM inference) on the
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
-        registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
+        const globalHandlers = { ...this.clientGlobalHandlers };
+        if (this.installationConfirmationHandler) {
+            globalHandlers.installations = createInstallationConfirmationAdapter(
+                this.connection,
+                this.installationConfirmationHandler
+            );
+        }
+        registerClientGlobalApiHandlers(this.connection, globalHandlers);
 
         // `hooks.invoke` is an internal RPC method: the runtime calls it to
         // invoke a hook callback on the client. Route each call to the matching

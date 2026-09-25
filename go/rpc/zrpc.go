@@ -138,6 +138,49 @@ type AccountQuotaSnapshot struct {
 	UsedRequests int64 `json:"usedRequests"`
 }
 
+// Enumerate request carrying the typed collection query.
+// Experimental: AccountsEnumerateRequest is part of an experimental API and may change or
+// be removed.
+type AccountsEnumerateRequest struct {
+	// Which typed accounts collection to enumerate.
+	Query AuthEnumerateQuery `json:"query"`
+}
+
+// Read request carrying the typed datum query.
+// Experimental: AccountsGetRequest is part of an experimental API and may change or be
+// removed.
+type AccountsGetRequest struct {
+	// Which typed accounts datum to read.
+	Query AuthReadQuery `json:"query"`
+}
+
+// Mutation request carrying the typed write command.
+// Experimental: AccountsSetRequest is part of an experimental API and may change or be
+// removed.
+type AccountsSetRequest struct {
+	// The non-interactive mutation command to apply.
+	Command AuthWrite `json:"command"`
+}
+
+// One signed-in account in the roster forest.
+// Experimental: AccountStatus is part of an experimental API and may change or be removed.
+type AccountStatus struct {
+	// Whether this is the active account.
+	Active bool `json:"active"`
+	// Opaque id of the account this one was derived from (e.g. an EMU account's base Entra
+	// identity); absent for a root account. Matches the base identity account's selectionId,
+	// forming the derivation edge.
+	DerivedFrom *string `json:"derivedFrom,omitempty"`
+	// Authentication host URL.
+	Host string `json:"host"`
+	// The provider kind of this account.
+	Kind AccountKind `json:"kind"`
+	// Authenticated login/username.
+	Login string `json:"login"`
+	// Opaque selection id used to switch to, or log out, this account.
+	SelectionID string `json:"selectionId"`
+}
+
 // Canonical directory where custom agents can be discovered or created, with scope,
 // preference, and optional project path.
 // Experimental: AgentDiscoveryPath is part of an experimental API and may change or be
@@ -867,6 +910,82 @@ type AttachmentSelectionDetailsStart struct {
 	Line int64 `json:"line"`
 }
 
+// Selects which accounts collection to enumerate. A no-arg selector is the empty-payload
+// variant.
+// Experimental: AuthEnumerateQuery is part of an experimental API and may change or be
+// removed.
+type AuthEnumerateQuery interface {
+	authEnumerateQuery()
+	Kind() AuthEnumerateQueryKind
+}
+
+type RawAuthEnumerateQueryData struct {
+	Discriminator AuthEnumerateQueryKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthEnumerateQueryData) authEnumerateQuery() {}
+func (r RawAuthEnumerateQueryData) Kind() AuthEnumerateQueryKind {
+	return r.Discriminator
+}
+
+type AuthEnumerateQueryAccounts struct {
+}
+
+func (AuthEnumerateQueryAccounts) authEnumerateQuery() {}
+func (AuthEnumerateQueryAccounts) Kind() AuthEnumerateQueryKind {
+	return AuthEnumerateQueryKindAccounts
+}
+
+type AuthEnumerateQueryProviders struct {
+	// Whether an interactive Entra broker is available on the host; gates Entra availability in
+	// the returned list.
+	BrokerAvailable *bool `json:"brokerAvailable,omitempty"`
+}
+
+func (AuthEnumerateQueryProviders) authEnumerateQuery() {}
+func (AuthEnumerateQueryProviders) Kind() AuthEnumerateQueryKind {
+	return AuthEnumerateQueryKindProviders
+}
+
+// The enumerated collection, keyed by the same selector as the query.
+// Experimental: AuthEnumerateValue is part of an experimental API and may change or be
+// removed.
+type AuthEnumerateValue interface {
+	authEnumerateValue()
+	Kind() AuthEnumerateValueKind
+}
+
+type RawAuthEnumerateValueData struct {
+	Discriminator AuthEnumerateValueKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthEnumerateValueData) authEnumerateValue() {}
+func (r RawAuthEnumerateValueData) Kind() AuthEnumerateValueKind {
+	return r.Discriminator
+}
+
+type AuthEnumerateValueAccounts struct {
+	// The signed-in account forest; empty when not logged in.
+	Items []AccountStatus `json:"items"`
+}
+
+func (AuthEnumerateValueAccounts) authEnumerateValue() {}
+func (AuthEnumerateValueAccounts) Kind() AuthEnumerateValueKind {
+	return AuthEnumerateValueKindAccounts
+}
+
+type AuthEnumerateValueProviders struct {
+	// The providers offered for interactive login.
+	Items []ProviderDescriptor `json:"items"`
+}
+
+func (AuthEnumerateValueProviders) authEnumerateValue() {}
+func (AuthEnumerateValueProviders) Kind() AuthEnumerateValueKind {
+	return AuthEnumerateValueKindProviders
+}
+
 // Credential-free authentication identity safe to expose to hosts and user interfaces.
 // Experimental: AuthIdentity is part of an experimental API and may change or be removed.
 type AuthIdentity struct {
@@ -1062,6 +1181,235 @@ func (UserAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeUser
 }
 
+// Advance an in-flight login flow, optionally fulfilling an input-required step.
+// Experimental: AuthLoginAdvanceRequest is part of an experimental API and may change or be
+// removed.
+type AuthLoginAdvanceRequest struct {
+	// Opaque flow id from begin.
+	FlowID string `json:"flowId"`
+	// Neutral input fulfilling a preceding input-required step (e.g. a GHEC host); ignored
+	// otherwise.
+	Input *string `json:"input,omitempty"`
+}
+
+// Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+// Experimental: AuthLoginBeginRequest is part of an experimental API and may change or be
+// removed.
+type AuthLoginBeginRequest struct {
+	// The provider kind to sign in with.
+	Kind LoginProviderKind `json:"kind"`
+}
+
+// A started login flow: its opaque id and first step.
+// Experimental: AuthLoginBegun is part of an experimental API and may change or be removed.
+type AuthLoginBegun struct {
+	// Opaque flow id used to advance or cancel this login.
+	FlowID string `json:"flowId"`
+	// The first step of the flow.
+	Step AuthLoginStep `json:"step"`
+}
+
+// Cancel an in-flight login flow.
+// Experimental: AuthLoginCancelRequest is part of an experimental API and may change or be
+// removed.
+type AuthLoginCancelRequest struct {
+	// Opaque flow id from begin.
+	FlowID string `json:"flowId"`
+}
+
+// Terminal result of an interactive login flow.
+// Experimental: AuthLoginResultDto is part of an experimental API and may change or be
+// removed.
+type AuthLoginResultDto struct {
+	// Host that was signed in, when completed.
+	Host *string `json:"host,omitempty"`
+	// Login that was signed in, when completed.
+	Login *string `json:"login,omitempty"`
+	// Terminal disposition of the login.
+	Status AuthLoginResultStatus `json:"status"`
+}
+
+// One step in an interactive login flow. The consumer acts on the step and calls advance to
+// proceed. Browser-open is encoded as two distinct steps by design: `open-url` is
+// CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it —
+// github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens
+// the browser or broker UI itself and does not surface a URL — Entra).
+// Experimental: AuthLoginStep is part of an experimental API and may change or be removed.
+type AuthLoginStep interface {
+	authLoginStep()
+	Kind() AuthLoginStepKind
+}
+
+type RawAuthLoginStepData struct {
+	Discriminator AuthLoginStepKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthLoginStepData) authLoginStep() {}
+func (r RawAuthLoginStepData) Kind() AuthLoginStepKind {
+	return r.Discriminator
+}
+
+type AuthLoginStepAwaiting struct {
+}
+
+func (AuthLoginStepAwaiting) authLoginStep() {}
+func (AuthLoginStepAwaiting) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindAwaiting
+}
+
+type AuthLoginStepCompleted struct {
+	// The terminal login result.
+	Result AuthLoginResultDto `json:"result"`
+}
+
+func (AuthLoginStepCompleted) authLoginStep() {}
+func (AuthLoginStepCompleted) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindCompleted
+}
+
+type AuthLoginStepError struct {
+	// Human-readable failure message.
+	Message string `json:"message"`
+}
+
+func (AuthLoginStepError) authLoginStep() {}
+func (AuthLoginStepError) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindError
+}
+
+type AuthLoginStepInputRequired struct {
+	// Prompt for the value the provider needs; the consumer supplies it as advance input (e.g.
+	// a GitHub Enterprise Cloud host, *.ghe.com).
+	Prompt string `json:"prompt"`
+}
+
+func (AuthLoginStepInputRequired) authLoginStep() {}
+func (AuthLoginStepInputRequired) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindInputRequired
+}
+
+type AuthLoginStepNeedsInteraction struct {
+}
+
+func (AuthLoginStepNeedsInteraction) authLoginStep() {}
+func (AuthLoginStepNeedsInteraction) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindNeedsInteraction
+}
+
+type AuthLoginStepOpenURL struct {
+	// Authorize URL the consumer should open in a browser (consumer-driven browser-open).
+	URL string `json:"url"`
+}
+
+func (AuthLoginStepOpenURL) authLoginStep() {}
+func (AuthLoginStepOpenURL) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindOpenURL
+}
+
+// Selects which typed accounts datum to read.
+// Experimental: AuthReadQuery is part of an experimental API and may change or be removed.
+type AuthReadQuery interface {
+	authReadQuery()
+	Kind() AuthReadQueryKind
+}
+
+type RawAuthReadQueryData struct {
+	Discriminator AuthReadQueryKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthReadQueryData) authReadQuery() {}
+func (r RawAuthReadQueryData) Kind() AuthReadQueryKind {
+	return r.Discriminator
+}
+
+type AuthReadQueryActiveAccount struct {
+}
+
+func (AuthReadQueryActiveAccount) authReadQuery() {}
+func (AuthReadQueryActiveAccount) Kind() AuthReadQueryKind {
+	return AuthReadQueryKindActiveAccount
+}
+
+type AuthReadQueryLastErrors struct {
+}
+
+func (AuthReadQueryLastErrors) authReadQuery() {}
+func (AuthReadQueryLastErrors) Kind() AuthReadQueryKind {
+	return AuthReadQueryKindLastErrors
+}
+
+type AuthReadQueryStatus struct {
+}
+
+func (AuthReadQueryStatus) authReadQuery() {}
+func (AuthReadQueryStatus) Kind() AuthReadQueryKind {
+	return AuthReadQueryKindStatus
+}
+
+// The read result, keyed by the same selector as the query.
+// Experimental: AuthReadValue is part of an experimental API and may change or be removed.
+type AuthReadValue interface {
+	authReadValue()
+	Kind() AuthReadValueKind
+}
+
+type RawAuthReadValueData struct {
+	Discriminator AuthReadValueKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthReadValueData) authReadValue() {}
+func (r RawAuthReadValueData) Kind() AuthReadValueKind {
+	return r.Discriminator
+}
+
+type AuthReadValueActiveAccount struct {
+	// The active account, or absent when not logged in.
+	Account *AccountStatus `json:"account,omitempty"`
+}
+
+func (AuthReadValueActiveAccount) authReadValue() {}
+func (AuthReadValueActiveAccount) Kind() AuthReadValueKind {
+	return AuthReadValueKindActiveAccount
+}
+
+type AuthReadValueLastErrors struct {
+	// Validation errors from the most recent authentication attempt.
+	Errors []AuthValidationError `json:"errors"`
+}
+
+func (AuthReadValueLastErrors) authReadValue() {}
+func (AuthReadValueLastErrors) Kind() AuthReadValueKind {
+	return AuthReadValueKindLastErrors
+}
+
+type AuthReadValueStatus struct {
+	// The neutral authentication status summary.
+	Status AuthStatusDto `json:"status"`
+}
+
+func (AuthReadValueStatus) authReadValue() {}
+func (AuthReadValueStatus) Kind() AuthReadValueKind {
+	return AuthReadValueKindStatus
+}
+
+// Neutral authentication status summary.
+// Experimental: AuthStatusDto is part of an experimental API and may change or be removed.
+type AuthStatusDto struct {
+	// Number of signed-in accounts in the roster.
+	AccountCount int64 `json:"accountCount"`
+	// Active account host, if authenticated.
+	ActiveHost *string `json:"activeHost,omitempty"`
+	// Active account login, if authenticated.
+	ActiveLogin *string `json:"activeLogin,omitempty"`
+	// Copilot plan tier of the active account, if known.
+	CopilotPlan *string `json:"copilotPlan,omitempty"`
+	// Whether the session has resolved authentication.
+	IsAuthenticated bool `json:"isAuthenticated"`
+}
+
 // Validation error from an authentication attempt.
 // Experimental: AuthValidationError is part of an experimental API and may change or be
 // removed.
@@ -1076,6 +1424,66 @@ type AuthValidationError struct {
 // Experimental: AuthValidationErrors is part of an experimental API and may change or be
 // removed.
 type AuthValidationErrors []AuthValidationError
+
+// One non-interactive accounts mutation command (the selector is fused with its typed args).
+// Experimental: AuthWrite is part of an experimental API and may change or be removed.
+type AuthWrite interface {
+	authWrite()
+	Kind() AuthWriteKind
+}
+
+type RawAuthWriteData struct {
+	Discriminator AuthWriteKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthWriteData) authWrite() {}
+func (r RawAuthWriteData) Kind() AuthWriteKind {
+	return r.Discriminator
+}
+
+type AuthWriteLogout struct {
+	// Opaque selection id of the account to log out; absent logs out the active account.
+	SelectionID *string `json:"selectionId,omitempty"`
+}
+
+func (AuthWriteLogout) authWrite() {}
+func (AuthWriteLogout) Kind() AuthWriteKind {
+	return AuthWriteKindLogout
+}
+
+type AuthWriteSetCredentials struct {
+	// Authentication host URL.
+	Host string `json:"host"`
+	// Login/username for the credential.
+	Login string `json:"login"`
+	// GitHub authentication token to install.
+	Token string `json:"token"`
+}
+
+func (AuthWriteSetCredentials) authWrite() {}
+func (AuthWriteSetCredentials) Kind() AuthWriteKind {
+	return AuthWriteKindSetCredentials
+}
+
+type AuthWriteSwitchActive struct {
+	// Opaque selection id of the account to make active.
+	SelectionID string `json:"selectionId"`
+}
+
+func (AuthWriteSwitchActive) authWrite() {}
+func (AuthWriteSwitchActive) Kind() AuthWriteKind {
+	return AuthWriteKindSwitchActive
+}
+
+// Result of a non-interactive accounts mutation.
+// Experimental: AuthWriteResult is part of an experimental API and may change or be removed.
+type AuthWriteResult struct {
+	// For a logout, whether other signed-in accounts remain.
+	MoreUsers *bool `json:"moreUsers,omitempty"`
+	// Whether the mutation was applied.
+	Ok bool `json:"ok"`
+}
 
 // Current per-window credit limit and consumption for an autopilot objective.
 // Experimental: AutopilotObjectiveCreditLimit is part of an experimental API and may change
@@ -1744,9 +2152,10 @@ type CatalogResourceIdentity string
 // removed.
 type CatalogResourceVersion string
 
-// An explicit numbered-page request. The SDK treats the token as opaque; only the runtime
-// decodes it and changes its targetPage. Authority validation binds navigation to the
-// original search. No snapshot stability or token TTL is promised.
+// An explicit numbered-page request. SDK consumers treat the token as opaque. For bound
+// search, the runtime unwraps an expiring owner-bound reference to the private authority
+// token; only the runtime changes the authority token's targetPage. Legacy unbound
+// navigation keeps its authority-issued token semantics. No snapshot stability is promised.
 // Experimental: CatalogSearchPage is part of an experimental API and may change or be
 // removed.
 type CatalogSearchPage struct {
@@ -1754,8 +2163,9 @@ type CatalogSearchPage struct {
 	// navigation window ceil(1000 / pageSize). Repeat the search without page to discover newly
 	// available pages beyond that signed pageCount.
 	Number int32 `json:"number"`
-	// Opaque authority-issued pagination token from an earlier response. Never decode, modify
-	// or log it in an SDK consumer.
+	// Opaque pagination token from an earlier response, owner-bound when session-bound search
+	// was requested. Never decode, modify or log it in an SDK consumer. Expired or foreign
+	// bound references require a fresh bound search, not a legacy retry.
 	Token string `json:"token"`
 }
 
@@ -1781,9 +2191,11 @@ type CatalogSearchPagination struct {
 	PageCount int64 `json:"pageCount"`
 	// Page size bound to the search, equal to the effective request limit.
 	PageSize int32 `json:"pageSize"`
-	// Opaque authority-issued pagination token. Only the runtime decodes it or changes
-	// targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created
-	// expiry or cache.
+	// Opaque pagination token. Session-bound search returns an expiring runtime-owned reference
+	// retaining the exact private authority token, original search and authority. Legacy
+	// unbound search returns the authority token unchanged, without a runtime-created expiry.
+	// Only the runtime unwraps tokens or changes targetPage; SDK consumers must not decode,
+	// modify or log them.
 	Token string `json:"token"`
 	// Backend-reported count for this response, not the number of returned candidates. Its
 	// relationship to the full query result set is unknown.
@@ -1811,6 +2223,9 @@ type CatalogSearchRequest struct {
 	// catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh
 	// first-page search.
 	Page *CatalogSearchPage `json:"page,omitempty"`
+	// Select an existing attached local session. Requires authenticated, session-bound search.
+	// The runtime never creates, resumes or reconfigures a session to honour this selector.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
 	// Free-text search query. Persisted as tool input for session continuity, but omitted from
 	// telemetry.
 	Query string `json:"query"`
@@ -4058,730 +4473,6 @@ type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
 	Theme *ExternalToolTextResultForLlmContentResourceLinkIconTheme `json:"theme,omitempty"`
 }
 
-// Parameters for cooperatively aborting a factory body.
-// Experimental: FactoryAbortRequest is part of an experimental API and may change or be
-// removed.
-type FactoryAbortRequest struct {
-	// Opaque token identifying the execution attempt to abort.
-	ExecutionToken string `json:"executionToken"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Target session identifier
-	SessionID string `json:"sessionId"`
-}
-
-// Acknowledgement that a factory request was accepted.
-// Experimental: FactoryAckResult is part of an experimental API and may change or be
-// removed.
-type FactoryAckResult struct {
-}
-
-// Options for one factory-scoped subagent call.
-// Experimental: FactoryAgentOptions is part of an experimental API and may change or be
-// removed.
-type FactoryAgentOptions struct {
-	// Optional built-in or custom agent name whose definition configures the subagent.
-	Agent *string `json:"agent,omitempty"`
-	// Optional context tier override for the subagent.
-	ContextTier *ContextTier `json:"contextTier,omitempty"`
-	// Optional label distinguishing otherwise identical memoized agent calls.
-	Label *string `json:"label,omitempty"`
-	// Optional model identifier for the subagent.
-	Model *string `json:"model,omitempty"`
-	// Optional reasoning effort override for the subagent.
-	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
-	// Optional JSON Schema for structured agent output.
-	Schema any `json:"schema,omitempty"`
-}
-
-// Parameters for one factory-scoped subagent call.
-// Experimental: FactoryAgentRequest is part of an experimental API and may change or be
-// removed.
-type FactoryAgentRequest struct {
-	// Opaque token identifying the current factory execution attempt.
-	ExecutionToken string `json:"executionToken"`
-	// Factory run identifier that owns the subagent.
-	FactoryRunID string `json:"factoryRunId"`
-	// Subagent execution options.
-	Opts FactoryAgentOptions `json:"opts"`
-	// Prompt to send to the subagent.
-	Prompt string `json:"prompt"`
-}
-
-// Result of one factory-scoped subagent call.
-// Experimental: FactoryAgentResult is part of an experimental API and may change or be
-// removed.
-type FactoryAgentResult struct {
-	// Agent result, omitted when the agent produced no result.
-	Result any `json:"result,omitempty"`
-}
-
-// Prompt-safe durable identity and live status for a direct factory agent.
-// Experimental: FactoryAgentSummary is part of an experimental API and may change or be
-// removed.
-type FactoryAgentSummary struct {
-	// Accumulated active agent time in milliseconds.
-	ActiveMs int64 `json:"activeMs"`
-	// Prompt-safe live activity text.
-	Activity *string `json:"activity,omitempty"`
-	// Stable direct-agent identifier.
-	AgentID string `json:"agentId"`
-	// Registered agent type.
-	AgentType string `json:"agentType"`
-	// Epoch milliseconds when the agent completed.
-	CompletedAt *int64 `json:"completedAt,omitempty"`
-	// Friendly, non-unique name intended for display
-	DisplayName *string `json:"displayName,omitempty"`
-	// Friendly, non-unique name intended for display
-	Label string `json:"label"`
-	// Phase identifier active when the agent was launched, or null.
-	PhaseID *string `json:"phaseId"`
-	// Model requested when the agent was launched.
-	RequestedModel *string `json:"requestedModel,omitempty"`
-	// Concrete model resolved for the agent.
-	ResolvedModel *string `json:"resolvedModel,omitempty"`
-	// Owning factory run identifier.
-	RunID string `json:"runId"`
-	// Epoch milliseconds when the agent started.
-	StartedAt *int64 `json:"startedAt,omitempty"`
-	// Current durable or live agent status.
-	Status string `json:"status"`
-	// Tool-call identifier that launched the agent.
-	ToolCallID string `json:"toolCallId"`
-}
-
-// Parameters for cancelling a factory run.
-// Experimental: FactoryCancelRequest is part of an experimental API and may change or be
-// removed.
-type FactoryCancelRequest struct {
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Current factory phase identity.
-// Experimental: FactoryCurrentPhase is part of an experimental API and may change or be
-// removed.
-type FactoryCurrentPhase struct {
-	// Current phase identifier.
-	ID string `json:"id"`
-	// Zero-based declared phase ordinal, or null for an undeclared phase.
-	Ordinal *int64 `json:"ordinal"`
-}
-
-// Declared or approved factory resource ceilings.
-// Experimental: FactoryDeclaredLimits is part of an experimental API and may change or be
-// removed.
-type FactoryDeclaredLimits struct {
-	// Maximum AI credits consumed by subagents and descendants.
-	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
-	// Maximum concurrently active subagents.
-	MaxConcurrentSubagents *int64 `json:"maxConcurrentSubagents,omitempty"`
-	// Maximum total subagents spawned by the run.
-	MaxTotalSubagents *int64 `json:"maxTotalSubagents,omitempty"`
-	// Maximum accumulated active execution time in seconds.
-	TimeoutSeconds *float64 `json:"timeoutSeconds,omitempty"`
-}
-
-// Parameters sent to the owning extension to execute a factory closure.
-// Experimental: FactoryExecuteRequest is part of an experimental API and may change or be
-// removed.
-type FactoryExecuteRequest struct {
-	// Factory input value.
-	Args any `json:"args"`
-	// Opaque token identifying this factory execution attempt.
-	ExecutionToken string `json:"executionToken"`
-	// Registered factory name.
-	Name string `json:"name"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Target session identifier
-	SessionID string `json:"sessionId"`
-}
-
-// Result returned by an extension factory closure.
-// Experimental: FactoryExecuteResult is part of an experimental API and may change or be
-// removed.
-type FactoryExecuteResult struct {
-	// Factory result value.
-	Result any `json:"result,omitempty"`
-}
-
-// Parameters for paging factory progress.
-// Experimental: FactoryGetRunProgressRequest is part of an experimental API and may change
-// or be removed.
-type FactoryGetRunProgressRequest struct {
-	// Exclusive forward cursor.
-	AfterSeq *int64 `json:"afterSeq,omitempty"`
-	// Exclusive backward cursor.
-	BeforeSeq *int64 `json:"beforeSeq,omitempty"`
-	// Maximum records to return. Defaults to 200 and is capped at 500.
-	Limit *int32 `json:"limit,omitempty"`
-	// Optional phase identifier used to scope records and cursors.
-	PhaseID *string `json:"phaseId,omitempty"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Parameters for retrieving a factory run.
-// Experimental: FactoryGetRunRequest is part of an experimental API and may change or be
-// removed.
-type FactoryGetRunRequest struct {
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Parameters for reading a factory journal entry.
-// Experimental: FactoryJournalGetRequest is part of an experimental API and may change or
-// be removed.
-type FactoryJournalGetRequest struct {
-	// Opaque token identifying the current factory execution attempt.
-	ExecutionToken string `json:"executionToken"`
-	// Namespaced journal key.
-	Key string `json:"key"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Result of reading a factory journal entry.
-// Experimental: FactoryJournalGetResult is part of an experimental API and may change or be
-// removed.
-type FactoryJournalGetResult struct {
-	// Whether the journal contained the requested key.
-	Hit bool `json:"hit"`
-	// Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
-	ResultJSON any `json:"resultJson,omitempty"`
-}
-
-// Parameters for storing a factory journal entry.
-// Experimental: FactoryJournalPutRequest is part of an experimental API and may change or
-// be removed.
-type FactoryJournalPutRequest struct {
-	// Opaque token identifying the current factory execution attempt.
-	ExecutionToken string `json:"executionToken"`
-	// Namespaced journal key.
-	Key string `json:"key"`
-	// JSON result to memoize.
-	ResultJSON any `json:"resultJson"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Parameters for paging factory runs.
-// Experimental: FactoryListRunsRequest is part of an experimental API and may change or be
-// removed.
-type FactoryListRunsRequest struct {
-	// Exclusive forward cursor.
-	AfterSeq *int64 `json:"afterSeq,omitempty"`
-	// Exclusive backward cursor.
-	BeforeSeq *int64 `json:"beforeSeq,omitempty"`
-	// Maximum terminal runs to return. Defaults to 200 and is capped at 500.
-	Limit *int32 `json:"limit,omitempty"`
-}
-
-// A page of factory runs in durable creation order.
-// Experimental: FactoryListRunsResult is part of an experimental API and may change or be
-// removed.
-type FactoryListRunsResult struct {
-	// Whether terminal runs newer than this page exist.
-	HasMoreNewer *bool `json:"hasMoreNewer,omitempty"`
-	// Newest terminal-run cursor in this page, or null when the terminal window is empty.
-	NewestSeq *int64 `json:"newestSeq,omitempty"`
-	// Oldest terminal-run cursor in this page, or null when the terminal window is empty.
-	OldestSeq *int64 `json:"oldestSeq,omitempty"`
-	// Number of terminal runs older than this page.
-	OmittedOlder *int64 `json:"omittedOlder,omitempty"`
-	// Factory run summaries in durable creation order.
-	Runs []FactoryRunSummary `json:"runs"`
-}
-
-// One ordered factory progress line.
-// Experimental: FactoryLogLine is part of an experimental API and may change or be removed.
-type FactoryLogLine struct {
-	// Progress line kind.
-	Kind FactoryLogLineKind `json:"kind"`
-	// Monotonic sequence number within the factory run.
-	Seq int64 `json:"seq"`
-	// Progress text.
-	Text string `json:"text"`
-}
-
-// Parameters for recording factory progress.
-// Experimental: FactoryLogRequest is part of an experimental API and may change or be
-// removed.
-type FactoryLogRequest struct {
-	// Opaque token identifying the current factory execution attempt.
-	ExecutionToken string `json:"executionToken"`
-	// Ordered progress lines to append.
-	Lines []FactoryLogLine `json:"lines"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Parameters for an owned durable pause checkpoint.
-// Experimental: FactoryPauseCheckpointRequest is part of an experimental API and may change
-// or be removed.
-type FactoryPauseCheckpointRequest struct {
-	// Opaque token identifying the execution attempt that reached the checkpoint.
-	ExecutionToken string `json:"executionToken"`
-	// Stable author-defined checkpoint key.
-	Key string `json:"key"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Experimental: FactoryPauseCheckpointResult is part of an experimental API and may change
-// or be removed.
-type FactoryPauseCheckpointResult struct {
-	// Whether this execution attempt must pause or may continue.
-	Action FactoryPauseCheckpointAction `json:"action"`
-}
-
-// Durable metadata describing who initiated a factory pause.
-// Experimental: FactoryPauseInfo is part of an experimental API and may change or be
-// removed.
-type FactoryPauseInfo interface {
-	factoryPauseInfo()
-	Type() FactoryPauseInfoType
-}
-
-type RawFactoryPauseInfoData struct {
-	Discriminator FactoryPauseInfoType
-	Raw           json.RawMessage
-}
-
-func (RawFactoryPauseInfoData) factoryPauseInfo() {}
-func (r RawFactoryPauseInfoData) Type() FactoryPauseInfoType {
-	return r.Discriminator
-}
-
-type FactoryPauseInfoCheckpoint struct {
-	// Stable author-defined checkpoint key that initiated the pause.
-	Key string `json:"key"`
-}
-
-func (FactoryPauseInfoCheckpoint) factoryPauseInfo() {}
-func (FactoryPauseInfoCheckpoint) Type() FactoryPauseInfoType {
-	return FactoryPauseInfoTypeCheckpoint
-}
-
-type FactoryPauseInfoUser struct {
-}
-
-func (FactoryPauseInfoUser) factoryPauseInfo() {}
-func (FactoryPauseInfoUser) Type() FactoryPauseInfoType {
-	return FactoryPauseInfoTypeUser
-}
-
-// Parameters for pausing a running factory.
-// Experimental: FactoryPauseRequest is part of an experimental API and may change or be
-// removed.
-type FactoryPauseRequest struct {
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Durable lifecycle and timing for one factory phase.
-// Experimental: FactoryPhaseObservation is part of an experimental API and may change or be
-// removed.
-type FactoryPhaseObservation struct {
-	// Completed active time accumulated by this phase in milliseconds.
-	AccumulatedActiveMs int64 `json:"accumulatedActiveMs"`
-	// Epoch milliseconds when this phase completed; for a skipped phase, the synthetic skip
-	// timestamp (equal to `startedAt`).
-	CompletedAt *int64 `json:"completedAt,omitempty"`
-	// Current live active time for this phase in milliseconds.
-	CurrentActiveMs int64 `json:"currentActiveMs"`
-	// Optional human-readable phase detail.
-	Detail *string `json:"detail,omitempty"`
-	// Number of times execution entered this phase.
-	EntryCount int64 `json:"entryCount"`
-	// Phase identifier.
-	ID string `json:"id"`
-	// Most recent run attempt that entered this phase, or `0` if the phase has never been
-	// entered.
-	LastEnteredRunAttempt int64 `json:"lastEnteredRunAttempt"`
-	// Direct agents in this phase that are currently live.
-	LiveAgentCount int64 `json:"liveAgentCount"`
-	// Zero-based declared phase ordinal, or null for an undeclared phase.
-	Ordinal *int64 `json:"ordinal"`
-	// Epoch milliseconds when this phase first started; for a skipped phase, the synthetic skip
-	// timestamp (equal to `completedAt`).
-	StartedAt *int64 `json:"startedAt,omitempty"`
-	// Derived lifecycle state of the phase.
-	Status FactoryPhaseStatus `json:"status"`
-	// Human-readable phase title.
-	Title string `json:"title"`
-	// Total direct agents associated with this phase.
-	TotalAgentCount int64 `json:"totalAgentCount"`
-}
-
-// One durable factory progress record.
-// Experimental: FactoryProgressLine is part of an experimental API and may change or be
-// removed.
-type FactoryProgressLine struct {
-	// Resume attempt that emitted this record.
-	Attempt int64 `json:"attempt"`
-	// Progress record kind.
-	Kind FactoryLogLineKind `json:"kind"`
-	// Phase active when the record was emitted, or null before any phase.
-	PhaseID *string `json:"phaseId"`
-	// Epoch milliseconds when the record was persisted.
-	RecordedAt int64 `json:"recordedAt"`
-	// Global monotonic sequence number within the run.
-	Seq int64 `json:"seq"`
-	// Prompt-safe progress text.
-	Text string `json:"text"`
-}
-
-// A bidirectional page of factory progress.
-// Experimental: FactoryProgressPage is part of an experimental API and may change or be
-// removed.
-type FactoryProgressPage struct {
-	// Whether progress records newer than this page exist.
-	HasMoreNewer bool `json:"hasMoreNewer"`
-	// Whether progress records older than this page exist.
-	HasMoreOlder bool `json:"hasMoreOlder"`
-	// Newest sequence number in this page, or null when empty.
-	NewestSeq *int64 `json:"newestSeq"`
-	// Oldest sequence number in this page, or null when empty.
-	OldestSeq *int64 `json:"oldestSeq"`
-	// Progress records in sequence order.
-	Records []FactoryProgressLine `json:"records"`
-	// Run revision reflected by this page.
-	Revision int64 `json:"revision"`
-}
-
-// Parameters for resuming a factory run from its persisted identity.
-// Experimental: FactoryResumeRequest is part of an experimental API and may change or be
-// removed.
-type FactoryResumeRequest struct {
-	// Optional per-invocation resource ceiling overrides.
-	Limits *FactoryRunLimits `json:"limits,omitempty"`
-	// Whether to emit factory phase names to the session transcript.
-	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
-	// Whether to notify the originating session when the factory completes.
-	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Resolved persisted factory identity and resumed run envelope.
-// Experimental: FactoryResumeResult is part of an experimental API and may change or be
-// removed.
-type FactoryResumeResult struct {
-	// Persisted factory name resolved for the resumed run.
-	FactoryName string `json:"factoryName"`
-	// Terminal resumed run envelope.
-	Run FactoryRunResult `json:"run"`
-}
-
-// Durable factory resource consumption.
-// Experimental: FactoryRunConsumed is part of an experimental API and may change or be
-// removed.
-type FactoryRunConsumed struct {
-	// Accumulated active execution time in milliseconds.
-	ActiveMs int64 `json:"activeMs"`
-	// AI usage consumed by the run in nano-AIU.
-	NanoAiu int64 `json:"nanoAiu"`
-	// Total subagents spawned by the run.
-	Subagents int64 `json:"subagents"`
-}
-
-// Full factory run observability detail.
-// Experimental: FactoryRunDetail is part of an experimental API and may change or be
-// removed.
-type FactoryRunDetail struct {
-	// Epoch milliseconds when the current active segment started, or null while inactive.
-	ActiveSegmentStartedAt *int64 `json:"activeSegmentStartedAt"`
-	// Durable identities and live statuses for direct factory agents.
-	Agents []FactoryAgentSummary `json:"agents"`
-	// Approved effective resource ceilings, or null until approved.
-	Approved *FactoryDeclaredLimits `json:"approved"`
-	// Whether the durable run state currently passes runtime resume eligibility checks.
-	CanResume bool `json:"canResume"`
-	// Epoch milliseconds when the run completed, or null while nonterminal.
-	CompletedAt *int64 `json:"completedAt"`
-	// Durable resource consumption.
-	Consumed FactoryRunConsumed `json:"consumed"`
-	// Epoch milliseconds when the run was created.
-	CreatedAt int64 `json:"createdAt"`
-	// Current phase identity, or null before any phase is entered.
-	CurrentPhase *FactoryCurrentPhase `json:"currentPhase"`
-	// Resource ceilings declared by the factory.
-	DeclaredLimits FactoryDeclaredLimits `json:"declaredLimits"`
-	// Number of phases declared by the factory.
-	DeclaredPhaseCount int64 `json:"declaredPhaseCount"`
-	// Human-readable factory description.
-	Description string `json:"description"`
-	// Registered factory name.
-	FactoryName string `json:"factoryName"`
-	// Number of direct factory agents currently live.
-	LiveAgentCount int64 `json:"liveAgentCount"`
-	// Epoch milliseconds when this live-overlay snapshot was observed.
-	ObservedAt int64 `json:"observedAt"`
-	// Lifecycle and timing observations for each factory phase.
-	Phases []FactoryPhaseObservation `json:"phases"`
-	// Bidirectional page of durable factory progress.
-	Progress FactoryProgressPage `json:"progress"`
-	// Monotonic durable run revision.
-	Revision int64 `json:"revision"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Epoch milliseconds when execution first started, or null before start.
-	StartedAt *int64 `json:"startedAt"`
-	// Current factory run status.
-	Status FactoryRunStatus `json:"status"`
-	// Terminal run outcome, or null while nonterminal.
-	Terminal *FactoryRunTerminal `json:"terminal"`
-	// Total direct factory agents spawned across all attempts.
-	TotalSpawnedAgentCount int64 `json:"totalSpawnedAgentCount"`
-	// Epoch milliseconds when the durable run was last updated.
-	UpdatedAt int64 `json:"updatedAt"`
-}
-
-// Machine-readable factory run failure.
-// Experimental: FactoryRunFailure is part of an experimental API and may change or be
-// removed.
-type FactoryRunFailure interface {
-	factoryRunFailure()
-	Type() FactoryRunFailureType
-}
-
-type RawFactoryRunFailureData struct {
-	Discriminator FactoryRunFailureType
-	Raw           json.RawMessage
-}
-
-func (RawFactoryRunFailureData) factoryRunFailure() {}
-func (r RawFactoryRunFailureData) Type() FactoryRunFailureType {
-	return r.Discriminator
-}
-
-// The run stopped because its usage accounting could not be completed.
-type FactoryRunFailureFactoryAccountingIncomplete struct {
-	// Confirmed usage in nano-AIU, representing the floor of what the run spent.
-	DrainedNanoAiu int64 `json:"drainedNanoAiu"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-func (FactoryRunFailureFactoryAccountingIncomplete) factoryRunFailure() {}
-func (FactoryRunFailureFactoryAccountingIncomplete) Type() FactoryRunFailureType {
-	return FactoryRunFailureTypeFactoryAccountingIncomplete
-}
-
-type FactoryRunFailureFactoryDurableFailure struct {
-	// Stable failure code.
-	Code string `json:"code"`
-	// Execution-critical durable operation that failed.
-	Operation FactoryDurableOperation `json:"operation"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-func (FactoryRunFailureFactoryDurableFailure) factoryRunFailure() {}
-func (FactoryRunFailureFactoryDurableFailure) Type() FactoryRunFailureType {
-	return FactoryRunFailureTypeFactoryDurableFailure
-}
-
-type FactoryRunFailureFactoryLimitReached struct {
-	// Resource ceiling that stopped the run.
-	Kind FactoryRunFailureKind `json:"kind"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Suggested larger ceiling when the runtime can derive one safely.
-	SuggestedValue *float64 `json:"suggestedValue,omitempty"`
-	// Approved effective ceiling that was reached.
-	Value float64 `json:"value"`
-}
-
-func (FactoryRunFailureFactoryLimitReached) factoryRunFailure() {}
-func (FactoryRunFailureFactoryLimitReached) Type() FactoryRunFailureType {
-	return FactoryRunFailureTypeFactoryLimitReached
-}
-
-// The extension that owns the factory disconnected while the run was executing, so the host
-// halted it. The run's journaled subagent results are preserved so a resume can reuse them.
-type FactoryRunFailureFactoryProviderDisconnected struct {
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-func (FactoryRunFailureFactoryProviderDisconnected) factoryRunFailure() {}
-func (FactoryRunFailureFactoryProviderDisconnected) Type() FactoryRunFailureType {
-	return FactoryRunFailureTypeFactoryProviderDisconnected
-}
-
-type FactoryRunFailureFactoryResumeDeclined struct {
-	// Human-readable reason the resume did not proceed.
-	Reason string `json:"reason"`
-	// Factory run identifier whose changed limits were declined.
-	RunID string `json:"runId"`
-}
-
-func (FactoryRunFailureFactoryResumeDeclined) factoryRunFailure() {}
-func (FactoryRunFailureFactoryResumeDeclined) Type() FactoryRunFailureType {
-	return FactoryRunFailureTypeFactoryResumeDeclined
-}
-
-// Wire-only per-invocation factory resource ceiling overrides.
-// Experimental: FactoryRunLimits is part of an experimental API and may change or be
-// removed.
-type FactoryRunLimits struct {
-	// Maximum AI credits consumed by factory subagents and their descendants. The post-paid
-	// ceiling is soft: parallel turns can settle beyond it before the run stops.
-	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
-	// Maximum number of factory subagents that may run concurrently.
-	MaxConcurrentSubagents *int64 `json:"maxConcurrentSubagents,omitempty"`
-	// Maximum total number of factory subagents that may be admitted.
-	MaxTotalSubagents *int64 `json:"maxTotalSubagents,omitempty"`
-	// Maximum accumulated active-execution time in seconds. Active execution includes the
-	// entire extension body, subprocess waits, queued-agent waits, and sleeps; time between
-	// resumed attempts is not counted.
-	TimeoutSeconds *float64 `json:"timeoutSeconds,omitempty"`
-}
-
-// Parameters for invoking a registered factory.
-// Experimental: FactoryRunRequest is part of an experimental API and may change or be
-// removed.
-type FactoryRunRequest struct {
-	// Factory input value.
-	Args any `json:"args"`
-	// Registered factory name.
-	Name string `json:"name"`
-	// Factory invocation options.
-	Options *RunOptions `json:"options,omitempty"`
-}
-
-// Complete current or terminal factory run envelope.
-// Experimental: FactoryRunResult is part of an experimental API and may change or be
-// removed.
-type FactoryRunResult struct {
-	// One-based execution attempt represented by this envelope. Absent before the first attempt
-	// starts or when returned by an older runtime.
-	Attempt *int64 `json:"attempt,omitempty"`
-	// Error message for an errored run.
-	Error *string `json:"error,omitempty"`
-	// Machine-readable failure details for a halted or errored run.
-	Failure FactoryRunFailure `json:"failure,omitempty"`
-	// Structured pause initiator metadata for a paused attempt.
-	PauseInfo FactoryPauseInfo `json:"pauseInfo,omitempty"`
-	// Reason for a halted or cancelled run.
-	Reason *string `json:"reason,omitempty"`
-	// Completed factory result.
-	Result any `json:"result,omitempty"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Partial journal and progress snapshot for a halted, cancelled, or errored run.
-	Snapshot any `json:"snapshot,omitempty"`
-	// Current or terminal factory run status.
-	Status FactoryRunStatus `json:"status"`
-}
-
-// Durable factory run summary with read-time live overlays.
-// Experimental: FactoryRunSummary is part of an experimental API and may change or be
-// removed.
-type FactoryRunSummary struct {
-	// Epoch milliseconds when the current active segment started, or null while inactive.
-	ActiveSegmentStartedAt *int64 `json:"activeSegmentStartedAt"`
-	// Approved effective resource ceilings, or null until approved.
-	Approved *FactoryDeclaredLimits `json:"approved"`
-	// Whether the durable run state currently passes runtime resume eligibility checks.
-	CanResume bool `json:"canResume"`
-	// Epoch milliseconds when the run completed, or null while nonterminal.
-	CompletedAt *int64 `json:"completedAt"`
-	// Durable resource consumption.
-	Consumed FactoryRunConsumed `json:"consumed"`
-	// Epoch milliseconds when the run was created.
-	CreatedAt int64 `json:"createdAt"`
-	// Current phase identity, or null before any phase is entered.
-	CurrentPhase *FactoryCurrentPhase `json:"currentPhase"`
-	// Resource ceilings declared by the factory.
-	DeclaredLimits FactoryDeclaredLimits `json:"declaredLimits"`
-	// Number of phases declared by the factory.
-	DeclaredPhaseCount int64 `json:"declaredPhaseCount"`
-	// Human-readable factory description.
-	Description string `json:"description"`
-	// Registered factory name.
-	FactoryName string `json:"factoryName"`
-	// Number of direct factory agents currently live.
-	LiveAgentCount int64 `json:"liveAgentCount"`
-	// Epoch milliseconds when this live-overlay snapshot was observed.
-	ObservedAt int64 `json:"observedAt"`
-	// Monotonic durable run revision.
-	Revision int64 `json:"revision"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Epoch milliseconds when execution first started, or null before start.
-	StartedAt *int64 `json:"startedAt"`
-	// Current factory run status.
-	Status FactoryRunStatus `json:"status"`
-	// Terminal run outcome, or null while nonterminal.
-	Terminal *FactoryRunTerminal `json:"terminal"`
-	// Total direct factory agents spawned across all attempts.
-	TotalSpawnedAgentCount int64 `json:"totalSpawnedAgentCount"`
-	// Epoch milliseconds when the durable run was last updated.
-	UpdatedAt int64 `json:"updatedAt"`
-}
-
-// Prompt-safe terminal factory outcome.
-// Experimental: FactoryRunTerminal is part of an experimental API and may change or be
-// removed.
-type FactoryRunTerminal struct {
-	// Human-readable terminal error.
-	Error *string `json:"error,omitempty"`
-	// Machine-readable terminal failure.
-	Failure FactoryRunFailure `json:"failure,omitempty"`
-	// Pause initiator metadata, or null when the run did not pause.
-	PauseInfo FactoryPauseInfo `json:"pauseInfo"`
-	// Human-readable terminal reason.
-	Reason *string `json:"reason,omitempty"`
-	// Prompt-safe preview of the completed result.
-	ResultPreview *string `json:"resultPreview,omitempty"`
-}
-
-// Internal parameters for resuming a factory run from a tool.
-// Experimental: FactoryToolResumeRequest is part of an experimental API and may change or
-// be removed.
-// Internal: FactoryToolResumeRequest is an internal SDK API and is not part of the public
-// surface.
-type FactoryToolResumeRequest struct {
-	// Optional per-invocation resource ceiling overrides.
-	Limits *FactoryRunLimits `json:"limits,omitempty"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Opaque identifier of the originating tool call.
-	ToolCallID *string `json:"toolCallId,omitempty"`
-}
-
-// Options for an internal tool-originated factory invocation.
-// Experimental: FactoryToolRunOptions is part of an experimental API and may change or be
-// removed.
-// Internal: FactoryToolRunOptions is an internal SDK API and is not part of the public
-// surface.
-type FactoryToolRunOptions struct {
-	// Per-invocation resource ceiling overrides.
-	Limits *FactoryRunLimits `json:"limits,omitempty"`
-	// Run identifier whose journal and progress should seed this resumed run.
-	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
-}
-
-// Internal parameters for invoking a registered factory from a tool.
-// Experimental: FactoryToolRunRequest is part of an experimental API and may change or be
-// removed.
-// Internal: FactoryToolRunRequest is an internal SDK API and is not part of the public
-// surface.
-type FactoryToolRunRequest struct {
-	// Factory input value.
-	Args any `json:"args"`
-	// Registered factory name.
-	Name string `json:"name"`
-	// Tool-originated factory invocation options.
-	Options *FactoryToolRunOptions `json:"options,omitempty"`
-	// Opaque identifier of the originating tool call.
-	ToolCallID *string `json:"toolCallId,omitempty"`
-}
-
 // Content filtering mode to apply to all tools, or a map of tool name to content filtering
 // mode.
 // Experimental: FilterMapping is part of an experimental API and may change or be removed.
@@ -5323,6 +5014,77 @@ type HooksDiscoverResult struct {
 	// although the source had a recoverable issue. Repository-settings warnings are prefixed
 	// with their project path when attribution is available.
 	Warnings []string `json:"warnings"`
+}
+
+// One connection-owned, expiring request for a trusted host's explicit user decision.
+// Experimental: InstallationConfirmationRequest is part of an experimental API and may
+// change or be removed.
+type InstallationConfirmationRequest struct {
+	// Opaque one-use challenge. Return unchanged; never log or persist.
+	ConfirmationID string `json:"confirmationId"`
+	// Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it.
+	ExpiresAt string `json:"expiresAt"`
+	// Random identifier of this installation operation, not a plan handle.
+	OperationID string `json:"operationId"`
+	// Original engine-resolved selector for a bound operation, never a dispatch default.
+	// Bound MCP confirmation always includes it; correlate it with the original pending action.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
+	// Resource-specific review to present before collecting the user's decision.
+	Review InstallationReview `json:"review"`
+	// Opaque commitment to the exact review and inputs. Return unchanged; never log.
+	ReviewFingerprint string `json:"reviewFingerprint"`
+}
+
+// A response is meaningful only on the connection and request that issued its challenge.
+// Experimental: InstallationConfirmationResponse is part of an experimental API and may
+// change or be removed.
+type InstallationConfirmationResponse struct {
+	// Exact challenge from the request.
+	ConfirmationID string `json:"confirmationId"`
+	// Fresh explicit user decision. There is no default.
+	Decision InstallationDecision `json:"decision"`
+	// Exact review commitment from the request.
+	ReviewFingerprint string `json:"reviewFingerprint"`
+}
+
+// Experimental: InstallationReview is part of an experimental API and may change or be
+// removed.
+type InstallationReview struct {
+	// Reviewed resource discriminator.
+	Resource InstallationReviewResource `json:"resource"`
+	// The exact MCP action and its reviewed changes.
+	Review MCPInstallationReview `json:"review"`
+}
+
+// One connection-owned, expiring request for a trusted host's explicit user decision.
+// Experimental: InstallationsConfirmRequest is part of an experimental API and may change
+// or be removed.
+type InstallationsConfirmRequest struct {
+	// Opaque one-use challenge. Return unchanged; never log or persist.
+	ConfirmationID string `json:"confirmationId"`
+	// Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it.
+	ExpiresAt string `json:"expiresAt"`
+	// Random identifier of this installation operation, not a plan handle.
+	OperationID string `json:"operationId"`
+	// Original engine-resolved selector for a bound operation, never a dispatch default.
+	// Bound MCP confirmation always includes it; correlate it with the original pending action.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
+	// Resource-specific review to present before collecting the user's decision.
+	Review InstallationReview `json:"review"`
+	// Opaque commitment to the exact review and inputs. Return unchanged; never log.
+	ReviewFingerprint string `json:"reviewFingerprint"`
+}
+
+// A response is meaningful only on the connection and request that issued its challenge.
+// Experimental: InstallationsConfirmResult is part of an experimental API and may change or
+// be removed.
+type InstallationsConfirmResult struct {
+	// Exact challenge from the request.
+	ConfirmationID string `json:"confirmationId"`
+	// Fresh explicit user decision. There is no default.
+	Decision InstallationDecision `json:"decision"`
+	// Exact review commitment from the request.
+	ReviewFingerprint string `json:"reviewFingerprint"`
 }
 
 // Installed plugin record from global state, with marketplace, version, install time,
@@ -5996,6 +5758,30 @@ type MCPAllowedServer struct {
 	RedactedNote *string `json:"redactedNote,omitempty"`
 }
 
+// Applies exactly one previously prepared operation on its original connection.
+// Experimental: MCPApplyInstallRequest is part of an experimental API and may change or be
+// removed.
+type MCPApplyInstallRequest struct {
+	// Capabilities required by the original prepared operation.
+	Contract CatalogClientContract `json:"contract"`
+	// Runtime-issued ID already returned by prepareInstall, never reused or rebound.
+	OperationID string `json:"operationId"`
+	// Same existing attached or privately borrowed session as preparation.
+	PolicySessionID string `json:"policySessionId"`
+}
+
+// One-use application of the exact retained removal plan.
+// Experimental: MCPApplyUninstallRequest is part of an experimental API and may change or
+// be removed.
+type MCPApplyUninstallRequest struct {
+	// Required authenticated bound installation capabilities.
+	Contract CatalogClientContract `json:"contract"`
+	// Opaque original removal plan, consumed once.
+	PlanHandle string `json:"planHandle"`
+	// Same existing selected session as removal preparation.
+	PolicySessionID string `json:"policySessionId"`
+}
+
 // MCP server, tool name, and arguments to invoke from an MCP App view.
 // Experimental: MCPAppsCallToolRequest is part of an experimental API and may change or be
 // removed.
@@ -6319,6 +6105,8 @@ type MCPDiagnosticSourceConfiguration struct {
 // Experimental: MCPDisableRequest is part of an experimental API and may change or be
 // removed.
 type MCPDisableRequest struct {
+	// Required for an owned installation; omission preserves only manual-server behaviour.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to disable
 	ServerName string `json:"serverName"`
 }
@@ -6346,6 +6134,8 @@ type MCPDiscoverResult struct {
 // Experimental: MCPEnableRequest is part of an experimental API and may change or be
 // removed.
 type MCPEnableRequest struct {
+	// Exact receipt identity for explicit owned activation in this session.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to enable
 	ServerName string `json:"serverName"`
 }
@@ -6502,6 +6292,517 @@ type MCPHostState struct {
 	PendingConnections []string `json:"pendingConnections"`
 }
 
+// One Registry string-valued configuration entry for the selected transport.
+// Experimental: MCPInstallationInput is part of an experimental API and may change or be
+// removed.
+type MCPInstallationInput struct {
+	// Exact category declared by the selected choice.
+	Category MCPPlanValueCategory `json:"category"`
+	// Exact key declared by the selected choice.
+	Key string `json:"key"`
+	// Explicit non-secret value. Secret placeholders use a separate input channel.
+	Value string `json:"value"`
+}
+
+// Read-only or recovery management result, never permission to activate or replay.
+// Experimental: MCPInstallationManagementOutcome is part of an experimental API and may
+// change or be removed.
+type MCPInstallationManagementOutcome interface {
+	mcpInstallationManagementOutcome()
+	Kind() MCPInstallationManagementOutcomeKind
+}
+
+type RawMCPInstallationManagementOutcomeData struct {
+	Discriminator MCPInstallationManagementOutcomeKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationManagementOutcomeData) mcpInstallationManagementOutcome() {}
+func (r RawMCPInstallationManagementOutcomeData) Kind() MCPInstallationManagementOutcomeKind {
+	return r.Discriminator
+}
+
+type MCPInstallationManagementOutcomeInstallPrepared struct {
+	// Known original operation identity, returned before callback or effects.
+	Operation MCPPreparedInstall `json:"operation"`
+}
+
+func (MCPInstallationManagementOutcomeInstallPrepared) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeInstallPrepared) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindInstallPrepared
+}
+
+type MCPInstallationManagementOutcomeListed struct {
+	// Owned receipts visible to the selected account and host.
+	Installations []MCPInstallationSummary `json:"installations"`
+}
+
+func (MCPInstallationManagementOutcomeListed) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeListed) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindListed
+}
+
+type MCPInstallationManagementOutcomeOperation struct {
+	// Original-connection operation snapshot.
+	Operation MCPInstallationOperationStatus `json:"operation"`
+}
+
+func (MCPInstallationManagementOutcomeOperation) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeOperation) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindOperation
+}
+
+type MCPInstallationManagementOutcomeRecovered struct {
+	// Freshly inspected receipts after successful durable reconciliation.
+	Installations []MCPInstallationSummary `json:"installations"`
+}
+
+func (MCPInstallationManagementOutcomeRecovered) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeRecovered) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindRecovered
+}
+
+// Already-confirmed durable work must be reconciled before new mutations or inventory.
+type MCPInstallationManagementOutcomeRecoveryRequired struct {
+}
+
+func (MCPInstallationManagementOutcomeRecoveryRequired) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeRecoveryRequired) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindRecoveryRequired
+}
+
+type MCPInstallationManagementOutcomeRefused struct {
+	// Specific bounded refusal.
+	Reason MCPInstallationFailureReason `json:"reason"`
+}
+
+func (MCPInstallationManagementOutcomeRefused) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeRefused) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindRefused
+}
+
+type MCPInstallationManagementOutcomeUninstallPlanned struct {
+	// Original owned removal plan and operation.
+	Plan MCPUninstallPlan `json:"plan"`
+}
+
+func (MCPInstallationManagementOutcomeUninstallPlanned) mcpInstallationManagementOutcome() {}
+func (MCPInstallationManagementOutcomeUninstallPlanned) Kind() MCPInstallationManagementOutcomeKind {
+	return MCPInstallationManagementOutcomeKindUninstallPlanned
+}
+
+// Management result with contract receipt, or a typed request/negotiation refusal.
+// Experimental: MCPInstallationManagementResult is part of an experimental API and may
+// change or be removed.
+type MCPInstallationManagementResult interface {
+	mcpInstallationManagementResult()
+	mcpInstallationManagementResultKind() MCPInstallationManagementResultKind
+}
+
+type RawMCPInstallationManagementResultData struct {
+	Discriminator MCPInstallationManagementResultKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationManagementResultData) mcpInstallationManagementResult() {}
+func (r RawMCPInstallationManagementResultData) mcpInstallationManagementResultKind() MCPInstallationManagementResultKind {
+	return r.Discriminator
+}
+func (CatalogInvalidRequestError) mcpInstallationManagementResult() {}
+func (CatalogInvalidRequestError) mcpInstallationManagementResultKind() MCPInstallationManagementResultKind {
+	return MCPInstallationManagementResultKindInvalidRequest
+}
+func (CatalogNegotiationRefusedError) mcpInstallationManagementResult() {}
+func (CatalogNegotiationRefusedError) mcpInstallationManagementResultKind() MCPInstallationManagementResultKind {
+	return MCPInstallationManagementResultKindNegotiationRefused
+}
+
+type MCPInstallationManagementResultOutcome struct {
+	// Capabilities actually honoured for this request.
+	Negotiated CatalogNegotiatedContract `json:"negotiated"`
+	// Observed management outcome.
+	Outcome MCPInstallationManagementOutcome `json:"outcome"`
+}
+
+func (MCPInstallationManagementResultOutcome) mcpInstallationManagementResult() {}
+func (MCPInstallationManagementResultOutcome) mcpInstallationManagementResultKind() MCPInstallationManagementResultKind {
+	return MCPInstallationManagementResultKindOutcome
+}
+
+// Existing-operation control. A new session selector is deliberately not accepted.
+// Experimental: MCPInstallationOperationRequest is part of an experimental API and may
+// change or be removed.
+type MCPInstallationOperationRequest struct {
+	// Original installation wire capability; new-work authentication is not reacquired.
+	Contract CatalogClientContract `json:"contract"`
+	// Exact runtime-issued operation ID on the original connection.
+	OperationID string `json:"operationId"`
+}
+
+// Status snapshot from the original connection, independent of new-work account
+// availability.
+// Experimental: MCPInstallationOperationStatus is part of an experimental API and may
+// change or be removed.
+type MCPInstallationOperationStatus interface {
+	mcpInstallationOperationStatus()
+	Phase() MCPInstallationOperationStatusPhase
+}
+
+type RawMCPInstallationOperationStatusData struct {
+	Discriminator MCPInstallationOperationStatusPhase
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationOperationStatusData) mcpInstallationOperationStatus() {}
+func (r RawMCPInstallationOperationStatusData) Phase() MCPInstallationOperationStatusPhase {
+	return r.Discriminator
+}
+
+type MCPInstallationOperationStatusApplying struct {
+	// Whether applying was asked to cancel; already-started effects retain their lease.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOperationStatusApplying) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusApplying) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhaseApplying
+}
+
+type MCPInstallationOperationStatusAwaitingConfirmation struct {
+	// Whether the pending human callback was asked to cancel.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOperationStatusAwaitingConfirmation) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusAwaitingConfirmation) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhaseAwaitingConfirmation
+}
+
+type MCPInstallationOperationStatusCompleted struct {
+	// Whether cancellation was requested before the terminal result.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+	// Immutable terminal receipt.
+	Outcome MCPInstallationOutcome `json:"outcome"`
+}
+
+func (MCPInstallationOperationStatusCompleted) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusCompleted) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhaseCompleted
+}
+
+type MCPInstallationOperationStatusPrepared struct {
+	// Whether the inert prepared operation was asked to cancel.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOperationStatusPrepared) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusPrepared) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhasePrepared
+}
+
+type MCPInstallationOperationStatusPreparing struct {
+	// Whether cancellation has been requested, not proof that a write was undone.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOperationStatusPreparing) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusPreparing) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhasePreparing
+}
+
+type MCPInstallationOperationStatusRevalidating struct {
+	// Whether source or authority revalidation was asked to cancel.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOperationStatusRevalidating) mcpInstallationOperationStatus() {}
+func (MCPInstallationOperationStatusRevalidating) Phase() MCPInstallationOperationStatusPhase {
+	return MCPInstallationOperationStatusPhaseRevalidating
+}
+
+// Terminal mutation result. Uncertainty is not approval, rollback or permission to replay.
+// Experimental: MCPInstallationOutcome is part of an experimental API and may change or be
+// removed.
+type MCPInstallationOutcome interface {
+	mcpInstallationOutcome()
+	Kind() MCPInstallationOutcomeKind
+}
+
+type RawMCPInstallationOutcomeData struct {
+	Discriminator MCPInstallationOutcomeKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationOutcomeData) mcpInstallationOutcome() {}
+func (r RawMCPInstallationOutcomeData) Kind() MCPInstallationOutcomeKind {
+	return r.Discriminator
+}
+
+type MCPInstallationOutcomeCancelled struct {
+	// Original operation cancelled before a terminal application result.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOutcomeCancelled) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeCancelled) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindCancelled
+}
+
+type MCPInstallationOutcomeDeclined struct {
+	// Original operation explicitly declined by the user.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOutcomeDeclined) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeDeclined) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindDeclined
+}
+
+type MCPInstallationOutcomeInstalled struct {
+	// Durable installation succeeded but final transaction cleanup remains.
+	CleanupPending bool `json:"cleanupPending"`
+	// Receipt identity produced by the confirmed transaction.
+	Installation MCPInstallationSummary `json:"installation"`
+}
+
+func (MCPInstallationOutcomeInstalled) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeInstalled) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindInstalled
+}
+
+// A write may have completed. Recover and inspect durable state before retrying.
+type MCPInstallationOutcomeRecoveryRequired struct {
+	// Operation whose durable result must be recovered and inspected.
+	OperationID string `json:"operationId"`
+}
+
+func (MCPInstallationOutcomeRecoveryRequired) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeRecoveryRequired) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindRecoveryRequired
+}
+
+type MCPInstallationOutcomeRefused struct {
+	// Present once an operation has been allocated; never a plan handle.
+	OperationID *string `json:"operationId,omitempty"`
+	// Specific bounded refusal, never a success-shaped fallback.
+	Reason MCPInstallationFailureReason `json:"reason"`
+}
+
+func (MCPInstallationOutcomeRefused) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeRefused) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindRefused
+}
+
+// The durable transaction was aborted or fully compensated.
+type MCPInstallationOutcomeRolledBack struct {
+	// Original connection-owned operation.
+	OperationID string `json:"operationId"`
+	// Cause of the fully aborted or compensated operation.
+	Reason MCPInstallationFailureReason `json:"reason"`
+}
+
+func (MCPInstallationOutcomeRolledBack) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeRolledBack) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindRolledBack
+}
+
+type MCPInstallationOutcomeUninstalled struct {
+	// Durable removal succeeded but final cleanup remains.
+	CleanupPending bool `json:"cleanupPending"`
+	// Exact removed receipt identity.
+	InstallationID string `json:"installationId"`
+	// Original removal operation.
+	OperationID string `json:"operationId"`
+	// Any grants in the incumbent shared OAuth store remain unowned and retained.
+	PreservedSharedAuthentication bool `json:"preservedSharedAuthentication"`
+	// Exact owned input slots removed, excluding shared OAuth credentials.
+	RemovedOwnedSecrets int64 `json:"removedOwnedSecrets"`
+	// Whether protected pre-install configuration was restored.
+	RestoredPreviousConfiguration bool `json:"restoredPreviousConfiguration"`
+}
+
+func (MCPInstallationOutcomeUninstalled) mcpInstallationOutcome() {}
+func (MCPInstallationOutcomeUninstalled) Kind() MCPInstallationOutcomeKind {
+	return MCPInstallationOutcomeKindUninstalled
+}
+
+// Final remote configuration, not a template. The producer refuses configured
+// secrets and external-value expansion before presenting this review.
+// Experimental: MCPInstallationRemoteConfiguration is part of an experimental API and may
+// change or be removed.
+type MCPInstallationRemoteConfiguration struct {
+	// Literal configured headers, excluding separately authorised OAuth tokens.
+	Headers map[string]string `json:"headers"`
+	// Configured tool selection, not permission to invoke those tools.
+	Tools []string `json:"tools"`
+	// Transport in the effective persisted remote configuration.
+	Transport MCPPlanRemoteTransport `json:"transport"`
+	// Exact resolved endpoint, without templates or secret placeholders.
+	URL string `json:"url"`
+}
+
+// An installation result together with the exact honoured contract, or a negotiation
+// refusal.
+// Experimental: MCPInstallationResult is part of an experimental API and may change or be
+// removed.
+type MCPInstallationResult interface {
+	mcpInstallationResult()
+	mcpInstallationResultKind() MCPInstallationResultKind
+}
+
+type RawMCPInstallationResultData struct {
+	Discriminator MCPInstallationResultKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationResultData) mcpInstallationResult() {}
+func (r RawMCPInstallationResultData) mcpInstallationResultKind() MCPInstallationResultKind {
+	return r.Discriminator
+}
+func (CatalogInvalidRequestError) mcpInstallationResult() {}
+func (CatalogInvalidRequestError) mcpInstallationResultKind() MCPInstallationResultKind {
+	return MCPInstallationResultKindInvalidRequest
+}
+func (CatalogNegotiationRefusedError) mcpInstallationResult() {}
+func (CatalogNegotiationRefusedError) mcpInstallationResultKind() MCPInstallationResultKind {
+	return MCPInstallationResultKindNegotiationRefused
+}
+
+type MCPInstallationResultOutcome struct {
+	// Capabilities actually honoured for this request.
+	Negotiated CatalogNegotiatedContract `json:"negotiated"`
+	// Terminal result of the original operation.
+	Outcome MCPInstallationOutcome `json:"outcome"`
+}
+
+func (MCPInstallationResultOutcome) mcpInstallationResult() {}
+func (MCPInstallationResultOutcome) mcpInstallationResultKind() MCPInstallationResultKind {
+	return MCPInstallationResultKindOutcome
+}
+
+// Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.
+// Experimental: MCPInstallationReview is part of an experimental API and may change or be
+// removed.
+type MCPInstallationReview interface {
+	mcpInstallationReview()
+	Action() MCPInstallationReviewAction
+}
+
+type RawMCPInstallationReviewData struct {
+	Discriminator MCPInstallationReviewAction
+	Raw           json.RawMessage
+}
+
+func (RawMCPInstallationReviewData) mcpInstallationReview() {}
+func (r RawMCPInstallationReviewData) Action() MCPInstallationReviewAction {
+	return r.Discriminator
+}
+
+type MCPInstallationReviewInstall struct {
+	// Original catalogue trust metadata, not a verification claim.
+	CatalogueTrust CatalogTrustSnapshot `json:"catalogueTrust,omitempty"`
+	// The configuration change for the selected alternative only.
+	ConfigurationChange MCPPlanConfigurationChange `json:"configurationChange"`
+	// Complete effective remote configuration for final input-free installation review.
+	// Earlier private selection reviews and package choices omit this field.
+	// The owned remote resource requires it before issuing confirmation.
+	EffectiveConfiguration *MCPInstallationRemoteConfiguration `json:"effectiveConfiguration,omitempty"`
+	// Identity from the retained plan, not caller display text.
+	Identity MCPPlanResourceIdentity `json:"identity"`
+	// Non-secret values supplied for this selected alternative.
+	Inputs []MCPInstallationInput `json:"inputs"`
+	// Policy decision bound to this plan.
+	Policy MCPPlanPolicyResult `json:"policy"`
+	// Original source identity and content commitment.
+	Provenance MCPPlanProvenance `json:"provenance"`
+	// Explicit reviewed backend selection; no backend is accessed when no secrets are supplied.
+	SecretStorage MCPInstallationSecretStorage `json:"secretStorage"`
+	// Only the selected alternative is applied.
+	SelectedChoice MCPPlanTransportChoice `json:"selectedChoice"`
+	// Exact reviewed placeholders supplied separately. Never secret values.
+	SuppliedSecrets []string `json:"suppliedSecrets"`
+	// Exact reviewed user-scope destination.
+	Target MCPPlanTarget `json:"target"`
+}
+
+func (MCPInstallationReviewInstall) mcpInstallationReview() {}
+func (MCPInstallationReviewInstall) Action() MCPInstallationReviewAction {
+	return MCPInstallationReviewActionInstall
+}
+
+type MCPInstallationReviewUninstall struct {
+	// Identity from the installed receipt.
+	Identity MCPPlanResourceIdentity `json:"identity"`
+	// Receipt-owned installation being removed.
+	InstallationID string `json:"installationId"`
+	// Exact planner-owned secret slots to remove, excluding shared OAuth grants.
+	OwnedSecretCount int64 `json:"ownedSecretCount"`
+	// Current removal policy, independent of permission to activate the server.
+	Policy MCPPlanPolicyResult `json:"policy"`
+	// Shared profile authentication is deliberately retained, not pending cleanup.
+	PreservesSharedAuthentication bool `json:"preservesSharedAuthentication"`
+	// Source identity and content commitment retained by the installed receipt.
+	Provenance MCPPlanProvenance `json:"provenance"`
+	// Whether uninstall restores a protected pre-install configuration.
+	RestoresPreviousConfiguration bool `json:"restoresPreviousConfiguration"`
+	// Exact destination, checked for intervening changes before mutation.
+	Target MCPPlanTarget `json:"target"`
+}
+
+func (MCPInstallationReviewUninstall) mcpInstallationReview() {}
+func (MCPInstallationReviewUninstall) Action() MCPInstallationReviewAction {
+	return MCPInstallationReviewActionUninstall
+}
+
+// A request-local value for one exact reviewed placeholder. Never logged or persisted in a
+// plan.
+// Experimental: MCPInstallationSecret is part of an experimental API and may change or be
+// removed.
+type MCPInstallationSecret struct {
+	// Exact placeholder from the selected choice, not a caller-chosen backend identifier.
+	Placeholder string `json:"placeholder"`
+	// Fresh explicit secret value. It is omitted from confirmation reviews and telemetry.
+	Value string `json:"value"`
+}
+
+// New-work inventory or recovery request under an explicitly selected existing session.
+// Experimental: MCPInstallationsRequest is part of an experimental API and may change or be
+// removed.
+type MCPInstallationsRequest struct {
+	// Required authenticated bound installation contract.
+	Contract CatalogClientContract `json:"contract"`
+	// Existing selected local session on this connection.
+	PolicySessionID string `json:"policySessionId"`
+}
+
+// Durable configuration ownership is distinct from session-specific usability.
+// Experimental: MCPInstallationSummary is part of an experimental API and may change or be
+// removed.
+type MCPInstallationSummary struct {
+	// Exact alternative retained in the installing receipt.
+	ChoiceID string `json:"choiceId"`
+	// Identity retained from the validated original plan.
+	Identity MCPPlanResourceIdentity `json:"identity"`
+	// Exact durable installation receipt identity.
+	InstallationID string `json:"installationId"`
+	// Original installing operation, not a fresh management operation.
+	OperationID string `json:"operationId"`
+	// Ownership or setup state, never inferred proof of tool usability.
+	State MCPInstallationState `json:"state"`
+}
+
 // A normalised, inert description of what installing an MCP server would involve. Carries
 // no raw card, no install specification, and no secret value.
 // Experimental: MCPInstallPlan is part of an experimental API and may change or be removed.
@@ -6587,6 +6888,25 @@ type MCPOauthAuthenticationStateChangedRequest struct {
 	ServerName *string `json:"serverName,omitempty"`
 }
 
+// Targets only the original prepared/applying owned login on this exact session requester.
+// Experimental: MCPOauthCancelLoginRequest is part of an experimental API and may change or
+// be removed.
+type MCPOauthCancelLoginRequest struct {
+	// The same authoritative installation identity supplied during preparation.
+	ExpectedInstallationID string `json:"expectedInstallationId"`
+	// Runtime-issued login handle known before the effectful login request begins.
+	LoginID string `json:"loginId"`
+}
+
+// Honest terminal cancellation result; persistence or recovery failures remain RPC errors.
+// Experimental: MCPOauthCancelLoginResult is part of an experimental API and may change or
+// be removed.
+type MCPOauthCancelLoginResult struct {
+	// True after cancellation settles, false when the original login already connected
+	// successfully.
+	Cancelled bool `json:"cancelled"`
+}
+
 // Pending MCP OAuth request ID and host-provided token or cancellation response.
 // Experimental: MCPOauthHandlePendingRequest is part of an experimental API and may change
 // or be removed.
@@ -6628,6 +6948,8 @@ type MCPOauthLoginRequest struct {
 	// ephemeral host-owned secret, uses it for this authentication attempt and does not persist
 	// it.
 	ClientSecret *string `json:"clientSecret,omitempty"`
+	// Exact owned receipt identity. Owned login never uses an implicit helper session.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// When true, clears any cached OAuth token for the server and runs a full new
 	// authorization. Use when the user explicitly wants to switch accounts or believes their
 	// session is stuck.
@@ -6635,6 +6957,9 @@ type MCPOauthLoginRequest struct {
 	// Optional OAuth grant type override for this login. Defaults to the server configuration,
 	// or authorization_code when no grant type is specified.
 	GrantType *MCPOauthLoginGrantType `json:"grantType,omitempty"`
+	// Required for owned login. Consumes the exact prepareLogin handle once.
+	// Set forceReauth and display options during preparation, not consumption.
+	LoginID *string `json:"loginId,omitempty"`
 	// Optional override indicating whether the static OAuth client is public. When false, the
 	// runtime treats it as confidential and uses the per-login clientSecret if provided,
 	// otherwise retrieving the client secret from the MCP OAuth secret store.
@@ -6654,6 +6979,10 @@ type MCPOauthLoginResult struct {
 	// returning and continues the flow in the background; completion is signaled via
 	// session.mcp_server_status_changed.
 	AuthorizationURL *string `json:"authorizationUrl,omitempty"`
+	// Runtime-issued owned flow identity; never a server name or installation operation ID.
+	LoginID *string `json:"loginId,omitempty"`
+	// Explicit outcome for owned sign-in. Manual callers retain their legacy response shape.
+	Status *MCPOwnedOauthLoginStatus `json:"status,omitempty"`
 }
 
 // Host response to the pending OAuth request.
@@ -6696,10 +7025,40 @@ func (MCPOauthPendingRequestResponseToken) Kind() MCPOauthPendingRequestResponse
 	return MCPOauthPendingRequestResponseKindToken
 }
 
+// Effect-free preparation bound to the existing local session, requester and installation,
+// with frozen options.
+// Experimental: MCPOauthPrepareLoginRequest is part of an experimental API and may change
+// or be removed.
+type MCPOauthPrepareLoginRequest struct {
+	// Text shown on the loopback callback page after successful authorisation.
+	CallbackSuccessMessage *string `json:"callbackSuccessMessage,omitempty"`
+	// Display name used by the incumbent OAuth client-registration flow.
+	ClientName *string `json:"clientName,omitempty"`
+	// Exact installation identity from owned inventory, never a server-name alias.
+	ExpectedInstallationID string `json:"expectedInstallationId"`
+	// Request a new authorisation rather than accepting a usable cached grant.
+	ForceReauth *bool `json:"forceReauth,omitempty"`
+	// Name recorded by the authoritative owned installation receipt.
+	ServerName string `json:"serverName"`
+}
+
+// An inert runtime-issued login handle. Preparation alone performs no activation or OAuth
+// work.
+// Experimental: MCPOauthPrepareLoginResult is part of an experimental API and may change or
+// be removed.
+type MCPOauthPrepareLoginResult struct {
+	// Original expiry, not extended by consumption, retries or cancellation.
+	ExpiresAt time.Time `json:"expiresAt"`
+	// Retain with the original requester and use for one login or cancellation.
+	LoginID string `json:"loginId"`
+}
+
 // Remote MCP server name for a passive OAuth status probe.
 // Experimental: MCPOauthProbeRequest is part of an experimental API and may change or be
 // removed.
 type MCPOauthProbeRequest struct {
+	// Exact owned receipt identity; probing never activates a dormant installation.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the configured remote MCP server to probe.
 	ServerName string `json:"serverName"`
 }
@@ -6816,6 +7175,8 @@ type MCPPlanConfigurationChange struct {
 type MCPPlanInstallRequest struct {
 	// Protocol version and capabilities the caller requires.
 	Contract CatalogClientContract `json:"contract"`
+	// The same existing attached session that owns the original catalogue candidate.
+	PolicySessionID *string `json:"policySessionId,omitempty"`
 	// Configuration scope the plan targets. Defaults to user scope when omitted.
 	Scope *MCPPlanScope `json:"scope,omitempty"`
 	// What to plan: either a candidate handle from a previous search, or a card supplied
@@ -7223,6 +7584,50 @@ func (r MCPPlanTransportChoiceRemote) Transport() MCPPlanTransportChoiceTranspor
 	return MCPPlanTransportChoiceTransport(r.Discriminator)
 }
 
+// Read-only preparation of one owned removal under fresh selected-session authority.
+// Experimental: MCPPlanUninstallRequest is part of an experimental API and may change or be
+// removed.
+type MCPPlanUninstallRequest struct {
+	// Required authenticated bound installation capabilities.
+	Contract CatalogClientContract `json:"contract"`
+	// Exact receipt to inspect, not a server-name guess.
+	InstallationID string `json:"installationId"`
+	// Existing selected session on the original connection.
+	PolicySessionID string `json:"policySessionId"`
+}
+
+// Inert, runtime-owned admission. The operation ID is known before confirmation or effects.
+// Experimental: MCPPreparedInstall is part of an experimental API and may change or be
+// removed.
+type MCPPreparedInstall struct {
+	// Original plan expiry in Unix epoch milliseconds; preparation does not extend it.
+	ExpiresAtEpochMs int64 `json:"expiresAtEpochMs"`
+	// Original connection-owned operation, known before the first confirmation callback.
+	OperationID string `json:"operationId"`
+}
+
+// Side-effect-free preparation of one original bound, input-free remote MCP choice.
+// Experimental: MCPPrepareInstallRequest is part of an experimental API and may change or
+// be removed.
+type MCPPrepareInstallRequest struct {
+	// Exact selected alternative from that plan.
+	ChoiceID string `json:"choiceId"`
+	// Required bound catalogue and confirmed remote installation capabilities.
+	Contract CatalogClientContract `json:"contract"`
+	// Must be empty for the initial input-free remote installation capability.
+	Inputs []MCPInstallationInput `json:"inputs"`
+	// Original single-use bound plan, never a client-authored configuration.
+	PlanHandle string `json:"planHandle"`
+	// An existing local session attached to this connection, not permission to attach one.
+	PolicySessionID string `json:"policySessionId"`
+	// Must be empty; this capability does not allocate configured-input secrets.
+	Secrets []MCPInstallationSecret `json:"secrets"`
+	// The trusted host presents this choice alongside the exact secret placeholders.
+	SecretStorage MCPInstallationSecretStorage `json:"secretStorage"`
+	// The exact original source, used transiently only after confirmation.
+	Source MCPServerCardReference `json:"source"`
+}
+
 // Registration parameters for an external MCP client.
 // Experimental: MCPRegisterExternalClientRequest is part of an experimental API and may
 // change or be removed.
@@ -7453,6 +7858,8 @@ type MCPRestartServerRequest struct {
 	// Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart
 	// the server with its already-registered configuration (config-free restart-by-name).
 	Config MCPSerializableServerConfig `json:"config,omitempty"`
+	// Exact receipt identity for an explicit owned restart; configuration overrides are refused.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to restart
 	ServerName string `json:"serverName"`
 }
@@ -7659,6 +8066,10 @@ type MCPServer struct {
 	Error *string `json:"error,omitempty"`
 	// Server name (config key)
 	Name string `json:"name"`
+	// Owned installation this entry's live configuration came from. Absent for manual,
+	// workspace, plugin, builtin and same-name servers, and on runtimes without owned
+	// installations.
+	Owned *MCPServerOwnership `json:"owned,omitempty"`
 	// Server-advertised metadata for a connected server. Omitted when no live connection
 	// metadata is available, including while pending or when failed, disabled, stopped, or not
 	// configured.
@@ -7856,6 +8267,14 @@ type MCPServerNeedsAuthInfo struct {
 	Timestamp int64 `json:"timestamp"`
 }
 
+// Owned installation that a listed MCP server's live configuration came from.
+// Experimental: MCPServerOwnership is part of an experimental API and may change or be
+// removed.
+type MCPServerOwnership struct {
+	// Stable installation identifier from the owned installation receipt.
+	InstallationID string `json:"installationId"`
+}
+
 // Mode controlling how MCP server env values are resolved (`direct` or `indirect`).
 // Experimental: MCPSetEnvValueModeParams is part of an experimental API and may change or
 // be removed.
@@ -7921,6 +8340,8 @@ type MCPStartServerRequest struct {
 	// MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server
 	// with its already-registered configuration (config-free start-by-name).
 	Config MCPSerializableServerConfig `json:"config,omitempty"`
+	// Exact receipt identity for explicit owned activation in this session.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to start
 	ServerName string `json:"serverName"`
 }
@@ -7941,6 +8362,8 @@ type MCPStartServersResult struct {
 // Experimental: MCPStopServerRequest is part of an experimental API and may change or be
 // removed.
 type MCPStopServerRequest struct {
+	// Exact owned receipt identity. Stop also forgets this session's durable activation.
+	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to stop
 	ServerName string `json:"serverName"`
 }
@@ -7973,6 +8396,26 @@ type MCPToolUI struct {
 	ResourceURI *string `json:"resourceUri,omitempty"`
 	// Tool visibility advertised by the server. When absent, MCP Apps defaults apply.
 	Visibility []MCPToolUIVisibility `json:"visibility,omitzero"`
+}
+
+// Exact inert removal plan. No configuration or credentials have changed.
+// Experimental: MCPUninstallPlan is part of an experimental API and may change or be
+// removed.
+type MCPUninstallPlan struct {
+	// Original wall-clock expiry in milliseconds. Applying never renews it.
+	ExpiresAtEpochMs int64 `json:"expiresAtEpochMs"`
+	// Original owned receipt being removed.
+	Installation MCPInstallationSummary `json:"installation"`
+	// The original operation, inspectable and cancellable on this same connection.
+	OperationID string `json:"operationId"`
+	// Exact configured input slots owned by this installation, never shared OAuth tokens.
+	OwnedSecretCount int64 `json:"ownedSecretCount"`
+	// One-use original connection and authority-bound plan handle.
+	PlanHandle string `json:"planHandle"`
+	// Shared authentication is deliberately retained; revocation is a separate action.
+	PreservesSharedAuthentication bool `json:"preservesSharedAuthentication"`
+	// Whether removal restores a protected earlier configuration.
+	RestoresPreviousConfiguration bool `json:"restoresPreviousConfiguration"`
 }
 
 // Server name identifying the external client to remove.
@@ -8232,6 +8675,14 @@ type ModelApplyStartupOverlayRequest struct {
 	DeferredResume *bool `json:"deferredResume,omitempty"`
 	// Model required by device-managed policy, when configured.
 	DeviceManagedModel *string `json:"deviceManagedModel,omitempty"`
+	// Context tier paired with the effective organization-managed model. Applies only when that
+	// concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user
+	// overrides.
+	ManagedContextTier *string `json:"managedContextTier,omitempty"`
+	// Reasoning effort paired with the effective organization-managed model. Applies only when
+	// that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or
+	// user overrides.
+	ManagedReasoningEffort *string `json:"managedReasoningEffort,omitempty"`
 	// Startup default model from the enterprise policy helper, when configured. Weakest of the
 	// managed sources: it applies only when neither device nor server policy names a model, and
 	// an explicit user selection still wins.
@@ -9243,21 +9694,6 @@ func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) Kin
 	return PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess
 }
 
-// Location-scoped factory approval, optionally narrowed by approval key.
-// Experimental: PermissionDecisionApproveForLocationApprovalFactory is part of an
-// experimental API and may change or be removed.
-type PermissionDecisionApproveForLocationApprovalFactory struct {
-	// Optional factory operation name or canonical approval key; when omitted, the approval
-	// covers all factory operations.
-	ApprovalKey *string `json:"approvalKey,omitempty"`
-}
-
-func (PermissionDecisionApproveForLocationApprovalFactory) permissionDecisionApproveForLocationApproval() {
-}
-func (PermissionDecisionApproveForLocationApprovalFactory) Kind() PermissionDecisionApproveForLocationApprovalKind {
-	return PermissionDecisionApproveForLocationApprovalKindFactory
-}
-
 // Location-scoped approval details for an MCP server tool, or all tools on the server when
 // `toolName` is null.
 // Experimental: PermissionDecisionApproveForLocationApprovalMCP is part of an experimental
@@ -9311,6 +9747,21 @@ func (PermissionDecisionApproveForLocationApprovalRead) permissionDecisionApprov
 }
 func (PermissionDecisionApproveForLocationApprovalRead) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindRead
+}
+
+// Location-scoped workflow approval, optionally narrowed by approval key.
+// Experimental: PermissionDecisionApproveForLocationApprovalWorkflow is part of an
+// experimental API and may change or be removed.
+type PermissionDecisionApproveForLocationApprovalWorkflow struct {
+	// Optional workflow operation name or canonical approval key; when omitted, the approval
+	// covers all workflow operations.
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (PermissionDecisionApproveForLocationApprovalWorkflow) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalWorkflow) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindWorkflow
 }
 
 // Location-scoped approval details for filesystem write operations.
@@ -9421,21 +9872,6 @@ func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) Kind
 	return PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess
 }
 
-// Session-scoped factory approval, optionally narrowed by approval key.
-// Experimental: PermissionDecisionApproveForSessionApprovalFactory is part of an
-// experimental API and may change or be removed.
-type PermissionDecisionApproveForSessionApprovalFactory struct {
-	// Optional factory operation name or canonical approval key; when omitted, the approval
-	// covers all factory operations.
-	ApprovalKey *string `json:"approvalKey,omitempty"`
-}
-
-func (PermissionDecisionApproveForSessionApprovalFactory) permissionDecisionApproveForSessionApproval() {
-}
-func (PermissionDecisionApproveForSessionApprovalFactory) Kind() PermissionDecisionApproveForSessionApprovalKind {
-	return PermissionDecisionApproveForSessionApprovalKindFactory
-}
-
 // Session-scoped approval details for an MCP server tool, or all tools on the server when
 // `toolName` is null.
 // Experimental: PermissionDecisionApproveForSessionApprovalMCP is part of an experimental
@@ -9488,6 +9924,21 @@ func (PermissionDecisionApproveForSessionApprovalRead) permissionDecisionApprove
 }
 func (PermissionDecisionApproveForSessionApprovalRead) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindRead
+}
+
+// Session-scoped workflow approval, optionally narrowed by approval key.
+// Experimental: PermissionDecisionApproveForSessionApprovalWorkflow is part of an
+// experimental API and may change or be removed.
+type PermissionDecisionApproveForSessionApprovalWorkflow struct {
+	// Optional workflow operation name or canonical approval key; when omitted, the approval
+	// covers all workflow operations.
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (PermissionDecisionApproveForSessionApprovalWorkflow) permissionDecisionApproveForSessionApproval() {
+}
+func (PermissionDecisionApproveForSessionApprovalWorkflow) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindWorkflow
 }
 
 // Session-scoped approval details for filesystem write operations.
@@ -9949,21 +10400,6 @@ func (PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) Kind(
 	return PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess
 }
 
-// Location-persisted factory approval, optionally narrowed by approval key.
-// Experimental: PermissionsLocationsAddToolApprovalDetailsFactory is part of an
-// experimental API and may change or be removed.
-type PermissionsLocationsAddToolApprovalDetailsFactory struct {
-	// Optional factory operation name or canonical approval key; when omitted, the approval
-	// covers all factory operations.
-	ApprovalKey *string `json:"approvalKey,omitempty"`
-}
-
-func (PermissionsLocationsAddToolApprovalDetailsFactory) permissionsLocationsAddToolApprovalDetails() {
-}
-func (PermissionsLocationsAddToolApprovalDetailsFactory) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
-	return PermissionsLocationsAddToolApprovalDetailsKindFactory
-}
-
 // Location-persisted tool approval details for an MCP server tool, or all tools when
 // `toolName` is null.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsMCP is part of an experimental
@@ -10015,6 +10451,21 @@ type PermissionsLocationsAddToolApprovalDetailsRead struct {
 func (PermissionsLocationsAddToolApprovalDetailsRead) permissionsLocationsAddToolApprovalDetails() {}
 func (PermissionsLocationsAddToolApprovalDetailsRead) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindRead
+}
+
+// Location-persisted workflow approval, optionally narrowed by approval key.
+// Experimental: PermissionsLocationsAddToolApprovalDetailsWorkflow is part of an
+// experimental API and may change or be removed.
+type PermissionsLocationsAddToolApprovalDetailsWorkflow struct {
+	// Optional workflow operation name or canonical approval key; when omitted, the approval
+	// covers all workflow operations.
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (PermissionsLocationsAddToolApprovalDetailsWorkflow) permissionsLocationsAddToolApprovalDetails() {
+}
+func (PermissionsLocationsAddToolApprovalDetailsWorkflow) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+	return PermissionsLocationsAddToolApprovalDetailsKindWorkflow
 }
 
 // Location-persisted tool approval details for filesystem write operations.
@@ -10750,6 +11201,18 @@ type ProviderConfigAzure struct {
 	// API version. When set, uses the versioned deployment route. When omitted, uses the GA
 	// versionless v1 route.
 	APIVersion *string `json:"apiVersion,omitempty"`
+}
+
+// A provider offered for interactive login.
+// Experimental: ProviderDescriptor is part of an experimental API and may change or be
+// removed.
+type ProviderDescriptor struct {
+	// Whether this provider is currently available to sign in with.
+	Available bool `json:"available"`
+	// The neutral provider kind.
+	Kind LoginProviderKind `json:"kind"`
+	// Human-readable menu label, owned by the runtime so every consumer renders identical text.
+	Label string `json:"label"`
 }
 
 // A snapshot of the provider endpoint the session is currently configured to talk to.
@@ -11894,19 +12357,6 @@ type ResponseFormat struct {
 	Type ResponseFormatType `json:"type"`
 }
 
-// Options controlling factory invocation.
-// Experimental: RunOptions is part of an experimental API and may change or be removed.
-type RunOptions struct {
-	// Per-invocation resource ceiling overrides.
-	Limits *FactoryRunLimits `json:"limits,omitempty"`
-	// Whether to emit factory phase names to the session transcript.
-	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
-	// Whether to notify the originating session when the factory completes.
-	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
-	// Run identifier whose journal and progress should seed this resumed run.
-	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
-}
-
 // Experimental: RuntimeShutdownResult is part of an experimental API and may change or be
 // removed.
 type RuntimeShutdownResult struct {
@@ -12548,6 +12998,11 @@ type ServerSkillList struct {
 	Skills []ServerSkill `json:"skills"`
 }
 
+// Experimental: SessionAccountsLoginCancelResult is part of an experimental API and may
+// change or be removed.
+type SessionAccountsLoginCancelResult struct {
+}
+
 // Current activity flags for the session.
 // Experimental: SessionActivity is part of an experimental API and may change or be removed.
 type SessionActivity struct {
@@ -12875,13 +13330,6 @@ type SessionExtensionsReloadResult struct {
 // Experimental: SessionExtensionsSendAttachmentsToMessageResult is part of an experimental
 // API and may change or be removed.
 type SessionExtensionsSendAttachmentsToMessageResult struct {
-}
-
-// Experimental: SessionFactoryPauseAtCheckpointResult is part of an experimental API and
-// may change or be removed.
-type SessionFactoryPauseAtCheckpointResult struct {
-	// Whether this execution attempt must pause or may continue.
-	Action FactoryPauseCheckpointAction `json:"action"`
 }
 
 // File path, content to append, and optional mode for the client-provided session
@@ -13602,6 +14050,53 @@ type SessionMCPEnableResult struct {
 // Experimental: SessionMCPOauthAuthenticationStateChangedResult is part of an experimental
 // API and may change or be removed.
 type SessionMCPOauthAuthenticationStateChangedResult struct {
+}
+
+// Targets only the original prepared/applying owned login on this exact session requester.
+// Experimental: SessionMCPOauthCancelLoginRequest is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthCancelLoginRequest struct {
+	// The same authoritative installation identity supplied during preparation.
+	ExpectedInstallationID string `json:"expectedInstallationId"`
+	// Runtime-issued login handle known before the effectful login request begins.
+	LoginID string `json:"loginId"`
+}
+
+// Honest terminal cancellation result; persistence or recovery failures remain RPC errors.
+// Experimental: SessionMCPOauthCancelLoginResult is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthCancelLoginResult struct {
+	// True after cancellation settles, false when the original login already connected
+	// successfully.
+	Cancelled bool `json:"cancelled"`
+}
+
+// Effect-free preparation bound to the existing local session, requester and installation,
+// with frozen options.
+// Experimental: SessionMCPOauthPrepareLoginRequest is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthPrepareLoginRequest struct {
+	// Text shown on the loopback callback page after successful authorisation.
+	CallbackSuccessMessage *string `json:"callbackSuccessMessage,omitempty"`
+	// Display name used by the incumbent OAuth client-registration flow.
+	ClientName *string `json:"clientName,omitempty"`
+	// Exact installation identity from owned inventory, never a server-name alias.
+	ExpectedInstallationID string `json:"expectedInstallationId"`
+	// Request a new authorisation rather than accepting a usable cached grant.
+	ForceReauth *bool `json:"forceReauth,omitempty"`
+	// Name recorded by the authoritative owned installation receipt.
+	ServerName string `json:"serverName"`
+}
+
+// An inert runtime-issued login handle. Preparation alone performs no activation or OAuth
+// work.
+// Experimental: SessionMCPOauthPrepareLoginResult is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthPrepareLoginResult struct {
+	// Original expiry, not extended by consumption, retries or cancellation.
+	ExpiresAt time.Time `json:"expiresAt"`
+	// Retain with the original requester and use for one login or cancellation.
+	LoginID string `json:"loginId"`
 }
 
 // Experimental: SessionMCPRegisterExternalClientResult is part of an experimental API and
@@ -15879,6 +16374,8 @@ func (SlashCommandSelectSubcommandResult) Kind() SlashCommandInvocationResultKin
 // Experimental: SlashCommandSetModelResult is part of an experimental API and may change or
 // be removed.
 type SlashCommandSetModelResult struct {
+	// Auto routing profile selected by the command, when the model is Auto.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Model selected by the command.
 	Model string `json:"model"`
 	// Reasoning effort selected for the model.
@@ -17622,19 +18119,6 @@ func (UserToolSessionApprovalExtensionPermissionAccess) Kind() UserToolSessionAp
 	return UserToolSessionApprovalKindExtensionPermissionAccess
 }
 
-// Session-scoped factory approval, optionally narrowed by approval key.
-// Experimental: UserToolSessionApprovalFactory is part of an experimental API and may
-// change or be removed.
-type UserToolSessionApprovalFactory struct {
-	// Optional factory operation name or canonical approval key
-	ApprovalKey *string `json:"approvalKey,omitempty"`
-}
-
-func (UserToolSessionApprovalFactory) userToolSessionApproval() {}
-func (UserToolSessionApprovalFactory) Kind() UserToolSessionApprovalKind {
-	return UserToolSessionApprovalKindFactory
-}
-
 // Session-scoped tool-approval rule for an MCP server tool, or all tools on the server when
 // `toolName` is null.
 // Experimental: UserToolSessionApprovalMCP is part of an experimental API and may change or
@@ -17671,6 +18155,19 @@ type UserToolSessionApprovalRead struct {
 func (UserToolSessionApprovalRead) userToolSessionApproval() {}
 func (UserToolSessionApprovalRead) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindRead
+}
+
+// Session-scoped workflow approval, optionally narrowed by approval key.
+// Experimental: UserToolSessionApprovalWorkflow is part of an experimental API and may
+// change or be removed.
+type UserToolSessionApprovalWorkflow struct {
+	// Optional workflow operation name or canonical approval key
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (UserToolSessionApprovalWorkflow) userToolSessionApproval() {}
+func (UserToolSessionApprovalWorkflow) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindWorkflow
 }
 
 // Session-scoped tool-approval rule for filesystem write operations.
@@ -18846,6 +19343,26 @@ const (
 	AbortReasonUserInitiated AbortReason = "user_initiated"
 )
 
+// The provider kind stamped on a signed-in account.
+// Experimental: AccountKind is part of an experimental API and may change or be removed.
+type AccountKind string
+
+const (
+	// A base Microsoft Entra identity.
+	AccountKindEntra AccountKind = "entra"
+	// A GitHub (EMU) account derived from a base Entra identity.
+	AccountKindEntraEmu AccountKind = "entraEmu"
+	// An OAuth github.com account.
+	AccountKindGitHubDotCom AccountKind = "githubDotCom"
+	// A Microsoft 365 Copilot (Loki) inference account derived from the same base Entra
+	// identity as an EMU account; its bearer is a Loki-scoped inference token consumed through
+	// the model-provider path, not the GitHub switcher.
+	AccountKindLoki AccountKind = "loki"
+	// A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g.
+	// *.ghe.com.
+	AccountKindProxima AccountKind = "proxima"
+)
+
 // Resolved Anthropic adaptive-thinking capability for a model.
 // Experimental: AdaptiveThinkingSupport is part of an experimental API and may change or be
 // removed.
@@ -19079,6 +19596,26 @@ const (
 	AttachmentTypeSelection            AttachmentType = "selection"
 )
 
+// Kind discriminator for AuthEnumerateQuery.
+// Experimental: AuthEnumerateQueryKind is part of an experimental API and may change or be
+// removed.
+type AuthEnumerateQueryKind string
+
+const (
+	AuthEnumerateQueryKindAccounts  AuthEnumerateQueryKind = "accounts"
+	AuthEnumerateQueryKindProviders AuthEnumerateQueryKind = "providers"
+)
+
+// Kind discriminator for AuthEnumerateValue.
+// Experimental: AuthEnumerateValueKind is part of an experimental API and may change or be
+// removed.
+type AuthEnumerateValueKind string
+
+const (
+	AuthEnumerateValueKindAccounts  AuthEnumerateValueKind = "accounts"
+	AuthEnumerateValueKindProviders AuthEnumerateValueKind = "providers"
+)
+
 // Type discriminator for AuthInfo.
 // Experimental: AuthInfoType is part of an experimental API and may change or be removed.
 type AuthInfoType string
@@ -19092,6 +19629,66 @@ const (
 	AuthInfoTypeToken           AuthInfoType = "token"
 	AuthInfoTypeTokenProvider   AuthInfoType = "token-provider"
 	AuthInfoTypeUser            AuthInfoType = "user"
+)
+
+// Terminal disposition of a login persistence attempt.
+// Experimental: AuthLoginResultStatus is part of an experimental API and may change or be
+// removed.
+type AuthLoginResultStatus string
+
+const (
+	// The credential was persisted and the account is signed in.
+	AuthLoginResultStatusCompleted AuthLoginResultStatus = "completed"
+	// The user declined plaintext persistence.
+	AuthLoginResultStatusDeclined AuthLoginResultStatus = "declined"
+	// Persistence needs explicit consent to store the token in plaintext.
+	AuthLoginResultStatusNeedsPlaintextConsent AuthLoginResultStatus = "needs-plaintext-consent"
+)
+
+// Kind discriminator for AuthLoginStep.
+// Experimental: AuthLoginStepKind is part of an experimental API and may change or be
+// removed.
+type AuthLoginStepKind string
+
+const (
+	AuthLoginStepKindAwaiting         AuthLoginStepKind = "awaiting"
+	AuthLoginStepKindCompleted        AuthLoginStepKind = "completed"
+	AuthLoginStepKindError            AuthLoginStepKind = "error"
+	AuthLoginStepKindInputRequired    AuthLoginStepKind = "input-required"
+	AuthLoginStepKindNeedsInteraction AuthLoginStepKind = "needs-interaction"
+	AuthLoginStepKindOpenURL          AuthLoginStepKind = "open-url"
+)
+
+// Kind discriminator for AuthReadQuery.
+// Experimental: AuthReadQueryKind is part of an experimental API and may change or be
+// removed.
+type AuthReadQueryKind string
+
+const (
+	AuthReadQueryKindActiveAccount AuthReadQueryKind = "activeAccount"
+	AuthReadQueryKindLastErrors    AuthReadQueryKind = "lastErrors"
+	AuthReadQueryKindStatus        AuthReadQueryKind = "status"
+)
+
+// Kind discriminator for AuthReadValue.
+// Experimental: AuthReadValueKind is part of an experimental API and may change or be
+// removed.
+type AuthReadValueKind string
+
+const (
+	AuthReadValueKindActiveAccount AuthReadValueKind = "activeAccount"
+	AuthReadValueKindLastErrors    AuthReadValueKind = "lastErrors"
+	AuthReadValueKindStatus        AuthReadValueKind = "status"
+)
+
+// Kind discriminator for AuthWrite.
+// Experimental: AuthWriteKind is part of an experimental API and may change or be removed.
+type AuthWriteKind string
+
+const (
+	AuthWriteKindLogout         AuthWriteKind = "logout"
+	AuthWriteKindSetCredentials AuthWriteKind = "setCredentials"
+	AuthWriteKindSwitchActive   AuthWriteKind = "switchActive"
 )
 
 // Current normalized autopilot objective lifecycle status.
@@ -19278,11 +19875,20 @@ const (
 	// Understands explicit numbered navigation and authority-reported pagination metadata with
 	// opaque tokens. Advertised and granted only when requested.
 	CatalogCapabilityCatalogSearchPagination CatalogCapability = "catalog-search-pagination"
+	// Captures the exact existing native session, account, host and connection for
+	// authenticated catalogue search, selection and planning. Requires
+	// catalog-search-credential-required; does not grant installation or create a session.
+	CatalogCapabilityCatalogSearchSessionBound CatalogCapability = "catalog-search-session-bound"
 	// Understands exact candidate selection through model-safe opaque references and host-only
 	// candidate-handle hand-off.
 	CatalogCapabilityCatalogSelection CatalogCapability = "catalog-selection"
 	// Understands the legacy `application/mcp-server+json` media type.
 	CatalogCapabilityLegacyMCPServerCard CatalogCapability = "legacy-mcp-server-card"
+	// Understands effect-free preparation, exact human-confirmed apply and owned removal for
+	// fully resolved personal remote MCP choices without supplied inputs or configured secrets.
+	// Advertised only when the real producer and lower owned admission are linked; requires
+	// original connection and bound session authority for new work.
+	CatalogCapabilityMCPConfirmedRemoteInstallation CatalogCapability = "mcp-confirmed-remote-installation"
 	// Understands side-effect-free MCP install-plan requests, results, and plan handles;
 	// `planning-unavailable` separately reports that planning is not enabled.
 	CatalogCapabilityMCPInstallPlanning CatalogCapability = "mcp-install-planning"
@@ -19366,6 +19972,8 @@ const (
 	// The pagination token or target was invalid, or the authority rejected the continuation.
 	// Repeat the search without page.
 	CatalogInvalidRequestFieldPage CatalogInvalidRequestField = "page"
+	// The selected existing attached session was missing, malformed or unavailable.
+	CatalogInvalidRequestFieldPolicySessionID CatalogInvalidRequestField = "policySessionId"
 	// The search query was empty or longer than permitted.
 	CatalogInvalidRequestFieldQuery CatalogInvalidRequestField = "query"
 	// The requested configuration scope is not one this runtime writes.
@@ -20177,133 +20785,6 @@ const (
 	ExternalToolTextResultForLlmContentTypeText         ExternalToolTextResultForLlmContentType = "text"
 )
 
-// Execution-critical factory storage operation.
-// Experimental: FactoryDurableOperation is part of an experimental API and may change or be
-// removed.
-type FactoryDurableOperation string
-
-const (
-	// Persisting active execution time.
-	FactoryDurableOperationAddElapsed FactoryDurableOperation = "addElapsed"
-	// Persisting an idempotent model-usage charge.
-	FactoryDurableOperationChargeCredit FactoryDurableOperation = "chargeCredit"
-	// Creating the durable run and declared phases.
-	FactoryDurableOperationCreateRun FactoryDurableOperation = "createRun"
-	// Persisting the terminal run envelope.
-	FactoryDurableOperationFinishRun FactoryDurableOperation = "finishRun"
-	// Reading a journal entry without treating storage failure as a cache miss.
-	FactoryDurableOperationJournalGet FactoryDurableOperation = "journalGet"
-	// Persisting a journal entry before reporting success.
-	FactoryDurableOperationJournalPut FactoryDurableOperation = "journalPut"
-	// Persisting the transition to running.
-	FactoryDurableOperationMarkRunStarted FactoryDurableOperation = "markRunStarted"
-	// Reading the authoritative AI-credit total.
-	FactoryDurableOperationReconcileCreditTotal FactoryDurableOperation = "reconcileCreditTotal"
-	// Renewing the durable owner lease that proves this process still owns the run.
-	FactoryDurableOperationRefreshLease FactoryDurableOperation = "refreshLease"
-	// Rolling back an uncommitted subagent admission.
-	FactoryDurableOperationReleaseAgent FactoryDurableOperation = "releaseAgent"
-	// Persisting subagent admission accounting.
-	FactoryDurableOperationReserveAgent FactoryDurableOperation = "reserveAgent"
-)
-
-// Kind of factory progress line.
-// Experimental: FactoryLogLineKind is part of an experimental API and may change or be
-// removed.
-type FactoryLogLineKind string
-
-const (
-	// A narrator log line.
-	FactoryLogLineKindLog FactoryLogLineKind = "log"
-	// A named factory phase marker.
-	FactoryLogLineKindPhase FactoryLogLineKind = "phase"
-)
-
-// Action the runtime selected for a durable factory pause checkpoint.
-// Experimental: FactoryPauseCheckpointAction is part of an experimental API and may change
-// or be removed.
-type FactoryPauseCheckpointAction string
-
-const (
-	// The checkpoint was committed by a prior paused attempt, so execution may continue.
-	FactoryPauseCheckpointActionContinue FactoryPauseCheckpointAction = "continue"
-	// This attempt claimed the checkpoint and must cooperatively stop.
-	FactoryPauseCheckpointActionPause FactoryPauseCheckpointAction = "pause"
-)
-
-// Type discriminator for FactoryPauseInfo.
-type FactoryPauseInfoType string
-
-const (
-	FactoryPauseInfoTypeCheckpoint FactoryPauseInfoType = "checkpoint"
-	FactoryPauseInfoTypeUser       FactoryPauseInfoType = "user"
-)
-
-// Derived lifecycle state of a factory phase.
-// Experimental: FactoryPhaseStatus is part of an experimental API and may change or be
-// removed.
-type FactoryPhaseStatus string
-
-const (
-	// The phase is currently entered and accumulating active time.
-	FactoryPhaseStatusActive FactoryPhaseStatus = "active"
-	// The phase was entered and has since been closed.
-	FactoryPhaseStatusCompleted FactoryPhaseStatus = "completed"
-	// The phase has not been entered yet.
-	FactoryPhaseStatusPending FactoryPhaseStatus = "pending"
-	// The phase was never entered because a later phase was entered or the run reached a
-	// terminal state.
-	FactoryPhaseStatusSkipped FactoryPhaseStatus = "skipped"
-)
-
-// Cumulative resource ceiling that stopped a factory run.
-// Experimental: FactoryRunFailureKind is part of an experimental API and may change or be
-// removed.
-type FactoryRunFailureKind string
-
-const (
-	// The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no
-	// headroom remained for another subagent.
-	FactoryRunFailureKindMaxAiCredits FactoryRunFailureKind = "maxAiCredits"
-	// The run admitted the approved maximum total number of subagents.
-	FactoryRunFailureKindMaxTotalSubagents FactoryRunFailureKind = "maxTotalSubagents"
-	// The run reached the approved accumulated active-execution time in seconds.
-	FactoryRunFailureKindTimeoutSeconds FactoryRunFailureKind = "timeoutSeconds"
-)
-
-// Type discriminator for FactoryRunFailure.
-type FactoryRunFailureType string
-
-const (
-	FactoryRunFailureTypeFactoryAccountingIncomplete FactoryRunFailureType = "factory_accounting_incomplete"
-	FactoryRunFailureTypeFactoryDurableFailure       FactoryRunFailureType = "factory_durable_failure"
-	FactoryRunFailureTypeFactoryLimitReached         FactoryRunFailureType = "factory_limit_reached"
-	FactoryRunFailureTypeFactoryProviderDisconnected FactoryRunFailureType = "factory_provider_disconnected"
-	FactoryRunFailureTypeFactoryResumeDeclined       FactoryRunFailureType = "factory_resume_declined"
-)
-
-// Current or terminal state of a factory run.
-// Experimental: FactoryRunStatus is part of an experimental API and may change or be
-// removed.
-type FactoryRunStatus string
-
-const (
-	// The run was cancelled before completion.
-	FactoryRunStatusCancelled FactoryRunStatus = "cancelled"
-	// The run completed successfully.
-	FactoryRunStatusCompleted FactoryRunStatus = "completed"
-	// The factory body failed or reached a cumulative resource ceiling.
-	FactoryRunStatusError FactoryRunStatus = "error"
-	// The run was interrupted while resource budget remained.
-	FactoryRunStatusHalted FactoryRunStatus = "halted"
-	// The current attempt stopped intentionally and the run may be resumed.
-	FactoryRunStatusPaused FactoryRunStatus = "paused"
-	// The run was minted and is awaiting approval.
-	FactoryRunStatusPending FactoryRunStatus = "pending"
-	// The run is executing.
-	FactoryRunStatusRunning FactoryRunStatus = "running"
-)
-
 // Why the runtime is requesting a GitHub credential.
 // Experimental: GitHubTokenAcquireReason is part of an experimental API and may change or
 // be removed.
@@ -20512,6 +20993,27 @@ const (
 	IndexedSearchStateStarting IndexedSearchState = "starting"
 )
 
+// Explicit user decisions, never inferred from a permission grant or model response.
+// Experimental: InstallationDecision is part of an experimental API and may change or be
+// removed.
+type InstallationDecision string
+
+const (
+	// The user cancelled the pending decision without granting consent.
+	InstallationDecisionCancel InstallationDecision = "cancel"
+	// The user explicitly approved the exact review on this request.
+	InstallationDecisionConfirm InstallationDecision = "confirm"
+	// The user declined the reviewed operation.
+	InstallationDecisionDecline InstallationDecision = "decline"
+)
+
+// Reviewed resource discriminator.
+type InstallationReviewResource string
+
+const (
+	InstallationReviewResourceMCP InstallationReviewResource = "mcp"
+)
+
 // Constant value. Always "github".
 type InstalledPluginSourceGitHubSource string
 
@@ -20617,6 +21119,21 @@ const (
 	// the `binary` flag distinguishes text from binary frames; request and response chunks flow
 	// concurrently.
 	LlmInferenceHTTPRequestStartTransportWebsocket LlmInferenceHTTPRequestStartTransport = "websocket"
+)
+
+// A provider a consumer may interactively sign in with.
+// Experimental: LoginProviderKind is part of an experimental API and may change or be
+// removed.
+type LoginProviderKind string
+
+const (
+	// Microsoft Entra sign-in that derives a GitHub (EMU) credential.
+	LoginProviderKindEntra LoginProviderKind = "entra"
+	// OAuth github.com sign-in via the browser (web loopback + PKCE).
+	LoginProviderKindGitHubDotCom LoginProviderKind = "githubDotCom"
+	// A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g.
+	// *.ghe.com; the host is supplied interactively through the neutral input-required step.
+	LoginProviderKindProxima LoginProviderKind = "proxima"
 )
 
 // Summary of which managed-settings channels contributed to the effective session policy.
@@ -20796,6 +21313,156 @@ const (
 	MCPHeadersHandlePendingHeadersRefreshRequestKindNone    MCPHeadersHandlePendingHeadersRefreshRequestKind = "none"
 )
 
+// Bounded refusal categories, without echoing handles, credentials or configuration.
+// Experimental: MCPInstallationFailureReason is part of an experimental API and may change
+// or be removed.
+type MCPInstallationFailureReason string
+
+const (
+	// The original operation was cancelled.
+	MCPInstallationFailureReasonCancelled MCPInstallationFailureReason = "cancelled"
+	// Required installation capabilities were omitted.
+	MCPInstallationFailureReasonCapabilityRequired MCPInstallationFailureReason = "capability-required"
+	// Configuration changed after the reviewed snapshot.
+	MCPInstallationFailureReasonConfigurationChanged MCPInstallationFailureReason = "configuration-changed"
+	// Installed configuration no longer matches ownership evidence.
+	MCPInstallationFailureReasonConfigurationModified MCPInstallationFailureReason = "configuration-modified"
+	// The confirmation response is malformed or mismatched.
+	MCPInstallationFailureReasonConfirmationInvalid MCPInstallationFailureReason = "confirmation-invalid"
+	// The original host cannot receive human confirmation.
+	MCPInstallationFailureReasonConfirmationUnavailable MCPInstallationFailureReason = "confirmation-unavailable"
+	// The handle belongs to a different runtime, session or connection.
+	MCPInstallationFailureReasonForeignRuntime MCPInstallationFailureReason = "foreign-runtime"
+	// The selected choice or request is unsupported or malformed.
+	MCPInstallationFailureReasonInvalidRequest MCPInstallationFailureReason = "invalid-request"
+	// Required owned admission and lifecycle support is absent.
+	MCPInstallationFailureReasonLifecycleUnavailable MCPInstallationFailureReason = "lifecycle-unavailable"
+	// The bounded original-connection operation limit was reached.
+	MCPInstallationFailureReasonOperationLimit MCPInstallationFailureReason = "operation-limit"
+	// The original plan deadline elapsed.
+	MCPInstallationFailureReasonPlanExpired MCPInstallationFailureReason = "plan-expired"
+	// The one-use plan or prepared operation was already consumed.
+	MCPInstallationFailureReasonPlanReplayed MCPInstallationFailureReason = "plan-replayed"
+	// The original authority or policy changed.
+	MCPInstallationFailureReasonPolicyChanged MCPInstallationFailureReason = "policy-changed"
+	// Existing authenticated session and host authority is unavailable.
+	MCPInstallationFailureReasonPolicyContextUnavailable MCPInstallationFailureReason = "policy-context-unavailable"
+	// Current managed policy refuses the operation.
+	MCPInstallationFailureReasonPolicyDenied MCPInstallationFailureReason = "policy-denied"
+	// Authoritative Registry interpretation is unavailable.
+	MCPInstallationFailureReasonRegistryUnavailable MCPInstallationFailureReason = "registry-unavailable"
+	// Fresh bound planning is required.
+	MCPInstallationFailureReasonReplanRequired MCPInstallationFailureReason = "replan-required"
+	// No matching owned resource or original operation exists.
+	MCPInstallationFailureReasonResourceNotFound MCPInstallationFailureReason = "resource-not-found"
+	// The selected secret backend is unavailable.
+	MCPInstallationFailureReasonSecretStoreUnavailable MCPInstallationFailureReason = "secret-store-unavailable"
+	// The source differs from the retained commitment.
+	MCPInstallationFailureReasonSourceChanged MCPInstallationFailureReason = "source-changed"
+	// Exact original source revalidation is unsupported.
+	MCPInstallationFailureReasonSourceRevalidationUnavailable MCPInstallationFailureReason = "source-revalidation-unavailable"
+	// The original source could not be retrieved safely.
+	MCPInstallationFailureReasonSourceUnavailable MCPInstallationFailureReason = "source-unavailable"
+	// A storage operation failed; inspect any allocated operation before retrying.
+	MCPInstallationFailureReasonWriteFailed MCPInstallationFailureReason = "write-failed"
+)
+
+// Kind discriminator for MCPInstallationManagementOutcome.
+type MCPInstallationManagementOutcomeKind string
+
+const (
+	MCPInstallationManagementOutcomeKindInstallPrepared  MCPInstallationManagementOutcomeKind = "install-prepared"
+	MCPInstallationManagementOutcomeKindListed           MCPInstallationManagementOutcomeKind = "listed"
+	MCPInstallationManagementOutcomeKindOperation        MCPInstallationManagementOutcomeKind = "operation"
+	MCPInstallationManagementOutcomeKindRecovered        MCPInstallationManagementOutcomeKind = "recovered"
+	MCPInstallationManagementOutcomeKindRecoveryRequired MCPInstallationManagementOutcomeKind = "recovery-required"
+	MCPInstallationManagementOutcomeKindRefused          MCPInstallationManagementOutcomeKind = "refused"
+	MCPInstallationManagementOutcomeKindUninstallPlanned MCPInstallationManagementOutcomeKind = "uninstall-planned"
+)
+
+// Kind discriminator for MCPInstallationManagementResult.
+type MCPInstallationManagementResultKind string
+
+const (
+	MCPInstallationManagementResultKindInvalidRequest     MCPInstallationManagementResultKind = "invalid-request"
+	MCPInstallationManagementResultKindNegotiationRefused MCPInstallationManagementResultKind = "negotiation-refused"
+	MCPInstallationManagementResultKindOutcome            MCPInstallationManagementResultKind = "outcome"
+)
+
+// Phase discriminator for MCPInstallationOperationStatus.
+type MCPInstallationOperationStatusPhase string
+
+const (
+	MCPInstallationOperationStatusPhaseApplying             MCPInstallationOperationStatusPhase = "applying"
+	MCPInstallationOperationStatusPhaseAwaitingConfirmation MCPInstallationOperationStatusPhase = "awaiting-confirmation"
+	MCPInstallationOperationStatusPhaseCompleted            MCPInstallationOperationStatusPhase = "completed"
+	MCPInstallationOperationStatusPhasePrepared             MCPInstallationOperationStatusPhase = "prepared"
+	MCPInstallationOperationStatusPhasePreparing            MCPInstallationOperationStatusPhase = "preparing"
+	MCPInstallationOperationStatusPhaseRevalidating         MCPInstallationOperationStatusPhase = "revalidating"
+)
+
+// Kind discriminator for MCPInstallationOutcome.
+type MCPInstallationOutcomeKind string
+
+const (
+	MCPInstallationOutcomeKindCancelled        MCPInstallationOutcomeKind = "cancelled"
+	MCPInstallationOutcomeKindDeclined         MCPInstallationOutcomeKind = "declined"
+	MCPInstallationOutcomeKindInstalled        MCPInstallationOutcomeKind = "installed"
+	MCPInstallationOutcomeKindRecoveryRequired MCPInstallationOutcomeKind = "recovery-required"
+	MCPInstallationOutcomeKindRefused          MCPInstallationOutcomeKind = "refused"
+	MCPInstallationOutcomeKindRolledBack       MCPInstallationOutcomeKind = "rolled-back"
+	MCPInstallationOutcomeKindUninstalled      MCPInstallationOutcomeKind = "uninstalled"
+)
+
+// Kind discriminator for MCPInstallationResult.
+type MCPInstallationResultKind string
+
+const (
+	MCPInstallationResultKindInvalidRequest     MCPInstallationResultKind = "invalid-request"
+	MCPInstallationResultKindNegotiationRefused MCPInstallationResultKind = "negotiation-refused"
+	MCPInstallationResultKindOutcome            MCPInstallationResultKind = "outcome"
+)
+
+// Action discriminator for MCPInstallationReview.
+type MCPInstallationReviewAction string
+
+const (
+	MCPInstallationReviewActionInstall   MCPInstallationReviewAction = "install"
+	MCPInstallationReviewActionUninstall MCPInstallationReviewAction = "uninstall"
+)
+
+// Explicit backend selection is part of the final review; failures never switch backends.
+// Experimental: MCPInstallationSecretStorage is part of an experimental API and may change
+// or be removed.
+type MCPInstallationSecretStorage string
+
+const (
+	// The selected operating-system keychain, without fallback to file storage.
+	MCPInstallationSecretStorageKeychain MCPInstallationSecretStorage = "keychain"
+	// The explicitly selected private file backend.
+	MCPInstallationSecretStoragePrivateFile MCPInstallationSecretStorage = "private-file"
+)
+
+// Configuration ownership and setup observations, distinct from tool permissions.
+// Experimental: MCPInstallationState is part of an experimental API and may change or be
+// removed.
+type MCPInstallationState string
+
+const (
+	// The selected server could not be activated.
+	MCPInstallationStateActivationFailed MCPInstallationState = "activation-failed"
+	// The selected authorised session reports an active installation.
+	MCPInstallationStateActive MCPInstallationState = "active"
+	// The selected server requires explicit sign-in.
+	MCPInstallationStateAuthenticationRequired MCPInstallationState = "authentication-required"
+	// Owned configuration no longer matches its receipt.
+	MCPInstallationStateConfigurationModified MCPInstallationState = "configuration-modified"
+	// Owned configuration exists; inventory alone does not grant activation.
+	MCPInstallationStateNeedsSetup MCPInstallationState = "needs-setup"
+	// Confirmed durable work or unsafe evidence requires recovery.
+	MCPInstallationStateRecoveryRequired MCPInstallationState = "recovery-required"
+)
+
 // OAuth grant type override for this login.
 // Experimental: MCPOauthLoginGrantType is part of an experimental API and may change or be
 // removed.
@@ -20842,6 +21509,18 @@ const (
 	MCPOauthProbeResultStatusFailed         MCPOauthProbeResultStatus = "failed"
 	MCPOauthProbeResultStatusNeedsAuth      MCPOauthProbeResultStatus = "needs-auth"
 	MCPOauthProbeResultStatusNoAuthRequired MCPOauthProbeResultStatus = "no-auth-required"
+)
+
+// Outcome of starting the original prepared owned login.
+// Experimental: MCPOwnedOauthLoginStatus is part of an experimental API and may change or
+// be removed.
+type MCPOwnedOauthLoginStatus string
+
+const (
+	// The original requester may open the returned authorisation URL.
+	MCPOwnedOauthLoginStatusAwaitingBrowser MCPOwnedOauthLoginStatus = "awaiting-browser"
+	// Cached credentials were accepted and the original server finished reconnecting.
+	MCPOwnedOauthLoginStatusConnected MCPOwnedOauthLoginStatus = "connected"
 )
 
 // Whether a planned configuration change would create or modify an entry
@@ -21289,6 +21968,8 @@ const (
 	// The runtime selected the model automatically, such as rate-limit recovery or refusal
 	// fallback.
 	ModelChangeSourceAutomatic ModelChangeSource = "automatic"
+	// The user accepted a CAPI-issued Auto tier recommendation.
+	ModelChangeSourceAutoTierRecommendation ModelChangeSource = "auto_tier_recommendation"
 	// The user selected the promoted model from the changeboarding card or its keyboard
 	// shortcut.
 	ModelChangeSourceChangeboardingShortcut ModelChangeSource = "changeboarding_shortcut"
@@ -21465,11 +22146,11 @@ const (
 	PermissionDecisionApproveForLocationApprovalKindExtensionEnvAccess        PermissionDecisionApproveForLocationApprovalKind = "extension-env-access"
 	PermissionDecisionApproveForLocationApprovalKindExtensionManagement       PermissionDecisionApproveForLocationApprovalKind = "extension-management"
 	PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess PermissionDecisionApproveForLocationApprovalKind = "extension-permission-access"
-	PermissionDecisionApproveForLocationApprovalKindFactory                   PermissionDecisionApproveForLocationApprovalKind = "factory"
 	PermissionDecisionApproveForLocationApprovalKindMCP                       PermissionDecisionApproveForLocationApprovalKind = "mcp"
 	PermissionDecisionApproveForLocationApprovalKindMCPSampling               PermissionDecisionApproveForLocationApprovalKind = "mcp-sampling"
 	PermissionDecisionApproveForLocationApprovalKindMemory                    PermissionDecisionApproveForLocationApprovalKind = "memory"
 	PermissionDecisionApproveForLocationApprovalKindRead                      PermissionDecisionApproveForLocationApprovalKind = "read"
+	PermissionDecisionApproveForLocationApprovalKindWorkflow                  PermissionDecisionApproveForLocationApprovalKind = "workflow"
 	PermissionDecisionApproveForLocationApprovalKindWrite                     PermissionDecisionApproveForLocationApprovalKind = "write"
 )
 
@@ -21482,11 +22163,11 @@ const (
 	PermissionDecisionApproveForSessionApprovalKindExtensionEnvAccess        PermissionDecisionApproveForSessionApprovalKind = "extension-env-access"
 	PermissionDecisionApproveForSessionApprovalKindExtensionManagement       PermissionDecisionApproveForSessionApprovalKind = "extension-management"
 	PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess PermissionDecisionApproveForSessionApprovalKind = "extension-permission-access"
-	PermissionDecisionApproveForSessionApprovalKindFactory                   PermissionDecisionApproveForSessionApprovalKind = "factory"
 	PermissionDecisionApproveForSessionApprovalKindMCP                       PermissionDecisionApproveForSessionApprovalKind = "mcp"
 	PermissionDecisionApproveForSessionApprovalKindMCPSampling               PermissionDecisionApproveForSessionApprovalKind = "mcp-sampling"
 	PermissionDecisionApproveForSessionApprovalKindMemory                    PermissionDecisionApproveForSessionApprovalKind = "memory"
 	PermissionDecisionApproveForSessionApprovalKindRead                      PermissionDecisionApproveForSessionApprovalKind = "read"
+	PermissionDecisionApproveForSessionApprovalKindWorkflow                  PermissionDecisionApproveForSessionApprovalKind = "workflow"
 	PermissionDecisionApproveForSessionApprovalKindWrite                     PermissionDecisionApproveForSessionApprovalKind = "write"
 )
 
@@ -21533,9 +22214,8 @@ type PermissionDecisionSource string
 const (
 	// The response followed the assisted-approval judge recommendation.
 	PermissionDecisionSourceAssistedApproval PermissionDecisionSource = "assisted_approval"
-	// A live authorization record from an earlier human decision in this session contained the
-	// proposal, so it ran without another prompt. This is not a new human decision and never
-	// mints authority of its own.
+	// Historical compatibility value for sessions created while authorization carry-forward was
+	// executable. Current runtimes do not produce this source.
 	PermissionDecisionSourceAuthorizationCarryForward PermissionDecisionSource = "authorization_carry_forward"
 	// The host applied a standing policy or override rather than a judge recommendation or
 	// human decision.
@@ -21601,7 +22281,8 @@ const (
 	PermissionModeSourceAutopilotConfirmation PermissionModeSource = "autopilot_confirmation"
 	// The mode was set from a CLI command-line flag.
 	PermissionModeSourceCLIFlag PermissionModeSource = "cli_flag"
-	// The mode was set at startup by authenticated organization targeting.
+	// Historical compatibility value for runtimes that selected Assisted mode through
+	// organization targeting. Current runtimes do not produce this source.
 	PermissionModeSourceOrganizationTargeting PermissionModeSource = "organization_targeting"
 	// The mode was set through an RPC caller.
 	PermissionModeSourceRPC PermissionModeSource = "rpc"
@@ -21753,11 +22434,11 @@ const (
 	PermissionsLocationsAddToolApprovalDetailsKindExtensionEnvAccess        PermissionsLocationsAddToolApprovalDetailsKind = "extension-env-access"
 	PermissionsLocationsAddToolApprovalDetailsKindExtensionManagement       PermissionsLocationsAddToolApprovalDetailsKind = "extension-management"
 	PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess PermissionsLocationsAddToolApprovalDetailsKind = "extension-permission-access"
-	PermissionsLocationsAddToolApprovalDetailsKindFactory                   PermissionsLocationsAddToolApprovalDetailsKind = "factory"
 	PermissionsLocationsAddToolApprovalDetailsKindMCP                       PermissionsLocationsAddToolApprovalDetailsKind = "mcp"
 	PermissionsLocationsAddToolApprovalDetailsKindMCPSampling               PermissionsLocationsAddToolApprovalDetailsKind = "mcp-sampling"
 	PermissionsLocationsAddToolApprovalDetailsKindMemory                    PermissionsLocationsAddToolApprovalDetailsKind = "memory"
 	PermissionsLocationsAddToolApprovalDetailsKindRead                      PermissionsLocationsAddToolApprovalDetailsKind = "read"
+	PermissionsLocationsAddToolApprovalDetailsKindWorkflow                  PermissionsLocationsAddToolApprovalDetailsKind = "workflow"
 	PermissionsLocationsAddToolApprovalDetailsKindWrite                     PermissionsLocationsAddToolApprovalDetailsKind = "write"
 )
 
@@ -23087,10 +23768,10 @@ const (
 	UserToolSessionApprovalKindExtensionEnvAccess        UserToolSessionApprovalKind = "extension-env-access"
 	UserToolSessionApprovalKindExtensionManagement       UserToolSessionApprovalKind = "extension-management"
 	UserToolSessionApprovalKindExtensionPermissionAccess UserToolSessionApprovalKind = "extension-permission-access"
-	UserToolSessionApprovalKindFactory                   UserToolSessionApprovalKind = "factory"
 	UserToolSessionApprovalKindMCP                       UserToolSessionApprovalKind = "mcp"
 	UserToolSessionApprovalKindMemory                    UserToolSessionApprovalKind = "memory"
 	UserToolSessionApprovalKindRead                      UserToolSessionApprovalKind = "read"
+	UserToolSessionApprovalKindWorkflow                  UserToolSessionApprovalKind = "workflow"
 	UserToolSessionApprovalKindWrite                     UserToolSessionApprovalKind = "write"
 )
 
@@ -23793,6 +24474,51 @@ func (a *ServerManagedSettingsAPI) Read(ctx context.Context) (*ManagedSettingsRe
 // Experimental: ServerMCPAPI contains experimental APIs that may change or be removed.
 type ServerMCPAPI serverAPI
 
+// ApplyInstall consumes a retained prepared MCP operation once, revalidates its original
+// authority, requests explicit human consent through installations.confirm on the original
+// connection, then revalidates source and applies the sealed transaction. An uncertain
+// result requires original-operation inspection or recovery, never replay.
+//
+// RPC method: mcp.applyInstall.
+//
+// Parameters: Applies exactly one previously prepared operation on its original connection.
+//
+// Returns: An installation result together with the exact honoured contract, or a
+// negotiation refusal.
+func (a *ServerMCPAPI) ApplyInstall(ctx context.Context, params *MCPApplyInstallRequest) (MCPInstallationResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.applyInstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ApplyUninstall consumes the original owned-removal plan once and requests fresh exact
+// human confirmation on its original connection. Drift is refused; unrelated manual
+// configuration and shared OAuth credentials are preserved.
+//
+// RPC method: mcp.applyUninstall.
+//
+// Parameters: One-use application of the exact retained removal plan.
+//
+// Returns: An installation result together with the exact honoured contract, or a
+// negotiation refusal.
+func (a *ServerMCPAPI) ApplyUninstall(ctx context.Context, params *MCPApplyUninstallRequest) (MCPInstallationResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.applyUninstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // Discovers MCP servers from user, workspace, plugin, and builtin sources.
 //
 // RPC method: mcp.discover.
@@ -23836,6 +24562,53 @@ func (a *ServerMCPAPI) PlanInstall(ctx context.Context, params *MCPPlanInstallRe
 		return nil, err
 	}
 	result, err := unmarshalMCPPlanInstallResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// PlanUninstall prepares a read-only removal plan for an exact owned receipt under the
+// selected existing session. Returns the original operation ID before confirmation; neither
+// planning nor abandonment changes configuration or shared OAuth credentials.
+//
+// RPC method: mcp.planUninstall.
+//
+// Parameters: Read-only preparation of one owned removal under fresh selected-session
+// authority.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPAPI) PlanUninstall(ctx context.Context, params *MCPPlanUninstallRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.planUninstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// PrepareInstall consumes a bound catalogue plan and retains one exact fully resolved
+// personal remote MCP operation requiring no supplied values or configured secrets. Returns
+// its runtime operation ID and original expiry before any confirmation, activation, writer
+// initialisation or installation effect. Register the original connection, operation and
+// selected-session binding before calling applyInstall. Missing lower owned admission is
+// unavailable, never a raw-config fallback.
+//
+// RPC method: mcp.prepareInstall.
+//
+// Parameters: Side-effect-free preparation of one original bound, input-free remote MCP
+// choice.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPAPI) PrepareInstall(ctx context.Context, params *MCPPrepareInstallRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.prepareInstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -23966,6 +24739,103 @@ func (a *ServerMCPConfigAPI) Update(ctx context.Context, params *MCPConfigUpdate
 // Experimental: Config returns experimental APIs that may change or be removed.
 func (s *ServerMCPAPI) Config() *ServerMCPConfigAPI {
 	return (*ServerMCPConfigAPI)(s)
+}
+
+// Experimental: ServerMCPInstallationsAPI contains experimental APIs that may change or be
+// removed.
+type ServerMCPInstallationsAPI serverAPI
+
+// Cancel requests cancellation of a known operation on its original connection, including
+// before apply or confirmation. Already-started effects retain their transaction lease and
+// report an honest terminal or recovery outcome.
+//
+// RPC method: mcp.installations.cancel.
+//
+// Parameters: Existing-operation control. A new session selector is deliberately not
+// accepted.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPInstallationsAPI) Cancel(ctx context.Context, params *MCPInstallationOperationRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.installations.cancel", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// List reads receipt-owned MCP inventory for the selected account and host without
+// activating servers or reconstructing missing ownership. Configuration ownership does not
+// prove session-specific usability.
+//
+// RPC method: mcp.installations.list.
+//
+// Parameters: New-work inventory or recovery request under an explicitly selected existing
+// session.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPInstallationsAPI) List(ctx context.Context, params *MCPInstallationsRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.installations.list", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Recover reconciles already-confirmed durable MCP transactions, then inspects owned
+// inventory. Does not replay apply or reconstruct deleted ownership metadata; unresolved or
+// unsafe evidence remains an explicit refusal.
+//
+// RPC method: mcp.installations.recover.
+//
+// Parameters: New-work inventory or recovery request under an explicitly selected existing
+// session.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPInstallationsAPI) Recover(ctx context.Context, params *MCPInstallationsRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.installations.recover", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Status inspects a known operation only on its original connection. Remains available
+// after account or selected-session loss; does not acquire new authority or rebind an
+// operation.
+//
+// RPC method: mcp.installations.status.
+//
+// Parameters: Existing-operation control. A new session selector is deliberately not
+// accepted.
+//
+// Returns: Management result with contract receipt, or a typed request/negotiation refusal.
+func (a *ServerMCPInstallationsAPI) Status(ctx context.Context, params *MCPInstallationOperationRequest) (MCPInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.installations.status", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Experimental: Installations returns experimental APIs that may change or be removed.
+func (s *ServerMCPAPI) Installations() *ServerMCPInstallationsAPI {
+	return (*ServerMCPInstallationsAPI)(s)
 }
 
 // Experimental: ServerModelsAPI contains experimental APIs that may change or be removed.
@@ -25413,6 +26283,165 @@ type sessionAPI struct {
 	sessionID string
 }
 
+// Experimental: AccountsAPI contains experimental APIs that may change or be removed.
+type AccountsAPI sessionAPI
+
+// Enumerate a typed accounts collection: the signed-in accounts, or the providers offered
+// for interactive login.
+//
+// RPC method: session.accounts.enumerate.
+//
+// Parameters: Enumerate request carrying the typed collection query.
+//
+// Returns: The enumerated collection, keyed by the same selector as the query.
+func (a *AccountsAPI) Enumerate(ctx context.Context, params *AccountsEnumerateRequest) (AuthEnumerateValue, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["query"] = params.Query
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.enumerate", req)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalAuthEnumerateValue(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Get read one typed accounts datum: the active account, a neutral status summary, or the
+// last authentication errors.
+//
+// RPC method: session.accounts.get.
+//
+// Parameters: Read request carrying the typed datum query.
+//
+// Returns: The read result, keyed by the same selector as the query.
+func (a *AccountsAPI) Get(ctx context.Context, params *AccountsGetRequest) (AuthReadValue, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["query"] = params.Query
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.get", req)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalAuthReadValue(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Set apply one non-interactive accounts mutation: switch the active account, log an
+// account out, or set credentials from a token.
+//
+// RPC method: session.accounts.set.
+//
+// Parameters: Mutation request carrying the typed write command.
+//
+// Returns: Result of a non-interactive accounts mutation.
+func (a *AccountsAPI) Set(ctx context.Context, params *AccountsSetRequest) (*AuthWriteResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["command"] = params.Command
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.set", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AuthWriteResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: AccountsLoginAPI contains experimental APIs that may change or be removed.
+type AccountsLoginAPI sessionAPI
+
+// Advance an in-flight login flow, optionally fulfilling an input-required step, and return
+// the next step.
+//
+// RPC method: session.accounts.login.advance.
+//
+// Parameters: Advance an in-flight login flow, optionally fulfilling an input-required step.
+//
+// Returns: One step in an interactive login flow. The consumer acts on the step and calls
+// advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url`
+// is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it —
+// github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens
+// the browser or broker UI itself and does not surface a URL — Entra).
+func (a *AccountsLoginAPI) Advance(ctx context.Context, params *AuthLoginAdvanceRequest) (AuthLoginStep, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["flowId"] = params.FlowID
+		if params.Input != nil {
+			req["input"] = *params.Input
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.login.advance", req)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalAuthLoginStep(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Begin an interactive login flow for a provider kind (dispatch is kind-only) and return
+// its opaque flow id and first step.
+//
+// RPC method: session.accounts.login.begin.
+//
+// Parameters: Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+//
+// Returns: A started login flow: its opaque id and first step.
+func (a *AccountsLoginAPI) Begin(ctx context.Context, params *AuthLoginBeginRequest) (*AuthLoginBegun, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["kind"] = params.Kind
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.login.begin", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AuthLoginBegun
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Cancel an in-flight login flow and release its resources.
+//
+// RPC method: session.accounts.login.cancel.
+//
+// Parameters: Cancel an in-flight login flow.
+func (a *AccountsLoginAPI) Cancel(ctx context.Context, params *AuthLoginCancelRequest) (*SessionAccountsLoginCancelResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["flowId"] = params.FlowID
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.login.cancel", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAccountsLoginCancelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Login returns experimental APIs that may change or be removed.
+func (s *AccountsAPI) Login() *AccountsLoginAPI {
+	return (*AccountsLoginAPI)(s)
+}
+
 // Experimental: AgentAPI contains experimental APIs that may change or be removed.
 type AgentAPI sessionAPI
 
@@ -26525,336 +27554,6 @@ func (a *ExtensionsAPI) SendAttachmentsToMessage(ctx context.Context, params *Se
 	return &result, nil
 }
 
-// Experimental: FactoryAPI contains experimental APIs that may change or be removed.
-type FactoryAPI sessionAPI
-
-// Agent runs one factory-scoped subagent and returns its result.
-//
-// RPC method: session.factory.agent.
-//
-// Parameters: Parameters for one factory-scoped subagent call.
-//
-// Returns: Result of one factory-scoped subagent call.
-func (a *FactoryAPI) Agent(ctx context.Context, params *FactoryAgentRequest) (*FactoryAgentResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["executionToken"] = params.ExecutionToken
-		req["factoryRunId"] = params.FactoryRunID
-		req["opts"] = params.Opts
-		req["prompt"] = params.Prompt
-	}
-	raw, err := a.client.Request(ctx, "session.factory.agent", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryAgentResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Cancel requests cancellation of a factory run and returns its run envelope.
-//
-// RPC method: session.factory.cancel.
-//
-// Parameters: Parameters for cancelling a factory run.
-//
-// Returns: Complete current or terminal factory run envelope.
-func (a *FactoryAPI) Cancel(ctx context.Context, params *FactoryCancelRequest) (*FactoryRunResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.cancel", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetRun gets the current or settled envelope for a factory run.
-//
-// RPC method: session.factory.getRun.
-//
-// Parameters: Parameters for retrieving a factory run.
-//
-// Returns: Complete current or terminal factory run envelope.
-func (a *FactoryAPI) GetRun(ctx context.Context, params *FactoryGetRunRequest) (*FactoryRunResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.getRun", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetRunDetail gets durable and live observability detail for one factory run.
-//
-// RPC method: session.factory.getRunDetail.
-//
-// Parameters: Parameters for retrieving a factory run.
-//
-// Returns: Full factory run observability detail.
-func (a *FactoryAPI) GetRunDetail(ctx context.Context, params *FactoryGetRunRequest) (*FactoryRunDetail, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.getRunDetail", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunDetail
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetRunProgress pages durable progress for one factory run.
-//
-// RPC method: session.factory.getRunProgress.
-//
-// Parameters: Parameters for paging factory progress.
-//
-// Returns: A bidirectional page of factory progress.
-func (a *FactoryAPI) GetRunProgress(ctx context.Context, params *FactoryGetRunProgressRequest) (*FactoryProgressPage, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.AfterSeq != nil {
-			req["afterSeq"] = *params.AfterSeq
-		}
-		if params.BeforeSeq != nil {
-			req["beforeSeq"] = *params.BeforeSeq
-		}
-		if params.Limit != nil {
-			req["limit"] = *params.Limit
-		}
-		if params.PhaseID != nil {
-			req["phaseId"] = *params.PhaseID
-		}
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.getRunProgress", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryProgressPage
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// ListRuns lists durable factory runs for this session in creation order.
-//
-// RPC method: session.factory.listRuns.
-//
-// Parameters: Parameters for paging factory runs.
-//
-// Returns: A page of factory runs in durable creation order.
-func (a *FactoryAPI) ListRuns(ctx context.Context, params *FactoryListRunsRequest) (*FactoryListRunsResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.AfterSeq != nil {
-			req["afterSeq"] = *params.AfterSeq
-		}
-		if params.BeforeSeq != nil {
-			req["beforeSeq"] = *params.BeforeSeq
-		}
-		if params.Limit != nil {
-			req["limit"] = *params.Limit
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.factory.listRuns", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryListRunsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Log records a batch of ordered factory progress lines.
-//
-// RPC method: session.factory.log.
-//
-// Parameters: Parameters for recording factory progress.
-//
-// Returns: Acknowledgement that a factory request was accepted.
-func (a *FactoryAPI) Log(ctx context.Context, params *FactoryLogRequest) (*FactoryAckResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["executionToken"] = params.ExecutionToken
-		req["lines"] = params.Lines
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.log", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryAckResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Pauses a running factory and returns its settled run envelope.
-//
-// RPC method: session.factory.pause.
-//
-// Parameters: Parameters for pausing a running factory.
-//
-// Returns: Complete current or terminal factory run envelope.
-func (a *FactoryAPI) Pause(ctx context.Context, params *FactoryPauseRequest) (*FactoryRunResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.pause", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Resumes a factory run using its persisted name, arguments, journal, and accounting.
-//
-// RPC method: session.factory.resume.
-//
-// Parameters: Parameters for resuming a factory run from its persisted identity.
-//
-// Returns: Resolved persisted factory identity and resumed run envelope.
-func (a *FactoryAPI) Resume(ctx context.Context, params *FactoryResumeRequest) (*FactoryResumeResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.Limits != nil {
-			req["limits"] = *params.Limits
-		}
-		if params.LogPhaseNames != nil {
-			req["logPhaseNames"] = *params.LogPhaseNames
-		}
-		if params.NotifyOnComplete != nil {
-			req["notifyOnComplete"] = *params.NotifyOnComplete
-		}
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.resume", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryResumeResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Runs a registered factory by name at the top level.
-//
-// RPC method: session.factory.run.
-//
-// Parameters: Parameters for invoking a registered factory.
-//
-// Returns: Complete current or terminal factory run envelope.
-func (a *FactoryAPI) Run(ctx context.Context, params *FactoryRunRequest) (*FactoryRunResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["args"] = params.Args
-		req["name"] = params.Name
-		if params.Options != nil {
-			req["options"] = *params.Options
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.factory.run", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: FactoryJournalAPI contains experimental APIs that may change or be removed.
-type FactoryJournalAPI sessionAPI
-
-// Get reads a memoized factory journal entry.
-//
-// RPC method: session.factory.journal.get.
-//
-// Parameters: Parameters for reading a factory journal entry.
-//
-// Returns: Result of reading a factory journal entry.
-func (a *FactoryJournalAPI) Get(ctx context.Context, params *FactoryJournalGetRequest) (*FactoryJournalGetResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["executionToken"] = params.ExecutionToken
-		req["key"] = params.Key
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.journal.get", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryJournalGetResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Put stores a memoized factory journal entry.
-//
-// RPC method: session.factory.journal.put.
-//
-// Parameters: Parameters for storing a factory journal entry.
-//
-// Returns: Acknowledgement that a factory request was accepted.
-func (a *FactoryJournalAPI) Put(ctx context.Context, params *FactoryJournalPutRequest) (*FactoryAckResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["executionToken"] = params.ExecutionToken
-		req["key"] = params.Key
-		req["resultJson"] = params.ResultJSON
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.journal.put", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryAckResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: Journal returns experimental APIs that may change or be removed.
-func (s *FactoryAPI) Journal() *FactoryJournalAPI {
-	return (*FactoryJournalAPI)(s)
-}
-
 // Experimental: FleetAPI contains experimental APIs that may change or be removed.
 type FleetAPI sessionAPI
 
@@ -27342,6 +28041,9 @@ func (a *MCPAPI) CancelSamplingExecution(ctx context.Context, params *MCPCancelS
 func (a *MCPAPI) Disable(ctx context.Context, params *MCPDisableRequest) (*SessionMCPDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.disable", req)
@@ -27363,6 +28065,9 @@ func (a *MCPAPI) Disable(ctx context.Context, params *MCPDisableRequest) (*Sessi
 func (a *MCPAPI) Enable(ctx context.Context, params *MCPEnableRequest) (*SessionMCPEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.enable", req)
@@ -27547,6 +28252,9 @@ func (a *MCPAPI) RestartServer(ctx context.Context, params *MCPRestartServerRequ
 		if params.Config != nil {
 			req["config"] = params.Config
 		}
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.restartServer", req)
@@ -27604,6 +28312,9 @@ func (a *MCPAPI) StartServer(ctx context.Context, params *MCPStartServerRequest)
 		if params.Config != nil {
 			req["config"] = params.Config
 		}
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.startServer", req)
@@ -27625,6 +28336,9 @@ func (a *MCPAPI) StartServer(ctx context.Context, params *MCPStartServerRequest)
 func (a *MCPAPI) StopServer(ctx context.Context, params *MCPStopServerRequest) (*SessionMCPStopServerResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.stopServer", req)
@@ -27856,6 +28570,33 @@ func (a *MCPOauthAPI) AuthenticationStateChanged(ctx context.Context, params *MC
 	return &result, nil
 }
 
+// CancelLogin cancels the exact owned OAuth login issued to this original session
+// requester, without clearing shared credentials.
+//
+// RPC method: session.mcp.oauth.cancelLogin.
+//
+// Parameters: Targets only the original prepared/applying owned login on this exact session
+// requester.
+//
+// Returns: Honest terminal cancellation result; persistence or recovery failures remain RPC
+// errors.
+func (a *MCPOauthAPI) CancelLogin(ctx context.Context, params *SessionMCPOauthCancelLoginRequest) (*SessionMCPOauthCancelLoginResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["expectedInstallationId"] = params.ExpectedInstallationID
+		req["loginId"] = params.LoginID
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.cancelLogin", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthCancelLoginResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // HandlePendingRequest resolves a pending MCP OAuth request with a host-provided token or
 // cancellation. The pending request is emitted as mcp.oauth_required with the data
 // necessary to authorize the request.
@@ -27882,7 +28623,9 @@ func (a *MCPOauthAPI) HandlePendingRequest(ctx context.Context, params *MCPOauth
 	return &result, nil
 }
 
-// Login starts OAuth authentication for a remote MCP server.
+// Login starts OAuth authentication for a remote MCP server. Owned servers require the
+// original one-use prepareLogin handle and exact installation ID; manual servers retain the
+// existing direct login behaviour.
 //
 // RPC method: session.mcp.oauth.login.
 //
@@ -27906,11 +28649,17 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 		if params.ClientSecret != nil {
 			req["clientSecret"] = *params.ClientSecret
 		}
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		if params.ForceReauth != nil {
 			req["forceReauth"] = *params.ForceReauth
 		}
 		if params.GrantType != nil {
 			req["grantType"] = *params.GrantType
+		}
+		if params.LoginID != nil {
+			req["loginId"] = *params.LoginID
 		}
 		if params.PublicClient != nil {
 			req["publicClient"] = *params.PublicClient
@@ -27922,6 +28671,43 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 		return nil, err
 	}
 	var result MCPOauthLoginResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// PrepareLogin prepares an inert, expiring owned OAuth login bound to the original session
+// requester and exact installation. Does not activate, connect, read credentials or open a
+// browser.
+//
+// RPC method: session.mcp.oauth.prepareLogin.
+//
+// Parameters: Effect-free preparation bound to the existing local session, requester and
+// installation, with frozen options.
+//
+// Returns: An inert runtime-issued login handle. Preparation alone performs no activation
+// or OAuth work.
+func (a *MCPOauthAPI) PrepareLogin(ctx context.Context, params *SessionMCPOauthPrepareLoginRequest) (*SessionMCPOauthPrepareLoginResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.CallbackSuccessMessage != nil {
+			req["callbackSuccessMessage"] = *params.CallbackSuccessMessage
+		}
+		if params.ClientName != nil {
+			req["clientName"] = *params.ClientName
+		}
+		req["expectedInstallationId"] = params.ExpectedInstallationID
+		if params.ForceReauth != nil {
+			req["forceReauth"] = *params.ForceReauth
+		}
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.prepareLogin", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthPrepareLoginResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -27944,6 +28730,9 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 func (a *MCPOauthAPI) Probe(ctx context.Context, params *MCPOauthProbeRequest) (MCPOauthProbeResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.ExpectedInstallationID != nil {
+			req["expectedInstallationId"] = *params.ExpectedInstallationID
+		}
 		req["serverName"] = params.ServerName
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.oauth.probe", req)
@@ -32450,6 +33239,7 @@ type SessionRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common sessionAPI
 
+	Accounts           *AccountsAPI
 	Agent              *AgentAPI
 	AutopilotObjective *AutopilotObjectiveAPI
 	Canvas             *CanvasAPI
@@ -32462,7 +33252,6 @@ type SessionRPC struct {
 	Diagnostics        *DiagnosticsAPI
 	EventLog           *EventLogAPI
 	Extensions         *ExtensionsAPI
-	Factory            *FactoryAPI
 	Fleet              *FleetAPI
 	GitHubAuth         *GitHubAuthAPI
 	History            *HistoryAPI
@@ -32787,6 +33576,7 @@ func (a *SessionRPC) Suspend(ctx context.Context) (*SessionSuspendResult, error)
 func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r := &SessionRPC{}
 	r.common = sessionAPI{client: client, sessionID: sessionID}
+	r.Accounts = (*AccountsAPI)(&r.common)
 	r.Agent = (*AgentAPI)(&r.common)
 	r.AutopilotObjective = (*AutopilotObjectiveAPI)(&r.common)
 	r.Canvas = (*CanvasAPI)(&r.common)
@@ -32799,7 +33589,6 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Diagnostics = (*DiagnosticsAPI)(&r.common)
 	r.EventLog = (*EventLogAPI)(&r.common)
 	r.Extensions = (*ExtensionsAPI)(&r.common)
-	r.Factory = (*FactoryAPI)(&r.common)
 	r.Fleet = (*FleetAPI)(&r.common)
 	r.GitHubAuth = (*GitHubAuthAPI)(&r.common)
 	r.History = (*HistoryAPI)(&r.common)
@@ -32980,97 +33769,6 @@ func (a *InternalConnectorsAPI) WithdrawProjection(ctx context.Context) (*Connec
 		return nil, err
 	}
 	var result ConnectorStatus
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: InternalFactoryAPI contains experimental APIs that may change or be removed.
-type InternalFactoryAPI internalSessionAPI
-
-// PauseAtCheckpoint atomically pauses an owned factory attempt at a durable checkpoint.
-//
-// RPC method: session.factory.pauseAtCheckpoint.
-//
-// Parameters: Parameters for an owned durable pause checkpoint.
-// Internal: PauseAtCheckpoint is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalFactoryAPI) PauseAtCheckpoint(ctx context.Context, params *FactoryPauseCheckpointRequest) (*SessionFactoryPauseAtCheckpointResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["executionToken"] = params.ExecutionToken
-		req["key"] = params.Key
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.pauseAtCheckpoint", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionFactoryPauseAtCheckpointResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// ResumeFromTool internal tool-originated factory resume.
-//
-// RPC method: session.factory.resumeFromTool.
-//
-// Parameters: Internal parameters for resuming a factory run from a tool.
-//
-// Returns: Resolved persisted factory identity and resumed run envelope.
-// Internal: ResumeFromTool is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalFactoryAPI) ResumeFromTool(ctx context.Context, params *FactoryToolResumeRequest) (*FactoryResumeResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.Limits != nil {
-			req["limits"] = *params.Limits
-		}
-		req["runId"] = params.RunID
-		if params.ToolCallID != nil {
-			req["toolCallId"] = *params.ToolCallID
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.factory.resumeFromTool", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryResumeResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// RunFromTool internal tool-originated factory invocation.
-//
-// RPC method: session.factory.runFromTool.
-//
-// Parameters: Internal parameters for invoking a registered factory from a tool.
-//
-// Returns: Complete current or terminal factory run envelope.
-// Internal: RunFromTool is part of the SDK's internal handshake/plumbing; external callers
-// should not use it.
-func (a *InternalFactoryAPI) RunFromTool(ctx context.Context, params *FactoryToolRunRequest) (*FactoryRunResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["args"] = params.Args
-		req["name"] = params.Name
-		if params.Options != nil {
-			req["options"] = *params.Options
-		}
-		if params.ToolCallID != nil {
-			req["toolCallId"] = *params.ToolCallID
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.factory.runFromTool", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -33406,6 +34104,12 @@ func (a *InternalModelAPI) ApplyStartupOverlay(ctx context.Context, params *Mode
 		}
 		if params.DeviceManagedModel != nil {
 			req["deviceManagedModel"] = *params.DeviceManagedModel
+		}
+		if params.ManagedContextTier != nil {
+			req["managedContextTier"] = *params.ManagedContextTier
+		}
+		if params.ManagedReasoningEffort != nil {
+			req["managedReasoningEffort"] = *params.ManagedReasoningEffort
 		}
 		if params.PolicyHelperModel != nil {
 			req["policyHelperModel"] = *params.PolicyHelperModel
@@ -33978,7 +34682,6 @@ type InternalSessionRPC struct {
 	Canvas     *InternalCanvasAPI
 	Commands   *InternalCommandsAPI
 	Connectors *InternalConnectorsAPI
-	Factory    *InternalFactoryAPI
 	GitHubAuth *InternalGitHubAuthAPI
 	MCP        *InternalMCPAPI
 	Model      *InternalModelAPI
@@ -34026,7 +34729,6 @@ func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalS
 	r.Canvas = (*InternalCanvasAPI)(&r.common)
 	r.Commands = (*InternalCommandsAPI)(&r.common)
 	r.Connectors = (*InternalConnectorsAPI)(&r.common)
-	r.Factory = (*InternalFactoryAPI)(&r.common)
 	r.GitHubAuth = (*InternalGitHubAuthAPI)(&r.common)
 	r.MCP = (*InternalMCPAPI)(&r.common)
 	r.Model = (*InternalModelAPI)(&r.common)
@@ -34061,26 +34763,6 @@ type CanvasHandler interface {
 	//
 	// Returns: Canvas open result returned by the provider.
 	Open(request *CanvasProviderOpenRequest) (*CanvasProviderOpenResult, error)
-}
-
-// Experimental: FactoryHandler contains experimental APIs that may change or be removed.
-type FactoryHandler interface {
-	// Abort asks the owning extension connection to abort a running factory cooperatively.
-	//
-	// RPC method: factory.abort.
-	//
-	// Parameters: Parameters for cooperatively aborting a factory body.
-	//
-	// Returns: Acknowledgement that a factory request was accepted.
-	Abort(request *FactoryAbortRequest) (*FactoryAckResult, error)
-	// Execute asks the owning extension connection to execute a registered factory closure.
-	//
-	// RPC method: factory.execute.
-	//
-	// Parameters: Parameters sent to the owning extension to execute a factory closure.
-	//
-	// Returns: Result returned by an extension factory closure.
-	Execute(request *FactoryExecuteRequest) (*FactoryExecuteResult, error)
 }
 
 // Experimental: ProviderTokenHandler contains experimental APIs that may change or be
@@ -34272,7 +34954,6 @@ type WorkflowHandler interface {
 // ClientSessionAPIHandlers provides all client session API handler groups for a session.
 type ClientSessionAPIHandlers struct {
 	Canvas        CanvasHandler
-	Factory       FactoryHandler
 	ProviderToken ProviderTokenHandler
 	SessionFS     SessionFSHandler
 	Tasks         TasksHandler
@@ -34341,44 +35022,6 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
 		}
 		result, err := handlers.Canvas.Open(&request)
-		if err != nil {
-			return nil, clientSessionHandlerError(err)
-		}
-		raw, err := json.Marshal(result)
-		if err != nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-		}
-		return raw, nil
-	})
-	client.SetRequestHandler("factory.abort", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request FactoryAbortRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
-		}
-		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.Factory == nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No factory handler registered for session: %s", request.SessionID)}
-		}
-		result, err := handlers.Factory.Abort(&request)
-		if err != nil {
-			return nil, clientSessionHandlerError(err)
-		}
-		raw, err := json.Marshal(result)
-		if err != nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-		}
-		return raw, nil
-	})
-	client.SetRequestHandler("factory.execute", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request FactoryExecuteRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
-		}
-		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.Factory == nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No factory handler registered for session: %s", request.SessionID)}
-		}
-		result, err := handlers.Factory.Execute(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -34776,6 +35419,24 @@ type HooksHandler interface {
 	Invoke(request *HookInvokeRequest) (*HookInvokeResponse, error)
 }
 
+// Experimental: InstallationsHandler contains experimental APIs that may change or be
+// removed.
+type InstallationsHandler interface {
+	// Confirm requests a fresh explicit human decision for one sealed installation operation on
+	// its original connection. Present the complete typed review, return the original challenge
+	// and fingerprint, and never infer approval. The expiresAt deadline, connection closure or
+	// standard JSON-RPC $/cancelRequest retires the request; late replies grant no authority.
+	//
+	// RPC method: installations.confirm.
+	//
+	// Parameters: One connection-owned, expiring request for a trusted host's explicit user
+	// decision.
+	//
+	// Returns: A response is meaningful only on the connection and request that issued its
+	// challenge.
+	Confirm(request *InstallationsConfirmRequest) (*InstallationsConfirmResult, error)
+}
+
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
 // removed.
 type LlmInferenceHandler interface {
@@ -34816,6 +35477,7 @@ type ClientGlobalAPIHandlers struct {
 	GitHubTelemetry         GitHubTelemetryHandler
 	GitHubToken             GitHubTokenHandler
 	Hooks                   HooksHandler
+	Installations           InstallationsHandler
 	LlmInference            LlmInferenceHandler
 }
 
@@ -34891,6 +35553,24 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, &jsonrpc2.Error{Code: -32603, Message: "No hooks client-global handler registered"}
 		}
 		result, err := handlers.Hooks.Invoke(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("installations.confirm", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request InstallationsConfirmRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.Installations == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No installations client-global handler registered"}
+		}
+		result, err := handlers.Installations.Confirm(&request)
 		if err != nil {
 			return nil, clientGlobalHandlerError(err)
 		}

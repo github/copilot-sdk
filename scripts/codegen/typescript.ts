@@ -51,6 +51,7 @@ import {
     type DefinitionCollections,
     type RpcMethod,
 } from "./utils.js";
+import { validateLegacyRequests, validateLegacyUntypedMarkers, validateLegacyDefinitions } from "./legacy-parameters.js";
 
 const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
 const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
@@ -432,6 +433,12 @@ export function normalizeSchemaForTypeScript(
         delete rewritten["x-opaque-json"];
         delete rewritten["x-opaque-in-process"];
 
+        // A title names an enum that other generators infer from a discriminator; a
+        // TypeScript literal needs no alias, so keep it inline.
+        if (typeof rewritten.title === "string" && "const" in rewritten && typeof rewritten.const === "string") {
+            delete rewritten.title;
+        }
+
         const enumValueDescriptions = getEnumValueDescriptions(rewritten as JSONSchema7);
         if (enumValueDescriptions && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
             rewritten.tsType = (rewritten.enum as string[])
@@ -718,7 +725,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
  * Generated from: api.schema.json
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 `);
 
     const externalSchemaRefs = collectExternalSchemaRefNames(schema);
@@ -742,6 +749,17 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     // Build a single combined schema with shared definitions and all method types.
     // This ensures $ref-referenced types are generated exactly once.
     rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
+    // Added inputs are optional properties of the same request interface.
+    validateLegacyRequests(
+        schema,
+        (node) => collectRpcMethods(node),
+        getMethodParamsSchema,
+        (method) => !!(method.params && getNullableInner(method.params))
+    );
+    // TypeScript already publishes the typed shape of x-legacy-untyped fields; only validate the markers.
+    validateLegacyUntypedMarkers(schema, "api.schema.json");
+    // Response records gain optional properties of the same interface.
+    validateLegacyDefinitions(rpcDefinitions);
     const combinedSchema = withSharedDefinitions(
         {
             $schema: "http://json-schema.org/draft-07/schema#",
@@ -1178,7 +1196,7 @@ export function emitClientSessionApiRegistration(clientSchema: Record<string, un
  * incoming call to the registered handler regardless of which (if any)
  * runtime session triggered it.
  */
-function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>): string[] {
+export function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>): string[] {
     const lines: string[] = [];
     const groups = collectClientGroups(clientSchema);
 
@@ -1211,11 +1229,11 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
                 includeDeprecated: method.deprecated && !groupDeprecated,
                 includeExperimental: method.stability === "experimental" && !groupExperimental,
             });
-            if (hasParams) {
-                lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
-            } else {
-                lines.push(`    ${name}(): Promise<${rType}>;`);
-            }
+            const args = [
+                ...(hasParams ? [`params: ${pType}`] : []),
+                ...(!method.notification ? ["token?: CancellationToken"] : []),
+            ];
+            lines.push(`    ${name}(${args.join(", ")}): Promise<${rType}>;`);
         }
         lines.push(`}`);
         lines.push("");
@@ -1238,6 +1256,8 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
     lines.push(` * Unlike session-scoped client APIs, these methods carry no implicit`);
     lines.push(` * \`sessionId\` dispatch key — a single set of handlers serves the entire`);
     lines.push(` * connection.`);
+    lines.push(` * Request handlers receive the transport's cancellation token; connection`);
+    lines.push(` * disposal is a separate lifetime signal and does not cancel that token.`);
     lines.push(` */`);
     lines.push(`export function registerClientGlobalApiHandlers(`);
     lines.push(`    connection: MessageConnection,`);
@@ -1271,16 +1291,16 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
                     lines.push(`    });`);
                 }
             } else if (hasParams) {
-                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}) => {`);
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}, token: CancellationToken) => {`);
                 lines.push(`        const handler = handlers.${groupName};`);
                 lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);
-                lines.push(`        return handler.${name}(params);`);
+                lines.push(`        return handler.${name}(params, token);`);
                 lines.push(`    });`);
             } else {
-                lines.push(`    connection.onRequest("${method.rpcMethod}", async () => {`);
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async (token: CancellationToken) => {`);
                 lines.push(`        const handler = handlers.${groupName};`);
                 lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);
-                lines.push(`        return handler.${name}();`);
+                lines.push(`        return handler.${name}(token);`);
                 lines.push(`    });`);
             }
         }

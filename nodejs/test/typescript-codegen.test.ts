@@ -93,6 +93,32 @@ describe("typescript schema codegen", () => {
         expect(code).toContain("[k: string]: JsonValue;");
     });
 
+    it("keeps a titled discriminator literal inline", async () => {
+        const variant = (action: string) => ({
+            type: "object" as const,
+            properties: {
+                action: { type: "string" as const, const: action, title: "ReviewAction" },
+            },
+            required: ["action"],
+        });
+        const code = await compile(
+            normalizeSchemaForTypeScript({
+                title: "Review",
+                anyOf: [variant("install"), variant("uninstall")],
+            }),
+            "Review",
+            {
+                bannerComment: "",
+                style: { semi: true, singleQuote: false },
+                additionalProperties: false,
+            }
+        );
+
+        expect(code).toContain('action: "install";');
+        expect(code).toContain('action: "uninstall";');
+        expect(code).not.toContain("ReviewAction");
+    });
+
     it("maps a bare opaque JSON array item to JsonValue", async () => {
         const code = await compile(
             normalizeSchemaForTypeScript({

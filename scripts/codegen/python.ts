@@ -59,6 +59,7 @@ import {
     type RpcMethod,
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
+import { readLegacyParameters, validateLegacyUntypedMarkers } from "./legacy-parameters.js";
 
 // ── Utilities ───────────────────────────────────────────────────────────────
 
@@ -458,30 +459,8 @@ function postProcessRefBasedDiscriminatedUnionsForPython(
     for (const match of code.matchAll(/^class (\w+)[:\(]/gm)) {
         emittedClassNames.add(match[1]);
     }
-    const acronymCandidates = (name: string): string[] => {
-        const substitutions: Array<[RegExp, string]> = [
-            [/Api/g, "API"],
-            [/Mcp/g, "MCP"],
-            [/Url/g, "URL"],
-            [/Json/g, "JSON"],
-            [/Http/g, "HTTP"],
-            [/Hmac/g, "HMAC"],
-            [/Tcp/g, "TCP"],
-            [/Sql/g, "SQL"],
-            [/Id\b/g, "ID"],
-            [/Llm/g, "LLM"],
-            [/Cli/g, "CLI"],
-        ];
-        const results = new Set<string>([name]);
-        for (const [pattern, replacement] of substitutions) {
-            for (const existing of [...results]) {
-                results.add(existing.replace(pattern, replacement));
-            }
-        }
-        return [...results];
-    };
     const resolveActualName = (expected: string): string | undefined => {
-        for (const candidate of acronymCandidates(expected)) {
+        for (const candidate of pythonAcronymCandidates(expected)) {
             if (emittedClassNames.has(candidate)) return candidate;
         }
         return undefined;
@@ -1421,6 +1400,55 @@ function removeShadowedSessionEventEnumsForPython(
             return "";
         })
         .replace(/\n{3,}/g, "\n\n");
+}
+
+/** Quicktype applies acronym casing to class names; list every spelling it may emit. */
+function pythonAcronymCandidates(name: string): string[] {
+    const substitutions: Array<[RegExp, string]> = [
+        [/Api/g, "API"],
+        [/Mcp/g, "MCP"],
+        [/Url/g, "URL"],
+        [/Json/g, "JSON"],
+        [/Http/g, "HTTP"],
+        [/Hmac/g, "HMAC"],
+        [/Tcp/g, "TCP"],
+        [/Sql/g, "SQL"],
+        [/Id\b/g, "ID"],
+        [/Llm/g, "LLM"],
+        [/Cli/g, "CLI"],
+    ];
+    const results = new Set<string>([name]);
+    for (const [pattern, replacement] of substitutions) {
+        for (const existing of [...results]) {
+            results.add(existing.replace(pattern, replacement));
+        }
+    }
+    return [...results];
+}
+
+/**
+ * Applies `x-legacy-parameters` to generated request dataclasses: properties added after
+ * the legacy API become keyword-only with defaults, so existing positional construction
+ * keeps binding the original parameters. Required fields stay constructor arguments.
+ */
+export function applyPythonLegacyParameters(
+    code: string,
+    definitions: Record<string, unknown>
+): string {
+    const emitted = new Set([...code.matchAll(/^class (\w+)[:(]/gm)].map((match) => match[1]));
+    const handled = new Set<string>();
+    for (const [definitionName, schema] of Object.entries(definitions)) {
+        const legacy = readLegacyParameters(schema, definitionName, { implicit: ["sessionId"] });
+        if (!legacy) continue;
+        const className = pythonAcronymCandidates(definitionName).find((candidate) => emitted.has(candidate));
+        if (!className) throw new Error(`Missing dataclass for ${definitionName}`);
+        if (handled.has(className)) continue;
+        handled.add(className);
+        for (const addition of legacy.additions) {
+            code = makePythonDataclassFieldKeywordOnly(code, className, toSnakeCase(addition));
+        }
+    }
+    return code;
 }
 
 function makePythonDataclassFieldKeywordOnly(
@@ -3108,6 +3136,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
     let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as ApiSchema));
+    validateLegacyUntypedMarkers(schema, "api.schema.json");
     if (sessionEventsSchema) {
         const sharedDefinitions = findSharedSchemaDefinitions(
             schema as unknown as Record<string, unknown>,
@@ -3300,6 +3329,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
         "MCPServerConfigHTTP",
         "oauth_scopes"
     );
+    typesCode = applyPythonLegacyParameters(typesCode, allDefinitions);
 
     // Strip quicktype's import block and preamble — we provide our own unified header.
     // The preamble ends just before the first helper function (e.g. "def from_str")

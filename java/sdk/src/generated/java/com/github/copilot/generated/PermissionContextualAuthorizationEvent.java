@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "permission.contextualAuthorization". Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.
+ * Session event "permission.contextualAuthorization". Historical decode-only contextual authorization claim. Current runtimes preserve the payload but do not establish authority from it.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

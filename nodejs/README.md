@@ -124,6 +124,7 @@ new CopilotClient(options?: CopilotClientOptions)
 - `workingDirectory?: string` - Working directory for the runtime process (default: current process cwd).
 - `baseDirectory?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When not set, the runtime defaults to `~/.copilot`. Ignored when connecting via `RuntimeConnection.forUri`.
 - `extensionLaunchProvider?: ExtensionLaunchProvider` - Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
+- `installationConfirmationHandler?: InstallationConfirmationHandler` - Experimental connection-global human review for `installations.confirm`. Receives the typed request and independent request/connection cancellation signals, and returns an explicit decision. Does not enable installation capabilities.
 - `logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all"` - Log level. When omitted, the runtime uses its own default (currently `"info"`).
 - `env?: Record<string, string | undefined>` - Environment variables for the runtime process. When omitted, inherits `process.env`.
 - `gitHubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
@@ -134,6 +135,49 @@ new CopilotClient(options?: CopilotClientOptions)
 - `sessionFs?: SessionFsConfig` - Custom session filesystem provider.
 - `sessionIdleTimeoutSeconds?: number` - Server-wide idle timeout for sessions in seconds. Ignored when connecting via `RuntimeConnection.forUri`.
 - `enableRemoteSessions?: boolean` - Enable Mission Control remote session support. Ignored when connecting via `RuntimeConnection.forUri`.
+
+#### Installation confirmation (experimental)
+
+Only the Node.js and Rust SDKs can configure this receiver today. The Python, Go,
+.NET and Java SDKs cannot yet, and fail closed: an `installations.confirm` request
+gets an error or method-not-found, which the runtime treats as no consent
+([github/copilot-agent-runtime#22844](https://github.com/github/copilot-agent-runtime/issues/22844)).
+
+The installation confirmation handler receives the generated
+`InstallationConfirmationRequest` and an `InstallationConfirmationContext`.
+Match `operationId` and `policySessionId` against the exact original action on
+this connection before presenting the complete review. Refuse unknown operations
+or incomplete reviews; missing legacy session metadata is not permission to use
+the current session. Return `"confirm"`, `"decline"` or `"cancel"` only after an
+explicit human decision. The SDK echoes the original challenge and fingerprint.
+
+Concurrent reviews remain independent. `context.requestCancelled` is the real
+JSON-RPC cancellation token, including runtime-enforced expiry.
+`context.connectionClosed` separately reports loss of the original connection.
+Observe both to close pending UI. Late handler results cannot approve a retired
+request. These incoming signals do not cancel outbound installation or OAuth
+RPCs, and dropping those promises is not cancellation.
+
+Use `client.rpc.mcp.prepareInstall` before `applyInstall`: preparation returns an
+inert runtime-issued `operationId` and original expiry. Register that ID with its
+captured session on this exact client before applying. Removal uses
+`planUninstall` then `applyUninstall`; the returned `operationId` identifies the
+operation, while `planHandle` is the one-use removal input. Never interchange them.
+Use `client.rpc.mcp.installations.list` and `recover` for owned inventory.
+Inspect or cancel uncertain work through `status` and `cancel` on the original
+connection and operation ID, without selecting a replacement session or replaying apply.
+
+Owned OAuth similarly uses `session.rpc.mcp.oauth.prepareLogin` to obtain
+`loginId` before browser, network or cached-reconnect work. Retain that ID with
+the original session and `expectedInstallationId` for `login` and `cancelLogin`.
+Prepare freezes reauthentication and display options. Cancelling an incoming
+confirmation or abandoning a login promise is not a substitute for `cancelLogin`.
+Manual MCP OAuth retains its direct `login` path.
+
+A matching runtime contract and available owned-lifecycle support are required.
+Capability negotiation does not promise availability; preserve typed refusals
+instead of falling back to raw configuration writes. Generated presence and
+transport tests do not establish a working installer, live OAuth or restart safety.
 
 #### Methods
 

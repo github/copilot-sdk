@@ -120,7 +120,7 @@ export async function createSdkTestContext({
     if (userConn) {
         // Caller supplied a RuntimeConnection — merge in the harness-managed
         // CLI path (and stay on the same transport variant). Strip `kind`
-        // before forwarding to the factory opts since the factories don't
+        // before forwarding to the workflow opts since the workflows don't
         // accept it in their argument shape.
         if (userConn.kind === "tcp") {
             const { kind: _k, ...tcp } = userConn;

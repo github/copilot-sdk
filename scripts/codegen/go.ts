@@ -58,6 +58,7 @@ import {
     type RpcMethod,
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
+import { validateLegacyRequests, validateLegacyUntypedMarkers, validateLegacyDefinitions } from "./legacy-parameters.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -3850,6 +3851,16 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     // Build a combined definition map, including shared API definitions plus
     // method-specific request/result wrapper types.
     rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
+    // Added inputs are optional pointer fields of the same request struct, so keyed literals are unchanged.
+    validateLegacyRequests(
+        schema,
+        (node) => collectRpcMethods(node),
+        getMethodParamsSchema,
+        (method) => !!method.params && !!getNullableInner(method.params)
+    );
+    validateLegacyUntypedMarkers(schema, "api.schema.json");
+    // Response structs gain optional pointer fields, so keyed literals are unchanged.
+    validateLegacyDefinitions(rpcDefinitions);
     const allDefinitions: Record<string, JSONSchema7> = {
         ...Object.fromEntries(
             Object.entries(rpcDefinitions.$defs ?? {}).filter(([, value]) => typeof value === "object" && value !== null)

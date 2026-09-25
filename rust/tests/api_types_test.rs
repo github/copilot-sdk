@@ -8,14 +8,286 @@ use github_copilot_sdk::rpc::{
     ConnectorConnectRequest, ConnectorContinueRequest, ConnectorReconcileRequest,
     EnqueueCommandResult, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
     ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
-    ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest,
-    ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
-    SandboxConfig, SendAgentMode, TasksStartAgentRequest, UnsupportedEnqueueCommandResult,
+    McpDisableRequest, McpEnableOptions, McpEnableRequest, McpInstallationOperationStatus,
+    McpOauthLoginOptions, McpOauthLoginRequest, McpServer, McpStopServerRequest,
+    MetadataContextAttributionResult, MetadataContextInfoResult, ModelSetAllowedModelsRequest,
+    ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SandboxConfig,
+    SendAgentMode, SessionContextAttribution, SessionMetadataContextInfoResult,
+    SessionMetadataGetContextAttributionResult, SessionMetadataSnapshot,
+    SessionMetadataSnapshotResult, TasksStartAgentRequest, UnsupportedEnqueueCommandResult,
+    UpdateSubagentSettingsRequest, WorkspaceSummary,
 };
 use github_copilot_sdk::session_events::{
-    PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
+    McpServerStatus, PermissionRequest, PermissionRequestedData, SessionEventData,
+    TypedSessionEvent,
 };
 use github_copilot_sdk::{AutoTier, AutoTierPreference, SetModelOptions};
+
+#[test]
+fn operation_status_preserves_required_phases_and_original_identity() {
+    for phase in [
+        "preparing",
+        "prepared",
+        "awaiting-confirmation",
+        "revalidating",
+        "applying",
+        "completed",
+    ] {
+        let mut wire = serde_json::json!({
+            "phase": phase,
+            "operationId": "original-operation",
+            "cancellationRequested": true,
+        });
+        if phase == "completed" {
+            wire["outcome"] = serde_json::json!({
+                "kind": "cancelled",
+                "operationId": "original-operation",
+            });
+        }
+        let status: McpInstallationOperationStatus = serde_json::from_value(wire.clone()).unwrap();
+        assert!(matches!(
+            (phase, &status),
+            ("preparing", McpInstallationOperationStatus::Preparing(_))
+                | ("prepared", McpInstallationOperationStatus::Prepared(_))
+                | (
+                    "awaiting-confirmation",
+                    McpInstallationOperationStatus::AwaitingConfirmation(_)
+                )
+                | (
+                    "revalidating",
+                    McpInstallationOperationStatus::Revalidating(_)
+                )
+                | ("applying", McpInstallationOperationStatus::Applying(_))
+                | ("completed", McpInstallationOperationStatus::Completed(_))
+        ));
+        assert_eq!(serde_json::to_value(status).unwrap(), wire);
+    }
+}
+
+#[test]
+fn operation_status_refuses_unknown_phases_and_incomplete_terminal_results() {
+    let original = serde_json::json!({
+        "phase": "completed",
+        "operationId": "original-operation",
+        "cancellationRequested": false,
+        "outcome": { "kind": "declined", "operationId": "original-operation" },
+    });
+    for field in ["phase", "operationId", "cancellationRequested", "outcome"] {
+        let mut wire = original.clone();
+        wire.as_object_mut().unwrap().remove(field);
+        assert!(
+            serde_json::from_value::<McpInstallationOperationStatus>(wire.clone()).is_err(),
+            "unexpectedly accepted {wire}",
+        );
+    }
+    for phase in [
+        serde_json::Value::Null,
+        serde_json::json!("future-phase"),
+        serde_json::json!(42),
+    ] {
+        let mut wire = original.clone();
+        wire["phase"] = phase;
+        assert!(
+            serde_json::from_value::<McpInstallationOperationStatus>(wire.clone()).is_err(),
+            "unexpectedly accepted {wire}",
+        );
+    }
+}
+
+#[test]
+fn context_info_preserves_null_before_initialisation_and_populated_token_fields() {
+    let metadata: MetadataContextInfoResult =
+        serde_json::from_value(serde_json::json!({})).unwrap();
+    let session: SessionMetadataContextInfoResult =
+        serde_json::from_value(serde_json::json!({})).unwrap();
+    assert!(metadata.context_info.is_none());
+    assert!(session.context_info.is_none());
+    assert_eq!(
+        serde_json::to_value(metadata).unwrap(),
+        serde_json::json!({ "contextInfo": null })
+    );
+    assert_eq!(
+        serde_json::to_value(session).unwrap(),
+        serde_json::json!({ "contextInfo": null })
+    );
+    for context in [
+        serde_json::Value::Null,
+        serde_json::json!({
+            "modelName": "test-model",
+            "systemTokens": 10,
+            "conversationTokens": 20,
+            "toolDefinitionsTokens": 30,
+            "mcpToolsTokens": 5,
+            "totalTokens": 60,
+            "promptTokenLimit": 100,
+            "compactionThreshold": 80,
+            "limit": 120,
+            "bufferTokens": 25
+        }),
+    ] {
+        let wire = serde_json::json!({ "contextInfo": context });
+        let metadata: MetadataContextInfoResult = serde_json::from_value(wire.clone()).unwrap();
+        let session: SessionMetadataContextInfoResult =
+            serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(metadata.context_info.is_none(), context.is_null());
+        assert_eq!(session.context_info.is_none(), context.is_null());
+        assert_eq!(serde_json::to_value(metadata).unwrap(), wire);
+        assert_eq!(serde_json::to_value(session).unwrap(), wire);
+    }
+    for malformed in [
+        serde_json::json!(42),
+        serde_json::json!({ "modelName": "incomplete" }),
+    ] {
+        let wire = serde_json::json!({ "contextInfo": malformed });
+        assert!(serde_json::from_value::<MetadataContextInfoResult>(wire.clone()).is_err());
+        assert!(serde_json::from_value::<SessionMetadataContextInfoResult>(wire).is_err());
+    }
+}
+
+#[test]
+fn context_attribution_preserves_null_and_populated_metadata() {
+    let metadata: MetadataContextAttributionResult =
+        serde_json::from_value(serde_json::json!({})).unwrap();
+    let session: SessionMetadataGetContextAttributionResult =
+        serde_json::from_value(serde_json::json!({})).unwrap();
+    assert!(metadata.context_attribution.is_none());
+    assert!(session.context_attribution.is_none());
+    assert_eq!(
+        serde_json::to_value(metadata).unwrap(),
+        serde_json::json!({ "contextAttribution": null })
+    );
+    assert_eq!(
+        serde_json::to_value(session).unwrap(),
+        serde_json::json!({ "contextAttribution": null })
+    );
+    for context in [
+        serde_json::Value::Null,
+        serde_json::to_value(SessionContextAttribution {
+            model_id: "test-model".to_string(),
+            model_source: "selected".to_string(),
+            ..Default::default()
+        })
+        .unwrap(),
+    ] {
+        let wire = serde_json::json!({ "contextAttribution": context });
+        let metadata: MetadataContextAttributionResult =
+            serde_json::from_value(wire.clone()).unwrap();
+        let session: SessionMetadataGetContextAttributionResult =
+            serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(metadata.context_attribution.is_none(), context.is_null());
+        assert_eq!(session.context_attribution.is_none(), context.is_null());
+        assert_eq!(serde_json::to_value(metadata).unwrap(), wire);
+        assert_eq!(serde_json::to_value(session).unwrap(), wire);
+    }
+}
+
+#[test]
+fn workspace_metadata_preserves_null_and_populated_snapshots() {
+    for workspace in [
+        None,
+        Some(WorkspaceSummary {
+            id: "session-with-workspace".to_string(),
+            cwd: Some("/workspace".to_string()),
+            ..Default::default()
+        }),
+    ] {
+        let missing = workspace.is_none();
+        let wire = serde_json::to_value(SessionMetadataSnapshot {
+            workspace,
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(wire["workspace"].is_null(), missing);
+        let metadata: SessionMetadataSnapshot = serde_json::from_value(wire.clone()).unwrap();
+        let session: SessionMetadataSnapshotResult = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(metadata.workspace.is_none(), missing);
+        assert_eq!(session.workspace.is_none(), missing);
+        assert_eq!(serde_json::to_value(metadata).unwrap(), wire);
+        assert_eq!(serde_json::to_value(session).unwrap(), wire);
+
+        let mut absent = wire;
+        absent.as_object_mut().unwrap().remove("workspace");
+        let metadata: SessionMetadataSnapshot = serde_json::from_value(absent.clone()).unwrap();
+        let session: SessionMetadataSnapshotResult = serde_json::from_value(absent).unwrap();
+        assert!(metadata.workspace.is_none());
+        assert!(session.workspace.is_none());
+        assert!(serde_json::to_value(metadata).unwrap()["workspace"].is_null());
+        assert!(serde_json::to_value(session).unwrap()["workspace"].is_null());
+    }
+}
+
+#[test]
+fn subagent_settings_preserve_explicit_null_for_clearing_overrides() {
+    let request: UpdateSubagentSettingsRequest =
+        serde_json::from_value(serde_json::json!({})).unwrap();
+    assert!(request.subagents.is_none());
+    assert_eq!(
+        serde_json::to_value(request).unwrap(),
+        serde_json::json!({ "subagents": null })
+    );
+    for subagents in [
+        serde_json::Value::Null,
+        serde_json::json!({ "maxConcurrency": 2 }),
+    ] {
+        let wire = serde_json::json!({ "subagents": subagents });
+        let request: UpdateSubagentSettingsRequest = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(request.subagents.is_none(), subagents.is_null());
+        assert_eq!(serde_json::to_value(request).unwrap(), wire);
+    }
+}
+
+#[test]
+fn manual_mcp_requests_omit_unselected_owned_identity() {
+    let payloads = [
+        serde_json::to_value(McpEnableRequest {
+            server_name: "manual".to_string(),
+        })
+        .unwrap(),
+        serde_json::to_value(McpDisableRequest {
+            server_name: "manual".to_string(),
+        })
+        .unwrap(),
+        serde_json::to_value(McpStopServerRequest {
+            server_name: "manual".to_string(),
+        })
+        .unwrap(),
+        serde_json::to_value(McpOauthLoginRequest {
+            server_name: "manual".to_string(),
+            ..Default::default()
+        })
+        .unwrap(),
+        serde_json::to_value(McpEnableOptions::new("manual")).unwrap(),
+        serde_json::to_value(McpOauthLoginOptions::new("manual")).unwrap(),
+    ];
+    for payload in payloads {
+        assert_eq!(payload, serde_json::json!({"serverName": "manual"}));
+    }
+}
+
+#[test]
+fn owned_mcp_identity_is_only_reachable_through_options() {
+    assert_eq!(
+        serde_json::to_value(
+            McpEnableOptions::new("owned").expected_installation_id("a".repeat(32))
+        )
+        .unwrap(),
+        serde_json::json!({"serverName": "owned", "expectedInstallationId": "a".repeat(32)})
+    );
+    assert_eq!(
+        serde_json::to_value(
+            McpOauthLoginOptions::new("owned")
+                .expected_installation_id("a".repeat(32))
+                .login_id("b".repeat(32))
+        )
+        .unwrap(),
+        serde_json::json!({
+            "serverName": "owned",
+            "expectedInstallationId": "a".repeat(32),
+            "loginId": "b".repeat(32),
+        })
+    );
+}
 
 #[test]
 fn session_events_deserialize_auto_tier() {
@@ -430,4 +702,108 @@ fn set_model_options_distinguishes_unset_tier_from_reset() {
 
     let cleared = SetModelOptions::default().with_reset_auto_tier();
     assert_eq!(cleared.auto_tier, Some(AutoTierPreference::Reset));
+}
+
+/// Names published by earlier releases must keep resolving after reference aliasing.
+#[test]
+#[allow(deprecated)]
+fn released_nested_type_names_remain_usable() {
+    use github_copilot_sdk::rpc::{
+        DiagnosticEntrySource, DiagnosticsReadResultEntriesItemSource, McpInstallPlan,
+        MetadataContextAttributionResultContextAttribution,
+        MetadataContextAttributionResultContextAttributionCategories,
+        MetadataContextAttributionResultContextAttributionCompactions,
+        MetadataContextAttributionResultContextAttributionEntriesItem, ResponseFormatType,
+        SendMessagesRequestResponseFormatType, SendRequestResponseFormat,
+        SendRequestResponseFormatType, SessionDiagnosticsReadResultEntriesItemSource,
+        SessionMetadataGetContextAttributionResultContextAttributionCategories,
+        SessionMetadataGetContextAttributionResultContextAttributionCompactions,
+        SessionMetadataGetContextAttributionResultContextAttributionEntriesItem,
+    };
+
+    let source: DiagnosticsReadResultEntriesItemSource = DiagnosticEntrySource::default();
+    let _: SessionDiagnosticsReadResultEntriesItemSource = source;
+    let format_type: SendRequestResponseFormatType = ResponseFormatType::default();
+    let _: SendMessagesRequestResponseFormatType = format_type.clone();
+    let format = SendRequestResponseFormat {
+        r#type: format_type,
+        ..Default::default()
+    };
+    assert!(serde_json::to_value(&format).is_ok());
+
+    let attribution = MetadataContextAttributionResultContextAttribution {
+        categories: MetadataContextAttributionResultContextAttributionCategories::default(),
+        compactions: MetadataContextAttributionResultContextAttributionCompactions::default(),
+        entries: vec![MetadataContextAttributionResultContextAttributionEntriesItem::default()],
+        ..Default::default()
+    };
+    let _: SessionMetadataGetContextAttributionResultContextAttributionCategories =
+        attribution.categories.clone();
+    let _: SessionMetadataGetContextAttributionResultContextAttributionCompactions =
+        attribution.compactions.clone();
+    let _: Vec<SessionMetadataGetContextAttributionResultContextAttributionEntriesItem> =
+        attribution.entries.clone();
+
+    let plan = McpInstallPlan {
+        transport_choices: vec![serde_json::json!({ "choiceId": "raw" })],
+        ..Default::default()
+    };
+    assert_eq!(plan.transport_choices[0]["choiceId"], "raw");
+}
+
+/// The attachment `type` literal cannot be represented by its released field type, so it
+/// must still round-trip on the wire instead of degrading to `"Unknown"`.
+#[test]
+fn github_reference_attachments_keep_their_type_literal_on_the_wire() {
+    use github_copilot_sdk::rpc::{
+        AttachmentGitHubReference, AttachmentGitHubReferenceType, PushAttachmentGitHubReference,
+    };
+
+    let wire = serde_json::json!({
+        "number": 7,
+        "referenceType": "pr",
+        "state": "open",
+        "title": "Example",
+        "type": "github_reference",
+        "url": "https://github.com/example/repo/pull/7"
+    });
+    let attachment: AttachmentGitHubReference = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(attachment.reference_type, AttachmentGitHubReferenceType::Pr);
+    assert_eq!(attachment.r#type, AttachmentGitHubReferenceType::Unknown);
+    assert_eq!(serde_json::to_value(&attachment).unwrap(), wire);
+    assert_eq!(
+        serde_json::to_value(AttachmentGitHubReference::default()).unwrap()["type"],
+        "github_reference"
+    );
+
+    let push: PushAttachmentGitHubReference = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&push).unwrap(), wire);
+    assert_eq!(
+        serde_json::to_value(PushAttachmentGitHubReference::default()).unwrap()["type"],
+        "github_reference"
+    );
+}
+
+#[test]
+fn listed_mcp_server_literals_with_defaults_survive_the_owned_marker() {
+    let manual = McpServer {
+        name: "manual".to_string(),
+        status: McpServerStatus::Stopped,
+        ..Default::default()
+    };
+    assert!(manual.owned.is_none());
+    assert!(
+        serde_json::to_value(&manual)
+            .unwrap()
+            .get("owned")
+            .is_none()
+    );
+
+    let owned: McpServer = serde_json::from_value(serde_json::json!({
+        "name": "owned",
+        "status": "stopped",
+        "owned": {"installationId": "installation"},
+    }))
+    .unwrap();
+    assert_eq!(owned.owned.unwrap().installation_id, "installation");
 }

@@ -36,6 +36,33 @@ public record McpServer(
     /** Error message if the server failed to connect */
     @JsonProperty("error") String error,
     /** Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured. */
-    @JsonProperty("serverMetadata") McpServerMetadata serverMetadata
+    @JsonProperty("serverMetadata") McpServerMetadata serverMetadata,
+    /** Owned installation this entry's live configuration came from. Absent for manual, workspace, plugin, builtin and same-name servers, and on runtimes without owned installations. */
+    @JsonProperty("owned") McpServerOwnership owned
 ) {
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     *
+     * @param name Server name (config key)
+     * @param status Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
+     * @param source Configuration source: user, workspace, plugin, builtin, or managed
+     * @param sourcePlugin Plugin name that provided this server, when source is plugin.
+     * @param sourcePluginVersion Plugin version that provided this server, when source is plugin.
+     * @param displayName Human-readable display name supplied by a managed server catalog.
+     * @param error Error message if the server failed to connect
+     * @param serverMetadata Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.
+     */
+    public McpServer(
+        String name,
+        McpServerStatus status,
+        McpServerSource source,
+        String sourcePlugin,
+        String sourcePluginVersion,
+        String displayName,
+        String error,
+        McpServerMetadata serverMetadata
+    ) {
+        this(name, status, source, sourcePlugin, sourcePluginVersion, displayName, error, serverMetadata, null);
+    }
 }

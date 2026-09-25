@@ -1484,7 +1484,7 @@ async fn create_session_forwards_refresh_custom_instructions_only_when_set() {
             write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
         };
 
-        let (session, ()) = timeout(TIMEOUT, async { tokio::join!(create, server) })
+        let (session, ()) = timeout(TIMEOUT, Box::pin(async { tokio::join!(create, server) }))
             .await
             .unwrap();
         session.unwrap();

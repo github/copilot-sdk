@@ -12,7 +12,6 @@ export { CopilotClient } from "./client.js";
 export { DisableBypassPermissionsModes, RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
-export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./factory.js";
 export { defineWorkflow, WorkflowResumeError, isWorkflowRunTerminal } from "./workflow.js";
 export {
     Canvas,
@@ -48,7 +47,7 @@ export {
 // `PermissionRequest` (re-exported below from `./types.js`),
 // `PermissionRequestedData`/`PermissionRequestedEvent` (also re-exported below
 // from `./types.js`), `AssistantMessageEvent` (re-exported above from
-// `./session.js`), and `JsonValue` (re-exported below from `./factory.js`).
+// `./session.js`), and `JsonValue` (re-exported below from `./workflow.js`).
 // Per the ECMAScript module spec, the explicit named re-exports
 // shadow the names arriving via `export type *`, so the hand-authored public API
 // surface for those six identifiers is preserved unchanged.
@@ -87,6 +86,13 @@ export type {
     CopilotClientInfo,
     CopilotClientMode,
     CopilotClientOptions,
+    InstallationConfirmationContext,
+    InstallationConfirmationHandler,
+    InstallationConfirmationRequest,
+    InstallationConfirmationResponse,
+    InstallationDecision,
+    InstallationReview,
+    McpInstallationReview,
     CopilotExpAssignmentResponse,
     StdioRuntimeConnection,
     InProcessRuntimeConnection,
@@ -127,8 +133,6 @@ export type {
     LargeToolOutputConfig,
     MemoryConfiguration,
     UiInputOptions,
-    FactoryLimits,
-    FactoryMeta,
     MCPStdioServerConfig,
     MCPHTTPServerConfig,
     MCPServerConfig,
@@ -222,32 +226,7 @@ export type {
     ZodSchema,
 } from "./types.js";
 export type {
-    RunOptions,
-    ResumeOptions,
-    FactoryLimitOverrides,
-    FactoryResumeErrorCode,
-    SessionFactoryApi,
-    FactoryAgentOptions,
-    FactoryContext,
-    FactoryDefinition,
-    FactoryHandle,
-    FactoryJsonSchema,
     JsonValue,
-    FactoryPipelineStage,
-    FactoryStepOptions,
-    FactoryRunResult,
-    FactoryRunStatus,
-    FactoryRunSummary,
-    FactoryListRunsOptions,
-    FactoryRunsPage,
-    FactoryRunDetail,
-    FactoryProgressPage,
-    FactoryProgressLine,
-    FactoryPhaseObservation,
-    FactoryPhaseStatus,
-    FactoryAgentSummary,
-} from "./factory.js";
-export type {
     WorkflowRunOptions,
     WorkflowResumeOptions,
     WorkflowLimitOverrides,
