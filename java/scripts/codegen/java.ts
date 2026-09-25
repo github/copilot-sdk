@@ -13,7 +13,7 @@ import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
 import { RPC_VARIANT_OWNERS } from "./rpc-variant-owners.js";
-import { hasLegacyParameters, isOmittableRequest, LEGACY_PARAMETERS_KEY, readLegacyParameters, type LegacyParameters } from "../../../scripts/codegen/legacy-parameters.js";
+import { hasLegacyParameters, isOmittableRequest, LEGACY_PARAMETERS_KEY, readLegacyParameters, validateLegacyUntypedMarkers, type LegacyParameters } from "../../../scripts/codegen/legacy-parameters.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1856,6 +1856,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
     const schema: RpcSchema = normalizeSchemaBrandCasing(JSON.parse(schemaContent));
     crossSchemaDefinitions.clear();
+    validateLegacyUntypedMarkers(schema, "api.schema.json");
 
     // Load cross-schema definitions (session-events) so that cross-schema $ref values
     // like "session-events.schema.json#/definitions/Foo" can be resolved.

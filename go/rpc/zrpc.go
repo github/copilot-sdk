@@ -4065,730 +4065,6 @@ type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
 	Theme *ExternalToolTextResultForLlmContentResourceLinkIconTheme `json:"theme,omitempty"`
 }
 
-// Parameters for cooperatively aborting a factory body.
-// Experimental: FactoryAbortRequest is part of an experimental API and may change or be
-// removed.
-type FactoryAbortRequest struct {
-	// Opaque token identifying the execution attempt to abort.
-	ExecutionToken string `json:"executionToken"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Target session identifier
-	SessionID string `json:"sessionId"`
-}
-
-// Acknowledgement that a factory request was accepted.
-// Experimental: FactoryAckResult is part of an experimental API and may change or be
-// removed.
-type FactoryAckResult struct {
-}
-
-// Options for one factory-scoped subagent call.
-// Experimental: FactoryAgentOptions is part of an experimental API and may change or be
-// removed.
-type FactoryAgentOptions struct {
-	// Optional built-in or custom agent name whose definition configures the subagent.
-	Agent *string `json:"agent,omitempty"`
-	// Optional context tier override for the subagent.
-	ContextTier *ContextTier `json:"contextTier,omitempty"`
-	// Optional label distinguishing otherwise identical memoized agent calls.
-	Label *string `json:"label,omitempty"`
-	// Optional model identifier for the subagent.
-	Model *string `json:"model,omitempty"`
-	// Optional reasoning effort override for the subagent.
-	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
-	// Optional JSON Schema for structured agent output.
-	Schema any `json:"schema,omitempty"`
-}
-
-// Parameters for one factory-scoped subagent call.
-// Experimental: FactoryAgentRequest is part of an experimental API and may change or be
-// removed.
-type FactoryAgentRequest struct {
-	// Opaque token identifying the current factory execution attempt.
-	ExecutionToken string `json:"executionToken"`
-	// Factory run identifier that owns the subagent.
-	FactoryRunID string `json:"factoryRunId"`
-	// Subagent execution options.
-	Opts FactoryAgentOptions `json:"opts"`
-	// Prompt to send to the subagent.
-	Prompt string `json:"prompt"`
-}
-
-// Result of one factory-scoped subagent call.
-// Experimental: FactoryAgentResult is part of an experimental API and may change or be
-// removed.
-type FactoryAgentResult struct {
-	// Agent result, omitted when the agent produced no result.
-	Result any `json:"result,omitempty"`
-}
-
-// Prompt-safe durable identity and live status for a direct factory agent.
-// Experimental: FactoryAgentSummary is part of an experimental API and may change or be
-// removed.
-type FactoryAgentSummary struct {
-	// Accumulated active agent time in milliseconds.
-	ActiveMs int64 `json:"activeMs"`
-	// Prompt-safe live activity text.
-	Activity *string `json:"activity,omitempty"`
-	// Stable direct-agent identifier.
-	AgentID string `json:"agentId"`
-	// Registered agent type.
-	AgentType string `json:"agentType"`
-	// Epoch milliseconds when the agent completed.
-	CompletedAt *int64 `json:"completedAt,omitempty"`
-	// Friendly, non-unique name intended for display
-	DisplayName *string `json:"displayName,omitempty"`
-	// Friendly, non-unique name intended for display
-	Label string `json:"label"`
-	// Phase identifier active when the agent was launched, or null.
-	PhaseID *string `json:"phaseId"`
-	// Model requested when the agent was launched.
-	RequestedModel *string `json:"requestedModel,omitempty"`
-	// Concrete model resolved for the agent.
-	ResolvedModel *string `json:"resolvedModel,omitempty"`
-	// Owning factory run identifier.
-	RunID string `json:"runId"`
-	// Epoch milliseconds when the agent started.
-	StartedAt *int64 `json:"startedAt,omitempty"`
-	// Current durable or live agent status.
-	Status string `json:"status"`
-	// Tool-call identifier that launched the agent.
-	ToolCallID string `json:"toolCallId"`
-}
-
-// Parameters for cancelling a factory run.
-// Experimental: FactoryCancelRequest is part of an experimental API and may change or be
-// removed.
-type FactoryCancelRequest struct {
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Current factory phase identity.
-// Experimental: FactoryCurrentPhase is part of an experimental API and may change or be
-// removed.
-type FactoryCurrentPhase struct {
-	// Current phase identifier.
-	ID string `json:"id"`
-	// Zero-based declared phase ordinal, or null for an undeclared phase.
-	Ordinal *int64 `json:"ordinal"`
-}
-
-// Declared or approved factory resource ceilings.
-// Experimental: FactoryDeclaredLimits is part of an experimental API and may change or be
-// removed.
-type FactoryDeclaredLimits struct {
-	// Maximum AI credits consumed by subagents and descendants.
-	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
-	// Maximum concurrently active subagents.
-	MaxConcurrentSubagents *int64 `json:"maxConcurrentSubagents,omitempty"`
-	// Maximum total subagents spawned by the run.
-	MaxTotalSubagents *int64 `json:"maxTotalSubagents,omitempty"`
-	// Maximum accumulated active execution time in seconds.
-	TimeoutSeconds *float64 `json:"timeoutSeconds,omitempty"`
-}
-
-// Parameters sent to the owning extension to execute a factory closure.
-// Experimental: FactoryExecuteRequest is part of an experimental API and may change or be
-// removed.
-type FactoryExecuteRequest struct {
-	// Factory input value.
-	Args any `json:"args"`
-	// Opaque token identifying this factory execution attempt.
-	ExecutionToken string `json:"executionToken"`
-	// Registered factory name.
-	Name string `json:"name"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Target session identifier
-	SessionID string `json:"sessionId"`
-}
-
-// Result returned by an extension factory closure.
-// Experimental: FactoryExecuteResult is part of an experimental API and may change or be
-// removed.
-type FactoryExecuteResult struct {
-	// Factory result value.
-	Result any `json:"result,omitempty"`
-}
-
-// Parameters for paging factory progress.
-// Experimental: FactoryGetRunProgressRequest is part of an experimental API and may change
-// or be removed.
-type FactoryGetRunProgressRequest struct {
-	// Exclusive forward cursor.
-	AfterSeq *int64 `json:"afterSeq,omitempty"`
-	// Exclusive backward cursor.
-	BeforeSeq *int64 `json:"beforeSeq,omitempty"`
-	// Maximum records to return. Defaults to 200 and is capped at 500.
-	Limit *int32 `json:"limit,omitempty"`
-	// Optional phase identifier used to scope records and cursors.
-	PhaseID *string `json:"phaseId,omitempty"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Parameters for retrieving a factory run.
-// Experimental: FactoryGetRunRequest is part of an experimental API and may change or be
-// removed.
-type FactoryGetRunRequest struct {
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Parameters for reading a factory journal entry.
-// Experimental: FactoryJournalGetRequest is part of an experimental API and may change or
-// be removed.
-type FactoryJournalGetRequest struct {
-	// Opaque token identifying the current factory execution attempt.
-	ExecutionToken string `json:"executionToken"`
-	// Namespaced journal key.
-	Key string `json:"key"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Result of reading a factory journal entry.
-// Experimental: FactoryJournalGetResult is part of an experimental API and may change or be
-// removed.
-type FactoryJournalGetResult struct {
-	// Whether the journal contained the requested key.
-	Hit bool `json:"hit"`
-	// Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
-	ResultJSON any `json:"resultJson,omitempty"`
-}
-
-// Parameters for storing a factory journal entry.
-// Experimental: FactoryJournalPutRequest is part of an experimental API and may change or
-// be removed.
-type FactoryJournalPutRequest struct {
-	// Opaque token identifying the current factory execution attempt.
-	ExecutionToken string `json:"executionToken"`
-	// Namespaced journal key.
-	Key string `json:"key"`
-	// JSON result to memoize.
-	ResultJSON any `json:"resultJson"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Parameters for paging factory runs.
-// Experimental: FactoryListRunsRequest is part of an experimental API and may change or be
-// removed.
-type FactoryListRunsRequest struct {
-	// Exclusive forward cursor.
-	AfterSeq *int64 `json:"afterSeq,omitempty"`
-	// Exclusive backward cursor.
-	BeforeSeq *int64 `json:"beforeSeq,omitempty"`
-	// Maximum terminal runs to return. Defaults to 200 and is capped at 500.
-	Limit *int32 `json:"limit,omitempty"`
-}
-
-// A page of factory runs in durable creation order.
-// Experimental: FactoryListRunsResult is part of an experimental API and may change or be
-// removed.
-type FactoryListRunsResult struct {
-	// Whether terminal runs newer than this page exist.
-	HasMoreNewer *bool `json:"hasMoreNewer,omitempty"`
-	// Newest terminal-run cursor in this page, or null when the terminal window is empty.
-	NewestSeq *int64 `json:"newestSeq,omitempty"`
-	// Oldest terminal-run cursor in this page, or null when the terminal window is empty.
-	OldestSeq *int64 `json:"oldestSeq,omitempty"`
-	// Number of terminal runs older than this page.
-	OmittedOlder *int64 `json:"omittedOlder,omitempty"`
-	// Factory run summaries in durable creation order.
-	Runs []FactoryRunSummary `json:"runs"`
-}
-
-// One ordered factory progress line.
-// Experimental: FactoryLogLine is part of an experimental API and may change or be removed.
-type FactoryLogLine struct {
-	// Progress line kind.
-	Kind FactoryLogLineKind `json:"kind"`
-	// Monotonic sequence number within the factory run.
-	Seq int64 `json:"seq"`
-	// Progress text.
-	Text string `json:"text"`
-}
-
-// Parameters for recording factory progress.
-// Experimental: FactoryLogRequest is part of an experimental API and may change or be
-// removed.
-type FactoryLogRequest struct {
-	// Opaque token identifying the current factory execution attempt.
-	ExecutionToken string `json:"executionToken"`
-	// Ordered progress lines to append.
-	Lines []FactoryLogLine `json:"lines"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Parameters for an owned durable pause checkpoint.
-// Experimental: FactoryPauseCheckpointRequest is part of an experimental API and may change
-// or be removed.
-type FactoryPauseCheckpointRequest struct {
-	// Opaque token identifying the execution attempt that reached the checkpoint.
-	ExecutionToken string `json:"executionToken"`
-	// Stable author-defined checkpoint key.
-	Key string `json:"key"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Experimental: FactoryPauseCheckpointResult is part of an experimental API and may change
-// or be removed.
-type FactoryPauseCheckpointResult struct {
-	// Whether this execution attempt must pause or may continue.
-	Action FactoryPauseCheckpointAction `json:"action"`
-}
-
-// Durable metadata describing who initiated a factory pause.
-// Experimental: FactoryPauseInfo is part of an experimental API and may change or be
-// removed.
-type FactoryPauseInfo interface {
-	factoryPauseInfo()
-	Type() FactoryPauseInfoType
-}
-
-type RawFactoryPauseInfoData struct {
-	Discriminator FactoryPauseInfoType
-	Raw           json.RawMessage
-}
-
-func (RawFactoryPauseInfoData) factoryPauseInfo() {}
-func (r RawFactoryPauseInfoData) Type() FactoryPauseInfoType {
-	return r.Discriminator
-}
-
-type FactoryPauseInfoCheckpoint struct {
-	// Stable author-defined checkpoint key that initiated the pause.
-	Key string `json:"key"`
-}
-
-func (FactoryPauseInfoCheckpoint) factoryPauseInfo() {}
-func (FactoryPauseInfoCheckpoint) Type() FactoryPauseInfoType {
-	return FactoryPauseInfoTypeCheckpoint
-}
-
-type FactoryPauseInfoUser struct {
-}
-
-func (FactoryPauseInfoUser) factoryPauseInfo() {}
-func (FactoryPauseInfoUser) Type() FactoryPauseInfoType {
-	return FactoryPauseInfoTypeUser
-}
-
-// Parameters for pausing a running factory.
-// Experimental: FactoryPauseRequest is part of an experimental API and may change or be
-// removed.
-type FactoryPauseRequest struct {
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Durable lifecycle and timing for one factory phase.
-// Experimental: FactoryPhaseObservation is part of an experimental API and may change or be
-// removed.
-type FactoryPhaseObservation struct {
-	// Completed active time accumulated by this phase in milliseconds.
-	AccumulatedActiveMs int64 `json:"accumulatedActiveMs"`
-	// Epoch milliseconds when this phase completed; for a skipped phase, the synthetic skip
-	// timestamp (equal to `startedAt`).
-	CompletedAt *int64 `json:"completedAt,omitempty"`
-	// Current live active time for this phase in milliseconds.
-	CurrentActiveMs int64 `json:"currentActiveMs"`
-	// Optional human-readable phase detail.
-	Detail *string `json:"detail,omitempty"`
-	// Number of times execution entered this phase.
-	EntryCount int64 `json:"entryCount"`
-	// Phase identifier.
-	ID string `json:"id"`
-	// Most recent run attempt that entered this phase, or `0` if the phase has never been
-	// entered.
-	LastEnteredRunAttempt int64 `json:"lastEnteredRunAttempt"`
-	// Direct agents in this phase that are currently live.
-	LiveAgentCount int64 `json:"liveAgentCount"`
-	// Zero-based declared phase ordinal, or null for an undeclared phase.
-	Ordinal *int64 `json:"ordinal"`
-	// Epoch milliseconds when this phase first started; for a skipped phase, the synthetic skip
-	// timestamp (equal to `completedAt`).
-	StartedAt *int64 `json:"startedAt,omitempty"`
-	// Derived lifecycle state of the phase.
-	Status FactoryPhaseStatus `json:"status"`
-	// Human-readable phase title.
-	Title string `json:"title"`
-	// Total direct agents associated with this phase.
-	TotalAgentCount int64 `json:"totalAgentCount"`
-}
-
-// One durable factory progress record.
-// Experimental: FactoryProgressLine is part of an experimental API and may change or be
-// removed.
-type FactoryProgressLine struct {
-	// Resume attempt that emitted this record.
-	Attempt int64 `json:"attempt"`
-	// Progress record kind.
-	Kind FactoryLogLineKind `json:"kind"`
-	// Phase active when the record was emitted, or null before any phase.
-	PhaseID *string `json:"phaseId"`
-	// Epoch milliseconds when the record was persisted.
-	RecordedAt int64 `json:"recordedAt"`
-	// Global monotonic sequence number within the run.
-	Seq int64 `json:"seq"`
-	// Prompt-safe progress text.
-	Text string `json:"text"`
-}
-
-// A bidirectional page of factory progress.
-// Experimental: FactoryProgressPage is part of an experimental API and may change or be
-// removed.
-type FactoryProgressPage struct {
-	// Whether progress records newer than this page exist.
-	HasMoreNewer bool `json:"hasMoreNewer"`
-	// Whether progress records older than this page exist.
-	HasMoreOlder bool `json:"hasMoreOlder"`
-	// Newest sequence number in this page, or null when empty.
-	NewestSeq *int64 `json:"newestSeq"`
-	// Oldest sequence number in this page, or null when empty.
-	OldestSeq *int64 `json:"oldestSeq"`
-	// Progress records in sequence order.
-	Records []FactoryProgressLine `json:"records"`
-	// Run revision reflected by this page.
-	Revision int64 `json:"revision"`
-}
-
-// Parameters for resuming a factory run from its persisted identity.
-// Experimental: FactoryResumeRequest is part of an experimental API and may change or be
-// removed.
-type FactoryResumeRequest struct {
-	// Optional per-invocation resource ceiling overrides.
-	Limits *FactoryRunLimits `json:"limits,omitempty"`
-	// Whether to emit factory phase names to the session transcript.
-	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
-	// Whether to notify the originating session when the factory completes.
-	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-// Resolved persisted factory identity and resumed run envelope.
-// Experimental: FactoryResumeResult is part of an experimental API and may change or be
-// removed.
-type FactoryResumeResult struct {
-	// Persisted factory name resolved for the resumed run.
-	FactoryName string `json:"factoryName"`
-	// Terminal resumed run envelope.
-	Run FactoryRunResult `json:"run"`
-}
-
-// Durable factory resource consumption.
-// Experimental: FactoryRunConsumed is part of an experimental API and may change or be
-// removed.
-type FactoryRunConsumed struct {
-	// Accumulated active execution time in milliseconds.
-	ActiveMs int64 `json:"activeMs"`
-	// AI usage consumed by the run in nano-AIU.
-	NanoAiu int64 `json:"nanoAiu"`
-	// Total subagents spawned by the run.
-	Subagents int64 `json:"subagents"`
-}
-
-// Full factory run observability detail.
-// Experimental: FactoryRunDetail is part of an experimental API and may change or be
-// removed.
-type FactoryRunDetail struct {
-	// Epoch milliseconds when the current active segment started, or null while inactive.
-	ActiveSegmentStartedAt *int64 `json:"activeSegmentStartedAt"`
-	// Durable identities and live statuses for direct factory agents.
-	Agents []FactoryAgentSummary `json:"agents"`
-	// Approved effective resource ceilings, or null until approved.
-	Approved *FactoryDeclaredLimits `json:"approved"`
-	// Whether the durable run state currently passes runtime resume eligibility checks.
-	CanResume bool `json:"canResume"`
-	// Epoch milliseconds when the run completed, or null while nonterminal.
-	CompletedAt *int64 `json:"completedAt"`
-	// Durable resource consumption.
-	Consumed FactoryRunConsumed `json:"consumed"`
-	// Epoch milliseconds when the run was created.
-	CreatedAt int64 `json:"createdAt"`
-	// Current phase identity, or null before any phase is entered.
-	CurrentPhase *FactoryCurrentPhase `json:"currentPhase"`
-	// Resource ceilings declared by the factory.
-	DeclaredLimits FactoryDeclaredLimits `json:"declaredLimits"`
-	// Number of phases declared by the factory.
-	DeclaredPhaseCount int64 `json:"declaredPhaseCount"`
-	// Human-readable factory description.
-	Description string `json:"description"`
-	// Registered factory name.
-	FactoryName string `json:"factoryName"`
-	// Number of direct factory agents currently live.
-	LiveAgentCount int64 `json:"liveAgentCount"`
-	// Epoch milliseconds when this live-overlay snapshot was observed.
-	ObservedAt int64 `json:"observedAt"`
-	// Lifecycle and timing observations for each factory phase.
-	Phases []FactoryPhaseObservation `json:"phases"`
-	// Bidirectional page of durable factory progress.
-	Progress FactoryProgressPage `json:"progress"`
-	// Monotonic durable run revision.
-	Revision int64 `json:"revision"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Epoch milliseconds when execution first started, or null before start.
-	StartedAt *int64 `json:"startedAt"`
-	// Current factory run status.
-	Status FactoryRunStatus `json:"status"`
-	// Terminal run outcome, or null while nonterminal.
-	Terminal *FactoryRunTerminal `json:"terminal"`
-	// Total direct factory agents spawned across all attempts.
-	TotalSpawnedAgentCount int64 `json:"totalSpawnedAgentCount"`
-	// Epoch milliseconds when the durable run was last updated.
-	UpdatedAt int64 `json:"updatedAt"`
-}
-
-// Machine-readable factory run failure.
-// Experimental: FactoryRunFailure is part of an experimental API and may change or be
-// removed.
-type FactoryRunFailure interface {
-	factoryRunFailure()
-	Type() FactoryRunFailureType
-}
-
-type RawFactoryRunFailureData struct {
-	Discriminator FactoryRunFailureType
-	Raw           json.RawMessage
-}
-
-func (RawFactoryRunFailureData) factoryRunFailure() {}
-func (r RawFactoryRunFailureData) Type() FactoryRunFailureType {
-	return r.Discriminator
-}
-
-// The run stopped because its usage accounting could not be completed.
-type FactoryRunFailureFactoryAccountingIncomplete struct {
-	// Confirmed usage in nano-AIU, representing the floor of what the run spent.
-	DrainedNanoAiu int64 `json:"drainedNanoAiu"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-func (FactoryRunFailureFactoryAccountingIncomplete) factoryRunFailure() {}
-func (FactoryRunFailureFactoryAccountingIncomplete) Type() FactoryRunFailureType {
-	return FactoryRunFailureTypeFactoryAccountingIncomplete
-}
-
-type FactoryRunFailureFactoryDurableFailure struct {
-	// Stable failure code.
-	Code string `json:"code"`
-	// Execution-critical durable operation that failed.
-	Operation FactoryDurableOperation `json:"operation"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-func (FactoryRunFailureFactoryDurableFailure) factoryRunFailure() {}
-func (FactoryRunFailureFactoryDurableFailure) Type() FactoryRunFailureType {
-	return FactoryRunFailureTypeFactoryDurableFailure
-}
-
-type FactoryRunFailureFactoryLimitReached struct {
-	// Resource ceiling that stopped the run.
-	Kind FactoryRunFailureKind `json:"kind"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Suggested larger ceiling when the runtime can derive one safely.
-	SuggestedValue *float64 `json:"suggestedValue,omitempty"`
-	// Approved effective ceiling that was reached.
-	Value float64 `json:"value"`
-}
-
-func (FactoryRunFailureFactoryLimitReached) factoryRunFailure() {}
-func (FactoryRunFailureFactoryLimitReached) Type() FactoryRunFailureType {
-	return FactoryRunFailureTypeFactoryLimitReached
-}
-
-// The extension that owns the factory disconnected while the run was executing, so the host
-// halted it. The run's journaled subagent results are preserved so a resume can reuse them.
-type FactoryRunFailureFactoryProviderDisconnected struct {
-	// Factory run identifier.
-	RunID string `json:"runId"`
-}
-
-func (FactoryRunFailureFactoryProviderDisconnected) factoryRunFailure() {}
-func (FactoryRunFailureFactoryProviderDisconnected) Type() FactoryRunFailureType {
-	return FactoryRunFailureTypeFactoryProviderDisconnected
-}
-
-type FactoryRunFailureFactoryResumeDeclined struct {
-	// Human-readable reason the resume did not proceed.
-	Reason string `json:"reason"`
-	// Factory run identifier whose changed limits were declined.
-	RunID string `json:"runId"`
-}
-
-func (FactoryRunFailureFactoryResumeDeclined) factoryRunFailure() {}
-func (FactoryRunFailureFactoryResumeDeclined) Type() FactoryRunFailureType {
-	return FactoryRunFailureTypeFactoryResumeDeclined
-}
-
-// Wire-only per-invocation factory resource ceiling overrides.
-// Experimental: FactoryRunLimits is part of an experimental API and may change or be
-// removed.
-type FactoryRunLimits struct {
-	// Maximum AI credits consumed by factory subagents and their descendants. The post-paid
-	// ceiling is soft: parallel turns can settle beyond it before the run stops.
-	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
-	// Maximum number of factory subagents that may run concurrently.
-	MaxConcurrentSubagents *int64 `json:"maxConcurrentSubagents,omitempty"`
-	// Maximum total number of factory subagents that may be admitted.
-	MaxTotalSubagents *int64 `json:"maxTotalSubagents,omitempty"`
-	// Maximum accumulated active-execution time in seconds. Active execution includes the
-	// entire extension body, subprocess waits, queued-agent waits, and sleeps; time between
-	// resumed attempts is not counted.
-	TimeoutSeconds *float64 `json:"timeoutSeconds,omitempty"`
-}
-
-// Parameters for invoking a registered factory.
-// Experimental: FactoryRunRequest is part of an experimental API and may change or be
-// removed.
-type FactoryRunRequest struct {
-	// Factory input value.
-	Args any `json:"args"`
-	// Registered factory name.
-	Name string `json:"name"`
-	// Factory invocation options.
-	Options *RunOptions `json:"options,omitempty"`
-}
-
-// Complete current or terminal factory run envelope.
-// Experimental: FactoryRunResult is part of an experimental API and may change or be
-// removed.
-type FactoryRunResult struct {
-	// One-based execution attempt represented by this envelope. Absent before the first attempt
-	// starts or when returned by an older runtime.
-	Attempt *int64 `json:"attempt,omitempty"`
-	// Error message for an errored run.
-	Error *string `json:"error,omitempty"`
-	// Machine-readable failure details for a halted or errored run.
-	Failure FactoryRunFailure `json:"failure,omitempty"`
-	// Structured pause initiator metadata for a paused attempt.
-	PauseInfo FactoryPauseInfo `json:"pauseInfo,omitempty"`
-	// Reason for a halted or cancelled run.
-	Reason *string `json:"reason,omitempty"`
-	// Completed factory result.
-	Result any `json:"result,omitempty"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Partial journal and progress snapshot for a halted, cancelled, or errored run.
-	Snapshot any `json:"snapshot,omitempty"`
-	// Current or terminal factory run status.
-	Status FactoryRunStatus `json:"status"`
-}
-
-// Durable factory run summary with read-time live overlays.
-// Experimental: FactoryRunSummary is part of an experimental API and may change or be
-// removed.
-type FactoryRunSummary struct {
-	// Epoch milliseconds when the current active segment started, or null while inactive.
-	ActiveSegmentStartedAt *int64 `json:"activeSegmentStartedAt"`
-	// Approved effective resource ceilings, or null until approved.
-	Approved *FactoryDeclaredLimits `json:"approved"`
-	// Whether the durable run state currently passes runtime resume eligibility checks.
-	CanResume bool `json:"canResume"`
-	// Epoch milliseconds when the run completed, or null while nonterminal.
-	CompletedAt *int64 `json:"completedAt"`
-	// Durable resource consumption.
-	Consumed FactoryRunConsumed `json:"consumed"`
-	// Epoch milliseconds when the run was created.
-	CreatedAt int64 `json:"createdAt"`
-	// Current phase identity, or null before any phase is entered.
-	CurrentPhase *FactoryCurrentPhase `json:"currentPhase"`
-	// Resource ceilings declared by the factory.
-	DeclaredLimits FactoryDeclaredLimits `json:"declaredLimits"`
-	// Number of phases declared by the factory.
-	DeclaredPhaseCount int64 `json:"declaredPhaseCount"`
-	// Human-readable factory description.
-	Description string `json:"description"`
-	// Registered factory name.
-	FactoryName string `json:"factoryName"`
-	// Number of direct factory agents currently live.
-	LiveAgentCount int64 `json:"liveAgentCount"`
-	// Epoch milliseconds when this live-overlay snapshot was observed.
-	ObservedAt int64 `json:"observedAt"`
-	// Monotonic durable run revision.
-	Revision int64 `json:"revision"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Epoch milliseconds when execution first started, or null before start.
-	StartedAt *int64 `json:"startedAt"`
-	// Current factory run status.
-	Status FactoryRunStatus `json:"status"`
-	// Terminal run outcome, or null while nonterminal.
-	Terminal *FactoryRunTerminal `json:"terminal"`
-	// Total direct factory agents spawned across all attempts.
-	TotalSpawnedAgentCount int64 `json:"totalSpawnedAgentCount"`
-	// Epoch milliseconds when the durable run was last updated.
-	UpdatedAt int64 `json:"updatedAt"`
-}
-
-// Prompt-safe terminal factory outcome.
-// Experimental: FactoryRunTerminal is part of an experimental API and may change or be
-// removed.
-type FactoryRunTerminal struct {
-	// Human-readable terminal error.
-	Error *string `json:"error,omitempty"`
-	// Machine-readable terminal failure.
-	Failure FactoryRunFailure `json:"failure,omitempty"`
-	// Pause initiator metadata, or null when the run did not pause.
-	PauseInfo FactoryPauseInfo `json:"pauseInfo"`
-	// Human-readable terminal reason.
-	Reason *string `json:"reason,omitempty"`
-	// Prompt-safe preview of the completed result.
-	ResultPreview *string `json:"resultPreview,omitempty"`
-}
-
-// Internal parameters for resuming a factory run from a tool.
-// Experimental: FactoryToolResumeRequest is part of an experimental API and may change or
-// be removed.
-// Internal: FactoryToolResumeRequest is an internal SDK API and is not part of the public
-// surface.
-type FactoryToolResumeRequest struct {
-	// Optional per-invocation resource ceiling overrides.
-	Limits *FactoryRunLimits `json:"limits,omitempty"`
-	// Factory run identifier.
-	RunID string `json:"runId"`
-	// Opaque identifier of the originating tool call.
-	ToolCallID *string `json:"toolCallId,omitempty"`
-}
-
-// Options for an internal tool-originated factory invocation.
-// Experimental: FactoryToolRunOptions is part of an experimental API and may change or be
-// removed.
-// Internal: FactoryToolRunOptions is an internal SDK API and is not part of the public
-// surface.
-type FactoryToolRunOptions struct {
-	// Per-invocation resource ceiling overrides.
-	Limits *FactoryRunLimits `json:"limits,omitempty"`
-	// Run identifier whose journal and progress should seed this resumed run.
-	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
-}
-
-// Internal parameters for invoking a registered factory from a tool.
-// Experimental: FactoryToolRunRequest is part of an experimental API and may change or be
-// removed.
-// Internal: FactoryToolRunRequest is an internal SDK API and is not part of the public
-// surface.
-type FactoryToolRunRequest struct {
-	// Factory input value.
-	Args any `json:"args"`
-	// Registered factory name.
-	Name string `json:"name"`
-	// Tool-originated factory invocation options.
-	Options *FactoryToolRunOptions `json:"options,omitempty"`
-	// Opaque identifier of the originating tool call.
-	ToolCallID *string `json:"toolCallId,omitempty"`
-}
-
 // Content filtering mode to apply to all tools, or a map of tool name to content filtering
 // mode.
 // Experimental: FilterMapping is part of an experimental API and may change or be removed.
@@ -9998,21 +9274,6 @@ func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) Kin
 	return PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess
 }
 
-// Location-scoped factory approval, optionally narrowed by approval key.
-// Experimental: PermissionDecisionApproveForLocationApprovalFactory is part of an
-// experimental API and may change or be removed.
-type PermissionDecisionApproveForLocationApprovalFactory struct {
-	// Optional factory operation name or canonical approval key; when omitted, the approval
-	// covers all factory operations.
-	ApprovalKey *string `json:"approvalKey,omitempty"`
-}
-
-func (PermissionDecisionApproveForLocationApprovalFactory) permissionDecisionApproveForLocationApproval() {
-}
-func (PermissionDecisionApproveForLocationApprovalFactory) Kind() PermissionDecisionApproveForLocationApprovalKind {
-	return PermissionDecisionApproveForLocationApprovalKindFactory
-}
-
 // Location-scoped approval details for an MCP server tool, or all tools on the server when
 // `toolName` is null.
 // Experimental: PermissionDecisionApproveForLocationApprovalMCP is part of an experimental
@@ -10066,6 +9327,21 @@ func (PermissionDecisionApproveForLocationApprovalRead) permissionDecisionApprov
 }
 func (PermissionDecisionApproveForLocationApprovalRead) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindRead
+}
+
+// Location-scoped workflow approval, optionally narrowed by approval key.
+// Experimental: PermissionDecisionApproveForLocationApprovalWorkflow is part of an
+// experimental API and may change or be removed.
+type PermissionDecisionApproveForLocationApprovalWorkflow struct {
+	// Optional workflow operation name or canonical approval key; when omitted, the approval
+	// covers all workflow operations.
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (PermissionDecisionApproveForLocationApprovalWorkflow) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalWorkflow) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindWorkflow
 }
 
 // Location-scoped approval details for filesystem write operations.
@@ -10176,21 +9452,6 @@ func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) Kind
 	return PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess
 }
 
-// Session-scoped factory approval, optionally narrowed by approval key.
-// Experimental: PermissionDecisionApproveForSessionApprovalFactory is part of an
-// experimental API and may change or be removed.
-type PermissionDecisionApproveForSessionApprovalFactory struct {
-	// Optional factory operation name or canonical approval key; when omitted, the approval
-	// covers all factory operations.
-	ApprovalKey *string `json:"approvalKey,omitempty"`
-}
-
-func (PermissionDecisionApproveForSessionApprovalFactory) permissionDecisionApproveForSessionApproval() {
-}
-func (PermissionDecisionApproveForSessionApprovalFactory) Kind() PermissionDecisionApproveForSessionApprovalKind {
-	return PermissionDecisionApproveForSessionApprovalKindFactory
-}
-
 // Session-scoped approval details for an MCP server tool, or all tools on the server when
 // `toolName` is null.
 // Experimental: PermissionDecisionApproveForSessionApprovalMCP is part of an experimental
@@ -10243,6 +9504,21 @@ func (PermissionDecisionApproveForSessionApprovalRead) permissionDecisionApprove
 }
 func (PermissionDecisionApproveForSessionApprovalRead) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindRead
+}
+
+// Session-scoped workflow approval, optionally narrowed by approval key.
+// Experimental: PermissionDecisionApproveForSessionApprovalWorkflow is part of an
+// experimental API and may change or be removed.
+type PermissionDecisionApproveForSessionApprovalWorkflow struct {
+	// Optional workflow operation name or canonical approval key; when omitted, the approval
+	// covers all workflow operations.
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (PermissionDecisionApproveForSessionApprovalWorkflow) permissionDecisionApproveForSessionApproval() {
+}
+func (PermissionDecisionApproveForSessionApprovalWorkflow) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindWorkflow
 }
 
 // Session-scoped approval details for filesystem write operations.
@@ -10704,21 +9980,6 @@ func (PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) Kind(
 	return PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess
 }
 
-// Location-persisted factory approval, optionally narrowed by approval key.
-// Experimental: PermissionsLocationsAddToolApprovalDetailsFactory is part of an
-// experimental API and may change or be removed.
-type PermissionsLocationsAddToolApprovalDetailsFactory struct {
-	// Optional factory operation name or canonical approval key; when omitted, the approval
-	// covers all factory operations.
-	ApprovalKey *string `json:"approvalKey,omitempty"`
-}
-
-func (PermissionsLocationsAddToolApprovalDetailsFactory) permissionsLocationsAddToolApprovalDetails() {
-}
-func (PermissionsLocationsAddToolApprovalDetailsFactory) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
-	return PermissionsLocationsAddToolApprovalDetailsKindFactory
-}
-
 // Location-persisted tool approval details for an MCP server tool, or all tools when
 // `toolName` is null.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsMCP is part of an experimental
@@ -10770,6 +10031,21 @@ type PermissionsLocationsAddToolApprovalDetailsRead struct {
 func (PermissionsLocationsAddToolApprovalDetailsRead) permissionsLocationsAddToolApprovalDetails() {}
 func (PermissionsLocationsAddToolApprovalDetailsRead) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindRead
+}
+
+// Location-persisted workflow approval, optionally narrowed by approval key.
+// Experimental: PermissionsLocationsAddToolApprovalDetailsWorkflow is part of an
+// experimental API and may change or be removed.
+type PermissionsLocationsAddToolApprovalDetailsWorkflow struct {
+	// Optional workflow operation name or canonical approval key; when omitted, the approval
+	// covers all workflow operations.
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (PermissionsLocationsAddToolApprovalDetailsWorkflow) permissionsLocationsAddToolApprovalDetails() {
+}
+func (PermissionsLocationsAddToolApprovalDetailsWorkflow) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+	return PermissionsLocationsAddToolApprovalDetailsKindWorkflow
 }
 
 // Location-persisted tool approval details for filesystem write operations.
@@ -12649,19 +11925,6 @@ type ResponseFormat struct {
 	Type ResponseFormatType `json:"type"`
 }
 
-// Options controlling factory invocation.
-// Experimental: RunOptions is part of an experimental API and may change or be removed.
-type RunOptions struct {
-	// Per-invocation resource ceiling overrides.
-	Limits *FactoryRunLimits `json:"limits,omitempty"`
-	// Whether to emit factory phase names to the session transcript.
-	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
-	// Whether to notify the originating session when the factory completes.
-	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
-	// Run identifier whose journal and progress should seed this resumed run.
-	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
-}
-
 // Experimental: RuntimeShutdownResult is part of an experimental API and may change or be
 // removed.
 type RuntimeShutdownResult struct {
@@ -13630,13 +12893,6 @@ type SessionExtensionsReloadResult struct {
 // Experimental: SessionExtensionsSendAttachmentsToMessageResult is part of an experimental
 // API and may change or be removed.
 type SessionExtensionsSendAttachmentsToMessageResult struct {
-}
-
-// Experimental: SessionFactoryPauseAtCheckpointResult is part of an experimental API and
-// may change or be removed.
-type SessionFactoryPauseAtCheckpointResult struct {
-	// Whether this execution attempt must pause or may continue.
-	Action FactoryPauseCheckpointAction `json:"action"`
 }
 
 // File path, content to append, and optional mode for the client-provided session
@@ -18426,19 +17682,6 @@ func (UserToolSessionApprovalExtensionPermissionAccess) Kind() UserToolSessionAp
 	return UserToolSessionApprovalKindExtensionPermissionAccess
 }
 
-// Session-scoped factory approval, optionally narrowed by approval key.
-// Experimental: UserToolSessionApprovalFactory is part of an experimental API and may
-// change or be removed.
-type UserToolSessionApprovalFactory struct {
-	// Optional factory operation name or canonical approval key
-	ApprovalKey *string `json:"approvalKey,omitempty"`
-}
-
-func (UserToolSessionApprovalFactory) userToolSessionApproval() {}
-func (UserToolSessionApprovalFactory) Kind() UserToolSessionApprovalKind {
-	return UserToolSessionApprovalKindFactory
-}
-
 // Session-scoped tool-approval rule for an MCP server tool, or all tools on the server when
 // `toolName` is null.
 // Experimental: UserToolSessionApprovalMCP is part of an experimental API and may change or
@@ -18475,6 +17718,19 @@ type UserToolSessionApprovalRead struct {
 func (UserToolSessionApprovalRead) userToolSessionApproval() {}
 func (UserToolSessionApprovalRead) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindRead
+}
+
+// Session-scoped workflow approval, optionally narrowed by approval key.
+// Experimental: UserToolSessionApprovalWorkflow is part of an experimental API and may
+// change or be removed.
+type UserToolSessionApprovalWorkflow struct {
+	// Optional workflow operation name or canonical approval key
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (UserToolSessionApprovalWorkflow) userToolSessionApproval() {}
+func (UserToolSessionApprovalWorkflow) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindWorkflow
 }
 
 // Session-scoped tool-approval rule for filesystem write operations.
@@ -20992,133 +20248,6 @@ const (
 	ExternalToolTextResultForLlmContentTypeText         ExternalToolTextResultForLlmContentType = "text"
 )
 
-// Execution-critical factory storage operation.
-// Experimental: FactoryDurableOperation is part of an experimental API and may change or be
-// removed.
-type FactoryDurableOperation string
-
-const (
-	// Persisting active execution time.
-	FactoryDurableOperationAddElapsed FactoryDurableOperation = "addElapsed"
-	// Persisting an idempotent model-usage charge.
-	FactoryDurableOperationChargeCredit FactoryDurableOperation = "chargeCredit"
-	// Creating the durable run and declared phases.
-	FactoryDurableOperationCreateRun FactoryDurableOperation = "createRun"
-	// Persisting the terminal run envelope.
-	FactoryDurableOperationFinishRun FactoryDurableOperation = "finishRun"
-	// Reading a journal entry without treating storage failure as a cache miss.
-	FactoryDurableOperationJournalGet FactoryDurableOperation = "journalGet"
-	// Persisting a journal entry before reporting success.
-	FactoryDurableOperationJournalPut FactoryDurableOperation = "journalPut"
-	// Persisting the transition to running.
-	FactoryDurableOperationMarkRunStarted FactoryDurableOperation = "markRunStarted"
-	// Reading the authoritative AI-credit total.
-	FactoryDurableOperationReconcileCreditTotal FactoryDurableOperation = "reconcileCreditTotal"
-	// Renewing the durable owner lease that proves this process still owns the run.
-	FactoryDurableOperationRefreshLease FactoryDurableOperation = "refreshLease"
-	// Rolling back an uncommitted subagent admission.
-	FactoryDurableOperationReleaseAgent FactoryDurableOperation = "releaseAgent"
-	// Persisting subagent admission accounting.
-	FactoryDurableOperationReserveAgent FactoryDurableOperation = "reserveAgent"
-)
-
-// Kind of factory progress line.
-// Experimental: FactoryLogLineKind is part of an experimental API and may change or be
-// removed.
-type FactoryLogLineKind string
-
-const (
-	// A narrator log line.
-	FactoryLogLineKindLog FactoryLogLineKind = "log"
-	// A named factory phase marker.
-	FactoryLogLineKindPhase FactoryLogLineKind = "phase"
-)
-
-// Action the runtime selected for a durable factory pause checkpoint.
-// Experimental: FactoryPauseCheckpointAction is part of an experimental API and may change
-// or be removed.
-type FactoryPauseCheckpointAction string
-
-const (
-	// The checkpoint was committed by a prior paused attempt, so execution may continue.
-	FactoryPauseCheckpointActionContinue FactoryPauseCheckpointAction = "continue"
-	// This attempt claimed the checkpoint and must cooperatively stop.
-	FactoryPauseCheckpointActionPause FactoryPauseCheckpointAction = "pause"
-)
-
-// Type discriminator for FactoryPauseInfo.
-type FactoryPauseInfoType string
-
-const (
-	FactoryPauseInfoTypeCheckpoint FactoryPauseInfoType = "checkpoint"
-	FactoryPauseInfoTypeUser       FactoryPauseInfoType = "user"
-)
-
-// Derived lifecycle state of a factory phase.
-// Experimental: FactoryPhaseStatus is part of an experimental API and may change or be
-// removed.
-type FactoryPhaseStatus string
-
-const (
-	// The phase is currently entered and accumulating active time.
-	FactoryPhaseStatusActive FactoryPhaseStatus = "active"
-	// The phase was entered and has since been closed.
-	FactoryPhaseStatusCompleted FactoryPhaseStatus = "completed"
-	// The phase has not been entered yet.
-	FactoryPhaseStatusPending FactoryPhaseStatus = "pending"
-	// The phase was never entered because a later phase was entered or the run reached a
-	// terminal state.
-	FactoryPhaseStatusSkipped FactoryPhaseStatus = "skipped"
-)
-
-// Cumulative resource ceiling that stopped a factory run.
-// Experimental: FactoryRunFailureKind is part of an experimental API and may change or be
-// removed.
-type FactoryRunFailureKind string
-
-const (
-	// The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no
-	// headroom remained for another subagent.
-	FactoryRunFailureKindMaxAiCredits FactoryRunFailureKind = "maxAiCredits"
-	// The run admitted the approved maximum total number of subagents.
-	FactoryRunFailureKindMaxTotalSubagents FactoryRunFailureKind = "maxTotalSubagents"
-	// The run reached the approved accumulated active-execution time in seconds.
-	FactoryRunFailureKindTimeoutSeconds FactoryRunFailureKind = "timeoutSeconds"
-)
-
-// Type discriminator for FactoryRunFailure.
-type FactoryRunFailureType string
-
-const (
-	FactoryRunFailureTypeFactoryAccountingIncomplete FactoryRunFailureType = "factory_accounting_incomplete"
-	FactoryRunFailureTypeFactoryDurableFailure       FactoryRunFailureType = "factory_durable_failure"
-	FactoryRunFailureTypeFactoryLimitReached         FactoryRunFailureType = "factory_limit_reached"
-	FactoryRunFailureTypeFactoryProviderDisconnected FactoryRunFailureType = "factory_provider_disconnected"
-	FactoryRunFailureTypeFactoryResumeDeclined       FactoryRunFailureType = "factory_resume_declined"
-)
-
-// Current or terminal state of a factory run.
-// Experimental: FactoryRunStatus is part of an experimental API and may change or be
-// removed.
-type FactoryRunStatus string
-
-const (
-	// The run was cancelled before completion.
-	FactoryRunStatusCancelled FactoryRunStatus = "cancelled"
-	// The run completed successfully.
-	FactoryRunStatusCompleted FactoryRunStatus = "completed"
-	// The factory body failed or reached a cumulative resource ceiling.
-	FactoryRunStatusError FactoryRunStatus = "error"
-	// The run was interrupted while resource budget remained.
-	FactoryRunStatusHalted FactoryRunStatus = "halted"
-	// The current attempt stopped intentionally and the run may be resumed.
-	FactoryRunStatusPaused FactoryRunStatus = "paused"
-	// The run was minted and is awaiting approval.
-	FactoryRunStatusPending FactoryRunStatus = "pending"
-	// The run is executing.
-	FactoryRunStatusRunning FactoryRunStatus = "running"
-)
-
 // Why the runtime is requesting a GitHub credential.
 // Experimental: GitHubTokenAcquireReason is part of an experimental API and may change or
 // be removed.
@@ -22465,11 +21594,11 @@ const (
 	PermissionDecisionApproveForLocationApprovalKindExtensionEnvAccess        PermissionDecisionApproveForLocationApprovalKind = "extension-env-access"
 	PermissionDecisionApproveForLocationApprovalKindExtensionManagement       PermissionDecisionApproveForLocationApprovalKind = "extension-management"
 	PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess PermissionDecisionApproveForLocationApprovalKind = "extension-permission-access"
-	PermissionDecisionApproveForLocationApprovalKindFactory                   PermissionDecisionApproveForLocationApprovalKind = "factory"
 	PermissionDecisionApproveForLocationApprovalKindMCP                       PermissionDecisionApproveForLocationApprovalKind = "mcp"
 	PermissionDecisionApproveForLocationApprovalKindMCPSampling               PermissionDecisionApproveForLocationApprovalKind = "mcp-sampling"
 	PermissionDecisionApproveForLocationApprovalKindMemory                    PermissionDecisionApproveForLocationApprovalKind = "memory"
 	PermissionDecisionApproveForLocationApprovalKindRead                      PermissionDecisionApproveForLocationApprovalKind = "read"
+	PermissionDecisionApproveForLocationApprovalKindWorkflow                  PermissionDecisionApproveForLocationApprovalKind = "workflow"
 	PermissionDecisionApproveForLocationApprovalKindWrite                     PermissionDecisionApproveForLocationApprovalKind = "write"
 )
 
@@ -22482,11 +21611,11 @@ const (
 	PermissionDecisionApproveForSessionApprovalKindExtensionEnvAccess        PermissionDecisionApproveForSessionApprovalKind = "extension-env-access"
 	PermissionDecisionApproveForSessionApprovalKindExtensionManagement       PermissionDecisionApproveForSessionApprovalKind = "extension-management"
 	PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess PermissionDecisionApproveForSessionApprovalKind = "extension-permission-access"
-	PermissionDecisionApproveForSessionApprovalKindFactory                   PermissionDecisionApproveForSessionApprovalKind = "factory"
 	PermissionDecisionApproveForSessionApprovalKindMCP                       PermissionDecisionApproveForSessionApprovalKind = "mcp"
 	PermissionDecisionApproveForSessionApprovalKindMCPSampling               PermissionDecisionApproveForSessionApprovalKind = "mcp-sampling"
 	PermissionDecisionApproveForSessionApprovalKindMemory                    PermissionDecisionApproveForSessionApprovalKind = "memory"
 	PermissionDecisionApproveForSessionApprovalKindRead                      PermissionDecisionApproveForSessionApprovalKind = "read"
+	PermissionDecisionApproveForSessionApprovalKindWorkflow                  PermissionDecisionApproveForSessionApprovalKind = "workflow"
 	PermissionDecisionApproveForSessionApprovalKindWrite                     PermissionDecisionApproveForSessionApprovalKind = "write"
 )
 
@@ -22533,9 +21662,8 @@ type PermissionDecisionSource string
 const (
 	// The response followed the assisted-approval judge recommendation.
 	PermissionDecisionSourceAssistedApproval PermissionDecisionSource = "assisted_approval"
-	// A live authorization record from an earlier human decision in this session contained the
-	// proposal, so it ran without another prompt. This is not a new human decision and never
-	// mints authority of its own.
+	// Historical compatibility value for sessions created while authorization carry-forward was
+	// executable. Current runtimes do not produce this source.
 	PermissionDecisionSourceAuthorizationCarryForward PermissionDecisionSource = "authorization_carry_forward"
 	// The host applied a standing policy or override rather than a judge recommendation or
 	// human decision.
@@ -22601,7 +21729,8 @@ const (
 	PermissionModeSourceAutopilotConfirmation PermissionModeSource = "autopilot_confirmation"
 	// The mode was set from a CLI command-line flag.
 	PermissionModeSourceCLIFlag PermissionModeSource = "cli_flag"
-	// The mode was set at startup by authenticated organization targeting.
+	// Historical compatibility value for runtimes that selected Assisted mode through
+	// organization targeting. Current runtimes do not produce this source.
 	PermissionModeSourceOrganizationTargeting PermissionModeSource = "organization_targeting"
 	// The mode was set through an RPC caller.
 	PermissionModeSourceRPC PermissionModeSource = "rpc"
@@ -22753,11 +21882,11 @@ const (
 	PermissionsLocationsAddToolApprovalDetailsKindExtensionEnvAccess        PermissionsLocationsAddToolApprovalDetailsKind = "extension-env-access"
 	PermissionsLocationsAddToolApprovalDetailsKindExtensionManagement       PermissionsLocationsAddToolApprovalDetailsKind = "extension-management"
 	PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess PermissionsLocationsAddToolApprovalDetailsKind = "extension-permission-access"
-	PermissionsLocationsAddToolApprovalDetailsKindFactory                   PermissionsLocationsAddToolApprovalDetailsKind = "factory"
 	PermissionsLocationsAddToolApprovalDetailsKindMCP                       PermissionsLocationsAddToolApprovalDetailsKind = "mcp"
 	PermissionsLocationsAddToolApprovalDetailsKindMCPSampling               PermissionsLocationsAddToolApprovalDetailsKind = "mcp-sampling"
 	PermissionsLocationsAddToolApprovalDetailsKindMemory                    PermissionsLocationsAddToolApprovalDetailsKind = "memory"
 	PermissionsLocationsAddToolApprovalDetailsKindRead                      PermissionsLocationsAddToolApprovalDetailsKind = "read"
+	PermissionsLocationsAddToolApprovalDetailsKindWorkflow                  PermissionsLocationsAddToolApprovalDetailsKind = "workflow"
 	PermissionsLocationsAddToolApprovalDetailsKindWrite                     PermissionsLocationsAddToolApprovalDetailsKind = "write"
 )
 
@@ -24087,10 +23216,10 @@ const (
 	UserToolSessionApprovalKindExtensionEnvAccess        UserToolSessionApprovalKind = "extension-env-access"
 	UserToolSessionApprovalKindExtensionManagement       UserToolSessionApprovalKind = "extension-management"
 	UserToolSessionApprovalKindExtensionPermissionAccess UserToolSessionApprovalKind = "extension-permission-access"
-	UserToolSessionApprovalKindFactory                   UserToolSessionApprovalKind = "factory"
 	UserToolSessionApprovalKindMCP                       UserToolSessionApprovalKind = "mcp"
 	UserToolSessionApprovalKindMemory                    UserToolSessionApprovalKind = "memory"
 	UserToolSessionApprovalKindRead                      UserToolSessionApprovalKind = "read"
+	UserToolSessionApprovalKindWorkflow                  UserToolSessionApprovalKind = "workflow"
 	UserToolSessionApprovalKindWrite                     UserToolSessionApprovalKind = "write"
 )
 
@@ -27712,336 +26841,6 @@ func (a *ExtensionsAPI) SendAttachmentsToMessage(ctx context.Context, params *Se
 		return nil, err
 	}
 	return &result, nil
-}
-
-// Experimental: FactoryAPI contains experimental APIs that may change or be removed.
-type FactoryAPI sessionAPI
-
-// Agent runs one factory-scoped subagent and returns its result.
-//
-// RPC method: session.factory.agent.
-//
-// Parameters: Parameters for one factory-scoped subagent call.
-//
-// Returns: Result of one factory-scoped subagent call.
-func (a *FactoryAPI) Agent(ctx context.Context, params *FactoryAgentRequest) (*FactoryAgentResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["executionToken"] = params.ExecutionToken
-		req["factoryRunId"] = params.FactoryRunID
-		req["opts"] = params.Opts
-		req["prompt"] = params.Prompt
-	}
-	raw, err := a.client.Request(ctx, "session.factory.agent", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryAgentResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Cancel requests cancellation of a factory run and returns its run envelope.
-//
-// RPC method: session.factory.cancel.
-//
-// Parameters: Parameters for cancelling a factory run.
-//
-// Returns: Complete current or terminal factory run envelope.
-func (a *FactoryAPI) Cancel(ctx context.Context, params *FactoryCancelRequest) (*FactoryRunResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.cancel", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetRun gets the current or settled envelope for a factory run.
-//
-// RPC method: session.factory.getRun.
-//
-// Parameters: Parameters for retrieving a factory run.
-//
-// Returns: Complete current or terminal factory run envelope.
-func (a *FactoryAPI) GetRun(ctx context.Context, params *FactoryGetRunRequest) (*FactoryRunResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.getRun", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetRunDetail gets durable and live observability detail for one factory run.
-//
-// RPC method: session.factory.getRunDetail.
-//
-// Parameters: Parameters for retrieving a factory run.
-//
-// Returns: Full factory run observability detail.
-func (a *FactoryAPI) GetRunDetail(ctx context.Context, params *FactoryGetRunRequest) (*FactoryRunDetail, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.getRunDetail", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunDetail
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetRunProgress pages durable progress for one factory run.
-//
-// RPC method: session.factory.getRunProgress.
-//
-// Parameters: Parameters for paging factory progress.
-//
-// Returns: A bidirectional page of factory progress.
-func (a *FactoryAPI) GetRunProgress(ctx context.Context, params *FactoryGetRunProgressRequest) (*FactoryProgressPage, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.AfterSeq != nil {
-			req["afterSeq"] = *params.AfterSeq
-		}
-		if params.BeforeSeq != nil {
-			req["beforeSeq"] = *params.BeforeSeq
-		}
-		if params.Limit != nil {
-			req["limit"] = *params.Limit
-		}
-		if params.PhaseID != nil {
-			req["phaseId"] = *params.PhaseID
-		}
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.getRunProgress", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryProgressPage
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// ListRuns lists durable factory runs for this session in creation order.
-//
-// RPC method: session.factory.listRuns.
-//
-// Parameters: Parameters for paging factory runs.
-//
-// Returns: A page of factory runs in durable creation order.
-func (a *FactoryAPI) ListRuns(ctx context.Context, params *FactoryListRunsRequest) (*FactoryListRunsResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.AfterSeq != nil {
-			req["afterSeq"] = *params.AfterSeq
-		}
-		if params.BeforeSeq != nil {
-			req["beforeSeq"] = *params.BeforeSeq
-		}
-		if params.Limit != nil {
-			req["limit"] = *params.Limit
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.factory.listRuns", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryListRunsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Log records a batch of ordered factory progress lines.
-//
-// RPC method: session.factory.log.
-//
-// Parameters: Parameters for recording factory progress.
-//
-// Returns: Acknowledgement that a factory request was accepted.
-func (a *FactoryAPI) Log(ctx context.Context, params *FactoryLogRequest) (*FactoryAckResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["executionToken"] = params.ExecutionToken
-		req["lines"] = params.Lines
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.log", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryAckResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Pauses a running factory and returns its settled run envelope.
-//
-// RPC method: session.factory.pause.
-//
-// Parameters: Parameters for pausing a running factory.
-//
-// Returns: Complete current or terminal factory run envelope.
-func (a *FactoryAPI) Pause(ctx context.Context, params *FactoryPauseRequest) (*FactoryRunResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.pause", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Resumes a factory run using its persisted name, arguments, journal, and accounting.
-//
-// RPC method: session.factory.resume.
-//
-// Parameters: Parameters for resuming a factory run from its persisted identity.
-//
-// Returns: Resolved persisted factory identity and resumed run envelope.
-func (a *FactoryAPI) Resume(ctx context.Context, params *FactoryResumeRequest) (*FactoryResumeResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.Limits != nil {
-			req["limits"] = *params.Limits
-		}
-		if params.LogPhaseNames != nil {
-			req["logPhaseNames"] = *params.LogPhaseNames
-		}
-		if params.NotifyOnComplete != nil {
-			req["notifyOnComplete"] = *params.NotifyOnComplete
-		}
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.resume", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryResumeResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Runs a registered factory by name at the top level.
-//
-// RPC method: session.factory.run.
-//
-// Parameters: Parameters for invoking a registered factory.
-//
-// Returns: Complete current or terminal factory run envelope.
-func (a *FactoryAPI) Run(ctx context.Context, params *FactoryRunRequest) (*FactoryRunResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["args"] = params.Args
-		req["name"] = params.Name
-		if params.Options != nil {
-			req["options"] = *params.Options
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.factory.run", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: FactoryJournalAPI contains experimental APIs that may change or be removed.
-type FactoryJournalAPI sessionAPI
-
-// Get reads a memoized factory journal entry.
-//
-// RPC method: session.factory.journal.get.
-//
-// Parameters: Parameters for reading a factory journal entry.
-//
-// Returns: Result of reading a factory journal entry.
-func (a *FactoryJournalAPI) Get(ctx context.Context, params *FactoryJournalGetRequest) (*FactoryJournalGetResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["executionToken"] = params.ExecutionToken
-		req["key"] = params.Key
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.journal.get", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryJournalGetResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Put stores a memoized factory journal entry.
-//
-// RPC method: session.factory.journal.put.
-//
-// Parameters: Parameters for storing a factory journal entry.
-//
-// Returns: Acknowledgement that a factory request was accepted.
-func (a *FactoryJournalAPI) Put(ctx context.Context, params *FactoryJournalPutRequest) (*FactoryAckResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["executionToken"] = params.ExecutionToken
-		req["key"] = params.Key
-		req["resultJson"] = params.ResultJSON
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.journal.put", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryAckResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: Journal returns experimental APIs that may change or be removed.
-func (s *FactoryAPI) Journal() *FactoryJournalAPI {
-	return (*FactoryJournalAPI)(s)
 }
 
 // Experimental: FleetAPI contains experimental APIs that may change or be removed.
@@ -33741,7 +32540,6 @@ type SessionRPC struct {
 	Diagnostics        *DiagnosticsAPI
 	EventLog           *EventLogAPI
 	Extensions         *ExtensionsAPI
-	Factory            *FactoryAPI
 	Fleet              *FleetAPI
 	GitHubAuth         *GitHubAuthAPI
 	History            *HistoryAPI
@@ -34078,7 +32876,6 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Diagnostics = (*DiagnosticsAPI)(&r.common)
 	r.EventLog = (*EventLogAPI)(&r.common)
 	r.Extensions = (*ExtensionsAPI)(&r.common)
-	r.Factory = (*FactoryAPI)(&r.common)
 	r.Fleet = (*FleetAPI)(&r.common)
 	r.GitHubAuth = (*GitHubAuthAPI)(&r.common)
 	r.History = (*HistoryAPI)(&r.common)
@@ -34259,97 +33056,6 @@ func (a *InternalConnectorsAPI) WithdrawProjection(ctx context.Context) (*Connec
 		return nil, err
 	}
 	var result ConnectorStatus
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: InternalFactoryAPI contains experimental APIs that may change or be removed.
-type InternalFactoryAPI internalSessionAPI
-
-// PauseAtCheckpoint atomically pauses an owned factory attempt at a durable checkpoint.
-//
-// RPC method: session.factory.pauseAtCheckpoint.
-//
-// Parameters: Parameters for an owned durable pause checkpoint.
-// Internal: PauseAtCheckpoint is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalFactoryAPI) PauseAtCheckpoint(ctx context.Context, params *FactoryPauseCheckpointRequest) (*SessionFactoryPauseAtCheckpointResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["executionToken"] = params.ExecutionToken
-		req["key"] = params.Key
-		req["runId"] = params.RunID
-	}
-	raw, err := a.client.Request(ctx, "session.factory.pauseAtCheckpoint", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionFactoryPauseAtCheckpointResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// ResumeFromTool internal tool-originated factory resume.
-//
-// RPC method: session.factory.resumeFromTool.
-//
-// Parameters: Internal parameters for resuming a factory run from a tool.
-//
-// Returns: Resolved persisted factory identity and resumed run envelope.
-// Internal: ResumeFromTool is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalFactoryAPI) ResumeFromTool(ctx context.Context, params *FactoryToolResumeRequest) (*FactoryResumeResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.Limits != nil {
-			req["limits"] = *params.Limits
-		}
-		req["runId"] = params.RunID
-		if params.ToolCallID != nil {
-			req["toolCallId"] = *params.ToolCallID
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.factory.resumeFromTool", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryResumeResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// RunFromTool internal tool-originated factory invocation.
-//
-// RPC method: session.factory.runFromTool.
-//
-// Parameters: Internal parameters for invoking a registered factory from a tool.
-//
-// Returns: Complete current or terminal factory run envelope.
-// Internal: RunFromTool is part of the SDK's internal handshake/plumbing; external callers
-// should not use it.
-func (a *InternalFactoryAPI) RunFromTool(ctx context.Context, params *FactoryToolRunRequest) (*FactoryRunResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["args"] = params.Args
-		req["name"] = params.Name
-		if params.Options != nil {
-			req["options"] = *params.Options
-		}
-		if params.ToolCallID != nil {
-			req["toolCallId"] = *params.ToolCallID
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.factory.runFromTool", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FactoryRunResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -35263,7 +33969,6 @@ type InternalSessionRPC struct {
 	Canvas     *InternalCanvasAPI
 	Commands   *InternalCommandsAPI
 	Connectors *InternalConnectorsAPI
-	Factory    *InternalFactoryAPI
 	GitHubAuth *InternalGitHubAuthAPI
 	MCP        *InternalMCPAPI
 	Model      *InternalModelAPI
@@ -35311,7 +34016,6 @@ func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalS
 	r.Canvas = (*InternalCanvasAPI)(&r.common)
 	r.Commands = (*InternalCommandsAPI)(&r.common)
 	r.Connectors = (*InternalConnectorsAPI)(&r.common)
-	r.Factory = (*InternalFactoryAPI)(&r.common)
 	r.GitHubAuth = (*InternalGitHubAuthAPI)(&r.common)
 	r.MCP = (*InternalMCPAPI)(&r.common)
 	r.Model = (*InternalModelAPI)(&r.common)
@@ -35346,26 +34050,6 @@ type CanvasHandler interface {
 	//
 	// Returns: Canvas open result returned by the provider.
 	Open(request *CanvasProviderOpenRequest) (*CanvasProviderOpenResult, error)
-}
-
-// Experimental: FactoryHandler contains experimental APIs that may change or be removed.
-type FactoryHandler interface {
-	// Abort asks the owning extension connection to abort a running factory cooperatively.
-	//
-	// RPC method: factory.abort.
-	//
-	// Parameters: Parameters for cooperatively aborting a factory body.
-	//
-	// Returns: Acknowledgement that a factory request was accepted.
-	Abort(request *FactoryAbortRequest) (*FactoryAckResult, error)
-	// Execute asks the owning extension connection to execute a registered factory closure.
-	//
-	// RPC method: factory.execute.
-	//
-	// Parameters: Parameters sent to the owning extension to execute a factory closure.
-	//
-	// Returns: Result returned by an extension factory closure.
-	Execute(request *FactoryExecuteRequest) (*FactoryExecuteResult, error)
 }
 
 // Experimental: ProviderTokenHandler contains experimental APIs that may change or be
@@ -35557,7 +34241,6 @@ type WorkflowHandler interface {
 // ClientSessionAPIHandlers provides all client session API handler groups for a session.
 type ClientSessionAPIHandlers struct {
 	Canvas        CanvasHandler
-	Factory       FactoryHandler
 	ProviderToken ProviderTokenHandler
 	SessionFS     SessionFSHandler
 	Tasks         TasksHandler
@@ -35626,44 +34309,6 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
 		}
 		result, err := handlers.Canvas.Open(&request)
-		if err != nil {
-			return nil, clientSessionHandlerError(err)
-		}
-		raw, err := json.Marshal(result)
-		if err != nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-		}
-		return raw, nil
-	})
-	client.SetRequestHandler("factory.abort", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request FactoryAbortRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
-		}
-		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.Factory == nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No factory handler registered for session: %s", request.SessionID)}
-		}
-		result, err := handlers.Factory.Abort(&request)
-		if err != nil {
-			return nil, clientSessionHandlerError(err)
-		}
-		raw, err := json.Marshal(result)
-		if err != nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-		}
-		return raw, nil
-	})
-	client.SetRequestHandler("factory.execute", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request FactoryExecuteRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
-		}
-		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.Factory == nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No factory handler registered for session: %s", request.SessionID)}
-		}
-		result, err := handlers.Factory.Execute(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}

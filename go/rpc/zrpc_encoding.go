@@ -2310,255 +2310,6 @@ func unmarshalExternalToolResult(data []byte) (ExternalToolResult, error) {
 	return nil, errors.New("data did not match any union variant for ExternalToolResult")
 }
 
-func unmarshalFactoryRunFailure(data []byte) (FactoryRunFailure, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Type FactoryRunFailureType `json:"type"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Type {
-	case FactoryRunFailureTypeFactoryAccountingIncomplete:
-		var d FactoryRunFailureFactoryAccountingIncomplete
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case FactoryRunFailureTypeFactoryDurableFailure:
-		var d FactoryRunFailureFactoryDurableFailure
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case FactoryRunFailureTypeFactoryLimitReached:
-		var d FactoryRunFailureFactoryLimitReached
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case FactoryRunFailureTypeFactoryProviderDisconnected:
-		var d FactoryRunFailureFactoryProviderDisconnected
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case FactoryRunFailureTypeFactoryResumeDeclined:
-		var d FactoryRunFailureFactoryResumeDeclined
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawFactoryRunFailureData{Discriminator: raw.Type, Raw: data}, nil
-	}
-}
-
-func (r RawFactoryRunFailureData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Type FactoryRunFailureType `json:"type"`
-	}{
-		Type: r.Discriminator,
-	})
-}
-
-func (r FactoryRunFailureFactoryAccountingIncomplete) MarshalJSON() ([]byte, error) {
-	type alias FactoryRunFailureFactoryAccountingIncomplete
-	return json.Marshal(struct {
-		Type FactoryRunFailureType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r FactoryRunFailureFactoryDurableFailure) MarshalJSON() ([]byte, error) {
-	type alias FactoryRunFailureFactoryDurableFailure
-	return json.Marshal(struct {
-		Type FactoryRunFailureType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r FactoryRunFailureFactoryLimitReached) MarshalJSON() ([]byte, error) {
-	type alias FactoryRunFailureFactoryLimitReached
-	return json.Marshal(struct {
-		Type FactoryRunFailureType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r FactoryRunFailureFactoryProviderDisconnected) MarshalJSON() ([]byte, error) {
-	type alias FactoryRunFailureFactoryProviderDisconnected
-	return json.Marshal(struct {
-		Type FactoryRunFailureType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r FactoryRunFailureFactoryResumeDeclined) MarshalJSON() ([]byte, error) {
-	type alias FactoryRunFailureFactoryResumeDeclined
-	return json.Marshal(struct {
-		Type FactoryRunFailureType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func unmarshalFactoryPauseInfo(data []byte) (FactoryPauseInfo, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Type FactoryPauseInfoType `json:"type"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Type {
-	case FactoryPauseInfoTypeCheckpoint:
-		var d FactoryPauseInfoCheckpoint
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case FactoryPauseInfoTypeUser:
-		var d FactoryPauseInfoUser
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawFactoryPauseInfoData{Discriminator: raw.Type, Raw: data}, nil
-	}
-}
-
-func (r RawFactoryPauseInfoData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Type FactoryPauseInfoType `json:"type"`
-	}{
-		Type: r.Discriminator,
-	})
-}
-
-func (r FactoryPauseInfoCheckpoint) MarshalJSON() ([]byte, error) {
-	type alias FactoryPauseInfoCheckpoint
-	return json.Marshal(struct {
-		Type FactoryPauseInfoType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r FactoryPauseInfoUser) MarshalJSON() ([]byte, error) {
-	type alias FactoryPauseInfoUser
-	return json.Marshal(struct {
-		Type FactoryPauseInfoType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r *FactoryRunTerminal) UnmarshalJSON(data []byte) error {
-	type rawFactoryRunTerminal struct {
-		Error         *string         `json:"error,omitempty"`
-		Failure       json.RawMessage `json:"failure,omitempty"`
-		PauseInfo     json.RawMessage `json:"pauseInfo"`
-		Reason        *string         `json:"reason,omitempty"`
-		ResultPreview *string         `json:"resultPreview,omitempty"`
-	}
-	var raw rawFactoryRunTerminal
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	r.Error = raw.Error
-	if raw.Failure != nil {
-		value, err := unmarshalFactoryRunFailure(raw.Failure)
-		if err != nil {
-			return err
-		}
-		r.Failure = value
-	}
-	if raw.PauseInfo != nil {
-		value, err := unmarshalFactoryPauseInfo(raw.PauseInfo)
-		if err != nil {
-			return err
-		}
-		r.PauseInfo = value
-	}
-	r.Reason = raw.Reason
-	r.ResultPreview = raw.ResultPreview
-	return nil
-}
-
-func (r *FactoryRunResult) UnmarshalJSON(data []byte) error {
-	type rawFactoryRunResult struct {
-		Attempt   *int64           `json:"attempt,omitempty"`
-		Error     *string          `json:"error,omitempty"`
-		Failure   json.RawMessage  `json:"failure,omitempty"`
-		PauseInfo json.RawMessage  `json:"pauseInfo,omitempty"`
-		Reason    *string          `json:"reason,omitempty"`
-		Result    any              `json:"result,omitempty"`
-		RunID     string           `json:"runId"`
-		Snapshot  any              `json:"snapshot,omitempty"`
-		Status    FactoryRunStatus `json:"status"`
-	}
-	var raw rawFactoryRunResult
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	r.Attempt = raw.Attempt
-	r.Error = raw.Error
-	if raw.Failure != nil {
-		value, err := unmarshalFactoryRunFailure(raw.Failure)
-		if err != nil {
-			return err
-		}
-		r.Failure = value
-	}
-	if raw.PauseInfo != nil {
-		value, err := unmarshalFactoryPauseInfo(raw.PauseInfo)
-		if err != nil {
-			return err
-		}
-		r.PauseInfo = value
-	}
-	r.Reason = raw.Reason
-	r.Result = raw.Result
-	r.RunID = raw.RunID
-	r.Snapshot = raw.Snapshot
-	r.Status = raw.Status
-	return nil
-}
-
 func unmarshalFilterMapping(data []byte) (FilterMapping, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -5141,12 +4892,6 @@ func unmarshalUserToolSessionApproval(data []byte) (UserToolSessionApproval, err
 			return nil, err
 		}
 		return &d, nil
-	case UserToolSessionApprovalKindFactory:
-		var d UserToolSessionApprovalFactory
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
 	case UserToolSessionApprovalKindMCP:
 		var d UserToolSessionApprovalMCP
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -5161,6 +4906,12 @@ func unmarshalUserToolSessionApproval(data []byte) (UserToolSessionApproval, err
 		return &d, nil
 	case UserToolSessionApprovalKindRead:
 		var d UserToolSessionApprovalRead
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case UserToolSessionApprovalKindWorkflow:
+		var d UserToolSessionApprovalWorkflow
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -5242,17 +4993,6 @@ func (r UserToolSessionApprovalExtensionPermissionAccess) MarshalJSON() ([]byte,
 	})
 }
 
-func (r UserToolSessionApprovalFactory) MarshalJSON() ([]byte, error) {
-	type alias UserToolSessionApprovalFactory
-	return json.Marshal(struct {
-		Kind UserToolSessionApprovalKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
 func (r UserToolSessionApprovalMCP) MarshalJSON() ([]byte, error) {
 	type alias UserToolSessionApprovalMCP
 	return json.Marshal(struct {
@@ -5277,6 +5017,17 @@ func (r UserToolSessionApprovalMemory) MarshalJSON() ([]byte, error) {
 
 func (r UserToolSessionApprovalRead) MarshalJSON() ([]byte, error) {
 	type alias UserToolSessionApprovalRead
+	return json.Marshal(struct {
+		Kind UserToolSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r UserToolSessionApprovalWorkflow) MarshalJSON() ([]byte, error) {
+	type alias UserToolSessionApprovalWorkflow
 	return json.Marshal(struct {
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias
@@ -5400,12 +5151,6 @@ func unmarshalPermissionDecisionApproveForLocationApproval(data []byte) (Permiss
 			return nil, err
 		}
 		return &d, nil
-	case PermissionDecisionApproveForLocationApprovalKindFactory:
-		var d PermissionDecisionApproveForLocationApprovalFactory
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
 	case PermissionDecisionApproveForLocationApprovalKindMCP:
 		var d PermissionDecisionApproveForLocationApprovalMCP
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -5426,6 +5171,12 @@ func unmarshalPermissionDecisionApproveForLocationApproval(data []byte) (Permiss
 		return &d, nil
 	case PermissionDecisionApproveForLocationApprovalKindRead:
 		var d PermissionDecisionApproveForLocationApprovalRead
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForLocationApprovalKindWorkflow:
+		var d PermissionDecisionApproveForLocationApprovalWorkflow
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -5507,17 +5258,6 @@ func (r PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) M
 	})
 }
 
-func (r PermissionDecisionApproveForLocationApprovalFactory) MarshalJSON() ([]byte, error) {
-	type alias PermissionDecisionApproveForLocationApprovalFactory
-	return json.Marshal(struct {
-		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
 func (r PermissionDecisionApproveForLocationApprovalMCP) MarshalJSON() ([]byte, error) {
 	type alias PermissionDecisionApproveForLocationApprovalMCP
 	return json.Marshal(struct {
@@ -5553,6 +5293,17 @@ func (r PermissionDecisionApproveForLocationApprovalMemory) MarshalJSON() ([]byt
 
 func (r PermissionDecisionApproveForLocationApprovalRead) MarshalJSON() ([]byte, error) {
 	type alias PermissionDecisionApproveForLocationApprovalRead
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForLocationApprovalWorkflow) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocationApprovalWorkflow
 	return json.Marshal(struct {
 		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
 		alias
@@ -5647,12 +5398,6 @@ func unmarshalPermissionDecisionApproveForSessionApproval(data []byte) (Permissi
 			return nil, err
 		}
 		return &d, nil
-	case PermissionDecisionApproveForSessionApprovalKindFactory:
-		var d PermissionDecisionApproveForSessionApprovalFactory
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
 	case PermissionDecisionApproveForSessionApprovalKindMCP:
 		var d PermissionDecisionApproveForSessionApprovalMCP
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -5673,6 +5418,12 @@ func unmarshalPermissionDecisionApproveForSessionApproval(data []byte) (Permissi
 		return &d, nil
 	case PermissionDecisionApproveForSessionApprovalKindRead:
 		var d PermissionDecisionApproveForSessionApprovalRead
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForSessionApprovalKindWorkflow:
+		var d PermissionDecisionApproveForSessionApprovalWorkflow
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -5754,17 +5505,6 @@ func (r PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) Ma
 	})
 }
 
-func (r PermissionDecisionApproveForSessionApprovalFactory) MarshalJSON() ([]byte, error) {
-	type alias PermissionDecisionApproveForSessionApprovalFactory
-	return json.Marshal(struct {
-		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
 func (r PermissionDecisionApproveForSessionApprovalMCP) MarshalJSON() ([]byte, error) {
 	type alias PermissionDecisionApproveForSessionApprovalMCP
 	return json.Marshal(struct {
@@ -5800,6 +5540,17 @@ func (r PermissionDecisionApproveForSessionApprovalMemory) MarshalJSON() ([]byte
 
 func (r PermissionDecisionApproveForSessionApprovalRead) MarshalJSON() ([]byte, error) {
 	type alias PermissionDecisionApproveForSessionApprovalRead
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForSessionApprovalWorkflow) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSessionApprovalWorkflow
 	return json.Marshal(struct {
 		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
 		alias
@@ -6026,12 +5777,6 @@ func unmarshalPermissionsLocationsAddToolApprovalDetails(data []byte) (Permissio
 			return nil, err
 		}
 		return &d, nil
-	case PermissionsLocationsAddToolApprovalDetailsKindFactory:
-		var d PermissionsLocationsAddToolApprovalDetailsFactory
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
 	case PermissionsLocationsAddToolApprovalDetailsKindMCP:
 		var d PermissionsLocationsAddToolApprovalDetailsMCP
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -6052,6 +5797,12 @@ func unmarshalPermissionsLocationsAddToolApprovalDetails(data []byte) (Permissio
 		return &d, nil
 	case PermissionsLocationsAddToolApprovalDetailsKindRead:
 		var d PermissionsLocationsAddToolApprovalDetailsRead
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionsLocationsAddToolApprovalDetailsKindWorkflow:
+		var d PermissionsLocationsAddToolApprovalDetailsWorkflow
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -6133,17 +5884,6 @@ func (r PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) Mar
 	})
 }
 
-func (r PermissionsLocationsAddToolApprovalDetailsFactory) MarshalJSON() ([]byte, error) {
-	type alias PermissionsLocationsAddToolApprovalDetailsFactory
-	return json.Marshal(struct {
-		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
 func (r PermissionsLocationsAddToolApprovalDetailsMCP) MarshalJSON() ([]byte, error) {
 	type alias PermissionsLocationsAddToolApprovalDetailsMCP
 	return json.Marshal(struct {
@@ -6179,6 +5919,17 @@ func (r PermissionsLocationsAddToolApprovalDetailsMemory) MarshalJSON() ([]byte,
 
 func (r PermissionsLocationsAddToolApprovalDetailsRead) MarshalJSON() ([]byte, error) {
 	type alias PermissionsLocationsAddToolApprovalDetailsRead
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionsLocationsAddToolApprovalDetailsWorkflow) MarshalJSON() ([]byte, error) {
+	type alias PermissionsLocationsAddToolApprovalDetailsWorkflow
 	return json.Marshal(struct {
 		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
 		alias

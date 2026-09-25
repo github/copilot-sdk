@@ -13,31 +13,33 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "factory.run_updated". Ephemeral invalidation signal for a changed factory run.
+ * Session event "workflow.run_started". Ephemeral signal that a workflow run attempt began executing.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class FactoryRunUpdatedEvent extends SessionEvent {
+public final class WorkflowRunStartedEvent extends SessionEvent {
 
     @Override
-    public String getType() { return "factory.run_updated"; }
+    public String getType() { return "workflow.run_started"; }
 
     @JsonProperty("data")
-    private FactoryRunUpdatedEventData data;
+    private WorkflowRunStartedEventData data;
 
-    public FactoryRunUpdatedEventData getData() { return data; }
-    public void setData(FactoryRunUpdatedEventData data) { this.data = data; }
+    public WorkflowRunStartedEventData getData() { return data; }
+    public void setData(WorkflowRunStartedEventData data) { this.data = data; }
 
-    /** Data payload for {@link FactoryRunUpdatedEvent}. */
+    /** Data payload for {@link WorkflowRunStartedEvent}. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record FactoryRunUpdatedEventData(
-        /** Factory run identifier. */
+    public record WorkflowRunStartedEventData(
+        /** Identifier of the workflow run that started. */
         @JsonProperty("runId") String runId,
-        /** Monotonic revision now available for the run. */
-        @JsonProperty("revision") Long revision
+        /** Name of the workflow this run executes. Low cardinality by construction. */
+        @JsonProperty("workflowName") String workflowName,
+        /** Attempt number this start committed; a resumed run increments it. */
+        @JsonProperty("attempt") Long attempt
     ) {
     }
 }

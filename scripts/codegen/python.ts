@@ -59,7 +59,7 @@ import {
     type RpcMethod,
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
-import { readLegacyParameters } from "./legacy-parameters.js";
+import { readLegacyParameters, validateLegacyUntypedMarkers } from "./legacy-parameters.js";
 
 // ── Utilities ───────────────────────────────────────────────────────────────
 
@@ -3136,6 +3136,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
     let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as ApiSchema));
+    validateLegacyUntypedMarkers(schema, "api.schema.json");
     if (sessionEventsSchema) {
         const sharedDefinitions = findSharedSchemaDefinitions(
             schema as unknown as Record<string, unknown>,

@@ -58,7 +58,7 @@ import {
     type RpcMethod,
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
-import { validateLegacyRequests } from "./legacy-parameters.js";
+import { validateLegacyRequests, validateLegacyUntypedMarkers } from "./legacy-parameters.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -3858,6 +3858,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         getMethodParamsSchema,
         (method) => !!method.params && !!getNullableInner(method.params)
     );
+    validateLegacyUntypedMarkers(schema, "api.schema.json");
     const allDefinitions: Record<string, JSONSchema7> = {
         ...Object.fromEntries(
             Object.entries(rpcDefinitions.$defs ?? {}).filter(([, value]) => typeof value === "object" && value !== null)

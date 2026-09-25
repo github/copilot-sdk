@@ -37,8 +37,6 @@ public final class SessionRpc {
     public final SessionDebugApi debug;
     /** API methods for the {@code canvas} namespace. */
     public final SessionCanvasApi canvas;
-    /** API methods for the {@code factory} namespace. */
-    public final SessionFactoryApi factory;
     /** API methods for the {@code workflow} namespace. */
     public final SessionWorkflowApi workflow;
     /** API methods for the {@code model} namespace. */
@@ -133,7 +131,6 @@ public final class SessionRpc {
         this.gitHubAuth = new SessionGitHubAuthApi(caller, sessionId);
         this.debug = new SessionDebugApi(caller, sessionId);
         this.canvas = new SessionCanvasApi(caller, sessionId);
-        this.factory = new SessionFactoryApi(caller, sessionId);
         this.workflow = new SessionWorkflowApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);

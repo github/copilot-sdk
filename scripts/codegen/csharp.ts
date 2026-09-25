@@ -57,7 +57,7 @@ import {
     type RpcMethod,
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
-import { isOmittableRequest, readLegacyParameters } from "./legacy-parameters.js";
+import { isOmittableRequest, readLegacyParameters, validateLegacyUntypedMarkers } from "./legacy-parameters.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -2928,6 +2928,7 @@ export async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSO
     handWrittenCSharpTypeNames = await collectHandWrittenCSharpTypeNames();
     let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as ApiSchema));
     let sessionEventsCode: string | undefined;
+    validateLegacyUntypedMarkers(schema, "api.schema.json");
     if (sessionEventsSchema) {
         sessionEventsCode = generateSessionEventsCode(sessionEventsSchema);
         const sharedDefinitions = findSharedSchemaDefinitions(

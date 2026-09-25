@@ -8209,1104 +8209,6 @@ internal sealed class CanvasProviderUnregisterRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Machine-readable factory run failure.</summary>
-/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(FactoryRunFailureFactoryLimitReached), "factory_limit_reached")]
-[JsonDerivedType(typeof(FactoryRunFailureFactoryResumeDeclined), "factory_resume_declined")]
-[JsonDerivedType(typeof(FactoryRunFailureFactoryDurableFailure), "factory_durable_failure")]
-[JsonDerivedType(typeof(FactoryRunFailureFactoryAccountingIncomplete), "factory_accounting_incomplete")]
-[JsonDerivedType(typeof(FactoryRunFailureFactoryProviderDisconnected), "factory_provider_disconnected")]
-public partial class FactoryRunFailure
-{
-    /// <summary>The type discriminator.</summary>
-    [JsonPropertyName("type")]
-    public virtual string Type { get; set; } = string.Empty;
-}
-
-
-/// <summary>The <c>factory_limit_reached</c> variant of <see cref="FactoryRunFailure"/>.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class FactoryRunFailureFactoryLimitReached : FactoryRunFailure
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "factory_limit_reached";
-
-    /// <summary>Resource ceiling that stopped the run.</summary>
-    [JsonPropertyName("kind")]
-    public required FactoryRunFailureKind Kind { get; set; }
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public required string RunId { get; set; }
-
-    /// <summary>Suggested larger ceiling when the runtime can derive one safely.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("suggestedValue")]
-    public double? SuggestedValue { get; set; }
-
-    /// <summary>Approved effective ceiling that was reached.</summary>
-    [JsonPropertyName("value")]
-    public required double Value { get; set; }
-}
-
-/// <summary>The <c>factory_resume_declined</c> variant of <see cref="FactoryRunFailure"/>.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class FactoryRunFailureFactoryResumeDeclined : FactoryRunFailure
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "factory_resume_declined";
-
-    /// <summary>Human-readable reason the resume did not proceed.</summary>
-    [JsonPropertyName("reason")]
-    public required string Reason { get; set; }
-
-    /// <summary>Factory run identifier whose changed limits were declined.</summary>
-    [JsonPropertyName("runId")]
-    public required string RunId { get; set; }
-}
-
-/// <summary>The <c>factory_durable_failure</c> variant of <see cref="FactoryRunFailure"/>.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class FactoryRunFailureFactoryDurableFailure : FactoryRunFailure
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "factory_durable_failure";
-
-    /// <summary>Stable failure code.</summary>
-    [JsonPropertyName("code")]
-    public required string Code { get; set; }
-
-    /// <summary>Execution-critical durable operation that failed.</summary>
-    [JsonPropertyName("operation")]
-    public required FactoryDurableOperation Operation { get; set; }
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public required string RunId { get; set; }
-}
-
-/// <summary>The run stopped because its usage accounting could not be completed.</summary>
-/// <remarks>The <c>factory_accounting_incomplete</c> variant of <see cref="FactoryRunFailure"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class FactoryRunFailureFactoryAccountingIncomplete : FactoryRunFailure
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "factory_accounting_incomplete";
-
-    /// <summary>Confirmed usage in nano-AIU, representing the floor of what the run spent.</summary>
-    [JsonPropertyName("drainedNanoAiu")]
-    public required long DrainedNanoAiu { get; set; }
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public required string RunId { get; set; }
-}
-
-/// <summary>The extension that owns the factory disconnected while the run was executing, so the host halted it. The run's journaled subagent results are preserved so a resume can reuse them.</summary>
-/// <remarks>The <c>factory_provider_disconnected</c> variant of <see cref="FactoryRunFailure"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class FactoryRunFailureFactoryProviderDisconnected : FactoryRunFailure
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "factory_provider_disconnected";
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public required string RunId { get; set; }
-}
-
-/// <summary>Durable metadata describing who initiated a factory pause.</summary>
-/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(FactoryPauseInfoUser), "user")]
-[JsonDerivedType(typeof(FactoryPauseInfoCheckpoint), "checkpoint")]
-public partial class FactoryPauseInfo
-{
-    /// <summary>The type discriminator.</summary>
-    [JsonPropertyName("type")]
-    public virtual string Type { get; set; } = string.Empty;
-}
-
-
-/// <summary>The <c>user</c> variant of <see cref="FactoryPauseInfo"/>.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class FactoryPauseInfoUser : FactoryPauseInfo
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "user";
-}
-
-/// <summary>The <c>checkpoint</c> variant of <see cref="FactoryPauseInfo"/>.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class FactoryPauseInfoCheckpoint : FactoryPauseInfo
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "checkpoint";
-
-    /// <summary>Stable author-defined checkpoint key that initiated the pause.</summary>
-    [JsonPropertyName("key")]
-    public required string Key { get; set; }
-}
-
-/// <summary>Complete current or terminal factory run envelope.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryRunResult
-{
-    /// <summary>One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.</summary>
-    [JsonPropertyName("attempt")]
-    public long? Attempt { get; set; }
-
-    /// <summary>Error message for an errored run.</summary>
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
-
-    /// <summary>Machine-readable failure details for a halted or errored run.</summary>
-    [JsonPropertyName("failure")]
-    public FactoryRunFailure? Failure { get; set; }
-
-    /// <summary>Structured pause initiator metadata for a paused attempt.</summary>
-    [JsonPropertyName("pauseInfo")]
-    public FactoryPauseInfo? PauseInfo { get; set; }
-
-    /// <summary>Reason for a halted or cancelled run.</summary>
-    [JsonPropertyName("reason")]
-    public string? Reason { get; set; }
-
-    /// <summary>Completed factory result.</summary>
-    [JsonPropertyName("result")]
-    public JsonElement? Result { get; set; }
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Partial journal and progress snapshot for a halted, cancelled, or errored run.</summary>
-    [JsonPropertyName("snapshot")]
-    public JsonElement? Snapshot { get; set; }
-
-    /// <summary>Current or terminal factory run status.</summary>
-    [JsonPropertyName("status")]
-    public FactoryRunStatus Status { get; set; }
-}
-
-/// <summary>Wire-only per-invocation factory resource ceiling overrides.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryRunLimits
-{
-    /// <summary>Maximum AI credits consumed by factory subagents and their descendants. The post-paid ceiling is soft: parallel turns can settle beyond it before the run stops.</summary>
-    [JsonPropertyName("maxAiCredits")]
-    public double? MaxAiCredits { get; set; }
-
-    /// <summary>Maximum number of factory subagents that may run concurrently.</summary>
-    [JsonPropertyName("maxConcurrentSubagents")]
-    public long? MaxConcurrentSubagents { get; set; }
-
-    /// <summary>Maximum total number of factory subagents that may be admitted.</summary>
-    [JsonPropertyName("maxTotalSubagents")]
-    public long? MaxTotalSubagents { get; set; }
-
-    /// <summary>Maximum accumulated active-execution time in seconds. Active execution includes the entire extension body, subprocess waits, queued-agent waits, and sleeps; time between resumed attempts is not counted.</summary>
-    [JsonPropertyName("timeoutSeconds")]
-    public double? TimeoutSeconds { get; set; }
-}
-
-/// <summary>Options controlling factory invocation.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class RunOptions
-{
-    /// <summary>Per-invocation resource ceiling overrides.</summary>
-    [JsonPropertyName("limits")]
-    public FactoryRunLimits? Limits { get; set; }
-
-    /// <summary>Whether to emit factory phase names to the session transcript.</summary>
-    [JsonPropertyName("logPhaseNames")]
-    public bool? LogPhaseNames { get; set; }
-
-    /// <summary>Whether to notify the originating session when the factory completes.</summary>
-    [JsonPropertyName("notifyOnComplete")]
-    public bool? NotifyOnComplete { get; set; }
-
-    /// <summary>Run identifier whose journal and progress should seed this resumed run.</summary>
-    [JsonPropertyName("resumeFromRunId")]
-    public string? ResumeFromRunId { get; set; }
-}
-
-/// <summary>Parameters for invoking a registered factory.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryRunRequest
-{
-    /// <summary>Factory input value.</summary>
-    [JsonPropertyName("args")]
-    public JsonElement Args { get; set; }
-
-    /// <summary>Registered factory name.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Factory invocation options.</summary>
-    [JsonPropertyName("options")]
-    public RunOptions? Options { get; set; }
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Resolved persisted factory identity and resumed run envelope.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryResumeResult
-{
-    /// <summary>Persisted factory name resolved for the resumed run.</summary>
-    [JsonPropertyName("factoryName")]
-    public string FactoryName { get; set; } = string.Empty;
-
-    /// <summary>Terminal resumed run envelope.</summary>
-    [JsonPropertyName("run")]
-    public FactoryRunResult Run { get => field ??= new(); set; }
-}
-
-/// <summary>Parameters for resuming a factory run from its persisted identity.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryResumeRequest
-{
-    /// <summary>Optional per-invocation resource ceiling overrides.</summary>
-    [JsonPropertyName("limits")]
-    public FactoryRunLimits? Limits { get; set; }
-
-    /// <summary>Whether to emit factory phase names to the session transcript.</summary>
-    [JsonPropertyName("logPhaseNames")]
-    public bool? LogPhaseNames { get; set; }
-
-    /// <summary>Whether to notify the originating session when the factory completes.</summary>
-    [JsonPropertyName("notifyOnComplete")]
-    public bool? NotifyOnComplete { get; set; }
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Options for an internal tool-originated factory invocation.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryToolRunOptions
-{
-    /// <summary>Per-invocation resource ceiling overrides.</summary>
-    [JsonPropertyName("limits")]
-    public FactoryRunLimits? Limits { get; set; }
-
-    /// <summary>Run identifier whose journal and progress should seed this resumed run.</summary>
-    [JsonPropertyName("resumeFromRunId")]
-    public string? ResumeFromRunId { get; set; }
-}
-
-/// <summary>Internal parameters for invoking a registered factory from a tool.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryToolRunRequest
-{
-    /// <summary>Factory input value.</summary>
-    [JsonPropertyName("args")]
-    public JsonElement Args { get; set; }
-
-    /// <summary>Registered factory name.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Tool-originated factory invocation options.</summary>
-    [JsonPropertyName("options")]
-    public FactoryToolRunOptions? Options { get; set; }
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Opaque identifier of the originating tool call.</summary>
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
-}
-
-/// <summary>Internal parameters for resuming a factory run from a tool.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryToolResumeRequest
-{
-    /// <summary>Optional per-invocation resource ceiling overrides.</summary>
-    [JsonPropertyName("limits")]
-    public FactoryRunLimits? Limits { get; set; }
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Opaque identifier of the originating tool call.</summary>
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
-}
-
-/// <summary>Parameters for retrieving a factory run.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryGetRunRequest
-{
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Declared or approved factory resource ceilings.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryDeclaredLimits
-{
-    /// <summary>Maximum AI credits consumed by subagents and descendants.</summary>
-    [JsonPropertyName("maxAiCredits")]
-    public double? MaxAiCredits { get; set; }
-
-    /// <summary>Maximum concurrently active subagents.</summary>
-    [JsonPropertyName("maxConcurrentSubagents")]
-    public long? MaxConcurrentSubagents { get; set; }
-
-    /// <summary>Maximum total subagents spawned by the run.</summary>
-    [JsonPropertyName("maxTotalSubagents")]
-    public long? MaxTotalSubagents { get; set; }
-
-    /// <summary>Maximum accumulated active execution time in seconds.</summary>
-    [JsonPropertyName("timeoutSeconds")]
-    public double? TimeoutSeconds { get; set; }
-}
-
-/// <summary>Durable factory resource consumption.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryRunConsumed
-{
-    /// <summary>Accumulated active execution time in milliseconds.</summary>
-    [JsonPropertyName("activeMs")]
-    public long ActiveMs { get; set; }
-
-    /// <summary>AI usage consumed by the run in nano-AIU.</summary>
-    [JsonPropertyName("nanoAiu")]
-    public long NanoAiu { get; set; }
-
-    /// <summary>Total subagents spawned by the run.</summary>
-    [JsonPropertyName("subagents")]
-    public long Subagents { get; set; }
-}
-
-/// <summary>Current factory phase identity.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryCurrentPhase
-{
-    /// <summary>Current phase identifier.</summary>
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
-
-    /// <summary>Zero-based declared phase ordinal, or null for an undeclared phase.</summary>
-    [JsonPropertyName("ordinal")]
-    public long? Ordinal { get; set; }
-}
-
-/// <summary>Prompt-safe terminal factory outcome.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryRunTerminal
-{
-    /// <summary>Human-readable terminal error.</summary>
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
-
-    /// <summary>Machine-readable terminal failure.</summary>
-    [JsonPropertyName("failure")]
-    public FactoryRunFailure? Failure { get; set; }
-
-    /// <summary>Pause initiator metadata, or null when the run did not pause.</summary>
-    [JsonPropertyName("pauseInfo")]
-    public FactoryPauseInfo? PauseInfo { get; set; }
-
-    /// <summary>Human-readable terminal reason.</summary>
-    [JsonPropertyName("reason")]
-    public string? Reason { get; set; }
-
-    /// <summary>Prompt-safe preview of the completed result.</summary>
-    [JsonPropertyName("resultPreview")]
-    public string? ResultPreview { get; set; }
-}
-
-/// <summary>Durable factory run summary with read-time live overlays.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryRunSummary
-{
-    /// <summary>Epoch milliseconds when the current active segment started, or null while inactive.</summary>
-    [JsonPropertyName("activeSegmentStartedAt")]
-    public long? ActiveSegmentStartedAt { get; set; }
-
-    /// <summary>Approved effective resource ceilings, or null until approved.</summary>
-    [JsonPropertyName("approved")]
-    public FactoryDeclaredLimits? Approved { get; set; }
-
-    /// <summary>Whether the durable run state currently passes runtime resume eligibility checks.</summary>
-    [JsonPropertyName("canResume")]
-    public bool CanResume { get; set; }
-
-    /// <summary>Epoch milliseconds when the run completed, or null while nonterminal.</summary>
-    [JsonPropertyName("completedAt")]
-    public long? CompletedAt { get; set; }
-
-    /// <summary>Durable resource consumption.</summary>
-    [JsonPropertyName("consumed")]
-    public FactoryRunConsumed Consumed { get => field ??= new(); set; }
-
-    /// <summary>Epoch milliseconds when the run was created.</summary>
-    [JsonPropertyName("createdAt")]
-    public long CreatedAt { get; set; }
-
-    /// <summary>Current phase identity, or null before any phase is entered.</summary>
-    [JsonPropertyName("currentPhase")]
-    public FactoryCurrentPhase? CurrentPhase { get; set; }
-
-    /// <summary>Resource ceilings declared by the factory.</summary>
-    [JsonPropertyName("declaredLimits")]
-    public FactoryDeclaredLimits DeclaredLimits { get => field ??= new(); set; }
-
-    /// <summary>Number of phases declared by the factory.</summary>
-    [JsonPropertyName("declaredPhaseCount")]
-    public long DeclaredPhaseCount { get; set; }
-
-    /// <summary>Human-readable factory description.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-
-    /// <summary>Registered factory name.</summary>
-    [JsonPropertyName("factoryName")]
-    public string FactoryName { get; set; } = string.Empty;
-
-    /// <summary>Number of direct factory agents currently live.</summary>
-    [JsonPropertyName("liveAgentCount")]
-    public long LiveAgentCount { get; set; }
-
-    /// <summary>Epoch milliseconds when this live-overlay snapshot was observed.</summary>
-    [JsonPropertyName("observedAt")]
-    public long ObservedAt { get; set; }
-
-    /// <summary>Monotonic durable run revision.</summary>
-    [JsonPropertyName("revision")]
-    public long Revision { get; set; }
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Epoch milliseconds when execution first started, or null before start.</summary>
-    [JsonPropertyName("startedAt")]
-    public long? StartedAt { get; set; }
-
-    /// <summary>Current factory run status.</summary>
-    [JsonPropertyName("status")]
-    public FactoryRunStatus Status { get; set; }
-
-    /// <summary>Terminal run outcome, or null while nonterminal.</summary>
-    [JsonPropertyName("terminal")]
-    public FactoryRunTerminal? Terminal { get; set; }
-
-    /// <summary>Total direct factory agents spawned across all attempts.</summary>
-    [JsonPropertyName("totalSpawnedAgentCount")]
-    public long TotalSpawnedAgentCount { get; set; }
-
-    /// <summary>Epoch milliseconds when the durable run was last updated.</summary>
-    [JsonPropertyName("updatedAt")]
-    public long UpdatedAt { get; set; }
-}
-
-/// <summary>A page of factory runs in durable creation order.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryListRunsResult
-{
-    /// <summary>Whether terminal runs newer than this page exist.</summary>
-    [JsonPropertyName("hasMoreNewer")]
-    public bool? HasMoreNewer { get; set; }
-
-    /// <summary>Newest terminal-run cursor in this page, or null when the terminal window is empty.</summary>
-    [JsonPropertyName("newestSeq")]
-    public long? NewestSeq { get; set; }
-
-    /// <summary>Oldest terminal-run cursor in this page, or null when the terminal window is empty.</summary>
-    [JsonPropertyName("oldestSeq")]
-    public long? OldestSeq { get; set; }
-
-    /// <summary>Number of terminal runs older than this page.</summary>
-    [JsonPropertyName("omittedOlder")]
-    public long? OmittedOlder { get; set; }
-
-    /// <summary>Factory run summaries in durable creation order.</summary>
-    [JsonPropertyName("runs")]
-    public IList<FactoryRunSummary> Runs { get => field ??= []; set; }
-}
-
-/// <summary>Parameters for paging factory runs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryListRunsRequest
-{
-    /// <summary>Exclusive forward cursor.</summary>
-    [JsonPropertyName("afterSeq")]
-    public long? AfterSeq { get; set; }
-
-    /// <summary>Exclusive backward cursor.</summary>
-    [JsonPropertyName("beforeSeq")]
-    public long? BeforeSeq { get; set; }
-
-    /// <summary>Maximum terminal runs to return. Defaults to 200 and is capped at 500.</summary>
-    [JsonPropertyName("limit")]
-    public int? Limit { get; set; }
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Prompt-safe durable identity and live status for a direct factory agent.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryAgentSummary
-{
-    /// <summary>Accumulated active agent time in milliseconds.</summary>
-    [JsonPropertyName("activeMs")]
-    public long ActiveMs { get; set; }
-
-    /// <summary>Prompt-safe live activity text.</summary>
-    [JsonPropertyName("activity")]
-    public string? Activity { get; set; }
-
-    /// <summary>Stable direct-agent identifier.</summary>
-    [JsonPropertyName("agentId")]
-    public string AgentId { get; set; } = string.Empty;
-
-    /// <summary>Registered agent type.</summary>
-    [JsonPropertyName("agentType")]
-    public string AgentType { get; set; } = string.Empty;
-
-    /// <summary>Epoch milliseconds when the agent completed.</summary>
-    [JsonPropertyName("completedAt")]
-    public long? CompletedAt { get; set; }
-
-    /// <summary>Friendly, non-unique name intended for display.</summary>
-    [JsonPropertyName("displayName")]
-    public string? DisplayName { get; set; }
-
-    /// <summary>Friendly, non-unique name intended for display.</summary>
-    [JsonPropertyName("label")]
-    public string Label { get; set; } = string.Empty;
-
-    /// <summary>Phase identifier active when the agent was launched, or null.</summary>
-    [JsonPropertyName("phaseId")]
-    public string? PhaseId { get; set; }
-
-    /// <summary>Model requested when the agent was launched.</summary>
-    [JsonPropertyName("requestedModel")]
-    public string? RequestedModel { get; set; }
-
-    /// <summary>Concrete model resolved for the agent.</summary>
-    [JsonPropertyName("resolvedModel")]
-    public string? ResolvedModel { get; set; }
-
-    /// <summary>Owning factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Epoch milliseconds when the agent started.</summary>
-    [JsonPropertyName("startedAt")]
-    public long? StartedAt { get; set; }
-
-    /// <summary>Current durable or live agent status.</summary>
-    [JsonPropertyName("status")]
-    public string Status { get; set; } = string.Empty;
-
-    /// <summary>Tool-call identifier that launched the agent.</summary>
-    [JsonPropertyName("toolCallId")]
-    public string ToolCallId { get; set; } = string.Empty;
-}
-
-/// <summary>Durable lifecycle and timing for one factory phase.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryPhaseObservation
-{
-    /// <summary>Completed active time accumulated by this phase in milliseconds.</summary>
-    [JsonPropertyName("accumulatedActiveMs")]
-    public long AccumulatedActiveMs { get; set; }
-
-    /// <summary>Epoch milliseconds when this phase completed; for a skipped phase, the synthetic skip timestamp (equal to `startedAt`).</summary>
-    [JsonPropertyName("completedAt")]
-    public long? CompletedAt { get; set; }
-
-    /// <summary>Current live active time for this phase in milliseconds.</summary>
-    [JsonPropertyName("currentActiveMs")]
-    public long CurrentActiveMs { get; set; }
-
-    /// <summary>Optional human-readable phase detail.</summary>
-    [JsonPropertyName("detail")]
-    public string? Detail { get; set; }
-
-    /// <summary>Number of times execution entered this phase.</summary>
-    [JsonPropertyName("entryCount")]
-    public long EntryCount { get; set; }
-
-    /// <summary>Phase identifier.</summary>
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
-
-    /// <summary>Most recent run attempt that entered this phase, or `0` if the phase has never been entered.</summary>
-    [JsonPropertyName("lastEnteredRunAttempt")]
-    public long LastEnteredRunAttempt { get; set; }
-
-    /// <summary>Direct agents in this phase that are currently live.</summary>
-    [JsonPropertyName("liveAgentCount")]
-    public long LiveAgentCount { get; set; }
-
-    /// <summary>Zero-based declared phase ordinal, or null for an undeclared phase.</summary>
-    [JsonPropertyName("ordinal")]
-    public long? Ordinal { get; set; }
-
-    /// <summary>Epoch milliseconds when this phase first started; for a skipped phase, the synthetic skip timestamp (equal to `completedAt`).</summary>
-    [JsonPropertyName("startedAt")]
-    public long? StartedAt { get; set; }
-
-    /// <summary>Derived lifecycle state of the phase.</summary>
-    [JsonPropertyName("status")]
-    public FactoryPhaseStatus Status { get; set; }
-
-    /// <summary>Human-readable phase title.</summary>
-    [JsonPropertyName("title")]
-    public string Title { get; set; } = string.Empty;
-
-    /// <summary>Total direct agents associated with this phase.</summary>
-    [JsonPropertyName("totalAgentCount")]
-    public long TotalAgentCount { get; set; }
-}
-
-/// <summary>One durable factory progress record.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryProgressLine
-{
-    /// <summary>Resume attempt that emitted this record.</summary>
-    [JsonPropertyName("attempt")]
-    public long Attempt { get; set; }
-
-    /// <summary>Progress record kind.</summary>
-    [JsonPropertyName("kind")]
-    public FactoryLogLineKind Kind { get; set; }
-
-    /// <summary>Phase active when the record was emitted, or null before any phase.</summary>
-    [JsonPropertyName("phaseId")]
-    public string? PhaseId { get; set; }
-
-    /// <summary>Epoch milliseconds when the record was persisted.</summary>
-    [JsonPropertyName("recordedAt")]
-    public long RecordedAt { get; set; }
-
-    /// <summary>Global monotonic sequence number within the run.</summary>
-    [JsonPropertyName("seq")]
-    public long Seq { get; set; }
-
-    /// <summary>Prompt-safe progress text.</summary>
-    [JsonPropertyName("text")]
-    public string Text { get; set; } = string.Empty;
-}
-
-/// <summary>A bidirectional page of factory progress.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryProgressPage
-{
-    /// <summary>Whether progress records newer than this page exist.</summary>
-    [JsonPropertyName("hasMoreNewer")]
-    public bool HasMoreNewer { get; set; }
-
-    /// <summary>Whether progress records older than this page exist.</summary>
-    [JsonPropertyName("hasMoreOlder")]
-    public bool HasMoreOlder { get; set; }
-
-    /// <summary>Newest sequence number in this page, or null when empty.</summary>
-    [JsonPropertyName("newestSeq")]
-    public long? NewestSeq { get; set; }
-
-    /// <summary>Oldest sequence number in this page, or null when empty.</summary>
-    [JsonPropertyName("oldestSeq")]
-    public long? OldestSeq { get; set; }
-
-    /// <summary>Progress records in sequence order.</summary>
-    [JsonPropertyName("records")]
-    public IList<FactoryProgressLine> Records { get => field ??= []; set; }
-
-    /// <summary>Run revision reflected by this page.</summary>
-    [JsonPropertyName("revision")]
-    public long Revision { get; set; }
-}
-
-/// <summary>Full factory run observability detail.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryRunDetail
-{
-    /// <summary>Epoch milliseconds when the current active segment started, or null while inactive.</summary>
-    [JsonPropertyName("activeSegmentStartedAt")]
-    public long? ActiveSegmentStartedAt { get; set; }
-
-    /// <summary>Durable identities and live statuses for direct factory agents.</summary>
-    [JsonPropertyName("agents")]
-    public IList<FactoryAgentSummary> Agents { get => field ??= []; set; }
-
-    /// <summary>Approved effective resource ceilings, or null until approved.</summary>
-    [JsonPropertyName("approved")]
-    public FactoryDeclaredLimits? Approved { get; set; }
-
-    /// <summary>Whether the durable run state currently passes runtime resume eligibility checks.</summary>
-    [JsonPropertyName("canResume")]
-    public bool CanResume { get; set; }
-
-    /// <summary>Epoch milliseconds when the run completed, or null while nonterminal.</summary>
-    [JsonPropertyName("completedAt")]
-    public long? CompletedAt { get; set; }
-
-    /// <summary>Durable resource consumption.</summary>
-    [JsonPropertyName("consumed")]
-    public FactoryRunConsumed Consumed { get => field ??= new(); set; }
-
-    /// <summary>Epoch milliseconds when the run was created.</summary>
-    [JsonPropertyName("createdAt")]
-    public long CreatedAt { get; set; }
-
-    /// <summary>Current phase identity, or null before any phase is entered.</summary>
-    [JsonPropertyName("currentPhase")]
-    public FactoryCurrentPhase? CurrentPhase { get; set; }
-
-    /// <summary>Resource ceilings declared by the factory.</summary>
-    [JsonPropertyName("declaredLimits")]
-    public FactoryDeclaredLimits DeclaredLimits { get => field ??= new(); set; }
-
-    /// <summary>Number of phases declared by the factory.</summary>
-    [JsonPropertyName("declaredPhaseCount")]
-    public long DeclaredPhaseCount { get; set; }
-
-    /// <summary>Human-readable factory description.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-
-    /// <summary>Registered factory name.</summary>
-    [JsonPropertyName("factoryName")]
-    public string FactoryName { get; set; } = string.Empty;
-
-    /// <summary>Number of direct factory agents currently live.</summary>
-    [JsonPropertyName("liveAgentCount")]
-    public long LiveAgentCount { get; set; }
-
-    /// <summary>Epoch milliseconds when this live-overlay snapshot was observed.</summary>
-    [JsonPropertyName("observedAt")]
-    public long ObservedAt { get; set; }
-
-    /// <summary>Lifecycle and timing observations for each factory phase.</summary>
-    [JsonPropertyName("phases")]
-    public IList<FactoryPhaseObservation> Phases { get => field ??= []; set; }
-
-    /// <summary>Bidirectional page of durable factory progress.</summary>
-    [JsonPropertyName("progress")]
-    public FactoryProgressPage Progress { get => field ??= new(); set; }
-
-    /// <summary>Monotonic durable run revision.</summary>
-    [JsonPropertyName("revision")]
-    public long Revision { get; set; }
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Epoch milliseconds when execution first started, or null before start.</summary>
-    [JsonPropertyName("startedAt")]
-    public long? StartedAt { get; set; }
-
-    /// <summary>Current factory run status.</summary>
-    [JsonPropertyName("status")]
-    public FactoryRunStatus Status { get; set; }
-
-    /// <summary>Terminal run outcome, or null while nonterminal.</summary>
-    [JsonPropertyName("terminal")]
-    public FactoryRunTerminal? Terminal { get; set; }
-
-    /// <summary>Total direct factory agents spawned across all attempts.</summary>
-    [JsonPropertyName("totalSpawnedAgentCount")]
-    public long TotalSpawnedAgentCount { get; set; }
-
-    /// <summary>Epoch milliseconds when the durable run was last updated.</summary>
-    [JsonPropertyName("updatedAt")]
-    public long UpdatedAt { get; set; }
-}
-
-/// <summary>Parameters for paging factory progress.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryGetRunProgressRequest
-{
-    /// <summary>Exclusive forward cursor.</summary>
-    [JsonPropertyName("afterSeq")]
-    public long? AfterSeq { get; set; }
-
-    /// <summary>Exclusive backward cursor.</summary>
-    [JsonPropertyName("beforeSeq")]
-    public long? BeforeSeq { get; set; }
-
-    /// <summary>Maximum records to return. Defaults to 200 and is capped at 500.</summary>
-    [JsonPropertyName("limit")]
-    public int? Limit { get; set; }
-
-    /// <summary>Optional phase identifier used to scope records and cursors.</summary>
-    [JsonPropertyName("phaseId")]
-    public string? PhaseId { get; set; }
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Parameters for cancelling a factory run.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryCancelRequest
-{
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Parameters for pausing a running factory.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryPauseRequest
-{
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>RPC data type for SessionFactoryPauseAtCheckpoint operations.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SessionFactoryPauseAtCheckpointResult
-{
-    /// <summary>Whether this execution attempt must pause or may continue.</summary>
-    [JsonPropertyName("action")]
-    public FactoryPauseCheckpointAction Action { get; set; }
-}
-
-/// <summary>Parameters for an owned durable pause checkpoint.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryPauseCheckpointRequest
-{
-    /// <summary>Opaque token identifying the execution attempt that reached the checkpoint.</summary>
-    [JsonPropertyName("executionToken")]
-    public string ExecutionToken { get; set; } = string.Empty;
-
-    /// <summary>Stable author-defined checkpoint key.</summary>
-    [JsonPropertyName("key")]
-    public string Key { get; set; } = string.Empty;
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Acknowledgement that a factory request was accepted.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryAckResult
-{
-}
-
-/// <summary>One ordered factory progress line.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryLogLine
-{
-    /// <summary>Progress line kind.</summary>
-    [JsonPropertyName("kind")]
-    public FactoryLogLineKind Kind { get; set; }
-
-    /// <summary>Monotonic sequence number within the factory run.</summary>
-    [JsonPropertyName("seq")]
-    public long Seq { get; set; }
-
-    /// <summary>Progress text.</summary>
-    [JsonPropertyName("text")]
-    public string Text { get; set; } = string.Empty;
-}
-
-/// <summary>Parameters for recording factory progress.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryLogRequest
-{
-    /// <summary>Opaque token identifying the current factory execution attempt.</summary>
-    [JsonPropertyName("executionToken")]
-    public string ExecutionToken { get; set; } = string.Empty;
-
-    /// <summary>Ordered progress lines to append.</summary>
-    [JsonPropertyName("lines")]
-    public IList<FactoryLogLine> Lines { get => field ??= []; set; }
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Result of one factory-scoped subagent call.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryAgentResult
-{
-    /// <summary>Agent result, omitted when the agent produced no result.</summary>
-    [JsonPropertyName("result")]
-    public JsonElement? Result { get; set; }
-}
-
-/// <summary>Options for one factory-scoped subagent call.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryAgentOptions
-{
-    /// <summary>Optional built-in or custom agent name whose definition configures the subagent.</summary>
-    [JsonPropertyName("agent")]
-    public string? Agent { get; set; }
-
-    /// <summary>Optional context tier override for the subagent.</summary>
-    [JsonPropertyName("contextTier")]
-    public ContextTier? ContextTier { get; set; }
-
-    /// <summary>Optional label distinguishing otherwise identical memoized agent calls.</summary>
-    [JsonPropertyName("label")]
-    public string? Label { get; set; }
-
-    /// <summary>Optional model identifier for the subagent.</summary>
-    [JsonPropertyName("model")]
-    public string? Model { get; set; }
-
-    /// <summary>Optional reasoning effort override for the subagent.</summary>
-    [JsonPropertyName("reasoningEffort")]
-    public string? ReasoningEffort { get; set; }
-
-    /// <summary>Optional JSON Schema for structured agent output.</summary>
-    [JsonPropertyName("schema")]
-    public JsonElement? Schema { get; set; }
-}
-
-/// <summary>Parameters for one factory-scoped subagent call.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryAgentRequest
-{
-    /// <summary>Opaque token identifying the current factory execution attempt.</summary>
-    [JsonPropertyName("executionToken")]
-    public string ExecutionToken { get; set; } = string.Empty;
-
-    /// <summary>Factory run identifier that owns the subagent.</summary>
-    [JsonPropertyName("factoryRunId")]
-    public string FactoryRunId { get; set; } = string.Empty;
-
-    /// <summary>Subagent execution options.</summary>
-    [JsonPropertyName("opts")]
-    public FactoryAgentOptions Opts { get => field ??= new(); set; }
-
-    /// <summary>Prompt to send to the subagent.</summary>
-    [JsonPropertyName("prompt")]
-    public string Prompt { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Result of reading a factory journal entry.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryJournalGetResult
-{
-    /// <summary>Whether the journal contained the requested key.</summary>
-    [JsonPropertyName("hit")]
-    public bool Hit { get; set; }
-
-    /// <summary>Cached JSON result. The hit field distinguishes a cached JSON null from a miss.</summary>
-    [JsonPropertyName("resultJson")]
-    public JsonElement? ResultJson { get; set; }
-}
-
-/// <summary>Parameters for reading a factory journal entry.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryJournalGetRequest
-{
-    /// <summary>Opaque token identifying the current factory execution attempt.</summary>
-    [JsonPropertyName("executionToken")]
-    public string ExecutionToken { get; set; } = string.Empty;
-
-    /// <summary>Namespaced journal key.</summary>
-    [JsonPropertyName("key")]
-    public string Key { get; set; } = string.Empty;
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Parameters for storing a factory journal entry.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class FactoryJournalPutRequest
-{
-    /// <summary>Opaque token identifying the current factory execution attempt.</summary>
-    [JsonPropertyName("executionToken")]
-    public string ExecutionToken { get; set; } = string.Empty;
-
-    /// <summary>Namespaced journal key.</summary>
-    [JsonPropertyName("key")]
-    public string Key { get; set; } = string.Empty;
-
-    /// <summary>JSON result to memoize.</summary>
-    [JsonPropertyName("resultJson")]
-    public JsonElement ResultJson { get; set; }
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
 /// <summary>Machine-readable workflow run failure.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
@@ -19446,7 +18348,7 @@ public partial class PermissionDecisionApproveOnce : PermissionDecision
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalMemory), "memory")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalExtensionManagement), "extension-management")]
-[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalFactory), "factory")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalWorkflow), "workflow")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess), "extension-permission-access")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalExtensionEnvAccess), "extension-env-access")]
 public partial class PermissionDecisionApproveForSessionApproval
@@ -19562,16 +18464,16 @@ public partial class PermissionDecisionApproveForSessionApprovalExtensionManagem
     public string? Operation { get; set; }
 }
 
-/// <summary>Session-scoped factory approval, optionally narrowed by approval key.</summary>
-/// <remarks>The <c>factory</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+/// <summary>Session-scoped workflow approval, optionally narrowed by approval key.</summary>
+/// <remarks>The <c>workflow</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class PermissionDecisionApproveForSessionApprovalFactory : PermissionDecisionApproveForSessionApproval
+public partial class PermissionDecisionApproveForSessionApprovalWorkflow : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "factory";
+    public override string Kind => "workflow";
 
-    /// <summary>Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.</summary>
+    /// <summary>Optional workflow operation name or canonical approval key; when omitted, the approval covers all workflow operations.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("approvalKey")]
     public string? ApprovalKey { get; set; }
@@ -19643,7 +18545,7 @@ public partial class PermissionDecisionApproveForSession : PermissionDecision
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalMemory), "memory")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalExtensionManagement), "extension-management")]
-[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalFactory), "factory")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalWorkflow), "workflow")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess), "extension-permission-access")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalExtensionEnvAccess), "extension-env-access")]
 public partial class PermissionDecisionApproveForLocationApproval
@@ -19759,16 +18661,16 @@ public partial class PermissionDecisionApproveForLocationApprovalExtensionManage
     public string? Operation { get; set; }
 }
 
-/// <summary>Location-scoped factory approval, optionally narrowed by approval key.</summary>
-/// <remarks>The <c>factory</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+/// <summary>Location-scoped workflow approval, optionally narrowed by approval key.</summary>
+/// <remarks>The <c>workflow</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class PermissionDecisionApproveForLocationApprovalFactory : PermissionDecisionApproveForLocationApproval
+public partial class PermissionDecisionApproveForLocationApprovalWorkflow : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "factory";
+    public override string Kind => "workflow";
 
-    /// <summary>Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.</summary>
+    /// <summary>Optional workflow operation name or canonical approval key; when omitted, the approval covers all workflow operations.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("approvalKey")]
     public string? ApprovalKey { get; set; }
@@ -20441,7 +19343,7 @@ public sealed class PermissionsLocationsAddToolApprovalResult
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsMemory), "memory")]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionManagement), "extension-management")]
-[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsFactory), "factory")]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsWorkflow), "workflow")]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess), "extension-permission-access")]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionEnvAccess), "extension-env-access")]
 public partial class PermissionsLocationsAddToolApprovalDetails
@@ -20557,16 +19459,16 @@ public partial class PermissionsLocationsAddToolApprovalDetailsExtensionManageme
     public string? Operation { get; set; }
 }
 
-/// <summary>Location-persisted factory approval, optionally narrowed by approval key.</summary>
-/// <remarks>The <c>factory</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+/// <summary>Location-persisted workflow approval, optionally narrowed by approval key.</summary>
+/// <remarks>The <c>workflow</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class PermissionsLocationsAddToolApprovalDetailsFactory : PermissionsLocationsAddToolApprovalDetails
+public partial class PermissionsLocationsAddToolApprovalDetailsWorkflow : PermissionsLocationsAddToolApprovalDetails
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "factory";
+    public override string Kind => "workflow";
 
-    /// <summary>Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.</summary>
+    /// <summary>Optional workflow operation name or canonical approval key; when omitted, the approval covers all workflow operations.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("approvalKey")]
     public string? ApprovalKey { get; set; }
@@ -23376,57 +22278,6 @@ public sealed class ProviderTokenAcquireRequest
     /// <summary>Name of the BYOK provider needing a token. For the legacy whole-session provider this is the implicit provider name; for named providers it is the configured provider name.</summary>
     [JsonPropertyName("providerName")]
     public string ProviderName { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Result returned by an extension factory closure.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryExecuteResult
-{
-    /// <summary>Factory result value.</summary>
-    [JsonPropertyName("result")]
-    public JsonElement? Result { get; set; }
-}
-
-/// <summary>Parameters sent to the owning extension to execute a factory closure.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryExecuteRequest
-{
-    /// <summary>Factory input value.</summary>
-    [JsonPropertyName("args")]
-    public JsonElement Args { get; set; }
-
-    /// <summary>Opaque token identifying this factory execution attempt.</summary>
-    [JsonPropertyName("executionToken")]
-    public string ExecutionToken { get; set; } = string.Empty;
-
-    /// <summary>Registered factory name.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Parameters for cooperatively aborting a factory body.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryAbortRequest
-{
-    /// <summary>Opaque token identifying the execution attempt to abort.</summary>
-    [JsonPropertyName("executionToken")]
-    public string ExecutionToken { get; set; } = string.Empty;
-
-    /// <summary>Factory run identifier.</summary>
-    [JsonPropertyName("runId")]
-    public string RunId { get; set; } = string.Empty;
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -30745,435 +29596,6 @@ public readonly struct DebugCollectLogsRedaction : IEquatable<DebugCollectLogsRe
 }
 
 
-/// <summary>Cumulative resource ceiling that stopped a factory run.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct FactoryRunFailureKind : IEquatable<FactoryRunFailureKind>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="FactoryRunFailureKind"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="FactoryRunFailureKind"/>.</param>
-    [JsonConstructor]
-    public FactoryRunFailureKind(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="FactoryRunFailureKind"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The run admitted the approved maximum total number of subagents.</summary>
-    public static FactoryRunFailureKind MaxTotalSubagents { get; } = new("maxTotalSubagents");
-
-    /// <summary>The run reached the approved accumulated active-execution time in seconds.</summary>
-    public static FactoryRunFailureKind TimeoutSeconds { get; } = new("timeoutSeconds");
-
-    /// <summary>The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no headroom remained for another subagent.</summary>
-    public static FactoryRunFailureKind MaxAiCredits { get; } = new("maxAiCredits");
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryRunFailureKind"/> instances are equivalent.</summary>
-    public static bool operator ==(FactoryRunFailureKind left, FactoryRunFailureKind right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryRunFailureKind"/> instances are not equivalent.</summary>
-    public static bool operator !=(FactoryRunFailureKind left, FactoryRunFailureKind right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is FactoryRunFailureKind other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(FactoryRunFailureKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{FactoryRunFailureKind}"/> for serializing <see cref="FactoryRunFailureKind"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<FactoryRunFailureKind>
-    {
-        /// <inheritdoc />
-        public override FactoryRunFailureKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, FactoryRunFailureKind value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FactoryRunFailureKind));
-        }
-    }
-}
-
-
-/// <summary>Execution-critical factory storage operation.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct FactoryDurableOperation : IEquatable<FactoryDurableOperation>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="FactoryDurableOperation"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="FactoryDurableOperation"/>.</param>
-    [JsonConstructor]
-    public FactoryDurableOperation(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="FactoryDurableOperation"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Creating the durable run and declared phases.</summary>
-    public static FactoryDurableOperation CreateRun { get; } = new("createRun");
-
-    /// <summary>Persisting the transition to running.</summary>
-    public static FactoryDurableOperation MarkRunStarted { get; } = new("markRunStarted");
-
-    /// <summary>Persisting the terminal run envelope.</summary>
-    public static FactoryDurableOperation FinishRun { get; } = new("finishRun");
-
-    /// <summary>Persisting subagent admission accounting.</summary>
-    public static FactoryDurableOperation ReserveAgent { get; } = new("reserveAgent");
-
-    /// <summary>Rolling back an uncommitted subagent admission.</summary>
-    public static FactoryDurableOperation ReleaseAgent { get; } = new("releaseAgent");
-
-    /// <summary>Persisting an idempotent model-usage charge.</summary>
-    public static FactoryDurableOperation ChargeCredit { get; } = new("chargeCredit");
-
-    /// <summary>Persisting active execution time.</summary>
-    public static FactoryDurableOperation AddElapsed { get; } = new("addElapsed");
-
-    /// <summary>Reading the authoritative AI-credit total.</summary>
-    public static FactoryDurableOperation ReconcileCreditTotal { get; } = new("reconcileCreditTotal");
-
-    /// <summary>Reading a journal entry without treating storage failure as a cache miss.</summary>
-    public static FactoryDurableOperation JournalGet { get; } = new("journalGet");
-
-    /// <summary>Persisting a journal entry before reporting success.</summary>
-    public static FactoryDurableOperation JournalPut { get; } = new("journalPut");
-
-    /// <summary>Renewing the durable owner lease that proves this process still owns the run.</summary>
-    public static FactoryDurableOperation RefreshLease { get; } = new("refreshLease");
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryDurableOperation"/> instances are equivalent.</summary>
-    public static bool operator ==(FactoryDurableOperation left, FactoryDurableOperation right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryDurableOperation"/> instances are not equivalent.</summary>
-    public static bool operator !=(FactoryDurableOperation left, FactoryDurableOperation right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is FactoryDurableOperation other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(FactoryDurableOperation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{FactoryDurableOperation}"/> for serializing <see cref="FactoryDurableOperation"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<FactoryDurableOperation>
-    {
-        /// <inheritdoc />
-        public override FactoryDurableOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, FactoryDurableOperation value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FactoryDurableOperation));
-        }
-    }
-}
-
-
-/// <summary>Current or terminal state of a factory run.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct FactoryRunStatus : IEquatable<FactoryRunStatus>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="FactoryRunStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="FactoryRunStatus"/>.</param>
-    [JsonConstructor]
-    public FactoryRunStatus(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="FactoryRunStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The run was minted and is awaiting approval.</summary>
-    public static FactoryRunStatus Pending { get; } = new("pending");
-
-    /// <summary>The run is executing.</summary>
-    public static FactoryRunStatus Running { get; } = new("running");
-
-    /// <summary>The run completed successfully.</summary>
-    public static FactoryRunStatus Completed { get; } = new("completed");
-
-    /// <summary>The run was interrupted while resource budget remained.</summary>
-    public static FactoryRunStatus Halted { get; } = new("halted");
-
-    /// <summary>The current attempt stopped intentionally and the run may be resumed.</summary>
-    public static FactoryRunStatus Paused { get; } = new("paused");
-
-    /// <summary>The run was cancelled before completion.</summary>
-    public static FactoryRunStatus Cancelled { get; } = new("cancelled");
-
-    /// <summary>The factory body failed or reached a cumulative resource ceiling.</summary>
-    public static FactoryRunStatus Error { get; } = new("error");
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryRunStatus"/> instances are equivalent.</summary>
-    public static bool operator ==(FactoryRunStatus left, FactoryRunStatus right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryRunStatus"/> instances are not equivalent.</summary>
-    public static bool operator !=(FactoryRunStatus left, FactoryRunStatus right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is FactoryRunStatus other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(FactoryRunStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{FactoryRunStatus}"/> for serializing <see cref="FactoryRunStatus"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<FactoryRunStatus>
-    {
-        /// <inheritdoc />
-        public override FactoryRunStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, FactoryRunStatus value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FactoryRunStatus));
-        }
-    }
-}
-
-
-/// <summary>Derived lifecycle state of a factory phase.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct FactoryPhaseStatus : IEquatable<FactoryPhaseStatus>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="FactoryPhaseStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="FactoryPhaseStatus"/>.</param>
-    [JsonConstructor]
-    public FactoryPhaseStatus(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="FactoryPhaseStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The phase has not been entered yet.</summary>
-    public static FactoryPhaseStatus Pending { get; } = new("pending");
-
-    /// <summary>The phase is currently entered and accumulating active time.</summary>
-    public static FactoryPhaseStatus Active { get; } = new("active");
-
-    /// <summary>The phase was entered and has since been closed.</summary>
-    public static FactoryPhaseStatus Completed { get; } = new("completed");
-
-    /// <summary>The phase was never entered because a later phase was entered or the run reached a terminal state.</summary>
-    public static FactoryPhaseStatus Skipped { get; } = new("skipped");
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryPhaseStatus"/> instances are equivalent.</summary>
-    public static bool operator ==(FactoryPhaseStatus left, FactoryPhaseStatus right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryPhaseStatus"/> instances are not equivalent.</summary>
-    public static bool operator !=(FactoryPhaseStatus left, FactoryPhaseStatus right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is FactoryPhaseStatus other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(FactoryPhaseStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{FactoryPhaseStatus}"/> for serializing <see cref="FactoryPhaseStatus"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<FactoryPhaseStatus>
-    {
-        /// <inheritdoc />
-        public override FactoryPhaseStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, FactoryPhaseStatus value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FactoryPhaseStatus));
-        }
-    }
-}
-
-
-/// <summary>Kind of factory progress line.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct FactoryLogLineKind : IEquatable<FactoryLogLineKind>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="FactoryLogLineKind"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="FactoryLogLineKind"/>.</param>
-    [JsonConstructor]
-    public FactoryLogLineKind(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="FactoryLogLineKind"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>A narrator log line.</summary>
-    public static FactoryLogLineKind Log { get; } = new("log");
-
-    /// <summary>A named factory phase marker.</summary>
-    public static FactoryLogLineKind Phase { get; } = new("phase");
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryLogLineKind"/> instances are equivalent.</summary>
-    public static bool operator ==(FactoryLogLineKind left, FactoryLogLineKind right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryLogLineKind"/> instances are not equivalent.</summary>
-    public static bool operator !=(FactoryLogLineKind left, FactoryLogLineKind right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is FactoryLogLineKind other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(FactoryLogLineKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{FactoryLogLineKind}"/> for serializing <see cref="FactoryLogLineKind"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<FactoryLogLineKind>
-    {
-        /// <inheritdoc />
-        public override FactoryLogLineKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, FactoryLogLineKind value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FactoryLogLineKind));
-        }
-    }
-}
-
-
-/// <summary>Action the runtime selected for a durable factory pause checkpoint.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct FactoryPauseCheckpointAction : IEquatable<FactoryPauseCheckpointAction>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="FactoryPauseCheckpointAction"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="FactoryPauseCheckpointAction"/>.</param>
-    [JsonConstructor]
-    public FactoryPauseCheckpointAction(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="FactoryPauseCheckpointAction"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The checkpoint was committed by a prior paused attempt, so execution may continue.</summary>
-    public static FactoryPauseCheckpointAction Continue { get; } = new("continue");
-
-    /// <summary>This attempt claimed the checkpoint and must cooperatively stop.</summary>
-    public static FactoryPauseCheckpointAction Pause { get; } = new("pause");
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryPauseCheckpointAction"/> instances are equivalent.</summary>
-    public static bool operator ==(FactoryPauseCheckpointAction left, FactoryPauseCheckpointAction right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="FactoryPauseCheckpointAction"/> instances are not equivalent.</summary>
-    public static bool operator !=(FactoryPauseCheckpointAction left, FactoryPauseCheckpointAction right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is FactoryPauseCheckpointAction other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(FactoryPauseCheckpointAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{FactoryPauseCheckpointAction}"/> for serializing <see cref="FactoryPauseCheckpointAction"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<FactoryPauseCheckpointAction>
-    {
-        /// <inheritdoc />
-        public override FactoryPauseCheckpointAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, FactoryPauseCheckpointAction value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FactoryPauseCheckpointAction));
-        }
-    }
-}
-
-
 /// <summary>Cumulative resource ceiling that stopped a workflow run.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -36741,7 +35163,7 @@ public readonly struct PermissionModeSource : IEquatable<PermissionModeSource>
     /// <summary>The mode was set at startup by the `defaultPermissionMode` user setting.</summary>
     public static PermissionModeSource UserSetting { get; } = new("user_setting");
 
-    /// <summary>The mode was set at startup by authenticated organization targeting.</summary>
+    /// <summary>Historical compatibility value for runtimes that selected Assisted mode through organization targeting. Current runtimes do not produce this source.</summary>
     public static PermissionModeSource OrganizationTargeting { get; } = new("organization_targeting");
 
     /// <summary>The mode was set through an RPC caller.</summary>
@@ -40453,12 +38875,6 @@ public sealed class SessionRpc
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
 
-    /// <summary>Factory APIs.</summary>
-    public FactoryApi Factory =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_session), null) ??
-        field;
-
     /// <summary>Workflow APIs.</summary>
     public WorkflowApi Workflow =>
         field ??
@@ -41184,271 +39600,6 @@ public sealed class CanvasProviderApi
 
         var request = new CanvasProviderUnregisterRequest { SessionId = _session.SessionId, ConnectionId = connectionId };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.canvas.provider.unregister", [request], cancellationToken);
-    }
-}
-
-/// <summary>Provides session-scoped Factory APIs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryApi
-{
-    private readonly CopilotSession _session;
-
-    internal FactoryApi(CopilotSession session)
-    {
-        _session = session;
-    }
-
-    /// <summary>Runs a registered factory by name at the top level.</summary>
-    /// <param name="name">Registered factory name.</param>
-    /// <param name="args">Factory input value.</param>
-    /// <param name="options">Factory invocation options.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Complete current or terminal factory run envelope.</returns>
-    public async Task<FactoryRunResult> RunAsync(string name, object args, RunOptions? options = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(name);
-        ArgumentNullException.ThrowIfNull(args);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryRunRequest { SessionId = _session.SessionId, Name = name, Args = CopilotClient.ToJsonElementForWire(args)!.Value, Options = options };
-        return await CopilotClient.InvokeRpcAsync<FactoryRunResult>(_session.Rpc, "session.factory.run", [request], cancellationToken);
-    }
-
-    /// <summary>Resumes a factory run using its persisted name, arguments, journal, and accounting.</summary>
-    /// <param name="runId">Factory run identifier.</param>
-    /// <param name="limits">Optional per-invocation resource ceiling overrides.</param>
-    /// <param name="notifyOnComplete">Whether to notify the originating session when the factory completes.</param>
-    /// <param name="logPhaseNames">Whether to emit factory phase names to the session transcript.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Resolved persisted factory identity and resumed run envelope.</returns>
-    public async Task<FactoryResumeResult> ResumeAsync(string runId, FactoryRunLimits? limits = null, bool? notifyOnComplete = null, bool? logPhaseNames = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(runId);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryResumeRequest { SessionId = _session.SessionId, RunId = runId, Limits = limits, NotifyOnComplete = notifyOnComplete, LogPhaseNames = logPhaseNames };
-        return await CopilotClient.InvokeRpcAsync<FactoryResumeResult>(_session.Rpc, "session.factory.resume", [request], cancellationToken);
-    }
-
-    /// <summary>Internal tool-originated factory invocation.</summary>
-    /// <param name="name">Registered factory name.</param>
-    /// <param name="args">Factory input value.</param>
-    /// <param name="options">Tool-originated factory invocation options.</param>
-    /// <param name="toolCallId">Opaque identifier of the originating tool call.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Complete current or terminal factory run envelope.</returns>
-    internal async Task<FactoryRunResult> RunFromToolAsync(string name, object args, FactoryToolRunOptions? options = null, string? toolCallId = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(name);
-        ArgumentNullException.ThrowIfNull(args);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryToolRunRequest { SessionId = _session.SessionId, Name = name, Args = CopilotClient.ToJsonElementForWire(args)!.Value, Options = options, ToolCallId = toolCallId };
-        return await CopilotClient.InvokeRpcAsync<FactoryRunResult>(_session.Rpc, "session.factory.runFromTool", [request], cancellationToken);
-    }
-
-    /// <summary>Internal tool-originated factory resume.</summary>
-    /// <param name="runId">Factory run identifier.</param>
-    /// <param name="limits">Optional per-invocation resource ceiling overrides.</param>
-    /// <param name="toolCallId">Opaque identifier of the originating tool call.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Resolved persisted factory identity and resumed run envelope.</returns>
-    internal async Task<FactoryResumeResult> ResumeFromToolAsync(string runId, FactoryRunLimits? limits = null, string? toolCallId = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(runId);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryToolResumeRequest { SessionId = _session.SessionId, RunId = runId, Limits = limits, ToolCallId = toolCallId };
-        return await CopilotClient.InvokeRpcAsync<FactoryResumeResult>(_session.Rpc, "session.factory.resumeFromTool", [request], cancellationToken);
-    }
-
-    /// <summary>Gets the current or settled envelope for a factory run.</summary>
-    /// <param name="runId">Factory run identifier.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Complete current or terminal factory run envelope.</returns>
-    public async Task<FactoryRunResult> GetRunAsync(string runId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(runId);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryGetRunRequest { SessionId = _session.SessionId, RunId = runId };
-        return await CopilotClient.InvokeRpcAsync<FactoryRunResult>(_session.Rpc, "session.factory.getRun", [request], cancellationToken);
-    }
-
-    /// <summary>Lists durable factory runs for this session in creation order.</summary>
-    /// <param name="afterSeq">Exclusive forward cursor.</param>
-    /// <param name="beforeSeq">Exclusive backward cursor.</param>
-    /// <param name="limit">Maximum terminal runs to return. Defaults to 200 and is capped at 500.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>A page of factory runs in durable creation order.</returns>
-    public async Task<FactoryListRunsResult> ListRunsAsync(long? afterSeq = null, long? beforeSeq = null, int? limit = null, CancellationToken cancellationToken = default)
-    {
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryListRunsRequest { SessionId = _session.SessionId, AfterSeq = afterSeq, BeforeSeq = beforeSeq, Limit = limit };
-        return await CopilotClient.InvokeRpcAsync<FactoryListRunsResult>(_session.Rpc, "session.factory.listRuns", [request], cancellationToken);
-    }
-
-    /// <summary>Gets durable and live observability detail for one factory run.</summary>
-    /// <param name="runId">Factory run identifier.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Full factory run observability detail.</returns>
-    public async Task<FactoryRunDetail> GetRunDetailAsync(string runId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(runId);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryGetRunRequest { SessionId = _session.SessionId, RunId = runId };
-        return await CopilotClient.InvokeRpcAsync<FactoryRunDetail>(_session.Rpc, "session.factory.getRunDetail", [request], cancellationToken);
-    }
-
-    /// <summary>Pages durable progress for one factory run.</summary>
-    /// <param name="runId">Factory run identifier.</param>
-    /// <param name="phaseId">Optional phase identifier used to scope records and cursors.</param>
-    /// <param name="afterSeq">Exclusive forward cursor.</param>
-    /// <param name="beforeSeq">Exclusive backward cursor.</param>
-    /// <param name="limit">Maximum records to return. Defaults to 200 and is capped at 500.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>A bidirectional page of factory progress.</returns>
-    public async Task<FactoryProgressPage> GetRunProgressAsync(string runId, string? phaseId = null, long? afterSeq = null, long? beforeSeq = null, int? limit = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(runId);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryGetRunProgressRequest { SessionId = _session.SessionId, RunId = runId, PhaseId = phaseId, AfterSeq = afterSeq, BeforeSeq = beforeSeq, Limit = limit };
-        return await CopilotClient.InvokeRpcAsync<FactoryProgressPage>(_session.Rpc, "session.factory.getRunProgress", [request], cancellationToken);
-    }
-
-    /// <summary>Requests cancellation of a factory run and returns its run envelope.</summary>
-    /// <param name="runId">Factory run identifier.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Complete current or terminal factory run envelope.</returns>
-    public async Task<FactoryRunResult> CancelAsync(string runId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(runId);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryCancelRequest { SessionId = _session.SessionId, RunId = runId };
-        return await CopilotClient.InvokeRpcAsync<FactoryRunResult>(_session.Rpc, "session.factory.cancel", [request], cancellationToken);
-    }
-
-    /// <summary>Pauses a running factory and returns its settled run envelope.</summary>
-    /// <param name="runId">Factory run identifier.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Complete current or terminal factory run envelope.</returns>
-    public async Task<FactoryRunResult> PauseAsync(string runId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(runId);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryPauseRequest { SessionId = _session.SessionId, RunId = runId };
-        return await CopilotClient.InvokeRpcAsync<FactoryRunResult>(_session.Rpc, "session.factory.pause", [request], cancellationToken);
-    }
-
-    /// <summary>Atomically pauses an owned factory attempt at a durable checkpoint.</summary>
-    /// <param name="runId">Factory run identifier.</param>
-    /// <param name="executionToken">Opaque token identifying the execution attempt that reached the checkpoint.</param>
-    /// <param name="key">Stable author-defined checkpoint key.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    internal async Task<SessionFactoryPauseAtCheckpointResult> PauseAtCheckpointAsync(string runId, string executionToken, string key, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(runId);
-        ArgumentNullException.ThrowIfNull(executionToken);
-        ArgumentNullException.ThrowIfNull(key);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryPauseCheckpointRequest { SessionId = _session.SessionId, RunId = runId, ExecutionToken = executionToken, Key = key };
-        return await CopilotClient.InvokeRpcAsync<SessionFactoryPauseAtCheckpointResult>(_session.Rpc, "session.factory.pauseAtCheckpoint", [request], cancellationToken);
-    }
-
-    /// <summary>Records a batch of ordered factory progress lines.</summary>
-    /// <param name="runId">Factory run identifier.</param>
-    /// <param name="executionToken">Opaque token identifying the current factory execution attempt.</param>
-    /// <param name="lines">Ordered progress lines to append.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Acknowledgement that a factory request was accepted.</returns>
-    public async Task<FactoryAckResult> LogAsync(string runId, string executionToken, IList<FactoryLogLine> lines, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(runId);
-        ArgumentNullException.ThrowIfNull(executionToken);
-        ArgumentNullException.ThrowIfNull(lines);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryLogRequest { SessionId = _session.SessionId, RunId = runId, ExecutionToken = executionToken, Lines = lines };
-        return await CopilotClient.InvokeRpcAsync<FactoryAckResult>(_session.Rpc, "session.factory.log", [request], cancellationToken);
-    }
-
-    /// <summary>Runs one factory-scoped subagent and returns its result.</summary>
-    /// <param name="factoryRunId">Factory run identifier that owns the subagent.</param>
-    /// <param name="executionToken">Opaque token identifying the current factory execution attempt.</param>
-    /// <param name="prompt">Prompt to send to the subagent.</param>
-    /// <param name="opts">Subagent execution options.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Result of one factory-scoped subagent call.</returns>
-    public async Task<FactoryAgentResult> AgentAsync(string factoryRunId, string executionToken, string prompt, FactoryAgentOptions opts, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(factoryRunId);
-        ArgumentNullException.ThrowIfNull(executionToken);
-        ArgumentNullException.ThrowIfNull(prompt);
-        ArgumentNullException.ThrowIfNull(opts);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryAgentRequest { SessionId = _session.SessionId, FactoryRunId = factoryRunId, ExecutionToken = executionToken, Prompt = prompt, Opts = opts };
-        return await CopilotClient.InvokeRpcAsync<FactoryAgentResult>(_session.Rpc, "session.factory.agent", [request], cancellationToken);
-    }
-
-    /// <summary>Journal APIs.</summary>
-    public FactoryJournalApi Journal =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_session), null) ??
-        field;
-}
-
-/// <summary>Provides session-scoped FactoryJournal APIs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class FactoryJournalApi
-{
-    private readonly CopilotSession _session;
-
-    internal FactoryJournalApi(CopilotSession session)
-    {
-        _session = session;
-    }
-
-    /// <summary>Reads a memoized factory journal entry.</summary>
-    /// <param name="runId">Factory run identifier.</param>
-    /// <param name="executionToken">Opaque token identifying the current factory execution attempt.</param>
-    /// <param name="key">Namespaced journal key.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Result of reading a factory journal entry.</returns>
-    public async Task<FactoryJournalGetResult> GetAsync(string runId, string executionToken, string key, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(runId);
-        ArgumentNullException.ThrowIfNull(executionToken);
-        ArgumentNullException.ThrowIfNull(key);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryJournalGetRequest { SessionId = _session.SessionId, RunId = runId, ExecutionToken = executionToken, Key = key };
-        return await CopilotClient.InvokeRpcAsync<FactoryJournalGetResult>(_session.Rpc, "session.factory.journal.get", [request], cancellationToken);
-    }
-
-    /// <summary>Stores a memoized factory journal entry.</summary>
-    /// <param name="runId">Factory run identifier.</param>
-    /// <param name="executionToken">Opaque token identifying the current factory execution attempt.</param>
-    /// <param name="key">Namespaced journal key.</param>
-    /// <param name="resultJson">JSON result to memoize.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Acknowledgement that a factory request was accepted.</returns>
-    public async Task<FactoryAckResult> PutAsync(string runId, string executionToken, string key, object resultJson, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(runId);
-        ArgumentNullException.ThrowIfNull(executionToken);
-        ArgumentNullException.ThrowIfNull(key);
-        ArgumentNullException.ThrowIfNull(resultJson);
-        _session.ThrowIfDisposed();
-
-        var request = new FactoryJournalPutRequest { SessionId = _session.SessionId, RunId = runId, ExecutionToken = executionToken, Key = key, ResultJson = CopilotClient.ToJsonElementForWire(resultJson)!.Value };
-        return await CopilotClient.InvokeRpcAsync<FactoryAckResult>(_session.Rpc, "session.factory.journal.put", [request], cancellationToken);
     }
 }
 
@@ -45815,22 +43966,6 @@ public interface IProviderTokenHandler
     Task<ProviderTokenAcquireResult> GetTokenAsync(ProviderTokenAcquireRequest request, CancellationToken cancellationToken = default);
 }
 
-/// <summary>Handles `factory` client session API methods.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public interface IFactoryHandler
-{
-    /// <summary>Asks the owning extension connection to execute a registered factory closure.</summary>
-    /// <param name="request">Parameters sent to the owning extension to execute a factory closure.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Result returned by an extension factory closure.</returns>
-    Task<FactoryExecuteResult> ExecuteAsync(FactoryExecuteRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Asks the owning extension connection to abort a running factory cooperatively.</summary>
-    /// <param name="request">Parameters for cooperatively aborting a factory body.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Acknowledgement that a factory request was accepted.</returns>
-    Task<FactoryAckResult> AbortAsync(FactoryAbortRequest request, CancellationToken cancellationToken = default);
-}
-
 /// <summary>Handles `workflow` client session API methods.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public interface IWorkflowHandler
@@ -45955,9 +44090,6 @@ public sealed class ClientSessionApiHandlers
     /// <summary>Optional handler for ProviderToken client session API methods.</summary>
     public IProviderTokenHandler? ProviderToken { get; set; }
 
-    /// <summary>Optional handler for Factory client session API methods.</summary>
-    public IFactoryHandler? Factory { get; set; }
-
     /// <summary>Optional handler for Workflow client session API methods.</summary>
     public IWorkflowHandler? Workflow { get; set; }
 
@@ -45986,18 +44118,6 @@ internal static class ClientSessionApiRegistration
             var handler = getHandlers(request.SessionId).ProviderToken;
             if (handler is null) throw new InvalidOperationException($"No providerToken handler registered for session: {request.SessionId}");
             return await handler.GetTokenAsync(request, cancellationToken);
-        }), singleObjectParam: true);
-        rpc.SetLocalRpcMethod("factory.execute", (Func<FactoryExecuteRequest, CancellationToken, ValueTask<FactoryExecuteResult>>)(async (request, cancellationToken) =>
-        {
-            var handler = getHandlers(request.SessionId).Factory;
-            if (handler is null) throw new InvalidOperationException($"No factory handler registered for session: {request.SessionId}");
-            return await handler.ExecuteAsync(request, cancellationToken);
-        }), singleObjectParam: true);
-        rpc.SetLocalRpcMethod("factory.abort", (Func<FactoryAbortRequest, CancellationToken, ValueTask<FactoryAckResult>>)(async (request, cancellationToken) =>
-        {
-            var handler = getHandlers(request.SessionId).Factory;
-            if (handler is null) throw new InvalidOperationException($"No factory handler registered for session: {request.SessionId}");
-            return await handler.AbortAsync(request, cancellationToken);
         }), singleObjectParam: true);
         rpc.SetLocalRpcMethod("workflow.execute", (Func<WorkflowExecuteRequest, CancellationToken, ValueTask<WorkflowExecuteResult>>)(async (request, cancellationToken) =>
         {
@@ -46389,15 +44509,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ExternalToolCompletedEvent), TypeInfoPropertyName = "SessionEventsExternalToolCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ExternalToolRequestedData), TypeInfoPropertyName = "SessionEventsExternalToolRequestedData")]
 [JsonSerializable(typeof(GitHub.Copilot.ExternalToolRequestedEvent), TypeInfoPropertyName = "SessionEventsExternalToolRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryPermissionOperation), TypeInfoPropertyName = "SessionEventsFactoryPermissionOperation")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryPermissionPhase), TypeInfoPropertyName = "SessionEventsFactoryPermissionPhase")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunSettledData), TypeInfoPropertyName = "SessionEventsFactoryRunSettledData")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunSettledEvent), TypeInfoPropertyName = "SessionEventsFactoryRunSettledEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunSettledStatus), TypeInfoPropertyName = "SessionEventsFactoryRunSettledStatus")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunStartedData), TypeInfoPropertyName = "SessionEventsFactoryRunStartedData")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunStartedEvent), TypeInfoPropertyName = "SessionEventsFactoryRunStartedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunUpdatedData), TypeInfoPropertyName = "SessionEventsFactoryRunUpdatedData")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunUpdatedEvent), TypeInfoPropertyName = "SessionEventsFactoryRunUpdatedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionAttribution), TypeInfoPropertyName = "SessionEventsFusionAttribution")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionConversationScope), TypeInfoPropertyName = "SessionEventsFusionConversationScope")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionFollowUpAction), TypeInfoPropertyName = "SessionEventsFusionFollowUpAction")]
@@ -46503,7 +44614,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionEnvAccess), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionEnvAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestFactory), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestFactory")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestHook), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestHook")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMcp")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMemory")]
@@ -46511,6 +44621,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestPathAccessKind), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestPathAccessKind")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestRead), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestRead")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestUrl), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestUrl")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestWorkflow), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestWorkflow")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestWrite), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestWrite")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRecommendation), TypeInfoPropertyName = "SessionEventsPermissionRecommendation")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRecoveryAttempt), TypeInfoPropertyName = "SessionEventsPermissionRecoveryAttempt")]
@@ -46526,7 +44637,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionEnvAccess), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionEnvAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestFactory), TypeInfoPropertyName = "SessionEventsPermissionRequestFactory")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestHook), TypeInfoPropertyName = "SessionEventsPermissionRequestHook")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionRequestMcp")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionRequestMemory")]
@@ -46539,6 +44649,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestShellCommandSegment), TypeInfoPropertyName = "SessionEventsPermissionRequestShellCommandSegment")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestShellPossibleUrl), TypeInfoPropertyName = "SessionEventsPermissionRequestShellPossibleUrl")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestUrl), TypeInfoPropertyName = "SessionEventsPermissionRequestUrl")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestWorkflow), TypeInfoPropertyName = "SessionEventsPermissionRequestWorkflow")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestWrite), TypeInfoPropertyName = "SessionEventsPermissionRequestWrite")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestedData), TypeInfoPropertyName = "SessionEventsPermissionRequestedData")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestedEvent), TypeInfoPropertyName = "SessionEventsPermissionRequestedEvent")]
@@ -46627,14 +44738,14 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationAgentIdle), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentIdle")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationData), TypeInfoPropertyName = "SessionEventsSystemNotificationData")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationEvent), TypeInfoPropertyName = "SessionEventsSystemNotificationEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationFactoryCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationFactoryCompleted")]
-[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationFactoryCompletedStatus), TypeInfoPropertyName = "SessionEventsSystemNotificationFactoryCompletedStatus")]
-[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationFactoryPauseInfo), TypeInfoPropertyName = "SessionEventsSystemNotificationFactoryPauseInfo")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationInstructionDiscovered), TypeInfoPropertyName = "SessionEventsSystemNotificationInstructionDiscovered")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationNewInboxMessage), TypeInfoPropertyName = "SessionEventsSystemNotificationNewInboxMessage")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationShellCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellCompleted")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationShellDetachedCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellDetachedCompleted")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationUnclassified), TypeInfoPropertyName = "SessionEventsSystemNotificationUnclassified")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationWorkflowCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationWorkflowCompleted")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationWorkflowCompletedStatus), TypeInfoPropertyName = "SessionEventsSystemNotificationWorkflowCompletedStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationWorkflowPauseInfo), TypeInfoPropertyName = "SessionEventsSystemNotificationWorkflowPauseInfo")]
 [JsonSerializable(typeof(GitHub.Copilot.TaskBlocker), TypeInfoPropertyName = "SessionEventsTaskBlocker")]
 [JsonSerializable(typeof(GitHub.Copilot.TaskBlockerKind), TypeInfoPropertyName = "SessionEventsTaskBlockerKind")]
 [JsonSerializable(typeof(GitHub.Copilot.TaskCompletionOutcome), TypeInfoPropertyName = "SessionEventsTaskCompletionOutcome")]
@@ -46696,12 +44807,21 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionEnvAccess), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionEnvAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionManagement), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalFactory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalFactory")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalMcp), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMcp")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalMemory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMemory")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalRead), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalRead")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalWorkflow), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalWorkflow")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalWrite), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalWrite")]
 [JsonSerializable(typeof(GitHub.Copilot.Verbosity), TypeInfoPropertyName = "SessionEventsVerbosity")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowPermissionOperation), TypeInfoPropertyName = "SessionEventsWorkflowPermissionOperation")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowPermissionPhase), TypeInfoPropertyName = "SessionEventsWorkflowPermissionPhase")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunSettledData), TypeInfoPropertyName = "SessionEventsWorkflowRunSettledData")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunSettledEvent), TypeInfoPropertyName = "SessionEventsWorkflowRunSettledEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunSettledStatus), TypeInfoPropertyName = "SessionEventsWorkflowRunSettledStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunStartedData), TypeInfoPropertyName = "SessionEventsWorkflowRunStartedData")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunStartedEvent), TypeInfoPropertyName = "SessionEventsWorkflowRunStartedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunUpdatedData), TypeInfoPropertyName = "SessionEventsWorkflowRunUpdatedData")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunUpdatedEvent), TypeInfoPropertyName = "SessionEventsWorkflowRunUpdatedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContext), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContext")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContextHostType), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContextHostType")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkspaceFileChangedOperation), TypeInfoPropertyName = "SessionEventsWorkspaceFileChangedOperation")]
@@ -46863,45 +44983,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ExternalToolTextResultForLlmBinaryResultsForLlm))]
 [JsonSerializable(typeof(ExternalToolTextResultForLlmContent))]
 [JsonSerializable(typeof(ExternalToolTextResultForLlmContentResourceLinkIcon))]
-[JsonSerializable(typeof(FactoryAbortRequest))]
-[JsonSerializable(typeof(FactoryAckResult))]
-[JsonSerializable(typeof(FactoryAgentOptions))]
-[JsonSerializable(typeof(FactoryAgentRequest))]
-[JsonSerializable(typeof(FactoryAgentResult))]
-[JsonSerializable(typeof(FactoryAgentSummary))]
-[JsonSerializable(typeof(FactoryCancelRequest))]
-[JsonSerializable(typeof(FactoryCurrentPhase))]
-[JsonSerializable(typeof(FactoryDeclaredLimits))]
-[JsonSerializable(typeof(FactoryExecuteRequest))]
-[JsonSerializable(typeof(FactoryExecuteResult))]
-[JsonSerializable(typeof(FactoryGetRunProgressRequest))]
-[JsonSerializable(typeof(FactoryGetRunRequest))]
-[JsonSerializable(typeof(FactoryJournalGetRequest))]
-[JsonSerializable(typeof(FactoryJournalGetResult))]
-[JsonSerializable(typeof(FactoryJournalPutRequest))]
-[JsonSerializable(typeof(FactoryListRunsRequest))]
-[JsonSerializable(typeof(FactoryListRunsResult))]
-[JsonSerializable(typeof(FactoryLogLine))]
-[JsonSerializable(typeof(FactoryLogRequest))]
-[JsonSerializable(typeof(FactoryPauseCheckpointRequest))]
-[JsonSerializable(typeof(FactoryPauseInfo))]
-[JsonSerializable(typeof(FactoryPauseRequest))]
-[JsonSerializable(typeof(FactoryPhaseObservation))]
-[JsonSerializable(typeof(FactoryProgressLine))]
-[JsonSerializable(typeof(FactoryProgressPage))]
-[JsonSerializable(typeof(FactoryResumeRequest))]
-[JsonSerializable(typeof(FactoryResumeResult))]
-[JsonSerializable(typeof(FactoryRunConsumed))]
-[JsonSerializable(typeof(FactoryRunDetail))]
-[JsonSerializable(typeof(FactoryRunFailure))]
-[JsonSerializable(typeof(FactoryRunLimits))]
-[JsonSerializable(typeof(FactoryRunRequest))]
-[JsonSerializable(typeof(FactoryRunResult))]
-[JsonSerializable(typeof(FactoryRunSummary))]
-[JsonSerializable(typeof(FactoryRunTerminal))]
-[JsonSerializable(typeof(FactoryToolResumeRequest))]
-[JsonSerializable(typeof(FactoryToolRunOptions))]
-[JsonSerializable(typeof(FactoryToolRunRequest))]
 [JsonSerializable(typeof(FleetStartRequest))]
 [JsonSerializable(typeof(FleetStartResult))]
 [JsonSerializable(typeof(FolderTrustAddParams))]
@@ -47319,7 +45400,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(RemoteSessionMetadataRepository))]
 [JsonSerializable(typeof(RemoteSessionMetadataValue))]
 [JsonSerializable(typeof(ResponseFormat))]
-[JsonSerializable(typeof(RunOptions))]
 [JsonSerializable(typeof(SandboxConfig))]
 [JsonSerializable(typeof(SandboxConfigAuth))]
 [JsonSerializable(typeof(SandboxConfigUserPolicy))]
@@ -47386,7 +45466,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionEventLogTailRequest))]
 [JsonSerializable(typeof(SessionExtensionsListRequest))]
 [JsonSerializable(typeof(SessionExtensionsReloadRequest))]
-[JsonSerializable(typeof(SessionFactoryPauseAtCheckpointResult))]
 [JsonSerializable(typeof(SessionFsAppendFileRequest))]
 [JsonSerializable(typeof(SessionFsError))]
 [JsonSerializable(typeof(SessionFsExistsRequest))]

@@ -6,12 +6,11 @@ import { describe, expect, it, vi } from "vitest";
 import { ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { CopilotClient } from "../src/client.js";
 import { CopilotSession } from "../src/session.js";
-import { defineFactory } from "../src/factory.js";
 import { defineWorkflow } from "../src/workflow.js";
 
 function runUpdatedEvent(runId: string, revision: number): Record<string, unknown> {
     return {
-        type: "factory.run_updated",
+        type: "workflow.run_updated",
         id: `event-${runId}-${revision}`,
         parentId: null,
         timestamp: new Date().toISOString(),
@@ -109,7 +108,7 @@ describe("dynamic workflows", () => {
         );
     });
 
-    it("serializes workflow metadata and rejects mixed contribution generations", async () => {
+    it("serializes workflow metadata", async () => {
         const client = new CopilotClient();
         const workflow = defineWorkflow({
             meta: {
@@ -117,14 +116,6 @@ describe("dynamic workflows", () => {
                 description: "Review a change",
                 phases: [{ title: "Inspect" }],
                 limits: { maxTotalSubagents: 2 },
-            },
-            run: async () => ({ ok: true }),
-        });
-        const factory = defineFactory({
-            meta: {
-                name: "legacy",
-                description: "Legacy factory",
-                phases: [],
             },
             run: async () => ({ ok: true }),
         });
@@ -145,54 +136,10 @@ describe("dynamic workflows", () => {
         const payload = sendRequest.mock.calls.find(
             ([method]) => method === "session.resume"
         )![1] as {
-            factories?: unknown[];
             workflows?: unknown[];
         };
         expect(payload.workflows).toEqual([workflow.meta]);
-        expect(payload.factories).toBeUndefined();
         expect(payload.workflows?.[0]).not.toHaveProperty("run");
-
-        await expect(
-            client.resumeSessionForExtension(
-                "session-mixed-registration",
-                { onPermissionRequest: () => ({ kind: "approved" }) },
-                { factories: [factory], workflows: [workflow] }
-            )
-        ).rejects.toThrow("cannot include both factories and workflows");
-    });
-
-    it("preserves the legacy factory-array extension call shape", async () => {
-        const client = new CopilotClient();
-        const factory = defineFactory({
-            meta: {
-                name: "legacy",
-                description: "Legacy factory",
-                phases: [],
-            },
-            run: async () => ({ ok: true }),
-        });
-        const sendRequest = vi.fn(async (method: string, params: Record<string, unknown>) => {
-            if (method === "session.resume") {
-                return { sessionId: params.sessionId };
-            }
-            throw new Error(`Unexpected method: ${method}`);
-        });
-        (client as never as { connection: unknown }).connection = { sendRequest };
-
-        await client.resumeSessionForExtension(
-            "session-legacy-factory-registration",
-            { onPermissionRequest: () => ({ kind: "approved" }) },
-            [factory]
-        );
-
-        const payload = sendRequest.mock.calls.find(
-            ([method]) => method === "session.resume"
-        )![1] as {
-            factories?: unknown[];
-            workflows?: unknown[];
-        };
-        expect(payload.factories).toEqual([factory.meta]);
-        expect(payload.workflows).toBeUndefined();
     });
 
     it("uses workflow-specific validation errors", async () => {

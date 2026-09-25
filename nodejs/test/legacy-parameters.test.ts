@@ -5,6 +5,7 @@ import {
     readLegacyParameters,
     readLegacyUntyped,
     validateLegacyRequests,
+    validateLegacyUntypedMarkers,
 } from "../../scripts/codegen/legacy-parameters.ts";
 import { legacyRequestSchema } from "./legacy-parameters-fixture.ts";
 
@@ -108,4 +109,36 @@ describe("x-legacy-parameters", () => {
             "Plan.choices: x-legacy-untyped must be true"
         );
     });
+});
+
+describe("x-legacy-untyped markers", () => {
+    const document = (marker: unknown) => ({
+        definitions: {
+            Plan: {
+                type: "object",
+                properties: {
+                    nested: {
+                        type: "object",
+                        properties: { choices: { type: "array", "x-legacy-untyped": marker } },
+                    },
+                },
+            },
+        },
+    });
+
+    it("accepts true and unmarked properties anywhere in the document", () => {
+        expect(() => validateLegacyUntypedMarkers(document(true))).not.toThrow();
+        expect(() =>
+            validateLegacyUntypedMarkers({ definitions: { Plan: { type: "object" } } })
+        ).not.toThrow();
+    });
+
+    it.each([false, "true", 1, null])(
+        "rejects a malformed %j marker with its property path",
+        (marker) => {
+            expect(() => validateLegacyUntypedMarkers(document(marker), "api.schema.json")).toThrow(
+                /api\.schema\.json\/definitions\/Plan.*\.choices: x-legacy-untyped must be true/
+            );
+        }
+    );
 });

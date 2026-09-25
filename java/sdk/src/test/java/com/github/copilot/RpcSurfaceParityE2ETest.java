@@ -41,8 +41,8 @@ class RpcSurfaceParityE2ETest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final long TIMEOUT_SECONDS = 30;
-    private static final int EXPECTED_RPC_METHOD_COUNT = 439;
-    private static final String EXPECTED_RPC_SIGNATURE_SHA256 = "c3e7e7a8cad86933c422cbedd73456b1d1a414370dcc7505cd8fea98fe97ec2d";
+    private static final int EXPECTED_RPC_METHOD_COUNT = 424;
+    private static final String EXPECTED_RPC_SIGNATURE_SHA256 = "6f35e25df87de495dc22ce60a2e1035c3732a3618c4b013dffff576deaa9271b";
     private static final Map<String, Integer> EXPECTED_METHODS_BY_DECLARING_TYPE = Map.ofEntries(
             Map.entry("RpcCaller", 2), Map.entry("ServerAccountApi", 6), Map.entry("ServerAgentRegistryApi", 1),
             Map.entry("ServerAgentsApi", 2), Map.entry("ServerCatalogApi", 3), Map.entry("ServerCommandsApi", 1),
@@ -59,9 +59,8 @@ class RpcSurfaceParityE2ETest {
             Map.entry("SessionCommandsApi", 8), Map.entry("SessionCompletionsApi", 2),
             Map.entry("SessionConnectorsApi", 11), Map.entry("SessionContentExclusionApi", 1),
             Map.entry("SessionCustomizationsApi", 1), Map.entry("SessionDebugApi", 1),
-            Map.entry("SessionEventLogApi", 4), Map.entry("SessionExtensionsApi", 5),
-            Map.entry("SessionFactoryApi", 13), Map.entry("SessionFactoryJournalApi", 2),
-            Map.entry("SessionFleetApi", 1), Map.entry("SessionGitHubAuthApi", 10), Map.entry("SessionHistoryApi", 10),
+            Map.entry("SessionEventLogApi", 4), Map.entry("SessionExtensionsApi", 5), Map.entry("SessionFleetApi", 1),
+            Map.entry("SessionGitHubAuthApi", 10), Map.entry("SessionHistoryApi", 10),
             Map.entry("SessionInstructionsApi", 2), Map.entry("SessionLimitPredictionApi", 2),
             Map.entry("SessionManagedSettingsApi", 1), Map.entry("SessionLspApi", 1), Map.entry("SessionMcpApi", 23),
             Map.entry("SessionDiagnosticsApi", 2), Map.entry("SessionMcpAppsApi", 6),
@@ -321,13 +320,13 @@ class RpcSurfaceParityE2ETest {
         rpc.eventLog.releaseInterest(params(SessionEventLogReleaseInterestParams.class, "{}"));
         rpc.eventLog.tail();
         rpc.extensions.sendAttachmentsToMessage(params(SessionExtensionsSendAttachmentsToMessageParams.class, "{}"));
-        rpc.factory.cancel(params(SessionFactoryCancelParams.class, "{}"));
-        rpc.factory.getRunDetail(params(SessionFactoryGetRunDetailParams.class, "{}"));
-        rpc.factory.getRunProgress(params(SessionFactoryGetRunProgressParams.class, "{}"));
-        rpc.factory.listRuns(params(SessionFactoryListRunsParams.class, "{}"));
-        rpc.factory.pauseAtCheckpoint(params(SessionFactoryPauseAtCheckpointParams.class, "{}"));
-        rpc.factory.resumeFromTool(params(SessionFactoryResumeFromToolParams.class, "{}"));
-        rpc.factory.runFromTool(params(SessionFactoryRunFromToolParams.class, "{}"));
+        rpc.workflow.cancel(params(SessionWorkflowCancelParams.class, "{}"));
+        rpc.workflow.getRunDetail(params(SessionWorkflowGetRunDetailParams.class, "{}"));
+        rpc.workflow.getRunProgress(params(SessionWorkflowGetRunProgressParams.class, "{}"));
+        rpc.workflow.listRuns(params(SessionWorkflowListRunsParams.class, "{}"));
+        rpc.workflow.pauseAtCheckpoint(params(SessionWorkflowPauseAtCheckpointParams.class, "{}"));
+        rpc.workflow.resumeFromTool(params(SessionWorkflowResumeFromToolParams.class, "{}"));
+        rpc.workflow.runFromTool(params(SessionWorkflowRunFromToolParams.class, "{}"));
         rpc.gitHubAuth.getAllAuthAvailable();
         rpc.gitHubAuth.getCurrentAuthInfo();
         rpc.gitHubAuth.lastAuthErrors();
@@ -631,7 +630,7 @@ class RpcSurfaceParityE2ETest {
     }
 
     @Test
-    void factoryAndMcpRpcsSerializeRequestsAndProjectStateTransitions() throws Exception {
+    void workflowAndMcpRpcsSerializeRequestsAndProjectStateTransitions() throws Exception {
         try (var runtime = new RpcSurfaceTestCli(RpcSurfaceParityE2ETest::handle); var client = createClient(runtime)) {
             client.start().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             try (var session = client
@@ -639,49 +638,49 @@ class RpcSurfaceParityE2ETest {
                     .get(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 var rpc = session.getRpc();
 
-                var run = rpc.factory.run(params(SessionFactoryRunParams.class, """
-                        {"name":"rpc-factory","args":{"input":42},
+                var run = rpc.workflow.run(params(SessionWorkflowRunParams.class, """
+                        {"name":"rpc-workflow","args":{"input":42},
                          "options":{"limits":{"maxAiCredits":2.5,"maxConcurrentSubagents":2,
                            "maxTotalSubagents":4,"timeoutSeconds":30},
                            "logPhaseNames":true,"notifyOnComplete":false}}
                         """)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                assertEquals("factory-run-1", run.runId());
-                assertEquals(FactoryRunStatus.RUNNING, run.status());
+                assertEquals("workflow-run-1", run.runId());
+                assertEquals(WorkflowRunStatus.RUNNING, run.status());
                 assertEquals(1L, run.attempt());
 
-                var resumed = rpc.factory.resume(params(SessionFactoryResumeParams.class, """
-                        {"runId":"factory-run-1","limits":{"maxTotalSubagents":8},
+                var resumed = rpc.workflow.resume(params(SessionWorkflowResumeParams.class, """
+                        {"runId":"workflow-run-1","limits":{"maxTotalSubagents":8},
                          "notifyOnComplete":true,"logPhaseNames":false}
                         """)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                assertEquals("rpc-factory", resumed.factoryName());
+                assertEquals("rpc-workflow", resumed.workflowName());
                 assertEquals(2L, resumed.run().attempt());
 
-                assertEquals(FactoryRunStatus.RUNNING,
-                        rpc.factory.getRun(new SessionFactoryGetRunParams(null, "factory-run-1"))
+                assertEquals(WorkflowRunStatus.RUNNING,
+                        rpc.workflow.getRun(new SessionWorkflowGetRunParams(null, "workflow-run-1"))
                                 .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).status());
-                assertEquals(FactoryRunStatus.PAUSED,
-                        rpc.factory.pause(new SessionFactoryPauseParams(null, "factory-run-1"))
+                assertEquals(WorkflowRunStatus.PAUSED,
+                        rpc.workflow.pause(new SessionWorkflowPauseParams(null, "workflow-run-1"))
                                 .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).status());
 
-                rpc.factory.log(params(SessionFactoryLogParams.class, """
-                        {"runId":"factory-run-1","executionToken":"execution-token-1",
-                         "lines":[{"kind":"log","seq":7,"text":"Factory progress"}]}
+                rpc.workflow.log(params(SessionWorkflowLogParams.class, """
+                        {"runId":"workflow-run-1","executionToken":"execution-token-1",
+                         "lines":[{"kind":"log","seq":7,"text":"Workflow progress"}]}
                         """)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                var agent = rpc.factory.agent(params(SessionFactoryAgentParams.class, """
-                        {"runId":"factory-run-1","executionToken":"execution-token-1",
+                var agent = rpc.workflow.agent(params(SessionWorkflowAgentParams.class, """
+                        {"runId":"workflow-run-1","executionToken":"execution-token-1",
                          "prompt":"Complete the RPC task.",
                          "options":{"agent":"explore","label":"rpc-agent","model":"model-a",
                            "reasoningEffort":"high"}}
                         """)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 assertEquals("agent-result", ((Map<?, ?>) agent.result()).get("answer"));
 
-                var journal = rpc.factory.journal.get(
-                        new SessionFactoryJournalGetParams(null, "factory-run-1", "execution-token-1", "checkpoint"))
+                var journal = rpc.workflow.journal.get(
+                        new SessionWorkflowJournalGetParams(null, "workflow-run-1", "execution-token-1", "checkpoint"))
                         .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 assertTrue(journal.hit());
                 assertEquals(7, ((Map<?, ?>) journal.resultJson()).get("checkpoint"));
-                rpc.factory.journal.put(params(SessionFactoryJournalPutParams.class, """
-                        {"runId":"factory-run-1","executionToken":"execution-token-1",
+                rpc.workflow.journal.put(params(SessionWorkflowJournalPutParams.class, """
+                        {"runId":"workflow-run-1","executionToken":"execution-token-1",
                          "key":"checkpoint","resultJson":{"checkpoint":8}}
                         """)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
@@ -713,14 +712,14 @@ class RpcSurfaceParityE2ETest {
                 assertEquals("resource-content", content.text());
                 assertEquals("assistant", content.meta().get("audience"));
 
-                assertCalledOnce(runtime, "session.factory.run", "session.factory.resume", "session.factory.getRun",
-                        "session.factory.pause", "session.factory.log", "session.factory.agent",
-                        "session.factory.journal.get", "session.factory.journal.put",
+                assertCalledOnce(runtime, "session.workflow.run", "session.workflow.resume", "session.workflow.getRun",
+                        "session.workflow.pause", "session.workflow.log", "session.workflow.agent",
+                        "session.workflow.journal.get", "session.workflow.journal.put",
                         "session.mcp.moveLoadingToBackground", "session.mcp.startServer",
                         "session.mcp.oauth.authenticationStateChanged", "session.mcp.oauth.respond",
                         "session.mcp.resources.list", "session.mcp.resources.listTemplates",
                         "session.mcp.resources.read");
-                assertEquals(42, parameters(runtime, "session.factory.run").path("args").path("input").asInt());
+                assertEquals(42, parameters(runtime, "session.workflow.run").path("args").path("input").asInt());
                 assertEquals("resource-cursor",
                         parameters(runtime, "session.mcp.resources.list").path("cursor").asText());
             }
@@ -909,22 +908,22 @@ class RpcSurfaceParityE2ETest {
             case "session.log" -> json("""
                     {"eventId":"11111111-2222-3333-4444-555555555555"}
                     """);
-            case "session.factory.run", "session.factory.getRun" -> json("""
-                    {"runId":"factory-run-1","status":"running","attempt":1,
+            case "session.workflow.run", "session.workflow.getRun" -> json("""
+                    {"runId":"workflow-run-1","status":"running","attempt":1,
                      "result":{"value":"running"},"snapshot":{"step":1}}
                     """);
-            case "session.factory.resume" -> json("""
-                    {"factoryName":"rpc-factory","run":{"runId":"factory-run-1","status":"running",
+            case "session.workflow.resume" -> json("""
+                    {"workflowName":"rpc-workflow","run":{"runId":"workflow-run-1","status":"running",
                       "attempt":2,"snapshot":{"step":3}}}
                     """);
-            case "session.factory.pause" -> json("""
-                    {"runId":"factory-run-1","status":"paused","attempt":1,
+            case "session.workflow.pause" -> json("""
+                    {"runId":"workflow-run-1","status":"paused","attempt":1,
                      "reason":"caller requested pause","snapshot":{"step":2}}
                     """);
-            case "session.factory.agent" -> json("""
+            case "session.workflow.agent" -> json("""
                     {"result":{"answer":"agent-result"}}
                     """);
-            case "session.factory.journal.get" -> json("""
+            case "session.workflow.journal.get" -> json("""
                     {"hit":true,"resultJson":{"checkpoint":7}}
                     """);
             case "session.mcp.moveLoadingToBackground" -> json("""

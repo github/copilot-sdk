@@ -182,45 +182,45 @@ internal static class RpcSurfaceTestCli
                 }]
               });
               return;
-            case "session.factory.run":
-            case "session.factory.getRun":
+            case "session.workflow.run":
+            case "session.workflow.getRun":
               writeResponse(message.id, {
-                runId: "factory-run-1",
+                runId: "workflow-run-1",
                 status: "running",
                 attempt: 1,
                 result: { value: "running" },
                 snapshot: { step: 1 }
               });
               return;
-            case "session.factory.pause":
+            case "session.workflow.pause":
               writeResponse(message.id, {
-                runId: "factory-run-1",
+                runId: "workflow-run-1",
                 status: "paused",
                 attempt: 1,
                 reason: "caller requested pause",
                 snapshot: { step: 2 }
               });
               return;
-            case "session.factory.resume":
+            case "session.workflow.resume":
               writeResponse(message.id, {
-                factoryName: "rpc-factory",
+                workflowName: "rpc-workflow",
                 run: {
-                  runId: "factory-run-1",
+                  runId: "workflow-run-1",
                   status: "running",
                   attempt: 2,
                   snapshot: { step: 3 }
                 }
               });
               return;
-            case "session.factory.log":
-            case "session.factory.journal.put":
+            case "session.workflow.log":
+            case "session.workflow.journal.put":
             case "session.tools.set":
               writeResponse(message.id, {});
               return;
-            case "session.factory.agent":
+            case "session.workflow.agent":
               writeResponse(message.id, { result: { answer: "agent-result" } });
               return;
-            case "session.factory.journal.get":
+            case "session.workflow.journal.get":
               writeResponse(message.id, { hit: true, resultJson: { checkpoint: 7 } });
               return;
             case "session.history.clearContext":
