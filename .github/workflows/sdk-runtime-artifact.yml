@@ -82,6 +82,7 @@ jobs:
             dist-pkg-tarballs/
             src/core/sharedApi/runtime-generated/index.d.ts
             src/native/runtime/runtime.*.node
+            src/native/runtime/runtime.*.node.metadata
             src/native/runtime/copilot-runtime.*
             src/native/runtime/index.d.ts
             src/native/cli/cli-native.*.node
@@ -151,6 +152,7 @@ jobs:
             dist-pkg-tarballs/
             src/core/sharedApi/runtime-generated/index.d.ts
             src/native/runtime/runtime.*.node
+            src/native/runtime/runtime.*.node.metadata
             src/native/runtime/copilot-runtime.*
             src/native/runtime/index.d.ts
             src/native/cli/cli-native.*.node

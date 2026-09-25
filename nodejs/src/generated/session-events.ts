@@ -443,7 +443,9 @@ export type ModelChangeSource =
   /** The user selected the promoted model from the changeboarding card or its keyboard shortcut. */
   | "changeboarding_shortcut"
   /** An SDK or RPC caller selected the model. */
-  | "sdk";
+  | "sdk"
+  /** The user accepted a CAPI-issued Auto tier recommendation. */
+  | "auto_tier_recommendation";
 /**
  * Why the session no longer has an explicitly selected model.
  */

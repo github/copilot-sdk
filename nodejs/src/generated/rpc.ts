@@ -24351,6 +24351,7 @@ export interface SlashCommandSetModelResult {
    * Model selected by the command.
    */
   model: string;
+  autoTier?: AutoTier;
   /**
    * Settings scope modified by the command.
    */

@@ -14,7 +14,11 @@ use github_copilot_sdk::installation_confirmation::{
     InstallationConfirmationContext, InstallationConfirmationHandler,
     InstallationConfirmationRequest, InstallationDecision, McpInstallationReview,
 };
-use github_copilot_sdk::{CliProgram, Client, ClientOptions, Error, ErrorKind, Result, Transport};
+use github_copilot_sdk::{
+    CliProgram, Client, ClientOptions, CopilotHttpRequest, CopilotHttpResponse,
+    CopilotRequestContext, CopilotRequestError, CopilotRequestHandler, Error, ErrorKind, Result,
+    Transport,
+};
 use serde_json::{Value, json};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream, duplex};
 use tokio::net::TcpListener;
@@ -579,6 +583,127 @@ async fn blocked_global_callback_does_not_delay_confirmation_or_its_cancellation
     let response = timeout(WAIT, server_frames.recv()).await.unwrap().unwrap();
     assert_eq!(response["id"], 901);
     assert_eq!(response["result"], json!({}));
+    drop(to_server);
+    timeout(WAIT, server).await.unwrap().unwrap();
+    client.force_stop();
+}
+
+/// A host inference handler that never completes, so any await on it would stall routing.
+struct HungRequestHandler(mpsc::UnboundedSender<()>);
+
+#[async_trait]
+impl CopilotRequestHandler for HungRequestHandler {
+    async fn send_request(
+        &self,
+        _request: CopilotHttpRequest,
+        _context: &CopilotRequestContext,
+    ) -> std::result::Result<CopilotHttpResponse, CopilotRequestError> {
+        self.0.send(()).unwrap();
+        std::future::pending().await
+    }
+}
+
+#[tokio::test]
+async fn hung_llm_inference_request_does_not_delay_confirmation_or_its_cancellation() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (send, mut reviews) = mpsc::unbounded_channel();
+    let (entered, mut handler_entered) = mpsc::unbounded_channel();
+    let (to_server, mut server_commands) = mpsc::unbounded_channel::<Value>();
+    let (from_server, mut server_frames) = mpsc::unbounded_channel::<Value>();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let (mut reader, mut writer) = stream.into_split();
+        for method in ["connect", "llmInference.setProvider"] {
+            let message = read_frame(&mut reader).await;
+            assert_eq!(message["method"], method);
+            let result = if method == "connect" {
+                json!({ "ok": true, "protocolVersion": 3, "version": "test" })
+            } else {
+                json!({ "success": true })
+            };
+            write_frame(
+                &mut writer,
+                json!({ "jsonrpc": "2.0", "id": message["id"], "result": result }),
+            )
+            .await;
+        }
+        let forward = tokio::spawn(async move {
+            loop {
+                let frame = read_frame_untimed(&mut reader).await;
+                if from_server.send(frame).is_err() {
+                    break;
+                }
+            }
+        });
+        while let Some(frame) = server_commands.recv().await {
+            write_frame(&mut writer, frame).await;
+        }
+        forward.abort();
+    });
+    let client = Client::start(
+        ClientOptions::new()
+            .with_program(CliProgram::Path("unused-external-transport".into()))
+            .with_transport(Transport::External {
+                host: "127.0.0.1".to_string(),
+                port,
+                connection_token: None,
+            })
+            .with_request_handler(HungRequestHandler(entered))
+            .with_installation_confirmation_handler(ControlledHandler(send)),
+    )
+    .await
+    .unwrap();
+
+    for (id, method, params) in [
+        (
+            911,
+            "llmInference.httpRequestStart",
+            json!({ "requestId": "hung", "method": "GET", "url": "https://example.test/", "headers": {} }),
+        ),
+        (
+            912,
+            "llmInference.httpRequestChunk",
+            json!({ "requestId": "hung", "data": "", "end": true }),
+        ),
+    ] {
+        to_server
+            .send(json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }))
+            .unwrap();
+        let ack = timeout(WAIT, server_frames.recv()).await.unwrap().unwrap();
+        assert_eq!(ack["id"], id);
+    }
+    timeout(WAIT, handler_entered.recv())
+        .await
+        .unwrap()
+        .unwrap();
+
+    to_server
+        .send(json!({
+            "jsonrpc": "2.0", "id": 913, "method": "installations.confirm",
+            "params": request("behind-hung-inference")
+        }))
+        .unwrap();
+    let review = timeout(WAIT, reviews.recv()).await.unwrap().unwrap();
+    assert_eq!(review.request.operation_id, "behind-hung-inference");
+    to_server
+        .send(json!({
+            "jsonrpc": "2.0", "method": "$/cancelRequest", "params": { "id": 913 }
+        }))
+        .unwrap();
+    timeout(WAIT, review.context.request_cancelled().cancelled())
+        .await
+        .unwrap();
+    let response = timeout(WAIT, server_frames.recv()).await.unwrap().unwrap();
+    assert_eq!(response["id"], 913);
+    assert_eq!(response["error"]["code"], -32800);
+    assert!(
+        review
+            .decision
+            .send(Ok(InstallationDecision::Confirm))
+            .is_err()
+    );
+
     drop(to_server);
     timeout(WAIT, server).await.unwrap().unwrap();
     client.force_stop();

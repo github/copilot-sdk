@@ -16681,6 +16681,8 @@ func (SlashCommandSelectSubcommandResult) Kind() SlashCommandInvocationResultKin
 // Experimental: SlashCommandSetModelResult is part of an experimental API and may change or
 // be removed.
 type SlashCommandSetModelResult struct {
+	// Auto routing profile selected by the command, when the model is Auto.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Model selected by the command.
 	Model string `json:"model"`
 	// Reasoning effort selected for the model.
@@ -22285,6 +22287,8 @@ const (
 	// The runtime selected the model automatically, such as rate-limit recovery or refusal
 	// fallback.
 	ModelChangeSourceAutomatic ModelChangeSource = "automatic"
+	// The user accepted a CAPI-issued Auto tier recommendation.
+	ModelChangeSourceAutoTierRecommendation ModelChangeSource = "auto_tier_recommendation"
 	// The user selected the promoted model from the changeboarding card or its keyboard
 	// shortcut.
 	ModelChangeSourceChangeboardingShortcut ModelChangeSource = "changeboarding_shortcut"

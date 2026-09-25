@@ -43150,6 +43150,9 @@ class SlashCommandSetModelResult:
     model: str
     """Model selected by the command."""
 
+    auto_tier: AutoTier | None = None
+    """Auto routing profile selected by the command, when the model is Auto."""
+
     reasoning_effort: str | None = None
     """Reasoning effort selected for the model."""
 
@@ -43172,18 +43175,21 @@ class SlashCommandSetModelResult:
     def from_dict(obj: Any) -> 'SlashCommandSetModelResult':
         assert isinstance(obj, dict)
         model = from_str(obj.get("model"))
+        auto_tier = from_union([AutoTier, from_none], obj.get("autoTier"))
         reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
         repo_scope = from_union([from_str, from_none], obj.get("repoScope"))
         revert_on_cancel = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("revertOnCancel"))
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
         scope = from_union([from_str, from_none], obj.get("scope"))
         warning = from_union([from_str, from_none], obj.get("warning"))
-        return SlashCommandSetModelResult(model, reasoning_effort, repo_scope, revert_on_cancel, runtime_settings_changed, scope, warning)
+        return SlashCommandSetModelResult(model, auto_tier, reasoning_effort, repo_scope, revert_on_cancel, runtime_settings_changed, scope, warning)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["kind"] = self.kind
         result["model"] = from_str(self.model)
+        if self.auto_tier is not None:
+            result["autoTier"] = from_union([lambda x: to_enum(AutoTier, x), from_none], self.auto_tier)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_str, from_none], self.reasoning_effort)
         if self.repo_scope is not None:

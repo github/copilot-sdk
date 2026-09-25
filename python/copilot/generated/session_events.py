@@ -13854,6 +13854,8 @@ class ModelChangeSource(Enum):
     CHANGEBOARDING_SHORTCUT = "changeboarding_shortcut"
     # An SDK or RPC caller selected the model.
     SDK = "sdk"
+    # The user accepted a CAPI-issued Auto tier recommendation.
+    AUTO_TIER_RECOMMENDATION = "auto_tier_recommendation"
 
 
 class ModelDeselectedReason(Enum):

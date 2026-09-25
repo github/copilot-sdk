@@ -680,6 +680,7 @@ const (
 	ModelCallFinishedOutcomeSuccess                                      = rpc.ModelCallFinishedOutcomeSuccess
 	ModelChangeSourceAgent                                               = rpc.ModelChangeSourceAgent
 	ModelChangeSourceAutomatic                                           = rpc.ModelChangeSourceAutomatic
+	ModelChangeSourceAutoTierRecommendation                              = rpc.ModelChangeSourceAutoTierRecommendation
 	ModelChangeSourceChangeboardingShortcut                              = rpc.ModelChangeSourceChangeboardingShortcut
 	ModelChangeSourceConfigCommand                                       = rpc.ModelChangeSourceConfigCommand
 	ModelChangeSourceManagedSettings                                     = rpc.ModelChangeSourceManagedSettings

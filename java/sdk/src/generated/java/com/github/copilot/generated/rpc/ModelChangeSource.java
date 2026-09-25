@@ -39,7 +39,9 @@ public enum ModelChangeSource {
     /** The {@code changeboarding_shortcut} variant. */
     CHANGEBOARDING_SHORTCUT("changeboarding_shortcut"),
     /** The {@code sdk} variant. */
-    SDK("sdk");
+    SDK("sdk"),
+    /** The {@code auto_tier_recommendation} variant. */
+    AUTO_TIER_RECOMMENDATION("auto_tier_recommendation");
 
     private final String value;
     ModelChangeSource(String value) { this.value = value; }

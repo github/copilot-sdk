@@ -8225,6 +8225,9 @@ pub enum ModelChangeSource {
     /// An SDK or RPC caller selected the model.
     #[serde(rename = "sdk")]
     Sdk,
+    /// The user accepted a CAPI-issued Auto tier recommendation.
+    #[serde(rename = "auto_tier_recommendation")]
+    AutoTierRecommendation,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

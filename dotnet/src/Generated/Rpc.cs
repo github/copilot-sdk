@@ -18639,6 +18639,11 @@ public partial class SlashCommandInvocationResultSetModel : SlashCommandInvocati
     [JsonIgnore]
     public override string Kind => "set-model";
 
+    /// <summary>Auto routing profile selected by the command, when the model is Auto.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
+
     /// <summary>Model selected by the command.</summary>
     [JsonPropertyName("model")]
     public required string Model { get; set; }

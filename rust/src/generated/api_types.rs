@@ -22359,6 +22359,9 @@ pub struct SlashCommandShowDialogResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SlashCommandSetModelResult {
+    /// Auto routing profile selected by the command, when the model is Auto.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Discriminator for a set-model result.
     pub kind: SlashCommandSetModelResultKind,
     /// Model selected by the command.

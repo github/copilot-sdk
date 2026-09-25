@@ -13260,6 +13260,9 @@ public readonly struct ModelChangeSource : IEquatable<ModelChangeSource>
     /// <summary>An SDK or RPC caller selected the model.</summary>
     public static ModelChangeSource Sdk { get; } = new("sdk");
 
+    /// <summary>The user accepted a CAPI-issued Auto tier recommendation.</summary>
+    public static ModelChangeSource AutoTierRecommendation { get; } = new("auto_tier_recommendation");
+
     /// <summary>Returns a value indicating whether two <see cref="ModelChangeSource"/> instances are equivalent.</summary>
     public static bool operator ==(ModelChangeSource left, ModelChangeSource right) => left.Equals(right);
 
