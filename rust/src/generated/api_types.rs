@@ -7705,7 +7705,7 @@ pub struct McpPlanTarget {
 #[serde(rename_all = "camelCase")]
 pub struct McpInstallationReviewInstall {
     /// Exact reviewed installation action.
-    pub action: McpInstallationReviewAction,
+    pub action: McpInstallationReviewInstallAction,
     /// Original catalogue trust metadata, not a verification claim.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub catalogue_trust: Option<serde_json::Value>,
@@ -7738,7 +7738,7 @@ pub struct McpInstallationReviewInstall {
 #[serde(rename_all = "camelCase")]
 pub struct McpInstallationReviewUninstall {
     /// Exact reviewed installation action.
-    pub action: McpInstallationReviewAction,
+    pub action: McpInstallationReviewUninstallAction,
     /// Identity from the installed receipt.
     pub identity: McpPlanResourceIdentity,
     /// Receipt-owned installation being removed.
@@ -35728,7 +35728,7 @@ pub enum InstallationReviewResource {
 
 /// Exact reviewed installation action.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpInstallationReviewAction {
+pub enum McpInstallationReviewInstallAction {
     #[serde(rename = "install")]
     #[default]
     Install,
@@ -36048,6 +36048,14 @@ pub enum McpPlanRemoteInstallMethod {
 pub enum McpPlanTransportChoice {
     Package(McpPlanTransportChoicePackage),
     Remote(McpPlanTransportChoiceRemote),
+}
+
+/// Exact reviewed installation action.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationReviewUninstallAction {
+    #[serde(rename = "uninstall")]
+    #[default]
+    Uninstall,
 }
 
 /// Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.

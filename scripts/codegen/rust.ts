@@ -218,6 +218,10 @@ interface RustCodegenCtx {
 	enums: string[];
 	/** Track generated type names to avoid duplicates. */
 	generatedNames: Set<string>;
+	/** Value set of each emitted string enum, so a name is never reused for different values. */
+	stringEnumValues: Map<string, string>;
+	/** Released collisions reused during this generation. */
+	stringEnumCollisions: Set<string>;
 	/** Direct containing-property aliases recorded during reference resolution. */
 	referenceAliases: Map<string, string>;
 	/** Reference aliases whose nested compatibility names are emitted once all types exist. */
@@ -493,6 +497,8 @@ function makeCtx(
 		generatedNames: new Set(),
 		referenceAliases: new Map(),
 		pendingCompatibilityAliases: [],
+		stringEnumValues: new Map(),
+		stringEnumCollisions: new Set(),
 		nonDefaultableTypes: new Set(options.nonDefaultableTypes ?? []),
 		experimentalTypeNames: new Set(options.experimentalTypeNames ?? []),
 		definitions,
@@ -1018,7 +1024,9 @@ function resolveRustType(
 	// const — just a string
 	if (propSchema.const !== undefined) {
 		if (typeof propSchema.const === "string") {
-			const enumName = (propSchema.title as string) || nestedName;
+			// A title on a single literal names the union enum other generators infer; each
+			// Rust literal is its own type, so name it from its owner as untitled literals are.
+			const enumName = nestedName;
 			emitRustConstStringEnum(
 				enumName,
 				propSchema.const,
@@ -1330,6 +1338,39 @@ function emitRustStruct(
 
 // ── Enum emission ───────────────────────────────────────────────────────────
 
+/**
+ * Released string enums whose name an unrelated literal also resolves to: the attachment
+ * `type` const `"github_reference"` shares its owner-derived name with the published
+ * `referenceType` enum. Their published field types are kept for compatibility; any other
+ * collision fails generation.
+ */
+export const RELEASED_RUST_STRING_ENUM_COLLISIONS: ReadonlySet<string> = new Set([
+	"AttachmentGitHubReferenceType",
+	"PushAttachmentGitHubReferenceType",
+]);
+
+/**
+ * Reuses an emitted string enum only when the value set matches. Two schemas that share a
+ * name but not their values would otherwise silently collapse into one enum.
+ */
+function claimRustStringEnum(enumName: string, values: readonly string[], ctx: RustCodegenCtx): boolean {
+	const key = JSON.stringify([...values].sort());
+	const previous = ctx.stringEnumValues.get(enumName);
+	if (previous !== undefined) {
+		if (previous !== key) {
+			if (!RELEASED_RUST_STRING_ENUM_COLLISIONS.has(enumName)) {
+				throw new Error(`Rust string enum ${enumName} is requested for different values ${previous} and ${key}`);
+			}
+			ctx.stringEnumCollisions.add(enumName);
+		}
+		return false;
+	}
+	if (hasGeneratedRustType(enumName, ctx)) return false;
+	ctx.stringEnumValues.set(enumName, key);
+	ctx.generatedNames.add(enumName);
+	return true;
+}
+
 function emitRustStringEnum(
 	enumName: string,
 	values: string[],
@@ -1338,8 +1379,7 @@ function emitRustStringEnum(
 	enumValueDescriptions?: EnumValueDescriptions,
 	experimental = false,
 ): void {
-	if (hasGeneratedRustType(enumName, ctx)) return;
-	ctx.generatedNames.add(enumName);
+	if (!claimRustStringEnum(enumName, values, ctx)) return;
 
 	const lines: string[] = [];
 	if (description) {
@@ -1390,8 +1430,7 @@ function emitRustConstStringEnum(
 	ctx: RustCodegenCtx,
 	description?: string,
 ): void {
-	if (hasGeneratedRustType(enumName, ctx)) return;
-	ctx.generatedNames.add(enumName);
+	if (!claimRustStringEnum(enumName, [value], ctx)) return;
 
 	const lines: string[] = [];
 	if (description) {

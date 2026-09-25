@@ -708,3 +708,36 @@ async fn hung_llm_inference_request_does_not_delay_confirmation_or_its_cancellat
     timeout(WAIT, server).await.unwrap().unwrap();
     client.force_stop();
 }
+
+#[test]
+fn install_and_uninstall_reviews_both_round_trip() {
+    let install = request("install-review")["review"]["review"].clone();
+    let mut uninstall = install.clone();
+    let object = uninstall.as_object_mut().unwrap();
+    for key in [
+        "selectedChoice",
+        "configurationChange",
+        "inputs",
+        "suppliedSecrets",
+        "secretStorage",
+        "effectiveConfiguration",
+    ] {
+        object.remove(key);
+    }
+    object.insert("action".into(), json!("uninstall"));
+    object.insert("installationId".into(), json!("a".repeat(32)));
+    object.insert("restoresPreviousConfiguration".into(), json!(false));
+    object.insert("ownedSecretCount".into(), json!(0));
+    object.insert("preservesSharedAuthentication".into(), json!(true));
+
+    let parsed: McpInstallationReview = serde_json::from_value(install.clone()).unwrap();
+    assert!(matches!(parsed, McpInstallationReview::Install(_)));
+    assert_eq!(serde_json::to_value(&parsed).unwrap(), install);
+
+    let parsed: McpInstallationReview = serde_json::from_value(uninstall.clone()).unwrap();
+    let McpInstallationReview::Uninstall(review) = &parsed else {
+        panic!("expected typed uninstall review");
+    };
+    assert_eq!(review.installation_id, "a".repeat(32));
+    assert_eq!(serde_json::to_value(&parsed).unwrap(), uninstall);
+}

@@ -8,6 +8,7 @@ import {
     generateRpcCode,
     generateSessionEventsCode,
     isRustCodegenEntrypoint,
+    RELEASED_RUST_STRING_ENUM_COLLISIONS,
 } from "../../scripts/codegen/rust.ts";
 import { legacyRequestSchema } from "./legacy-parameters-fixture.ts";
 
@@ -1076,5 +1077,118 @@ describe("Rust x-legacy-parameters", () => {
         expect(() => generateApiTypesCode(schema)).toThrow(
             "Invalid x-legacy-parameters for sample.plan: required property source must be a legacy parameter"
         );
+    });
+
+    it("gives each titled const discriminator its own Rust type", () => {
+        const code = generateApiTypesCode({
+            definitions: {
+                Review: {
+                    anyOf: ["install", "uninstall"].map((action) => ({
+                        type: "object",
+                        required: ["action"],
+                        properties: {
+                            action: { type: "string", const: action, title: "ReviewAction" },
+                        },
+                    })),
+                },
+            },
+        } as ApiSchema);
+
+        expect(code).toMatch(
+            /pub enum Review\w*InstallAction \{\n(?:.*\n)*?\s+#\[serde\(rename = "install"\)\]/
+        );
+        expect(code).toMatch(
+            /pub enum Review\w*UninstallAction \{\n(?:.*\n)*?\s+#\[serde\(rename = "uninstall"\)\]/
+        );
+        expect(code).not.toContain("pub enum ReviewAction");
+    });
+
+    it("refuses to reuse a string enum name for a different value set", () => {
+        expect(() =>
+            generateApiTypesCode({
+                definitions: {
+                    Kind: { type: "string", enum: ["a", "b"] },
+                    Owner: {
+                        type: "object",
+                        required: ["kind", "mode"],
+                        properties: {
+                            kind: { $ref: "#/definitions/Kind" },
+                            mode: { type: "string", enum: ["c"], title: "Kind" },
+                        },
+                    },
+                },
+            } as ApiSchema)
+        ).toThrow(/Rust string enum Kind is requested for different values/);
+    });
+
+    it("keeps every const discriminator of the committed API schema distinct in Rust", () => {
+        const schema = JSON.parse(
+            readFileSync(new URL("../../../../generated/api.schema.json", import.meta.url), "utf8")
+        ) as ApiSchema;
+        // Generation throws on any new collision; only the pinned released ones are reused.
+        const code = generateApiTypesCode(schema);
+        expect([...RELEASED_RUST_STRING_ENUM_COLLISIONS].sort()).toEqual([
+            "AttachmentGitHubReferenceType",
+            "PushAttachmentGitHubReferenceType",
+        ]);
+
+        const enumValues = new Map<string, string[]>();
+        for (const match of code.matchAll(/^pub enum (\w+) \{\n([\s\S]*?)^\}/gm)) {
+            enumValues.set(
+                match[1],
+                [...match[2].matchAll(/rename = "([^"]+)"/g)].map((m) => m[1])
+            );
+        }
+        const unions: Array<{ owner: string; variants: unknown[] }> = [];
+        const visit = (node: unknown, owner: string): void => {
+            if (typeof node !== "object" || node === null) return;
+            const record = node as Record<string, unknown>;
+            for (const key of ["anyOf", "oneOf"] as const) {
+                if (Array.isArray(record[key]))
+                    unions.push({ owner, variants: record[key] as unknown[] });
+            }
+            for (const [key, value] of Object.entries(record)) visit(value, `${owner}/${key}`);
+        };
+        visit(schema, "api.schema.json");
+
+        let checked = 0;
+        for (const { owner, variants } of unions) {
+            const discriminators = variants.map((variant) => {
+                const properties = (variant as JSONSchema7).properties ?? {};
+                return Object.entries(properties).filter(
+                    ([name, prop]) =>
+                        typeof prop === "object" &&
+                        typeof prop.const === "string" &&
+                        (variant as JSONSchema7).required?.includes(name) &&
+                        !prop.$ref
+                );
+            });
+            for (const [name] of discriminators[0] ?? []) {
+                const values = discriminators.map(
+                    (entries) => entries.find(([key]) => key === name)?.[1].const
+                );
+                if (
+                    values.some((value) => typeof value !== "string") ||
+                    new Set(values).size !== values.length
+                )
+                    continue;
+                const titles = new Set(
+                    discriminators.map(
+                        (entries) =>
+                            (entries.find(([key]) => key === name)?.[1] as JSONSchema7).title
+                    )
+                );
+                if (titles.size !== 1 || [...titles][0] === undefined) continue;
+                // Shared-title literals must each map to an enum accepting exactly that value.
+                for (const value of values as string[]) {
+                    const matching = [...enumValues].filter(
+                        ([, accepted]) => accepted.length === 1 && accepted[0] === value
+                    );
+                    expect(matching.length, `${owner}.${name} = ${value}`).toBeGreaterThan(0);
+                }
+                checked += 1;
+            }
+        }
+        expect(checked).toBeGreaterThan(0);
     });
 });
