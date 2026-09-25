@@ -33,22 +33,24 @@ fn remote_choice() -> Value {
 }
 
 #[test]
-fn plan_exposes_typed_package_and_remote_choices_without_changing_wire_shape() {
+fn plan_keeps_released_raw_choices_and_decodes_them_explicitly() {
     let wire = json!([package_choice(), remote_choice()]);
-    let choices: Vec<McpPlanTransportChoice> = serde_json::from_value(wire.clone()).unwrap();
+    // The released `Vec<serde_json::Value>` field shape is unchanged.
     let plan = McpInstallPlan {
-        transport_choices: choices,
+        transport_choices: serde_json::from_value(wire.clone()).unwrap(),
         ..Default::default()
     };
+    let choices: Vec<McpPlanTransportChoice> =
+        serde_json::from_value(Value::Array(plan.transport_choices.clone())).unwrap();
 
-    let McpPlanTransportChoice::Package(package) = &plan.transport_choices[0] else {
+    let McpPlanTransportChoice::Package(package) = &choices[0] else {
         panic!("expected package choice");
     };
     assert_eq!(package.choice_id, "package-choice");
     assert_eq!(package.package_identifier, "@example/mcp-server");
     assert_eq!(package.install_method, McpPlanPackageInstallMethod::Package);
 
-    let McpPlanTransportChoice::Remote(remote) = &plan.transport_choices[1] else {
+    let McpPlanTransportChoice::Remote(remote) = &choices[1] else {
         panic!("expected remote choice");
     };
     assert_eq!(remote.choice_id, "remote-choice");
@@ -57,6 +59,7 @@ fn plan_exposes_typed_package_and_remote_choices_without_changing_wire_shape() {
     assert_eq!(remote.transport, McpPlanRemoteTransport::StreamableHttp);
     assert!(remote.required_values.is_empty());
     assert!(remote.secret_placeholders.is_empty());
+    assert_eq!(serde_json::to_value(&choices).unwrap(), wire);
     assert_eq!(serde_json::to_value(&plan.transport_choices).unwrap(), wire);
 }
 

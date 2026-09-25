@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { generateRpcCode, generateSessionEventsCode } from "../../scripts/codegen/csharp.ts";
 import type { ApiSchema, RpcMethod } from "../../scripts/codegen/utils.ts";
+import { legacyRequestSchema } from "./legacy-parameters-fixture.ts";
 
 function legacySignatureFixture(scope: "server" | "session", legacy: unknown) {
-    const params: JSONSchema7 & { "x-csharp-legacy-parameters"?: unknown } = {
+    const params: JSONSchema7 & { "x-legacy-parameters"?: unknown } = {
         title: "SampleRequest",
         type: "object",
         properties: {
@@ -17,7 +18,7 @@ function legacySignatureFixture(scope: "server" | "session", legacy: unknown) {
         required: scope === "session" ? ["sessionId", "name"] : ["name"],
         additionalProperties: false,
     };
-    if (legacy !== undefined) params["x-csharp-legacy-parameters"] = legacy;
+    if (legacy !== undefined) params["x-legacy-parameters"] = legacy;
     const methods: Record<string, RpcMethod> = {
         run: {
             rpcMethod: `${scope === "session" ? "session." : ""}sample.run`,
@@ -31,7 +32,7 @@ function legacySignatureFixture(scope: "server" | "session", legacy: unknown) {
 
 describe("C# additive request entry compatibility", () => {
     it.each(["server", "session"] as const)(
-        "preserves the exact legacy %s signature and adds a distinct request entry",
+        "preserves the exact legacy %s signature and adds a same-name request overload",
         (scope) => {
             const { schema } = legacySignatureFixture(scope, ["name", "config"]);
             const code = generateRpcCode(schema);
@@ -39,10 +40,13 @@ describe("C# additive request entry compatibility", () => {
                 "RunAsync(string name, object? config = null, CancellationToken cancellationToken = default)"
             );
             expect(code).toContain(
-                "RunWithRequestAsync(SampleRequest request, CancellationToken cancellationToken = default)"
+                "RunAsync(SampleRequest request, CancellationToken cancellationToken = default)"
             );
+            expect(code).not.toContain("WithRequestAsync");
             expect(code).toContain("public sealed class SampleRequest\n");
+            expect(code).toContain("public required string Name { get; set; }");
             expect(code).toContain("ArgumentNullException.ThrowIfNull(request);");
+            expect(code).toContain("ArgumentNullException.ThrowIfNull(request.Name);");
             expect(code).toContain("Config = CopilotClient.ToJsonElementForWire(config)");
             expect(code).not.toContain("ExpectedIdentity = expectedIdentity");
             if (scope === "session") {
@@ -72,7 +76,7 @@ describe("C# additive request entry compatibility", () => {
                 params: { ...params, title: "ControlRequest" },
             };
             const before = generateRpcCode(schema);
-            params["x-csharp-legacy-parameters"] = ["name", "config"];
+            params["x-legacy-parameters"] = ["name", "config"];
             const after = generateRpcCode(schema);
             const method = /    public async Task ControlAsync\([\s\S]*?\n    \}/;
             const request = /internal sealed class ControlRequest\n\{[\s\S]*?\n\}/;
@@ -96,27 +100,34 @@ describe("C# additive request entry compatibility", () => {
         ["no new arguments", ["name", "config", "expectedIdentity"]],
     ])("rejects invalid legacy metadata: %s", (_reason, legacy) => {
         const { schema } = legacySignatureFixture("session", legacy);
-        expect(() => generateRpcCode(schema)).toThrow("Invalid x-csharp-legacy-parameters");
+        expect(() => generateRpcCode(schema)).toThrow("Invalid x-legacy-parameters");
     });
 
     it("rejects nullable request metadata rather than changing the existing request entry", () => {
         const { schema, methods, params } = legacySignatureFixture("session", ["name", "config"]);
         methods.run.params = { anyOf: [params, { type: "null" }] };
-        expect(() => generateRpcCode(schema)).toThrow("nullable request parameters");
+        expect(() => generateRpcCode(schema)).toThrow("nullable requests");
     });
 
-    it.each(["server", "session"] as const)(
-        "rejects a colliding %s request method name",
-        (scope) => {
-            const { schema, methods } = legacySignatureFixture(scope, ["name", "config"]);
-            methods.runWithRequest = {
-                rpcMethod: `${scope === "session" ? "session." : ""}sample.runWithRequest`,
-                params: null,
-                result: null,
+    it("keeps both overloads unchanged across two successive optional additions", () => {
+        const signatures = (additions: 1 | 2) => {
+            const code = generateRpcCode(legacyRequestSchema(additions).schema);
+            return {
+                code,
+                overloads: code.match(/public async Task<[A-Za-z]+> PlanAsync\([^)]*\)/g),
             };
-            expect(() => generateRpcCode(schema)).toThrow("RunWithRequestAsync collides");
-        }
-    );
+        };
+        const one = signatures(1);
+        const two = signatures(2);
+        expect(one.overloads).toEqual([
+            "public async Task<SamplePlanResult> PlanAsync(string contract, string source, string? scope = null, CancellationToken cancellationToken = default)",
+            "public async Task<SamplePlanResult> PlanAsync(SamplePlanRequest request, CancellationToken cancellationToken = default)",
+        ]);
+        expect(two.overloads).toEqual(one.overloads);
+        expect(one.code).not.toContain("TraceId");
+        expect(two.code).toContain("public string? TraceId { get; set; }");
+        expect(two.code).toContain("public required string Contract { get; set; }");
+    });
 });
 
 describe("C# root event payload unions", () => {

@@ -138,6 +138,11 @@ new CopilotClient(options?: CopilotClientOptions)
 
 #### Installation confirmation (experimental)
 
+Only the Node.js and Rust SDKs can configure this receiver today. The Python, Go,
+.NET and Java SDKs cannot yet, and fail closed: an `installations.confirm` request
+gets an error or method-not-found, which the runtime treats as no consent
+([github/copilot-agent-runtime#22844](https://github.com/github/copilot-agent-runtime/issues/22844)).
+
 The installation confirmation handler receives the generated
 `InstallationConfirmationRequest` and an `InstallationConfirmationContext`.
 Match `operationId` and `policySessionId` against the exact original action on

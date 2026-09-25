@@ -560,7 +560,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-mcp-en");
 
-        var enableParams = new SessionMcpEnableParams(null, null, "my-mcp-server");
+        var enableParams = new SessionMcpEnableParams(null, "my-mcp-server");
         session.mcp.enable(enableParams);
 
         assertEquals(1, stub.calls.size());
@@ -568,7 +568,6 @@ class GeneratedRpcApiCoverageTest {
         var params = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(0).params();
         assertEquals("sess-mcp-en", params.get("sessionId").asText());
         assertEquals("my-mcp-server", params.get("serverName").asText());
-        assertFalse(params.has("expectedInstallationId"));
     }
 
     @Test
@@ -576,7 +575,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-mcp-dis");
 
-        var disableParams = new SessionMcpDisableParams(null, null, "my-mcp-server");
+        var disableParams = new SessionMcpDisableParams(null, "my-mcp-server");
         session.mcp.disable(disableParams);
 
         assertEquals(1, stub.calls.size());
@@ -584,7 +583,6 @@ class GeneratedRpcApiCoverageTest {
         var params = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(0).params();
         assertEquals("sess-mcp-dis", params.get("sessionId").asText());
         assertEquals("my-mcp-server", params.get("serverName").asText());
-        assertFalse(params.has("expectedInstallationId"));
     }
 
     @Test

@@ -557,6 +557,39 @@ impl<'a> ClientRpcCatalog<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Requests a bounded catalog search. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with search available returns inert candidate summaries, each with an opaque single-use handle scoped to this runtime instance; a runtime without it returns the typed search-unavailable result. Public authorities may be searched anonymously, while an authority that requires credentials yields the typed authentication-required result. All returned text, URLs, and package metadata are untrusted external data and can never trigger instructions, tools, or installation. Read-only: nothing is installed, configured, or persisted.
+    ///
+    /// Wire method: `catalog.search`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.
+    ///
+    /// # Returns
+    ///
+    /// Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`CatalogSearchOptions`], including inputs added after [`CatalogSearchRequest`].
+    pub async fn search_with_options(
+        &self,
+        params: CatalogSearchOptions,
+    ) -> Result<CatalogSearchResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CATALOG_SEARCH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Terminates one retained catalog selection group. A selected outcome returns the native host a fresh single-use candidate handle plus the original searchId for a later explicit mcp.planInstall call; non-selected outcomes release the group without producing a planning input. Candidate state, cards, URLs, credentials and private identifiers remain inside the runtime. The model-facing catalog_select tool projects the result separately and never exposes the candidate handle or searchId.
     ///
     /// Wire method: `catalog.select`.
@@ -1036,6 +1069,39 @@ impl<'a> ClientRpcMcp<'a> {
     pub async fn plan_install(
         &self,
         params: McpPlanInstallRequest,
+    ) -> Result<McpPlanInstallResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_PLANINSTALL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Requests a side-effect-free MCP install plan from a catalog candidate handle or a caller-supplied card. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with planning available returns a normalised plan and opaque single-use plan handle; a runtime without it returns the typed planning-unavailable result. A completed plan reports resource identity, provenance, eligible transport choices, the user-scope target, required typed values and secret placeholders, the policy result, the configuration changes installing would make, and whether a reload would be needed. Planning never writes configuration, stores a secret, or reloads MCP servers, so abandoning a plan needs no call and leaves nothing behind.
+    ///
+    /// Wire method: `mcp.planInstall`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.
+    ///
+    /// # Returns
+    ///
+    /// Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal. Nothing is written in either case.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`McpPlanInstallOptions`], including inputs added after [`McpPlanInstallRequest`].
+    pub async fn plan_install_with_options(
+        &self,
+        params: McpPlanInstallOptions,
     ) -> Result<McpPlanInstallResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -7120,6 +7186,34 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(())
     }
 
+    /// Enables an MCP server for the session.
+    ///
+    /// Wire method: `session.mcp.enable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Name of the MCP server to enable for the session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`McpEnableOptions`], including inputs added after [`McpEnableRequest`].
+    pub async fn enable_with_options(&self, params: McpEnableOptions) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_ENABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
     /// Disables an MCP server for the session.
     ///
     /// Wire method: `session.mcp.disable`.
@@ -7136,6 +7230,34 @@ impl<'a> SessionRpcMcp<'a> {
     ///
     /// </div>
     pub async fn disable(&self, params: McpDisableRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_DISABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    /// Disables an MCP server for the session.
+    ///
+    /// Wire method: `session.mcp.disable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Name of the MCP server to disable for the session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`McpDisableOptions`], including inputs added after [`McpDisableRequest`].
+    pub async fn disable_with_options(&self, params: McpDisableOptions) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -7416,6 +7538,37 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(())
     }
 
+    /// Starts an individual MCP server on the live session. Omit `config` for a config-free start-by-name of an already-configured server (reuses the server's already-registered configuration); supply `config` to start from a caller-supplied configuration. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server.
+    ///
+    /// Wire method: `session.mcp.startServer`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`McpStartServerOptions`], including inputs added after [`McpStartServerRequest`].
+    pub async fn start_server_with_options(
+        &self,
+        params: McpStartServerOptions,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_STARTSERVER, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
     /// Restarts an individual MCP server on the live session (stops then starts). Omit `config` for a config-free restart-by-name of an already-configured server; supply `config` to restart with a replacement configuration. Session-scoped and ephemeral: does NOT modify persistent user configuration (`mcp.config.*`).
     ///
     /// Wire method: `session.mcp.restartServer`.
@@ -7442,6 +7595,37 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(())
     }
 
+    /// Restarts an individual MCP server on the live session (stops then starts). Omit `config` for a config-free restart-by-name of an already-configured server; supply `config` to restart with a replacement configuration. Session-scoped and ephemeral: does NOT modify persistent user configuration (`mcp.config.*`).
+    ///
+    /// Wire method: `session.mcp.restartServer`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`McpRestartServerOptions`], including inputs added after [`McpRestartServerRequest`].
+    pub async fn restart_server_with_options(
+        &self,
+        params: McpRestartServerOptions,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_RESTARTSERVER, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
     /// Stops an individual MCP server on the session's host.
     ///
     /// Wire method: `session.mcp.stopServer`.
@@ -7458,6 +7642,37 @@ impl<'a> SessionRpcMcp<'a> {
     ///
     /// </div>
     pub async fn stop_server(&self, params: McpStopServerRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_STOPSERVER, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    /// Stops an individual MCP server on the session's host.
+    ///
+    /// Wire method: `session.mcp.stopServer`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Server name for an individual MCP server stop.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`McpStopServerOptions`], including inputs added after [`McpStopServerRequest`].
+    pub async fn stop_server_with_options(
+        &self,
+        params: McpStopServerOptions,
+    ) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -7954,6 +8169,41 @@ impl<'a> SessionRpcMcpOauth<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.
+    ///
+    /// Wire method: `session.mcp.oauth.login`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
+    ///
+    /// # Returns
+    ///
+    /// OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`McpOauthLoginOptions`], including inputs added after [`McpOauthLoginRequest`].
+    pub async fn login_with_options(
+        &self,
+        params: McpOauthLoginOptions,
+    ) -> Result<McpOauthLoginResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_OAUTH_LOGIN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Passively probes a configured remote MCP server to classify whether OAuth is required or a cached/override token is accepted. Does not start OAuth, emit pending OAuth requests, or mutate MCP connection state.
     ///
     /// Wire method: `session.mcp.oauth.probe`.
@@ -7974,6 +8224,41 @@ impl<'a> SessionRpcMcpOauth<'a> {
     ///
     /// </div>
     pub async fn probe(&self, params: McpOauthProbeRequest) -> Result<McpOauthProbeResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_OAUTH_PROBE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Passively probes a configured remote MCP server to classify whether OAuth is required or a cached/override token is accepted. Does not start OAuth, emit pending OAuth requests, or mutate MCP connection state.
+    ///
+    /// Wire method: `session.mcp.oauth.probe`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Remote MCP server name for a passive OAuth status probe.
+    ///
+    /// # Returns
+    ///
+    /// Passive MCP OAuth probe result. `authenticated` means the server accepted the probe request while an OAuth-origin access token was attached; it does not prove the server required or independently validated that token. The probe does not make a second unauthenticated request. Failed is an expected probe-domain outcome; JSON-RPC errors are reserved for API-call failures.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`McpOauthProbeOptions`], including inputs added after [`McpOauthProbeRequest`].
+    pub async fn probe_with_options(
+        &self,
+        params: McpOauthProbeOptions,
+    ) -> Result<McpOauthProbeResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self

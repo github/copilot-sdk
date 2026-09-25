@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -95,6 +96,21 @@ public final class SessionMcpOauthApi {
     }
 
     /**
+     * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionMcpOauthLoginResult> login(SessionMcpOauthLoginRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.oauth.login", _p, SessionMcpOauthLoginResult.class);
+    }
+
+    /**
      * Remote MCP server name for a passive OAuth status probe.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -106,6 +122,21 @@ public final class SessionMcpOauthApi {
     @CopilotExperimental
     public CompletableFuture<McpOauthProbeResult> probe(SessionMcpOauthProbeParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.oauth.probe", _p, McpOauthProbeResult.class);
+    }
+
+    /**
+     * Remote MCP server name for a passive OAuth status probe.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<McpOauthProbeResult> probe(SessionMcpOauthProbeRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.mcp.oauth.probe", _p, McpOauthProbeResult.class);
     }

@@ -41,14 +41,14 @@ class RpcSurfaceParityE2ETest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final long TIMEOUT_SECONDS = 30;
-    private static final int EXPECTED_RPC_METHOD_COUNT = 430;
-    private static final String EXPECTED_RPC_SIGNATURE_SHA256 = "fcaf8d73f735abc24aa2b118cb36f7ebf0776f5d97f0eb0e08ce2c73609226d4";
+    private static final int EXPECTED_RPC_METHOD_COUNT = 439;
+    private static final String EXPECTED_RPC_SIGNATURE_SHA256 = "c3e7e7a8cad86933c422cbedd73456b1d1a414370dcc7505cd8fea98fe97ec2d";
     private static final Map<String, Integer> EXPECTED_METHODS_BY_DECLARING_TYPE = Map.ofEntries(
             Map.entry("RpcCaller", 2), Map.entry("ServerAccountApi", 6), Map.entry("ServerAgentRegistryApi", 1),
-            Map.entry("ServerAgentsApi", 2), Map.entry("ServerCatalogApi", 2), Map.entry("ServerCommandsApi", 1),
+            Map.entry("ServerAgentsApi", 2), Map.entry("ServerCatalogApi", 3), Map.entry("ServerCommandsApi", 1),
             Map.entry("ServerExtensionsApi", 3), Map.entry("ServerHooksApi", 1), Map.entry("ServerInstructionsApi", 2),
             Map.entry("ServerLlmInferenceApi", 3), Map.entry("ServerManagedSettingsApi", 2),
-            Map.entry("ServerMcpApi", 6), Map.entry("ServerMcpConfigApi", 7), Map.entry("ServerMcpInstallationsApi", 4),
+            Map.entry("ServerMcpApi", 7), Map.entry("ServerMcpConfigApi", 7), Map.entry("ServerMcpInstallationsApi", 4),
             Map.entry("ServerModelsApi", 3), Map.entry("ServerPluginsApi", 7), Map.entry("ServerPluginsBuiltinApi", 1),
             Map.entry("ServerPluginsMarketplacesApi", 6), Map.entry("ServerRpc", 3), Map.entry("ServerRuntimeApi", 1),
             Map.entry("ServerSandboxApi", 1), Map.entry("ServerSecretsApi", 1), Map.entry("ServerSessionFsApi", 1),
@@ -63,9 +63,9 @@ class RpcSurfaceParityE2ETest {
             Map.entry("SessionFactoryApi", 13), Map.entry("SessionFactoryJournalApi", 2),
             Map.entry("SessionFleetApi", 1), Map.entry("SessionGitHubAuthApi", 10), Map.entry("SessionHistoryApi", 10),
             Map.entry("SessionInstructionsApi", 2), Map.entry("SessionLimitPredictionApi", 2),
-            Map.entry("SessionManagedSettingsApi", 1), Map.entry("SessionLspApi", 1), Map.entry("SessionMcpApi", 18),
+            Map.entry("SessionManagedSettingsApi", 1), Map.entry("SessionLspApi", 1), Map.entry("SessionMcpApi", 23),
             Map.entry("SessionDiagnosticsApi", 2), Map.entry("SessionMcpAppsApi", 6),
-            Map.entry("SessionMcpHeadersApi", 1), Map.entry("SessionMcpOauthApi", 7),
+            Map.entry("SessionMcpHeadersApi", 1), Map.entry("SessionMcpOauthApi", 9),
             Map.entry("SessionMcpResourcesApi", 3), Map.entry("SessionMetadataApi", 11), Map.entry("SessionModeApi", 2),
             Map.entry("SessionModelApi", 8), Map.entry("SessionNameApi", 3), Map.entry("SessionOptionsApi", 1),
             Map.entry("SessionPermissionsApi", 10), Map.entry("SessionPermissionsFolderTrustApi", 2),
@@ -1092,6 +1092,17 @@ class RpcSurfaceParityE2ETest {
         var subTypes = type.getAnnotation(com.fasterxml.jackson.annotation.JsonSubTypes.class);
         if (subTypes != null && subTypes.value().length > 0) {
             return fixture(subTypes.value()[0].value());
+        }
+        var constructors = type.getConstructors();
+        if (constructors.length == 1 && constructors[0].getParameterCount() > 0) {
+            // Extensible request classes take their required inputs as constructor
+            // arguments.
+            try {
+                return constructors[0].newInstance(Arrays.stream(constructors[0].getParameterTypes())
+                        .map(RpcSurfaceParityE2ETest::fixture).toArray());
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError("Could not construct RPC request " + type.getName(), e);
+            }
         }
         if (!Modifier.isAbstract(type.getModifiers()) && !type.isInterface()) {
             try {

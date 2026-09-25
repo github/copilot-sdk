@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -87,6 +88,21 @@ public final class SessionMcpApi {
     }
 
     /**
+     * Name of the MCP server to enable for the session.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> enable(SessionMcpEnableRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.enable", _p, Void.class);
+    }
+
+    /**
      * Name of the MCP server to disable for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -98,6 +114,21 @@ public final class SessionMcpApi {
     @CopilotExperimental
     public CompletableFuture<Void> disable(SessionMcpDisableParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.disable", _p, Void.class);
+    }
+
+    /**
+     * Name of the MCP server to disable for the session.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> disable(SessionMcpDisableRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.mcp.disable", _p, Void.class);
     }
@@ -232,6 +263,21 @@ public final class SessionMcpApi {
     }
 
     /**
+     * Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> startServer(SessionMcpStartServerRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.startServer", _p, Void.class);
+    }
+
+    /**
      * Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -248,6 +294,21 @@ public final class SessionMcpApi {
     }
 
     /**
+     * Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> restartServer(SessionMcpRestartServerRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.restartServer", _p, Void.class);
+    }
+
+    /**
      * Server name for an individual MCP server stop.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -259,6 +320,21 @@ public final class SessionMcpApi {
     @CopilotExperimental
     public CompletableFuture<Void> stopServer(SessionMcpStopServerParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.stopServer", _p, Void.class);
+    }
+
+    /**
+     * Server name for an individual MCP server stop.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> stopServer(SessionMcpStopServerRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.mcp.stopServer", _p, Void.class);
     }

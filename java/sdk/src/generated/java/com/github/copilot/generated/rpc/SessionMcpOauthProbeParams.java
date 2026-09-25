@@ -26,8 +26,6 @@ import javax.annotation.processing.Generated;
 public record SessionMcpOauthProbeParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Exact owned receipt identity; probing never activates a dormant installation. */
-    @JsonProperty("expectedInstallationId") String expectedInstallationId,
     /** Name of the configured remote MCP server to probe. */
     @JsonProperty("serverName") String serverName
 ) {

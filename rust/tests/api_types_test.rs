@@ -8,11 +8,12 @@ use github_copilot_sdk::rpc::{
     ConnectorConnectRequest, ConnectorContinueRequest, ConnectorReconcileRequest,
     EnqueueCommandResult, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
     ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
-    McpDisableRequest, McpEnableRequest, McpInstallationOperationStatus, McpOauthLoginRequest,
-    McpStopServerRequest, MetadataContextAttributionResult, MetadataContextInfoResult,
-    ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest,
-    ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
-    SandboxConfig, SendAgentMode, SessionContextAttribution, SessionMetadataContextInfoResult,
+    McpDisableRequest, McpEnableOptions, McpEnableRequest, McpInstallationOperationStatus,
+    McpOauthLoginOptions, McpOauthLoginRequest, McpStopServerRequest,
+    MetadataContextAttributionResult, MetadataContextInfoResult, ModelSetAllowedModelsRequest,
+    ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SandboxConfig,
+    SendAgentMode, SessionContextAttribution, SessionMetadataContextInfoResult,
     SessionMetadataGetContextAttributionResult, SessionMetadataSnapshot,
     SessionMetadataSnapshotResult, TasksStartAgentRequest, UnsupportedEnqueueCommandResult,
     UpdateSubagentSettingsRequest, WorkspaceSummary,
@@ -240,17 +241,14 @@ fn manual_mcp_requests_omit_unselected_owned_identity() {
     let payloads = [
         serde_json::to_value(McpEnableRequest {
             server_name: "manual".to_string(),
-            expected_installation_id: None,
         })
         .unwrap(),
         serde_json::to_value(McpDisableRequest {
             server_name: "manual".to_string(),
-            expected_installation_id: None,
         })
         .unwrap(),
         serde_json::to_value(McpStopServerRequest {
             server_name: "manual".to_string(),
-            expected_installation_id: None,
         })
         .unwrap(),
         serde_json::to_value(McpOauthLoginRequest {
@@ -258,10 +256,36 @@ fn manual_mcp_requests_omit_unselected_owned_identity() {
             ..Default::default()
         })
         .unwrap(),
+        serde_json::to_value(McpEnableOptions::new("manual")).unwrap(),
+        serde_json::to_value(McpOauthLoginOptions::new("manual")).unwrap(),
     ];
     for payload in payloads {
         assert_eq!(payload, serde_json::json!({"serverName": "manual"}));
     }
+}
+
+#[test]
+fn owned_mcp_identity_is_only_reachable_through_options() {
+    assert_eq!(
+        serde_json::to_value(
+            McpEnableOptions::new("owned").expected_installation_id("a".repeat(32))
+        )
+        .unwrap(),
+        serde_json::json!({"serverName": "owned", "expectedInstallationId": "a".repeat(32)})
+    );
+    assert_eq!(
+        serde_json::to_value(
+            McpOauthLoginOptions::new("owned")
+                .expected_installation_id("a".repeat(32))
+                .login_id("b".repeat(32))
+        )
+        .unwrap(),
+        serde_json::json!({
+            "serverName": "owned",
+            "expectedInstallationId": "a".repeat(32),
+            "loginId": "b".repeat(32),
+        })
+    );
 }
 
 #[test]
@@ -677,4 +701,51 @@ fn set_model_options_distinguishes_unset_tier_from_reset() {
 
     let cleared = SetModelOptions::default().with_reset_auto_tier();
     assert_eq!(cleared.auto_tier, Some(AutoTierPreference::Reset));
+}
+
+/// Names published by earlier releases must keep resolving after reference aliasing.
+#[test]
+#[allow(deprecated)]
+fn released_nested_type_names_remain_usable() {
+    use github_copilot_sdk::rpc::{
+        DiagnosticEntrySource, DiagnosticsReadResultEntriesItemSource, McpInstallPlan,
+        MetadataContextAttributionResultContextAttribution,
+        MetadataContextAttributionResultContextAttributionCategories,
+        MetadataContextAttributionResultContextAttributionCompactions,
+        MetadataContextAttributionResultContextAttributionEntriesItem, ResponseFormatType,
+        SendMessagesRequestResponseFormatType, SendRequestResponseFormat,
+        SendRequestResponseFormatType, SessionDiagnosticsReadResultEntriesItemSource,
+        SessionMetadataGetContextAttributionResultContextAttributionCategories,
+        SessionMetadataGetContextAttributionResultContextAttributionCompactions,
+        SessionMetadataGetContextAttributionResultContextAttributionEntriesItem,
+    };
+
+    let source: DiagnosticsReadResultEntriesItemSource = DiagnosticEntrySource::default();
+    let _: SessionDiagnosticsReadResultEntriesItemSource = source;
+    let format_type: SendRequestResponseFormatType = ResponseFormatType::default();
+    let _: SendMessagesRequestResponseFormatType = format_type.clone();
+    let format = SendRequestResponseFormat {
+        r#type: format_type,
+        ..Default::default()
+    };
+    assert!(serde_json::to_value(&format).is_ok());
+
+    let attribution = MetadataContextAttributionResultContextAttribution {
+        categories: MetadataContextAttributionResultContextAttributionCategories::default(),
+        compactions: MetadataContextAttributionResultContextAttributionCompactions::default(),
+        entries: vec![MetadataContextAttributionResultContextAttributionEntriesItem::default()],
+        ..Default::default()
+    };
+    let _: SessionMetadataGetContextAttributionResultContextAttributionCategories =
+        attribution.categories.clone();
+    let _: SessionMetadataGetContextAttributionResultContextAttributionCompactions =
+        attribution.compactions.clone();
+    let _: Vec<SessionMetadataGetContextAttributionResultContextAttributionEntriesItem> =
+        attribution.entries.clone();
+
+    let plan = McpInstallPlan {
+        transport_choices: vec![serde_json::json!({ "choiceId": "raw" })],
+        ..Default::default()
+    };
+    assert_eq!(plan.transport_choices[0]["choiceId"], "raw");
 }

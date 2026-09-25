@@ -55,6 +55,16 @@ import {
 	stripBooleanLiterals,
 	type EnumValueDescriptions,
 } from "./utils.js";
+import {
+	isOmittableRequest,
+	LEGACY_PARAMETERS_KEY,
+	readLegacyParameters,
+	rejectLegacyParameters,
+	type LegacyParameters,
+	LEGACY_UNTYPED_KEY,
+	validateLegacyUntypedMarkers,
+	readLegacyUntyped,
+} from "./legacy-parameters.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -210,6 +220,8 @@ interface RustCodegenCtx {
 	generatedNames: Set<string>;
 	/** Direct containing-property aliases recorded during reference resolution. */
 	referenceAliases: Map<string, string>;
+	/** Reference aliases whose nested compatibility names are emitted once all types exist. */
+	pendingCompatibilityAliases: Array<{ aliasName: string; targetName: string; schema: JSONSchema7 }>;
 	/**
 	 * Generated type names that do not (and cannot trivially) implement
 	 * `Default` — currently `#[serde(untagged)]` enums of distinct payload
@@ -480,6 +492,7 @@ function makeCtx(
 		enums: [],
 		generatedNames: new Set(),
 		referenceAliases: new Map(),
+		pendingCompatibilityAliases: [],
 		nonDefaultableTypes: new Set(options.nonDefaultableTypes ?? []),
 		experimentalTypeNames: new Set(options.experimentalTypeNames ?? []),
 		definitions,
@@ -622,6 +635,57 @@ function emitRustReferenceAlias(
 	}
 	emitRustTypeAlias(aliasName, schema, targetName, ctx);
 	ctx.referenceAliases.set(aliasName, targetName);
+	ctx.pendingCompatibilityAliases.push({ aliasName, targetName, schema });
+}
+
+/**
+ * Keep the nested names an inline projection of a reference-aliased property used to
+ * emit, so aliasing never removes a public type name callers may already use. Candidates
+ * come from the target's own inline properties (not `$ref`s), and are resolved after all
+ * types are emitted so the result does not depend on emission order.
+ */
+function emitRustNestedCompatibilityAliases(ctx: RustCodegenCtx): void {
+	for (const { aliasName, targetName, schema } of ctx.pendingCompatibilityAliases) {
+		const suffixes: string[] = [];
+		for (const [propName, prop] of Object.entries(schema.properties ?? {})) {
+			if (typeof prop !== "object" || prop.$ref) continue;
+			suffixes.push(toPascalCase(propName));
+			const items = prop.type === "array" ? prop.items : undefined;
+			if (items && typeof items === "object" && !Array.isArray(items) && !items.$ref) {
+				suffixes.push(`${toPascalCase(propName)}Item`);
+			}
+		}
+		for (const suffix of suffixes) {
+			const nestedTarget = targetName + suffix;
+			if (!ctx.generatedNames.has(nestedTarget) && !ctx.referenceAliases.has(nestedTarget)) continue;
+			const compatibilityName = aliasName + suffix;
+			const concreteTarget = ctx.referenceAliases.get(nestedTarget) ?? nestedTarget;
+			const previous = ctx.referenceAliases.get(compatibilityName);
+			if (previous !== undefined) {
+				if (previous !== concreteTarget) {
+					throw new Error(
+						`Rust compatibility alias ${compatibilityName} targets both ${previous} and ${concreteTarget}`,
+					);
+				}
+				continue;
+			}
+			if (ctx.generatedNames.has(compatibilityName)) {
+				throw new Error(`Rust compatibility alias ${compatibilityName} collides with an emitted type`);
+			}
+			if (ctx.experimentalTypeNames.has(concreteTarget)) {
+				ctx.experimentalTypeNames.add(compatibilityName);
+			}
+			emitRustTypeAlias(
+				compatibilityName,
+				{ deprecated: true },
+				concreteTarget,
+				ctx,
+				`Compatibility name for [\`${concreteTarget}\`].`,
+			);
+			ctx.referenceAliases.set(compatibilityName, concreteTarget);
+		}
+	}
+	ctx.pendingCompatibilityAliases = [];
 }
 
 function emitRustTypeAlias(
@@ -798,9 +862,23 @@ function resolveRustType(
 ): string {
 	const nestedName = parentTypeName + toPascalCase(jsonPropName);
 
+	if (readLegacyUntyped(propSchema, `${parentTypeName}.${jsonPropName}`)) {
+		// Keep the released raw-JSON field shape; the typed schema stays available as a standalone type.
+		const { [LEGACY_UNTYPED_KEY]: _legacyUntyped, ...typedSchema } = propSchema as Record<string, unknown>;
+		const typed = typedSchema as JSONSchema7;
+		if (typed.$ref || typed.anyOf || typed.oneOf || typed.allOf || Array.isArray(typed.type)) {
+			throw new Error(
+				`${parentTypeName}.${jsonPropName}: ${LEGACY_UNTYPED_KEY} supports only a plain array or object property`,
+			);
+		}
+		resolveRustType(typed, parentTypeName, jsonPropName, isRequired, ctx);
+		return wrapOption(typed.type === "array" ? "Vec<serde_json::Value>" : "serde_json::Value", isRequired);
+	}
+
 	if (ctx.strictBooleanConstFields.get(parentTypeName)?.has(jsonPropName)) {
 		return wrapOption("bool", isRequired);
 	}
+
 
 	// $ref — resolve and recurse
 	if (propSchema.$ref && typeof propSchema.$ref === "string") {
@@ -1540,6 +1618,8 @@ export function generateSessionEventsCode(schema: JSONSchema7): string {
 	typedEventLines.push("    pub payload: SessionEventData,");
 	typedEventLines.push("}");
 
+	emitRustNestedCompatibilityAliases(ctx);
+
 	// Assemble file
 	const out: string[] = [];
 	out.push(
@@ -1712,6 +1792,147 @@ function isNullableParamsSchema(
 	return !!resolved && !!getNullableInner(resolved);
 }
 
+// ── x-legacy-parameters ─────────────────────────────────────────────────────
+
+/**
+ * A request that declares `x-legacy-parameters`. Rust keeps the published struct and
+ * method with only the legacy fields, and adds a private-field options type with a
+ * `new(required...)` constructor, fluent setters and one `*_with_options` method.
+ */
+interface RustLegacyRequest {
+	legacy: LegacyParameters;
+	/** The full current request schema, excluding the session-scoped `sessionId`. */
+	schema: JSONSchema7;
+	optionsName: string;
+}
+
+function rustLegacyRequest(
+	method: RpcMethod,
+	defCollections: DefinitionCollections,
+	isSession: boolean,
+): RustLegacyRequest | undefined {
+	const schema = getMethodParamsObjectSchema(method, defCollections, isSession);
+	const legacy = readLegacyParameters(schema, method.rpcMethod, {
+		optional: isOmittableRequest(method.params),
+		nullable: !!method.params && isNullableParamsSchema(method.params, defCollections),
+	});
+	if (!legacy || !schema) return undefined;
+	const paramsName = rustParamsTypeName(method, defCollections);
+	return {
+		legacy,
+		schema,
+		optionsName: `${paramsName.replace(/(Request|Params)$/, "")}Options`,
+	};
+}
+
+/** The published request schema: the current one without properties added after it. */
+function rustLegacyStructSchema(
+	schema: JSONSchema7,
+	request: RustLegacyRequest,
+	owner: string,
+): JSONSchema7 {
+	const additions = new Set(request.legacy.additions);
+	if (Object.hasOwn(schema.properties ?? {}, "sessionId")) {
+		throw new Error(`Invalid ${LEGACY_PARAMETERS_KEY} for ${owner}: the request struct must not carry sessionId`);
+	}
+	return {
+		...schema,
+		properties: Object.fromEntries(
+			Object.entries(schema.properties ?? {}).filter(([name]) => !additions.has(name)),
+		),
+	};
+}
+
+function emitRustLegacyOptions(
+	legacyName: string,
+	request: RustLegacyRequest,
+	ctx: RustCodegenCtx,
+): void {
+	const { optionsName, schema, legacy } = request;
+	if (
+		ctx.generatedNames.has(optionsName) ||
+		Object.hasOwn(ctx.definitions?.definitions ?? {}, optionsName) ||
+		Object.hasOwn(ctx.definitions?.$defs ?? {}, optionsName)
+	) {
+		throw new Error(`Conflicting Rust type ${optionsName} for the ${legacyName} options`);
+	}
+	ctx.generatedNames.add(optionsName);
+	const properties = schema.properties ?? {};
+	const field = (propName: string, isReq: boolean) => {
+		const prop = properties[propName] as JSONSchema7;
+		const rustType = resolveRustType(prop, legacyName, propName, isReq, ctx);
+		if (!isReq && !rustType.startsWith("Option<")) {
+			throw new Error(`Invalid ${LEGACY_PARAMETERS_KEY} for ${legacyName}: optional ${propName} must be an Option`);
+		}
+		return { propName, prop, rustField: safeRustFieldName(propName), rustType };
+	};
+	const required = legacy.legacy.filter((name) => legacy.required.has(name)).map((name) => field(name, true));
+	const legacyOptional = legacy.legacy.filter((name) => !legacy.required.has(name)).map((name) => field(name, false));
+	const additions = legacy.additions.map((name) => field(name, false));
+	const experimental = isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(legacyName);
+
+	const lines: string[] = [];
+	lines.push(`/// Extensible [\`${legacyName}\`], including inputs added after it was published.`);
+	lines.push("///");
+	lines.push(`/// Required inputs are [\`${optionsName}::new\`] arguments; optional inputs have fluent setters.`);
+	lines.push("/// Input-only: it serialises to the flat wire request and is not deserialisable.");
+	pushRustExperimentalDocs(lines, experimental);
+	lines.push("#[derive(Debug, Clone, Serialize)]");
+	lines.push(`#[serde(rename_all = "camelCase")]`);
+	lines.push(`pub struct ${optionsName} {`);
+	lines.push("    #[serde(flatten)]");
+	lines.push(`    legacy: ${legacyName},`);
+	for (const { propName, rustField, rustType } of additions) {
+		const rename = snakeToCamelCase(toRustFieldName(propName)) !== propName ? `rename = "${propName}", ` : "";
+		lines.push(`    #[serde(${rename}skip_serializing_if = "Option::is_none")]`);
+		lines.push(`    ${rustField}: ${rustType},`);
+	}
+	lines.push("}");
+	lines.push("");
+	lines.push(`impl ${optionsName} {`);
+	lines.push("    /// Creates options with the required inputs.");
+	const stringInput = (rustType: string) => rustType === "String";
+	const parameters = required.map(({ rustField, rustType }) =>
+		`${rustField}: ${stringInput(rustType) ? "impl Into<String>" : rustType}`,
+	);
+	lines.push(`    pub fn new(${parameters.join(", ")}) -> Self {`);
+	lines.push("        Self {");
+	const legacyFields = [
+		...required.map(({ rustField, rustType }) =>
+			stringInput(rustType) ? `${rustField}: ${rustField}.into()` : rustField,
+		),
+		...legacyOptional.map(({ rustField }) => `${rustField}: None`),
+	];
+	lines.push(`            legacy: ${legacyName} { ${legacyFields.join(", ")} },`);
+	for (const { rustField } of additions) {
+		lines.push(`            ${rustField}: None,`);
+	}
+	lines.push("        }");
+	lines.push("    }");
+	for (const [target, fields] of [["self.legacy", legacyOptional], ["self", additions]] as const) {
+		for (const { prop, rustField, rustType } of fields) {
+			const inner = stripOption(rustType);
+			const [argType, value] = inner === "String" ? ["impl Into<String>", "value.into()"] : [inner, "value"];
+			lines.push("");
+			pushRustDoc(lines, prop.description ?? `Sets \`${rustField}\`.`, "    ");
+			lines.push(`    pub fn ${rustField}(mut self, value: ${argType}) -> Self {`);
+			lines.push(`        ${target}.${rustField} = Some(${value});`);
+			lines.push("        self");
+			lines.push("    }");
+		}
+	}
+	lines.push("}");
+	if (required.length === 0) {
+		lines.push("");
+		lines.push(`impl Default for ${optionsName} {`);
+		lines.push("    fn default() -> Self {");
+		lines.push("        Self::new()");
+		lines.push("    }");
+		lines.push("}");
+	}
+	ctx.structs.push(lines.join("\n"));
+}
+
 export function generateApiTypesCode(
 	apiSchema: ApiSchema,
 	nonDefaultableTypes: Iterable<string> = [],
@@ -1821,10 +2042,32 @@ export function generateApiTypesCode(
 		tryEmitRustUnion(definition as JSONSchema7, name, "", ctx);
 	}
 
+	validateLegacyUntypedMarkers(apiSchema, "api.schema.json");
+	const legacyRequests = new Map<string, RustLegacyRequest>();
+	const handlerMethods = new Set(
+		collectRpcMethods((apiSchema.clientSession ?? {}) as Record<string, unknown>),
+	);
+	for (const method of handlerMethods) {
+		rejectLegacyParameters(method.params && resolveSchema(method.params, defCollections), method.rpcMethod);
+	}
+	for (const { method, isSession } of methodEntries) {
+		if (handlerMethods.has(method)) continue;
+		const request = rustLegacyRequest(method, defCollections, isSession);
+		if (request) legacyRequests.set(rustParamsTypeName(method, defCollections), request);
+	}
+	const emitLegacyOptions = (name: string): void => {
+		const request = legacyRequests.get(name);
+		if (request && ctx.generatedNames.has(name) && !ctx.generatedNames.has(request.optionsName)) {
+			emitRustLegacyOptions(name, request, ctx);
+		}
+	};
+
 	// Generate shared definitions (structs & enums)
 	for (const [name, def] of Object.entries(definitions)) {
 		if (typeof def !== "object" || def === null) continue;
-		const schema = inlineMethodParamSchemas.get(name) ?? (def as JSONSchema7);
+		const current = inlineMethodParamSchemas.get(name) ?? (def as JSONSchema7);
+		const legacyRequest = legacyRequests.get(name);
+		const schema = legacyRequest ? rustLegacyStructSchema(current, legacyRequest, name) : current;
 
 		if (schema.enum && Array.isArray(schema.enum)) {
 			emitRustStringEnum(
@@ -1859,6 +2102,7 @@ export function generateApiTypesCode(
 		} else {
 			emitRustScalarAlias(name, schema, ctx, schema.description);
 		}
+		emitLegacyOptions(name);
 	}
 
 	// RPC method name constants
@@ -1888,12 +2132,17 @@ export function generateApiTypesCode(
 		const generatedParamsSchema = paramsSchema ?? sessionWireParamsSchema;
 		if (generatedParamsSchema) {
 			const paramsName = rustParamsTypeName(method, ctx);
+			const legacyRequest = legacyRequests.get(paramsName);
+			const structSchema = legacyRequest
+				? rustLegacyStructSchema(generatedParamsSchema, legacyRequest, paramsName)
+				: generatedParamsSchema;
 			emitRustStruct(
 				paramsName,
-				generatedParamsSchema,
+				structSchema,
 				ctx,
-				generatedParamsSchema.description,
+				structSchema.description,
 			);
+			emitLegacyOptions(paramsName);
 		}
 		if (method.result && !isVoidSchema(method.result)) {
 			const resultName = rustResultTypeName(method, ctx);
@@ -1913,6 +2162,8 @@ export function generateApiTypesCode(
 			}
 		}
 	}
+
+	emitRustNestedCompatibilityAliases(ctx);
 
 	// Assemble file
 	const out: string[] = [];
@@ -2283,6 +2534,8 @@ function emitNamespaceMethod(
 			? "pub(crate)"
 			: "pub";
 
+	const legacyRequest = hasParams ? rustLegacyRequest(method, defCollections, isSession) : undefined;
+
 	if (hasParams && paramsInfo.optional) {
 		out.push(...buildDocs(false));
 		out.push(
@@ -2305,9 +2558,20 @@ function emitNamespaceMethod(
 	);
 	pushNamespaceMethodBody(out, constName, isSession, hasParams, resultIsVoid);
 	out.push("");
+
+	if (legacyRequest) {
+		out.push(...buildDocs(true));
+		out.push("    ///");
+		out.push(`    /// Accepts [\`${legacyRequest.optionsName}\`], including inputs added after [\`${paramsTypeName}\`].`);
+		out.push(
+			`    ${fnVis} async fn ${fnName}_with_options(&self, params: ${legacyRequest.optionsName}) -> Result<${returnType}, Error> {`,
+		);
+		pushNamespaceMethodBody(out, constName, isSession, true, resultIsVoid);
+		out.push("");
+	}
 }
 
-function generateRpcCode(apiSchema: ApiSchema): string {
+export function generateRpcCode(apiSchema: ApiSchema): string {
 	const defCollections = collectDefinitionCollections(
 		apiSchema as unknown as Record<string, unknown>,
 	);

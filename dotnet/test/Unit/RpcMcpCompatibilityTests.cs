@@ -120,31 +120,33 @@ public sealed partial class ClientSessionLifetimeTests
         const string installationId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         const string loginId = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
-        await session.Rpc.Mcp.StartServerWithRequestAsync(new McpStartServerRequest
+        await session.Rpc.Mcp.StartServerAsync(new McpStartServerRequest
         {
             ServerName = "owned",
             ExpectedInstallationId = installationId,
         });
-        await session.Rpc.Mcp.Oauth.LoginWithRequestAsync(new McpOauthLoginRequest
+        await session.Rpc.Mcp.Oauth.LoginAsync(new McpOauthLoginRequest
         {
             ServerName = "owned",
             ExpectedInstallationId = installationId,
             LoginId = loginId,
         });
-        await client.Rpc.Mcp.PlanInstallWithRequestAsync(new McpPlanInstallRequest
+        await client.Rpc.Mcp.PlanInstallAsync(new McpPlanInstallRequest
         {
             Contract = new CatalogClientContract { ProtocolVersion = 3, RequiredCapabilities = ["mcp-install-planning"] },
             Source = new McpPlanInstallSourceCandidate { CandidateHandle = "candidate", SearchId = "search" },
             Scope = McpPlanScope.User,
             PolicySessionId = session.SessionId,
         });
-        await client.Rpc.Catalog.SearchWithRequestAsync(new CatalogSearchRequest
+        await client.Rpc.Catalog.SearchAsync(new CatalogSearchRequest
         {
             Contract = new CatalogClientContract { ProtocolVersion = 3, RequiredCapabilities = ["mcp-install-planning"] },
             Query = "catalogue query",
             PolicySessionId = session.SessionId,
         });
 
+        Assert.Null(typeof(McpApi).GetMethod("StartServerWithRequestAsync"));
+        Assert.Null(typeof(McpOauthApi).GetMethod("LoginWithRequestAsync"));
         Assert.Null(typeof(McpStartServerRequest).GetProperty("SessionId"));
         Assert.Null(typeof(McpOauthLoginRequest).GetProperty("SessionId"));
         var requests = server.Requests.ToArray();

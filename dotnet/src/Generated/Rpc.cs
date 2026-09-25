@@ -2323,7 +2323,7 @@ public sealed class McpPlanInstallRequest
 {
     /// <summary>Protocol version and capabilities the caller requires.</summary>
     [JsonPropertyName("contract")]
-    public CatalogClientContract Contract { get => field ??= new(); set; }
+    public required CatalogClientContract Contract { get; set; }
 
     /// <summary>The same existing attached session that owns the original catalogue candidate.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
@@ -2338,7 +2338,7 @@ public sealed class McpPlanInstallRequest
 
     /// <summary>What to plan: either a candidate handle from a previous search, or a card supplied directly.</summary>
     [JsonPropertyName("source")]
-    public McpPlanInstallSource Source { get => field ??= new(); set; }
+    public required McpPlanInstallSource Source { get; set; }
 }
 
 /// <summary>Management result with contract receipt, or a typed request/negotiation refusal.</summary>
@@ -4131,7 +4131,7 @@ public sealed class CatalogSearchRequest
 {
     /// <summary>Protocol version and capabilities the caller requires.</summary>
     [JsonPropertyName("contract")]
-    public CatalogClientContract Contract { get => field ??= new(); set; }
+    public required CatalogClientContract Contract { get; set; }
 
     /// <summary>Restrict results to these candidate kinds. Agent Plugins are opt-in and require the `agent-plugin-discovery` capability so protocol-v3 clients generated before that variant cannot receive an unknown result; when omitted, the backwards-compatible MCP server and AI skill kinds are searched.</summary>
     [JsonPropertyName("kinds")]
@@ -4161,7 +4161,7 @@ public sealed class CatalogSearchRequest
     [MinLength(1)]
     [MaxLength(256)]
     [JsonPropertyName("query")]
-    public string Query { get; set; } = string.Empty;
+    public required string Query { get; set; }
 }
 
 /// <summary>Typed outcome of catalog.select. Only the selected host result carries a fresh candidate handle; the model-facing projection removes both that handle and searchId.</summary>
@@ -13396,7 +13396,7 @@ public sealed class McpEnableRequest
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [JsonPropertyName("serverName")]
-    public string ServerName { get; set; } = string.Empty;
+    public required string ServerName { get; set; }
 }
 
 /// <summary>Name of the MCP server to enable for the session.</summary>
@@ -13432,7 +13432,7 @@ public sealed class McpDisableRequest
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [JsonPropertyName("serverName")]
-    public string ServerName { get; set; } = string.Empty;
+    public required string ServerName { get; set; }
 }
 
 /// <summary>Name of the MCP server to disable for the session.</summary>
@@ -13707,7 +13707,7 @@ public sealed class McpStartServerRequest
 
     /// <summary>Name of the MCP server to start.</summary>
     [JsonPropertyName("serverName")]
-    public string ServerName { get; set; } = string.Empty;
+    public required string ServerName { get; set; }
 }
 
 /// <summary>Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.</summary>
@@ -13745,7 +13745,7 @@ public sealed class McpRestartServerRequest
 
     /// <summary>Name of the MCP server to restart.</summary>
     [JsonPropertyName("serverName")]
-    public string ServerName { get; set; } = string.Empty;
+    public required string ServerName { get; set; }
 }
 
 /// <summary>Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.</summary>
@@ -13779,7 +13779,7 @@ public sealed class McpStopServerRequest
 
     /// <summary>Name of the MCP server to stop.</summary>
     [JsonPropertyName("serverName")]
-    public string ServerName { get; set; } = string.Empty;
+    public required string ServerName { get; set; }
 }
 
 /// <summary>Server name for an individual MCP server stop.</summary>
@@ -14051,7 +14051,7 @@ public sealed class McpOauthLoginRequest
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [JsonPropertyName("serverName")]
-    public string ServerName { get; set; } = string.Empty;
+    public required string ServerName { get; set; }
 }
 
 /// <summary>Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.</summary>
@@ -14206,7 +14206,7 @@ public sealed class McpOauthProbeRequest
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [JsonPropertyName("serverName")]
-    public string ServerName { get; set; } = string.Empty;
+    public required string ServerName { get; set; }
 }
 
 /// <summary>Remote MCP server name for a passive OAuth status probe.</summary>
@@ -39108,9 +39108,11 @@ public sealed class ServerMcpApi
     /// <param name="request">A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal. Nothing is written in either case.</returns>
-    public async Task<McpPlanInstallResult> PlanInstallWithRequestAsync(McpPlanInstallRequest request, CancellationToken cancellationToken = default)
+    public async Task<McpPlanInstallResult> PlanInstallAsync(McpPlanInstallRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Contract);
+        ArgumentNullException.ThrowIfNull(request.Source);
         return await CopilotClient.InvokeRpcAsync<McpPlanInstallResult>(_rpc, "mcp.planInstall", [request], cancellationToken);
     }
 
@@ -39429,9 +39431,11 @@ public sealed class ServerCatalogApi
     /// <param name="request">A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.</returns>
-    public async Task<CatalogSearchResult> SearchWithRequestAsync(CatalogSearchRequest request, CancellationToken cancellationToken = default)
+    public async Task<CatalogSearchResult> SearchAsync(CatalogSearchRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Contract);
+        ArgumentNullException.ThrowIfNull(request.Query);
         return await CopilotClient.InvokeRpcAsync<CatalogSearchResult>(_rpc, "catalog.search", [request], cancellationToken);
     }
 
@@ -42803,9 +42807,10 @@ public sealed class McpApi
     /// <summary>Enables an MCP server for the session.</summary>
     /// <param name="request">Name of the MCP server to enable for the session.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task EnableWithRequestAsync(McpEnableRequest request, CancellationToken cancellationToken = default)
+    public async Task EnableAsync(McpEnableRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.ServerName);
         _session.ThrowIfDisposed();
         var wireRequest = new McpEnableRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, ExpectedInstallationId = request.ExpectedInstallationId };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.enable", [wireRequest], cancellationToken);
@@ -42826,9 +42831,10 @@ public sealed class McpApi
     /// <summary>Disables an MCP server for the session.</summary>
     /// <param name="request">Name of the MCP server to disable for the session.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task DisableWithRequestAsync(McpDisableRequest request, CancellationToken cancellationToken = default)
+    public async Task DisableAsync(McpDisableRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.ServerName);
         _session.ThrowIfDisposed();
         var wireRequest = new McpDisableRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, ExpectedInstallationId = request.ExpectedInstallationId };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.disable", [wireRequest], cancellationToken);
@@ -42948,9 +42954,10 @@ public sealed class McpApi
     /// <summary>Starts an individual MCP server on the live session. Omit `config` for a config-free start-by-name of an already-configured server (reuses the server's already-registered configuration); supply `config` to start from a caller-supplied configuration. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server.</summary>
     /// <param name="request">Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task StartServerWithRequestAsync(McpStartServerRequest request, CancellationToken cancellationToken = default)
+    public async Task StartServerAsync(McpStartServerRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.ServerName);
         _session.ThrowIfDisposed();
         var wireRequest = new McpStartServerRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, Config = request.Config, ExpectedInstallationId = request.ExpectedInstallationId };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.startServer", [wireRequest], cancellationToken);
@@ -42972,9 +42979,10 @@ public sealed class McpApi
     /// <summary>Restarts an individual MCP server on the live session (stops then starts). Omit `config` for a config-free restart-by-name of an already-configured server; supply `config` to restart with a replacement configuration. Session-scoped and ephemeral: does NOT modify persistent user configuration (`mcp.config.*`).</summary>
     /// <param name="request">Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task RestartServerWithRequestAsync(McpRestartServerRequest request, CancellationToken cancellationToken = default)
+    public async Task RestartServerAsync(McpRestartServerRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.ServerName);
         _session.ThrowIfDisposed();
         var wireRequest = new McpRestartServerRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, Config = request.Config, ExpectedInstallationId = request.ExpectedInstallationId };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.restartServer", [wireRequest], cancellationToken);
@@ -42995,9 +43003,10 @@ public sealed class McpApi
     /// <summary>Stops an individual MCP server on the session's host.</summary>
     /// <param name="request">Server name for an individual MCP server stop.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task StopServerWithRequestAsync(McpStopServerRequest request, CancellationToken cancellationToken = default)
+    public async Task StopServerAsync(McpStopServerRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.ServerName);
         _session.ThrowIfDisposed();
         var wireRequest = new McpStopServerRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, ExpectedInstallationId = request.ExpectedInstallationId };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.stopServer", [wireRequest], cancellationToken);
@@ -43145,9 +43154,10 @@ public sealed class McpOauthApi
     /// <param name="request">Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.</returns>
-    public async Task<McpOauthLoginResult> LoginWithRequestAsync(McpOauthLoginRequest request, CancellationToken cancellationToken = default)
+    public async Task<McpOauthLoginResult> LoginAsync(McpOauthLoginRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.ServerName);
         _session.ThrowIfDisposed();
         var wireRequest = new McpOauthLoginRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, ForceReauth = request.ForceReauth, ClientName = request.ClientName, CallbackSuccessMessage = request.CallbackSuccessMessage, ClientId = request.ClientId, ClientSecret = request.ClientSecret, PublicClient = request.PublicClient, GrantType = request.GrantType, LoginId = request.LoginId, ExpectedInstallationId = request.ExpectedInstallationId };
         return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_session.Rpc, "session.mcp.oauth.login", [wireRequest], cancellationToken);
@@ -43170,9 +43180,10 @@ public sealed class McpOauthApi
     /// <param name="request">Remote MCP server name for a passive OAuth status probe.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Passive MCP OAuth probe result. `authenticated` means the server accepted the probe request while an OAuth-origin access token was attached; it does not prove the server required or independently validated that token. The probe does not make a second unauthenticated request. Failed is an expected probe-domain outcome; JSON-RPC errors are reserved for API-call failures.</returns>
-    public async Task<McpOauthProbeResult> ProbeWithRequestAsync(McpOauthProbeRequest request, CancellationToken cancellationToken = default)
+    public async Task<McpOauthProbeResult> ProbeAsync(McpOauthProbeRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.ServerName);
         _session.ThrowIfDisposed();
         var wireRequest = new McpOauthProbeRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, ExpectedInstallationId = request.ExpectedInstallationId };
         return await CopilotClient.InvokeRpcAsync<McpOauthProbeResult>(_session.Rpc, "session.mcp.oauth.probe", [wireRequest], cancellationToken);

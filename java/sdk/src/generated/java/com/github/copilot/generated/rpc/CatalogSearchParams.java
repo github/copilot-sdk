@@ -27,9 +27,6 @@ import javax.annotation.processing.Generated;
 public record CatalogSearchParams(
     /** Protocol version and capabilities the caller requires. */
     @JsonProperty("contract") CatalogClientContract contract,
-    /** Select an existing attached local session. Requires authenticated, session-bound search.
-The runtime never creates, resumes or reconfigures a session to honour this selector. */
-    @JsonProperty("policySessionId") String policySessionId,
     /** Free-text search query. Persisted as tool input for session continuity, but omitted from telemetry. */
     @JsonProperty("query") String query,
     /** Maximum number of candidates to return. Defaults to 10 when omitted. */

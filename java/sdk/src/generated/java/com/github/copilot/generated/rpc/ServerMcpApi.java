@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -53,6 +54,19 @@ public final class ServerMcpApi {
     @CopilotExperimental
     public CompletableFuture<McpPlanInstallResult> planInstall(McpPlanInstallParams params) {
         return caller.invoke("mcp.planInstall", params, McpPlanInstallResult.class);
+    }
+
+    /**
+     * A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<McpPlanInstallResult> planInstall(McpPlanInstallRequest request) {
+        return caller.invoke("mcp.planInstall", Objects.requireNonNull(request, "request"), McpPlanInstallResult.class);
     }
 
     /**

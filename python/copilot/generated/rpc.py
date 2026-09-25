@@ -916,68 +916,6 @@ class CancelUserRequestedShellCommandResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class CanvasAction:
-    """Canvas action that the agent or host can invoke. To discover the input schema for a
-    particular action, call the list_canvas_capabilities tool.
-    """
-    name: str
-    """Action name exposed by the canvas provider"""
-
-    description: str | None = None
-    """Description of the action"""
-
-    input_schema: Any = None
-    """JSON Schema for the action input"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CanvasAction':
-        assert isinstance(obj, dict)
-        name = from_str(obj.get("name"))
-        description = from_union([from_str, from_none], obj.get("description"))
-        input_schema = obj.get("inputSchema")
-        return CanvasAction(name, description, input_schema)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["name"] = from_str(self.name)
-        if self.description is not None:
-            result["description"] = from_union([from_str, from_none], self.description)
-        if self.input_schema is not None:
-            result["inputSchema"] = self.input_schema
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class CanvasActionInvokeRequest:
-    """Canvas action invocation parameters."""
-
-    action_name: str
-    """Action name to invoke"""
-
-    instance_id: str
-    """Open canvas instance identifier"""
-
-    input: Any = None
-    """Action input"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CanvasActionInvokeRequest':
-        assert isinstance(obj, dict)
-        action_name = from_str(obj.get("actionName"))
-        instance_id = from_str(obj.get("instanceId"))
-        input = obj.get("input")
-        return CanvasActionInvokeRequest(action_name, instance_id, input)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["actionName"] = from_str(self.action_name)
-        result["instanceId"] = from_str(self.instance_id)
-        if self.input is not None:
-            result["input"] = self.input
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class CanvasCloseRequest:
     """Canvas close parameters."""
 
@@ -4017,17 +3955,6 @@ class LogLineKind(Enum):
     PHASE = "phase"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-class PauseCheckpointAction(Enum):
-    """Action the runtime selected for a durable factory pause checkpoint.
-
-    Whether this execution attempt must pause or may continue.
-
-    Action the runtime selected for a durable workflow pause checkpoint.
-    """
-    CONTINUE = "continue"
-    PAUSE = "pause"
-
-# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class FactoryPauseCheckpointRequest:
     """Parameters for an owned durable pause checkpoint."""
@@ -6226,7 +6153,7 @@ class MCPDisableRequest:
     server_name: str
     """Name of the MCP server to disable"""
 
-    expected_installation_id: str | None = None
+    expected_installation_id: str | None = field(default=None, kw_only=True)
     """Required for an owned installation; omission preserves only manual-server behaviour."""
 
     @staticmethod
@@ -6234,7 +6161,7 @@ class MCPDisableRequest:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         expected_installation_id = from_union([from_str, from_none], obj.get("expectedInstallationId"))
-        return MCPDisableRequest(server_name, expected_installation_id)
+        return MCPDisableRequest(server_name, expected_installation_id=expected_installation_id)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -6286,7 +6213,7 @@ class MCPEnableRequest:
     server_name: str
     """Name of the MCP server to enable"""
 
-    expected_installation_id: str | None = None
+    expected_installation_id: str | None = field(default=None, kw_only=True)
     """Exact receipt identity for explicit owned activation in this session."""
 
     @staticmethod
@@ -6294,7 +6221,7 @@ class MCPEnableRequest:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         expected_installation_id = from_union([from_str, from_none], obj.get("expectedInstallationId"))
-        return MCPEnableRequest(server_name, expected_installation_id)
+        return MCPEnableRequest(server_name, expected_installation_id=expected_installation_id)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -6769,7 +6696,7 @@ class MCPOauthProbeRequest:
     server_name: str
     """Name of the configured remote MCP server to probe."""
 
-    expected_installation_id: str | None = None
+    expected_installation_id: str | None = field(default=None, kw_only=True)
     """Exact owned receipt identity; probing never activates a dormant installation."""
 
     @staticmethod
@@ -6777,7 +6704,7 @@ class MCPOauthProbeRequest:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         expected_installation_id = from_union([from_str, from_none], obj.get("expectedInstallationId"))
-        return MCPOauthProbeRequest(server_name, expected_installation_id)
+        return MCPOauthProbeRequest(server_name, expected_installation_id=expected_installation_id)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -7269,7 +7196,7 @@ class MCPStopServerRequest:
     server_name: str
     """Name of the MCP server to stop"""
 
-    expected_installation_id: str | None = None
+    expected_installation_id: str | None = field(default=None, kw_only=True)
     """Exact owned receipt identity. Stop also forgets this session's durable activation."""
 
     @staticmethod
@@ -7277,7 +7204,7 @@ class MCPStopServerRequest:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         expected_installation_id = from_union([from_str, from_none], obj.get("expectedInstallationId"))
-        return MCPStopServerRequest(server_name, expected_installation_id)
+        return MCPStopServerRequest(server_name, expected_installation_id=expected_installation_id)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -9714,7 +9641,7 @@ class ProtocolCustomizeMode(Enum):
 
     CUSTOMIZE = "customize"
 
-class ProtocolMarkerSectionOverrideAction(Enum):
+class Action(Enum):
     PRESERVE = "preserve"
     TRANSFORM = "transform"
 
@@ -10285,30 +10212,6 @@ class QueueFinishDeferredIdleDrainRequest:
         result: dict = {}
         result["activeBackgroundWork"] = from_bool(self.active_background_work)
         result["hasPending"] = from_bool(self.has_pending)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class QueueFinishDeferredIdleDrainResult:
-    """Action selected by the native deferred-idle drain."""
-
-    aborted: bool
-    """Whether the deferred idle was caused by an aborted foreground turn."""
-
-    action: str
-    """One of none, processQueue, or emitSessionIdle."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'QueueFinishDeferredIdleDrainResult':
-        assert isinstance(obj, dict)
-        aborted = from_bool(obj.get("aborted"))
-        action = from_str(obj.get("action"))
-        return QueueFinishDeferredIdleDrainResult(aborted, action)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["aborted"] = from_bool(self.aborted)
-        result["action"] = from_str(self.action)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -15776,17 +15679,6 @@ class UIHandlePendingSamplingRequest:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-class UISessionLimitsExhaustedResponseAction(Enum):
-    """Action selected by the user.
-
-    User action selected for an exhausted session limit.
-    """
-    ADD = "add"
-    CANCEL = "cancel"
-    SET = "set"
-    UNSET = "unset"
-
-# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIUserInputResponse:
     """User response for a pending user-input request, with answer text and whether it was typed
@@ -19440,64 +19332,6 @@ class CanvasHostContextCapabilities:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class DiscoveredCanvas:
-    """Canvas available in the current session."""
-
-    canvas_id: str
-    """Provider-local canvas identifier"""
-
-    description: str
-    """Short, single-sentence description shown to the agent in canvas catalogs."""
-
-    display_name: str
-    """Human-readable canvas name"""
-
-    extension_id: str
-    """Owning provider identifier"""
-
-    actions: list[CanvasAction] | None = None
-    """Actions the agent or host may invoke on an open instance"""
-
-    extension_name: str | None = None
-    """Owning extension display name, when available"""
-
-    icon: str | None = None
-    """Host-local PNG path for the canvas icon, when supplied"""
-
-    input_schema: Any = None
-    """JSON Schema for canvas open input"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'DiscoveredCanvas':
-        assert isinstance(obj, dict)
-        canvas_id = from_str(obj.get("canvasId"))
-        description = from_str(obj.get("description"))
-        display_name = from_str(obj.get("displayName"))
-        extension_id = from_str(obj.get("extensionId"))
-        actions = from_union([lambda x: from_list(CanvasAction.from_dict, x), from_none], obj.get("actions"))
-        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
-        icon = from_union([from_str, from_none], obj.get("icon"))
-        input_schema = obj.get("inputSchema")
-        return DiscoveredCanvas(canvas_id, description, display_name, extension_id, actions, extension_name, icon, input_schema)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["canvasId"] = from_str(self.canvas_id)
-        result["description"] = from_str(self.description)
-        result["displayName"] = from_str(self.display_name)
-        result["extensionId"] = from_str(self.extension_id)
-        if self.actions is not None:
-            result["actions"] = from_union([lambda x: from_list(lambda x: to_class(CanvasAction, x), x), from_none], self.actions)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
-        if self.icon is not None:
-            result["icon"] = from_union([from_str, from_none], self.icon)
-        if self.input_schema is not None:
-            result["inputSchema"] = self.input_schema
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class OpenCanvasInstance:
     """Open canvas instance snapshot."""
 
@@ -20917,74 +20751,6 @@ class WorkflowLogLine:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class FactoryPauseCheckpointResult:
-    action: PauseCheckpointAction
-    """Whether this execution attempt must pause or may continue."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'FactoryPauseCheckpointResult':
-        assert isinstance(obj, dict)
-        action = PauseCheckpointAction(obj.get("action"))
-        return FactoryPauseCheckpointResult(action)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["action"] = to_enum(PauseCheckpointAction, self.action)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SessionFactoryPauseAtCheckpointResult:
-    action: PauseCheckpointAction
-    """Whether this execution attempt must pause or may continue."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionFactoryPauseAtCheckpointResult':
-        assert isinstance(obj, dict)
-        action = PauseCheckpointAction(obj.get("action"))
-        return SessionFactoryPauseAtCheckpointResult(action)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["action"] = to_enum(PauseCheckpointAction, self.action)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SessionWorkflowPauseAtCheckpointResult:
-    action: PauseCheckpointAction
-    """Whether this execution attempt must pause or may continue."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionWorkflowPauseAtCheckpointResult':
-        assert isinstance(obj, dict)
-        action = PauseCheckpointAction(obj.get("action"))
-        return SessionWorkflowPauseAtCheckpointResult(action)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["action"] = to_enum(PauseCheckpointAction, self.action)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class WorkflowPauseCheckpointResult:
-    action: PauseCheckpointAction
-    """Whether this execution attempt must pause or may continue."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'WorkflowPauseCheckpointResult':
-        assert isinstance(obj, dict)
-        action = PauseCheckpointAction(obj.get("action"))
-        return WorkflowPauseCheckpointResult(action)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["action"] = to_enum(PauseCheckpointAction, self.action)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class FactoryResumeRequest:
     """Parameters for resuming a factory run from its persisted identity."""
 
@@ -21455,7 +21221,7 @@ class MCPPlanInstallRequest:
     """What to plan: either a candidate handle from a previous search, or a card supplied
     directly.
     """
-    policy_session_id: str | None = None
+    policy_session_id: str | None = field(default=None, kw_only=True)
     """The same existing attached session that owns the original catalogue candidate."""
 
     scope: MCPPlanScope | None = None
@@ -21468,7 +21234,7 @@ class MCPPlanInstallRequest:
         source = _load_MCPPlanInstallSource(obj.get("source"))
         policy_session_id = from_union([from_str, from_none], obj.get("policySessionId"))
         scope = from_union([MCPPlanScope, from_none], obj.get("scope"))
-        return MCPPlanInstallRequest(contract, source, policy_session_id, scope)
+        return MCPPlanInstallRequest(contract, source, scope, policy_session_id=policy_session_id)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -22590,7 +22356,7 @@ class MCPOauthLoginRequest:
     ephemeral host-owned secret, uses it for this authentication attempt and does not persist
     it.
     """
-    expected_installation_id: str | None = None
+    expected_installation_id: str | None = field(default=None, kw_only=True)
     """Exact owned receipt identity. Owned login never uses an implicit helper session."""
 
     force_reauth: bool | None = None
@@ -22602,7 +22368,7 @@ class MCPOauthLoginRequest:
     """Optional OAuth grant type override for this login. Defaults to the server configuration,
     or authorization_code when no grant type is specified.
     """
-    login_id: str | None = None
+    login_id: str | None = field(default=None, kw_only=True)
     """Required for owned login. Consumes the exact prepareLogin handle once.
     Set forceReauth and display options during preparation, not consumption.
     """
@@ -22625,7 +22391,7 @@ class MCPOauthLoginRequest:
         grant_type = from_union([MCPGrantType, from_none], obj.get("grantType"))
         login_id = from_union([from_str, from_none], obj.get("loginId"))
         public_client = from_union([from_bool, from_none], obj.get("publicClient"))
-        return MCPOauthLoginRequest(server_name, callback_success_message, client_id, client_name, client_secret, expected_installation_id, force_reauth, grant_type, login_id, public_client)
+        return MCPOauthLoginRequest(server_name, callback_success_message, client_id, client_name, client_secret, force_reauth, grant_type, public_client, login_id=login_id, expected_installation_id=expected_installation_id)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -23701,92 +23467,6 @@ class MetadataSnapshotRemoteMetadata:
             result["resourceId"] = from_union([from_str, from_none], self.resource_id)
         if self.task_type is not None:
             result["taskType"] = from_union([lambda x: to_enum(TaskType, x), from_none], self.task_type)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class ModeSetRequest:
-    """Agent interaction mode to apply to the session."""
-
-    mode: SessionMode
-    """The session mode the agent is operating in"""
-
-    compaction_decision: str | None = None
-    """Explicit response to a model-switch compaction preflight."""
-
-    expected_mode: SessionMode | None = None
-    """Mode the session must currently be in for the change to apply. When set and the session
-    is in a different mode the request is a no-op and reports status 'unchanged'.
-    """
-    inherit_plan_base_from_session_id: str | None = None
-    """Session whose plan-mode base state should be inherited."""
-
-    persist_plan_selection: bool | None = None
-    """Whether the selected plan model should be persisted."""
-
-    picker_settings_context: ModelPickerSettingsContext | None = None
-    """Settings context used when persisting the selected plan model."""
-
-    plan_context_tier: str | None = None
-    """Context tier to use with the dedicated plan model."""
-
-    plan_exit_action: str | None = None
-    """Action to perform when leaving plan mode."""
-
-    plan_model: str | None = None
-    """Dedicated model to use in plan mode, when configured."""
-
-    plan_model_configured: bool | None = None
-    """Whether a dedicated plan model is configured."""
-
-    plan_reasoning_effort: str | None = None
-    """Reasoning effort to use with the dedicated plan model."""
-
-    restore_plan_model: bool | None = None
-    """Whether leaving plan mode should restore the session's previous model."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'ModeSetRequest':
-        assert isinstance(obj, dict)
-        mode = SessionMode(obj.get("mode"))
-        compaction_decision = from_union([from_str, from_none], obj.get("compactionDecision"))
-        expected_mode = from_union([SessionMode, from_none], obj.get("expectedMode"))
-        inherit_plan_base_from_session_id = from_union([from_str, from_none], obj.get("inheritPlanBaseFromSessionId"))
-        persist_plan_selection = from_union([from_bool, from_none], obj.get("persistPlanSelection"))
-        picker_settings_context = from_union([ModelPickerSettingsContext.from_dict, from_none], obj.get("pickerSettingsContext"))
-        plan_context_tier = from_union([from_str, from_none], obj.get("planContextTier"))
-        plan_exit_action = from_union([from_str, from_none], obj.get("planExitAction"))
-        plan_model = from_union([from_str, from_none], obj.get("planModel"))
-        plan_model_configured = from_union([from_bool, from_none], obj.get("planModelConfigured"))
-        plan_reasoning_effort = from_union([from_str, from_none], obj.get("planReasoningEffort"))
-        restore_plan_model = from_union([from_bool, from_none], obj.get("restorePlanModel"))
-        return ModeSetRequest(mode, compaction_decision, expected_mode, inherit_plan_base_from_session_id, persist_plan_selection, picker_settings_context, plan_context_tier, plan_exit_action, plan_model, plan_model_configured, plan_reasoning_effort, restore_plan_model)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["mode"] = to_enum(SessionMode, self.mode)
-        if self.compaction_decision is not None:
-            result["compactionDecision"] = from_union([from_str, from_none], self.compaction_decision)
-        if self.expected_mode is not None:
-            result["expectedMode"] = from_union([lambda x: to_enum(SessionMode, x), from_none], self.expected_mode)
-        if self.inherit_plan_base_from_session_id is not None:
-            result["inheritPlanBaseFromSessionId"] = from_union([from_str, from_none], self.inherit_plan_base_from_session_id)
-        if self.persist_plan_selection is not None:
-            result["persistPlanSelection"] = from_union([from_bool, from_none], self.persist_plan_selection)
-        if self.picker_settings_context is not None:
-            result["pickerSettingsContext"] = from_union([lambda x: to_class(ModelPickerSettingsContext, x), from_none], self.picker_settings_context)
-        if self.plan_context_tier is not None:
-            result["planContextTier"] = from_union([from_str, from_none], self.plan_context_tier)
-        if self.plan_exit_action is not None:
-            result["planExitAction"] = from_union([from_str, from_none], self.plan_exit_action)
-        if self.plan_model is not None:
-            result["planModel"] = from_union([from_str, from_none], self.plan_model)
-        if self.plan_model_configured is not None:
-            result["planModelConfigured"] = from_union([from_bool, from_none], self.plan_model_configured)
-        if self.plan_reasoning_effort is not None:
-            result["planReasoningEffort"] = from_union([from_str, from_none], self.plan_reasoning_effort)
-        if self.restore_plan_model is not None:
-            result["restorePlanModel"] = from_union([from_bool, from_none], self.restore_plan_model)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -26023,20 +25703,214 @@ class ProtocolSystemMessageAppendConfig:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class CanvasAction:
+    """Canvas action that the agent or host can invoke. To discover the input schema for a
+    particular action, call the list_canvas_capabilities tool.
+    """
+    name: str
+    """Action name exposed by the canvas provider"""
+
+    description: str | None = None
+    """Description of the action"""
+
+    input_schema: Any = None
+    """JSON Schema for the action input"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CanvasAction':
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        input_schema = obj.get("inputSchema")
+        return CanvasAction(name, description, input_schema)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        if self.input_schema is not None:
+            result["inputSchema"] = self.input_schema
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CanvasActionInvokeRequest:
+    """Canvas action invocation parameters."""
+
+    action_name: str
+    """Action name to invoke"""
+
+    instance_id: str
+    """Open canvas instance identifier"""
+
+    input: Any = None
+    """Action input"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CanvasActionInvokeRequest':
+        assert isinstance(obj, dict)
+        action_name = from_str(obj.get("actionName"))
+        instance_id = from_str(obj.get("instanceId"))
+        input = obj.get("input")
+        return CanvasActionInvokeRequest(action_name, instance_id, input)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["actionName"] = from_str(self.action_name)
+        result["instanceId"] = from_str(self.instance_id)
+        if self.input is not None:
+            result["input"] = self.input
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class PauseCheckpointAction(Enum):
+    """Action the runtime selected for a durable factory pause checkpoint.
+
+    Whether this execution attempt must pause or may continue.
+
+    Action the runtime selected for a durable workflow pause checkpoint.
+    """
+    CONTINUE = "continue"
+    PAUSE = "pause"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class ModeSetRequest:
+    """Agent interaction mode to apply to the session."""
+
+    mode: SessionMode
+    """The session mode the agent is operating in"""
+
+    compaction_decision: str | None = None
+    """Explicit response to a model-switch compaction preflight."""
+
+    expected_mode: SessionMode | None = None
+    """Mode the session must currently be in for the change to apply. When set and the session
+    is in a different mode the request is a no-op and reports status 'unchanged'.
+    """
+    inherit_plan_base_from_session_id: str | None = None
+    """Session whose plan-mode base state should be inherited."""
+
+    persist_plan_selection: bool | None = None
+    """Whether the selected plan model should be persisted."""
+
+    picker_settings_context: ModelPickerSettingsContext | None = None
+    """Settings context used when persisting the selected plan model."""
+
+    plan_context_tier: str | None = None
+    """Context tier to use with the dedicated plan model."""
+
+    plan_exit_action: str | None = None
+    """Action to perform when leaving plan mode."""
+
+    plan_model: str | None = None
+    """Dedicated model to use in plan mode, when configured."""
+
+    plan_model_configured: bool | None = None
+    """Whether a dedicated plan model is configured."""
+
+    plan_reasoning_effort: str | None = None
+    """Reasoning effort to use with the dedicated plan model."""
+
+    restore_plan_model: bool | None = None
+    """Whether leaving plan mode should restore the session's previous model."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModeSetRequest':
+        assert isinstance(obj, dict)
+        mode = SessionMode(obj.get("mode"))
+        compaction_decision = from_union([from_str, from_none], obj.get("compactionDecision"))
+        expected_mode = from_union([SessionMode, from_none], obj.get("expectedMode"))
+        inherit_plan_base_from_session_id = from_union([from_str, from_none], obj.get("inheritPlanBaseFromSessionId"))
+        persist_plan_selection = from_union([from_bool, from_none], obj.get("persistPlanSelection"))
+        picker_settings_context = from_union([ModelPickerSettingsContext.from_dict, from_none], obj.get("pickerSettingsContext"))
+        plan_context_tier = from_union([from_str, from_none], obj.get("planContextTier"))
+        plan_exit_action = from_union([from_str, from_none], obj.get("planExitAction"))
+        plan_model = from_union([from_str, from_none], obj.get("planModel"))
+        plan_model_configured = from_union([from_bool, from_none], obj.get("planModelConfigured"))
+        plan_reasoning_effort = from_union([from_str, from_none], obj.get("planReasoningEffort"))
+        restore_plan_model = from_union([from_bool, from_none], obj.get("restorePlanModel"))
+        return ModeSetRequest(mode, compaction_decision, expected_mode, inherit_plan_base_from_session_id, persist_plan_selection, picker_settings_context, plan_context_tier, plan_exit_action, plan_model, plan_model_configured, plan_reasoning_effort, restore_plan_model)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["mode"] = to_enum(SessionMode, self.mode)
+        if self.compaction_decision is not None:
+            result["compactionDecision"] = from_union([from_str, from_none], self.compaction_decision)
+        if self.expected_mode is not None:
+            result["expectedMode"] = from_union([lambda x: to_enum(SessionMode, x), from_none], self.expected_mode)
+        if self.inherit_plan_base_from_session_id is not None:
+            result["inheritPlanBaseFromSessionId"] = from_union([from_str, from_none], self.inherit_plan_base_from_session_id)
+        if self.persist_plan_selection is not None:
+            result["persistPlanSelection"] = from_union([from_bool, from_none], self.persist_plan_selection)
+        if self.picker_settings_context is not None:
+            result["pickerSettingsContext"] = from_union([lambda x: to_class(ModelPickerSettingsContext, x), from_none], self.picker_settings_context)
+        if self.plan_context_tier is not None:
+            result["planContextTier"] = from_union([from_str, from_none], self.plan_context_tier)
+        if self.plan_exit_action is not None:
+            result["planExitAction"] = from_union([from_str, from_none], self.plan_exit_action)
+        if self.plan_model is not None:
+            result["planModel"] = from_union([from_str, from_none], self.plan_model)
+        if self.plan_model_configured is not None:
+            result["planModelConfigured"] = from_union([from_bool, from_none], self.plan_model_configured)
+        if self.plan_reasoning_effort is not None:
+            result["planReasoningEffort"] = from_union([from_str, from_none], self.plan_reasoning_effort)
+        if self.restore_plan_model is not None:
+            result["restorePlanModel"] = from_union([from_bool, from_none], self.restore_plan_model)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class ProtocolMarkerSectionOverride:
-    action: ProtocolMarkerSectionOverrideAction
+    action: Action
     """Section override action discriminator."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ProtocolMarkerSectionOverride':
         assert isinstance(obj, dict)
-        action = ProtocolMarkerSectionOverrideAction(obj.get("action"))
+        action = Action(obj.get("action"))
         return ProtocolMarkerSectionOverride(action)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["action"] = to_enum(ProtocolMarkerSectionOverrideAction, self.action)
+        result["action"] = to_enum(Action, self.action)
         return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class QueueFinishDeferredIdleDrainResult:
+    """Action selected by the native deferred-idle drain."""
+
+    aborted: bool
+    """Whether the deferred idle was caused by an aborted foreground turn."""
+
+    action: str
+    """One of none, processQueue, or emitSessionIdle."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'QueueFinishDeferredIdleDrainResult':
+        assert isinstance(obj, dict)
+        aborted = from_bool(obj.get("aborted"))
+        action = from_str(obj.get("action"))
+        return QueueFinishDeferredIdleDrainResult(aborted, action)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["aborted"] = from_bool(self.aborted)
+        result["action"] = from_str(self.action)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class UISessionLimitsExhaustedResponseAction(Enum):
+    """Action selected by the user.
+
+    User action selected for an exhausted session limit.
+    """
+    ADD = "add"
+    CANCEL = "cancel"
+    SET = "set"
+    UNSET = "unset"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
@@ -29324,39 +29198,6 @@ class UIExitPlanModeResponse:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class UISessionLimitsExhaustedResponse:
-    """The selected session-limit action.
-
-    The user's selected action for an exhausted session limit.
-    """
-    action: UISessionLimitsExhaustedResponseAction
-    """Action selected by the user."""
-
-    additional_ai_credits: float | None = None
-    """AI Credits to add to the current max when action is 'add'."""
-
-    max_ai_credits: float | None = None
-    """New absolute max AI Credits when action is 'set'."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UISessionLimitsExhaustedResponse':
-        assert isinstance(obj, dict)
-        action = UISessionLimitsExhaustedResponseAction(obj.get("action"))
-        additional_ai_credits = from_union([from_float, from_none], obj.get("additionalAiCredits"))
-        max_ai_credits = from_union([from_float, from_none], obj.get("maxAiCredits"))
-        return UISessionLimitsExhaustedResponse(action, additional_ai_credits, max_ai_credits)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["action"] = to_enum(UISessionLimitsExhaustedResponseAction, self.action)
-        if self.additional_ai_credits is not None:
-            result["additionalAiCredits"] = from_union([to_float, from_none], self.additional_ai_credits)
-        if self.max_ai_credits is not None:
-            result["maxAiCredits"] = from_union([to_float, from_none], self.max_ai_credits)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class UIHandlePendingUserInputRequest:
     """Request ID of a pending `user_input.requested` event and the user's response."""
 
@@ -30689,25 +30530,6 @@ class CanvasHostContext:
         result: dict = {}
         if self.capabilities is not None:
             result["capabilities"] = from_union([lambda x: to_class(CanvasHostContextCapabilities, x), from_none], self.capabilities)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class CanvasList:
-    """Declared canvases available in this session."""
-
-    canvases: list[DiscoveredCanvas]
-    """Declared canvases available in this session"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CanvasList':
-        assert isinstance(obj, dict)
-        canvases = from_list(DiscoveredCanvas.from_dict, obj.get("canvases"))
-        return CanvasList(canvases)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["canvases"] = from_list(lambda x: to_class(DiscoveredCanvas, x), self.canvases)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -33208,7 +33030,7 @@ class CatalogSearchRequest:
     catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh
     first-page search.
     """
-    policy_session_id: str | None = None
+    policy_session_id: str | None = field(default=None, kw_only=True)
     """Select an existing attached local session. Requires authenticated, session-bound search.
     The runtime never creates, resumes or reconfigures a session to honour this selector.
     """
@@ -33222,7 +33044,7 @@ class CatalogSearchRequest:
         limit = from_union([from_int, from_none], obj.get("limit"))
         page = from_union([CatalogSearchPage.from_dict, from_none], obj.get("page"))
         policy_session_id = from_union([from_str, from_none], obj.get("policySessionId"))
-        return CatalogSearchRequest(contract, query, kinds, limit, page, policy_session_id)
+        return CatalogSearchRequest(contract, query, kinds, limit, page, policy_session_id=policy_session_id)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -33524,6 +33346,165 @@ class PluginUpdateAllResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["results"] = from_list(lambda x: to_class(PluginUpdateAllEntry, x), self.results)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class DiscoveredCanvas:
+    """Canvas available in the current session."""
+
+    canvas_id: str
+    """Provider-local canvas identifier"""
+
+    description: str
+    """Short, single-sentence description shown to the agent in canvas catalogs."""
+
+    display_name: str
+    """Human-readable canvas name"""
+
+    extension_id: str
+    """Owning provider identifier"""
+
+    actions: list[CanvasAction] | None = None
+    """Actions the agent or host may invoke on an open instance"""
+
+    extension_name: str | None = None
+    """Owning extension display name, when available"""
+
+    icon: str | None = None
+    """Host-local PNG path for the canvas icon, when supplied"""
+
+    input_schema: Any = None
+    """JSON Schema for canvas open input"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'DiscoveredCanvas':
+        assert isinstance(obj, dict)
+        canvas_id = from_str(obj.get("canvasId"))
+        description = from_str(obj.get("description"))
+        display_name = from_str(obj.get("displayName"))
+        extension_id = from_str(obj.get("extensionId"))
+        actions = from_union([lambda x: from_list(CanvasAction.from_dict, x), from_none], obj.get("actions"))
+        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
+        icon = from_union([from_str, from_none], obj.get("icon"))
+        input_schema = obj.get("inputSchema")
+        return DiscoveredCanvas(canvas_id, description, display_name, extension_id, actions, extension_name, icon, input_schema)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvasId"] = from_str(self.canvas_id)
+        result["description"] = from_str(self.description)
+        result["displayName"] = from_str(self.display_name)
+        result["extensionId"] = from_str(self.extension_id)
+        if self.actions is not None:
+            result["actions"] = from_union([lambda x: from_list(lambda x: to_class(CanvasAction, x), x), from_none], self.actions)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
+        if self.icon is not None:
+            result["icon"] = from_union([from_str, from_none], self.icon)
+        if self.input_schema is not None:
+            result["inputSchema"] = self.input_schema
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryPauseCheckpointResult:
+    action: PauseCheckpointAction
+    """Whether this execution attempt must pause or may continue."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryPauseCheckpointResult':
+        assert isinstance(obj, dict)
+        action = PauseCheckpointAction(obj.get("action"))
+        return FactoryPauseCheckpointResult(action)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["action"] = to_enum(PauseCheckpointAction, self.action)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionFactoryPauseAtCheckpointResult:
+    action: PauseCheckpointAction
+    """Whether this execution attempt must pause or may continue."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFactoryPauseAtCheckpointResult':
+        assert isinstance(obj, dict)
+        action = PauseCheckpointAction(obj.get("action"))
+        return SessionFactoryPauseAtCheckpointResult(action)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["action"] = to_enum(PauseCheckpointAction, self.action)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionWorkflowPauseAtCheckpointResult:
+    action: PauseCheckpointAction
+    """Whether this execution attempt must pause or may continue."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionWorkflowPauseAtCheckpointResult':
+        assert isinstance(obj, dict)
+        action = PauseCheckpointAction(obj.get("action"))
+        return SessionWorkflowPauseAtCheckpointResult(action)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["action"] = to_enum(PauseCheckpointAction, self.action)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class WorkflowPauseCheckpointResult:
+    action: PauseCheckpointAction
+    """Whether this execution attempt must pause or may continue."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'WorkflowPauseCheckpointResult':
+        assert isinstance(obj, dict)
+        action = PauseCheckpointAction(obj.get("action"))
+        return WorkflowPauseCheckpointResult(action)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["action"] = to_enum(PauseCheckpointAction, self.action)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class UISessionLimitsExhaustedResponse:
+    """The selected session-limit action.
+
+    The user's selected action for an exhausted session limit.
+    """
+    action: UISessionLimitsExhaustedResponseAction
+    """Action selected by the user."""
+
+    additional_ai_credits: float | None = None
+    """AI Credits to add to the current max when action is 'add'."""
+
+    max_ai_credits: float | None = None
+    """New absolute max AI Credits when action is 'set'."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'UISessionLimitsExhaustedResponse':
+        assert isinstance(obj, dict)
+        action = UISessionLimitsExhaustedResponseAction(obj.get("action"))
+        additional_ai_credits = from_union([from_float, from_none], obj.get("additionalAiCredits"))
+        max_ai_credits = from_union([from_float, from_none], obj.get("maxAiCredits"))
+        return UISessionLimitsExhaustedResponse(action, additional_ai_credits, max_ai_credits)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["action"] = to_enum(UISessionLimitsExhaustedResponseAction, self.action)
+        if self.additional_ai_credits is not None:
+            result["additionalAiCredits"] = from_union([to_float, from_none], self.additional_ai_credits)
+        if self.max_ai_credits is not None:
+            result["maxAiCredits"] = from_union([to_float, from_none], self.max_ai_credits)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -34982,31 +34963,6 @@ class UIHandlePendingExitPlanModeRequest:
         result: dict = {}
         result["requestId"] = from_str(self.request_id)
         result["response"] = to_class(UIExitPlanModeResponse, self.response)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class UIHandlePendingSessionLimitsExhaustedRequest:
-    """Request ID of a pending `session_limits_exhausted.requested` event and the user's
-    selected limit action.
-    """
-    request_id: str
-    """The unique request ID from the session_limits_exhausted.requested event"""
-
-    response: UISessionLimitsExhaustedResponse
-    """The selected session-limit action."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UIHandlePendingSessionLimitsExhaustedRequest':
-        assert isinstance(obj, dict)
-        request_id = from_str(obj.get("requestId"))
-        response = UISessionLimitsExhaustedResponse.from_dict(obj.get("response"))
-        return UIHandlePendingSessionLimitsExhaustedRequest(request_id, response)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["requestId"] = from_str(self.request_id)
-        result["response"] = to_class(UISessionLimitsExhaustedResponse, self.response)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -37709,6 +37665,50 @@ class DiscoveredMCPServer:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class CanvasList:
+    """Declared canvases available in this session."""
+
+    canvases: list[DiscoveredCanvas]
+    """Declared canvases available in this session"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CanvasList':
+        assert isinstance(obj, dict)
+        canvases = from_list(DiscoveredCanvas.from_dict, obj.get("canvases"))
+        return CanvasList(canvases)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvases"] = from_list(lambda x: to_class(DiscoveredCanvas, x), self.canvases)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class UIHandlePendingSessionLimitsExhaustedRequest:
+    """Request ID of a pending `session_limits_exhausted.requested` event and the user's
+    selected limit action.
+    """
+    request_id: str
+    """The unique request ID from the session_limits_exhausted.requested event"""
+
+    response: UISessionLimitsExhaustedResponse
+    """The selected session-limit action."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'UIHandlePendingSessionLimitsExhaustedRequest':
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        response = UISessionLimitsExhaustedResponse.from_dict(obj.get("response"))
+        return UIHandlePendingSessionLimitsExhaustedRequest(request_id, response)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        result["response"] = to_class(UISessionLimitsExhaustedResponse, self.response)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class SandboxConfig:
     """Resolved sandbox configuration."""
 
@@ -38217,7 +38217,7 @@ class MCPRestartServerRequest:
     """Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart
     the server with its already-registered configuration (config-free restart-by-name).
     """
-    expected_installation_id: str | None = None
+    expected_installation_id: str | None = field(default=None, kw_only=True)
     """Exact receipt identity for an explicit owned restart; configuration overrides are refused."""
 
     @staticmethod
@@ -38226,7 +38226,7 @@ class MCPRestartServerRequest:
         server_name = from_str(obj.get("serverName"))
         config = from_union([MCPSerializableServerConfig.from_dict, from_none], obj.get("config"))
         expected_installation_id = from_union([from_str, from_none], obj.get("expectedInstallationId"))
-        return MCPRestartServerRequest(server_name, config, expected_installation_id)
+        return MCPRestartServerRequest(server_name, config, expected_installation_id=expected_installation_id)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -38250,7 +38250,7 @@ class MCPStartServerRequest:
     """MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server
     with its already-registered configuration (config-free start-by-name).
     """
-    expected_installation_id: str | None = None
+    expected_installation_id: str | None = field(default=None, kw_only=True)
     """Exact receipt identity for explicit owned activation in this session."""
 
     @staticmethod
@@ -38259,7 +38259,7 @@ class MCPStartServerRequest:
         server_name = from_str(obj.get("serverName"))
         config = from_union([MCPSerializableServerConfig.from_dict, from_none], obj.get("config"))
         expected_installation_id = from_union([from_str, from_none], obj.get("expectedInstallationId"))
-        return MCPStartServerRequest(server_name, config, expected_installation_id)
+        return MCPStartServerRequest(server_name, config, expected_installation_id=expected_installation_id)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -51885,6 +51885,7 @@ __all__ = [
     "AccountLogoutRequest",
     "AccountLogoutResult",
     "AccountQuotaSnapshot",
+    "Action",
     "AdaptiveThinkingSupport",
     "AdditionalContentExclusionPolicyScope",
     "AgentApi",
@@ -52868,7 +52869,6 @@ __all__ = [
     "ProtocolExternalToolDefer",
     "ProtocolExternalToolDefinition",
     "ProtocolMarkerSectionOverride",
-    "ProtocolMarkerSectionOverrideAction",
     "ProtocolMode",
     "ProtocolReplaceMode",
     "ProtocolSectionOverride",

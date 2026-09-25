@@ -91,7 +91,6 @@ async fn client_rpc_surface_uses_typed_namespaces_and_round_trips_results() {
         kinds: None,
         limit: Some(4),
         page: None,
-        policy_session_id: None,
         query: "offline catalog".to_string(),
     }));
     let CatalogSearchResult::Succeeded(search) = search else {
@@ -113,7 +112,6 @@ async fn client_rpc_surface_uses_typed_namespaces_and_round_trips_results() {
             protocol_version: 7,
             required_capabilities: vec!["install-plans".to_string()],
         },
-        policy_session_id: None,
         scope: None,
         source: McpPlanInstallSource::Candidate(McpPlanInstallSourceCandidate {
             candidate_handle: "candidate-handle".to_string(),
