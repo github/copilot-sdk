@@ -34,6 +34,24 @@ export type AuthInfo =
   | GhCliAuthInfo
   | ApiKeyAuthInfo;
 /**
+ * The provider kind stamped on a signed-in account.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountKind".
+ */
+/** @experimental */
+export type AccountKind =
+  /** An OAuth github.com account. */
+  | "githubDotCom"
+  /** A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g. *.ghe.com. */
+  | "proxima"
+  /** A GitHub (EMU) account derived from a base Entra identity. */
+  | "entraEmu"
+  /** A base Microsoft Entra identity. */
+  | "entra"
+  /** A Microsoft 365 Copilot (Loki) inference account derived from the same base Entra identity as an EMU account; its bearer is a Loki-scoped inference token consumed through the model-provider path, not the GitHub switcher. */
+  | "loki";
+/**
  * User to log out
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -43,6 +61,102 @@ export type AuthInfo =
 export type AccountLogoutRequest = {
   [k: string]: unknown | undefined;
 };
+/**
+ * Selects which accounts collection to enumerate. A no-arg selector is the empty-payload variant.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthEnumerateQuery".
+ */
+/** @experimental */
+export type AuthEnumerateQuery =
+  | {
+      /**
+       * Account-collection query variant discriminator.
+       */
+      kind: "accounts";
+    }
+  | {
+      /**
+       * Whether an interactive Entra broker is available on the host; gates Entra availability in the returned list.
+       */
+      brokerAvailable?: boolean;
+      /**
+       * Account-collection query variant discriminator.
+       */
+      kind: "providers";
+    };
+/**
+ * Selects which typed accounts datum to read.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthReadQuery".
+ */
+/** @experimental */
+export type AuthReadQuery =
+  | {
+      /**
+       * Account read-datum query variant discriminator.
+       */
+      kind: "activeAccount";
+    }
+  | {
+      /**
+       * Account read-datum query variant discriminator.
+       */
+      kind: "status";
+    }
+  | {
+      /**
+       * Account read-datum query variant discriminator.
+       */
+      kind: "lastErrors";
+    };
+/**
+ * One non-interactive accounts mutation command (the selector is fused with its typed args).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthWrite".
+ */
+/** @experimental */
+export type AuthWrite =
+  | {
+      /**
+       * Opaque selection id of the account to make active.
+       */
+      selectionId: string;
+      /**
+       * Account mutation command variant discriminator.
+       */
+      kind: "switchActive";
+    }
+  | {
+      /**
+       * Opaque selection id of the account to log out; absent logs out the active account.
+       */
+      selectionId?: string;
+      /**
+       * Account mutation command variant discriminator.
+       */
+      kind: "logout";
+    }
+  | {
+      /**
+       * Authentication host URL.
+       */
+      host: string;
+      /**
+       * Login/username for the credential.
+       */
+      login: string;
+      /**
+       * GitHub authentication token to install.
+       */
+      token: string;
+      /**
+       * Account mutation command variant discriminator.
+       */
+      kind: "setCredentials";
+    };
 /**
  * Resolved Anthropic adaptive-thinking capability for a model.
  *
@@ -247,6 +361,48 @@ export type AgentRegistrySpawnValidationErrorField =
   /** The permissionMode parameter */
   | "permissionMode";
 /**
+ * The enumerated collection, keyed by the same selector as the query.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthEnumerateValue".
+ */
+/** @experimental */
+export type AuthEnumerateValue =
+  | {
+      /**
+       * The signed-in account forest; empty when not logged in.
+       */
+      items: AccountStatus[];
+      /**
+       * Enumerated account-collection variant discriminator.
+       */
+      kind: "accounts";
+    }
+  | {
+      /**
+       * The providers offered for interactive login.
+       */
+      items: ProviderDescriptor[];
+      /**
+       * Enumerated account-collection variant discriminator.
+       */
+      kind: "providers";
+    };
+/**
+ * A provider a consumer may interactively sign in with.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LoginProviderKind".
+ */
+/** @experimental */
+export type LoginProviderKind =
+  /** OAuth github.com sign-in via the browser (web loopback + PKCE). */
+  | "githubDotCom"
+  /** A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g. *.ghe.com; the host is supplied interactively through the neutral input-required step. */
+  | "proxima"
+  /** Microsoft Entra sign-in that derives a GitHub (EMU) credential. */
+  | "entra";
+/**
  * Authentication type
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -270,6 +426,109 @@ export type AuthInfoType =
   | "token-provider"
   /** Authentication from a Copilot API token. */
   | "copilot-api-token";
+/**
+ * One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginStep".
+ */
+/** @experimental */
+export type AuthLoginStep =
+  | {
+      /**
+       * Authorize URL the consumer should open in a browser (consumer-driven browser-open).
+       */
+      url: string;
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "open-url";
+    }
+  | {
+      /**
+       * Prompt for the value the provider needs; the consumer supplies it as advance input (e.g. a GitHub Enterprise Cloud host, *.ghe.com).
+       */
+      prompt: string;
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "input-required";
+    }
+  | {
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "awaiting";
+    }
+  | {
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "needs-interaction";
+    }
+  | {
+      result: AuthLoginResultDto;
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "completed";
+    }
+  | {
+      /**
+       * Human-readable failure message.
+       */
+      message: string;
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "error";
+    };
+/**
+ * Terminal disposition of a login persistence attempt.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginResultStatus".
+ */
+/** @experimental */
+export type AuthLoginResultStatus =
+  /** The credential was persisted and the account is signed in. */
+  | "completed"
+  /** Persistence needs explicit consent to store the token in plaintext. */
+  | "needs-plaintext-consent"
+  /** The user declined plaintext persistence. */
+  | "declined";
+/**
+ * The read result, keyed by the same selector as the query.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthReadValue".
+ */
+/** @experimental */
+export type AuthReadValue =
+  | {
+      account?: AccountStatus;
+      /**
+       * Account read-datum variant discriminator.
+       */
+      kind: "activeAccount";
+    }
+  | {
+      status: AuthStatusDto;
+      /**
+       * Account read-datum variant discriminator.
+       */
+      kind: "status";
+    }
+  | {
+      /**
+       * Validation errors from the most recent authentication attempt.
+       */
+      errors: AuthValidationError[];
+      /**
+       * Account read-datum variant discriminator.
+       */
+      kind: "lastErrors";
+    };
 /**
  * Validation errors from the most recent authentication attempt.
  *
@@ -1634,216 +1893,6 @@ export type ExternalToolTextResultForLlmContentResourceDetails =
   | EmbeddedTextResourceContents
   | EmbeddedBlobResourceContents;
 /**
- * Execution-critical factory storage operation.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryDurableOperation".
- */
-/** @experimental */
-export type FactoryDurableOperation =
-  /** Creating the durable run and declared phases. */
-  | "createRun"
-  /** Persisting the transition to running. */
-  | "markRunStarted"
-  /** Persisting the terminal run envelope. */
-  | "finishRun"
-  /** Persisting subagent admission accounting. */
-  | "reserveAgent"
-  /** Rolling back an uncommitted subagent admission. */
-  | "releaseAgent"
-  /** Persisting an idempotent model-usage charge. */
-  | "chargeCredit"
-  /** Persisting active execution time. */
-  | "addElapsed"
-  /** Reading the authoritative AI-credit total. */
-  | "reconcileCreditTotal"
-  /** Reading a journal entry without treating storage failure as a cache miss. */
-  | "journalGet"
-  /** Persisting a journal entry before reporting success. */
-  | "journalPut"
-  /** Renewing the durable owner lease that proves this process still owns the run. */
-  | "refreshLease";
-/**
- * Current or terminal state of a factory run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunStatus".
- */
-/** @experimental */
-export type FactoryRunStatus =
-  /** The run was minted and is awaiting approval. */
-  | "pending"
-  /** The run is executing. */
-  | "running"
-  /** The run completed successfully. */
-  | "completed"
-  /** The run was interrupted while resource budget remained. */
-  | "halted"
-  /** The current attempt stopped intentionally and the run may be resumed. */
-  | "paused"
-  /** The run was cancelled before completion. */
-  | "cancelled"
-  /** The factory body failed or reached a cumulative resource ceiling. */
-  | "error";
-/**
- * Machine-readable factory run failure.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunFailure".
- */
-/** @experimental */
-export type FactoryRunFailure =
-  | {
-      kind: FactoryRunFailureKind;
-      /**
-       * Approved effective ceiling that was reached.
-       */
-      value: number;
-      /**
-       * Suggested larger ceiling when the runtime can derive one safely.
-       */
-      suggestedValue?: number;
-      /**
-       * Factory run identifier.
-       */
-      runId: string;
-      /**
-       * Factory failure variant discriminator.
-       */
-      type: "factory_limit_reached";
-    }
-  | {
-      /**
-       * Factory run identifier whose changed limits were declined.
-       */
-      runId: string;
-      /**
-       * Human-readable reason the resume did not proceed.
-       */
-      reason: string;
-      /**
-       * Factory failure variant discriminator.
-       */
-      type: "factory_resume_declined";
-    }
-  | {
-      /**
-       * Stable failure code.
-       */
-      code: string;
-      operation: FactoryDurableOperation;
-      /**
-       * Factory run identifier.
-       */
-      runId: string;
-      /**
-       * Factory failure variant discriminator.
-       */
-      type: "factory_durable_failure";
-    }
-  | {
-      /**
-       * Factory run identifier.
-       */
-      runId: string;
-      /**
-       * Confirmed usage in nano-AIU, representing the floor of what the run spent.
-       */
-      drainedNanoAiu: number;
-      /**
-       * Factory failure variant discriminator.
-       */
-      type: "factory_accounting_incomplete";
-    }
-  | {
-      /**
-       * Factory run identifier.
-       */
-      runId: string;
-      /**
-       * Factory failure variant discriminator.
-       */
-      type: "factory_provider_disconnected";
-    };
-/**
- * Cumulative resource ceiling that stopped a factory run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunFailureKind".
- */
-/** @experimental */
-export type FactoryRunFailureKind =
-  /** The run admitted the approved maximum total number of subagents. */
-  | "maxTotalSubagents"
-  /** The run reached the approved accumulated active-execution time in seconds. */
-  | "timeoutSeconds"
-  /** The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no headroom remained for another subagent. */
-  | "maxAiCredits";
-/**
- * Durable metadata describing who initiated a factory pause.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryPauseInfo".
- */
-/** @experimental */
-export type FactoryPauseInfo =
-  | {
-      /**
-       * Factory pause initiator discriminator.
-       */
-      type: "user";
-    }
-  | {
-      /**
-       * Stable author-defined checkpoint key that initiated the pause.
-       */
-      key: string;
-      /**
-       * Factory pause initiator discriminator.
-       */
-      type: "checkpoint";
-    };
-/**
- * Kind of factory progress line.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryLogLineKind".
- */
-/** @experimental */
-export type FactoryLogLineKind =
-  /** A narrator log line. */
-  | "log"
-  /** A named factory phase marker. */
-  | "phase";
-/**
- * Action the runtime selected for a durable factory pause checkpoint.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryPauseCheckpointAction".
- */
-/** @experimental */
-export type FactoryPauseCheckpointAction =
-  /** The checkpoint was committed by a prior paused attempt, so execution may continue. */
-  | "continue"
-  /** This attempt claimed the checkpoint and must cooperatively stop. */
-  | "pause";
-/**
- * Derived lifecycle state of a factory phase.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryPhaseStatus".
- */
-/** @experimental */
-export type FactoryPhaseStatus =
-  /** The phase has not been entered yet. */
-  | "pending"
-  /** The phase is currently entered and accumulating active time. */
-  | "active"
-  /** The phase was entered and has since been closed. */
-  | "completed"
-  /** The phase was never entered because a later phase was entered or the run reached a terminal state. */
-  | "skipped";
-/**
  * Content filtering mode to apply to all tools, or a map of tool name to content filtering mode.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3138,7 +3187,7 @@ export type PermissionDecisionApproveForSessionApproval =
   | PermissionDecisionApproveForSessionApprovalMemory
   | PermissionDecisionApproveForSessionApprovalCustomTool
   | PermissionDecisionApproveForSessionApprovalExtensionManagement
-  | PermissionDecisionApproveForSessionApprovalFactory
+  | PermissionDecisionApproveForSessionApprovalWorkflow
   | PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess
   | PermissionDecisionApproveForSessionApprovalExtensionEnvAccess;
 /**
@@ -3157,7 +3206,7 @@ export type PermissionDecisionApproveForLocationApproval =
   | PermissionDecisionApproveForLocationApprovalMemory
   | PermissionDecisionApproveForLocationApprovalCustomTool
   | PermissionDecisionApproveForLocationApprovalExtensionManagement
-  | PermissionDecisionApproveForLocationApprovalFactory
+  | PermissionDecisionApproveForLocationApprovalWorkflow
   | PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess
   | PermissionDecisionApproveForLocationApprovalExtensionEnvAccess;
 /**
@@ -3222,7 +3271,7 @@ export type PermissionsLocationsAddToolApprovalDetails =
   | PermissionsLocationsAddToolApprovalDetailsMemory
   | PermissionsLocationsAddToolApprovalDetailsCustomTool
   | PermissionsLocationsAddToolApprovalDetailsExtensionManagement
-  | PermissionsLocationsAddToolApprovalDetailsFactory
+  | PermissionsLocationsAddToolApprovalDetailsWorkflow
   | PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess
   | PermissionsLocationsAddToolApprovalDetailsExtensionEnvAccess;
 /**
@@ -3253,7 +3302,7 @@ export type PermissionModeSource =
   | "autopilot_confirmation"
   /** The mode was set at startup by the `defaultPermissionMode` user setting. */
   | "user_setting"
-  /** The mode was set at startup by authenticated organization targeting. */
+  /** Historical compatibility value for runtimes that selected Assisted mode through organization targeting. Current runtimes do not produce this source. */
   | "organization_targeting"
   /** The mode was set through an RPC caller. */
   | "rpc";
@@ -5714,6 +5763,66 @@ export interface AccountLogoutResult {
   hasMoreUsers: boolean;
 }
 /**
+ * Enumerate request carrying the typed collection query.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountsEnumerateRequest".
+ */
+/** @experimental */
+export interface AccountsEnumerateRequest {
+  query: AuthEnumerateQuery;
+}
+/**
+ * Read request carrying the typed datum query.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountsGetRequest".
+ */
+/** @experimental */
+export interface AccountsGetRequest {
+  query: AuthReadQuery;
+}
+/**
+ * Mutation request carrying the typed write command.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountsSetRequest".
+ */
+/** @experimental */
+export interface AccountsSetRequest {
+  command: AuthWrite;
+}
+/**
+ * One signed-in account in the roster forest.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountStatus".
+ */
+/** @experimental */
+export interface AccountStatus {
+  /**
+   * Authentication host URL.
+   */
+  host: string;
+  /**
+   * Authenticated login/username.
+   */
+  login: string;
+  kind: AccountKind;
+  /**
+   * Opaque id of the account this one was derived from (e.g. an EMU account's base Entra identity); absent for a root account. Matches the base identity account's selectionId, forming the derivation edge.
+   */
+  derivedFrom?: string;
+  /**
+   * Whether this is the active account.
+   */
+  active: boolean;
+  /**
+   * Opaque selection id used to switch to, or log out, this account.
+   */
+  selectionId: string;
+}
+/**
  * Canonical directory where custom agents can be discovered or created, with scope, preference, and optional project path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6137,6 +6246,24 @@ export interface AgentsGetDiscoveryPathsRequest {
   excludeHostAgents?: boolean;
 }
 /**
+ * A provider offered for interactive login.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderDescriptor".
+ */
+/** @experimental */
+export interface ProviderDescriptor {
+  kind: LoginProviderKind;
+  /**
+   * Human-readable menu label, owned by the runtime so every consumer renders identical text.
+   */
+  label: string;
+  /**
+   * Whether this provider is currently available to sign in with.
+   */
+  available: boolean;
+}
+/**
  * Credential-free authentication identity safe to expose to hosts and user interfaces.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6164,6 +6291,107 @@ export interface AuthIdentity {
   copilotUser?: CopilotUserResponse;
 }
 /**
+ * Advance an in-flight login flow, optionally fulfilling an input-required step.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginAdvanceRequest".
+ */
+/** @experimental */
+export interface AuthLoginAdvanceRequest {
+  /**
+   * Opaque flow id from begin.
+   */
+  flowId: string;
+  /**
+   * Neutral input fulfilling a preceding input-required step (e.g. a GHEC host); ignored otherwise.
+   */
+  input?: string;
+}
+/**
+ * Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginBeginRequest".
+ */
+/** @experimental */
+export interface AuthLoginBeginRequest {
+  kind: LoginProviderKind;
+}
+/**
+ * A started login flow: its opaque id and first step.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginBegun".
+ */
+/** @experimental */
+export interface AuthLoginBegun {
+  /**
+   * Opaque flow id used to advance or cancel this login.
+   */
+  flowId: string;
+  step: AuthLoginStep;
+}
+/**
+ * Terminal result of an interactive login flow.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginResultDto".
+ */
+/** @experimental */
+export interface AuthLoginResultDto {
+  status: AuthLoginResultStatus;
+  /**
+   * Host that was signed in, when completed.
+   */
+  host?: string;
+  /**
+   * Login that was signed in, when completed.
+   */
+  login?: string;
+}
+/**
+ * Cancel an in-flight login flow.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginCancelRequest".
+ */
+/** @experimental */
+export interface AuthLoginCancelRequest {
+  /**
+   * Opaque flow id from begin.
+   */
+  flowId: string;
+}
+/**
+ * Neutral authentication status summary.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthStatusDto".
+ */
+/** @experimental */
+export interface AuthStatusDto {
+  /**
+   * Whether the session has resolved authentication.
+   */
+  isAuthenticated: boolean;
+  /**
+   * Active account login, if authenticated.
+   */
+  activeLogin?: string;
+  /**
+   * Active account host, if authenticated.
+   */
+  activeHost?: string;
+  /**
+   * Copilot plan tier of the active account, if known.
+   */
+  copilotPlan?: string;
+  /**
+   * Number of signed-in accounts in the roster.
+   */
+  accountCount: number;
+}
+/**
  * Validation error from an authentication attempt.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6179,6 +6407,23 @@ export interface AuthValidationError {
    * Optional message returned by GitHub
    */
   githubMessage?: string;
+}
+/**
+ * Result of a non-interactive accounts mutation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthWriteResult".
+ */
+/** @experimental */
+export interface AuthWriteResult {
+  /**
+   * Whether the mutation was applied.
+   */
+  ok: boolean;
+  /**
+   * For a logout, whether other signed-in accounts remain.
+   */
+  moreUsers?: boolean;
 }
 /**
  * Current per-window credit limit and consumption for an autopilot objective.
@@ -9576,1026 +9821,6 @@ export interface ExternalToolTextResultForLlmContentResource {
    */
   type: "resource";
   resource: ExternalToolTextResultForLlmContentResourceDetails;
-}
-/**
- * Parameters for cooperatively aborting a factory body.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryAbortRequest".
- */
-/** @experimental */
-export interface FactoryAbortRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Opaque token identifying the execution attempt to abort.
-   */
-  executionToken: string;
-}
-/**
- * Acknowledgement that a factory request was accepted.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryAckResult".
- */
-/** @experimental */
-export interface FactoryAckResult {}
-/**
- * Options for one factory-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryAgentOptions".
- */
-/** @experimental */
-export interface FactoryAgentOptions {
-  /**
-   * Optional label distinguishing otherwise identical memoized agent calls.
-   */
-  label?: string;
-  /**
-   * Optional JSON Schema for structured agent output.
-   */
-  schema?: JsonValue;
-  /**
-   * Optional model identifier for the subagent.
-   */
-  model?: string;
-  /**
-   * Optional reasoning effort override for the subagent.
-   */
-  reasoningEffort?: string;
-  contextTier?: ContextTier;
-  /**
-   * Optional built-in or custom agent name whose definition configures the subagent.
-   */
-  agent?: string;
-}
-/**
- * Parameters for one factory-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryAgentRequest".
- */
-/** @experimental */
-export interface FactoryAgentRequest {
-  /**
-   * Factory run identifier that owns the subagent.
-   */
-  factoryRunId: string;
-  /**
-   * Opaque token identifying the current factory execution attempt.
-   */
-  executionToken: string;
-  /**
-   * Prompt to send to the subagent.
-   */
-  prompt: string;
-  opts: FactoryAgentOptions;
-}
-/**
- * Result of one factory-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryAgentResult".
- */
-/** @experimental */
-export interface FactoryAgentResult {
-  /**
-   * Agent result, omitted when the agent produced no result.
-   */
-  result?: JsonValue;
-}
-/**
- * Prompt-safe durable identity and live status for a direct factory agent.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryAgentSummary".
- */
-/** @experimental */
-export interface FactoryAgentSummary {
-  /**
-   * Stable direct-agent identifier.
-   */
-  agentId: string;
-  /**
-   * Tool-call identifier that launched the agent.
-   */
-  toolCallId: string;
-  /**
-   * Owning factory run identifier.
-   */
-  runId: string;
-  /**
-   * Phase identifier active when the agent was launched, or null.
-   */
-  phaseId: string | null;
-  /**
-   * Friendly, non-unique name intended for display
-   */
-  label: string;
-  /**
-   * Friendly, non-unique name intended for display
-   */
-  displayName?: string;
-  /**
-   * Registered agent type.
-   */
-  agentType: string;
-  /**
-   * Current durable or live agent status.
-   */
-  status: string;
-  /**
-   * Model requested when the agent was launched.
-   */
-  requestedModel?: string;
-  /**
-   * Concrete model resolved for the agent.
-   */
-  resolvedModel?: string;
-  /**
-   * Epoch milliseconds when the agent started.
-   */
-  startedAt?: number;
-  /**
-   * Epoch milliseconds when the agent completed.
-   */
-  completedAt?: number;
-  /**
-   * Accumulated active agent time in milliseconds.
-   */
-  activeMs: number;
-  /**
-   * Prompt-safe live activity text.
-   */
-  activity?: string;
-}
-/**
- * Parameters for cancelling a factory run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryCancelRequest".
- */
-/** @experimental */
-export interface FactoryCancelRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-}
-/**
- * Current factory phase identity.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryCurrentPhase".
- */
-/** @experimental */
-export interface FactoryCurrentPhase {
-  /**
-   * Current phase identifier.
-   */
-  id: string;
-  /**
-   * Zero-based declared phase ordinal, or null for an undeclared phase.
-   */
-  ordinal: number | null;
-}
-/**
- * Declared or approved factory resource ceilings.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryDeclaredLimits".
- */
-/** @experimental */
-export interface FactoryDeclaredLimits {
-  /**
-   * Maximum concurrently active subagents.
-   */
-  maxConcurrentSubagents?: number;
-  /**
-   * Maximum total subagents spawned by the run.
-   */
-  maxTotalSubagents?: number;
-  /**
-   * Maximum accumulated active execution time in seconds.
-   */
-  timeoutSeconds?: number;
-  /**
-   * Maximum AI credits consumed by subagents and descendants.
-   */
-  maxAiCredits?: number;
-}
-/**
- * Parameters sent to the owning extension to execute a factory closure.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryExecuteRequest".
- */
-/** @experimental */
-export interface FactoryExecuteRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Registered factory name.
-   */
-  name: string;
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Opaque token identifying this factory execution attempt.
-   */
-  executionToken: string;
-  /**
-   * Factory input value.
-   */
-  args: JsonValue;
-}
-/**
- * Result returned by an extension factory closure.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryExecuteResult".
- */
-/** @experimental */
-export interface FactoryExecuteResult {
-  /**
-   * Factory result value.
-   */
-  result?: JsonValue;
-}
-/**
- * Parameters for paging factory progress.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryGetRunProgressRequest".
- */
-/** @experimental */
-export interface FactoryGetRunProgressRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Optional phase identifier used to scope records and cursors.
-   */
-  phaseId?: string;
-  /**
-   * Exclusive forward cursor.
-   */
-  afterSeq?: number;
-  /**
-   * Exclusive backward cursor.
-   */
-  beforeSeq?: number;
-  /**
-   * Maximum records to return. Defaults to 200 and is capped at 500.
-   */
-  limit?: number;
-}
-/**
- * Parameters for retrieving a factory run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryGetRunRequest".
- */
-/** @experimental */
-export interface FactoryGetRunRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-}
-/**
- * Parameters for reading a factory journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryJournalGetRequest".
- */
-/** @experimental */
-export interface FactoryJournalGetRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Opaque token identifying the current factory execution attempt.
-   */
-  executionToken: string;
-  /**
-   * Namespaced journal key.
-   */
-  key: string;
-}
-/**
- * Result of reading a factory journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryJournalGetResult".
- */
-/** @experimental */
-export interface FactoryJournalGetResult {
-  /**
-   * Whether the journal contained the requested key.
-   */
-  hit: boolean;
-  /**
-   * Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
-   */
-  resultJson?: JsonValue;
-}
-/**
- * Parameters for storing a factory journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryJournalPutRequest".
- */
-/** @experimental */
-export interface FactoryJournalPutRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Opaque token identifying the current factory execution attempt.
-   */
-  executionToken: string;
-  /**
-   * Namespaced journal key.
-   */
-  key: string;
-  /**
-   * JSON result to memoize.
-   */
-  resultJson: JsonValue;
-}
-/**
- * Parameters for paging factory runs.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryListRunsRequest".
- */
-/** @experimental */
-export interface FactoryListRunsRequest {
-  /**
-   * Exclusive forward cursor.
-   */
-  afterSeq?: number;
-  /**
-   * Exclusive backward cursor.
-   */
-  beforeSeq?: number;
-  /**
-   * Maximum terminal runs to return. Defaults to 200 and is capped at 500.
-   */
-  limit?: number;
-}
-/**
- * A page of factory runs in durable creation order.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryListRunsResult".
- */
-/** @experimental */
-export interface FactoryListRunsResult {
-  /**
-   * Factory run summaries in durable creation order.
-   */
-  runs: FactoryRunSummary[];
-  /**
-   * Oldest terminal-run cursor in this page, or null when the terminal window is empty.
-   */
-  oldestSeq?: number | null;
-  /**
-   * Newest terminal-run cursor in this page, or null when the terminal window is empty.
-   */
-  newestSeq?: number | null;
-  /**
-   * Whether terminal runs newer than this page exist.
-   */
-  hasMoreNewer?: boolean;
-  /**
-   * Number of terminal runs older than this page.
-   */
-  omittedOlder?: number;
-}
-/**
- * Durable factory run summary with read-time live overlays.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunSummary".
- */
-/** @experimental */
-export interface FactoryRunSummary {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Registered factory name.
-   */
-  factoryName: string;
-  /**
-   * Human-readable factory description.
-   */
-  description: string;
-  status: FactoryRunStatus;
-  /**
-   * Monotonic durable run revision.
-   */
-  revision: number;
-  /**
-   * Epoch milliseconds when the run was created.
-   */
-  createdAt: number;
-  /**
-   * Epoch milliseconds when execution first started, or null before start.
-   */
-  startedAt: number | null;
-  /**
-   * Epoch milliseconds when the durable run was last updated.
-   */
-  updatedAt: number;
-  /**
-   * Epoch milliseconds when the run completed, or null while nonterminal.
-   */
-  completedAt: number | null;
-  /**
-   * Current phase identity, or null before any phase is entered.
-   */
-  currentPhase: FactoryCurrentPhase | null;
-  /**
-   * Number of phases declared by the factory.
-   */
-  declaredPhaseCount: number;
-  /**
-   * Number of direct factory agents currently live.
-   */
-  liveAgentCount: number;
-  /**
-   * Total direct factory agents spawned across all attempts.
-   */
-  totalSpawnedAgentCount: number;
-  consumed: FactoryRunConsumed;
-  declaredLimits: FactoryDeclaredLimits;
-  /**
-   * Approved effective resource ceilings, or null until approved.
-   */
-  approved: FactoryDeclaredLimits | null;
-  /**
-   * Epoch milliseconds when this live-overlay snapshot was observed.
-   */
-  observedAt: number;
-  /**
-   * Epoch milliseconds when the current active segment started, or null while inactive.
-   */
-  activeSegmentStartedAt: number | null;
-  /**
-   * Terminal run outcome, or null while nonterminal.
-   */
-  terminal: FactoryRunTerminal | null;
-  /**
-   * Whether the durable run state currently passes runtime resume eligibility checks.
-   */
-  canResume: boolean;
-}
-/**
- * Durable factory resource consumption.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunConsumed".
- */
-/** @experimental */
-export interface FactoryRunConsumed {
-  /**
-   * Accumulated active execution time in milliseconds.
-   */
-  activeMs: number;
-  /**
-   * Total subagents spawned by the run.
-   */
-  subagents: number;
-  /**
-   * AI usage consumed by the run in nano-AIU.
-   */
-  nanoAiu: number;
-}
-/**
- * Prompt-safe terminal factory outcome.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunTerminal".
- */
-/** @experimental */
-export interface FactoryRunTerminal {
-  /**
-   * Human-readable terminal reason.
-   */
-  reason?: string;
-  failure?: FactoryRunFailure;
-  /**
-   * Human-readable terminal error.
-   */
-  error?: string;
-  /**
-   * Prompt-safe preview of the completed result.
-   */
-  resultPreview?: string;
-  /**
-   * Pause initiator metadata, or null when the run did not pause.
-   */
-  pauseInfo: FactoryPauseInfo | null;
-}
-/**
- * One ordered factory progress line.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryLogLine".
- */
-/** @experimental */
-export interface FactoryLogLine {
-  /**
-   * Monotonic sequence number within the factory run.
-   */
-  seq: number;
-  kind: FactoryLogLineKind;
-  /**
-   * Progress text.
-   */
-  text: string;
-}
-/**
- * Parameters for recording factory progress.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryLogRequest".
- */
-/** @experimental */
-export interface FactoryLogRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Opaque token identifying the current factory execution attempt.
-   */
-  executionToken: string;
-  /**
-   * Ordered progress lines to append.
-   */
-  lines: FactoryLogLine[];
-}
-/**
- * Parameters for an owned durable pause checkpoint.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryPauseCheckpointRequest".
- */
-/** @experimental */
-export interface FactoryPauseCheckpointRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Opaque token identifying the execution attempt that reached the checkpoint.
-   */
-  executionToken: string;
-  /**
-   * Stable author-defined checkpoint key.
-   */
-  key: string;
-}
-
-/** @experimental */
-export interface FactoryPauseCheckpointResult {
-  action: FactoryPauseCheckpointAction;
-}
-/**
- * Parameters for pausing a running factory.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryPauseRequest".
- */
-/** @experimental */
-export interface FactoryPauseRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-}
-/**
- * Durable lifecycle and timing for one factory phase.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryPhaseObservation".
- */
-/** @experimental */
-export interface FactoryPhaseObservation {
-  /**
-   * Phase identifier.
-   */
-  id: string;
-  /**
-   * Zero-based declared phase ordinal, or null for an undeclared phase.
-   */
-  ordinal: number | null;
-  /**
-   * Human-readable phase title.
-   */
-  title: string;
-  /**
-   * Optional human-readable phase detail.
-   */
-  detail?: string;
-  status: FactoryPhaseStatus;
-  /**
-   * Most recent run attempt that entered this phase, or `0` if the phase has never been entered.
-   */
-  lastEnteredRunAttempt: number;
-  /**
-   * Number of times execution entered this phase.
-   */
-  entryCount: number;
-  /**
-   * Epoch milliseconds when this phase first started; for a skipped phase, the synthetic skip timestamp (equal to `completedAt`).
-   */
-  startedAt?: number;
-  /**
-   * Epoch milliseconds when this phase completed; for a skipped phase, the synthetic skip timestamp (equal to `startedAt`).
-   */
-  completedAt?: number;
-  /**
-   * Completed active time accumulated by this phase in milliseconds.
-   */
-  accumulatedActiveMs: number;
-  /**
-   * Current live active time for this phase in milliseconds.
-   */
-  currentActiveMs: number;
-  /**
-   * Total direct agents associated with this phase.
-   */
-  totalAgentCount: number;
-  /**
-   * Direct agents in this phase that are currently live.
-   */
-  liveAgentCount: number;
-}
-/**
- * One durable factory progress record.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryProgressLine".
- */
-/** @experimental */
-export interface FactoryProgressLine {
-  /**
-   * Global monotonic sequence number within the run.
-   */
-  seq: number;
-  /**
-   * Resume attempt that emitted this record.
-   */
-  attempt: number;
-  /**
-   * Phase active when the record was emitted, or null before any phase.
-   */
-  phaseId: string | null;
-  /**
-   * Epoch milliseconds when the record was persisted.
-   */
-  recordedAt: number;
-  kind: FactoryLogLineKind;
-  /**
-   * Prompt-safe progress text.
-   */
-  text: string;
-}
-/**
- * A bidirectional page of factory progress.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryProgressPage".
- */
-/** @experimental */
-export interface FactoryProgressPage {
-  /**
-   * Progress records in sequence order.
-   */
-  records: FactoryProgressLine[];
-  /**
-   * Oldest sequence number in this page, or null when empty.
-   */
-  oldestSeq: number | null;
-  /**
-   * Newest sequence number in this page, or null when empty.
-   */
-  newestSeq: number | null;
-  /**
-   * Whether progress records older than this page exist.
-   */
-  hasMoreOlder: boolean;
-  /**
-   * Whether progress records newer than this page exist.
-   */
-  hasMoreNewer: boolean;
-  /**
-   * Run revision reflected by this page.
-   */
-  revision: number;
-}
-/**
- * Parameters for resuming a factory run from its persisted identity.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryResumeRequest".
- */
-/** @experimental */
-export interface FactoryResumeRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  limits?: FactoryRunLimits;
-  /**
-   * Whether to notify the originating session when the factory completes.
-   */
-  notifyOnComplete?: boolean;
-  /**
-   * Whether to emit factory phase names to the session transcript.
-   */
-  logPhaseNames?: boolean;
-}
-/**
- * Wire-only per-invocation factory resource ceiling overrides.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunLimits".
- */
-/** @experimental */
-export interface FactoryRunLimits {
-  /**
-   * Maximum number of factory subagents that may run concurrently.
-   */
-  maxConcurrentSubagents?: number | null;
-  /**
-   * Maximum total number of factory subagents that may be admitted.
-   */
-  maxTotalSubagents?: number | null;
-  /**
-   * Maximum accumulated active-execution time in seconds. Active execution includes the entire extension body, subprocess waits, queued-agent waits, and sleeps; time between resumed attempts is not counted.
-   */
-  timeoutSeconds?: number | null;
-  /**
-   * Maximum AI credits consumed by factory subagents and their descendants. The post-paid ceiling is soft: parallel turns can settle beyond it before the run stops.
-   */
-  maxAiCredits?: number | null;
-}
-/**
- * Resolved persisted factory identity and resumed run envelope.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryResumeResult".
- */
-/** @experimental */
-export interface FactoryResumeResult {
-  /**
-   * Persisted factory name resolved for the resumed run.
-   */
-  factoryName: string;
-  run: FactoryRunResult;
-}
-/**
- * Complete current or terminal factory run envelope.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunResult".
- */
-/** @experimental */
-export interface FactoryRunResult {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.
-   */
-  attempt?: number;
-  status: FactoryRunStatus;
-  /**
-   * Completed factory result.
-   */
-  result?: JsonValue;
-  /**
-   * Error message for an errored run.
-   */
-  error?: string;
-  failure?: FactoryRunFailure;
-  /**
-   * Reason for a halted or cancelled run.
-   */
-  reason?: string;
-  /**
-   * Partial journal and progress snapshot for a halted, cancelled, or errored run.
-   */
-  snapshot?: JsonValue;
-  pauseInfo?: FactoryPauseInfo;
-}
-/**
- * Full factory run observability detail.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunDetail".
- */
-/** @experimental */
-export interface FactoryRunDetail {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Registered factory name.
-   */
-  factoryName: string;
-  /**
-   * Human-readable factory description.
-   */
-  description: string;
-  status: FactoryRunStatus;
-  /**
-   * Monotonic durable run revision.
-   */
-  revision: number;
-  /**
-   * Epoch milliseconds when the run was created.
-   */
-  createdAt: number;
-  /**
-   * Epoch milliseconds when execution first started, or null before start.
-   */
-  startedAt: number | null;
-  /**
-   * Epoch milliseconds when the durable run was last updated.
-   */
-  updatedAt: number;
-  /**
-   * Epoch milliseconds when the run completed, or null while nonterminal.
-   */
-  completedAt: number | null;
-  /**
-   * Current phase identity, or null before any phase is entered.
-   */
-  currentPhase: FactoryCurrentPhase | null;
-  /**
-   * Number of phases declared by the factory.
-   */
-  declaredPhaseCount: number;
-  /**
-   * Number of direct factory agents currently live.
-   */
-  liveAgentCount: number;
-  /**
-   * Total direct factory agents spawned across all attempts.
-   */
-  totalSpawnedAgentCount: number;
-  consumed: FactoryRunConsumed;
-  declaredLimits: FactoryDeclaredLimits;
-  /**
-   * Approved effective resource ceilings, or null until approved.
-   */
-  approved: FactoryDeclaredLimits | null;
-  /**
-   * Epoch milliseconds when this live-overlay snapshot was observed.
-   */
-  observedAt: number;
-  /**
-   * Epoch milliseconds when the current active segment started, or null while inactive.
-   */
-  activeSegmentStartedAt: number | null;
-  /**
-   * Terminal run outcome, or null while nonterminal.
-   */
-  terminal: FactoryRunTerminal | null;
-  /**
-   * Whether the durable run state currently passes runtime resume eligibility checks.
-   */
-  canResume: boolean;
-  /**
-   * Lifecycle and timing observations for each factory phase.
-   */
-  phases: FactoryPhaseObservation[];
-  /**
-   * Durable identities and live statuses for direct factory agents.
-   */
-  agents: FactoryAgentSummary[];
-  progress: FactoryProgressPage;
-}
-/**
- * Parameters for invoking a registered factory.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunRequest".
- */
-/** @experimental */
-export interface FactoryRunRequest {
-  /**
-   * Registered factory name.
-   */
-  name: string;
-  /**
-   * Factory input value.
-   */
-  args: JsonValue;
-  options?: RunOptions;
-}
-/**
- * Options controlling factory invocation.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "RunOptions".
- */
-/** @experimental */
-export interface RunOptions {
-  limits?: FactoryRunLimits;
-  /**
-   * Whether to notify the originating session when the factory completes.
-   */
-  notifyOnComplete?: boolean;
-  /**
-   * Whether to emit factory phase names to the session transcript.
-   */
-  logPhaseNames?: boolean;
-  /**
-   * Run identifier whose journal and progress should seed this resumed run.
-   */
-  resumeFromRunId?: string;
-}
-/**
- * Internal parameters for resuming a factory run from a tool.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryToolResumeRequest".
- */
-/** @experimental */
-/** @internal */
-export interface FactoryToolResumeRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  limits?: FactoryRunLimits;
-  /**
-   * Opaque identifier of the originating tool call.
-   */
-  toolCallId?: string;
-}
-/**
- * Options for an internal tool-originated factory invocation.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryToolRunOptions".
- */
-/** @experimental */
-/** @internal */
-export interface FactoryToolRunOptions {
-  limits?: FactoryRunLimits;
-  /**
-   * Run identifier whose journal and progress should seed this resumed run.
-   */
-  resumeFromRunId?: string;
-}
-/**
- * Internal parameters for invoking a registered factory from a tool.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryToolRunRequest".
- */
-/** @experimental */
-/** @internal */
-export interface FactoryToolRunRequest {
-  /**
-   * Registered factory name.
-   */
-  name: string;
-  /**
-   * Factory input value.
-   */
-  args: JsonValue;
-  options?: FactoryToolRunOptions;
-  /**
-   * Opaque identifier of the originating tool call.
-   */
-  toolCallId?: string;
 }
 /**
  * Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
@@ -14870,6 +14095,14 @@ export interface ModelApplyStartupOverlayRequest {
    * Whether the overlay is being applied while resuming a deferred session.
    */
   deferredResume?: boolean;
+  /**
+   * Reasoning effort paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides.
+   */
+  managedReasoningEffort?: string;
+  /**
+   * Context tier paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides.
+   */
+  managedContextTier?: string;
 }
 /**
  * Optional capability overrides (vision, tool_calls, reasoning, etc.).
@@ -15676,19 +14909,19 @@ export interface PermissionDecisionApproveForSessionApprovalExtensionManagement 
   operation?: string;
 }
 /**
- * Session-scoped factory approval, optionally narrowed by approval key.
+ * Session-scoped workflow approval, optionally narrowed by approval key.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionDecisionApproveForSessionApprovalFactory".
+ * via the `definition` "PermissionDecisionApproveForSessionApprovalWorkflow".
  */
 /** @experimental */
-export interface PermissionDecisionApproveForSessionApprovalFactory {
+export interface PermissionDecisionApproveForSessionApprovalWorkflow {
   /**
-   * Approval covering factory operations.
+   * Approval covering workflow operations.
    */
-  kind: "factory";
+  kind: "workflow";
   /**
-   * Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.
+   * Optional workflow operation name or canonical approval key; when omitted, the approval covers all workflow operations.
    */
   approvalKey?: string;
 }
@@ -15879,19 +15112,19 @@ export interface PermissionDecisionApproveForLocationApprovalExtensionManagement
   operation?: string;
 }
 /**
- * Location-scoped factory approval, optionally narrowed by approval key.
+ * Location-scoped workflow approval, optionally narrowed by approval key.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionDecisionApproveForLocationApprovalFactory".
+ * via the `definition` "PermissionDecisionApproveForLocationApprovalWorkflow".
  */
 /** @experimental */
-export interface PermissionDecisionApproveForLocationApprovalFactory {
+export interface PermissionDecisionApproveForLocationApprovalWorkflow {
   /**
-   * Approval covering factory operations.
+   * Approval covering workflow operations.
    */
-  kind: "factory";
+  kind: "workflow";
   /**
-   * Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.
+   * Optional workflow operation name or canonical approval key; when omitted, the approval covers all workflow operations.
    */
   approvalKey?: string;
 }
@@ -16308,19 +15541,19 @@ export interface PermissionsLocationsAddToolApprovalDetailsExtensionManagement {
   operation?: string;
 }
 /**
- * Location-persisted factory approval, optionally narrowed by approval key.
+ * Location-persisted workflow approval, optionally narrowed by approval key.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionsLocationsAddToolApprovalDetailsFactory".
+ * via the `definition` "PermissionsLocationsAddToolApprovalDetailsWorkflow".
  */
 /** @experimental */
-export interface PermissionsLocationsAddToolApprovalDetailsFactory {
+export interface PermissionsLocationsAddToolApprovalDetailsWorkflow {
   /**
-   * Approval covering factory operations.
+   * Approval covering workflow operations.
    */
-  kind: "factory";
+  kind: "workflow";
   /**
-   * Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.
+   * Optional workflow operation name or canonical approval key; when omitted, the approval covers all workflow operations.
    */
   approvalKey?: string;
 }
@@ -23445,6 +22678,7 @@ export interface SlashCommandSetModelResult {
    * Model selected by the command.
    */
   model: string;
+  autoTier?: AutoTier;
   /**
    * Settings scope modified by the command.
    */
@@ -27079,11 +26313,6 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
 }
 
 /** @experimental */
-export interface SessionFactoryPauseAtCheckpointResult {
-  action: FactoryPauseCheckpointAction;
-}
-
-/** @experimental */
 export interface SessionWorkflowPauseAtCheckpointResult {
   action: WorkflowPauseCheckpointAction;
 }
@@ -28199,6 +27428,64 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.gitHubAuth.setCredentials", { sessionId, ...params }),
         },
         /** @experimental */
+        accounts: {
+            /**
+             * Enumerate a typed accounts collection: the signed-in accounts, or the providers offered for interactive login.
+             *
+             * @param params Enumerate request carrying the typed collection query.
+             *
+             * @returns The enumerated collection, keyed by the same selector as the query.
+             */
+            enumerate: async (params: AccountsEnumerateRequest): Promise<AuthEnumerateValue> =>
+                connection.sendRequest("session.accounts.enumerate", { sessionId, ...params }),
+            /**
+             * Read one typed accounts datum: the active account, a neutral status summary, or the last authentication errors.
+             *
+             * @param params Read request carrying the typed datum query.
+             *
+             * @returns The read result, keyed by the same selector as the query.
+             */
+            get: async (params: AccountsGetRequest): Promise<AuthReadValue> =>
+                connection.sendRequest("session.accounts.get", { sessionId, ...params }),
+            /**
+             * Apply one non-interactive accounts mutation: switch the active account, log an account out, or set credentials from a token.
+             *
+             * @param params Mutation request carrying the typed write command.
+             *
+             * @returns Result of a non-interactive accounts mutation.
+             */
+            set: async (params: AccountsSetRequest): Promise<AuthWriteResult> =>
+                connection.sendRequest("session.accounts.set", { sessionId, ...params }),
+            /** @experimental */
+            login: {
+                /**
+                 * Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.
+                 *
+                 * @param params Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+                 *
+                 * @returns A started login flow: its opaque id and first step.
+                 */
+                begin: async (params: AuthLoginBeginRequest): Promise<AuthLoginBegun> =>
+                    connection.sendRequest("session.accounts.login.begin", { sessionId, ...params }),
+                /**
+                 * Advance an in-flight login flow, optionally fulfilling an input-required step, and return the next step.
+                 *
+                 * @param params Advance an in-flight login flow, optionally fulfilling an input-required step.
+                 *
+                 * @returns One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).
+                 */
+                advance: async (params: AuthLoginAdvanceRequest): Promise<AuthLoginStep> =>
+                    connection.sendRequest("session.accounts.login.advance", { sessionId, ...params }),
+                /**
+                 * Cancel an in-flight login flow and release its resources.
+                 *
+                 * @param params Cancel an in-flight login flow.
+                 */
+                cancel: async (params: AuthLoginCancelRequest): Promise<void> =>
+                    connection.sendRequest("session.accounts.login.cancel", { sessionId, ...params }),
+            },
+        },
+        /** @experimental */
         debug: {
             /**
              * Collects a session debug log bundle into a local archive or staging directory. Logs are redacted by default; redaction can be configured per caller-provided diagnostic entry. The runtime includes session-owned logs by default and accepts caller-provided diagnostic entries so host applications can add their own files without changing this API shape.
@@ -28253,120 +27540,6 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                  */
                 invoke: async (params: CanvasActionInvokeRequest): Promise<CanvasActionInvokeResult> =>
                     connection.sendRequest("session.canvas.action.invoke", { sessionId, ...params }),
-            },
-        },
-        /** @experimental */
-        factory: {
-            /**
-             * Runs a registered factory by name at the top level.
-             *
-             * @param params Parameters for invoking a registered factory.
-             *
-             * @returns Complete current or terminal factory run envelope.
-             */
-            run: async (params: FactoryRunRequest): Promise<FactoryRunResult> =>
-                connection.sendRequest("session.factory.run", { sessionId, ...params }),
-            /**
-             * Resumes a factory run using its persisted name, arguments, journal, and accounting.
-             *
-             * @param params Parameters for resuming a factory run from its persisted identity.
-             *
-             * @returns Resolved persisted factory identity and resumed run envelope.
-             */
-            resume: async (params: FactoryResumeRequest): Promise<FactoryResumeResult> =>
-                connection.sendRequest("session.factory.resume", { sessionId, ...params }),
-            /**
-             * Gets the current or settled envelope for a factory run.
-             *
-             * @param params Parameters for retrieving a factory run.
-             *
-             * @returns Complete current or terminal factory run envelope.
-             */
-            getRun: async (params: FactoryGetRunRequest): Promise<FactoryRunResult> =>
-                connection.sendRequest("session.factory.getRun", { sessionId, ...params }),
-            /**
-             * Lists durable factory runs for this session in creation order.
-             *
-             * @param params Parameters for paging factory runs.
-             *
-             * @returns A page of factory runs in durable creation order.
-             */
-            listRuns: async (params: FactoryListRunsRequest): Promise<FactoryListRunsResult> =>
-                connection.sendRequest("session.factory.listRuns", { sessionId, ...params }),
-            /**
-             * Gets durable and live observability detail for one factory run.
-             *
-             * @param params Parameters for retrieving a factory run.
-             *
-             * @returns Full factory run observability detail.
-             */
-            getRunDetail: async (params: FactoryGetRunRequest): Promise<FactoryRunDetail> =>
-                connection.sendRequest("session.factory.getRunDetail", { sessionId, ...params }),
-            /**
-             * Pages durable progress for one factory run.
-             *
-             * @param params Parameters for paging factory progress.
-             *
-             * @returns A bidirectional page of factory progress.
-             */
-            getRunProgress: async (params: FactoryGetRunProgressRequest): Promise<FactoryProgressPage> =>
-                connection.sendRequest("session.factory.getRunProgress", { sessionId, ...params }),
-            /**
-             * Requests cancellation of a factory run and returns its run envelope.
-             *
-             * @param params Parameters for cancelling a factory run.
-             *
-             * @returns Complete current or terminal factory run envelope.
-             */
-            cancel: async (params: FactoryCancelRequest): Promise<FactoryRunResult> =>
-                connection.sendRequest("session.factory.cancel", { sessionId, ...params }),
-            /**
-             * Pauses a running factory and returns its settled run envelope.
-             *
-             * @param params Parameters for pausing a running factory.
-             *
-             * @returns Complete current or terminal factory run envelope.
-             */
-            pause: async (params: FactoryPauseRequest): Promise<FactoryRunResult> =>
-                connection.sendRequest("session.factory.pause", { sessionId, ...params }),
-            /**
-             * Records a batch of ordered factory progress lines.
-             *
-             * @param params Parameters for recording factory progress.
-             *
-             * @returns Acknowledgement that a factory request was accepted.
-             */
-            log: async (params: FactoryLogRequest): Promise<FactoryAckResult> =>
-                connection.sendRequest("session.factory.log", { sessionId, ...params }),
-            /**
-             * Runs one factory-scoped subagent and returns its result.
-             *
-             * @param params Parameters for one factory-scoped subagent call.
-             *
-             * @returns Result of one factory-scoped subagent call.
-             */
-            agent: async (params: FactoryAgentRequest): Promise<FactoryAgentResult> =>
-                connection.sendRequest("session.factory.agent", { sessionId, ...params }),
-            /** @experimental */
-            journal: {
-                /**
-                 * Reads a memoized factory journal entry.
-                 *
-                 * @param params Parameters for reading a factory journal entry.
-                 *
-                 * @returns Result of reading a factory journal entry.
-                 */
-                get: async (params: FactoryJournalGetRequest): Promise<FactoryJournalGetResult> =>
-                    connection.sendRequest("session.factory.journal.get", { sessionId, ...params }),
-                /**
-                 * Stores a memoized factory journal entry.
-                 *
-                 * @param params Parameters for storing a factory journal entry.
-                 *
-                 * @returns Acknowledgement that a factory request was accepted.
-                 */
-                put: async (params: FactoryJournalPutRequest): Promise<FactoryAckResult> =>
-                    connection.sendRequest("session.factory.journal.put", { sessionId, ...params }),
             },
         },
         /** @experimental */
@@ -30590,34 +29763,6 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
             },
         },
         /** @experimental */
-        factory: {
-            /**
-             * Internal tool-originated factory invocation.
-             *
-             * @param params Internal parameters for invoking a registered factory from a tool.
-             *
-             * @returns Complete current or terminal factory run envelope.
-             */
-            runFromTool: async (params: FactoryToolRunRequest): Promise<FactoryRunResult> =>
-                connection.sendRequest("session.factory.runFromTool", { sessionId, ...params }),
-            /**
-             * Internal tool-originated factory resume.
-             *
-             * @param params Internal parameters for resuming a factory run from a tool.
-             *
-             * @returns Resolved persisted factory identity and resumed run envelope.
-             */
-            resumeFromTool: async (params: FactoryToolResumeRequest): Promise<FactoryResumeResult> =>
-                connection.sendRequest("session.factory.resumeFromTool", { sessionId, ...params }),
-            /**
-             * Atomically pauses an owned factory attempt at a durable checkpoint.
-             *
-             * @param params Parameters for an owned durable pause checkpoint.
-             */
-            pauseAtCheckpoint: async (params: FactoryPauseCheckpointRequest): Promise<SessionFactoryPauseAtCheckpointResult> =>
-                connection.sendRequest("session.factory.pauseAtCheckpoint", { sessionId, ...params }),
-        },
-        /** @experimental */
         workflow: {
             /**
              * Internal tool-originated dynamic workflow invocation.
@@ -30881,27 +30026,6 @@ export interface ProviderTokenHandler {
     getToken(params: ProviderTokenAcquireRequest): Promise<ProviderTokenAcquireResult>;
 }
 
-/** Handler for `factory` client session API methods. */
-/** @experimental */
-export interface FactoryHandler {
-    /**
-     * Asks the owning extension connection to execute a registered factory closure.
-     *
-     * @param params Parameters sent to the owning extension to execute a factory closure.
-     *
-     * @returns Result returned by an extension factory closure.
-     */
-    execute(params: FactoryExecuteRequest): Promise<FactoryExecuteResult>;
-    /**
-     * Asks the owning extension connection to abort a running factory cooperatively.
-     *
-     * @param params Parameters for cooperatively aborting a factory body.
-     *
-     * @returns Acknowledgement that a factory request was accepted.
-     */
-    abort(params: FactoryAbortRequest): Promise<FactoryAckResult>;
-}
-
 /** Handler for `workflow` client session API methods. */
 /** @experimental */
 export interface WorkflowHandler {
@@ -31075,7 +30199,6 @@ export interface CanvasHandler {
 /** All client session API handler groups. */
 export interface ClientSessionApiHandlers {
     providerToken?: ProviderTokenHandler;
-    factory?: FactoryHandler;
     workflow?: WorkflowHandler;
     tasks?: TasksHandler;
     sessionFs?: SessionFsHandler;
@@ -31096,16 +30219,6 @@ export function registerClientSessionApiHandlers(
         const handler = getHandlers(params.sessionId).providerToken;
         if (!handler) throw new Error(`No providerToken handler registered for session: ${params.sessionId}`);
         return handler.getToken(params);
-    });
-    connection.onRequest("factory.execute", async (params: FactoryExecuteRequest) => {
-        const handler = getHandlers(params.sessionId).factory;
-        if (!handler) throw new Error(`No factory handler registered for session: ${params.sessionId}`);
-        return handler.execute(params);
-    });
-    connection.onRequest("factory.abort", async (params: FactoryAbortRequest) => {
-        const handler = getHandlers(params.sessionId).factory;
-        if (!handler) throw new Error(`No factory handler registered for session: ${params.sessionId}`);
-        return handler.abort(params);
     });
     connection.onRequest("workflow.execute", async (params: WorkflowExecuteRequest) => {
         const handler = getHandlers(params.sessionId).workflow;

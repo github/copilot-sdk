@@ -3160,6 +3160,13 @@ pub struct SessionRpc<'a> {
 }
 
 impl<'a> SessionRpc<'a> {
+    /// `session.accounts.*` sub-namespace.
+    pub fn accounts(&self) -> SessionRpcAccounts<'a> {
+        SessionRpcAccounts {
+            session: self.session,
+        }
+    }
+
     /// `session.agent.*` sub-namespace.
     pub fn agent(&self) -> SessionRpcAgent<'a> {
         SessionRpcAgent {
@@ -3240,13 +3247,6 @@ impl<'a> SessionRpc<'a> {
     /// `session.extensions.*` sub-namespace.
     pub fn extensions(&self) -> SessionRpcExtensions<'a> {
         SessionRpcExtensions {
-            session: self.session,
-        }
-    }
-
-    /// `session.factory.*` sub-namespace.
-    pub fn factory(&self) -> SessionRpcFactory<'a> {
-        SessionRpcFactory {
             session: self.session,
         }
     }
@@ -3738,6 +3738,214 @@ impl<'a> SessionRpc<'a> {
             .call(rpc_methods::SESSION_LOG, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.accounts.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcAccounts<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcAccounts<'a> {
+    /// `session.accounts.login.*` sub-namespace.
+    pub fn login(&self) -> SessionRpcAccountsLogin<'a> {
+        SessionRpcAccountsLogin {
+            session: self.session,
+        }
+    }
+
+    /// Enumerate a typed accounts collection: the signed-in accounts, or the providers offered for interactive login.
+    ///
+    /// Wire method: `session.accounts.enumerate`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Enumerate request carrying the typed collection query.
+    ///
+    /// # Returns
+    ///
+    /// The enumerated collection, keyed by the same selector as the query.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn enumerate(
+        &self,
+        params: AccountsEnumerateRequest,
+    ) -> Result<AuthEnumerateValue, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_ACCOUNTS_ENUMERATE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Read one typed accounts datum: the active account, a neutral status summary, or the last authentication errors.
+    ///
+    /// Wire method: `session.accounts.get`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Read request carrying the typed datum query.
+    ///
+    /// # Returns
+    ///
+    /// The read result, keyed by the same selector as the query.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get(&self, params: AccountsGetRequest) -> Result<AuthReadValue, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_ACCOUNTS_GET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Apply one non-interactive accounts mutation: switch the active account, log an account out, or set credentials from a token.
+    ///
+    /// Wire method: `session.accounts.set`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Mutation request carrying the typed write command.
+    ///
+    /// # Returns
+    ///
+    /// Result of a non-interactive accounts mutation.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set(&self, params: AccountsSetRequest) -> Result<AuthWriteResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_ACCOUNTS_SET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.accounts.login.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcAccountsLogin<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcAccountsLogin<'a> {
+    /// Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.
+    ///
+    /// Wire method: `session.accounts.login.begin`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+    ///
+    /// # Returns
+    ///
+    /// A started login flow: its opaque id and first step.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn begin(&self, params: AuthLoginBeginRequest) -> Result<AuthLoginBegun, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_ACCOUNTS_LOGIN_BEGIN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Advance an in-flight login flow, optionally fulfilling an input-required step, and return the next step.
+    ///
+    /// Wire method: `session.accounts.login.advance`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Advance an in-flight login flow, optionally fulfilling an input-required step.
+    ///
+    /// # Returns
+    ///
+    /// One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn advance(&self, params: AuthLoginAdvanceRequest) -> Result<AuthLoginStep, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_ACCOUNTS_LOGIN_ADVANCE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Cancel an in-flight login flow and release its resources.
+    ///
+    /// Wire method: `session.accounts.login.cancel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Cancel an in-flight login flow.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn cancel(&self, params: AuthLoginCancelRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_ACCOUNTS_LOGIN_CANCEL,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
     }
 }
 
@@ -5382,505 +5590,6 @@ impl<'a> SessionRpcExtensions<'a> {
             )
             .await?;
         Ok(())
-    }
-}
-
-/// `session.factory.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct SessionRpcFactory<'a> {
-    pub(crate) session: &'a Session,
-}
-
-impl<'a> SessionRpcFactory<'a> {
-    /// `session.factory.journal.*` sub-namespace.
-    pub fn journal(&self) -> SessionRpcFactoryJournal<'a> {
-        SessionRpcFactoryJournal {
-            session: self.session,
-        }
-    }
-
-    /// Runs a registered factory by name at the top level.
-    ///
-    /// Wire method: `session.factory.run`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for invoking a registered factory.
-    ///
-    /// # Returns
-    ///
-    /// Complete current or terminal factory run envelope.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn run(&self, params: FactoryRunRequest) -> Result<FactoryRunResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_RUN, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Resumes a factory run using its persisted name, arguments, journal, and accounting.
-    ///
-    /// Wire method: `session.factory.resume`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for resuming a factory run from its persisted identity.
-    ///
-    /// # Returns
-    ///
-    /// Resolved persisted factory identity and resumed run envelope.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn resume(&self, params: FactoryResumeRequest) -> Result<FactoryResumeResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_RESUME, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Internal tool-originated factory invocation.
-    ///
-    /// Wire method: `session.factory.runFromTool`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Internal parameters for invoking a registered factory from a tool.
-    ///
-    /// # Returns
-    ///
-    /// Complete current or terminal factory run envelope.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn run_from_tool(
-        &self,
-        params: FactoryToolRunRequest,
-    ) -> Result<FactoryRunResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_RUNFROMTOOL, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Internal tool-originated factory resume.
-    ///
-    /// Wire method: `session.factory.resumeFromTool`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Internal parameters for resuming a factory run from a tool.
-    ///
-    /// # Returns
-    ///
-    /// Resolved persisted factory identity and resumed run envelope.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn resume_from_tool(
-        &self,
-        params: FactoryToolResumeRequest,
-    ) -> Result<FactoryResumeResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(
-                rpc_methods::SESSION_FACTORY_RESUMEFROMTOOL,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Gets the current or settled envelope for a factory run.
-    ///
-    /// Wire method: `session.factory.getRun`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for retrieving a factory run.
-    ///
-    /// # Returns
-    ///
-    /// Complete current or terminal factory run envelope.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn get_run(&self, params: FactoryGetRunRequest) -> Result<FactoryRunResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_GETRUN, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Lists durable factory runs for this session in creation order.
-    ///
-    /// Wire method: `session.factory.listRuns`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for paging factory runs.
-    ///
-    /// # Returns
-    ///
-    /// A page of factory runs in durable creation order.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn list_runs(
-        &self,
-        params: FactoryListRunsRequest,
-    ) -> Result<FactoryListRunsResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_LISTRUNS, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Gets durable and live observability detail for one factory run.
-    ///
-    /// Wire method: `session.factory.getRunDetail`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for retrieving a factory run.
-    ///
-    /// # Returns
-    ///
-    /// Full factory run observability detail.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn get_run_detail(
-        &self,
-        params: FactoryGetRunRequest,
-    ) -> Result<FactoryRunDetail, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_GETRUNDETAIL, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Pages durable progress for one factory run.
-    ///
-    /// Wire method: `session.factory.getRunProgress`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for paging factory progress.
-    ///
-    /// # Returns
-    ///
-    /// A bidirectional page of factory progress.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn get_run_progress(
-        &self,
-        params: FactoryGetRunProgressRequest,
-    ) -> Result<FactoryProgressPage, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(
-                rpc_methods::SESSION_FACTORY_GETRUNPROGRESS,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Requests cancellation of a factory run and returns its run envelope.
-    ///
-    /// Wire method: `session.factory.cancel`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for cancelling a factory run.
-    ///
-    /// # Returns
-    ///
-    /// Complete current or terminal factory run envelope.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn cancel(&self, params: FactoryCancelRequest) -> Result<FactoryRunResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_CANCEL, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Pauses a running factory and returns its settled run envelope.
-    ///
-    /// Wire method: `session.factory.pause`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for pausing a running factory.
-    ///
-    /// # Returns
-    ///
-    /// Complete current or terminal factory run envelope.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn pause(&self, params: FactoryPauseRequest) -> Result<FactoryRunResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_PAUSE, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Atomically pauses an owned factory attempt at a durable checkpoint.
-    ///
-    /// Wire method: `session.factory.pauseAtCheckpoint`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for an owned durable pause checkpoint.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn pause_at_checkpoint(
-        &self,
-        params: FactoryPauseCheckpointRequest,
-    ) -> Result<FactoryPauseCheckpointResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(
-                rpc_methods::SESSION_FACTORY_PAUSEATCHECKPOINT,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Records a batch of ordered factory progress lines.
-    ///
-    /// Wire method: `session.factory.log`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for recording factory progress.
-    ///
-    /// # Returns
-    ///
-    /// Acknowledgement that a factory request was accepted.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn log(&self, params: FactoryLogRequest) -> Result<FactoryAckResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_LOG, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Runs one factory-scoped subagent and returns its result.
-    ///
-    /// Wire method: `session.factory.agent`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for one factory-scoped subagent call.
-    ///
-    /// # Returns
-    ///
-    /// Result of one factory-scoped subagent call.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn agent(&self, params: FactoryAgentRequest) -> Result<FactoryAgentResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_AGENT, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-}
-
-/// `session.factory.journal.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct SessionRpcFactoryJournal<'a> {
-    pub(crate) session: &'a Session,
-}
-
-impl<'a> SessionRpcFactoryJournal<'a> {
-    /// Reads a memoized factory journal entry.
-    ///
-    /// Wire method: `session.factory.journal.get`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for reading a factory journal entry.
-    ///
-    /// # Returns
-    ///
-    /// Result of reading a factory journal entry.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn get(
-        &self,
-        params: FactoryJournalGetRequest,
-    ) -> Result<FactoryJournalGetResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_JOURNAL_GET, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Stores a memoized factory journal entry.
-    ///
-    /// Wire method: `session.factory.journal.put`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for storing a factory journal entry.
-    ///
-    /// # Returns
-    ///
-    /// Acknowledgement that a factory request was accepted.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn put(&self, params: FactoryJournalPutRequest) -> Result<FactoryAckResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_FACTORY_JOURNAL_PUT, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
     }
 }
 

@@ -1466,8 +1466,8 @@ async fn create_session_forwards_refresh_custom_instructions_only_when_set() {
         if let Some(refresh) = refresh {
             config = config.with_refresh_custom_instructions(refresh);
         }
-        let create = client.create_session(config);
-        let server = async {
+        let create = Box::pin(client.create_session(config));
+        let server = Box::pin(async {
             let request = read_framed(&mut server_read).await;
             assert_eq!(request["method"], "session.create");
             assert_eq!(
@@ -1482,7 +1482,7 @@ async fn create_session_forwards_refresh_custom_instructions_only_when_set() {
                 "result": { "sessionId": session_id },
             });
             write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
-        };
+        });
 
         let (session, ()) = timeout(TIMEOUT, async { tokio::join!(create, server) })
             .await

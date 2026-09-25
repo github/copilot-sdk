@@ -2,8 +2,6 @@
 
 Dynamic Workflows are extension-authored, session-scoped workflows that coordinate subagents and durable steps. The API is experimental.
 
-Use Dynamic Workflows for new extension-authored orchestration. Existing Agent Factory extensions remain supported during the transition, but one `joinSession` call must register either `workflows` or `factories`, never both.
-
 ## Define and register a workflow
 
 Use `defineWorkflow` and pass the returned handle to `joinSession`:
@@ -242,7 +240,7 @@ if (settled.status === "completed") {
 }
 ```
 
-It watches the runtime's `factory.run_updated` compatibility event and re-reads the durable envelope on each invalidation, collapsing a burst of events into a single in-flight read. A low-frequency periodic re-read runs alongside the subscription, so a dropped or missing invalidation degrades into a slightly late resolution rather than an unbounded wait. Pass a `signal` to stop waiting:
+It watches `workflow.run_updated` and re-reads the durable envelope on each invalidation, collapsing a burst of events into a single in-flight read. A low-frequency periodic re-read runs alongside the subscription, so a dropped or missing invalidation degrades into a slightly late resolution rather than an unbounded wait. Pass a `signal` to stop waiting:
 
 ```ts
 const controller = new AbortController();
@@ -252,6 +250,6 @@ const settled = await session.workflow.waitForRun(runId, { signal: controller.si
 
 Aborting rejects the wait and has no effect on the run, which keeps executing—use `pause(runId)` or `cancel(runId)` to stop it. The resolved object is a snapshot of that settled attempt. If its status is `paused`, a later resume updates the durable envelope under the same run ID. Call `getRun(runId)` to read the latest envelope. `isWorkflowRunTerminal(status)` exposes the same current-attempt settlement test for callers driving their own loop.
 
-Listen for the ephemeral `factory.run_updated` compatibility event. Its `{ runId, revision }` payload is an invalidation signal. Re-read the desired API when a newer monotonic revision arrives.
+Listen for the ephemeral `workflow.run_updated` event. Its `{ runId, revision }` payload is an invalidation signal. Re-read the desired API when a newer monotonic revision arrives.
 
 Revisions cover durable lifecycle, accounting, phase, agent, and progress changes. Continuous read-time fields can change without a new revision. These include `observedAt`, active-time calculations, live counts, and a live agent's status or prompt-safe activity text. Workflow prompts are never exposed by these APIs. A run is visible only through the session that owns it.

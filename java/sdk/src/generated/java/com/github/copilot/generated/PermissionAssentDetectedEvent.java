@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "permission.assentDetected". Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.
+ * Session event "permission.assentDetected". Historical decode-only contextual-assent marker. Current runtimes do not project it into the conversation or permission flow.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

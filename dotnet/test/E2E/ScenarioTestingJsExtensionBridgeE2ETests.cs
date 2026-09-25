@@ -304,24 +304,26 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
             $"{source.Value}:{extensionName}");
     }
 
-    private static async Task<RpcExtension> WaitForExtensionAsync(
+    private async Task<RpcExtension> WaitForExtensionAsync(
         CopilotSession session,
         string extensionId,
         ExtensionStatus expectedStatus = default)
     {
         expectedStatus = expectedStatus == default ? ExtensionStatus.Running : expectedStatus;
         RpcExtension? extension = null;
+        string lastExtensions = "<no response>";
         await TestHelper.WaitForConditionAsync(
             async () =>
             {
                 var list = await session.Rpc.Extensions.ListAsync();
+                lastExtensions = string.Join(", ", list.Extensions.Select(item => $"{item.Id}: {item.Status}"));
                 extension = list.Extensions.FirstOrDefault(
                     item => string.Equals(item.Id, extensionId, StringComparison.Ordinal));
                 return extension?.Status == expectedStatus;
             },
             timeout: ExtensionTimeout,
             pollInterval: TimeSpan.FromMilliseconds(100),
-            timeoutMessage: $"Timed out waiting for extension '{extensionId}'.",
+            timeoutMessageFactory: () => $"Timed out waiting for extension '{extensionId}' (listed: [{lastExtensions}]; launch markers: {TestHelper.ExtensionLaunchMarkers(Ctx.HomeDir, extensionId)}).",
             transientExceptionFilter: ex =>
                 ex.ToString().Contains("Extensions not available", StringComparison.OrdinalIgnoreCase));
         return extension!;

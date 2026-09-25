@@ -58,18 +58,18 @@ _GAP_METHODS = {
     "session.sandbox.getEnforcementStatus": rpc.SandboxApi.get_enforcement_status,
     "session.sandbox.disableForSession": rpc.SandboxApi.disable_for_session,
     "session.debug.collectLogs": rpc.DebugApi.collect_logs,
-    "session.factory.run": rpc.FactoryApi.run,
-    "session.factory.resume": rpc.FactoryApi.resume,
-    "session.factory.getRun": rpc.FactoryApi.get_run,
-    "session.factory.listRuns": rpc.FactoryApi.list_runs,
-    "session.factory.getRunDetail": rpc.FactoryApi.get_run_detail,
-    "session.factory.getRunProgress": rpc.FactoryApi.get_run_progress,
-    "session.factory.cancel": rpc.FactoryApi.cancel,
-    "session.factory.pause": rpc.FactoryApi.pause,
-    "session.factory.log": rpc.FactoryApi.log,
-    "session.factory.agent": rpc.FactoryApi.agent,
-    "session.factory.journal.get": rpc.FactoryJournalApi.get,
-    "session.factory.journal.put": rpc.FactoryJournalApi.put,
+    "session.workflow.run": rpc.WorkflowApi.run,
+    "session.workflow.resume": rpc.WorkflowApi.resume,
+    "session.workflow.getRun": rpc.WorkflowApi.get_run,
+    "session.workflow.listRuns": rpc.WorkflowApi.list_runs,
+    "session.workflow.getRunDetail": rpc.WorkflowApi.get_run_detail,
+    "session.workflow.getRunProgress": rpc.WorkflowApi.get_run_progress,
+    "session.workflow.cancel": rpc.WorkflowApi.cancel,
+    "session.workflow.pause": rpc.WorkflowApi.pause,
+    "session.workflow.log": rpc.WorkflowApi.log,
+    "session.workflow.agent": rpc.WorkflowApi.agent,
+    "session.workflow.journal.get": rpc.WorkflowJournalApi.get,
+    "session.workflow.journal.put": rpc.WorkflowJournalApi.put,
     "session.model.switchAutoTier": rpc.ModelApi.switch_auto_tier,
     "session.model.setAllowedModels": rpc.ModelApi.set_allowed_models,
     "session.workspaces.updateMetadata": rpc.WorkspacesApi.update_metadata,
@@ -491,41 +491,41 @@ async def test_generated_rpc_gap_methods_round_trip_over_fake_cli(
             _request_for(rpc.DebugApi.collect_logs)
         )
 
-        results["session.factory.run"] = await session.rpc.factory.run(
-            _request_for(rpc.FactoryApi.run)
+        results["session.workflow.run"] = await session.rpc.workflow.run(
+            _request_for(rpc.WorkflowApi.run)
         )
-        results["session.factory.resume"] = await session.rpc.factory.resume(
-            _request_for(rpc.FactoryApi.resume)
+        results["session.workflow.resume"] = await session.rpc.workflow.resume(
+            _request_for(rpc.WorkflowApi.resume)
         )
-        results["session.factory.getRun"] = await session.rpc.factory.get_run(
-            _request_for(rpc.FactoryApi.get_run)
+        results["session.workflow.getRun"] = await session.rpc.workflow.get_run(
+            _request_for(rpc.WorkflowApi.get_run)
         )
-        results["session.factory.listRuns"] = await session.rpc.factory.list_runs(
-            _request_for(rpc.FactoryApi.list_runs)
+        results["session.workflow.listRuns"] = await session.rpc.workflow.list_runs(
+            _request_for(rpc.WorkflowApi.list_runs)
         )
-        results["session.factory.getRunDetail"] = await session.rpc.factory.get_run_detail(
-            _request_for(rpc.FactoryApi.get_run_detail)
+        results["session.workflow.getRunDetail"] = await session.rpc.workflow.get_run_detail(
+            _request_for(rpc.WorkflowApi.get_run_detail)
         )
-        results["session.factory.getRunProgress"] = await session.rpc.factory.get_run_progress(
-            _request_for(rpc.FactoryApi.get_run_progress)
+        results["session.workflow.getRunProgress"] = await session.rpc.workflow.get_run_progress(
+            _request_for(rpc.WorkflowApi.get_run_progress)
         )
-        results["session.factory.cancel"] = await session.rpc.factory.cancel(
-            _request_for(rpc.FactoryApi.cancel)
+        results["session.workflow.cancel"] = await session.rpc.workflow.cancel(
+            _request_for(rpc.WorkflowApi.cancel)
         )
-        results["session.factory.pause"] = await session.rpc.factory.pause(
-            _request_for(rpc.FactoryApi.pause)
+        results["session.workflow.pause"] = await session.rpc.workflow.pause(
+            _request_for(rpc.WorkflowApi.pause)
         )
-        results["session.factory.log"] = await session.rpc.factory.log(
-            _request_for(rpc.FactoryApi.log)
+        results["session.workflow.log"] = await session.rpc.workflow.log(
+            _request_for(rpc.WorkflowApi.log)
         )
-        results["session.factory.agent"] = await session.rpc.factory.agent(
-            _request_for(rpc.FactoryApi.agent)
+        results["session.workflow.agent"] = await session.rpc.workflow.agent(
+            _request_for(rpc.WorkflowApi.agent)
         )
-        results["session.factory.journal.get"] = await session.rpc.factory.journal.get(
-            _request_for(rpc.FactoryJournalApi.get)
+        results["session.workflow.journal.get"] = await session.rpc.workflow.journal.get(
+            _request_for(rpc.WorkflowJournalApi.get)
         )
-        results["session.factory.journal.put"] = await session.rpc.factory.journal.put(
-            _request_for(rpc.FactoryJournalApi.put)
+        results["session.workflow.journal.put"] = await session.rpc.workflow.journal.put(
+            _request_for(rpc.WorkflowJournalApi.put)
         )
 
         results["session.model.switchAutoTier"] = await session.rpc.model.switch_auto_tier(
@@ -814,10 +814,10 @@ async def test_generated_rpc_gap_methods_round_trip_over_fake_cli(
         assert catalog.candidates[0].installability.value
         assert catalog.candidates[0].provenance.authority == "sample-value"
 
-        factory_detail = results["session.factory.getRunDetail"]
-        assert factory_detail.consumed.active_ms == 7
-        assert factory_detail.agents[0].agent_id == "sample-value"
-        assert factory_detail.progress.records[0].seq == 7
+        workflow_detail = results["session.workflow.getRunDetail"]
+        assert workflow_detail.consumed.active_ms == 7
+        assert workflow_detail.agents[0].agent_id == "sample-value"
+        assert workflow_detail.progress.records[0].seq == 7
 
         permission_requests = results["session.permissions.pendingRequests"]
         assert len(permission_requests.items) == 1

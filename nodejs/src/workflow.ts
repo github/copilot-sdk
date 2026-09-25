@@ -14,9 +14,16 @@ import type {
 } from "./generated/rpc.js";
 import type { ContextTier } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { JsonValue } from "./factory.js";
 
 export type { WorkflowRunResult };
+/** A value that can be represented losslessly on the SDK JSON wire. */
+export type JsonValue =
+    | null
+    | boolean
+    | number
+    | string
+    | JsonValue[]
+    | { [key: string]: JsonValue };
 export type {
     WorkflowAgentSummary,
     WorkflowPhaseStatus,
@@ -404,7 +411,7 @@ export interface SessionWorkflowApi {
      * snapshot: resuming the same durable run can later change the envelope
      * returned by {@link SessionWorkflowApi.getRun}.
      *
-     * This watches the runtime's `factory.run_updated` compatibility event and
+     * This watches the runtime's `workflow.run_updated` event and
      * periodically re-reads the durable envelope so a missed event cannot
      * leave the wait hanging. Pass a `signal` to stop waiting; aborting rejects
      * and has no effect on the run itself, which keeps executing. Use

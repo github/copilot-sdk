@@ -45,6 +45,10 @@ public record SessionModelApplyStartupOverlayParams(
     /** Model explicitly selected by the CLI, when provided. */
     @JsonProperty("cliModel") String cliModel,
     /** Whether the overlay is being applied while resuming a deferred session. */
-    @JsonProperty("deferredResume") Boolean deferredResume
+    @JsonProperty("deferredResume") Boolean deferredResume,
+    /** Reasoning effort paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides. */
+    @JsonProperty("managedReasoningEffort") String managedReasoningEffort,
+    /** Context tier paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides. */
+    @JsonProperty("managedContextTier") String managedContextTier
 ) {
 }
