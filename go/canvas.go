@@ -24,6 +24,9 @@ type CanvasDeclaration struct {
 	DisplayName string `json:"displayName"`
 	// Description is a short, single-sentence description shown to the agent in canvas catalogs.
 	Description string `json:"description"`
+	// Icon is an optional PNG path for the canvas icon. For extensions, the runtime
+	// resolves relative paths relative to extension.mjs.
+	Icon *string `json:"icon,omitempty"`
 	// InputSchema is the JSON Schema for the `input` payload accepted by `canvas.open`.
 	InputSchema map[string]any `json:"inputSchema,omitzero"`
 	// Actions are the agent-callable actions this canvas exposes.

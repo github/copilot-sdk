@@ -63,6 +63,34 @@ def test_canvas_declaration_serializes_input_schema_and_actions():
     assert payload["actions"] == [action.to_dict()]
 
 
+@pytest.mark.parametrize("icon", [None, "icons/counter.png"])
+def test_canvas_declaration_serializes_optional_icon(icon):
+    decl = CanvasDeclaration(
+        id="counter",
+        display_name="Counter",
+        description="Count things",
+        icon=icon,
+    )
+    payload = decl.to_dict()
+    if icon is None:
+        assert "icon" not in payload
+    else:
+        assert payload["icon"] == icon
+
+
+def test_canvas_declaration_preserves_positional_arguments():
+    action = CanvasAction(name="increment")
+    decl = CanvasDeclaration("counter", "Counter", "Count things", {"type": "object"}, [action])
+
+    assert decl.to_dict() == {
+        "id": "counter",
+        "displayName": "Counter",
+        "description": "Count things",
+        "inputSchema": {"type": "object"},
+        "actions": [action.to_dict()],
+    }
+
+
 def test_extension_info_serializes():
     info = ExtensionInfo(source="github-app", name="my-ext")
     assert info.to_dict() == {"source": "github-app", "name": "my-ext"}

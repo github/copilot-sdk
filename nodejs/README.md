@@ -101,6 +101,30 @@ tool name is `<server-key>-<tool-name>`. For `availableTools` and
 the raw `mcp:<server-key>-<tool-name>` form. For `customAgents[].tools` and
 `defaultAgent.excludedTools`, use `<server-key>-<tool-name>` directly.
 
+## Canvas icons
+
+Canvas authoring is experimental. Set the optional `icon` field on
+`createCanvas` to a PNG file path. For extensions, the runtime resolves relative
+paths relative to `extension.mjs`, not the current working directory. Include
+the PNG with your extension; the SDK forwards the path unchanged.
+
+```typescript
+import { createCanvas, joinSession } from "@github/copilot-sdk/extension";
+
+const counter = createCanvas({
+    id: "counter",
+    displayName: "Counter",
+    description: "Count things",
+    icon: "icons/counter.png",
+    open: () => ({ url: "https://example.com/counter" }),
+});
+
+await joinSession({ canvases: [counter] });
+```
+
+Omit `icon` to declare a canvas without a custom icon. The icon belongs to the
+canvas declaration, not an individual open result.
+
 ## API Reference
 
 ### CopilotClient
