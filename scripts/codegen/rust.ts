@@ -1158,6 +1158,8 @@ function emitRustStruct(
 		rustField: string;
 		rustType: string;
 		strictBooleanConst: boolean | undefined;
+		/** Literal of a const property whose released type is a pinned enum collision. */
+		collidedConstLiteral: string | undefined;
 	}
 	const fields: FieldInfo[] = [];
 	for (const [propName, propSchema] of Object.entries(
@@ -1178,6 +1180,7 @@ function emitRustStruct(
 			rustField,
 			rustType,
 			strictBooleanConst,
+			collidedConstLiteral: collidedRustConstLiteral(prop, rustType, ctx),
 		});
 	}
 
@@ -1202,9 +1205,17 @@ function emitRustStruct(
 		rustField,
 		rustType,
 		strictBooleanConst,
+		collidedConstLiteral,
 	} of fields) {
 		if (prop.description) {
 			pushRustDoc(lines, prop.description, "    ");
+		}
+		if (collidedConstLiteral !== undefined) {
+			pushRustDoc(
+				lines,
+				`Always serialised as \`${JSON.stringify(collidedConstLiteral)}\`. The released field type cannot hold that literal, so a deserialised value reads as \`Unknown\`.`,
+				"    ",
+			);
 		}
 		pushRustExperimentalDocs(lines, isSchemaExperimental(prop), "    ");
 		const propIsInternal = isSchemaInternal(prop);
@@ -1247,6 +1258,8 @@ function emitRustStruct(
 			lines.push(
 				`    #[serde(${isReq ? "" : "default, "}deserialize_with = "${typeName}::deserialize_${snakeField}", serialize_with = "${typeName}::serialize_${snakeField}")]`,
 			);
+		} else if (collidedConstLiteral !== undefined) {
+			lines.push(`    #[serde(serialize_with = "${typeName}::serialize_${snakeField}")]`);
 		}
 
 		lines.push(`    ${propIsInternal ? "pub(crate)" : "pub"} ${rustField}: ${rustType},`);
@@ -1254,9 +1267,10 @@ function emitRustStruct(
 
 	lines.push("}");
 	const constrainedFields = fields.filter(
-		({ prop, strictBooleanConst }) =>
+		({ prop, strictBooleanConst, collidedConstLiteral }) =>
 			(prop.$ref && typeof prop.const === "string") ||
-			strictBooleanConst !== undefined,
+			strictBooleanConst !== undefined ||
+			collidedConstLiteral !== undefined,
 	);
 	if (constrainedFields.length > 0) {
 		// A referenced enum can accept future values; its containing field must
@@ -1268,8 +1282,20 @@ function emitRustStruct(
 			isReq,
 			rustType,
 			strictBooleanConst,
+			collidedConstLiteral,
 		}] of constrainedFields.entries()) {
 			if (index > 0) lines.push("");
+			if (collidedConstLiteral !== undefined) {
+				lines.push(
+					`    fn serialize_${toRustFieldName(propName)}<S>(_value: &${rustType}, serializer: S) -> Result<S::Ok, S::Error>`,
+					"    where",
+					"        S: serde::Serializer,",
+					"    {",
+					`        serializer.serialize_str(${JSON.stringify(collidedConstLiteral)})`,
+					"    }",
+				);
+				continue;
+			}
 			const literal = JSON.stringify(strictBooleanConst ?? prop.const);
 			if (strictBooleanConst !== undefined) {
 				const deserializeMismatch = isReq
@@ -1348,6 +1374,26 @@ export const RELEASED_RUST_STRING_ENUM_COLLISIONS: ReadonlySet<string> = new Set
 	"AttachmentGitHubReferenceType",
 	"PushAttachmentGitHubReferenceType",
 ]);
+
+/**
+ * The literal of a const-string property whose Rust type is one of the pinned released
+ * collisions and cannot represent it. Serialisation writes the literal instead of the enum.
+ */
+function collidedRustConstLiteral(
+	prop: JSONSchema7,
+	rustType: string,
+	ctx: RustCodegenCtx,
+): string | undefined {
+	if (typeof prop.const !== "string" || prop.$ref) return undefined;
+	const enumName = stripOption(rustType);
+	if (!RELEASED_RUST_STRING_ENUM_COLLISIONS.has(enumName)) return undefined;
+	const values = ctx.stringEnumValues.get(enumName);
+	if (values === undefined || (JSON.parse(values) as string[]).includes(prop.const)) return undefined;
+	if (rustType !== enumName) {
+		throw new Error(`Optional collided const ${prop.const} on ${enumName} is not supported`);
+	}
+	return prop.const;
+}
 
 /**
  * Reuses an emitted string enum only when the value set matches. Two schemas that share a
@@ -2142,6 +2188,21 @@ export function generateApiTypesCode(
 			emitRustScalarAlias(name, schema, ctx, schema.description);
 		}
 		emitLegacyOptions(name);
+	}
+
+	// A response record must keep every field it deserialises, so Rust cannot freeze it.
+	// Existing literals stay source-compatible only through `..Default::default()`.
+	for (const [name, def] of Object.entries(definitions)) {
+		if (legacyRequests.has(name)) continue;
+		if (!readLegacyParameters(def, name, { implicit: ["sessionId"] })) continue;
+		const defaultStruct = new RegExp(
+			`#\\[derive\\([^)]*\\bDefault\\b[^)]*\\)\\]\\n#\\[serde\\(rename_all = "camelCase"\\)\\]\\n(?:pub|pub\\(crate\\)) struct ${name} \\{`,
+		);
+		if (!ctx.structs.some((block) => defaultStruct.test(block))) {
+			throw new Error(
+				`Invalid ${LEGACY_PARAMETERS_KEY} for ${name}: a response record must be a struct that derives Default`,
+			);
+		}
 	}
 
 	// RPC method name constants

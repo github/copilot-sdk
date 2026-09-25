@@ -4,6 +4,7 @@ import {
     isOmittableRequest,
     readLegacyParameters,
     readLegacyUntyped,
+    validateLegacyDefinitions,
     validateLegacyRequests,
     validateLegacyUntypedMarkers,
 } from "../../scripts/codegen/legacy-parameters.ts";
@@ -100,6 +101,40 @@ describe("x-legacy-parameters", () => {
         );
         expect(isOmittableRequest({ anyOf: [{ not: {} }, params] })).toBe(true);
         expect(isOmittableRequest(params)).toBe(false);
+    });
+
+    it("requires schema property order when a positional record constructor is kept", () => {
+        const record = {
+            type: "object",
+            properties: { name: {}, owned: {}, status: {}, error: {} },
+            required: ["name", "status"],
+            "x-legacy-parameters": ["name", "status", "error"],
+        };
+        expect(readLegacyParameters(record, "Server", { ordered: true })?.additions).toEqual([
+            "owned",
+        ]);
+        const misordered = { ...record, "x-legacy-parameters": ["status", "name", "error"] };
+        expect(readLegacyParameters(misordered, "Server")?.additions).toEqual(["owned"]);
+        expect(() => readLegacyParameters(misordered, "Server", { ordered: true })).toThrow(
+            "Invalid x-legacy-parameters for Server: legacy parameters must follow schema property order"
+        );
+    });
+
+    it("validates response definitions that no request path reads", () => {
+        const record = {
+            type: "object",
+            properties: { name: {}, status: {}, owned: {} },
+            required: ["name", "status"],
+            "x-legacy-parameters": ["name", "status"],
+        };
+        expect(() => validateLegacyDefinitions({ definitions: { Server: record } })).not.toThrow();
+        expect(() =>
+            validateLegacyDefinitions({
+                $defs: { Server: { ...record, "x-legacy-parameters": ["name"] } },
+            })
+        ).toThrow(
+            "Invalid x-legacy-parameters for Server: required property status must be a legacy parameter"
+        );
     });
 
     it("accepts only a true x-legacy-untyped property marker", () => {

@@ -9,7 +9,7 @@ use github_copilot_sdk::rpc::{
     EnqueueCommandResult, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
     ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
     McpDisableRequest, McpEnableOptions, McpEnableRequest, McpInstallationOperationStatus,
-    McpOauthLoginOptions, McpOauthLoginRequest, McpStopServerRequest,
+    McpOauthLoginOptions, McpOauthLoginRequest, McpServer, McpStopServerRequest,
     MetadataContextAttributionResult, MetadataContextInfoResult, ModelSetAllowedModelsRequest,
     ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
     ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SandboxConfig,
@@ -19,7 +19,8 @@ use github_copilot_sdk::rpc::{
     UpdateSubagentSettingsRequest, WorkspaceSummary,
 };
 use github_copilot_sdk::session_events::{
-    PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
+    McpServerStatus, PermissionRequest, PermissionRequestedData, SessionEventData,
+    TypedSessionEvent,
 };
 use github_copilot_sdk::{AutoTier, AutoTierPreference, SetModelOptions};
 
@@ -748,4 +749,61 @@ fn released_nested_type_names_remain_usable() {
         ..Default::default()
     };
     assert_eq!(plan.transport_choices[0]["choiceId"], "raw");
+}
+
+/// The attachment `type` literal cannot be represented by its released field type, so it
+/// must still round-trip on the wire instead of degrading to `"Unknown"`.
+#[test]
+fn github_reference_attachments_keep_their_type_literal_on_the_wire() {
+    use github_copilot_sdk::rpc::{
+        AttachmentGitHubReference, AttachmentGitHubReferenceType, PushAttachmentGitHubReference,
+    };
+
+    let wire = serde_json::json!({
+        "number": 7,
+        "referenceType": "pr",
+        "state": "open",
+        "title": "Example",
+        "type": "github_reference",
+        "url": "https://github.com/example/repo/pull/7"
+    });
+    let attachment: AttachmentGitHubReference = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(attachment.reference_type, AttachmentGitHubReferenceType::Pr);
+    assert_eq!(attachment.r#type, AttachmentGitHubReferenceType::Unknown);
+    assert_eq!(serde_json::to_value(&attachment).unwrap(), wire);
+    assert_eq!(
+        serde_json::to_value(AttachmentGitHubReference::default()).unwrap()["type"],
+        "github_reference"
+    );
+
+    let push: PushAttachmentGitHubReference = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&push).unwrap(), wire);
+    assert_eq!(
+        serde_json::to_value(PushAttachmentGitHubReference::default()).unwrap()["type"],
+        "github_reference"
+    );
+}
+
+#[test]
+fn listed_mcp_server_literals_with_defaults_survive_the_owned_marker() {
+    let manual = McpServer {
+        name: "manual".to_string(),
+        status: McpServerStatus::Stopped,
+        ..Default::default()
+    };
+    assert!(manual.owned.is_none());
+    assert!(
+        serde_json::to_value(&manual)
+            .unwrap()
+            .get("owned")
+            .is_none()
+    );
+
+    let owned: McpServer = serde_json::from_value(serde_json::json!({
+        "name": "owned",
+        "status": "stopped",
+        "owned": {"installationId": "installation"},
+    }))
+    .unwrap();
+    assert_eq!(owned.owned.unwrap().installation_id, "installation");
 }

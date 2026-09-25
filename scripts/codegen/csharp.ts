@@ -57,7 +57,7 @@ import {
     type RpcMethod,
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
-import { isOmittableRequest, readLegacyParameters, validateLegacyUntypedMarkers } from "./legacy-parameters.js";
+import { isOmittableRequest, readLegacyParameters, validateLegacyUntypedMarkers, validateLegacyDefinitions } from "./legacy-parameters.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -2816,6 +2816,8 @@ export function generateRpcCode(
     generatedEnums.clear(); // Clear shared enum deduplication map
     externalRpcValueTypes = new Set([...externalValueTypes].map(typeToClassName));
     rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
+    // Response classes gain settable properties, so object initialisers are unchanged.
+    validateLegacyDefinitions(rpcDefinitions);
     for (const method of [
         ...collectRpcMethods(schema.server || {}),
         ...collectRpcMethods(filterNodeByVisibility(schema.clientSession || {}, "public") || {}),

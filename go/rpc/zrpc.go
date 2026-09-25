@@ -138,6 +138,49 @@ type AccountQuotaSnapshot struct {
 	UsedRequests int64 `json:"usedRequests"`
 }
 
+// Enumerate request carrying the typed collection query.
+// Experimental: AccountsEnumerateRequest is part of an experimental API and may change or
+// be removed.
+type AccountsEnumerateRequest struct {
+	// Which typed accounts collection to enumerate.
+	Query AuthEnumerateQuery `json:"query"`
+}
+
+// Read request carrying the typed datum query.
+// Experimental: AccountsGetRequest is part of an experimental API and may change or be
+// removed.
+type AccountsGetRequest struct {
+	// Which typed accounts datum to read.
+	Query AuthReadQuery `json:"query"`
+}
+
+// Mutation request carrying the typed write command.
+// Experimental: AccountsSetRequest is part of an experimental API and may change or be
+// removed.
+type AccountsSetRequest struct {
+	// The non-interactive mutation command to apply.
+	Command AuthWrite `json:"command"`
+}
+
+// One signed-in account in the roster forest.
+// Experimental: AccountStatus is part of an experimental API and may change or be removed.
+type AccountStatus struct {
+	// Whether this is the active account.
+	Active bool `json:"active"`
+	// Opaque id of the account this one was derived from (e.g. an EMU account's base Entra
+	// identity); absent for a root account. Matches the base identity account's selectionId,
+	// forming the derivation edge.
+	DerivedFrom *string `json:"derivedFrom,omitempty"`
+	// Authentication host URL.
+	Host string `json:"host"`
+	// The provider kind of this account.
+	Kind AccountKind `json:"kind"`
+	// Authenticated login/username.
+	Login string `json:"login"`
+	// Opaque selection id used to switch to, or log out, this account.
+	SelectionID string `json:"selectionId"`
+}
+
 // Canonical directory where custom agents can be discovered or created, with scope,
 // preference, and optional project path.
 // Experimental: AgentDiscoveryPath is part of an experimental API and may change or be
@@ -867,6 +910,82 @@ type AttachmentSelectionDetailsStart struct {
 	Line int64 `json:"line"`
 }
 
+// Selects which accounts collection to enumerate. A no-arg selector is the empty-payload
+// variant.
+// Experimental: AuthEnumerateQuery is part of an experimental API and may change or be
+// removed.
+type AuthEnumerateQuery interface {
+	authEnumerateQuery()
+	Kind() AuthEnumerateQueryKind
+}
+
+type RawAuthEnumerateQueryData struct {
+	Discriminator AuthEnumerateQueryKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthEnumerateQueryData) authEnumerateQuery() {}
+func (r RawAuthEnumerateQueryData) Kind() AuthEnumerateQueryKind {
+	return r.Discriminator
+}
+
+type AuthEnumerateQueryAccounts struct {
+}
+
+func (AuthEnumerateQueryAccounts) authEnumerateQuery() {}
+func (AuthEnumerateQueryAccounts) Kind() AuthEnumerateQueryKind {
+	return AuthEnumerateQueryKindAccounts
+}
+
+type AuthEnumerateQueryProviders struct {
+	// Whether an interactive Entra broker is available on the host; gates Entra availability in
+	// the returned list.
+	BrokerAvailable *bool `json:"brokerAvailable,omitempty"`
+}
+
+func (AuthEnumerateQueryProviders) authEnumerateQuery() {}
+func (AuthEnumerateQueryProviders) Kind() AuthEnumerateQueryKind {
+	return AuthEnumerateQueryKindProviders
+}
+
+// The enumerated collection, keyed by the same selector as the query.
+// Experimental: AuthEnumerateValue is part of an experimental API and may change or be
+// removed.
+type AuthEnumerateValue interface {
+	authEnumerateValue()
+	Kind() AuthEnumerateValueKind
+}
+
+type RawAuthEnumerateValueData struct {
+	Discriminator AuthEnumerateValueKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthEnumerateValueData) authEnumerateValue() {}
+func (r RawAuthEnumerateValueData) Kind() AuthEnumerateValueKind {
+	return r.Discriminator
+}
+
+type AuthEnumerateValueAccounts struct {
+	// The signed-in account forest; empty when not logged in.
+	Items []AccountStatus `json:"items"`
+}
+
+func (AuthEnumerateValueAccounts) authEnumerateValue() {}
+func (AuthEnumerateValueAccounts) Kind() AuthEnumerateValueKind {
+	return AuthEnumerateValueKindAccounts
+}
+
+type AuthEnumerateValueProviders struct {
+	// The providers offered for interactive login.
+	Items []ProviderDescriptor `json:"items"`
+}
+
+func (AuthEnumerateValueProviders) authEnumerateValue() {}
+func (AuthEnumerateValueProviders) Kind() AuthEnumerateValueKind {
+	return AuthEnumerateValueKindProviders
+}
+
 // Credential-free authentication identity safe to expose to hosts and user interfaces.
 // Experimental: AuthIdentity is part of an experimental API and may change or be removed.
 type AuthIdentity struct {
@@ -1062,6 +1181,235 @@ func (UserAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeUser
 }
 
+// Advance an in-flight login flow, optionally fulfilling an input-required step.
+// Experimental: AuthLoginAdvanceRequest is part of an experimental API and may change or be
+// removed.
+type AuthLoginAdvanceRequest struct {
+	// Opaque flow id from begin.
+	FlowID string `json:"flowId"`
+	// Neutral input fulfilling a preceding input-required step (e.g. a GHEC host); ignored
+	// otherwise.
+	Input *string `json:"input,omitempty"`
+}
+
+// Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+// Experimental: AuthLoginBeginRequest is part of an experimental API and may change or be
+// removed.
+type AuthLoginBeginRequest struct {
+	// The provider kind to sign in with.
+	Kind LoginProviderKind `json:"kind"`
+}
+
+// A started login flow: its opaque id and first step.
+// Experimental: AuthLoginBegun is part of an experimental API and may change or be removed.
+type AuthLoginBegun struct {
+	// Opaque flow id used to advance or cancel this login.
+	FlowID string `json:"flowId"`
+	// The first step of the flow.
+	Step AuthLoginStep `json:"step"`
+}
+
+// Cancel an in-flight login flow.
+// Experimental: AuthLoginCancelRequest is part of an experimental API and may change or be
+// removed.
+type AuthLoginCancelRequest struct {
+	// Opaque flow id from begin.
+	FlowID string `json:"flowId"`
+}
+
+// Terminal result of an interactive login flow.
+// Experimental: AuthLoginResultDto is part of an experimental API and may change or be
+// removed.
+type AuthLoginResultDto struct {
+	// Host that was signed in, when completed.
+	Host *string `json:"host,omitempty"`
+	// Login that was signed in, when completed.
+	Login *string `json:"login,omitempty"`
+	// Terminal disposition of the login.
+	Status AuthLoginResultStatus `json:"status"`
+}
+
+// One step in an interactive login flow. The consumer acts on the step and calls advance to
+// proceed. Browser-open is encoded as two distinct steps by design: `open-url` is
+// CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it —
+// github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens
+// the browser or broker UI itself and does not surface a URL — Entra).
+// Experimental: AuthLoginStep is part of an experimental API and may change or be removed.
+type AuthLoginStep interface {
+	authLoginStep()
+	Kind() AuthLoginStepKind
+}
+
+type RawAuthLoginStepData struct {
+	Discriminator AuthLoginStepKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthLoginStepData) authLoginStep() {}
+func (r RawAuthLoginStepData) Kind() AuthLoginStepKind {
+	return r.Discriminator
+}
+
+type AuthLoginStepAwaiting struct {
+}
+
+func (AuthLoginStepAwaiting) authLoginStep() {}
+func (AuthLoginStepAwaiting) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindAwaiting
+}
+
+type AuthLoginStepCompleted struct {
+	// The terminal login result.
+	Result AuthLoginResultDto `json:"result"`
+}
+
+func (AuthLoginStepCompleted) authLoginStep() {}
+func (AuthLoginStepCompleted) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindCompleted
+}
+
+type AuthLoginStepError struct {
+	// Human-readable failure message.
+	Message string `json:"message"`
+}
+
+func (AuthLoginStepError) authLoginStep() {}
+func (AuthLoginStepError) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindError
+}
+
+type AuthLoginStepInputRequired struct {
+	// Prompt for the value the provider needs; the consumer supplies it as advance input (e.g.
+	// a GitHub Enterprise Cloud host, *.ghe.com).
+	Prompt string `json:"prompt"`
+}
+
+func (AuthLoginStepInputRequired) authLoginStep() {}
+func (AuthLoginStepInputRequired) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindInputRequired
+}
+
+type AuthLoginStepNeedsInteraction struct {
+}
+
+func (AuthLoginStepNeedsInteraction) authLoginStep() {}
+func (AuthLoginStepNeedsInteraction) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindNeedsInteraction
+}
+
+type AuthLoginStepOpenURL struct {
+	// Authorize URL the consumer should open in a browser (consumer-driven browser-open).
+	URL string `json:"url"`
+}
+
+func (AuthLoginStepOpenURL) authLoginStep() {}
+func (AuthLoginStepOpenURL) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindOpenURL
+}
+
+// Selects which typed accounts datum to read.
+// Experimental: AuthReadQuery is part of an experimental API and may change or be removed.
+type AuthReadQuery interface {
+	authReadQuery()
+	Kind() AuthReadQueryKind
+}
+
+type RawAuthReadQueryData struct {
+	Discriminator AuthReadQueryKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthReadQueryData) authReadQuery() {}
+func (r RawAuthReadQueryData) Kind() AuthReadQueryKind {
+	return r.Discriminator
+}
+
+type AuthReadQueryActiveAccount struct {
+}
+
+func (AuthReadQueryActiveAccount) authReadQuery() {}
+func (AuthReadQueryActiveAccount) Kind() AuthReadQueryKind {
+	return AuthReadQueryKindActiveAccount
+}
+
+type AuthReadQueryLastErrors struct {
+}
+
+func (AuthReadQueryLastErrors) authReadQuery() {}
+func (AuthReadQueryLastErrors) Kind() AuthReadQueryKind {
+	return AuthReadQueryKindLastErrors
+}
+
+type AuthReadQueryStatus struct {
+}
+
+func (AuthReadQueryStatus) authReadQuery() {}
+func (AuthReadQueryStatus) Kind() AuthReadQueryKind {
+	return AuthReadQueryKindStatus
+}
+
+// The read result, keyed by the same selector as the query.
+// Experimental: AuthReadValue is part of an experimental API and may change or be removed.
+type AuthReadValue interface {
+	authReadValue()
+	Kind() AuthReadValueKind
+}
+
+type RawAuthReadValueData struct {
+	Discriminator AuthReadValueKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthReadValueData) authReadValue() {}
+func (r RawAuthReadValueData) Kind() AuthReadValueKind {
+	return r.Discriminator
+}
+
+type AuthReadValueActiveAccount struct {
+	// The active account, or absent when not logged in.
+	Account *AccountStatus `json:"account,omitempty"`
+}
+
+func (AuthReadValueActiveAccount) authReadValue() {}
+func (AuthReadValueActiveAccount) Kind() AuthReadValueKind {
+	return AuthReadValueKindActiveAccount
+}
+
+type AuthReadValueLastErrors struct {
+	// Validation errors from the most recent authentication attempt.
+	Errors []AuthValidationError `json:"errors"`
+}
+
+func (AuthReadValueLastErrors) authReadValue() {}
+func (AuthReadValueLastErrors) Kind() AuthReadValueKind {
+	return AuthReadValueKindLastErrors
+}
+
+type AuthReadValueStatus struct {
+	// The neutral authentication status summary.
+	Status AuthStatusDto `json:"status"`
+}
+
+func (AuthReadValueStatus) authReadValue() {}
+func (AuthReadValueStatus) Kind() AuthReadValueKind {
+	return AuthReadValueKindStatus
+}
+
+// Neutral authentication status summary.
+// Experimental: AuthStatusDto is part of an experimental API and may change or be removed.
+type AuthStatusDto struct {
+	// Number of signed-in accounts in the roster.
+	AccountCount int64 `json:"accountCount"`
+	// Active account host, if authenticated.
+	ActiveHost *string `json:"activeHost,omitempty"`
+	// Active account login, if authenticated.
+	ActiveLogin *string `json:"activeLogin,omitempty"`
+	// Copilot plan tier of the active account, if known.
+	CopilotPlan *string `json:"copilotPlan,omitempty"`
+	// Whether the session has resolved authentication.
+	IsAuthenticated bool `json:"isAuthenticated"`
+}
+
 // Validation error from an authentication attempt.
 // Experimental: AuthValidationError is part of an experimental API and may change or be
 // removed.
@@ -1076,6 +1424,66 @@ type AuthValidationError struct {
 // Experimental: AuthValidationErrors is part of an experimental API and may change or be
 // removed.
 type AuthValidationErrors []AuthValidationError
+
+// One non-interactive accounts mutation command (the selector is fused with its typed args).
+// Experimental: AuthWrite is part of an experimental API and may change or be removed.
+type AuthWrite interface {
+	authWrite()
+	Kind() AuthWriteKind
+}
+
+type RawAuthWriteData struct {
+	Discriminator AuthWriteKind
+	Raw           json.RawMessage
+}
+
+func (RawAuthWriteData) authWrite() {}
+func (r RawAuthWriteData) Kind() AuthWriteKind {
+	return r.Discriminator
+}
+
+type AuthWriteLogout struct {
+	// Opaque selection id of the account to log out; absent logs out the active account.
+	SelectionID *string `json:"selectionId,omitempty"`
+}
+
+func (AuthWriteLogout) authWrite() {}
+func (AuthWriteLogout) Kind() AuthWriteKind {
+	return AuthWriteKindLogout
+}
+
+type AuthWriteSetCredentials struct {
+	// Authentication host URL.
+	Host string `json:"host"`
+	// Login/username for the credential.
+	Login string `json:"login"`
+	// GitHub authentication token to install.
+	Token string `json:"token"`
+}
+
+func (AuthWriteSetCredentials) authWrite() {}
+func (AuthWriteSetCredentials) Kind() AuthWriteKind {
+	return AuthWriteKindSetCredentials
+}
+
+type AuthWriteSwitchActive struct {
+	// Opaque selection id of the account to make active.
+	SelectionID string `json:"selectionId"`
+}
+
+func (AuthWriteSwitchActive) authWrite() {}
+func (AuthWriteSwitchActive) Kind() AuthWriteKind {
+	return AuthWriteKindSwitchActive
+}
+
+// Result of a non-interactive accounts mutation.
+// Experimental: AuthWriteResult is part of an experimental API and may change or be removed.
+type AuthWriteResult struct {
+	// For a logout, whether other signed-in accounts remain.
+	MoreUsers *bool `json:"moreUsers,omitempty"`
+	// Whether the mutation was applied.
+	Ok bool `json:"ok"`
+}
 
 // Current per-window credit limit and consumption for an autopilot objective.
 // Experimental: AutopilotObjectiveCreditLimit is part of an experimental API and may change
@@ -7658,6 +8066,10 @@ type MCPServer struct {
 	Error *string `json:"error,omitempty"`
 	// Server name (config key)
 	Name string `json:"name"`
+	// Owned installation this entry's live configuration came from. Absent for manual,
+	// workspace, plugin, builtin and same-name servers, and on runtimes without owned
+	// installations.
+	Owned *MCPServerOwnership `json:"owned,omitempty"`
 	// Server-advertised metadata for a connected server. Omitted when no live connection
 	// metadata is available, including while pending or when failed, disabled, stopped, or not
 	// configured.
@@ -7853,6 +8265,14 @@ type MCPServerMetadata struct {
 type MCPServerNeedsAuthInfo struct {
 	// epoch-ms timestamp at which the server signalled it needs authentication.
 	Timestamp int64 `json:"timestamp"`
+}
+
+// Owned installation that a listed MCP server's live configuration came from.
+// Experimental: MCPServerOwnership is part of an experimental API and may change or be
+// removed.
+type MCPServerOwnership struct {
+	// Stable installation identifier from the owned installation receipt.
+	InstallationID string `json:"installationId"`
 }
 
 // Mode controlling how MCP server env values are resolved (`direct` or `indirect`).
@@ -10783,6 +11203,18 @@ type ProviderConfigAzure struct {
 	APIVersion *string `json:"apiVersion,omitempty"`
 }
 
+// A provider offered for interactive login.
+// Experimental: ProviderDescriptor is part of an experimental API and may change or be
+// removed.
+type ProviderDescriptor struct {
+	// Whether this provider is currently available to sign in with.
+	Available bool `json:"available"`
+	// The neutral provider kind.
+	Kind LoginProviderKind `json:"kind"`
+	// Human-readable menu label, owned by the runtime so every consumer renders identical text.
+	Label string `json:"label"`
+}
+
 // A snapshot of the provider endpoint the session is currently configured to talk to.
 // Experimental: ProviderEndpoint is part of an experimental API and may change or be
 // removed.
@@ -12564,6 +12996,11 @@ type ServerSkillList struct {
 	Errors []string `json:"errors,omitzero"`
 	// All discovered skills across all sources
 	Skills []ServerSkill `json:"skills"`
+}
+
+// Experimental: SessionAccountsLoginCancelResult is part of an experimental API and may
+// change or be removed.
+type SessionAccountsLoginCancelResult struct {
 }
 
 // Current activity flags for the session.
@@ -18906,6 +19343,26 @@ const (
 	AbortReasonUserInitiated AbortReason = "user_initiated"
 )
 
+// The provider kind stamped on a signed-in account.
+// Experimental: AccountKind is part of an experimental API and may change or be removed.
+type AccountKind string
+
+const (
+	// A base Microsoft Entra identity.
+	AccountKindEntra AccountKind = "entra"
+	// A GitHub (EMU) account derived from a base Entra identity.
+	AccountKindEntraEmu AccountKind = "entraEmu"
+	// An OAuth github.com account.
+	AccountKindGitHubDotCom AccountKind = "githubDotCom"
+	// A Microsoft 365 Copilot (Loki) inference account derived from the same base Entra
+	// identity as an EMU account; its bearer is a Loki-scoped inference token consumed through
+	// the model-provider path, not the GitHub switcher.
+	AccountKindLoki AccountKind = "loki"
+	// A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g.
+	// *.ghe.com.
+	AccountKindProxima AccountKind = "proxima"
+)
+
 // Resolved Anthropic adaptive-thinking capability for a model.
 // Experimental: AdaptiveThinkingSupport is part of an experimental API and may change or be
 // removed.
@@ -19139,6 +19596,26 @@ const (
 	AttachmentTypeSelection            AttachmentType = "selection"
 )
 
+// Kind discriminator for AuthEnumerateQuery.
+// Experimental: AuthEnumerateQueryKind is part of an experimental API and may change or be
+// removed.
+type AuthEnumerateQueryKind string
+
+const (
+	AuthEnumerateQueryKindAccounts  AuthEnumerateQueryKind = "accounts"
+	AuthEnumerateQueryKindProviders AuthEnumerateQueryKind = "providers"
+)
+
+// Kind discriminator for AuthEnumerateValue.
+// Experimental: AuthEnumerateValueKind is part of an experimental API and may change or be
+// removed.
+type AuthEnumerateValueKind string
+
+const (
+	AuthEnumerateValueKindAccounts  AuthEnumerateValueKind = "accounts"
+	AuthEnumerateValueKindProviders AuthEnumerateValueKind = "providers"
+)
+
 // Type discriminator for AuthInfo.
 // Experimental: AuthInfoType is part of an experimental API and may change or be removed.
 type AuthInfoType string
@@ -19152,6 +19629,66 @@ const (
 	AuthInfoTypeToken           AuthInfoType = "token"
 	AuthInfoTypeTokenProvider   AuthInfoType = "token-provider"
 	AuthInfoTypeUser            AuthInfoType = "user"
+)
+
+// Terminal disposition of a login persistence attempt.
+// Experimental: AuthLoginResultStatus is part of an experimental API and may change or be
+// removed.
+type AuthLoginResultStatus string
+
+const (
+	// The credential was persisted and the account is signed in.
+	AuthLoginResultStatusCompleted AuthLoginResultStatus = "completed"
+	// The user declined plaintext persistence.
+	AuthLoginResultStatusDeclined AuthLoginResultStatus = "declined"
+	// Persistence needs explicit consent to store the token in plaintext.
+	AuthLoginResultStatusNeedsPlaintextConsent AuthLoginResultStatus = "needs-plaintext-consent"
+)
+
+// Kind discriminator for AuthLoginStep.
+// Experimental: AuthLoginStepKind is part of an experimental API and may change or be
+// removed.
+type AuthLoginStepKind string
+
+const (
+	AuthLoginStepKindAwaiting         AuthLoginStepKind = "awaiting"
+	AuthLoginStepKindCompleted        AuthLoginStepKind = "completed"
+	AuthLoginStepKindError            AuthLoginStepKind = "error"
+	AuthLoginStepKindInputRequired    AuthLoginStepKind = "input-required"
+	AuthLoginStepKindNeedsInteraction AuthLoginStepKind = "needs-interaction"
+	AuthLoginStepKindOpenURL          AuthLoginStepKind = "open-url"
+)
+
+// Kind discriminator for AuthReadQuery.
+// Experimental: AuthReadQueryKind is part of an experimental API and may change or be
+// removed.
+type AuthReadQueryKind string
+
+const (
+	AuthReadQueryKindActiveAccount AuthReadQueryKind = "activeAccount"
+	AuthReadQueryKindLastErrors    AuthReadQueryKind = "lastErrors"
+	AuthReadQueryKindStatus        AuthReadQueryKind = "status"
+)
+
+// Kind discriminator for AuthReadValue.
+// Experimental: AuthReadValueKind is part of an experimental API and may change or be
+// removed.
+type AuthReadValueKind string
+
+const (
+	AuthReadValueKindActiveAccount AuthReadValueKind = "activeAccount"
+	AuthReadValueKindLastErrors    AuthReadValueKind = "lastErrors"
+	AuthReadValueKindStatus        AuthReadValueKind = "status"
+)
+
+// Kind discriminator for AuthWrite.
+// Experimental: AuthWriteKind is part of an experimental API and may change or be removed.
+type AuthWriteKind string
+
+const (
+	AuthWriteKindLogout         AuthWriteKind = "logout"
+	AuthWriteKindSetCredentials AuthWriteKind = "setCredentials"
+	AuthWriteKindSwitchActive   AuthWriteKind = "switchActive"
 )
 
 // Current normalized autopilot objective lifecycle status.
@@ -20582,6 +21119,21 @@ const (
 	// the `binary` flag distinguishes text from binary frames; request and response chunks flow
 	// concurrently.
 	LlmInferenceHTTPRequestStartTransportWebsocket LlmInferenceHTTPRequestStartTransport = "websocket"
+)
+
+// A provider a consumer may interactively sign in with.
+// Experimental: LoginProviderKind is part of an experimental API and may change or be
+// removed.
+type LoginProviderKind string
+
+const (
+	// Microsoft Entra sign-in that derives a GitHub (EMU) credential.
+	LoginProviderKindEntra LoginProviderKind = "entra"
+	// OAuth github.com sign-in via the browser (web loopback + PKCE).
+	LoginProviderKindGitHubDotCom LoginProviderKind = "githubDotCom"
+	// A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g.
+	// *.ghe.com; the host is supplied interactively through the neutral input-required step.
+	LoginProviderKindProxima LoginProviderKind = "proxima"
 )
 
 // Summary of which managed-settings channels contributed to the effective session policy.
@@ -25729,6 +26281,165 @@ func NewInternalServerRPC(client *jsonrpc2.Client) *InternalServerRPC {
 type sessionAPI struct {
 	client    *jsonrpc2.Client
 	sessionID string
+}
+
+// Experimental: AccountsAPI contains experimental APIs that may change or be removed.
+type AccountsAPI sessionAPI
+
+// Enumerate a typed accounts collection: the signed-in accounts, or the providers offered
+// for interactive login.
+//
+// RPC method: session.accounts.enumerate.
+//
+// Parameters: Enumerate request carrying the typed collection query.
+//
+// Returns: The enumerated collection, keyed by the same selector as the query.
+func (a *AccountsAPI) Enumerate(ctx context.Context, params *AccountsEnumerateRequest) (AuthEnumerateValue, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["query"] = params.Query
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.enumerate", req)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalAuthEnumerateValue(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Get read one typed accounts datum: the active account, a neutral status summary, or the
+// last authentication errors.
+//
+// RPC method: session.accounts.get.
+//
+// Parameters: Read request carrying the typed datum query.
+//
+// Returns: The read result, keyed by the same selector as the query.
+func (a *AccountsAPI) Get(ctx context.Context, params *AccountsGetRequest) (AuthReadValue, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["query"] = params.Query
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.get", req)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalAuthReadValue(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Set apply one non-interactive accounts mutation: switch the active account, log an
+// account out, or set credentials from a token.
+//
+// RPC method: session.accounts.set.
+//
+// Parameters: Mutation request carrying the typed write command.
+//
+// Returns: Result of a non-interactive accounts mutation.
+func (a *AccountsAPI) Set(ctx context.Context, params *AccountsSetRequest) (*AuthWriteResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["command"] = params.Command
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.set", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AuthWriteResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: AccountsLoginAPI contains experimental APIs that may change or be removed.
+type AccountsLoginAPI sessionAPI
+
+// Advance an in-flight login flow, optionally fulfilling an input-required step, and return
+// the next step.
+//
+// RPC method: session.accounts.login.advance.
+//
+// Parameters: Advance an in-flight login flow, optionally fulfilling an input-required step.
+//
+// Returns: One step in an interactive login flow. The consumer acts on the step and calls
+// advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url`
+// is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it —
+// github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens
+// the browser or broker UI itself and does not surface a URL — Entra).
+func (a *AccountsLoginAPI) Advance(ctx context.Context, params *AuthLoginAdvanceRequest) (AuthLoginStep, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["flowId"] = params.FlowID
+		if params.Input != nil {
+			req["input"] = *params.Input
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.login.advance", req)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalAuthLoginStep(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Begin an interactive login flow for a provider kind (dispatch is kind-only) and return
+// its opaque flow id and first step.
+//
+// RPC method: session.accounts.login.begin.
+//
+// Parameters: Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+//
+// Returns: A started login flow: its opaque id and first step.
+func (a *AccountsLoginAPI) Begin(ctx context.Context, params *AuthLoginBeginRequest) (*AuthLoginBegun, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["kind"] = params.Kind
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.login.begin", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AuthLoginBegun
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Cancel an in-flight login flow and release its resources.
+//
+// RPC method: session.accounts.login.cancel.
+//
+// Parameters: Cancel an in-flight login flow.
+func (a *AccountsLoginAPI) Cancel(ctx context.Context, params *AuthLoginCancelRequest) (*SessionAccountsLoginCancelResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["flowId"] = params.FlowID
+	}
+	raw, err := a.client.Request(ctx, "session.accounts.login.cancel", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAccountsLoginCancelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Login returns experimental APIs that may change or be removed.
+func (s *AccountsAPI) Login() *AccountsLoginAPI {
+	return (*AccountsLoginAPI)(s)
 }
 
 // Experimental: AgentAPI contains experimental APIs that may change or be removed.
@@ -32528,6 +33239,7 @@ type SessionRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common sessionAPI
 
+	Accounts           *AccountsAPI
 	Agent              *AgentAPI
 	AutopilotObjective *AutopilotObjectiveAPI
 	Canvas             *CanvasAPI
@@ -32864,6 +33576,7 @@ func (a *SessionRPC) Suspend(ctx context.Context) (*SessionSuspendResult, error)
 func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r := &SessionRPC{}
 	r.common = sessionAPI{client: client, sessionID: sessionID}
+	r.Accounts = (*AccountsAPI)(&r.common)
 	r.Agent = (*AgentAPI)(&r.common)
 	r.AutopilotObjective = (*AutopilotObjectiveAPI)(&r.common)
 	r.Canvas = (*CanvasAPI)(&r.common)

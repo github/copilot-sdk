@@ -7793,6 +7793,547 @@ internal sealed class SessionGitHubAuthLastAuthErrorsRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>The enumerated collection, keyed by the same selector as the query.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(AuthEnumerateValueAccounts), "accounts")]
+[JsonDerivedType(typeof(AuthEnumerateValueProviders), "providers")]
+public partial class AuthEnumerateValue
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>One signed-in account in the roster forest.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class AccountStatus
+{
+    /// <summary>Whether this is the active account.</summary>
+    [JsonPropertyName("active")]
+    public bool Active { get; set; }
+
+    /// <summary>Opaque id of the account this one was derived from (e.g. an EMU account's base Entra identity); absent for a root account. Matches the base identity account's selectionId, forming the derivation edge.</summary>
+    [JsonPropertyName("derivedFrom")]
+    public string? DerivedFrom { get; set; }
+
+    /// <summary>Authentication host URL.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
+    [JsonPropertyName("host")]
+    public string Host { get; set; } = string.Empty;
+
+    /// <summary>The provider kind of this account.</summary>
+    [JsonPropertyName("kind")]
+    public AccountKind Kind { get; set; }
+
+    /// <summary>Authenticated login/username.</summary>
+    [JsonPropertyName("login")]
+    public string Login { get; set; } = string.Empty;
+
+    /// <summary>Opaque selection id used to switch to, or log out, this account.</summary>
+    [JsonPropertyName("selectionId")]
+    public string SelectionId { get; set; } = string.Empty;
+}
+
+/// <summary>The <c>accounts</c> variant of <see cref="AuthEnumerateValue"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthEnumerateValueAccounts : AuthEnumerateValue
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "accounts";
+
+    /// <summary>The signed-in account forest; empty when not logged in.</summary>
+    [JsonPropertyName("items")]
+    public required IList<AccountStatus> Items { get; set; }
+}
+
+/// <summary>A provider offered for interactive login.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProviderDescriptor
+{
+    /// <summary>Whether this provider is currently available to sign in with.</summary>
+    [JsonPropertyName("available")]
+    public bool Available { get; set; }
+
+    /// <summary>The neutral provider kind.</summary>
+    [JsonPropertyName("kind")]
+    public LoginProviderKind Kind { get; set; }
+
+    /// <summary>Human-readable menu label, owned by the runtime so every consumer renders identical text.</summary>
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+}
+
+/// <summary>The <c>providers</c> variant of <see cref="AuthEnumerateValue"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthEnumerateValueProviders : AuthEnumerateValue
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "providers";
+
+    /// <summary>The providers offered for interactive login.</summary>
+    [JsonPropertyName("items")]
+    public required IList<ProviderDescriptor> Items { get; set; }
+}
+
+/// <summary>Selects which accounts collection to enumerate. A no-arg selector is the empty-payload variant.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(AuthEnumerateQueryAccounts), "accounts")]
+[JsonDerivedType(typeof(AuthEnumerateQueryProviders), "providers")]
+public partial class AuthEnumerateQuery
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>accounts</c> variant of <see cref="AuthEnumerateQuery"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthEnumerateQueryAccounts : AuthEnumerateQuery
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "accounts";
+}
+
+/// <summary>The <c>providers</c> variant of <see cref="AuthEnumerateQuery"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthEnumerateQueryProviders : AuthEnumerateQuery
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "providers";
+
+    /// <summary>Whether an interactive Entra broker is available on the host; gates Entra availability in the returned list.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("brokerAvailable")]
+    public bool? BrokerAvailable { get; set; }
+}
+
+/// <summary>Enumerate request carrying the typed collection query.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class AccountsEnumerateRequest
+{
+    /// <summary>Which typed accounts collection to enumerate.</summary>
+    [JsonPropertyName("query")]
+    public AuthEnumerateQuery Query { get => field ??= new(); set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>The read result, keyed by the same selector as the query.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(AuthReadValueActiveAccount), "activeAccount")]
+[JsonDerivedType(typeof(AuthReadValueStatus), "status")]
+[JsonDerivedType(typeof(AuthReadValueLastErrors), "lastErrors")]
+public partial class AuthReadValue
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>activeAccount</c> variant of <see cref="AuthReadValue"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthReadValueActiveAccount : AuthReadValue
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "activeAccount";
+
+    /// <summary>The active account, or absent when not logged in.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("account")]
+    public AccountStatus? Account { get; set; }
+}
+
+/// <summary>Neutral authentication status summary.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class AuthStatusDto
+{
+    /// <summary>Number of signed-in accounts in the roster.</summary>
+    [JsonPropertyName("accountCount")]
+    public long AccountCount { get; set; }
+
+    /// <summary>Active account host, if authenticated.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
+    [JsonPropertyName("activeHost")]
+    public string? ActiveHost { get; set; }
+
+    /// <summary>Active account login, if authenticated.</summary>
+    [JsonPropertyName("activeLogin")]
+    public string? ActiveLogin { get; set; }
+
+    /// <summary>Copilot plan tier of the active account, if known.</summary>
+    [JsonPropertyName("copilotPlan")]
+    public string? CopilotPlan { get; set; }
+
+    /// <summary>Whether the session has resolved authentication.</summary>
+    [JsonPropertyName("isAuthenticated")]
+    public bool IsAuthenticated { get; set; }
+}
+
+/// <summary>The <c>status</c> variant of <see cref="AuthReadValue"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthReadValueStatus : AuthReadValue
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "status";
+
+    /// <summary>The neutral authentication status summary.</summary>
+    [JsonPropertyName("status")]
+    public required AuthStatusDto Status { get; set; }
+}
+
+/// <summary>The <c>lastErrors</c> variant of <see cref="AuthReadValue"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthReadValueLastErrors : AuthReadValue
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "lastErrors";
+
+    /// <summary>Validation errors from the most recent authentication attempt.</summary>
+    [JsonPropertyName("errors")]
+    public required IList<AuthValidationError> Errors { get; set; }
+}
+
+/// <summary>Selects which typed accounts datum to read.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(AuthReadQueryActiveAccount), "activeAccount")]
+[JsonDerivedType(typeof(AuthReadQueryStatus), "status")]
+[JsonDerivedType(typeof(AuthReadQueryLastErrors), "lastErrors")]
+public partial class AuthReadQuery
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>activeAccount</c> variant of <see cref="AuthReadQuery"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthReadQueryActiveAccount : AuthReadQuery
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "activeAccount";
+}
+
+/// <summary>The <c>status</c> variant of <see cref="AuthReadQuery"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthReadQueryStatus : AuthReadQuery
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "status";
+}
+
+/// <summary>The <c>lastErrors</c> variant of <see cref="AuthReadQuery"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthReadQueryLastErrors : AuthReadQuery
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "lastErrors";
+}
+
+/// <summary>Read request carrying the typed datum query.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class AccountsGetRequest
+{
+    /// <summary>Which typed accounts datum to read.</summary>
+    [JsonPropertyName("query")]
+    public AuthReadQuery Query { get => field ??= new(); set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Result of a non-interactive accounts mutation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class AuthWriteResult
+{
+    /// <summary>For a logout, whether other signed-in accounts remain.</summary>
+    [JsonPropertyName("moreUsers")]
+    public bool? MoreUsers { get; set; }
+
+    /// <summary>Whether the mutation was applied.</summary>
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+}
+
+/// <summary>One non-interactive accounts mutation command (the selector is fused with its typed args).</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(AuthWriteSwitchActive), "switchActive")]
+[JsonDerivedType(typeof(AuthWriteLogout), "logout")]
+[JsonDerivedType(typeof(AuthWriteSetCredentials), "setCredentials")]
+public partial class AuthWrite
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>switchActive</c> variant of <see cref="AuthWrite"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthWriteSwitchActive : AuthWrite
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "switchActive";
+
+    /// <summary>Opaque selection id of the account to make active.</summary>
+    [JsonPropertyName("selectionId")]
+    public required string SelectionId { get; set; }
+}
+
+/// <summary>The <c>logout</c> variant of <see cref="AuthWrite"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthWriteLogout : AuthWrite
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "logout";
+
+    /// <summary>Opaque selection id of the account to log out; absent logs out the active account.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("selectionId")]
+    public string? SelectionId { get; set; }
+}
+
+/// <summary>The <c>setCredentials</c> variant of <see cref="AuthWrite"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthWriteSetCredentials : AuthWrite
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "setCredentials";
+
+    /// <summary>Authentication host URL.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+
+    /// <summary>Login/username for the credential.</summary>
+    [JsonPropertyName("login")]
+    public required string Login { get; set; }
+
+    /// <summary>GitHub authentication token to install.</summary>
+    [JsonPropertyName("token")]
+    public required string Token { get; set; }
+}
+
+/// <summary>Mutation request carrying the typed write command.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class AccountsSetRequest
+{
+    /// <summary>The non-interactive mutation command to apply.</summary>
+    [JsonPropertyName("command")]
+    public AuthWrite Command { get => field ??= new(); set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(AuthLoginStepOpenUrl), "open-url")]
+[JsonDerivedType(typeof(AuthLoginStepInputRequired), "input-required")]
+[JsonDerivedType(typeof(AuthLoginStepAwaiting), "awaiting")]
+[JsonDerivedType(typeof(AuthLoginStepNeedsInteraction), "needs-interaction")]
+[JsonDerivedType(typeof(AuthLoginStepCompleted), "completed")]
+[JsonDerivedType(typeof(AuthLoginStepError), "error")]
+public partial class AuthLoginStep
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>open-url</c> variant of <see cref="AuthLoginStep"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthLoginStepOpenUrl : AuthLoginStep
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "open-url";
+
+    /// <summary>Authorize URL the consumer should open in a browser (consumer-driven browser-open).</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>The <c>input-required</c> variant of <see cref="AuthLoginStep"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthLoginStepInputRequired : AuthLoginStep
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "input-required";
+
+    /// <summary>Prompt for the value the provider needs; the consumer supplies it as advance input (e.g. a GitHub Enterprise Cloud host, *.ghe.com).</summary>
+    [JsonPropertyName("prompt")]
+    public required string Prompt { get; set; }
+}
+
+/// <summary>The <c>awaiting</c> variant of <see cref="AuthLoginStep"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthLoginStepAwaiting : AuthLoginStep
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "awaiting";
+}
+
+/// <summary>The <c>needs-interaction</c> variant of <see cref="AuthLoginStep"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthLoginStepNeedsInteraction : AuthLoginStep
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "needs-interaction";
+}
+
+/// <summary>Terminal result of an interactive login flow.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class AuthLoginResultDto
+{
+    /// <summary>Host that was signed in, when completed.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
+    [JsonPropertyName("host")]
+    public string? Host { get; set; }
+
+    /// <summary>Login that was signed in, when completed.</summary>
+    [JsonPropertyName("login")]
+    public string? Login { get; set; }
+
+    /// <summary>Terminal disposition of the login.</summary>
+    [JsonPropertyName("status")]
+    public AuthLoginResultStatus Status { get; set; }
+}
+
+/// <summary>The <c>completed</c> variant of <see cref="AuthLoginStep"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthLoginStepCompleted : AuthLoginStep
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "completed";
+
+    /// <summary>The terminal login result.</summary>
+    [JsonPropertyName("result")]
+    public required AuthLoginResultDto Result { get; set; }
+}
+
+/// <summary>The <c>error</c> variant of <see cref="AuthLoginStep"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthLoginStepError : AuthLoginStep
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "error";
+
+    /// <summary>Human-readable failure message.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+/// <summary>A started login flow: its opaque id and first step.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class AuthLoginBegun
+{
+    /// <summary>Opaque flow id used to advance or cancel this login.</summary>
+    [JsonPropertyName("flowId")]
+    public string FlowId { get; set; } = string.Empty;
+
+    /// <summary>The first step of the flow.</summary>
+    [JsonPropertyName("step")]
+    public AuthLoginStep Step { get => field ??= new(); set; }
+}
+
+/// <summary>Begin an interactive login flow for a provider kind. Dispatch is kind-only.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class AuthLoginBeginRequest
+{
+    /// <summary>The provider kind to sign in with.</summary>
+    [JsonPropertyName("kind")]
+    public LoginProviderKind Kind { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Advance an in-flight login flow, optionally fulfilling an input-required step.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class AuthLoginAdvanceRequest
+{
+    /// <summary>Opaque flow id from begin.</summary>
+    [JsonPropertyName("flowId")]
+    public string FlowId { get; set; } = string.Empty;
+
+    /// <summary>Neutral input fulfilling a preceding input-required step (e.g. a GHEC host); ignored otherwise.</summary>
+    [JsonPropertyName("input")]
+    public string? Input { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Cancel an in-flight login flow.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class AuthLoginCancelRequest
+{
+    /// <summary>Opaque flow id from begin.</summary>
+    [JsonPropertyName("flowId")]
+    public string FlowId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>A file included in the session debug bundle.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class DebugCollectLogsCollectedEntry
@@ -12168,6 +12709,15 @@ public sealed class McpHostState
     public IList<string> PendingConnections { get => field ??= []; set; }
 }
 
+/// <summary>Owned installation that a listed MCP server's live configuration came from.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class McpServerOwnership
+{
+    /// <summary>Stable installation identifier from the owned installation receipt.</summary>
+    [JsonPropertyName("installationId")]
+    public string InstallationId { get; set; } = string.Empty;
+}
+
 /// <summary>MCP server status entry, including config source/plugin source and any connection error.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class McpServer
@@ -12186,6 +12736,10 @@ public sealed class McpServer
     [MinLength(1)]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Owned installation this entry's live configuration came from. Absent for manual, workspace, plugin, builtin and same-name servers, and on runtimes without owned installations.</summary>
+    [JsonPropertyName("owned")]
+    public McpServerOwnership? Owned { get; set; }
 
     /// <summary>Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.</summary>
     [JsonPropertyName("serverMetadata")]
@@ -29335,6 +29889,210 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
 }
 
 
+/// <summary>The provider kind stamped on a signed-in account.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AccountKind : IEquatable<AccountKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AccountKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AccountKind"/>.</param>
+    [JsonConstructor]
+    public AccountKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AccountKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>An OAuth github.com account.</summary>
+    public static AccountKind GitHubDotCom { get; } = new("githubDotCom");
+
+    /// <summary>A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g. *.ghe.com.</summary>
+    public static AccountKind Proxima { get; } = new("proxima");
+
+    /// <summary>A GitHub (EMU) account derived from a base Entra identity.</summary>
+    public static AccountKind EntraEmu { get; } = new("entraEmu");
+
+    /// <summary>A base Microsoft Entra identity.</summary>
+    public static AccountKind Entra { get; } = new("entra");
+
+    /// <summary>A Microsoft 365 Copilot (Loki) inference account derived from the same base Entra identity as an EMU account; its bearer is a Loki-scoped inference token consumed through the model-provider path, not the GitHub switcher.</summary>
+    public static AccountKind Loki { get; } = new("loki");
+
+    /// <summary>Returns a value indicating whether two <see cref="AccountKind"/> instances are equivalent.</summary>
+    public static bool operator ==(AccountKind left, AccountKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AccountKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(AccountKind left, AccountKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AccountKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AccountKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AccountKind}"/> for serializing <see cref="AccountKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AccountKind>
+    {
+        /// <inheritdoc />
+        public override AccountKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AccountKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AccountKind));
+        }
+    }
+}
+
+
+/// <summary>A provider a consumer may interactively sign in with.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct LoginProviderKind : IEquatable<LoginProviderKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="LoginProviderKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="LoginProviderKind"/>.</param>
+    [JsonConstructor]
+    public LoginProviderKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="LoginProviderKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>OAuth github.com sign-in via the browser (web loopback + PKCE).</summary>
+    public static LoginProviderKind GitHubDotCom { get; } = new("githubDotCom");
+
+    /// <summary>A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g. *.ghe.com; the host is supplied interactively through the neutral input-required step.</summary>
+    public static LoginProviderKind Proxima { get; } = new("proxima");
+
+    /// <summary>Microsoft Entra sign-in that derives a GitHub (EMU) credential.</summary>
+    public static LoginProviderKind Entra { get; } = new("entra");
+
+    /// <summary>Returns a value indicating whether two <see cref="LoginProviderKind"/> instances are equivalent.</summary>
+    public static bool operator ==(LoginProviderKind left, LoginProviderKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="LoginProviderKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(LoginProviderKind left, LoginProviderKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is LoginProviderKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(LoginProviderKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{LoginProviderKind}"/> for serializing <see cref="LoginProviderKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<LoginProviderKind>
+    {
+        /// <inheritdoc />
+        public override LoginProviderKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, LoginProviderKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(LoginProviderKind));
+        }
+    }
+}
+
+
+/// <summary>Terminal disposition of a login persistence attempt.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AuthLoginResultStatus : IEquatable<AuthLoginResultStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AuthLoginResultStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AuthLoginResultStatus"/>.</param>
+    [JsonConstructor]
+    public AuthLoginResultStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AuthLoginResultStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The credential was persisted and the account is signed in.</summary>
+    public static AuthLoginResultStatus Completed { get; } = new("completed");
+
+    /// <summary>Persistence needs explicit consent to store the token in plaintext.</summary>
+    public static AuthLoginResultStatus NeedsPlaintextConsent { get; } = new("needs-plaintext-consent");
+
+    /// <summary>The user declined plaintext persistence.</summary>
+    public static AuthLoginResultStatus Declined { get; } = new("declined");
+
+    /// <summary>Returns a value indicating whether two <see cref="AuthLoginResultStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(AuthLoginResultStatus left, AuthLoginResultStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AuthLoginResultStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(AuthLoginResultStatus left, AuthLoginResultStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AuthLoginResultStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AuthLoginResultStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AuthLoginResultStatus}"/> for serializing <see cref="AuthLoginResultStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AuthLoginResultStatus>
+    {
+        /// <inheritdoc />
+        public override AuthLoginResultStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AuthLoginResultStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AuthLoginResultStatus));
+        }
+    }
+}
+
+
 /// <summary>Source category for a collected debug bundle entry.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -38863,6 +39621,12 @@ public sealed class SessionRpc
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
 
+    /// <summary>Accounts APIs.</summary>
+    public AccountsApi Accounts =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>Debug APIs.</summary>
     public DebugApi Debug =>
         field ??
@@ -39430,6 +40194,113 @@ public sealed class GitHubAuthApi
 
         var request = new SessionGitHubAuthLastAuthErrorsRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<IList<AuthValidationError>>(_session.Rpc, "session.gitHubAuth.lastAuthErrors", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Accounts APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class AccountsApi
+{
+    private readonly CopilotSession _session;
+
+    internal AccountsApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Enumerate a typed accounts collection: the signed-in accounts, or the providers offered for interactive login.</summary>
+    /// <param name="query">Which typed accounts collection to enumerate.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The enumerated collection, keyed by the same selector as the query.</returns>
+    public async Task<AuthEnumerateValue> EnumerateAsync(AuthEnumerateQuery query, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        _session.ThrowIfDisposed();
+
+        var request = new AccountsEnumerateRequest { SessionId = _session.SessionId, Query = query };
+        return await CopilotClient.InvokeRpcAsync<AuthEnumerateValue>(_session.Rpc, "session.accounts.enumerate", [request], cancellationToken);
+    }
+
+    /// <summary>Read one typed accounts datum: the active account, a neutral status summary, or the last authentication errors.</summary>
+    /// <param name="query">Which typed accounts datum to read.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The read result, keyed by the same selector as the query.</returns>
+    public async Task<AuthReadValue> GetAsync(AuthReadQuery query, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        _session.ThrowIfDisposed();
+
+        var request = new AccountsGetRequest { SessionId = _session.SessionId, Query = query };
+        return await CopilotClient.InvokeRpcAsync<AuthReadValue>(_session.Rpc, "session.accounts.get", [request], cancellationToken);
+    }
+
+    /// <summary>Apply one non-interactive accounts mutation: switch the active account, log an account out, or set credentials from a token.</summary>
+    /// <param name="command">The non-interactive mutation command to apply.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of a non-interactive accounts mutation.</returns>
+    public async Task<AuthWriteResult> SetAsync(AuthWrite command, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        _session.ThrowIfDisposed();
+
+        var request = new AccountsSetRequest { SessionId = _session.SessionId, Command = command };
+        return await CopilotClient.InvokeRpcAsync<AuthWriteResult>(_session.Rpc, "session.accounts.set", [request], cancellationToken);
+    }
+
+    /// <summary>Login APIs.</summary>
+    public AccountsLoginApi Login =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+}
+
+/// <summary>Provides session-scoped AccountsLogin APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class AccountsLoginApi
+{
+    private readonly CopilotSession _session;
+
+    internal AccountsLoginApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.</summary>
+    /// <param name="kind">The provider kind to sign in with.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>A started login flow: its opaque id and first step.</returns>
+    public async Task<AuthLoginBegun> BeginAsync(LoginProviderKind kind, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new AuthLoginBeginRequest { SessionId = _session.SessionId, Kind = kind };
+        return await CopilotClient.InvokeRpcAsync<AuthLoginBegun>(_session.Rpc, "session.accounts.login.begin", [request], cancellationToken);
+    }
+
+    /// <summary>Advance an in-flight login flow, optionally fulfilling an input-required step, and return the next step.</summary>
+    /// <param name="flowId">Opaque flow id from begin.</param>
+    /// <param name="input">Neutral input fulfilling a preceding input-required step (e.g. a GHEC host); ignored otherwise.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).</returns>
+    public async Task<AuthLoginStep> AdvanceAsync(string flowId, string? input = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(flowId);
+        _session.ThrowIfDisposed();
+
+        var request = new AuthLoginAdvanceRequest { SessionId = _session.SessionId, FlowId = flowId, Input = input };
+        return await CopilotClient.InvokeRpcAsync<AuthLoginStep>(_session.Rpc, "session.accounts.login.advance", [request], cancellationToken);
+    }
+
+    /// <summary>Cancel an in-flight login flow and release its resources.</summary>
+    /// <param name="flowId">Opaque flow id from begin.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task CancelAsync(string flowId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(flowId);
+        _session.ThrowIfDisposed();
+
+        var request = new AuthLoginCancelRequest { SessionId = _session.SessionId, FlowId = flowId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.accounts.login.cancel", [request], cancellationToken);
     }
 }
 
@@ -44836,6 +45707,10 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AccountLogoutRequest))]
 [JsonSerializable(typeof(AccountLogoutResult))]
 [JsonSerializable(typeof(AccountQuotaSnapshot))]
+[JsonSerializable(typeof(AccountStatus))]
+[JsonSerializable(typeof(AccountsEnumerateRequest))]
+[JsonSerializable(typeof(AccountsGetRequest))]
+[JsonSerializable(typeof(AccountsSetRequest))]
 [JsonSerializable(typeof(AgentDiscoveryPath))]
 [JsonSerializable(typeof(AgentDiscoveryPathList))]
 [JsonSerializable(typeof(AgentGetCurrentResult))]
@@ -44851,9 +45726,22 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AgentSetPromptRequest))]
 [JsonSerializable(typeof(AgentsDiscoverRequest))]
 [JsonSerializable(typeof(AgentsGetDiscoveryPathsRequest))]
+[JsonSerializable(typeof(AuthEnumerateQuery))]
+[JsonSerializable(typeof(AuthEnumerateValue))]
 [JsonSerializable(typeof(AuthIdentity))]
 [JsonSerializable(typeof(AuthInfo))]
+[JsonSerializable(typeof(AuthLoginAdvanceRequest))]
+[JsonSerializable(typeof(AuthLoginBeginRequest))]
+[JsonSerializable(typeof(AuthLoginBegun))]
+[JsonSerializable(typeof(AuthLoginCancelRequest))]
+[JsonSerializable(typeof(AuthLoginResultDto))]
+[JsonSerializable(typeof(AuthLoginStep))]
+[JsonSerializable(typeof(AuthReadQuery))]
+[JsonSerializable(typeof(AuthReadValue))]
+[JsonSerializable(typeof(AuthStatusDto))]
 [JsonSerializable(typeof(AuthValidationError))]
+[JsonSerializable(typeof(AuthWrite))]
+[JsonSerializable(typeof(AuthWriteResult))]
 [JsonSerializable(typeof(AutopilotObjectiveCreditLimit))]
 [JsonSerializable(typeof(AutopilotObjectiveGetStateResult))]
 [JsonSerializable(typeof(AutopilotObjectiveState))]
@@ -45167,6 +46055,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpServerFailureInfo))]
 [JsonSerializable(typeof(McpServerList))]
 [JsonSerializable(typeof(McpServerNeedsAuthInfo))]
+[JsonSerializable(typeof(McpServerOwnership))]
 [JsonSerializable(typeof(McpSetEnvValueModeParams))]
 [JsonSerializable(typeof(McpSetEnvValueModeResult))]
 [JsonSerializable(typeof(McpSourceFile))]
@@ -45338,6 +46227,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ProviderAddResult))]
 [JsonSerializable(typeof(ProviderConfig))]
 [JsonSerializable(typeof(ProviderConfigAzure))]
+[JsonSerializable(typeof(ProviderDescriptor))]
 [JsonSerializable(typeof(ProviderEndpoint))]
 [JsonSerializable(typeof(ProviderModelConfig))]
 [JsonSerializable(typeof(ProviderSessionToken))]

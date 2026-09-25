@@ -51,7 +51,7 @@ import {
     type DefinitionCollections,
     type RpcMethod,
 } from "./utils.js";
-import { validateLegacyRequests, validateLegacyUntypedMarkers } from "./legacy-parameters.js";
+import { validateLegacyRequests, validateLegacyUntypedMarkers, validateLegacyDefinitions } from "./legacy-parameters.js";
 
 const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
 const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
@@ -758,6 +758,8 @@ import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.j
     );
     // TypeScript already publishes the typed shape of x-legacy-untyped fields; only validate the markers.
     validateLegacyUntypedMarkers(schema, "api.schema.json");
+    // Response records gain optional properties of the same interface.
+    validateLegacyDefinitions(rpcDefinitions);
     const combinedSchema = withSharedDefinitions(
         {
             $schema: "http://json-schema.org/draft-07/schema#",

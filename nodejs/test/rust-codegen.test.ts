@@ -1071,6 +1071,51 @@ describe("Rust x-legacy-parameters", () => {
         );
     });
 
+    it("keeps an annotated response record as a Default struct with every field", () => {
+        const record = (required: string[]) =>
+            ({
+                definitions: {
+                    SampleServer: {
+                        type: "object",
+                        properties: {
+                            name: { type: "string" },
+                            owned: { type: "string" },
+                            status: { type: "string" },
+                        },
+                        required,
+                        "x-legacy-parameters": ["name", "status"],
+                    },
+                },
+            }) as ApiSchema;
+        const types = generateApiTypesCode(record(["name", "status"]));
+        expect(types).toMatch(
+            /#\[derive\(Debug, Clone, Default, Serialize, Deserialize\)\]\n#\[serde\(rename_all = "camelCase"\)\]\npub struct SampleServer \{/
+        );
+        expect(types).toContain("pub owned: Option<String>,");
+        expect(types).not.toContain("SampleServerOptions");
+    });
+
+    it("rejects an annotated response record that cannot derive Default", () => {
+        const schema = {
+            definitions: {
+                Inner: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+                SampleServer: {
+                    type: "object",
+                    properties: {
+                        name: { type: "string" },
+                        inner: { $ref: "#/definitions/Inner" },
+                        owned: { type: "string" },
+                    },
+                    required: ["name", "inner"],
+                    "x-legacy-parameters": ["name", "inner"],
+                },
+            },
+        } as ApiSchema;
+        expect(() => generateApiTypesCode(schema, ["Inner"])).toThrow(
+            "Invalid x-legacy-parameters for SampleServer: a response record must be a struct that derives Default"
+        );
+    });
+
     it("rejects metadata that omits a required input", () => {
         const { schema, params } = legacyRequestSchema(1);
         (params as Record<string, unknown>)["x-legacy-parameters"] = ["contract", "scope"];
@@ -1190,5 +1235,32 @@ describe("Rust x-legacy-parameters", () => {
             }
         }
         expect(checked).toBeGreaterThan(0);
+    });
+
+    it("writes the schema literal for a pinned released collision without changing its type", () => {
+        const code = generateApiTypesCode({
+            definitions: {
+                AttachmentGitHubReferenceType: {
+                    type: "string",
+                    enum: ["issue", "pr", "discussion"],
+                },
+                AttachmentGitHubReference: {
+                    type: "object",
+                    required: ["referenceType", "type"],
+                    properties: {
+                        referenceType: { $ref: "#/definitions/AttachmentGitHubReferenceType" },
+                        type: { type: "string", const: "github_reference" },
+                    },
+                },
+            },
+        } as ApiSchema);
+
+        expect(code).toContain("pub reference_type: AttachmentGitHubReferenceType,");
+        expect(code).toContain(
+            '#[serde(serialize_with = "AttachmentGitHubReference::serialize_type")]\n    pub r#type: AttachmentGitHubReferenceType,'
+        );
+        expect(code).toContain('serializer.serialize_str("github_reference")');
+        expect(code).toMatch(/fn serialize_type<S>\(_value: &AttachmentGitHubReferenceType/);
+        expect(code).not.toMatch(/pub fn serialize_type/);
     });
 });

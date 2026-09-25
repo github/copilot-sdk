@@ -265,6 +265,18 @@ pub mod rpc_methods {
     pub const SESSION_GITHUBAUTH_LOGOUTUSER: &str = "session.gitHubAuth.logoutUser";
     /// `session.gitHubAuth.lastAuthErrors`
     pub const SESSION_GITHUBAUTH_LASTAUTHERRORS: &str = "session.gitHubAuth.lastAuthErrors";
+    /// `session.accounts.enumerate`
+    pub const SESSION_ACCOUNTS_ENUMERATE: &str = "session.accounts.enumerate";
+    /// `session.accounts.get`
+    pub const SESSION_ACCOUNTS_GET: &str = "session.accounts.get";
+    /// `session.accounts.set`
+    pub const SESSION_ACCOUNTS_SET: &str = "session.accounts.set";
+    /// `session.accounts.login.begin`
+    pub const SESSION_ACCOUNTS_LOGIN_BEGIN: &str = "session.accounts.login.begin";
+    /// `session.accounts.login.advance`
+    pub const SESSION_ACCOUNTS_LOGIN_ADVANCE: &str = "session.accounts.login.advance";
+    /// `session.accounts.login.cancel`
+    pub const SESSION_ACCOUNTS_LOGIN_CANCEL: &str = "session.accounts.login.cancel";
     /// `session.debug.collectLogs`
     pub const SESSION_DEBUG_COLLECTLOGS: &str = "session.debug.collectLogs";
     /// `session.canvas.list`
@@ -1740,6 +1752,147 @@ pub struct AccountLogoutResult {
     pub has_more_users: bool,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthEnumerateQueryAccounts {
+    /// Account-collection query variant discriminator.
+    pub kind: AuthEnumerateQueryAccountsKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthEnumerateQueryProviders {
+    /// Whether an interactive Entra broker is available on the host; gates Entra availability in the returned list.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub broker_available: Option<bool>,
+    /// Account-collection query variant discriminator.
+    pub kind: AuthEnumerateQueryProvidersKind,
+}
+
+/// Enumerate request carrying the typed collection query.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsEnumerateRequest {
+    /// Which typed accounts collection to enumerate.
+    pub query: AuthEnumerateQuery,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthReadQueryActiveAccount {
+    /// Account read-datum query variant discriminator.
+    pub kind: AuthReadQueryActiveAccountKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthReadQueryStatus {
+    /// Account read-datum query variant discriminator.
+    pub kind: AuthReadQueryStatusKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthReadQueryLastErrors {
+    /// Account read-datum query variant discriminator.
+    pub kind: AuthReadQueryLastErrorsKind,
+}
+
+/// Read request carrying the typed datum query.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsGetRequest {
+    /// Which typed accounts datum to read.
+    pub query: AuthReadQuery,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthWriteSwitchActive {
+    /// Account mutation command variant discriminator.
+    pub kind: AuthWriteSwitchActiveKind,
+    /// Opaque selection id of the account to make active.
+    pub selection_id: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthWriteLogout {
+    /// Account mutation command variant discriminator.
+    pub kind: AuthWriteLogoutKind,
+    /// Opaque selection id of the account to log out; absent logs out the active account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selection_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthWriteSetCredentials {
+    /// Authentication host URL.
+    pub host: String,
+    /// Account mutation command variant discriminator.
+    pub kind: AuthWriteSetCredentialsKind,
+    /// Login/username for the credential.
+    pub login: String,
+    /// GitHub authentication token to install.
+    pub token: String,
+}
+
+/// Mutation request carrying the typed write command.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsSetRequest {
+    /// The non-interactive mutation command to apply.
+    pub command: AuthWrite,
+}
+
+/// One signed-in account in the roster forest.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountStatus {
+    /// Whether this is the active account.
+    pub active: bool,
+    /// Opaque id of the account this one was derived from (e.g. an EMU account's base Entra identity); absent for a root account. Matches the base identity account's selectionId, forming the derivation edge.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub derived_from: Option<String>,
+    /// Authentication host URL.
+    pub host: String,
+    /// The provider kind of this account.
+    pub kind: AccountKind,
+    /// Authenticated login/username.
+    pub login: String,
+    /// Opaque selection id used to switch to, or log out, this account.
+    pub selection_id: String,
+}
+
 /// Canonical directory where custom agents can be discovered or created, with scope, preference, and optional project path.
 ///
 /// <div class="warning">
@@ -2486,9 +2639,23 @@ pub struct AttachmentGitHubReference {
     /// Title of the referenced item
     pub title: String,
     /// Attachment type discriminator
+    /// Always serialised as `"github_reference"`. The released field type cannot hold that literal, so a deserialised value reads as `Unknown`.
+    #[serde(serialize_with = "AttachmentGitHubReference::serialize_type")]
     pub r#type: AttachmentGitHubReferenceType,
     /// URL to the referenced item on GitHub
     pub url: String,
+}
+
+impl AttachmentGitHubReference {
+    fn serialize_type<S>(
+        _value: &AttachmentGitHubReferenceType,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str("github_reference")
+    }
 }
 
 /// Pointer to a GitHub release.
@@ -2693,6 +2860,43 @@ pub struct AttachmentSelection {
     pub r#type: AttachmentSelectionType,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthEnumerateValueAccounts {
+    /// The signed-in account forest; empty when not logged in.
+    pub items: Vec<AccountStatus>,
+    /// Enumerated account-collection variant discriminator.
+    pub kind: AuthEnumerateValueAccountsKind,
+}
+
+/// A provider offered for interactive login.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderDescriptor {
+    /// Whether this provider is currently available to sign in with.
+    pub available: bool,
+    /// The neutral provider kind.
+    pub kind: LoginProviderKind,
+    /// Human-readable menu label, owned by the runtime so every consumer renders identical text.
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthEnumerateValueProviders {
+    /// The providers offered for interactive login.
+    pub items: Vec<ProviderDescriptor>,
+    /// Enumerated account-collection variant discriminator.
+    pub kind: AuthEnumerateValueProvidersKind,
+}
+
 /// Credential-free authentication identity safe to expose to hosts and user interfaces.
 ///
 /// <div class="warning">
@@ -2722,6 +2926,243 @@ pub struct AuthIdentity {
     pub r#type: AuthInfoType,
 }
 
+/// Advance an in-flight login flow, optionally fulfilling an input-required step.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginAdvanceRequest {
+    /// Opaque flow id from begin.
+    pub flow_id: String,
+    /// Neutral input fulfilling a preceding input-required step (e.g. a GHEC host); ignored otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<String>,
+}
+
+/// Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginBeginRequest {
+    /// The provider kind to sign in with.
+    pub kind: LoginProviderKind,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginStepOpenUrl {
+    /// Login flow step variant discriminator.
+    pub kind: AuthLoginStepOpenUrlKind,
+    /// Authorize URL the consumer should open in a browser (consumer-driven browser-open).
+    pub url: String,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginStepInputRequired {
+    /// Login flow step variant discriminator.
+    pub kind: AuthLoginStepInputRequiredKind,
+    /// Prompt for the value the provider needs; the consumer supplies it as advance input (e.g. a GitHub Enterprise Cloud host, *.ghe.com).
+    pub prompt: String,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginStepAwaiting {
+    /// Login flow step variant discriminator.
+    pub kind: AuthLoginStepAwaitingKind,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginStepNeedsInteraction {
+    /// Login flow step variant discriminator.
+    pub kind: AuthLoginStepNeedsInteractionKind,
+}
+
+/// Terminal result of an interactive login flow.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginResultDto {
+    /// Host that was signed in, when completed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    /// Login that was signed in, when completed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub login: Option<String>,
+    /// Terminal disposition of the login.
+    pub status: AuthLoginResultStatus,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginStepCompleted {
+    /// Login flow step variant discriminator.
+    pub kind: AuthLoginStepCompletedKind,
+    /// The terminal login result.
+    pub result: AuthLoginResultDto,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginStepError {
+    /// Login flow step variant discriminator.
+    pub kind: AuthLoginStepErrorKind,
+    /// Human-readable failure message.
+    pub message: String,
+}
+
+/// A started login flow: its opaque id and first step.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginBegun {
+    /// Opaque flow id used to advance or cancel this login.
+    pub flow_id: String,
+    /// The first step of the flow.
+    pub step: AuthLoginStep,
+}
+
+/// Cancel an in-flight login flow.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginCancelRequest {
+    /// Opaque flow id from begin.
+    pub flow_id: String,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthReadValueActiveAccount {
+    /// The active account, or absent when not logged in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account: Option<AccountStatus>,
+    /// Account read-datum variant discriminator.
+    pub kind: AuthReadValueActiveAccountKind,
+}
+
+/// Neutral authentication status summary.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthStatusDto {
+    /// Number of signed-in accounts in the roster.
+    pub account_count: i64,
+    /// Active account host, if authenticated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_host: Option<String>,
+    /// Active account login, if authenticated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_login: Option<String>,
+    /// Copilot plan tier of the active account, if known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_plan: Option<String>,
+    /// Whether the session has resolved authentication.
+    pub is_authenticated: bool,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthReadValueStatus {
+    /// Account read-datum variant discriminator.
+    pub kind: AuthReadValueStatusKind,
+    /// The neutral authentication status summary.
+    pub status: AuthStatusDto,
+}
+
 /// Validation error from an authentication attempt.
 ///
 /// <div class="warning">
@@ -2738,6 +3179,40 @@ pub struct AuthValidationError {
     pub github_message: Option<String>,
     /// Authentication validation error message
     pub message: String,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthReadValueLastErrors {
+    /// Validation errors from the most recent authentication attempt.
+    pub errors: Vec<AuthValidationError>,
+    /// Account read-datum variant discriminator.
+    pub kind: AuthReadValueLastErrorsKind,
+}
+
+/// Result of a non-interactive accounts mutation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthWriteResult {
+    /// For a logout, whether other signed-in accounts remain.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub more_users: Option<bool>,
+    /// Whether the mutation was applied.
+    pub ok: bool,
 }
 
 /// Current per-window credit limit and consumption for an autopilot objective.
@@ -11194,6 +11669,21 @@ pub struct McpSamplingExecutionResult {
     pub result: Option<McpExecuteSamplingResult>,
 }
 
+/// Owned installation that a listed MCP server's live configuration came from.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerOwnership {
+    /// Stable installation identifier from the owned installation receipt.
+    pub installation_id: String,
+}
+
 /// MCP server status entry, including config source/plugin source and any connection error.
 ///
 /// <div class="warning">
@@ -11213,6 +11703,9 @@ pub struct McpServer {
     pub error: Option<String>,
     /// Server name (config key)
     pub name: String,
+    /// Owned installation this entry's live configuration came from. Absent for manual, workspace, plugin, builtin and same-name servers, and on runtimes without owned installations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owned: Option<McpServerOwnership>,
     /// Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub server_metadata: Option<McpServerMetadata>,
@@ -16034,9 +16527,23 @@ pub struct PushAttachmentGitHubReference {
     /// Title of the referenced item
     pub title: String,
     /// Attachment type discriminator
+    /// Always serialised as `"github_reference"`. The released field type cannot hold that literal, so a deserialised value reads as `Unknown`.
+    #[serde(serialize_with = "PushAttachmentGitHubReference::serialize_type")]
     pub r#type: PushAttachmentGitHubReferenceType,
     /// URL to the referenced item on GitHub
     pub url: String,
+}
+
+impl PushAttachmentGitHubReference {
+    fn serialize_type<S>(
+        _value: &PushAttachmentGitHubReferenceType,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str("github_reference")
+    }
 }
 
 /// Pointer to a GitHub release.
@@ -26451,6 +26958,41 @@ pub struct SessionGitHubAuthLastAuthErrorsParams {
     pub session_id: SessionId,
 }
 
+/// Result of a non-interactive accounts mutation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAccountsSetResult {
+    /// For a logout, whether other signed-in accounts remain.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub more_users: Option<bool>,
+    /// Whether the mutation was applied.
+    pub ok: bool,
+}
+
+/// A started login flow: its opaque id and first step.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAccountsLoginBeginResult {
+    /// Opaque flow id used to advance or cancel this login.
+    pub flow_id: String,
+    /// The first step of the flow.
+    pub step: AuthLoginStep,
+}
+
 /// Result of collecting a session debug bundle.
 ///
 /// <div class="warning">
@@ -32623,6 +33165,148 @@ pub enum AuthInfo {
     ApiKey(ApiKeyAuthInfo),
 }
 
+/// The provider kind stamped on a signed-in account.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AccountKind {
+    /// An OAuth github.com account.
+    #[serde(rename = "githubDotCom")]
+    GitHubDotCom,
+    /// A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g. *.ghe.com.
+    #[serde(rename = "proxima")]
+    Proxima,
+    /// A GitHub (EMU) account derived from a base Entra identity.
+    #[serde(rename = "entraEmu")]
+    EntraEmu,
+    /// A base Microsoft Entra identity.
+    #[serde(rename = "entra")]
+    Entra,
+    /// A Microsoft 365 Copilot (Loki) inference account derived from the same base Entra identity as an EMU account; its bearer is a Loki-scoped inference token consumed through the model-provider path, not the GitHub switcher.
+    #[serde(rename = "loki")]
+    Loki,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Account-collection query variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthEnumerateQueryAccountsKind {
+    #[serde(rename = "accounts")]
+    #[default]
+    Accounts,
+}
+
+/// Account-collection query variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthEnumerateQueryProvidersKind {
+    #[serde(rename = "providers")]
+    #[default]
+    Providers,
+}
+
+/// Selects which accounts collection to enumerate. A no-arg selector is the empty-payload variant.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AuthEnumerateQuery {
+    Accounts(AuthEnumerateQueryAccounts),
+    Providers(AuthEnumerateQueryProviders),
+}
+
+/// Account read-datum query variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthReadQueryActiveAccountKind {
+    #[serde(rename = "activeAccount")]
+    #[default]
+    ActiveAccount,
+}
+
+/// Account read-datum query variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthReadQueryStatusKind {
+    #[serde(rename = "status")]
+    #[default]
+    Status,
+}
+
+/// Account read-datum query variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthReadQueryLastErrorsKind {
+    #[serde(rename = "lastErrors")]
+    #[default]
+    LastErrors,
+}
+
+/// Selects which typed accounts datum to read.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AuthReadQuery {
+    ActiveAccount(AuthReadQueryActiveAccount),
+    Status(AuthReadQueryStatus),
+    LastErrors(AuthReadQueryLastErrors),
+}
+
+/// Account mutation command variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthWriteSwitchActiveKind {
+    #[serde(rename = "switchActive")]
+    #[default]
+    SwitchActive,
+}
+
+/// Account mutation command variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthWriteLogoutKind {
+    #[serde(rename = "logout")]
+    #[default]
+    Logout,
+}
+
+/// Account mutation command variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthWriteSetCredentialsKind {
+    #[serde(rename = "setCredentials")]
+    #[default]
+    SetCredentials,
+}
+
+/// One non-interactive accounts mutation command (the selector is fused with its typed args).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AuthWrite {
+    SwitchActive(AuthWriteSwitchActive),
+    Logout(AuthWriteLogout),
+    SetCredentials(AuthWriteSetCredentials),
+}
+
 /// Resolved Anthropic adaptive-thinking capability for a model.
 ///
 /// <div class="warning">
@@ -33108,6 +33792,62 @@ pub enum AttachmentSelectionType {
     Selection,
 }
 
+/// Enumerated account-collection variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthEnumerateValueAccountsKind {
+    #[serde(rename = "accounts")]
+    #[default]
+    Accounts,
+}
+
+/// A provider a consumer may interactively sign in with.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LoginProviderKind {
+    /// OAuth github.com sign-in via the browser (web loopback + PKCE).
+    #[serde(rename = "githubDotCom")]
+    GitHubDotCom,
+    /// A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g. *.ghe.com; the host is supplied interactively through the neutral input-required step.
+    #[serde(rename = "proxima")]
+    Proxima,
+    /// Microsoft Entra sign-in that derives a GitHub (EMU) credential.
+    #[serde(rename = "entra")]
+    Entra,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Enumerated account-collection variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthEnumerateValueProvidersKind {
+    #[serde(rename = "providers")]
+    #[default]
+    Providers,
+}
+
+/// The enumerated collection, keyed by the same selector as the query.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AuthEnumerateValue {
+    Accounts(AuthEnumerateValueAccounts),
+    Providers(AuthEnumerateValueProviders),
+}
+
 /// Authentication type
 ///
 /// <div class="warning">
@@ -33146,6 +33886,138 @@ pub enum AuthInfoType {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Login flow step variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthLoginStepOpenUrlKind {
+    #[serde(rename = "open-url")]
+    #[default]
+    OpenUrl,
+}
+
+/// Login flow step variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthLoginStepInputRequiredKind {
+    #[serde(rename = "input-required")]
+    #[default]
+    InputRequired,
+}
+
+/// Login flow step variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthLoginStepAwaitingKind {
+    #[serde(rename = "awaiting")]
+    #[default]
+    Awaiting,
+}
+
+/// Login flow step variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthLoginStepNeedsInteractionKind {
+    #[serde(rename = "needs-interaction")]
+    #[default]
+    NeedsInteraction,
+}
+
+/// Login flow step variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthLoginStepCompletedKind {
+    #[serde(rename = "completed")]
+    #[default]
+    Completed,
+}
+
+/// Terminal disposition of a login persistence attempt.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthLoginResultStatus {
+    /// The credential was persisted and the account is signed in.
+    #[serde(rename = "completed")]
+    Completed,
+    /// Persistence needs explicit consent to store the token in plaintext.
+    #[serde(rename = "needs-plaintext-consent")]
+    NeedsPlaintextConsent,
+    /// The user declined plaintext persistence.
+    #[serde(rename = "declined")]
+    Declined,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Login flow step variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthLoginStepErrorKind {
+    #[serde(rename = "error")]
+    #[default]
+    Error,
+}
+
+/// One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AuthLoginStep {
+    OpenUrl(AuthLoginStepOpenUrl),
+    InputRequired(AuthLoginStepInputRequired),
+    Awaiting(AuthLoginStepAwaiting),
+    NeedsInteraction(AuthLoginStepNeedsInteraction),
+    Completed(AuthLoginStepCompleted),
+    Error(AuthLoginStepError),
+}
+
+/// Account read-datum variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthReadValueActiveAccountKind {
+    #[serde(rename = "activeAccount")]
+    #[default]
+    ActiveAccount,
+}
+
+/// Account read-datum variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthReadValueStatusKind {
+    #[serde(rename = "status")]
+    #[default]
+    Status,
+}
+
+/// Account read-datum variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthReadValueLastErrorsKind {
+    #[serde(rename = "lastErrors")]
+    #[default]
+    LastErrors,
+}
+
+/// The read result, keyed by the same selector as the query.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AuthReadValue {
+    ActiveAccount(AuthReadValueActiveAccount),
+    Status(AuthReadValueStatus),
+    LastErrors(AuthReadValueLastErrors),
 }
 
 /// Current normalized autopilot objective lifecycle status.

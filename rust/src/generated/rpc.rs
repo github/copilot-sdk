@@ -3489,6 +3489,13 @@ pub struct SessionRpc<'a> {
 }
 
 impl<'a> SessionRpc<'a> {
+    /// `session.accounts.*` sub-namespace.
+    pub fn accounts(&self) -> SessionRpcAccounts<'a> {
+        SessionRpcAccounts {
+            session: self.session,
+        }
+    }
+
     /// `session.agent.*` sub-namespace.
     pub fn agent(&self) -> SessionRpcAgent<'a> {
         SessionRpcAgent {
@@ -4060,6 +4067,214 @@ impl<'a> SessionRpc<'a> {
             .call(rpc_methods::SESSION_LOG, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.accounts.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcAccounts<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcAccounts<'a> {
+    /// `session.accounts.login.*` sub-namespace.
+    pub fn login(&self) -> SessionRpcAccountsLogin<'a> {
+        SessionRpcAccountsLogin {
+            session: self.session,
+        }
+    }
+
+    /// Enumerate a typed accounts collection: the signed-in accounts, or the providers offered for interactive login.
+    ///
+    /// Wire method: `session.accounts.enumerate`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Enumerate request carrying the typed collection query.
+    ///
+    /// # Returns
+    ///
+    /// The enumerated collection, keyed by the same selector as the query.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn enumerate(
+        &self,
+        params: AccountsEnumerateRequest,
+    ) -> Result<AuthEnumerateValue, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_ACCOUNTS_ENUMERATE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Read one typed accounts datum: the active account, a neutral status summary, or the last authentication errors.
+    ///
+    /// Wire method: `session.accounts.get`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Read request carrying the typed datum query.
+    ///
+    /// # Returns
+    ///
+    /// The read result, keyed by the same selector as the query.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get(&self, params: AccountsGetRequest) -> Result<AuthReadValue, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_ACCOUNTS_GET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Apply one non-interactive accounts mutation: switch the active account, log an account out, or set credentials from a token.
+    ///
+    /// Wire method: `session.accounts.set`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Mutation request carrying the typed write command.
+    ///
+    /// # Returns
+    ///
+    /// Result of a non-interactive accounts mutation.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set(&self, params: AccountsSetRequest) -> Result<AuthWriteResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_ACCOUNTS_SET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.accounts.login.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcAccountsLogin<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcAccountsLogin<'a> {
+    /// Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.
+    ///
+    /// Wire method: `session.accounts.login.begin`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+    ///
+    /// # Returns
+    ///
+    /// A started login flow: its opaque id and first step.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn begin(&self, params: AuthLoginBeginRequest) -> Result<AuthLoginBegun, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_ACCOUNTS_LOGIN_BEGIN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Advance an in-flight login flow, optionally fulfilling an input-required step, and return the next step.
+    ///
+    /// Wire method: `session.accounts.login.advance`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Advance an in-flight login flow, optionally fulfilling an input-required step.
+    ///
+    /// # Returns
+    ///
+    /// One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn advance(&self, params: AuthLoginAdvanceRequest) -> Result<AuthLoginStep, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_ACCOUNTS_LOGIN_ADVANCE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Cancel an in-flight login flow and release its resources.
+    ///
+    /// Wire method: `session.accounts.login.cancel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Cancel an in-flight login flow.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn cancel(&self, params: AuthLoginCancelRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_ACCOUNTS_LOGIN_CANCEL,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
     }
 }
 

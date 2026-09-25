@@ -468,3 +468,75 @@ test("x-legacy-parameters rejects metadata that would not preserve the original 
     delete client.server;
     await assert.rejects(renderRpcTypes(client as Parameters<typeof renderRpcTypes>[0], {}), /only server and session requests are supported/);
 });
+
+/** A response record published with `name`, `status` and `error`, then extended with optional fields. */
+function legacyRecordSchema(additions: string[], legacy: string[] | undefined = ["name", "status", "error"]): JSONSchema7 {
+    const properties: Record<string, JSONSchema7> = {
+        name: { type: "string", description: "Server name." },
+        status: { type: "string" },
+    };
+    for (const addition of additions.filter((name) => name === "owned")) properties[addition] = { type: "string" };
+    properties.error = { type: "string" };
+    for (const addition of additions.filter((name) => name !== "owned")) properties[addition] = { type: "string" };
+    const schema: JSONSchema7 & Record<string, unknown> = { type: "object", properties, required: ["name", "status"] };
+    if (additions.length > 0 && legacy) schema["x-legacy-parameters"] = legacy;
+    return schema;
+}
+
+function recordSource(schema: JSONSchema7): string {
+    return generateRpcClass("SampleServer", schema, new Map(), "com.github.copilot.generated.rpc").code;
+}
+
+function legacyConstructors(source: string): string[] {
+    return [...source.matchAll(/public SampleServer\(([^)]*)\) \{\s*this\(([^)]*)\);/g)].map(
+        (match) => `${match[1].replace(/\s+/g, " ").trim()} => ${match[2]}`
+    );
+}
+
+test("x-legacy-parameters response records keep every component and add the previous constructor", () => {
+    const original = recordSource(legacyRecordSchema([]));
+    assert.deepEqual(legacyConstructors(original), [], "unmarked records keep their existing generation");
+
+    const trailing = recordSource(legacyRecordSchema(["traceId"]));
+    assert.match(trailing, /record SampleServer\(\s*\/\*\* Server name\. \*\/\s*@JsonProperty\("name"\) String name,\s*@JsonProperty\("status"\) String status,\s*@JsonProperty\("error"\) String error,\s*@JsonProperty\("traceId"\) String traceId\s*\)/);
+    assert.deepEqual(legacyConstructors(trailing), ["String name, String status, String error => name, status, error, null"]);
+
+    const middle = recordSource(legacyRecordSchema(["owned"]));
+    assert.deepEqual(legacyConstructors(middle), ["String name, String status, String error => name, status, null, error"]);
+
+    const twice = recordSource(legacyRecordSchema(["owned", "traceId"]));
+    assert.deepEqual(legacyConstructors(twice), ["String name, String status, String error => name, status, null, error, null"]);
+});
+
+test("x-legacy-parameters response records reject metadata a positional constructor cannot preserve", () => {
+    assert.throws(
+        () => recordSource(legacyRecordSchema(["traceId"], ["status", "name", "error"])),
+        /Invalid x-legacy-parameters for SampleServer: legacy parameters must follow schema property order/
+    );
+    assert.throws(
+        () => recordSource(legacyRecordSchema(["traceId"], ["name", "error"])),
+        /required property status must be a legacy parameter/
+    );
+});
+
+test("x-legacy-parameters response records get the constructor through standalone generation", async () => {
+    const files = await renderRpcTypes({
+        server: {
+            sample: {
+                list: {
+                    rpcMethod: "sample.list",
+                    params: null,
+                    result: {
+                        type: "object",
+                        properties: { servers: { type: "array", items: { $ref: "#/definitions/SampleServer" } } },
+                        required: ["servers"],
+                    },
+                },
+            },
+        },
+        definitions: { SampleServer: legacyRecordSchema(["owned"]) },
+    } as Parameters<typeof renderRpcTypes>[0], {});
+    assert.deepEqual(legacyConstructors(rpcSource(files, "SampleServer")), [
+        "String name, String status, String error => name, status, null, error",
+    ]);
+});

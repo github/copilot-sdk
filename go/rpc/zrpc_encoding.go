@@ -235,6 +235,283 @@ func (r *AccountLogoutRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalAuthEnumerateQuery(data []byte) (AuthEnumerateQuery, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind AuthEnumerateQueryKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case AuthEnumerateQueryKindAccounts:
+		var d AuthEnumerateQueryAccounts
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthEnumerateQueryKindProviders:
+		var d AuthEnumerateQueryProviders
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawAuthEnumerateQueryData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawAuthEnumerateQueryData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind AuthEnumerateQueryKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r AuthEnumerateQueryAccounts) MarshalJSON() ([]byte, error) {
+	type alias AuthEnumerateQueryAccounts
+	return json.Marshal(struct {
+		Kind AuthEnumerateQueryKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthEnumerateQueryProviders) MarshalJSON() ([]byte, error) {
+	type alias AuthEnumerateQueryProviders
+	return json.Marshal(struct {
+		Kind AuthEnumerateQueryKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *AccountsEnumerateRequest) UnmarshalJSON(data []byte) error {
+	type rawAccountsEnumerateRequest struct {
+		Query json.RawMessage `json:"query"`
+	}
+	var raw rawAccountsEnumerateRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Query != nil {
+		value, err := unmarshalAuthEnumerateQuery(raw.Query)
+		if err != nil {
+			return err
+		}
+		r.Query = value
+	}
+	return nil
+}
+
+func unmarshalAuthReadQuery(data []byte) (AuthReadQuery, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind AuthReadQueryKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case AuthReadQueryKindActiveAccount:
+		var d AuthReadQueryActiveAccount
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthReadQueryKindLastErrors:
+		var d AuthReadQueryLastErrors
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthReadQueryKindStatus:
+		var d AuthReadQueryStatus
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawAuthReadQueryData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawAuthReadQueryData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind AuthReadQueryKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r AuthReadQueryActiveAccount) MarshalJSON() ([]byte, error) {
+	type alias AuthReadQueryActiveAccount
+	return json.Marshal(struct {
+		Kind AuthReadQueryKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthReadQueryLastErrors) MarshalJSON() ([]byte, error) {
+	type alias AuthReadQueryLastErrors
+	return json.Marshal(struct {
+		Kind AuthReadQueryKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthReadQueryStatus) MarshalJSON() ([]byte, error) {
+	type alias AuthReadQueryStatus
+	return json.Marshal(struct {
+		Kind AuthReadQueryKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *AccountsGetRequest) UnmarshalJSON(data []byte) error {
+	type rawAccountsGetRequest struct {
+		Query json.RawMessage `json:"query"`
+	}
+	var raw rawAccountsGetRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Query != nil {
+		value, err := unmarshalAuthReadQuery(raw.Query)
+		if err != nil {
+			return err
+		}
+		r.Query = value
+	}
+	return nil
+}
+
+func unmarshalAuthWrite(data []byte) (AuthWrite, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind AuthWriteKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case AuthWriteKindLogout:
+		var d AuthWriteLogout
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthWriteKindSetCredentials:
+		var d AuthWriteSetCredentials
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthWriteKindSwitchActive:
+		var d AuthWriteSwitchActive
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawAuthWriteData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawAuthWriteData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind AuthWriteKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r AuthWriteLogout) MarshalJSON() ([]byte, error) {
+	type alias AuthWriteLogout
+	return json.Marshal(struct {
+		Kind AuthWriteKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthWriteSetCredentials) MarshalJSON() ([]byte, error) {
+	type alias AuthWriteSetCredentials
+	return json.Marshal(struct {
+		Kind AuthWriteKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthWriteSwitchActive) MarshalJSON() ([]byte, error) {
+	type alias AuthWriteSwitchActive
+	return json.Marshal(struct {
+		Kind AuthWriteKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *AccountsSetRequest) UnmarshalJSON(data []byte) error {
+	type rawAccountsSetRequest struct {
+		Command json.RawMessage `json:"command"`
+	}
+	var raw rawAccountsSetRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Command != nil {
+		value, err := unmarshalAuthWrite(raw.Command)
+		if err != nil {
+			return err
+		}
+		r.Command = value
+	}
+	return nil
+}
+
 func unmarshalAgentRegistrySpawnResult(data []byte) (AgentRegistrySpawnResult, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -612,6 +889,300 @@ func (r AttachmentSelection) MarshalJSON() ([]byte, error) {
 		alias
 	}{
 		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func unmarshalAuthEnumerateValue(data []byte) (AuthEnumerateValue, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind AuthEnumerateValueKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case AuthEnumerateValueKindAccounts:
+		var d AuthEnumerateValueAccounts
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthEnumerateValueKindProviders:
+		var d AuthEnumerateValueProviders
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawAuthEnumerateValueData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawAuthEnumerateValueData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind AuthEnumerateValueKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r AuthEnumerateValueAccounts) MarshalJSON() ([]byte, error) {
+	type alias AuthEnumerateValueAccounts
+	return json.Marshal(struct {
+		Kind AuthEnumerateValueKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthEnumerateValueProviders) MarshalJSON() ([]byte, error) {
+	type alias AuthEnumerateValueProviders
+	return json.Marshal(struct {
+		Kind AuthEnumerateValueKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func unmarshalAuthLoginStep(data []byte) (AuthLoginStep, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind AuthLoginStepKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case AuthLoginStepKindAwaiting:
+		var d AuthLoginStepAwaiting
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthLoginStepKindCompleted:
+		var d AuthLoginStepCompleted
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthLoginStepKindError:
+		var d AuthLoginStepError
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthLoginStepKindInputRequired:
+		var d AuthLoginStepInputRequired
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthLoginStepKindNeedsInteraction:
+		var d AuthLoginStepNeedsInteraction
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthLoginStepKindOpenURL:
+		var d AuthLoginStepOpenURL
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawAuthLoginStepData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawAuthLoginStepData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind AuthLoginStepKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r AuthLoginStepAwaiting) MarshalJSON() ([]byte, error) {
+	type alias AuthLoginStepAwaiting
+	return json.Marshal(struct {
+		Kind AuthLoginStepKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthLoginStepCompleted) MarshalJSON() ([]byte, error) {
+	type alias AuthLoginStepCompleted
+	return json.Marshal(struct {
+		Kind AuthLoginStepKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthLoginStepError) MarshalJSON() ([]byte, error) {
+	type alias AuthLoginStepError
+	return json.Marshal(struct {
+		Kind AuthLoginStepKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthLoginStepInputRequired) MarshalJSON() ([]byte, error) {
+	type alias AuthLoginStepInputRequired
+	return json.Marshal(struct {
+		Kind AuthLoginStepKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthLoginStepNeedsInteraction) MarshalJSON() ([]byte, error) {
+	type alias AuthLoginStepNeedsInteraction
+	return json.Marshal(struct {
+		Kind AuthLoginStepKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthLoginStepOpenURL) MarshalJSON() ([]byte, error) {
+	type alias AuthLoginStepOpenURL
+	return json.Marshal(struct {
+		Kind AuthLoginStepKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *AuthLoginBegun) UnmarshalJSON(data []byte) error {
+	type rawAuthLoginBegun struct {
+		FlowID string          `json:"flowId"`
+		Step   json.RawMessage `json:"step"`
+	}
+	var raw rawAuthLoginBegun
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.FlowID = raw.FlowID
+	if raw.Step != nil {
+		value, err := unmarshalAuthLoginStep(raw.Step)
+		if err != nil {
+			return err
+		}
+		r.Step = value
+	}
+	return nil
+}
+
+func unmarshalAuthReadValue(data []byte) (AuthReadValue, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind AuthReadValueKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case AuthReadValueKindActiveAccount:
+		var d AuthReadValueActiveAccount
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthReadValueKindLastErrors:
+		var d AuthReadValueLastErrors
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthReadValueKindStatus:
+		var d AuthReadValueStatus
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawAuthReadValueData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawAuthReadValueData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind AuthReadValueKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r AuthReadValueActiveAccount) MarshalJSON() ([]byte, error) {
+	type alias AuthReadValueActiveAccount
+	return json.Marshal(struct {
+		Kind AuthReadValueKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthReadValueLastErrors) MarshalJSON() ([]byte, error) {
+	type alias AuthReadValueLastErrors
+	return json.Marshal(struct {
+		Kind AuthReadValueKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthReadValueStatus) MarshalJSON() ([]byte, error) {
+	type alias AuthReadValueStatus
+	return json.Marshal(struct {
+		Kind AuthReadValueKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }

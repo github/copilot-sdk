@@ -153,22 +153,24 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
     /// after session create returns, and list calls can report an empty list
     /// until setup finishes.
     /// </summary>
-    private static async Task<RpcExtension> WaitForExtensionAsync(
+    private async Task<RpcExtension> WaitForExtensionAsync(
         CopilotSession session,
         string extensionId,
         ExtensionStatus expectedStatus,
         TimeSpan? timeout = null)
     {
         RpcExtension? lastSeen = null;
+        string lastExtensions = "<no response>";
         await TestHelper.WaitForConditionAsync(
             async () =>
             {
                 var list = await session.Rpc.Extensions.ListAsync();
+                lastExtensions = string.Join(", ", list.Extensions.Select(extension => $"{extension.Id}: {extension.Status}"));
                 lastSeen = list.Extensions.FirstOrDefault(e => string.Equals(e.Id, extensionId, StringComparison.Ordinal));
                 return lastSeen != null && lastSeen.Status == expectedStatus;
             },
             timeout: timeout ?? ExtensionStartupTimeout,
-            timeoutMessage: $"Extension '{extensionId}' did not reach status '{expectedStatus}' (last seen: {lastSeen?.Status.ToString() ?? "<not present>"}).",
+            timeoutMessageFactory: () => $"Extension '{extensionId}' did not reach status '{expectedStatus}' (last seen: {lastSeen?.Status.ToString() ?? "<not present>"}; listed: [{lastExtensions}]; launch markers: {TestHelper.ExtensionLaunchMarkers(Ctx.HomeDir, extensionId)}).",
             transientExceptionFilter: ex => ex.ToString().Contains("Extensions not available", StringComparison.OrdinalIgnoreCase),
             pollInterval: TimeSpan.FromMilliseconds(100));
 

@@ -10,6 +10,10 @@
  * full current schema through an extensible entry point where the language needs one.
  * Future optional properties are added to the schema without changing the annotation.
  *
+ * A response record can opt in too. Its legacy list names the properties the published
+ * record had, in schema property order, so languages with positional construction can keep
+ * that constructor while the record gains the new fields.
+ *
  * This module is dependency-free so generators outside `src/sdk/scripts/codegen`, such
  * as the Java generator, can import it directly.
  */
@@ -38,6 +42,11 @@ export interface LegacyParameterOptions {
     readonly optional?: boolean;
     /** Whether the request schema accepts null. Nullable requests cannot opt in. */
     readonly nullable?: boolean;
+    /**
+     * Whether the legacy list must follow schema property order, as a positional record
+     * constructor requires.
+     */
+    readonly ordered?: boolean;
 }
 
 /** True for the `anyOf: [{ not: {} }, …]` shape of a request callers may omit entirely. */
@@ -96,6 +105,9 @@ export function readLegacyParameters(
     }
     const additions = properties.filter((name) => !legacy.has(name));
     if (additions.length === 0) return invalid("expected at least one property added after the legacy API");
+    if (options.ordered && properties.filter((name) => legacy.has(name)).some((name, index) => name !== names[index])) {
+        return invalid("legacy parameters must follow schema property order");
+    }
 
     return { legacy: names, additions, required };
 }
@@ -140,6 +152,22 @@ export function validateLegacyRequests<Node, Method extends { rpcMethod: string;
         const node = sections[section];
         if (!node) continue;
         for (const method of collect(node)) rejectLegacyParameters(params(method), method.rpcMethod);
+    }
+}
+
+/**
+ * Validates `x-legacy-parameters` on every shared definition, including response records
+ * that no request path reads. Generators whose projection of an added field needs no extra
+ * API call this so malformed metadata fails identically in every language.
+ */
+export function validateLegacyDefinitions(collections: {
+    definitions?: Record<string, unknown>;
+    $defs?: Record<string, unknown>;
+}): void {
+    for (const definitions of [collections.definitions, collections.$defs]) {
+        for (const [name, schema] of Object.entries(definitions ?? {})) {
+            readLegacyParameters(schema, name, { implicit: ["sessionId"] });
+        }
     }
 }
 

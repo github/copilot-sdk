@@ -1706,6 +1706,33 @@ export function generateRpcClass(
         lines.push(`    }`);
     }
 
+    // A request record drops its additions instead; a response record keeps every component.
+    const recordLegacy = omittedProperties.size === 0
+        ? readLegacyParameters(schema, className, { ordered: true })
+        : undefined;
+    if (recordLegacy) {
+        if (legacyFieldNames) {
+            throw new Error(`Conflicting compatibility constructors for ${className}`);
+        }
+        const legacyNames = new Set(recordLegacy.legacy);
+        const legacyFields = fields.filter((field) => legacyNames.has(field.propName));
+        lines.push(``);
+        lines.push(`    /**`);
+        lines.push(`     * Creates a record with the components it had before later optional fields were added.`);
+        lines.push(`     *`);
+        for (const field of legacyFields) {
+            lines.push(`     * @param ${field.javaName} ${javadocText(field.description || field.propName)}`);
+        }
+        lines.push(`     */`);
+        lines.push(`    public ${className}(`);
+        legacyFields.forEach((field, index) => {
+            lines.push(`        ${field.javaType} ${field.javaName}${index < legacyFields.length - 1 ? "," : ""}`);
+        });
+        lines.push(`    ) {`);
+        lines.push(`        this(${fields.map((field) => (legacyNames.has(field.propName) ? field.javaName : "null")).join(", ")});`);
+        lines.push(`    }`);
+    }
+
     lines.push(`}`);
 
     return { code: lines.join("\n"), imports };

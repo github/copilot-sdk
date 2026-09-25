@@ -64,3 +64,32 @@ def test_existing_action_export_keeps_its_name():
         rpc.Action,
         "Action",
     )
+
+
+def test_listed_server_positional_arguments_keep_their_meaning():
+    metadata = rpc.McpServerMetadata(instructions="use it")
+    server = rpc.MCPServer("server", rpc.McpServerStatus.CONNECTED, "Server", "failed", metadata)
+
+    assert server.server_metadata == metadata
+    assert server.owned is None
+    assert "owned" not in server.to_dict()
+    assert _positional(rpc.MCPServer) == [
+        "name",
+        "status",
+        "display_name",
+        "error",
+        "server_metadata",
+        "source",
+        "source_plugin",
+        "source_plugin_version",
+    ]
+
+
+def test_listed_server_owned_marker_round_trips_by_keyword():
+    server = rpc.MCPServer.from_dict(
+        {"name": "server", "status": "stopped", "owned": {"installationId": "installation"}}
+    )
+
+    assert server.owned.installation_id == "installation"
+    assert rpc.MCPServer.from_dict(server.to_dict()) == server
+    assert server.to_dict()["owned"] == {"installationId": "installation"}

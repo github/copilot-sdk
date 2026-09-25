@@ -34,6 +34,24 @@ export type AuthInfo =
   | GhCliAuthInfo
   | ApiKeyAuthInfo;
 /**
+ * The provider kind stamped on a signed-in account.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountKind".
+ */
+/** @experimental */
+export type AccountKind =
+  /** An OAuth github.com account. */
+  | "githubDotCom"
+  /** A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g. *.ghe.com. */
+  | "proxima"
+  /** A GitHub (EMU) account derived from a base Entra identity. */
+  | "entraEmu"
+  /** A base Microsoft Entra identity. */
+  | "entra"
+  /** A Microsoft 365 Copilot (Loki) inference account derived from the same base Entra identity as an EMU account; its bearer is a Loki-scoped inference token consumed through the model-provider path, not the GitHub switcher. */
+  | "loki";
+/**
  * User to log out
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -43,6 +61,102 @@ export type AuthInfo =
 export type AccountLogoutRequest = {
   [k: string]: unknown | undefined;
 };
+/**
+ * Selects which accounts collection to enumerate. A no-arg selector is the empty-payload variant.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthEnumerateQuery".
+ */
+/** @experimental */
+export type AuthEnumerateQuery =
+  | {
+      /**
+       * Account-collection query variant discriminator.
+       */
+      kind: "accounts";
+    }
+  | {
+      /**
+       * Whether an interactive Entra broker is available on the host; gates Entra availability in the returned list.
+       */
+      brokerAvailable?: boolean;
+      /**
+       * Account-collection query variant discriminator.
+       */
+      kind: "providers";
+    };
+/**
+ * Selects which typed accounts datum to read.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthReadQuery".
+ */
+/** @experimental */
+export type AuthReadQuery =
+  | {
+      /**
+       * Account read-datum query variant discriminator.
+       */
+      kind: "activeAccount";
+    }
+  | {
+      /**
+       * Account read-datum query variant discriminator.
+       */
+      kind: "status";
+    }
+  | {
+      /**
+       * Account read-datum query variant discriminator.
+       */
+      kind: "lastErrors";
+    };
+/**
+ * One non-interactive accounts mutation command (the selector is fused with its typed args).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthWrite".
+ */
+/** @experimental */
+export type AuthWrite =
+  | {
+      /**
+       * Opaque selection id of the account to make active.
+       */
+      selectionId: string;
+      /**
+       * Account mutation command variant discriminator.
+       */
+      kind: "switchActive";
+    }
+  | {
+      /**
+       * Opaque selection id of the account to log out; absent logs out the active account.
+       */
+      selectionId?: string;
+      /**
+       * Account mutation command variant discriminator.
+       */
+      kind: "logout";
+    }
+  | {
+      /**
+       * Authentication host URL.
+       */
+      host: string;
+      /**
+       * Login/username for the credential.
+       */
+      login: string;
+      /**
+       * GitHub authentication token to install.
+       */
+      token: string;
+      /**
+       * Account mutation command variant discriminator.
+       */
+      kind: "setCredentials";
+    };
 /**
  * Resolved Anthropic adaptive-thinking capability for a model.
  *
@@ -247,6 +361,48 @@ export type AgentRegistrySpawnValidationErrorField =
   /** The permissionMode parameter */
   | "permissionMode";
 /**
+ * The enumerated collection, keyed by the same selector as the query.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthEnumerateValue".
+ */
+/** @experimental */
+export type AuthEnumerateValue =
+  | {
+      /**
+       * The signed-in account forest; empty when not logged in.
+       */
+      items: AccountStatus[];
+      /**
+       * Enumerated account-collection variant discriminator.
+       */
+      kind: "accounts";
+    }
+  | {
+      /**
+       * The providers offered for interactive login.
+       */
+      items: ProviderDescriptor[];
+      /**
+       * Enumerated account-collection variant discriminator.
+       */
+      kind: "providers";
+    };
+/**
+ * A provider a consumer may interactively sign in with.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LoginProviderKind".
+ */
+/** @experimental */
+export type LoginProviderKind =
+  /** OAuth github.com sign-in via the browser (web loopback + PKCE). */
+  | "githubDotCom"
+  /** A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g. *.ghe.com; the host is supplied interactively through the neutral input-required step. */
+  | "proxima"
+  /** Microsoft Entra sign-in that derives a GitHub (EMU) credential. */
+  | "entra";
+/**
  * Authentication type
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -270,6 +426,109 @@ export type AuthInfoType =
   | "token-provider"
   /** Authentication from a Copilot API token. */
   | "copilot-api-token";
+/**
+ * One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginStep".
+ */
+/** @experimental */
+export type AuthLoginStep =
+  | {
+      /**
+       * Authorize URL the consumer should open in a browser (consumer-driven browser-open).
+       */
+      url: string;
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "open-url";
+    }
+  | {
+      /**
+       * Prompt for the value the provider needs; the consumer supplies it as advance input (e.g. a GitHub Enterprise Cloud host, *.ghe.com).
+       */
+      prompt: string;
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "input-required";
+    }
+  | {
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "awaiting";
+    }
+  | {
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "needs-interaction";
+    }
+  | {
+      result: AuthLoginResultDto;
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "completed";
+    }
+  | {
+      /**
+       * Human-readable failure message.
+       */
+      message: string;
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "error";
+    };
+/**
+ * Terminal disposition of a login persistence attempt.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginResultStatus".
+ */
+/** @experimental */
+export type AuthLoginResultStatus =
+  /** The credential was persisted and the account is signed in. */
+  | "completed"
+  /** Persistence needs explicit consent to store the token in plaintext. */
+  | "needs-plaintext-consent"
+  /** The user declined plaintext persistence. */
+  | "declined";
+/**
+ * The read result, keyed by the same selector as the query.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthReadValue".
+ */
+/** @experimental */
+export type AuthReadValue =
+  | {
+      account?: AccountStatus;
+      /**
+       * Account read-datum variant discriminator.
+       */
+      kind: "activeAccount";
+    }
+  | {
+      status: AuthStatusDto;
+      /**
+       * Account read-datum variant discriminator.
+       */
+      kind: "status";
+    }
+  | {
+      /**
+       * Validation errors from the most recent authentication attempt.
+       */
+      errors: AuthValidationError[];
+      /**
+       * Account read-datum variant discriminator.
+       */
+      kind: "lastErrors";
+    };
 /**
  * Validation errors from the most recent authentication attempt.
  *
@@ -5985,6 +6244,66 @@ export interface AccountLogoutResult {
   hasMoreUsers: boolean;
 }
 /**
+ * Enumerate request carrying the typed collection query.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountsEnumerateRequest".
+ */
+/** @experimental */
+export interface AccountsEnumerateRequest {
+  query: AuthEnumerateQuery;
+}
+/**
+ * Read request carrying the typed datum query.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountsGetRequest".
+ */
+/** @experimental */
+export interface AccountsGetRequest {
+  query: AuthReadQuery;
+}
+/**
+ * Mutation request carrying the typed write command.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountsSetRequest".
+ */
+/** @experimental */
+export interface AccountsSetRequest {
+  command: AuthWrite;
+}
+/**
+ * One signed-in account in the roster forest.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountStatus".
+ */
+/** @experimental */
+export interface AccountStatus {
+  /**
+   * Authentication host URL.
+   */
+  host: string;
+  /**
+   * Authenticated login/username.
+   */
+  login: string;
+  kind: AccountKind;
+  /**
+   * Opaque id of the account this one was derived from (e.g. an EMU account's base Entra identity); absent for a root account. Matches the base identity account's selectionId, forming the derivation edge.
+   */
+  derivedFrom?: string;
+  /**
+   * Whether this is the active account.
+   */
+  active: boolean;
+  /**
+   * Opaque selection id used to switch to, or log out, this account.
+   */
+  selectionId: string;
+}
+/**
  * Canonical directory where custom agents can be discovered or created, with scope, preference, and optional project path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6408,6 +6727,24 @@ export interface AgentsGetDiscoveryPathsRequest {
   excludeHostAgents?: boolean;
 }
 /**
+ * A provider offered for interactive login.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderDescriptor".
+ */
+/** @experimental */
+export interface ProviderDescriptor {
+  kind: LoginProviderKind;
+  /**
+   * Human-readable menu label, owned by the runtime so every consumer renders identical text.
+   */
+  label: string;
+  /**
+   * Whether this provider is currently available to sign in with.
+   */
+  available: boolean;
+}
+/**
  * Credential-free authentication identity safe to expose to hosts and user interfaces.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6435,6 +6772,107 @@ export interface AuthIdentity {
   copilotUser?: CopilotUserResponse;
 }
 /**
+ * Advance an in-flight login flow, optionally fulfilling an input-required step.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginAdvanceRequest".
+ */
+/** @experimental */
+export interface AuthLoginAdvanceRequest {
+  /**
+   * Opaque flow id from begin.
+   */
+  flowId: string;
+  /**
+   * Neutral input fulfilling a preceding input-required step (e.g. a GHEC host); ignored otherwise.
+   */
+  input?: string;
+}
+/**
+ * Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginBeginRequest".
+ */
+/** @experimental */
+export interface AuthLoginBeginRequest {
+  kind: LoginProviderKind;
+}
+/**
+ * A started login flow: its opaque id and first step.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginBegun".
+ */
+/** @experimental */
+export interface AuthLoginBegun {
+  /**
+   * Opaque flow id used to advance or cancel this login.
+   */
+  flowId: string;
+  step: AuthLoginStep;
+}
+/**
+ * Terminal result of an interactive login flow.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginResultDto".
+ */
+/** @experimental */
+export interface AuthLoginResultDto {
+  status: AuthLoginResultStatus;
+  /**
+   * Host that was signed in, when completed.
+   */
+  host?: string;
+  /**
+   * Login that was signed in, when completed.
+   */
+  login?: string;
+}
+/**
+ * Cancel an in-flight login flow.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginCancelRequest".
+ */
+/** @experimental */
+export interface AuthLoginCancelRequest {
+  /**
+   * Opaque flow id from begin.
+   */
+  flowId: string;
+}
+/**
+ * Neutral authentication status summary.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthStatusDto".
+ */
+/** @experimental */
+export interface AuthStatusDto {
+  /**
+   * Whether the session has resolved authentication.
+   */
+  isAuthenticated: boolean;
+  /**
+   * Active account login, if authenticated.
+   */
+  activeLogin?: string;
+  /**
+   * Active account host, if authenticated.
+   */
+  activeHost?: string;
+  /**
+   * Copilot plan tier of the active account, if known.
+   */
+  copilotPlan?: string;
+  /**
+   * Number of signed-in accounts in the roster.
+   */
+  accountCount: number;
+}
+/**
  * Validation error from an authentication attempt.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6450,6 +6888,23 @@ export interface AuthValidationError {
    * Optional message returned by GitHub
    */
   githubMessage?: string;
+}
+/**
+ * Result of a non-interactive accounts mutation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthWriteResult".
+ */
+/** @experimental */
+export interface AuthWriteResult {
+  /**
+   * Whether the mutation was applied.
+   */
+  ok: boolean;
+  /**
+   * For a logout, whether other signed-in accounts remain.
+   */
+  moreUsers?: boolean;
 }
 /**
  * Current per-window credit limit and consumption for an autopilot objective.
@@ -13701,6 +14156,20 @@ export interface McpServer {
    */
   error?: string;
   serverMetadata?: McpServerMetadata;
+  owned?: McpServerOwnership;
+}
+/**
+ * Owned installation that a listed MCP server's live configuration came from.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerOwnership".
+ */
+/** @experimental */
+export interface McpServerOwnership {
+  /**
+   * Stable installation identifier from the owned installation receipt.
+   */
+  installationId: string;
 }
 /**
  * In-process MCP server configuration used by embedded SDK clients.
@@ -28069,6 +28538,64 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             setCredentials: async (params: SessionSetCredentialsParams): Promise<SessionSetCredentialsResult> =>
                 connection.sendRequest("session.gitHubAuth.setCredentials", { sessionId, ...params }),
+        },
+        /** @experimental */
+        accounts: {
+            /**
+             * Enumerate a typed accounts collection: the signed-in accounts, or the providers offered for interactive login.
+             *
+             * @param params Enumerate request carrying the typed collection query.
+             *
+             * @returns The enumerated collection, keyed by the same selector as the query.
+             */
+            enumerate: async (params: AccountsEnumerateRequest): Promise<AuthEnumerateValue> =>
+                connection.sendRequest("session.accounts.enumerate", { sessionId, ...params }),
+            /**
+             * Read one typed accounts datum: the active account, a neutral status summary, or the last authentication errors.
+             *
+             * @param params Read request carrying the typed datum query.
+             *
+             * @returns The read result, keyed by the same selector as the query.
+             */
+            get: async (params: AccountsGetRequest): Promise<AuthReadValue> =>
+                connection.sendRequest("session.accounts.get", { sessionId, ...params }),
+            /**
+             * Apply one non-interactive accounts mutation: switch the active account, log an account out, or set credentials from a token.
+             *
+             * @param params Mutation request carrying the typed write command.
+             *
+             * @returns Result of a non-interactive accounts mutation.
+             */
+            set: async (params: AccountsSetRequest): Promise<AuthWriteResult> =>
+                connection.sendRequest("session.accounts.set", { sessionId, ...params }),
+            /** @experimental */
+            login: {
+                /**
+                 * Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.
+                 *
+                 * @param params Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+                 *
+                 * @returns A started login flow: its opaque id and first step.
+                 */
+                begin: async (params: AuthLoginBeginRequest): Promise<AuthLoginBegun> =>
+                    connection.sendRequest("session.accounts.login.begin", { sessionId, ...params }),
+                /**
+                 * Advance an in-flight login flow, optionally fulfilling an input-required step, and return the next step.
+                 *
+                 * @param params Advance an in-flight login flow, optionally fulfilling an input-required step.
+                 *
+                 * @returns One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).
+                 */
+                advance: async (params: AuthLoginAdvanceRequest): Promise<AuthLoginStep> =>
+                    connection.sendRequest("session.accounts.login.advance", { sessionId, ...params }),
+                /**
+                 * Cancel an in-flight login flow and release its resources.
+                 *
+                 * @param params Cancel an in-flight login flow.
+                 */
+                cancel: async (params: AuthLoginCancelRequest): Promise<void> =>
+                    connection.sendRequest("session.accounts.login.cancel", { sessionId, ...params }),
+            },
         },
         /** @experimental */
         debug: {
