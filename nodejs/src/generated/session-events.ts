@@ -130,9 +130,9 @@ export type SessionEvent =
   | ExitPlanModeCompletedEvent
   | ToolsUpdatedEvent
   | BackgroundTasksChangedEvent
-  | FactoryRunUpdatedEvent
-  | FactoryRunStartedEvent
-  | FactoryRunSettledEvent
+  | WorkflowRunUpdatedEvent
+  | WorkflowRunStartedEvent
+  | WorkflowRunSettledEvent
   | SkillsLoadedEvent
   | CustomAgentsUpdatedEvent
   | McpServersLoadedEvent
@@ -443,7 +443,9 @@ export type ModelChangeSource =
   /** The user selected the promoted model from the changeboarding card or its keyboard shortcut. */
   | "changeboarding_shortcut"
   /** An SDK or RPC caller selected the model. */
-  | "sdk";
+  | "sdk"
+  /** The user accepted a CAPI-issued Auto tier recommendation. */
+  | "auto_tier_recommendation";
 /**
  * Why the session no longer has an explicitly selected model.
  */
@@ -1069,7 +1071,7 @@ export type SystemNotification =
   | SystemNotificationShellCompleted
   | SystemNotificationShellDetachedCompleted
   | SystemNotificationInstructionDiscovered
-  | SystemNotificationFactoryCompleted
+  | SystemNotificationWorkflowCompleted
   | SystemNotificationUnclassified;
 /**
  * Whether the agent completed successfully or failed
@@ -1080,12 +1082,12 @@ export type SystemNotificationAgentCompletedStatus =
   /** The agent failed. */
   | "failed";
 /**
- * Durable metadata describing who initiated a factory pause.
+ * Durable metadata describing who initiated a workflow pause.
  */
-export type SystemNotificationFactoryPauseInfo =
+export type SystemNotificationWorkflowPauseInfo =
   | {
       /**
-       * Factory pause initiator discriminator.
+       * Workflow pause initiator discriminator.
        */
       type: "user";
     }
@@ -1095,23 +1097,23 @@ export type SystemNotificationFactoryPauseInfo =
        */
       key: string;
       /**
-       * Factory pause initiator discriminator.
+       * Workflow pause initiator discriminator.
        */
       type: "checkpoint";
     };
 /**
- * Terminal status reached by a factory execution attempt.
+ * Terminal status reached by a workflow execution attempt.
  */
-export type SystemNotificationFactoryCompletedStatus =
-  /** The factory completed successfully. */
+export type SystemNotificationWorkflowCompletedStatus =
+  /** The workflow completed successfully. */
   | "completed"
-  /** The factory was halted. */
+  /** The workflow was halted. */
   | "halted"
-  /** The factory attempt paused intentionally. */
+  /** The workflow attempt paused intentionally. */
   | "paused"
-  /** The factory was cancelled. */
+  /** The workflow was cancelled. */
   | "cancelled"
-  /** The factory failed. */
+  /** The workflow failed. */
   | "error";
 /**
  * Details of the permission being requested
@@ -1126,7 +1128,7 @@ export type PermissionRequest =
   | PermissionRequestCustomTool
   | PermissionRequestHook
   | PermissionRequestExtensionManagement
-  | PermissionRequestFactory
+  | PermissionRequestWorkflow
   | PermissionRequestExtensionPermissionAccess
   | PermissionRequestExtensionEnvAccess;
 /**
@@ -1189,12 +1191,12 @@ export type PermissionRequestMemoryScope =
   /** Store the memory for the current user. */
   | "user";
 /**
- * Operation gated by a factory permission request.
+ * Operation gated by a workflow permission request.
  */
-export type FactoryPermissionOperation =
-  /** Running a registered factory, which spends subagents, active time, and AI credits under the approved limits. */
+export type WorkflowPermissionOperation =
+  /** Running a registered workflow, which spends subagents, active time, and AI credits under the approved limits. */
   | "run"
-  /** Authoring a factory, which writes JavaScript into a session-scoped extension and loads it. */
+  /** Authoring a workflow, which writes JavaScript into a session-scoped extension and loads it. */
   | "author";
 /**
  * Derived user-facing permission prompt details for UI consumers
@@ -1210,7 +1212,7 @@ export type PermissionPromptRequest =
   | PermissionPromptRequestPath
   | PermissionPromptRequestHook
   | PermissionPromptRequestExtensionManagement
-  | PermissionPromptRequestFactory
+  | PermissionPromptRequestWorkflow
   | PermissionPromptRequestExtensionPermissionAccess
   | PermissionPromptRequestExtensionEnvAccess;
 /**
@@ -1235,7 +1237,7 @@ export type PermissionDecisionSource =
   | "host_policy"
   /** The host denied the request because no interactive user response was available. */
   | "unattended_fallback"
-  /** A live authorization record from an earlier human decision in this session contained the proposal, so it ran without another prompt. This is not a new human decision and never mints authority of its own. */
+  /** Historical compatibility value for sessions created while authorization carry-forward was executable. Current runtimes do not produce this source. */
   | "authorization_carry_forward";
 /**
  * The result of the permission request
@@ -1261,17 +1263,17 @@ export type UserToolSessionApproval =
   | UserToolSessionApprovalMemory
   | UserToolSessionApprovalCustomTool
   | UserToolSessionApprovalExtensionManagement
-  | UserToolSessionApprovalFactory
+  | UserToolSessionApprovalWorkflow
   | UserToolSessionApprovalExtensionPermissionAccess
   | UserToolSessionApprovalExtensionEnvAccess;
 /**
- * Which direction a message-backed authorization claim moves authority in.
+ * Direction stored in a historical extractor claim. Current runtimes do not apply it.
  */
 /** @experimental */
 export type PermissionMessageAuthorizationPolarity =
-  /** The human's words authorized an effect. */
+  /** Historical claim recorded as a grant. */
   | "grant"
-  /** The human's words refused an effect. */
+  /** Historical claim recorded as a denial. */
   | "denial";
 /**
  * Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
@@ -1439,10 +1441,10 @@ export type ExitPlanModeAction =
   /** Exit plan mode and continue with parallel autonomous workers. */
   | "autopilot_fleet";
 /**
- * Terminal status a factory run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.
+ * Terminal status a workflow run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.
  */
-export type FactoryRunSettledStatus =
-  /** The factory body resolved and its result was committed. */
+export type WorkflowRunSettledStatus =
+  /** The workflow body resolved and its result was committed. */
   | "completed"
   /** The run was stopped by a limit, an approval refusal or another policy decision. */
   | "halted"
@@ -3464,11 +3466,17 @@ export interface CompactionCompleteEvent {
  */
 export interface CompactionCompleteData {
   /**
-   * Authoritative active-factory reminder appended to the compacted context
+   * Legacy active-workflow reminder retained for replay compatibility
    *
    * @internal
    */
   activeFactorySummary?: string;
+  /**
+   * Authoritative active-workflow reminder appended to the compacted context
+   *
+   * @internal
+   */
+  activeWorkflowSummary?: string;
   /**
    * Canonical model identifier used for model-specific behavior when replaying compaction
    */
@@ -7662,7 +7670,7 @@ export interface SubagentStartedData {
    */
   executionMode?: string;
   /**
-   * Root id of the factory run that spawned this sub-agent, when it was spawned by one.
+   * Legacy root id of the workflow run that spawned this sub-agent. New consumers should use workflowRunId.
    */
   factoryRunId?: string;
   /**
@@ -7683,6 +7691,10 @@ export interface SubagentStartedData {
    * Tool call ID of the parent tool invocation that spawned this sub-agent
    */
   toolCallId: string;
+  /**
+   * Root id of the workflow run that spawned this sub-agent, when it was spawned by one.
+   */
+  workflowRunId?: string;
 }
 /**
  * Session event "subagent.configured". Resolved runtime configuration for a configured sub-agent
@@ -8500,9 +8512,9 @@ export interface SystemNotificationInstructionDiscovered {
   type: "instruction_discovered";
 }
 /**
- * System notification metadata for a factory execution attempt that reached a terminal state.
+ * System notification metadata for a workflow execution attempt that reached a terminal state.
  */
-export interface SystemNotificationFactoryCompleted {
+export interface SystemNotificationWorkflowCompleted {
   /**
    * Execution attempt that reached this terminal state.
    */
@@ -8520,31 +8532,31 @@ export interface SystemNotificationFactoryCompleted {
    */
   elapsedMs: number;
   /**
-   * Persisted factory name.
-   */
-  factoryName: string;
-  /**
    * Machine-readable terminal failure details, when present.
    */
   failure?: JsonValue;
-  pauseInfo?: SystemNotificationFactoryPauseInfo;
+  pauseInfo?: SystemNotificationWorkflowPauseInfo;
   /**
    * Bounded prompt-safe preview of the completed result.
    */
   resultPreview?: string;
   /**
-   * Actionable run_factory resume guidance for a resource-limit failure.
+   * Actionable run_dynamic_workflow resume guidance for a resource-limit failure.
    */
   retryGuidance?: string;
   /**
-   * Factory run identifier.
+   * Workflow run identifier.
    */
   runId: string;
-  status: SystemNotificationFactoryCompletedStatus;
+  status: SystemNotificationWorkflowCompletedStatus;
   /**
-   * Type discriminator. Always "factory_completed".
+   * Type discriminator. Always "workflow_completed".
    */
-  type: "factory_completed";
+  type: "workflow_completed";
+  /**
+   * Persisted workflow name.
+   */
+  workflowName: string;
 }
 /**
  * System notification metadata from an external host that does not match a runtime-owned notification kind.
@@ -9121,41 +9133,45 @@ export interface PermissionRequestExtensionManagement {
   toolCallId?: string;
 }
 /**
- * Factory run or authoring permission request
+ * Workflow run or authoring permission request
  */
-export interface PermissionRequestFactory {
+export interface PermissionRequestWorkflow {
   /**
-   * Canonical key used for scoped factory approvals
+   * Canonical key used for scoped workflow approvals
    */
   approvalKey: string;
   /**
-   * Whether this factory is eligible for persistent approval
+   * Whether this workflow is eligible for persistent approval
    */
   canPersistApproval: boolean;
   /**
-   * Factory-declared AI-credit limit before any run/resume caller override is applied.
+   * Workflow-declared AI-credit limit before any run/resume caller override is applied.
    */
   declaredMaxAiCredits?: number;
   /**
-   * Factory-declared concurrent-subagent limit before any run/resume caller override is applied.
+   * Workflow-declared concurrent-subagent limit before any run/resume caller override is applied.
    */
   declaredMaxConcurrentSubagents?: number;
   /**
-   * Factory-declared total-subagent limit before any run/resume caller override is applied.
+   * Workflow-declared total-subagent limit before any run/resume caller override is applied.
    */
   declaredMaxTotalSubagents?: number;
   /**
-   * Factory-declared active-time limit in seconds before any run/resume caller override is applied.
+   * Workflow-declared active-time limit in seconds before any run/resume caller override is applied.
    */
   declaredTimeoutSeconds?: number;
   /**
-   * Factory description
+   * Workflow description
    */
   description: string;
   /**
    * Permission kind discriminator
    */
-  kind: "factory";
+  kind: "workflow";
+  /**
+   * Whether managed policy requires a human response and forbids host auto-approval
+   */
+  managedApprovalRequired?: boolean;
   /**
    * Effective AI-credit limit; omitted means unlimited
    */
@@ -9169,14 +9185,14 @@ export interface PermissionRequestFactory {
    */
   maxTotalSubagents?: number;
   /**
-   * Factory name
+   * Workflow name
    */
   name: string;
-  operation: FactoryPermissionOperation;
+  operation: WorkflowPermissionOperation;
   /**
-   * Declared factory phases
+   * Declared workflow phases
    */
-  phases: FactoryPermissionPhase[];
+  phases: WorkflowPermissionPhase[];
   /**
    * Effective active-time limit in seconds; omitted means unlimited
    */
@@ -9187,9 +9203,9 @@ export interface PermissionRequestFactory {
   toolCallId?: string;
 }
 /**
- * A declared phase shown in a factory permission prompt.
+ * A declared phase shown in a workflow permission prompt.
  */
-export interface FactoryPermissionPhase {
+export interface WorkflowPermissionPhase {
   /**
    * Optional phase detail
    */
@@ -9623,11 +9639,11 @@ export interface PermissionPromptRequestExtensionManagement {
   toolCallId?: string;
 }
 /**
- * Factory run or authoring permission prompt
+ * Workflow run or authoring permission prompt
  */
-export interface PermissionPromptRequestFactory {
+export interface PermissionPromptRequestWorkflow {
   /**
-   * Canonical key used for scoped factory approvals
+   * Canonical key used for scoped workflow approvals
    */
   approvalKey: string;
   /**
@@ -9637,33 +9653,33 @@ export interface PermissionPromptRequestFactory {
    */
   assistedApproval?: PermissionAssistedApproval;
   /**
-   * Whether this factory is eligible for persistent approval
+   * Whether this workflow is eligible for persistent approval
    */
   canPersistApproval: boolean;
   /**
-   * Factory-declared AI-credit limit before any run/resume caller override is applied.
+   * Workflow-declared AI-credit limit before any run/resume caller override is applied.
    */
   declaredMaxAiCredits?: number;
   /**
-   * Factory-declared concurrent-subagent limit before any run/resume caller override is applied.
+   * Workflow-declared concurrent-subagent limit before any run/resume caller override is applied.
    */
   declaredMaxConcurrentSubagents?: number;
   /**
-   * Factory-declared total-subagent limit before any run/resume caller override is applied.
+   * Workflow-declared total-subagent limit before any run/resume caller override is applied.
    */
   declaredMaxTotalSubagents?: number;
   /**
-   * Factory-declared active-time limit in seconds before any run/resume caller override is applied.
+   * Workflow-declared active-time limit in seconds before any run/resume caller override is applied.
    */
   declaredTimeoutSeconds?: number;
   /**
-   * Factory description
+   * Workflow description
    */
   description: string;
   /**
    * Prompt kind discriminator
    */
-  kind: "factory";
+  kind: "workflow";
   /**
    * Whether managed policy requires a human response and forbids host auto-approval
    */
@@ -9681,14 +9697,14 @@ export interface PermissionPromptRequestFactory {
    */
   maxTotalSubagents?: number;
   /**
-   * Factory name
+   * Workflow name
    */
   name: string;
-  operation: FactoryPermissionOperation;
+  operation: WorkflowPermissionOperation;
   /**
-   * Declared factory phases
+   * Declared workflow phases
    */
-  phases: FactoryPermissionPhase[];
+  phases: WorkflowPermissionPhase[];
   /**
    * Effective active-time limit in seconds; omitted means unlimited
    */
@@ -9920,17 +9936,17 @@ export interface UserToolSessionApprovalExtensionManagement {
   operation?: string;
 }
 /**
- * Session-scoped factory approval, optionally narrowed by approval key.
+ * Session-scoped workflow approval, optionally narrowed by approval key.
  */
-export interface UserToolSessionApprovalFactory {
+export interface UserToolSessionApprovalWorkflow {
   /**
-   * Optional factory operation name or canonical approval key
+   * Optional workflow operation name or canonical approval key
    */
   approvalKey?: string;
   /**
-   * Factory approval kind
+   * Workflow approval kind
    */
-  kind: "factory";
+  kind: "workflow";
 }
 /**
  * Session-scoped tool-approval rule for an extension's permission-gated capability access, keyed by extension name.
@@ -10082,7 +10098,7 @@ export interface PermissionDeniedByPermissionRequestHook {
   message?: string;
 }
 /**
- * Session event "permission.carriedForward". Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.
+ * Session event "permission.carriedForward". Historical decode-only receipt from the retired Assisted Permissions authorization extractor. Current runtimes ignore it for permission decisions.
  */
 /** @experimental */
 export interface PermissionCarriedForwardEvent {
@@ -10113,7 +10129,7 @@ export interface PermissionCarriedForwardEvent {
   type: "permission.carriedForward";
 }
 /**
- * Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.
+ * Historical decode-only receipt from the retired Assisted Permissions authorization extractor. Current runtimes ignore it for permission decisions.
  */
 /** @experimental */
 export interface PermissionCarriedForwardData {
@@ -10143,7 +10159,7 @@ export interface PermissionCarriedForwardData {
   toolCallId: string;
 }
 /**
- * Session event "permission.messageAuthorization". Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.
+ * Session event "permission.messageAuthorization". Historical decode-only claim from the retired Assisted Permissions authorization extractor. Current runtimes preserve the payload but do not establish authority from it.
  */
 /** @experimental */
 export interface PermissionMessageAuthorizationEvent {
@@ -10174,7 +10190,7 @@ export interface PermissionMessageAuthorizationEvent {
   type: "permission.messageAuthorization";
 }
 /**
- * Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.
+ * Historical decode-only claim from the retired Assisted Permissions authorization extractor. Current runtimes preserve the payload but do not establish authority from it.
  */
 /** @experimental */
 export interface PermissionMessageAuthorizationData {
@@ -10234,7 +10250,7 @@ export interface PermissionMessageAuthorizationData {
   world?: JsonValue;
 }
 /**
- * Session event "permission.messageAuthorizationRead". Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.
+ * Session event "permission.messageAuthorizationRead". Historical decode-only extractor progress marker. Current runtimes do not run or resume extraction from it.
  */
 /** @experimental */
 export interface PermissionMessageAuthorizationReadEvent {
@@ -10265,7 +10281,7 @@ export interface PermissionMessageAuthorizationReadEvent {
   type: "permission.messageAuthorizationRead";
 }
 /**
- * Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.
+ * Historical decode-only extractor progress marker. Current runtimes do not run or resume extraction from it.
  */
 /** @experimental */
 export interface PermissionMessageAuthorizationReadData {
@@ -10283,7 +10299,7 @@ export interface PermissionMessageAuthorizationReadData {
   turnIndex: number;
 }
 /**
- * Session event "permission.messageAuthorizationDegraded". Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.
+ * Session event "permission.messageAuthorizationDegraded". Historical decode-only degradation marker from the retired extractor. Current runtimes ignore it for permission decisions.
  */
 /** @experimental */
 export interface PermissionMessageAuthorizationDegradedEvent {
@@ -10314,7 +10330,7 @@ export interface PermissionMessageAuthorizationDegradedEvent {
   type: "permission.messageAuthorizationDegraded";
 }
 /**
- * Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.
+ * Historical decode-only degradation marker from the retired extractor. Current runtimes ignore it for permission decisions.
  */
 /** @experimental */
 export interface PermissionMessageAuthorizationDegradedData {
@@ -10326,7 +10342,7 @@ export interface PermissionMessageAuthorizationDegradedData {
   turnIndex: number;
 }
 /**
- * Session event "permission.assentDetected". Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.
+ * Session event "permission.assentDetected". Historical decode-only contextual-assent marker. Current runtimes do not project it into the conversation or permission flow.
  */
 /** @experimental */
 export interface PermissionAssentDetectedEvent {
@@ -10357,7 +10373,7 @@ export interface PermissionAssentDetectedEvent {
   type: "permission.assentDetected";
 }
 /**
- * Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.
+ * Historical decode-only contextual-assent marker. Current runtimes do not project it into the conversation or permission flow.
  */
 /** @experimental */
 export interface PermissionAssentDetectedData {
@@ -10375,7 +10391,7 @@ export interface PermissionAssentDetectedData {
   turnIndex: number;
 }
 /**
- * Session event "permission.contextualAuthorization". Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.
+ * Session event "permission.contextualAuthorization". Historical decode-only contextual authorization claim. Current runtimes preserve the payload but do not establish authority from it.
  */
 /** @experimental */
 export interface PermissionContextualAuthorizationEvent {
@@ -10406,7 +10422,7 @@ export interface PermissionContextualAuthorizationEvent {
   type: "permission.contextualAuthorization";
 }
 /**
- * Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.
+ * Historical decode-only contextual authorization claim. Current runtimes preserve the payload but do not establish authority from it.
  */
 /** @experimental */
 export interface PermissionContextualAuthorizationData {
@@ -12064,15 +12080,15 @@ export interface BackgroundTasksChangedEvent {
  */
 export interface BackgroundTasksChangedData {}
 /**
- * Session event "factory.run_updated". Ephemeral invalidation signal for a changed factory run.
+ * Session event "workflow.run_updated". Ephemeral invalidation signal for a changed workflow run.
  */
 /** @experimental */
-export interface FactoryRunUpdatedEvent {
+export interface WorkflowRunUpdatedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
-  data: FactoryRunUpdatedData;
+  data: WorkflowRunUpdatedData;
   /**
    * Always true for events that are transient and not persisted to the session event log on disk.
    */
@@ -12090,34 +12106,34 @@ export interface FactoryRunUpdatedEvent {
    */
   timestamp: string;
   /**
-   * Type discriminator. Always "factory.run_updated".
+   * Type discriminator. Always "workflow.run_updated".
    */
-  type: "factory.run_updated";
+  type: "workflow.run_updated";
 }
 /**
- * Ephemeral invalidation signal for a changed factory run.
+ * Ephemeral invalidation signal for a changed workflow run.
  */
 /** @experimental */
-export interface FactoryRunUpdatedData {
+export interface WorkflowRunUpdatedData {
   /**
    * Monotonic revision now available for the run.
    */
   revision: number;
   /**
-   * Factory run identifier.
+   * Workflow run identifier.
    */
   runId: string;
 }
 /**
- * Session event "factory.run_started". Ephemeral signal that a factory run attempt began executing.
+ * Session event "workflow.run_started". Ephemeral signal that a workflow run attempt began executing.
  */
 /** @experimental */
-export interface FactoryRunStartedEvent {
+export interface WorkflowRunStartedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
-  data: FactoryRunStartedData;
+  data: WorkflowRunStartedData;
   /**
    * Always true for events that are transient and not persisted to the session event log on disk.
    */
@@ -12135,38 +12151,38 @@ export interface FactoryRunStartedEvent {
    */
   timestamp: string;
   /**
-   * Type discriminator. Always "factory.run_started".
+   * Type discriminator. Always "workflow.run_started".
    */
-  type: "factory.run_started";
+  type: "workflow.run_started";
 }
 /**
- * Ephemeral signal that a factory run attempt began executing.
+ * Ephemeral signal that a workflow run attempt began executing.
  */
 /** @experimental */
-export interface FactoryRunStartedData {
+export interface WorkflowRunStartedData {
   /**
    * Attempt number this start committed; a resumed run increments it.
    */
   attempt: number;
   /**
-   * Name of the factory this run executes. Low cardinality by construction.
-   */
-  factoryName: string;
-  /**
-   * Identifier of the factory run that started.
+   * Identifier of the workflow run that started.
    */
   runId: string;
+  /**
+   * Name of the workflow this run executes. Low cardinality by construction.
+   */
+  workflowName: string;
 }
 /**
- * Session event "factory.run_settled". Ephemeral signal that a factory run reached a terminal status.
+ * Session event "workflow.run_settled". Ephemeral signal that a workflow run reached a terminal status.
  */
 /** @experimental */
-export interface FactoryRunSettledEvent {
+export interface WorkflowRunSettledEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
-  data: FactoryRunSettledData;
+  data: WorkflowRunSettledData;
   /**
    * Always true for events that are transient and not persisted to the session event log on disk.
    */
@@ -12184,15 +12200,15 @@ export interface FactoryRunSettledEvent {
    */
   timestamp: string;
   /**
-   * Type discriminator. Always "factory.run_settled".
+   * Type discriminator. Always "workflow.run_settled".
    */
-  type: "factory.run_settled";
+  type: "workflow.run_settled";
 }
 /**
- * Ephemeral signal that a factory run reached a terminal status.
+ * Ephemeral signal that a workflow run reached a terminal status.
  */
 /** @experimental */
-export interface FactoryRunSettledData {
+export interface WorkflowRunSettledData {
   /**
    * AI credits this run consumed, in nano-AIU.
    */
@@ -12206,14 +12222,14 @@ export interface FactoryRunSettledData {
    */
   elapsedMs: number;
   /**
-   * Typed failure class recorded on the run, when it failed with one (e.g. `factory_limit_reached`).
+   * Typed failure class recorded on the run, when it failed with one (e.g. `workflow_limit_reached`).
    */
   failureType?: string;
   /**
-   * Identifier of the factory run that settled.
+   * Identifier of the workflow run that settled.
    */
   runId: string;
-  status: FactoryRunSettledStatus;
+  status: WorkflowRunSettledStatus;
 }
 /**
  * Session event "session.skills_loaded". Payload of `session.skills_loaded` listing resolved skill metadata.

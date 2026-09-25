@@ -93,11 +93,11 @@ func TestScenarioTestingServerControlE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("observes pages and cancels factory run", func(t *testing.T) {
+	t.Run("observes pages and cancels workflow run", func(t *testing.T) {
 		fixture := newGeneratedRPCFixture(t, t.Context())
 		var mu sync.Mutex
 		captured := map[string]map[string]any{}
-		setFactoryHandler := func(method string, result any) {
+		setWorkflowHandler := func(method string, result any) {
 			fixture.server.SetRequestHandler(method, func(request json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 				var params map[string]any
 				if err := json.Unmarshal(request, &params); err != nil {
@@ -109,23 +109,23 @@ func TestScenarioTestingServerControlE2E(t *testing.T) {
 				return mustJSON(t, result), nil
 			})
 		}
-		setFactoryHandler("session.factory.listRuns", map[string]any{
+		setWorkflowHandler("session.workflow.listRuns", map[string]any{
 			"runs": []any{map[string]any{
-				"runId":       "factory-run-1",
-				"factoryName": "scenario-factory",
-				"status":      "running",
+				"runId":        "workflow-run-1",
+				"workflowName": "scenario-workflow",
+				"status":       "running",
 			}},
 			"oldestSeq":    7,
 			"newestSeq":    7,
 			"hasMoreNewer": false,
 		})
-		setFactoryHandler("session.factory.getRunDetail", map[string]any{
-			"runId":       "factory-run-1",
-			"factoryName": "scenario-factory",
-			"status":      "running",
-			"revision":    4,
+		setWorkflowHandler("session.workflow.getRunDetail", map[string]any{
+			"runId":        "workflow-run-1",
+			"workflowName": "scenario-workflow",
+			"status":       "running",
+			"revision":     4,
 		})
-		setFactoryHandler("session.factory.getRunProgress", map[string]any{
+		setWorkflowHandler("session.workflow.getRunProgress", map[string]any{
 			"records": []any{map[string]any{
 				"attempt":    1,
 				"kind":       "log",
@@ -136,79 +136,79 @@ func TestScenarioTestingServerControlE2E(t *testing.T) {
 			}},
 			"revision": 4,
 		})
-		setFactoryHandler("session.factory.cancel", map[string]any{
-			"runId":  "factory-run-1",
+		setWorkflowHandler("session.workflow.cancel", map[string]any{
+			"runId":  "workflow-run-1",
 			"status": "cancelled",
 			"reason": "cancelled by user",
 		})
 
 		after, before, limit := int64(3), int64(20), int32(10)
-		runs, err := fixture.session.RPC.Factory.ListRuns(t.Context(), &rpc.FactoryListRunsRequest{
+		runs, err := fixture.session.RPC.Workflow.ListRuns(t.Context(), &rpc.WorkflowListRunsRequest{
 			AfterSeq:  &after,
 			BeforeSeq: &before,
 			Limit:     &limit,
 		})
 		if err != nil {
-			t.Fatalf("Factory.ListRuns failed: %v", err)
+			t.Fatalf("Workflow.ListRuns failed: %v", err)
 		}
-		if len(runs.Runs) != 1 || runs.Runs[0].RunID != "factory-run-1" ||
-			runs.Runs[0].FactoryName != "scenario-factory" || runs.Runs[0].Status != rpc.FactoryRunStatusRunning ||
+		if len(runs.Runs) != 1 || runs.Runs[0].RunID != "workflow-run-1" ||
+			runs.Runs[0].WorkflowName != "scenario-workflow" || runs.Runs[0].Status != rpc.WorkflowRunStatusRunning ||
 			runs.OldestSeq == nil || *runs.OldestSeq != 7 || runs.NewestSeq == nil || *runs.NewestSeq != 7 ||
 			runs.HasMoreNewer == nil || *runs.HasMoreNewer {
-			t.Fatalf("Unexpected factory run page: %#v", runs)
+			t.Fatalf("Unexpected workflow run page: %#v", runs)
 		}
 
-		detail, err := fixture.session.RPC.Factory.GetRunDetail(t.Context(), &rpc.FactoryGetRunRequest{RunID: "factory-run-1"})
+		detail, err := fixture.session.RPC.Workflow.GetRunDetail(t.Context(), &rpc.WorkflowGetRunRequest{RunID: "workflow-run-1"})
 		if err != nil {
-			t.Fatalf("Factory.GetRunDetail failed: %v", err)
+			t.Fatalf("Workflow.GetRunDetail failed: %v", err)
 		}
-		if detail.RunID != "factory-run-1" || detail.FactoryName != "scenario-factory" ||
-			detail.Status != rpc.FactoryRunStatusRunning || detail.Revision != 4 {
-			t.Fatalf("Unexpected factory detail: %#v", detail)
+		if detail.RunID != "workflow-run-1" || detail.WorkflowName != "scenario-workflow" ||
+			detail.Status != rpc.WorkflowRunStatusRunning || detail.Revision != 4 {
+			t.Fatalf("Unexpected workflow detail: %#v", detail)
 		}
 
 		progressAfter, progressBefore, progressLimit := int64(5), int64(20), int32(25)
 		phaseID := "verify"
-		progress, err := fixture.session.RPC.Factory.GetRunProgress(t.Context(), &rpc.FactoryGetRunProgressRequest{
-			RunID:     "factory-run-1",
+		progress, err := fixture.session.RPC.Workflow.GetRunProgress(t.Context(), &rpc.WorkflowGetRunProgressRequest{
+			RunID:     "workflow-run-1",
 			PhaseID:   &phaseID,
 			AfterSeq:  &progressAfter,
 			BeforeSeq: &progressBefore,
 			Limit:     &progressLimit,
 		})
 		if err != nil {
-			t.Fatalf("Factory.GetRunProgress failed: %v", err)
+			t.Fatalf("Workflow.GetRunProgress failed: %v", err)
 		}
 		if len(progress.Records) != 1 || progress.Records[0].Seq != 12 ||
 			progress.Records[0].PhaseID == nil || *progress.Records[0].PhaseID != "verify" ||
-			progress.Records[0].Kind != rpc.FactoryLogLineKindLog ||
+			progress.Records[0].Kind != rpc.WorkflowLogLineKindLog ||
 			progress.Records[0].Text != "Validation complete" {
-			t.Fatalf("Unexpected factory progress: %#v", progress)
+			t.Fatalf("Unexpected workflow progress: %#v", progress)
 		}
 
-		cancelled, err := fixture.session.RPC.Factory.Cancel(t.Context(), &rpc.FactoryCancelRequest{RunID: "factory-run-1"})
+		cancelled, err := fixture.session.RPC.Workflow.Cancel(t.Context(), &rpc.WorkflowCancelRequest{RunID: "workflow-run-1"})
 		if err != nil {
-			t.Fatalf("Factory.Cancel failed: %v", err)
+			t.Fatalf("Workflow.Cancel failed: %v", err)
 		}
-		if cancelled.RunID != "factory-run-1" || cancelled.Status != rpc.FactoryRunStatusCancelled ||
+		if cancelled.RunID != "workflow-run-1" || cancelled.Status != rpc.WorkflowRunStatusCancelled ||
 			cancelled.Reason == nil || *cancelled.Reason != "cancelled by user" {
-			t.Fatalf("Unexpected cancelled factory run: %#v", cancelled)
+			t.Fatalf("Unexpected cancelled workflow run: %#v", cancelled)
 		}
 
 		mu.Lock()
 		defer mu.Unlock()
-		assertJSONSubset(t, "session.factory.listRuns", map[string]any{
+		assertJSONSubset(t, "session.workflow.listRuns", map[string]any{
 			"afterSeq":  float64(3),
 			"beforeSeq": float64(20),
 			"limit":     float64(10),
-		}, captured["session.factory.listRuns"])
-		assertJSONSubset(t, "session.factory.getRunProgress", map[string]any{
-			"runId":     "factory-run-1",
+		}, captured["session.workflow.listRuns"])
+		assertJSONSubset(t, "session.workflow.getRunProgress", map[string]any{
+			"runId":     "workflow-run-1",
 			"phaseId":   "verify",
 			"afterSeq":  float64(5),
 			"beforeSeq": float64(20),
 			"limit":     float64(25),
-		}, captured["session.factory.getRunProgress"])
+		}, captured["session.workflow.getRunProgress"])
 	})
 
 	t.Run("reads autopilot state and enables remote mode", func(t *testing.T) {

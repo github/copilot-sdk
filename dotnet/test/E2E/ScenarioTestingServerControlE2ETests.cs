@@ -76,22 +76,22 @@ public class ScenarioTestingServerControlE2ETests(E2ETestFixture fixture, ITestO
         await using var client = Ctx.CreateClient(options: CreateFakeCliOptions(cliPath, capturePath));
         await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig());
 
-        var runs = await session.Rpc.Factory.ListRunsAsync(afterSeq: 3, beforeSeq: 20, limit: 10);
+        var runs = await session.Rpc.Workflow.ListRunsAsync(afterSeq: 3, beforeSeq: 20, limit: 10);
         var summary = Assert.Single(runs.Runs);
-        Assert.Equal("factory-run-1", summary.RunId);
-        Assert.Equal("scenario-factory", summary.FactoryName);
-        Assert.Equal(FactoryRunStatus.Running, summary.Status);
+        Assert.Equal("workflow-run-1", summary.RunId);
+        Assert.Equal("scenario-workflow", summary.WorkflowName);
+        Assert.Equal(WorkflowRunStatus.Running, summary.Status);
         Assert.Equal(7, runs.OldestSeq);
         Assert.Equal(7, runs.NewestSeq);
         Assert.False(runs.HasMoreNewer);
 
-        var detail = await session.Rpc.Factory.GetRunDetailAsync(summary.RunId);
+        var detail = await session.Rpc.Workflow.GetRunDetailAsync(summary.RunId);
         Assert.Equal(summary.RunId, detail.RunId);
-        Assert.Equal(summary.FactoryName, detail.FactoryName);
-        Assert.Equal(FactoryRunStatus.Running, detail.Status);
+        Assert.Equal(summary.WorkflowName, detail.WorkflowName);
+        Assert.Equal(WorkflowRunStatus.Running, detail.Status);
         Assert.Equal(4, detail.Revision);
 
-        var progress = await session.Rpc.Factory.GetRunProgressAsync(
+        var progress = await session.Rpc.Workflow.GetRunProgressAsync(
             summary.RunId,
             phaseId: "verify",
             afterSeq: 5,
@@ -100,16 +100,16 @@ public class ScenarioTestingServerControlE2ETests(E2ETestFixture fixture, ITestO
         var line = Assert.Single(progress.Records);
         Assert.Equal(12, line.Seq);
         Assert.Equal("verify", line.PhaseId);
-        Assert.Equal(FactoryLogLineKind.Log, line.Kind);
+        Assert.Equal(WorkflowLogLineKind.Log, line.Kind);
         Assert.Equal("Validation complete", line.Text);
 
-        var cancelled = await session.Rpc.Factory.CancelAsync(summary.RunId);
+        var cancelled = await session.Rpc.Workflow.CancelAsync(summary.RunId);
         Assert.Equal(summary.RunId, cancelled.RunId);
-        Assert.Equal(FactoryRunStatus.Cancelled, cancelled.Status);
+        Assert.Equal(WorkflowRunStatus.Cancelled, cancelled.Status);
         Assert.Equal("cancelled by user", cancelled.Reason);
 
         var requests = await ScenarioTestingTestCli.ReadRequestsAsync(capturePath);
-        var list = Assert.Single(requests, request => GetMethod(request) == "session.factory.listRuns")
+        var list = Assert.Single(requests, request => GetMethod(request) == "session.workflow.listRuns")
             .GetProperty("params");
         Assert.Equal(3, list.GetProperty("afterSeq").GetInt64());
         Assert.Equal(20, list.GetProperty("beforeSeq").GetInt64());
@@ -117,8 +117,8 @@ public class ScenarioTestingServerControlE2ETests(E2ETestFixture fixture, ITestO
 
         var progressRequest = Assert.Single(
             requests,
-            request => GetMethod(request) == "session.factory.getRunProgress").GetProperty("params");
-        Assert.Equal("factory-run-1", progressRequest.GetProperty("runId").GetString());
+            request => GetMethod(request) == "session.workflow.getRunProgress").GetProperty("params");
+        Assert.Equal("workflow-run-1", progressRequest.GetProperty("runId").GetString());
         Assert.Equal("verify", progressRequest.GetProperty("phaseId").GetString());
         Assert.Equal(5, progressRequest.GetProperty("afterSeq").GetInt64());
         Assert.Equal(20, progressRequest.GetProperty("beforeSeq").GetInt64());

@@ -34,7 +34,7 @@ func (r PermissionRequestExtensionPermissionAccess) RequiresManagedApproval() bo
 
 // RequiresManagedApproval reports whether managed policy requires an explicit
 // human decision for this request.
-func (r PermissionRequestFactory) RequiresManagedApproval() bool {
+func (r PermissionRequestWorkflow) RequiresManagedApproval() bool {
 	return managedApprovalRequired(r.ManagedApprovalRequired)
 }
 

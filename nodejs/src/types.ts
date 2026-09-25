@@ -21,7 +21,7 @@ import type {
     SessionEvent as GeneratedSessionEvent,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { FactoryJsonSchema, JsonValue } from "./factory.js";
+import type { JsonValue } from "./workflow.js";
 import type {
     ExtensionLaunchProviderHandler as GeneratedExtensionLaunchProvider,
     GitHubTokenAcquireRequest,
@@ -2147,68 +2147,6 @@ export interface CanvasProviderIdentity {
     id: string;
     /** Optional display name surfaced as the canvas extension name. */
     name?: string;
-}
-
-/**
- * Static resource ceilings declared by a factory before it runs.
- *
- * @experimental Part of the experimental Agent Factories surface and may
- * change or be removed in future SDK or CLI releases.
- */
-export interface FactoryLimits {
-    /** Maximum number of factory subagents that may run concurrently. Must be positive when present. */
-    maxConcurrentSubagents?: number;
-    /** Maximum total number of factory subagents that may be spawned. Must be positive when present. */
-    maxTotalSubagents?: number;
-    /** Maximum AI credits consumed by factory subagents and descendants. This post-paid ceiling is soft. */
-    maxAiCredits?: number;
-    /**
-     * Maximum accumulated active-execution time, in seconds. Active execution includes the entire extension body,
-     * subprocess waits, queued-agent waits, and sleeps. The limit is armed from the remaining headroom when a run
-     * resumes; time between attempts is not counted. Must be finite and positive when present.
-     */
-    timeoutSeconds?: number;
-}
-
-/**
- * Registration metadata for an extension-authored factory.
- *
- * @experimental Part of the experimental Agent Factories surface and may
- * change or be removed in future SDK or CLI releases.
- */
-export interface FactoryMeta {
-    /** Stable factory name used for invocation. */
-    name: string;
-    /** Human-readable factory description. */
-    description: string;
-    /** Display metadata for the progress phases the factory may report. */
-    phases: Array<{ title: string; detail?: string }>;
-    /**
-     * Optional declared shape of the arguments this factory expects as `ctx.args`.
-     *
-     * Declaring one is strongly recommended for any factory that reads `ctx.args`.
-     * When the model invokes the factory through the `run_factory` tool, the CLI
-     * validates `args` against this declaration **before** the run starts, so a
-     * malformed call is rejected with a correction hint and retried without ever
-     * creating a run row, prompting the user for permission, or spending credits. A
-     * factory that declares nothing is never validated: a malformed call starts,
-     * takes an approval, spends credits, and then fails inside the factory body.
-     * `factories_manage` with `operation: "inspect"` reports the declared shape so an
-     * agent can read it before invoking.
-     *
-     * This covers the model's `run_factory` path only. `session.factory.run(...)` is
-     * not validated against the declaration, so a factory should still check
-     * `ctx.args` rather than assume the declared shape held.
-     *
-     * Enforcement covers structure — types, required properties, and enum/const
-     * values. Finer constraints such as `minLength`, `pattern`, and
-     * `additionalProperties` are recorded in the declaration but not enforced. See
-     * {@link FactoryJsonSchema} for the accepted subset. A declaration outside that
-     * subset is rejected at registration.
-     */
-    argsSchema?: FactoryJsonSchema;
-    /** Optional resource ceilings presented to the user before execution. */
-    limits?: FactoryLimits;
 }
 
 /**

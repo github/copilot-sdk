@@ -218,7 +218,7 @@ async fn client_rpc_surface_uses_typed_namespaces_and_round_trips_results() {
 }
 
 #[tokio::test]
-async fn session_lifecycle_factory_and_history_rpc_surface_is_typed() {
+async fn session_lifecycle_workflow_and_history_rpc_surface_is_typed() {
     let mut results = ResponseMap::default();
     results.insert_default::<SendMessagesResult>("session.sendMessages");
     results.insert_default::<AbortResult>("session.abort");
@@ -237,34 +237,34 @@ async fn session_lifecycle_factory_and_history_rpc_surface_is_typed() {
     results
         .insert_default::<ContentExclusionCheckPathsResult>("session.contentExclusion.checkPaths");
     results.insert(
-        "session.factory.run",
-        FactoryRunResult {
+        "session.workflow.run",
+        WorkflowRunResult {
             attempt: Some(2),
-            result: Some(json!({"artifact": "factory-output"})),
+            result: Some(json!({"artifact": "workflow-output"})),
             run_id: "run-123".to_string(),
             ..Default::default()
         },
     );
     results.insert(
-        "session.factory.resume",
-        FactoryResumeResult {
-            factory_name: "coverage-factory".to_string(),
-            run: FactoryRunResult {
+        "session.workflow.resume",
+        WorkflowResumeResult {
+            workflow_name: "coverage-workflow".to_string(),
+            run: WorkflowRunResult {
                 run_id: "run-123".to_string(),
                 ..Default::default()
             },
         },
     );
-    results.insert_default::<FactoryRunResult>("session.factory.getRun");
-    results.insert_default::<FactoryListRunsResult>("session.factory.listRuns");
-    results.insert_default::<FactoryRunDetail>("session.factory.getRunDetail");
-    results.insert_default::<FactoryProgressPage>("session.factory.getRunProgress");
-    results.insert_default::<FactoryRunResult>("session.factory.cancel");
-    results.insert_default::<FactoryRunResult>("session.factory.pause");
-    results.insert_default::<FactoryAckResult>("session.factory.log");
-    results.insert_default::<FactoryAgentResult>("session.factory.agent");
-    results.insert_default::<FactoryJournalGetResult>("session.factory.journal.get");
-    results.insert_default::<FactoryAckResult>("session.factory.journal.put");
+    results.insert_default::<WorkflowRunResult>("session.workflow.getRun");
+    results.insert_default::<WorkflowListRunsResult>("session.workflow.listRuns");
+    results.insert_default::<WorkflowRunDetail>("session.workflow.getRunDetail");
+    results.insert_default::<WorkflowProgressPage>("session.workflow.getRunProgress");
+    results.insert_default::<WorkflowRunResult>("session.workflow.cancel");
+    results.insert_default::<WorkflowRunResult>("session.workflow.pause");
+    results.insert_default::<WorkflowAckResult>("session.workflow.log");
+    results.insert_default::<WorkflowAgentResult>("session.workflow.agent");
+    results.insert_default::<WorkflowJournalGetResult>("session.workflow.journal.get");
+    results.insert_default::<WorkflowAckResult>("session.workflow.journal.put");
     results.insert_default::<FleetStartResult>("session.fleet.start");
     results.insert(
         "session.history.compact",
@@ -331,77 +331,77 @@ async fn session_lifecycle_factory_and_history_rpc_surface_is_typed() {
             })
     );
 
-    let run = rpc_ok!(session.rpc().factory().run(FactoryRunRequest {
+    let run = rpc_ok!(session.rpc().workflow().run(WorkflowRunRequest {
         args: json!({"mode": "offline", "count": 2}),
-        name: "coverage-factory".to_string(),
+        name: "coverage-workflow".to_string(),
         options: None,
     }));
     assert_eq!(run.run_id, "run-123");
     assert_eq!(run.attempt, Some(2));
-    assert_eq!(run.result, Some(json!({"artifact": "factory-output"})));
-    let resumed = rpc_ok!(session.rpc().factory().resume(FactoryResumeRequest {
+    assert_eq!(run.result, Some(json!({"artifact": "workflow-output"})));
+    let resumed = rpc_ok!(session.rpc().workflow().resume(WorkflowResumeRequest {
         run_id: "run-123".to_string(),
         notify_on_complete: Some(false),
         ..Default::default()
     }));
-    assert_eq!(resumed.factory_name, "coverage-factory");
+    assert_eq!(resumed.workflow_name, "coverage-workflow");
     assert_eq!(resumed.run.run_id, "run-123");
     rpc_ok!(
         session
             .rpc()
-            .factory()
-            .get_run(FactoryGetRunRequest::default())
+            .workflow()
+            .get_run(WorkflowGetRunRequest::default())
     );
     rpc_ok!(
         session
             .rpc()
-            .factory()
-            .list_runs(FactoryListRunsRequest::default())
+            .workflow()
+            .list_runs(WorkflowListRunsRequest::default())
     );
     rpc_ok!(
         session
             .rpc()
-            .factory()
-            .get_run_detail(FactoryGetRunRequest::default())
+            .workflow()
+            .get_run_detail(WorkflowGetRunRequest::default())
     );
     rpc_ok!(
         session
             .rpc()
-            .factory()
-            .get_run_progress(FactoryGetRunProgressRequest::default())
+            .workflow()
+            .get_run_progress(WorkflowGetRunProgressRequest::default())
     );
     rpc_ok!(
         session
             .rpc()
-            .factory()
-            .cancel(FactoryCancelRequest::default())
+            .workflow()
+            .cancel(WorkflowCancelRequest::default())
     );
     rpc_ok!(
         session
             .rpc()
-            .factory()
-            .pause(FactoryPauseRequest::default())
+            .workflow()
+            .pause(WorkflowPauseRequest::default())
     );
-    rpc_ok!(session.rpc().factory().log(FactoryLogRequest::default()));
+    rpc_ok!(session.rpc().workflow().log(WorkflowLogRequest::default()));
     rpc_ok!(
         session
             .rpc()
-            .factory()
-            .agent(FactoryAgentRequest::default())
+            .workflow()
+            .agent(WorkflowAgentRequest::default())
     );
     rpc_ok!(
         session
             .rpc()
-            .factory()
+            .workflow()
             .journal()
-            .get(FactoryJournalGetRequest::default())
+            .get(WorkflowJournalGetRequest::default())
     );
     rpc_ok!(
         session
             .rpc()
-            .factory()
+            .workflow()
             .journal()
-            .put(FactoryJournalPutRequest::default())
+            .put(WorkflowJournalPutRequest::default())
     );
     rpc_ok!(session.rpc().fleet().start(FleetStartRequest::default()));
 
@@ -458,18 +458,18 @@ async fn session_lifecycle_factory_and_history_rpc_surface_is_typed() {
         "session.autopilotObjective.getState",
         "session.completions.getTriggerCharacters",
         "session.contentExclusion.checkPaths",
-        "session.factory.run",
-        "session.factory.resume",
-        "session.factory.getRun",
-        "session.factory.listRuns",
-        "session.factory.getRunDetail",
-        "session.factory.getRunProgress",
-        "session.factory.cancel",
-        "session.factory.pause",
-        "session.factory.log",
-        "session.factory.agent",
-        "session.factory.journal.get",
-        "session.factory.journal.put",
+        "session.workflow.run",
+        "session.workflow.resume",
+        "session.workflow.getRun",
+        "session.workflow.listRuns",
+        "session.workflow.getRunDetail",
+        "session.workflow.getRunProgress",
+        "session.workflow.cancel",
+        "session.workflow.pause",
+        "session.workflow.log",
+        "session.workflow.agent",
+        "session.workflow.journal.get",
+        "session.workflow.journal.put",
         "session.fleet.start",
         "session.history.compact",
         "session.history.compact",
@@ -478,12 +478,12 @@ async fn session_lifecycle_factory_and_history_rpc_surface_is_typed() {
         "session.limitPrediction.predict",
     ]);
     fake.assert_params(
-        "session.factory.run",
+        "session.workflow.run",
         0,
         json!({
             "sessionId": "rpc-surface-session",
             "args": {"mode": "offline", "count": 2},
-            "name": "coverage-factory"
+            "name": "coverage-workflow"
         }),
     );
     fake.assert_params(
