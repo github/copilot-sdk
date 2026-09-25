@@ -6,6 +6,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use github_copilot_sdk::extension_launch_provider::{
+    ExtensionLaunchProvider, ExtensionLaunchProviderResolveRequest,
+    ExtensionLaunchProviderResolveResult,
+};
 use github_copilot_sdk::installation_confirmation::{
     InstallationConfirmationContext, InstallationConfirmationHandler,
     InstallationConfirmationRequest, InstallationDecision, McpInstallationReview,
@@ -14,7 +18,7 @@ use github_copilot_sdk::{CliProgram, Client, ClientOptions, Error, ErrorKind, Re
 use serde_json::{Value, json};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream, duplex};
 use tokio::net::TcpListener;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{Notify, mpsc, oneshot};
 use tokio::time::timeout;
 
 const WAIT: Duration = Duration::from_secs(2);
@@ -30,24 +34,24 @@ async fn write_frame(writer: &mut (impl AsyncWrite + Unpin), value: Value) {
 }
 
 async fn read_frame(reader: &mut (impl AsyncRead + Unpin)) -> Value {
-    timeout(WAIT, async {
-        let mut header = Vec::new();
-        while !header.ends_with(b"\r\n\r\n") {
-            header.push(reader.read_u8().await.unwrap());
-        }
-        let header = String::from_utf8(header).unwrap();
-        let length = header
-            .trim()
-            .strip_prefix("Content-Length: ")
-            .unwrap()
-            .parse()
-            .unwrap();
-        let mut body = vec![0; length];
-        reader.read_exact(&mut body).await.unwrap();
-        serde_json::from_slice(&body).unwrap()
-    })
-    .await
-    .unwrap()
+    timeout(WAIT, read_frame_untimed(reader)).await.unwrap()
+}
+
+async fn read_frame_untimed(reader: &mut (impl AsyncRead + Unpin)) -> Value {
+    let mut header = Vec::new();
+    while !header.ends_with(b"\r\n\r\n") {
+        header.push(reader.read_u8().await.unwrap());
+    }
+    let header = String::from_utf8(header).unwrap();
+    let length = header
+        .trim()
+        .strip_prefix("Content-Length: ")
+        .unwrap()
+        .parse()
+        .unwrap();
+    let mut body = vec![0; length];
+    reader.read_exact(&mut body).await.unwrap();
+    serde_json::from_slice(&body).unwrap()
 }
 
 fn request(operation: &str) -> Value {
@@ -450,5 +454,132 @@ async fn real_client_start_installs_global_receiver_without_registration_or_sess
     let response = timeout(WAIT, server).await.unwrap().unwrap();
     assert_eq!(response["id"], 801);
     assert_eq!(response["result"]["decision"], "confirm");
+    client.force_stop();
+}
+
+/// Never returns until released, standing in for a hung host callback.
+struct BlockedLaunchProvider {
+    entered: mpsc::UnboundedSender<()>,
+    release: Arc<Notify>,
+}
+
+#[async_trait]
+impl ExtensionLaunchProvider for BlockedLaunchProvider {
+    async fn resolve(
+        &self,
+        _request: ExtensionLaunchProviderResolveRequest,
+    ) -> Result<ExtensionLaunchProviderResolveResult> {
+        self.entered.send(()).unwrap();
+        self.release.notified().await;
+        Ok(ExtensionLaunchProviderResolveResult { launch: None })
+    }
+}
+
+#[tokio::test]
+async fn blocked_global_callback_does_not_delay_confirmation_or_its_cancellation() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (send, mut reviews) = mpsc::unbounded_channel();
+    let (entered, mut resolve_entered) = mpsc::unbounded_channel();
+    let release = Arc::new(Notify::new());
+    let (to_server, mut server_commands) = mpsc::unbounded_channel::<Value>();
+    let (from_server, mut server_frames) = mpsc::unbounded_channel::<Value>();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let (mut reader, mut writer) = stream.into_split();
+        let connect = read_frame(&mut reader).await;
+        assert_eq!(connect["method"], "connect");
+        write_frame(
+            &mut writer,
+            json!({
+                "jsonrpc": "2.0", "id": connect["id"],
+                "result": { "ok": true, "protocolVersion": 3, "version": "test" }
+            }),
+        )
+        .await;
+        let register = read_frame(&mut reader).await;
+        assert_eq!(register["method"], "registerExtensionLaunchProvider");
+        write_frame(
+            &mut writer,
+            json!({ "jsonrpc": "2.0", "id": register["id"], "result": {} }),
+        )
+        .await;
+        let forward = tokio::spawn(async move {
+            loop {
+                let frame = read_frame_untimed(&mut reader).await;
+                if from_server.send(frame).is_err() {
+                    break;
+                }
+            }
+        });
+        while let Some(frame) = server_commands.recv().await {
+            write_frame(&mut writer, frame).await;
+        }
+        forward.abort();
+    });
+    let client = Client::start(
+        ClientOptions::new()
+            .with_program(CliProgram::Path("unused-external-transport".into()))
+            .with_transport(Transport::External {
+                host: "127.0.0.1".to_string(),
+                port,
+                connection_token: None,
+            })
+            .with_extension_launch_provider(BlockedLaunchProvider {
+                entered,
+                release: release.clone(),
+            })
+            .with_installation_confirmation_handler(ControlledHandler(send)),
+    )
+    .await
+    .unwrap();
+
+    to_server
+        .send(json!({
+            "jsonrpc": "2.0", "id": 901, "method": "extensionLaunchProvider.resolve",
+            "params": {
+                "id": "project:blocked", "modulePath": "/extensions/blocked/index.js",
+                "name": "Blocked", "source": "project"
+            }
+        }))
+        .unwrap();
+    timeout(WAIT, resolve_entered.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    to_server
+        .send(json!({
+            "jsonrpc": "2.0", "id": 902, "method": "installations.confirm",
+            "params": request("behind-blocked-callback")
+        }))
+        .unwrap();
+    let review = timeout(WAIT, reviews.recv()).await.unwrap().unwrap();
+    assert_eq!(review.request.operation_id, "behind-blocked-callback");
+
+    to_server
+        .send(json!({
+            "jsonrpc": "2.0", "method": "$/cancelRequest", "params": { "id": 902 }
+        }))
+        .unwrap();
+    timeout(WAIT, review.context.request_cancelled().cancelled())
+        .await
+        .unwrap();
+    let response = timeout(WAIT, server_frames.recv()).await.unwrap().unwrap();
+    assert_eq!(response["id"], 902);
+    assert_eq!(response["error"]["code"], -32800);
+    assert!(
+        review
+            .decision
+            .send(Ok(InstallationDecision::Confirm))
+            .is_err()
+    );
+
+    // The blocked callback still completes in order, and 902 is never approved late.
+    release.notify_one();
+    let response = timeout(WAIT, server_frames.recv()).await.unwrap().unwrap();
+    assert_eq!(response["id"], 901);
+    assert_eq!(response["result"], json!({}));
+    drop(to_server);
+    timeout(WAIT, server).await.unwrap().unwrap();
     client.force_stop();
 }

@@ -14,6 +14,7 @@ import {
 import {
     CopilotClient,
     RuntimeConnection,
+    type ExtensionLaunchProvider,
     type InstallationConfirmationContext,
     type InstallationConfirmationHandler,
     type InstallationConfirmationRequest,
@@ -78,7 +79,10 @@ function deferred<T>() {
     return { promise, resolve };
 }
 
-async function connect(handler?: InstallationConfirmationHandler) {
+async function connect(
+    handler?: InstallationConfirmationHandler,
+    extensionLaunchProvider?: ExtensionLaunchProvider
+) {
     const accepted = deferred<{ connection: MessageConnection; socket: Socket }>();
     const server = createServer((socket) => {
         const connection = createMessageConnection(
@@ -90,6 +94,7 @@ async function connect(handler?: InstallationConfirmationHandler) {
             protocolVersion: 3,
             version: "confirmation-transport-test",
         }));
+        connection.onRequest("registerExtensionLaunchProvider", () => ({}));
         connection.listen();
         accepted.resolve({ connection, socket });
     });
@@ -100,6 +105,7 @@ async function connect(handler?: InstallationConfirmationHandler) {
     const client = new CopilotClient({
         connection: RuntimeConnection.forUri(`127.0.0.1:${address.port}`),
         installationConfirmationHandler: handler,
+        extensionLaunchProvider,
     });
     onTestFinished(async () => {
         await client.forceStop();
@@ -389,6 +395,48 @@ describe("installation confirmation on the actual client transport", () => {
         });
         a.resolve("confirm");
         await expect(first).resolves.toMatchObject({ confirmationId: "challenge-a" });
+    });
+
+    it("reaches and cancels a confirmation queued behind a blocked global callback", async () => {
+        const release = deferred<void>();
+        const resolveEntered = deferred<void>();
+        const extensionLaunchProvider: ExtensionLaunchProvider = {
+            resolve: async () => {
+                resolveEntered.resolve();
+                await release.promise;
+                return {};
+            },
+        };
+        let context: InstallationConfirmationContext | undefined;
+        const pending = deferred<InstallationDecision>();
+        const { connection } = await connect((_request, incoming) => {
+            context = incoming;
+            return pending.promise;
+        }, extensionLaunchProvider);
+        const cancellation = new CancellationTokenSource();
+        onTestFinished(() => cancellation.dispose());
+
+        const blocked = connection.sendRequest("extensionLaunchProvider.resolve", {
+            id: "project:blocked",
+            modulePath: "/extensions/blocked/index.js",
+            name: "Blocked",
+            source: "project",
+        });
+        await resolveEntered.promise;
+        const confirmation = connection.sendRequest(
+            "installations.confirm",
+            request("behind-blocked-callback"),
+            cancellation.token
+        );
+        const cancelled = expect(confirmation).rejects.toMatchObject({ code: -32800 });
+        await vi.waitFor(() => expect(context).toBeDefined());
+        cancellation.cancel();
+        await cancelled;
+        expect(context?.requestCancelled.isCancellationRequested).toBe(true);
+
+        release.resolve();
+        await expect(blocked).resolves.toEqual({});
+        pending.resolve("confirm");
     });
 
     it("retires cancelled A before a late decision and does not rebind it to successor B", async () => {

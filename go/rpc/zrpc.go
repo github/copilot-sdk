@@ -8979,6 +8979,14 @@ type ModelApplyStartupOverlayRequest struct {
 	DeferredResume *bool `json:"deferredResume,omitempty"`
 	// Model required by device-managed policy, when configured.
 	DeviceManagedModel *string `json:"deviceManagedModel,omitempty"`
+	// Context tier paired with the effective organization-managed model. Applies only when that
+	// concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user
+	// overrides.
+	ManagedContextTier *string `json:"managedContextTier,omitempty"`
+	// Reasoning effort paired with the effective organization-managed model. Applies only when
+	// that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or
+	// user overrides.
+	ManagedReasoningEffort *string `json:"managedReasoningEffort,omitempty"`
 	// Startup default model from the enterprise policy helper, when configured. Weakest of the
 	// managed sources: it applies only when neither device nor server policy names a model, and
 	// an explicit user selection still wins.
@@ -34673,6 +34681,12 @@ func (a *InternalModelAPI) ApplyStartupOverlay(ctx context.Context, params *Mode
 		}
 		if params.DeviceManagedModel != nil {
 			req["deviceManagedModel"] = *params.DeviceManagedModel
+		}
+		if params.ManagedContextTier != nil {
+			req["managedContextTier"] = *params.ManagedContextTier
+		}
+		if params.ManagedReasoningEffort != nil {
+			req["managedReasoningEffort"] = *params.ManagedReasoningEffort
 		}
 		if params.PolicyHelperModel != nil {
 			req["policyHelperModel"] = *params.PolicyHelperModel

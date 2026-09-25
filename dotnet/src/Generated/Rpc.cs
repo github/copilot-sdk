@@ -10748,6 +10748,14 @@ internal sealed class ModelApplyStartupOverlayRequest
     [JsonPropertyName("deviceManagedModel")]
     public string? DeviceManagedModel { get; set; }
 
+    /// <summary>Context tier paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides.</summary>
+    [JsonPropertyName("managedContextTier")]
+    public string? ManagedContextTier { get; set; }
+
+    /// <summary>Reasoning effort paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides.</summary>
+    [JsonPropertyName("managedReasoningEffort")]
+    public string? ManagedReasoningEffort { get; set; }
+
     /// <summary>Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins.</summary>
     [JsonPropertyName("policyHelperModel")]
     public string? PolicyHelperModel { get; set; }
@@ -41773,13 +41781,15 @@ public sealed class ModelApi
     /// <param name="repoAutoTier">Auto routing preference selected by repository settings, when configured. Applied only when the overlay selects the Auto model; beside a concrete model it stays dormant.</param>
     /// <param name="cliModel">Model explicitly selected by the CLI, when provided.</param>
     /// <param name="deferredResume">Whether the overlay is being applied while resuming a deferred session.</param>
+    /// <param name="managedReasoningEffort">Reasoning effort paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides.</param>
+    /// <param name="managedContextTier">Context tier paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
-    internal async Task<ModelSwitchToResult> ApplyStartupOverlayAsync(string? deviceManagedModel = null, string? serverManagedModel = null, string? policyHelperModel = null, AutoTier? autoTier = null, string? repoModel = null, string? repoReasoningEffort = null, string? repoContextTier = null, string? repoAutoTier = null, string? cliModel = null, bool? deferredResume = null, CancellationToken cancellationToken = default)
+    internal async Task<ModelSwitchToResult> ApplyStartupOverlayAsync(string? deviceManagedModel = null, string? serverManagedModel = null, string? policyHelperModel = null, AutoTier? autoTier = null, string? repoModel = null, string? repoReasoningEffort = null, string? repoContextTier = null, string? repoAutoTier = null, string? cliModel = null, bool? deferredResume = null, string? managedReasoningEffort = null, string? managedContextTier = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new ModelApplyStartupOverlayRequest { SessionId = _session.SessionId, DeviceManagedModel = deviceManagedModel, ServerManagedModel = serverManagedModel, PolicyHelperModel = policyHelperModel, AutoTier = autoTier, RepoModel = repoModel, RepoReasoningEffort = repoReasoningEffort, RepoContextTier = repoContextTier, RepoAutoTier = repoAutoTier, CliModel = cliModel, DeferredResume = deferredResume };
+        var request = new ModelApplyStartupOverlayRequest { SessionId = _session.SessionId, DeviceManagedModel = deviceManagedModel, ServerManagedModel = serverManagedModel, PolicyHelperModel = policyHelperModel, AutoTier = autoTier, RepoModel = repoModel, RepoReasoningEffort = repoReasoningEffort, RepoContextTier = repoContextTier, RepoAutoTier = repoAutoTier, CliModel = cliModel, DeferredResume = deferredResume, ManagedReasoningEffort = managedReasoningEffort, ManagedContextTier = managedContextTier };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.applyStartupOverlay", [request], cancellationToken);
     }
 

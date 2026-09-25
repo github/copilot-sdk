@@ -13067,6 +13067,12 @@ pub struct ModelApplyStartupOverlayRequest {
     /// Model required by device-managed policy, when configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device_managed_model: Option<String>,
+    /// Context tier paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_context_tier: Option<String>,
+    /// Reasoning effort paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_reasoning_effort: Option<String>,
     /// Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_model: Option<String>,

@@ -300,6 +300,11 @@ await test("prepares artifacts from an exported SDK layout", (t) => {
     });
 
     assert.equal(result.status, 0, result.stderr);
+    // The fixture paths must be the ones the script used; the isolation test relies on it.
+    assert.match(
+        fs.readFileSync(path.join(root, "environment"), "utf8"),
+        new RegExp(`^COPILOT_CLI_PATH=${escapeRegExp(path.join(root, "output", "package"))}`, "m"),
+    );
 });
 
 await test("restores executable bits only in directories present in the artifact", (t) => {

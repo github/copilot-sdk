@@ -41506,6 +41506,16 @@ class ModelApplyStartupOverlayRequest:
     device_managed_model: str | None = None
     """Model required by device-managed policy, when configured."""
 
+    managed_context_tier: str | None = None
+    """Context tier paired with the effective organization-managed model. Applies only when that
+    concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user
+    overrides.
+    """
+    managed_reasoning_effort: str | None = None
+    """Reasoning effort paired with the effective organization-managed model. Applies only when
+    that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or
+    user overrides.
+    """
     policy_helper_model: str | None = None
     """Startup default model from the enterprise policy helper, when configured. Weakest of the
     managed sources: it applies only when neither device nor server policy names a model, and
@@ -41534,13 +41544,15 @@ class ModelApplyStartupOverlayRequest:
         cli_model = from_union([from_str, from_none], obj.get("cliModel"))
         deferred_resume = from_union([from_bool, from_none], obj.get("deferredResume"))
         device_managed_model = from_union([from_str, from_none], obj.get("deviceManagedModel"))
+        managed_context_tier = from_union([from_str, from_none], obj.get("managedContextTier"))
+        managed_reasoning_effort = from_union([from_str, from_none], obj.get("managedReasoningEffort"))
         policy_helper_model = from_union([from_str, from_none], obj.get("policyHelperModel"))
         repo_auto_tier = from_union([from_str, from_none], obj.get("repoAutoTier"))
         repo_context_tier = from_union([from_str, from_none], obj.get("repoContextTier"))
         repo_model = from_union([from_str, from_none], obj.get("repoModel"))
         repo_reasoning_effort = from_union([from_str, from_none], obj.get("repoReasoningEffort"))
         server_managed_model = from_union([from_str, from_none], obj.get("serverManagedModel"))
-        return ModelApplyStartupOverlayRequest(auto_tier, cli_model, deferred_resume, device_managed_model, policy_helper_model, repo_auto_tier, repo_context_tier, repo_model, repo_reasoning_effort, server_managed_model)
+        return ModelApplyStartupOverlayRequest(auto_tier, cli_model, deferred_resume, device_managed_model, managed_context_tier, managed_reasoning_effort, policy_helper_model, repo_auto_tier, repo_context_tier, repo_model, repo_reasoning_effort, server_managed_model)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -41552,6 +41564,10 @@ class ModelApplyStartupOverlayRequest:
             result["deferredResume"] = from_union([from_bool, from_none], self.deferred_resume)
         if self.device_managed_model is not None:
             result["deviceManagedModel"] = from_union([from_str, from_none], self.device_managed_model)
+        if self.managed_context_tier is not None:
+            result["managedContextTier"] = from_union([from_str, from_none], self.managed_context_tier)
+        if self.managed_reasoning_effort is not None:
+            result["managedReasoningEffort"] = from_union([from_str, from_none], self.managed_reasoning_effort)
         if self.policy_helper_model is not None:
             result["policyHelperModel"] = from_union([from_str, from_none], self.policy_helper_model)
         if self.repo_auto_tier is not None:

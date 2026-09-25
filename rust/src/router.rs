@@ -259,7 +259,10 @@ impl SessionRouter {
                         continue;
                     }
                     if request.method == crate::extension_launch_provider::RESOLVE_METHOD {
-                        extension_launch_provider.dispatch(request).await;
+                        // The host's resolver may take arbitrarily long, so it must
+                        // not hold up routing of later requests.
+                        let provider = extension_launch_provider.clone();
+                        tokio::spawn(async move { provider.dispatch(request).await });
                         continue;
                     }
                     if request.method == "gitHubToken.getToken" {

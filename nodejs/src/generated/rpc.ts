@@ -15768,6 +15768,14 @@ export interface ModelApplyStartupOverlayRequest {
    * Whether the overlay is being applied while resuming a deferred session.
    */
   deferredResume?: boolean;
+  /**
+   * Reasoning effort paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides.
+   */
+  managedReasoningEffort?: string;
+  /**
+   * Context tier paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides.
+   */
+  managedContextTier?: string;
 }
 /**
  * Optional capability overrides (vision, tool_calls, reasoning, etc.).
