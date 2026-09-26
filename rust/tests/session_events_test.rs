@@ -284,3 +284,55 @@ fn user_message_id_is_optional_for_older_hosts() {
             .is_none()
     );
 }
+
+#[test]
+fn tool_execution_start_preserves_optional_trace_context_without_changing_tool_data() {
+    let traceparent = "00-33333333333333333333333333333333-4444444444444444-01";
+    for (parent, state) in [
+        (None, None),
+        (Some(traceparent), None),
+        (Some(traceparent), Some("vendor=tool")),
+        (Some("invalid"), Some("invalid")),
+        (Some(""), None),
+    ] {
+        let mut data = serde_json::json!({
+            "toolCallId": "tool-call-a",
+            "toolName": "client-tool"
+        });
+        if let Some(parent) = parent {
+            data["traceparent"] = serde_json::json!(parent);
+        }
+        if let Some(state) = state {
+            data["tracestate"] = serde_json::json!(state);
+        }
+        let wire = event_envelope("tool.execution_start", data);
+        let event: TypedSessionEvent = serde_json::from_value(wire.clone()).unwrap();
+        let SessionEventData::ToolExecutionStart(data) = &event.payload else {
+            panic!("expected tool-start event");
+        };
+        assert_eq!(data.tool_call_id, "tool-call-a");
+        assert_eq!(data.tool_name, "client-tool");
+        assert_eq!(data.traceparent.as_deref(), parent);
+        assert_eq!(data.tracestate.as_deref(), state);
+        assert_eq!(serde_json::to_value(event).unwrap(), wire);
+    }
+}
+
+#[test]
+fn early_tool_context_fixture_round_trips_without_content_or_invented_fields() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/tool-trace-context-v1.json")).unwrap();
+    assert_eq!(fixture["synthetic"], true);
+    for notification in fixture["notifications"].as_object().unwrap().values() {
+        let wire = &notification["params"]["event"];
+        let event: TypedSessionEvent = serde_json::from_value(wire.clone()).unwrap();
+        assert!(matches!(
+            &event.payload,
+            SessionEventData::ToolExecutionStart(_)
+        ));
+        assert!(wire["data"].get("arguments").is_none());
+        assert!(wire["data"].get("version").is_none());
+        assert!(wire["data"].get("_meta").is_none());
+        assert_eq!(serde_json::to_value(event).unwrap(), *wire);
+    }
+}

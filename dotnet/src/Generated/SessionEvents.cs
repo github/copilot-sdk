@@ -57,9 +57,6 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(ExitPlanModeRequestedEvent), "exit_plan_mode.requested")]
 [JsonDerivedType(typeof(ExternalToolCompletedEvent), "external_tool.completed")]
 [JsonDerivedType(typeof(ExternalToolRequestedEvent), "external_tool.requested")]
-[JsonDerivedType(typeof(FactoryRunSettledEvent), "factory.run_settled")]
-[JsonDerivedType(typeof(FactoryRunStartedEvent), "factory.run_started")]
-[JsonDerivedType(typeof(FactoryRunUpdatedEvent), "factory.run_updated")]
 [JsonDerivedType(typeof(HookEndEvent), "hook.end")]
 [JsonDerivedType(typeof(HookProgressEvent), "hook.progress")]
 [JsonDerivedType(typeof(HookStartEvent), "hook.start")]
@@ -173,6 +170,9 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(UserInputCompletedEvent), "user_input.completed")]
 [JsonDerivedType(typeof(UserInputRequestedEvent), "user_input.requested")]
 [JsonDerivedType(typeof(UserMessageEvent), "user.message")]
+[JsonDerivedType(typeof(WorkflowRunSettledEvent), "workflow.run_settled")]
+[JsonDerivedType(typeof(WorkflowRunStartedEvent), "workflow.run_started")]
+[JsonDerivedType(typeof(WorkflowRunUpdatedEvent), "workflow.run_updated")]
 public partial class SessionEvent
 {
     /// <summary>Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.</summary>
@@ -1426,7 +1426,7 @@ public sealed partial class PermissionCompletedEvent : SessionEvent
     public required PermissionCompletedData Data { get; set; }
 }
 
-/// <summary>Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.</summary>
+/// <summary>Historical decode-only receipt from the retired Assisted Permissions authorization extractor. Current runtimes ignore it for permission decisions.</summary>
 /// <remarks>Represents the <c>permission.carriedForward</c> event.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionCarriedForwardEvent : SessionEvent
@@ -1440,7 +1440,7 @@ public sealed partial class PermissionCarriedForwardEvent : SessionEvent
     public required PermissionCarriedForwardData Data { get; set; }
 }
 
-/// <summary>Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.</summary>
+/// <summary>Historical decode-only claim from the retired Assisted Permissions authorization extractor. Current runtimes preserve the payload but do not establish authority from it.</summary>
 /// <remarks>Represents the <c>permission.messageAuthorization</c> event.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionMessageAuthorizationEvent : SessionEvent
@@ -1454,7 +1454,7 @@ public sealed partial class PermissionMessageAuthorizationEvent : SessionEvent
     public required PermissionMessageAuthorizationData Data { get; set; }
 }
 
-/// <summary>Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.</summary>
+/// <summary>Historical decode-only extractor progress marker. Current runtimes do not run or resume extraction from it.</summary>
 /// <remarks>Represents the <c>permission.messageAuthorizationRead</c> event.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionMessageAuthorizationReadEvent : SessionEvent
@@ -1468,7 +1468,7 @@ public sealed partial class PermissionMessageAuthorizationReadEvent : SessionEve
     public required PermissionMessageAuthorizationReadData Data { get; set; }
 }
 
-/// <summary>Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.</summary>
+/// <summary>Historical decode-only degradation marker from the retired extractor. Current runtimes ignore it for permission decisions.</summary>
 /// <remarks>Represents the <c>permission.messageAuthorizationDegraded</c> event.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionMessageAuthorizationDegradedEvent : SessionEvent
@@ -1482,7 +1482,7 @@ public sealed partial class PermissionMessageAuthorizationDegradedEvent : Sessio
     public required PermissionMessageAuthorizationDegradedData Data { get; set; }
 }
 
-/// <summary>Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.</summary>
+/// <summary>Historical decode-only contextual-assent marker. Current runtimes do not project it into the conversation or permission flow.</summary>
 /// <remarks>Represents the <c>permission.assentDetected</c> event.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionAssentDetectedEvent : SessionEvent
@@ -1496,7 +1496,7 @@ public sealed partial class PermissionAssentDetectedEvent : SessionEvent
     public required PermissionAssentDetectedData Data { get; set; }
 }
 
-/// <summary>Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.</summary>
+/// <summary>Historical decode-only contextual authorization claim. Current runtimes preserve the payload but do not establish authority from it.</summary>
 /// <remarks>Represents the <c>permission.contextualAuthorization</c> event.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionContextualAuthorizationEvent : SessionEvent
@@ -1904,46 +1904,46 @@ public sealed partial class SessionBackgroundTasksChangedEvent : SessionEvent
     public required SessionBackgroundTasksChangedData Data { get; set; }
 }
 
-/// <summary>Ephemeral invalidation signal for a changed factory run.</summary>
-/// <remarks>Represents the <c>factory.run_updated</c> event.</remarks>
+/// <summary>Ephemeral invalidation signal for a changed workflow run.</summary>
+/// <remarks>Represents the <c>workflow.run_updated</c> event.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed partial class FactoryRunUpdatedEvent : SessionEvent
+public sealed partial class WorkflowRunUpdatedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Type => "factory.run_updated";
+    public override string Type => "workflow.run_updated";
 
-    /// <summary>The <c>factory.run_updated</c> event payload.</summary>
+    /// <summary>The <c>workflow.run_updated</c> event payload.</summary>
     [JsonPropertyName("data")]
-    public required FactoryRunUpdatedData Data { get; set; }
+    public required WorkflowRunUpdatedData Data { get; set; }
 }
 
-/// <summary>Ephemeral signal that a factory run attempt began executing.</summary>
-/// <remarks>Represents the <c>factory.run_started</c> event.</remarks>
+/// <summary>Ephemeral signal that a workflow run attempt began executing.</summary>
+/// <remarks>Represents the <c>workflow.run_started</c> event.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed partial class FactoryRunStartedEvent : SessionEvent
+public sealed partial class WorkflowRunStartedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Type => "factory.run_started";
+    public override string Type => "workflow.run_started";
 
-    /// <summary>The <c>factory.run_started</c> event payload.</summary>
+    /// <summary>The <c>workflow.run_started</c> event payload.</summary>
     [JsonPropertyName("data")]
-    public required FactoryRunStartedData Data { get; set; }
+    public required WorkflowRunStartedData Data { get; set; }
 }
 
-/// <summary>Ephemeral signal that a factory run reached a terminal status.</summary>
-/// <remarks>Represents the <c>factory.run_settled</c> event.</remarks>
+/// <summary>Ephemeral signal that a workflow run reached a terminal status.</summary>
+/// <remarks>Represents the <c>workflow.run_settled</c> event.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed partial class FactoryRunSettledEvent : SessionEvent
+public sealed partial class WorkflowRunSettledEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Type => "factory.run_settled";
+    public override string Type => "workflow.run_settled";
 
-    /// <summary>The <c>factory.run_settled</c> event payload.</summary>
+    /// <summary>The <c>workflow.run_settled</c> event payload.</summary>
     [JsonPropertyName("data")]
-    public required FactoryRunSettledData Data { get; set; }
+    public required WorkflowRunSettledData Data { get; set; }
 }
 
 /// <summary>Payload of `session.skills_loaded` listing resolved skill metadata.</summary>
@@ -3105,11 +3105,17 @@ public sealed partial class SessionCompactionStartData
 /// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
 public sealed partial class SessionCompactionCompleteData
 {
-    /// <summary>Authoritative active-factory reminder appended to the compacted context.</summary>
+    /// <summary>Legacy active-workflow reminder retained for replay compatibility.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonInclude]
     [JsonPropertyName("activeFactorySummary")]
     internal string? ActiveFactorySummary { get; set; }
+
+    /// <summary>Authoritative active-workflow reminder appended to the compacted context.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("activeWorkflowSummary")]
+    internal string? ActiveWorkflowSummary { get; set; }
 
     /// <summary>Canonical model identifier used for model-specific behavior when replaying compaction.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3577,6 +3583,11 @@ public sealed partial class UserMessageData
     [JsonPropertyName("attachments")]
     public Attachment[]? Attachments { get; set; }
 
+    /// <summary>Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("clientCorrelationId")]
+    public string? ClientCorrelationId { get; set; }
+
     /// <summary>The user's message text as displayed in the timeline.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }
@@ -3606,7 +3617,7 @@ public sealed partial class UserMessageData
     [JsonPropertyName("nativeDocumentPathFallbackPaths")]
     public string[]? NativeDocumentPathFallbackPaths { get; set; }
 
-    /// <summary>Parent agent task ID for background telemetry correlated to this user turn.</summary>
+    /// <summary>Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentAgentTaskId")]
     public string? ParentAgentTaskId { get; set; }
@@ -3635,6 +3646,12 @@ public sealed partial class UserMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("turnId")]
     public string? TurnId { get; set; }
+
+    /// <summary>Optional worker admission observations; self identity requires the matching enclosing message and agent.</summary>
+    [JsonConverter(typeof(WorkerCausalityConverter<WorkerCausality>))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("workerCausality")]
+    public WorkerCausality? WorkerCausality { get; set; }
 }
 
 /// <summary>Empty payload; the event signals that the pending message queue has changed.</summary>
@@ -3658,6 +3675,12 @@ public sealed partial class AssistantTurnStartData
     /// <summary>Identifier for this turn within the agentic loop, typically a stringified turn number.</summary>
     [JsonPropertyName("turnId")]
     public required string TurnId { get; set; }
+
+    /// <summary>Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty.</summary>
+    [JsonConverter(typeof(WorkerCausalityConverter<WorkerCausality>))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("workerCausality")]
+    public WorkerCausality? WorkerCausality { get; set; }
 }
 
 /// <summary>Metadata for an additional model inference attempt within an existing assistant turn.</summary>
@@ -4882,6 +4905,16 @@ public sealed partial class ToolExecutionStartData
     [JsonPropertyName("toolTitle")]
     public string? ToolTitle { get; set; }
 
+    /// <summary>W3C traceparent of this tool's active runtime execute_tool span. Available on live events when tool-context propagation is enabled; absent when the span is unavailable or on persisted history. This diagnostic context does not authorize execution.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("traceparent")]
+    public string? Traceparent { get; set; }
+
+    /// <summary>Optional W3C tracestate associated with traceparent. Omitted when no valid vendor state is available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tracestate")]
+    public string? Tracestate { get; set; }
+
     /// <summary>Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("turnId")]
@@ -5228,7 +5261,7 @@ public sealed partial class SubagentStartedData
     [JsonPropertyName("executionMode")]
     public string? ExecutionMode { get; set; }
 
-    /// <summary>Root id of the factory run that spawned this sub-agent, when it was spawned by one.</summary>
+    /// <summary>Legacy root id of the workflow run that spawned this sub-agent. New consumers should use workflowRunId.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("factoryRunId")]
     public string? FactoryRunId { get; set; }
@@ -5253,14 +5286,19 @@ public sealed partial class SubagentStartedData
     [JsonPropertyName("resumable")]
     public bool? Resumable { get; set; }
 
-    /// <summary>Where the model input for this sub-agent came from. Present when the task planner resolved the launch (the task tool and factory agents); absent for sub-agents created through other runtime paths.</summary>
+    /// <summary>Where the model input for this sub-agent came from. Present when the task planner resolved the launch (the task tool and workflow agents); absent for sub-agents created through other runtime paths.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("taskModelSource")]
     public SubagentTaskModelSource? TaskModelSource { get; set; }
 
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    /// <summary>Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
+
+    /// <summary>Root id of the workflow run that spawned this sub-agent, when it was spawned by one.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("workflowRunId")]
+    public string? WorkflowRunId { get; set; }
 }
 
 /// <summary>Resolved runtime configuration for a configured sub-agent.</summary>
@@ -5347,7 +5385,7 @@ public sealed partial class SubagentCompletedData
     [JsonPropertyName("modelSelectionSource")]
     public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
 
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    /// <summary>Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
 
@@ -5423,7 +5461,7 @@ public sealed partial class SubagentFailedData
     [JsonPropertyName("modelSelectionSource")]
     public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
 
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    /// <summary>Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
 
@@ -5607,6 +5645,12 @@ public sealed partial class SystemNotificationData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("responsesReasoning")]
     public ResponsesReasoning? ResponsesReasoning { get; set; }
+
+    /// <summary>Optional owned worker notification observations; an omitted notification event refers only to this occurrence.</summary>
+    [JsonConverter(typeof(WorkerCausalityConverter<WorkerCausality>))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("workerCausality")]
+    public WorkerCausality? WorkerCausality { get; set; }
 }
 
 /// <summary>Permission request notification requiring client approval with request details.</summary>
@@ -5684,7 +5728,7 @@ public sealed partial class PermissionCompletedData
     public string? ToolCallId { get; set; }
 }
 
-/// <summary>Records that a live authorization record from an earlier human decision in this session contained a permission proposal, so it ran without another prompt. This mints no authority: it accounts for one more effect against the prior grant, which is what lets a replayed session agree with the live one about how much of that grant is left.</summary>
+/// <summary>Historical decode-only receipt from the retired Assisted Permissions authorization extractor. Current runtimes ignore it for permission decisions.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionCarriedForwardData
 {
@@ -5709,7 +5753,7 @@ public sealed partial class PermissionCarriedForwardData
     public required string ToolCallId { get; set; }
 }
 
-/// <summary>Freezes one blinded, verbatim-verified authorization claim the runtime minted from a human user message, so a resumed session re-establishes the same grant deterministically instead of re-running the extraction model. This mints no authority on its own: it records what a blinded proposer pointed at and the trusted discriminator the runtime established, and deterministic establishment runs on replay. Persisted so recorded authority survives compaction and process resume.</summary>
+/// <summary>Historical decode-only claim from the retired Assisted Permissions authorization extractor. Current runtimes preserve the payload but do not establish authority from it.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionMessageAuthorizationData
 {
@@ -5762,7 +5806,7 @@ public sealed partial class PermissionMessageAuthorizationData
     public JsonElement? World { get; set; }
 }
 
-/// <summary>Records that one human turn has been read by the blinded authorization proposer, whether or not it minted anything, so a resumed session does not re-run the extraction model on a turn the live session already read. Also records whether that pass activates ongoing extraction; contextual-assent-only passes do not, so unrelated future messages remain outside extraction.</summary>
+/// <summary>Historical decode-only extractor progress marker. Current runtimes do not run or resume extraction from it.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionMessageAuthorizationReadData
 {
@@ -5778,7 +5822,7 @@ public sealed partial class PermissionMessageAuthorizationReadData
     public required long TurnIndex { get; set; }
 }
 
-/// <summary>Records that message-backed authorization could not safely represent one human turn before compaction. The runtime may compact the original message after this marker is durable, but message-derived carry-forward and assisted auto-approval remain disabled for the rest of the session so subsequent commands continue through the ordinary permission prompt.</summary>
+/// <summary>Historical decode-only degradation marker from the retired extractor. Current runtimes ignore it for permission decisions.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionMessageAuthorizationDegradedData
 {
@@ -5788,7 +5832,7 @@ public sealed partial class PermissionMessageAuthorizationDegradedData
     public required long TurnIndex { get; set; }
 }
 
-/// <summary>Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.</summary>
+/// <summary>Historical decode-only contextual-assent marker. Current runtimes do not project it into the conversation or permission flow.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionAssentDetectedData
 {
@@ -5803,7 +5847,7 @@ public sealed partial class PermissionAssentDetectedData
     public required long TurnIndex { get; set; }
 }
 
-/// <summary>Freezes a blinded contextual authorization proposal whose verbatim human span was deterministically bound to the immediately preceding blocked permission request. The event carries no action fields; replay re-derives the exact action from the earlier permission request and mints a one-shot message grant only when the binding and span still verify.</summary>
+/// <summary>Historical decode-only contextual authorization claim. Current runtimes preserve the payload but do not establish authority from it.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionContextualAuthorizationData
 {
@@ -6501,39 +6545,39 @@ public sealed partial class SessionBackgroundTasksChangedData
 {
 }
 
-/// <summary>Ephemeral invalidation signal for a changed factory run.</summary>
+/// <summary>Ephemeral invalidation signal for a changed workflow run.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed partial class FactoryRunUpdatedData
+public sealed partial class WorkflowRunUpdatedData
 {
     /// <summary>Monotonic revision now available for the run.</summary>
     [JsonPropertyName("revision")]
     public required long Revision { get; set; }
 
-    /// <summary>Factory run identifier.</summary>
+    /// <summary>Workflow run identifier.</summary>
     [JsonPropertyName("runId")]
     public required string RunId { get; set; }
 }
 
-/// <summary>Ephemeral signal that a factory run attempt began executing.</summary>
+/// <summary>Ephemeral signal that a workflow run attempt began executing.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed partial class FactoryRunStartedData
+public sealed partial class WorkflowRunStartedData
 {
     /// <summary>Attempt number this start committed; a resumed run increments it.</summary>
     [JsonPropertyName("attempt")]
     public required long Attempt { get; set; }
 
-    /// <summary>Name of the factory this run executes. Low cardinality by construction.</summary>
-    [JsonPropertyName("factoryName")]
-    public required string FactoryName { get; set; }
-
-    /// <summary>Identifier of the factory run that started.</summary>
+    /// <summary>Identifier of the workflow run that started.</summary>
     [JsonPropertyName("runId")]
     public required string RunId { get; set; }
+
+    /// <summary>Name of the workflow this run executes. Low cardinality by construction.</summary>
+    [JsonPropertyName("workflowName")]
+    public required string WorkflowName { get; set; }
 }
 
-/// <summary>Ephemeral signal that a factory run reached a terminal status.</summary>
+/// <summary>Ephemeral signal that a workflow run reached a terminal status.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed partial class FactoryRunSettledData
+public sealed partial class WorkflowRunSettledData
 {
     /// <summary>AI credits this run consumed, in nano-AIU.</summary>
     [JsonPropertyName("consumedNanoAiu")]
@@ -6547,18 +6591,18 @@ public sealed partial class FactoryRunSettledData
     [JsonPropertyName("elapsedMs")]
     public required long ElapsedMs { get; set; }
 
-    /// <summary>Typed failure class recorded on the run, when it failed with one (e.g. `factory_limit_reached`).</summary>
+    /// <summary>Typed failure class recorded on the run, when it failed with one (e.g. `workflow_limit_reached`).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("failureType")]
     public string? FailureType { get; set; }
 
-    /// <summary>Identifier of the factory run that settled.</summary>
+    /// <summary>Identifier of the workflow run that settled.</summary>
     [JsonPropertyName("runId")]
     public required string RunId { get; set; }
 
     /// <summary>Terminal status the run committed.</summary>
     [JsonPropertyName("status")]
-    public required FactoryRunSettledStatus Status { get; set; }
+    public required WorkflowRunSettledStatus Status { get; set; }
 }
 
 /// <summary>Payload of `session.skills_loaded` listing resolved skill metadata.</summary>
@@ -8035,6 +8079,181 @@ public partial class Attachment
     public virtual string Type { get; set; } = string.Empty;
 }
 
+
+/// <summary>Exact observed event identity. No private registration generation or execution handle.</summary>
+/// <remarks>Nested data type for <c>WorkerEventReference</c>.</remarks>
+public sealed partial class WorkerEventReference
+{
+    /// <summary>Actual event agent scope, absent for a root occurrence; at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentId")]
+    public string? AgentId { get; set; }
+
+    /// <summary>Actual event occurrence UUID; copied without normalization.</summary>
+    [JsonPropertyName("eventId")]
+    public required Guid EventId { get; set; }
+
+    /// <summary>Type of the observed occurrence.</summary>
+    [JsonPropertyName("eventType")]
+    public required WorkerEventType EventType { get; set; }
+
+    /// <summary>Explicit provenance of this reference.</summary>
+    [JsonPropertyName("provenance")]
+    public required WorkerObservationProvenance Provenance { get; set; }
+
+    /// <summary>Actual runtime session scope, at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>An observed worker admission, not a claim that execution succeeded.</summary>
+/// <remarks>Nested data type for <c>WorkerAdmission</c>.</remarks>
+public sealed partial class WorkerAdmission
+{
+    /// <summary>Actual AHP participant Turn UUID, not a native turn counter or provenance signal.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ahpTurnId")]
+    public Guid? AhpTurnId { get; set; }
+
+    /// <summary>May be omitted only for the matching current worker user.message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("event")]
+    public WorkerEventReference? Event { get; set; }
+
+    /// <summary>The producer's admission kind.</summary>
+    [JsonPropertyName("kind")]
+    public required WorkerAdmissionKind Kind { get; set; }
+
+    /// <summary>Canonical logical message identity, independent of queueItemId; at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("messageId")]
+    public required string MessageId { get; set; }
+}
+
+/// <summary>One indivisible source-to-reported bridge observation, not a root alias.</summary>
+/// <remarks>Nested data type for <c>WorkerBridgeObservation</c>.</remarks>
+public sealed partial class WorkerBridgeObservation
+{
+    /// <summary>Full occurrence actually emitted by that bridge.</summary>
+    [JsonPropertyName("reported")]
+    public required WorkerEventReference Reported { get; set; }
+
+    /// <summary>Full event received by this bridge.</summary>
+    [JsonPropertyName("source")]
+    public required WorkerEventReference Source { get; set; }
+}
+
+/// <summary>Exact accepted worker input, distinct from a message, event, caller correlation or Turn.</summary>
+/// <remarks>Nested data type for <c>WorkerInput</c>.</remarks>
+public sealed partial class WorkerInput
+{
+    /// <summary>Actual recipient task, at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("agentId")]
+    public required string AgentId { get; set; }
+
+    /// <summary>UUID allocated for this queue item by the admitting producer.</summary>
+    [JsonPropertyName("queueItemId")]
+    public required Guid QueueItemId { get; set; }
+
+    /// <summary>Original invoking occurrence, never replaced by a reported/root alias.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("sender")]
+    public WorkerEventReference? Sender { get; set; }
+
+    /// <summary>Exact captured edges in producer order. Requires sender; at most 32 whole pairs.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("senderBridges")]
+    public WorkerBridgeObservation[]? SenderBridges { get; set; }
+}
+
+/// <summary>Exact delivery and optional occurrence of a consumed worker notification.</summary>
+/// <remarks>Nested data type for <c>WorkerNotificationReference</c>.</remarks>
+public sealed partial class WorkerNotificationReference
+{
+    /// <summary>Actual notificationDeliveryId UUID.</summary>
+    [JsonPropertyName("deliveryId")]
+    public required Guid DeliveryId { get; set; }
+
+    /// <summary>May be omitted only on the matching current system.notification.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("event")]
+    public WorkerEventReference? Event { get; set; }
+
+    /// <summary>Actual consumption mode.</summary>
+    [JsonPropertyName("mode")]
+    public required WorkerNotificationMode Mode { get; set; }
+}
+
+/// <summary>One captured source at this placement and observation boundary.</summary>
+/// <remarks>Nested data type for <c>WorkerSource</c>.</remarks>
+public sealed partial class WorkerSource
+{
+    /// <summary>Actual admissions in capture order; at most 32.</summary>
+    [JsonPropertyName("admissions")]
+    public required WorkerAdmission[] Admissions { get; set; }
+
+    /// <summary>Exact already-open iteration when an immediate notification was consumed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("admittedDuring")]
+    public WorkerEventReference? AdmittedDuring { get; set; }
+
+    /// <summary>Applicable observations were all captured here, never work completion or success.</summary>
+    [JsonPropertyName("captureComplete")]
+    public required bool CaptureComplete { get; set; }
+
+    /// <summary>Actual completion emission only. Absence is not an execution outcome.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("completion")]
+    public WorkerEventReference? Completion { get; set; }
+
+    /// <summary>Indivisible accepted input identity.</summary>
+    [JsonPropertyName("input")]
+    public required WorkerInput Input { get; set; }
+
+    /// <summary>Actual consumed notification, when observed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("notification")]
+    public WorkerNotificationReference? Notification { get; set; }
+}
+
+/// <summary>
+/// Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
+/// must fit 4096 bytes after materializing an allowed implicit self-reference.
+/// Ignore invalid/unknown/oversize metadata, not the product event.
+/// </summary>
+/// <remarks>Nested data type for <c>WorkerCausality</c>.</remarks>
+public sealed partial class WorkerCausality
+{
+    /// <summary>
+    /// Complete placement-aware observed capture, not global causality or execution success.
+    /// Empty true requires explicit native invocation attestation.
+    /// </summary>
+    [JsonPropertyName("captureComplete")]
+    public required bool CaptureComplete { get; set; }
+
+    /// <summary>Provenance of this enclosing observation; never inferred from other fields.</summary>
+    [JsonPropertyName("observationProvenance")]
+    public required WorkerObservationProvenance ObservationProvenance { get; set; }
+
+    /// <summary>Sources in capture order, at most 32. Absent/unknown is not known-empty.</summary>
+    [JsonPropertyName("sources")]
+    public required WorkerSource[] Sources { get; set; }
+
+    /// <summary>Supported version, exactly 1.</summary>
+    [JsonPropertyName("version")]
+    public required long Version { get; set; }
+}
 
 /// <summary>Internal durable terminal request staged by a HydraFusion phase until an idempotent final commit selects it.</summary>
 /// <remarks>Nested data type for <c>FusionStagedTerminal</c>.</remarks>
@@ -10063,16 +10282,16 @@ public sealed partial class SystemNotificationInstructionDiscovered : SystemNoti
     public required string TriggerTool { get; set; }
 }
 
-/// <summary>The <c>user</c> variant of <see cref="SystemNotificationFactoryPauseInfo"/>.</summary>
-public sealed partial class SystemNotificationFactoryPauseInfoUser : SystemNotificationFactoryPauseInfo
+/// <summary>The <c>user</c> variant of <see cref="SystemNotificationWorkflowPauseInfo"/>.</summary>
+public sealed partial class SystemNotificationWorkflowPauseInfoUser : SystemNotificationWorkflowPauseInfo
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Type => "user";
 }
 
-/// <summary>The <c>checkpoint</c> variant of <see cref="SystemNotificationFactoryPauseInfo"/>.</summary>
-public sealed partial class SystemNotificationFactoryPauseInfoCheckpoint : SystemNotificationFactoryPauseInfo
+/// <summary>The <c>checkpoint</c> variant of <see cref="SystemNotificationWorkflowPauseInfo"/>.</summary>
+public sealed partial class SystemNotificationWorkflowPauseInfoCheckpoint : SystemNotificationWorkflowPauseInfo
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -10083,14 +10302,14 @@ public sealed partial class SystemNotificationFactoryPauseInfoCheckpoint : Syste
     public required string Key { get; set; }
 }
 
-/// <summary>Durable metadata describing who initiated a factory pause.</summary>
+/// <summary>Durable metadata describing who initiated a workflow pause.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(SystemNotificationFactoryPauseInfoUser), "user")]
-[JsonDerivedType(typeof(SystemNotificationFactoryPauseInfoCheckpoint), "checkpoint")]
-public partial class SystemNotificationFactoryPauseInfo
+[JsonDerivedType(typeof(SystemNotificationWorkflowPauseInfoUser), "user")]
+[JsonDerivedType(typeof(SystemNotificationWorkflowPauseInfoCheckpoint), "checkpoint")]
+public partial class SystemNotificationWorkflowPauseInfo
 {
     /// <summary>The type discriminator.</summary>
     [JsonPropertyName("type")]
@@ -10098,13 +10317,13 @@ public partial class SystemNotificationFactoryPauseInfo
 }
 
 
-/// <summary>System notification metadata for a factory execution attempt that reached a terminal state.</summary>
-/// <remarks>The <c>factory_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
-public sealed partial class SystemNotificationFactoryCompleted : SystemNotification
+/// <summary>System notification metadata for a workflow execution attempt that reached a terminal state.</summary>
+/// <remarks>The <c>workflow_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
+public sealed partial class SystemNotificationWorkflowCompleted : SystemNotification
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Type => "factory_completed";
+    public override string Type => "workflow_completed";
 
     /// <summary>Execution attempt that reached this terminal state.</summary>
     [JsonPropertyName("attempt")]
@@ -10122,10 +10341,6 @@ public sealed partial class SystemNotificationFactoryCompleted : SystemNotificat
     [JsonPropertyName("elapsedMs")]
     public required long ElapsedMs { get; set; }
 
-    /// <summary>Persisted factory name.</summary>
-    [JsonPropertyName("factoryName")]
-    public required string FactoryName { get; set; }
-
     /// <summary>Machine-readable terminal failure details, when present.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("failure")]
@@ -10134,7 +10349,7 @@ public sealed partial class SystemNotificationFactoryCompleted : SystemNotificat
     /// <summary>Pause initiator metadata when this attempt settled as paused.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("pauseInfo")]
-    public SystemNotificationFactoryPauseInfo? PauseInfo { get; set; }
+    public SystemNotificationWorkflowPauseInfo? PauseInfo { get; set; }
 
     /// <summary>Bounded prompt-safe preview of the completed result.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
@@ -10143,18 +10358,22 @@ public sealed partial class SystemNotificationFactoryCompleted : SystemNotificat
     [JsonPropertyName("resultPreview")]
     public string? ResultPreview { get; set; }
 
-    /// <summary>Actionable run_factory resume guidance for a resource-limit failure.</summary>
+    /// <summary>Actionable run_dynamic_workflow resume guidance for a resource-limit failure.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("retryGuidance")]
     public string? RetryGuidance { get; set; }
 
-    /// <summary>Factory run identifier.</summary>
+    /// <summary>Workflow run identifier.</summary>
     [JsonPropertyName("runId")]
     public required string RunId { get; set; }
 
     /// <summary>Terminal status reached by this execution attempt.</summary>
     [JsonPropertyName("status")]
-    public required SystemNotificationFactoryCompletedStatus Status { get; set; }
+    public required SystemNotificationWorkflowCompletedStatus Status { get; set; }
+
+    /// <summary>Persisted workflow name.</summary>
+    [JsonPropertyName("workflowName")]
+    public required string WorkflowName { get; set; }
 }
 
 /// <summary>System notification metadata from an external host that does not match a runtime-owned notification kind.</summary>
@@ -10182,7 +10401,7 @@ public sealed partial class SystemNotificationUnclassified : SystemNotification
 [JsonDerivedType(typeof(SystemNotificationShellCompleted), "shell_completed")]
 [JsonDerivedType(typeof(SystemNotificationShellDetachedCompleted), "shell_detached_completed")]
 [JsonDerivedType(typeof(SystemNotificationInstructionDiscovered), "instruction_discovered")]
-[JsonDerivedType(typeof(SystemNotificationFactoryCompleted), "factory_completed")]
+[JsonDerivedType(typeof(SystemNotificationWorkflowCompleted), "workflow_completed")]
 [JsonDerivedType(typeof(SystemNotificationUnclassified), "unclassified")]
 public partial class SystemNotification
 {
@@ -10703,9 +10922,9 @@ public sealed partial class PermissionRequestExtensionManagement : PermissionReq
     public string? ToolCallId { get; set; }
 }
 
-/// <summary>A declared phase shown in a factory permission prompt.</summary>
-/// <remarks>Nested data type for <c>FactoryPermissionPhase</c>.</remarks>
-public sealed partial class FactoryPermissionPhase
+/// <summary>A declared phase shown in a workflow permission prompt.</summary>
+/// <remarks>Nested data type for <c>WorkflowPermissionPhase</c>.</remarks>
+public sealed partial class WorkflowPermissionPhase
 {
     /// <summary>Optional phase detail.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -10717,45 +10936,54 @@ public sealed partial class FactoryPermissionPhase
     public required string Title { get; set; }
 }
 
-/// <summary>Factory run or authoring permission request.</summary>
-/// <remarks>The <c>factory</c> variant of <see cref="PermissionRequest"/>.</remarks>
-public sealed partial class PermissionRequestFactory : PermissionRequest
+/// <summary>Workflow run or authoring permission request.</summary>
+/// <remarks>The <c>workflow</c> variant of <see cref="PermissionRequest"/>.</remarks>
+public sealed partial class PermissionRequestWorkflow : PermissionRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "factory";
+    public override string Kind => "workflow";
 
-    /// <summary>Canonical key used for scoped factory approvals.</summary>
+    /// <summary>Canonical key used for scoped workflow approvals.</summary>
     [JsonPropertyName("approvalKey")]
     public required string ApprovalKey { get; set; }
 
-    /// <summary>Whether this factory is eligible for persistent approval.</summary>
+    /// <summary>Whether this workflow is eligible for persistent approval.</summary>
     [JsonPropertyName("canPersistApproval")]
     public required bool CanPersistApproval { get; set; }
 
-    /// <summary>Factory-declared AI-credit limit before any run/resume caller override is applied.</summary>
+    /// <summary>Workflow-declared AI-credit limit before any run/resume caller override is applied.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("declaredMaxAiCredits")]
     public double? DeclaredMaxAiCredits { get; set; }
 
-    /// <summary>Factory-declared concurrent-subagent limit before any run/resume caller override is applied.</summary>
+    /// <summary>Workflow-declared concurrent-subagent limit before any run/resume caller override is applied.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("declaredMaxConcurrentSubagents")]
     public long? DeclaredMaxConcurrentSubagents { get; set; }
 
-    /// <summary>Factory-declared total-subagent limit before any run/resume caller override is applied.</summary>
+    /// <summary>Workflow-declared total-subagent limit before any run/resume caller override is applied.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("declaredMaxTotalSubagents")]
     public long? DeclaredMaxTotalSubagents { get; set; }
 
-    /// <summary>Factory-declared active-time limit in seconds before any run/resume caller override is applied.</summary>
+    /// <summary>Workflow-declared active-time limit in seconds before any run/resume caller override is applied.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("declaredTimeoutSeconds")]
     public double? DeclaredTimeoutSeconds { get; set; }
 
-    /// <summary>Factory description.</summary>
+    /// <summary>Workflow description.</summary>
     [JsonPropertyName("description")]
     public required string Description { get; set; }
+
+    /// <inheritdoc />
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("managedApprovalRequired")]
+    public override bool? ManagedApprovalRequired
+    {
+        get => base.ManagedApprovalRequired;
+        set => base.ManagedApprovalRequired = value;
+    }
 
     /// <summary>Effective AI-credit limit; omitted means unlimited.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -10772,17 +11000,17 @@ public sealed partial class PermissionRequestFactory : PermissionRequest
     [JsonPropertyName("maxTotalSubagents")]
     public long? MaxTotalSubagents { get; set; }
 
-    /// <summary>Factory name.</summary>
+    /// <summary>Workflow name.</summary>
     [JsonPropertyName("name")]
     public required string Name { get; set; }
 
-    /// <summary>Factory operation, either run or author.</summary>
+    /// <summary>Workflow operation, either run or author.</summary>
     [JsonPropertyName("operation")]
-    public required FactoryPermissionOperation Operation { get; set; }
+    public required WorkflowPermissionOperation Operation { get; set; }
 
-    /// <summary>Declared factory phases.</summary>
+    /// <summary>Declared workflow phases.</summary>
     [JsonPropertyName("phases")]
-    public required FactoryPermissionPhase[] Phases { get; set; }
+    public required WorkflowPermissionPhase[] Phases { get; set; }
 
     /// <summary>Effective active-time limit in seconds; omitted means unlimited.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -10853,7 +11081,7 @@ public sealed partial class PermissionRequestExtensionEnvAccess : PermissionRequ
 [JsonDerivedType(typeof(PermissionRequestCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(PermissionRequestHook), "hook")]
 [JsonDerivedType(typeof(PermissionRequestExtensionManagement), "extension-management")]
-[JsonDerivedType(typeof(PermissionRequestFactory), "factory")]
+[JsonDerivedType(typeof(PermissionRequestWorkflow), "workflow")]
 [JsonDerivedType(typeof(PermissionRequestExtensionPermissionAccess), "extension-permission-access")]
 [JsonDerivedType(typeof(PermissionRequestExtensionEnvAccess), "extension-env-access")]
 public partial class PermissionRequest
@@ -11290,15 +11518,15 @@ public sealed partial class PermissionPromptRequestExtensionManagement : Permiss
     public string? ToolCallId { get; set; }
 }
 
-/// <summary>Factory run or authoring permission prompt.</summary>
-/// <remarks>The <c>factory</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public sealed partial class PermissionPromptRequestFactory : PermissionPromptRequest
+/// <summary>Workflow run or authoring permission prompt.</summary>
+/// <remarks>The <c>workflow</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public sealed partial class PermissionPromptRequestWorkflow : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "factory";
+    public override string Kind => "workflow";
 
-    /// <summary>Canonical key used for scoped factory approvals.</summary>
+    /// <summary>Canonical key used for scoped workflow approvals.</summary>
     [JsonPropertyName("approvalKey")]
     public required string ApprovalKey { get; set; }
 
@@ -11308,31 +11536,31 @@ public sealed partial class PermissionPromptRequestFactory : PermissionPromptReq
     [JsonPropertyName("assistedApproval")]
     public PermissionAssistedApproval? AssistedApproval { get; set; }
 
-    /// <summary>Whether this factory is eligible for persistent approval.</summary>
+    /// <summary>Whether this workflow is eligible for persistent approval.</summary>
     [JsonPropertyName("canPersistApproval")]
     public required bool CanPersistApproval { get; set; }
 
-    /// <summary>Factory-declared AI-credit limit before any run/resume caller override is applied.</summary>
+    /// <summary>Workflow-declared AI-credit limit before any run/resume caller override is applied.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("declaredMaxAiCredits")]
     public double? DeclaredMaxAiCredits { get; set; }
 
-    /// <summary>Factory-declared concurrent-subagent limit before any run/resume caller override is applied.</summary>
+    /// <summary>Workflow-declared concurrent-subagent limit before any run/resume caller override is applied.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("declaredMaxConcurrentSubagents")]
     public long? DeclaredMaxConcurrentSubagents { get; set; }
 
-    /// <summary>Factory-declared total-subagent limit before any run/resume caller override is applied.</summary>
+    /// <summary>Workflow-declared total-subagent limit before any run/resume caller override is applied.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("declaredMaxTotalSubagents")]
     public long? DeclaredMaxTotalSubagents { get; set; }
 
-    /// <summary>Factory-declared active-time limit in seconds before any run/resume caller override is applied.</summary>
+    /// <summary>Workflow-declared active-time limit in seconds before any run/resume caller override is applied.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("declaredTimeoutSeconds")]
     public double? DeclaredTimeoutSeconds { get; set; }
 
-    /// <summary>Factory description.</summary>
+    /// <summary>Workflow description.</summary>
     [JsonPropertyName("description")]
     public required string Description { get; set; }
 
@@ -11356,17 +11584,17 @@ public sealed partial class PermissionPromptRequestFactory : PermissionPromptReq
     [JsonPropertyName("maxTotalSubagents")]
     public long? MaxTotalSubagents { get; set; }
 
-    /// <summary>Factory name.</summary>
+    /// <summary>Workflow name.</summary>
     [JsonPropertyName("name")]
     public required string Name { get; set; }
 
-    /// <summary>Factory operation, either run or author.</summary>
+    /// <summary>Workflow operation, either run or author.</summary>
     [JsonPropertyName("operation")]
-    public required FactoryPermissionOperation Operation { get; set; }
+    public required WorkflowPermissionOperation Operation { get; set; }
 
-    /// <summary>Declared factory phases.</summary>
+    /// <summary>Declared workflow phases.</summary>
     [JsonPropertyName("phases")]
-    public required FactoryPermissionPhase[] Phases { get; set; }
+    public required WorkflowPermissionPhase[] Phases { get; set; }
 
     /// <summary>Effective active-time limit in seconds; omitted means unlimited.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -11450,7 +11678,7 @@ public sealed partial class PermissionPromptRequestExtensionEnvAccess : Permissi
 [JsonDerivedType(typeof(PermissionPromptRequestPath), "path")]
 [JsonDerivedType(typeof(PermissionPromptRequestHook), "hook")]
 [JsonDerivedType(typeof(PermissionPromptRequestExtensionManagement), "extension-management")]
-[JsonDerivedType(typeof(PermissionPromptRequestFactory), "factory")]
+[JsonDerivedType(typeof(PermissionPromptRequestWorkflow), "workflow")]
 [JsonDerivedType(typeof(PermissionPromptRequestExtensionPermissionAccess), "extension-permission-access")]
 [JsonDerivedType(typeof(PermissionPromptRequestExtensionEnvAccess), "extension-env-access")]
 public partial class PermissionPromptRequest
@@ -11559,15 +11787,15 @@ public sealed partial class UserToolSessionApprovalExtensionManagement : UserToo
     public string? Operation { get; set; }
 }
 
-/// <summary>Session-scoped factory approval, optionally narrowed by approval key.</summary>
-/// <remarks>The <c>factory</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
-public sealed partial class UserToolSessionApprovalFactory : UserToolSessionApproval
+/// <summary>Session-scoped workflow approval, optionally narrowed by approval key.</summary>
+/// <remarks>The <c>workflow</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
+public sealed partial class UserToolSessionApprovalWorkflow : UserToolSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "factory";
+    public override string Kind => "workflow";
 
-    /// <summary>Optional factory operation name or canonical approval key.</summary>
+    /// <summary>Optional workflow operation name or canonical approval key.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("approvalKey")]
     public string? ApprovalKey { get; set; }
@@ -11615,7 +11843,7 @@ public sealed partial class UserToolSessionApprovalExtensionEnvAccess : UserTool
 [JsonDerivedType(typeof(UserToolSessionApprovalMemory), "memory")]
 [JsonDerivedType(typeof(UserToolSessionApprovalCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(UserToolSessionApprovalExtensionManagement), "extension-management")]
-[JsonDerivedType(typeof(UserToolSessionApprovalFactory), "factory")]
+[JsonDerivedType(typeof(UserToolSessionApprovalWorkflow), "workflow")]
 [JsonDerivedType(typeof(UserToolSessionApprovalExtensionPermissionAccess), "extension-permission-access")]
 [JsonDerivedType(typeof(UserToolSessionApprovalExtensionEnvAccess), "extension-env-access")]
 public partial class UserToolSessionApproval
@@ -13259,6 +13487,9 @@ public readonly struct ModelChangeSource : IEquatable<ModelChangeSource>
 
     /// <summary>An SDK or RPC caller selected the model.</summary>
     public static ModelChangeSource Sdk { get; } = new("sdk");
+
+    /// <summary>The user accepted a CAPI-issued Auto tier recommendation.</summary>
+    public static ModelChangeSource AutoTierRecommendation { get; } = new("auto_tier_recommendation");
 
     /// <summary>Returns a value indicating whether two <see cref="ModelChangeSource"/> instances are equivalent.</summary>
     public static bool operator ==(ModelChangeSource left, ModelChangeSource right) => left.Equals(right);
@@ -15120,6 +15351,259 @@ public readonly struct UserMessageDelivery : IEquatable<UserMessageDelivery>
         public override void Write(Utf8JsonWriter writer, UserMessageDelivery value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UserMessageDelivery));
+        }
+    }
+}
+
+/// <summary>Producer of an observation, not the execution location of every referenced source.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkerObservationProvenance : IEquatable<WorkerObservationProvenance>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkerObservationProvenance"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkerObservationProvenance"/>.</param>
+    [JsonConstructor]
+    public WorkerObservationProvenance(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkerObservationProvenance"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>native</c> value.</summary>
+    public static WorkerObservationProvenance Native { get; } = new("native");
+
+    /// <summary>Gets the <c>ahp_coordinator</c> value.</summary>
+    public static WorkerObservationProvenance AhpCoordinator { get; } = new("ahp_coordinator");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerObservationProvenance"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkerObservationProvenance left, WorkerObservationProvenance right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerObservationProvenance"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkerObservationProvenance left, WorkerObservationProvenance right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkerObservationProvenance other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkerObservationProvenance other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkerObservationProvenance}"/> for serializing <see cref="WorkerObservationProvenance"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkerObservationProvenance>
+    {
+        /// <inheritdoc />
+        public override WorkerObservationProvenance Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkerObservationProvenance value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkerObservationProvenance));
+        }
+    }
+}
+
+/// <summary>Supported observed occurrences. Chronological parentId is not a causal reference.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkerEventType : IEquatable<WorkerEventType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkerEventType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkerEventType"/>.</param>
+    [JsonConstructor]
+    public WorkerEventType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkerEventType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>tool.execution_start</c> value.</summary>
+    public static WorkerEventType ToolExecutionStart { get; } = new("tool.execution_start");
+
+    /// <summary>Gets the <c>user.message</c> value.</summary>
+    public static WorkerEventType UserMessage { get; } = new("user.message");
+
+    /// <summary>Gets the <c>subagent.completed</c> value.</summary>
+    public static WorkerEventType SubagentCompleted { get; } = new("subagent.completed");
+
+    /// <summary>Gets the <c>system.notification</c> value.</summary>
+    public static WorkerEventType SystemNotification { get; } = new("system.notification");
+
+    /// <summary>Gets the <c>assistant.turn_start</c> value.</summary>
+    public static WorkerEventType AssistantTurnStart { get; } = new("assistant.turn_start");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerEventType"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkerEventType left, WorkerEventType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerEventType"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkerEventType left, WorkerEventType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkerEventType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkerEventType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkerEventType}"/> for serializing <see cref="WorkerEventType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkerEventType>
+    {
+        /// <inheritdoc />
+        public override WorkerEventType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkerEventType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkerEventType));
+        }
+    }
+}
+
+/// <summary>Why this exact worker admission was made.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkerAdmissionKind : IEquatable<WorkerAdmissionKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkerAdmissionKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkerAdmissionKind"/>.</param>
+    [JsonConstructor]
+    public WorkerAdmissionKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkerAdmissionKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>queued_input</c> value.</summary>
+    public static WorkerAdmissionKind QueuedInput { get; } = new("queued_input");
+
+    /// <summary>Gets the <c>system_continuation</c> value.</summary>
+    public static WorkerAdmissionKind SystemContinuation { get; } = new("system_continuation");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerAdmissionKind"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkerAdmissionKind left, WorkerAdmissionKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerAdmissionKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkerAdmissionKind left, WorkerAdmissionKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkerAdmissionKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkerAdmissionKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkerAdmissionKind}"/> for serializing <see cref="WorkerAdmissionKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkerAdmissionKind>
+    {
+        /// <inheritdoc />
+        public override WorkerAdmissionKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkerAdmissionKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkerAdmissionKind));
+        }
+    }
+}
+
+/// <summary>How the owned notification was consumed.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkerNotificationMode : IEquatable<WorkerNotificationMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkerNotificationMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkerNotificationMode"/>.</param>
+    [JsonConstructor]
+    public WorkerNotificationMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkerNotificationMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>queued</c> value.</summary>
+    public static WorkerNotificationMode Queued { get; } = new("queued");
+
+    /// <summary>Gets the <c>immediate</c> value.</summary>
+    public static WorkerNotificationMode Immediate { get; } = new("immediate");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerNotificationMode"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkerNotificationMode left, WorkerNotificationMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerNotificationMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkerNotificationMode left, WorkerNotificationMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkerNotificationMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkerNotificationMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkerNotificationMode}"/> for serializing <see cref="WorkerNotificationMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkerNotificationMode>
+    {
+        /// <inheritdoc />
+        public override WorkerNotificationMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkerNotificationMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkerNotificationMode));
         }
     }
 }
@@ -17873,51 +18357,51 @@ public readonly struct SystemNotificationAgentCompletedStatus : IEquatable<Syste
     }
 }
 
-/// <summary>Terminal status reached by a factory execution attempt.</summary>
+/// <summary>Terminal status reached by a workflow execution attempt.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct SystemNotificationFactoryCompletedStatus : IEquatable<SystemNotificationFactoryCompletedStatus>
+public readonly struct SystemNotificationWorkflowCompletedStatus : IEquatable<SystemNotificationWorkflowCompletedStatus>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="SystemNotificationFactoryCompletedStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SystemNotificationFactoryCompletedStatus"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="SystemNotificationWorkflowCompletedStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SystemNotificationWorkflowCompletedStatus"/>.</param>
     [JsonConstructor]
-    public SystemNotificationFactoryCompletedStatus(string value)
+    public SystemNotificationWorkflowCompletedStatus(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="SystemNotificationFactoryCompletedStatus"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="SystemNotificationWorkflowCompletedStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The factory completed successfully.</summary>
-    public static SystemNotificationFactoryCompletedStatus Completed { get; } = new("completed");
+    /// <summary>The workflow completed successfully.</summary>
+    public static SystemNotificationWorkflowCompletedStatus Completed { get; } = new("completed");
 
-    /// <summary>The factory was halted.</summary>
-    public static SystemNotificationFactoryCompletedStatus Halted { get; } = new("halted");
+    /// <summary>The workflow was halted.</summary>
+    public static SystemNotificationWorkflowCompletedStatus Halted { get; } = new("halted");
 
-    /// <summary>The factory attempt paused intentionally.</summary>
-    public static SystemNotificationFactoryCompletedStatus Paused { get; } = new("paused");
+    /// <summary>The workflow attempt paused intentionally.</summary>
+    public static SystemNotificationWorkflowCompletedStatus Paused { get; } = new("paused");
 
-    /// <summary>The factory was cancelled.</summary>
-    public static SystemNotificationFactoryCompletedStatus Cancelled { get; } = new("cancelled");
+    /// <summary>The workflow was cancelled.</summary>
+    public static SystemNotificationWorkflowCompletedStatus Cancelled { get; } = new("cancelled");
 
-    /// <summary>The factory failed.</summary>
-    public static SystemNotificationFactoryCompletedStatus Error { get; } = new("error");
+    /// <summary>The workflow failed.</summary>
+    public static SystemNotificationWorkflowCompletedStatus Error { get; } = new("error");
 
-    /// <summary>Returns a value indicating whether two <see cref="SystemNotificationFactoryCompletedStatus"/> instances are equivalent.</summary>
-    public static bool operator ==(SystemNotificationFactoryCompletedStatus left, SystemNotificationFactoryCompletedStatus right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="SystemNotificationWorkflowCompletedStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(SystemNotificationWorkflowCompletedStatus left, SystemNotificationWorkflowCompletedStatus right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="SystemNotificationFactoryCompletedStatus"/> instances are not equivalent.</summary>
-    public static bool operator !=(SystemNotificationFactoryCompletedStatus left, SystemNotificationFactoryCompletedStatus right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SystemNotificationFactoryCompletedStatus other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="SystemNotificationWorkflowCompletedStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(SystemNotificationWorkflowCompletedStatus left, SystemNotificationWorkflowCompletedStatus right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(SystemNotificationFactoryCompletedStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is SystemNotificationWorkflowCompletedStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SystemNotificationWorkflowCompletedStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -17925,20 +18409,20 @@ public readonly struct SystemNotificationFactoryCompletedStatus : IEquatable<Sys
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{SystemNotificationFactoryCompletedStatus}"/> for serializing <see cref="SystemNotificationFactoryCompletedStatus"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{SystemNotificationWorkflowCompletedStatus}"/> for serializing <see cref="SystemNotificationWorkflowCompletedStatus"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SystemNotificationFactoryCompletedStatus>
+    public sealed class Converter : JsonConverter<SystemNotificationWorkflowCompletedStatus>
     {
         /// <inheritdoc />
-        public override SystemNotificationFactoryCompletedStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override SystemNotificationWorkflowCompletedStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SystemNotificationFactoryCompletedStatus value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, SystemNotificationWorkflowCompletedStatus value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SystemNotificationFactoryCompletedStatus));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SystemNotificationWorkflowCompletedStatus));
         }
     }
 }
@@ -18600,42 +19084,42 @@ public readonly struct PermissionRequestMemoryScope : IEquatable<PermissionReque
     }
 }
 
-/// <summary>Operation gated by a factory permission request.</summary>
+/// <summary>Operation gated by a workflow permission request.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct FactoryPermissionOperation : IEquatable<FactoryPermissionOperation>
+public readonly struct WorkflowPermissionOperation : IEquatable<WorkflowPermissionOperation>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="FactoryPermissionOperation"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="FactoryPermissionOperation"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="WorkflowPermissionOperation"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkflowPermissionOperation"/>.</param>
     [JsonConstructor]
-    public FactoryPermissionOperation(string value)
+    public WorkflowPermissionOperation(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="FactoryPermissionOperation"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="WorkflowPermissionOperation"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Running a registered factory, which spends subagents, active time, and AI credits under the approved limits.</summary>
-    public static FactoryPermissionOperation Run { get; } = new("run");
+    /// <summary>Running a registered workflow, which spends subagents, active time, and AI credits under the approved limits.</summary>
+    public static WorkflowPermissionOperation Run { get; } = new("run");
 
-    /// <summary>Authoring a factory, which writes JavaScript into a session-scoped extension and loads it.</summary>
-    public static FactoryPermissionOperation Author { get; } = new("author");
+    /// <summary>Authoring a workflow, which writes JavaScript into a session-scoped extension and loads it.</summary>
+    public static WorkflowPermissionOperation Author { get; } = new("author");
 
-    /// <summary>Returns a value indicating whether two <see cref="FactoryPermissionOperation"/> instances are equivalent.</summary>
-    public static bool operator ==(FactoryPermissionOperation left, FactoryPermissionOperation right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="WorkflowPermissionOperation"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkflowPermissionOperation left, WorkflowPermissionOperation right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="FactoryPermissionOperation"/> instances are not equivalent.</summary>
-    public static bool operator !=(FactoryPermissionOperation left, FactoryPermissionOperation right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is FactoryPermissionOperation other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="WorkflowPermissionOperation"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkflowPermissionOperation left, WorkflowPermissionOperation right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(FactoryPermissionOperation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is WorkflowPermissionOperation other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkflowPermissionOperation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -18643,20 +19127,20 @@ public readonly struct FactoryPermissionOperation : IEquatable<FactoryPermission
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{FactoryPermissionOperation}"/> for serializing <see cref="FactoryPermissionOperation"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{WorkflowPermissionOperation}"/> for serializing <see cref="WorkflowPermissionOperation"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<FactoryPermissionOperation>
+    public sealed class Converter : JsonConverter<WorkflowPermissionOperation>
     {
         /// <inheritdoc />
-        public override FactoryPermissionOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override WorkflowPermissionOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, FactoryPermissionOperation value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, WorkflowPermissionOperation value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FactoryPermissionOperation));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkflowPermissionOperation));
         }
     }
 }
@@ -18756,7 +19240,7 @@ public readonly struct PermissionDecisionSource : IEquatable<PermissionDecisionS
     /// <summary>The host denied the request because no interactive user response was available.</summary>
     public static PermissionDecisionSource UnattendedFallback { get; } = new("unattended_fallback");
 
-    /// <summary>A live authorization record from an earlier human decision in this session contained the proposal, so it ran without another prompt. This is not a new human decision and never mints authority of its own.</summary>
+    /// <summary>Historical compatibility value for sessions created while authorization carry-forward was executable. Current runtimes do not produce this source.</summary>
     public static PermissionDecisionSource AuthorizationCarryForward { get; } = new("authorization_carry_forward");
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are equivalent.</summary>
@@ -18795,7 +19279,7 @@ public readonly struct PermissionDecisionSource : IEquatable<PermissionDecisionS
     }
 }
 
-/// <summary>Which direction a message-backed authorization claim moves authority in.</summary>
+/// <summary>Direction stored in a historical extractor claim. Current runtimes do not apply it.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -18815,10 +19299,10 @@ public readonly struct PermissionMessageAuthorizationPolarity : IEquatable<Permi
     /// <summary>Gets the value associated with this <see cref="PermissionMessageAuthorizationPolarity"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The human's words authorized an effect.</summary>
+    /// <summary>Historical claim recorded as a grant.</summary>
     public static PermissionMessageAuthorizationPolarity Grant { get; } = new("grant");
 
-    /// <summary>The human's words refused an effect.</summary>
+    /// <summary>Historical claim recorded as a denial.</summary>
     public static PermissionMessageAuthorizationPolarity Denial { get; } = new("denial");
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionMessageAuthorizationPolarity"/> instances are equivalent.</summary>
@@ -19778,51 +20262,51 @@ public readonly struct ExitPlanModeAction : IEquatable<ExitPlanModeAction>
     }
 }
 
-/// <summary>Terminal status a factory run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.</summary>
+/// <summary>Terminal status a workflow run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct FactoryRunSettledStatus : IEquatable<FactoryRunSettledStatus>
+public readonly struct WorkflowRunSettledStatus : IEquatable<WorkflowRunSettledStatus>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="FactoryRunSettledStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="FactoryRunSettledStatus"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="WorkflowRunSettledStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkflowRunSettledStatus"/>.</param>
     [JsonConstructor]
-    public FactoryRunSettledStatus(string value)
+    public WorkflowRunSettledStatus(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="FactoryRunSettledStatus"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="WorkflowRunSettledStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The factory body resolved and its result was committed.</summary>
-    public static FactoryRunSettledStatus Completed { get; } = new("completed");
+    /// <summary>The workflow body resolved and its result was committed.</summary>
+    public static WorkflowRunSettledStatus Completed { get; } = new("completed");
 
     /// <summary>The run was stopped by a limit, an approval refusal or another policy decision.</summary>
-    public static FactoryRunSettledStatus Halted { get; } = new("halted");
+    public static WorkflowRunSettledStatus Halted { get; } = new("halted");
 
     /// <summary>The attempt paused intentionally while preserving resumable run state.</summary>
-    public static FactoryRunSettledStatus Paused { get; } = new("paused");
+    public static WorkflowRunSettledStatus Paused { get; } = new("paused");
 
     /// <summary>The run was cancelled by its caller or by session disposal.</summary>
-    public static FactoryRunSettledStatus Cancelled { get; } = new("cancelled");
+    public static WorkflowRunSettledStatus Cancelled { get; } = new("cancelled");
 
     /// <summary>The run failed, with `failureType` carrying the class when it has one.</summary>
-    public static FactoryRunSettledStatus Error { get; } = new("error");
+    public static WorkflowRunSettledStatus Error { get; } = new("error");
 
-    /// <summary>Returns a value indicating whether two <see cref="FactoryRunSettledStatus"/> instances are equivalent.</summary>
-    public static bool operator ==(FactoryRunSettledStatus left, FactoryRunSettledStatus right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="WorkflowRunSettledStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkflowRunSettledStatus left, WorkflowRunSettledStatus right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="FactoryRunSettledStatus"/> instances are not equivalent.</summary>
-    public static bool operator !=(FactoryRunSettledStatus left, FactoryRunSettledStatus right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is FactoryRunSettledStatus other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="WorkflowRunSettledStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkflowRunSettledStatus left, WorkflowRunSettledStatus right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(FactoryRunSettledStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is WorkflowRunSettledStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkflowRunSettledStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -19830,20 +20314,20 @@ public readonly struct FactoryRunSettledStatus : IEquatable<FactoryRunSettledSta
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{FactoryRunSettledStatus}"/> for serializing <see cref="FactoryRunSettledStatus"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{WorkflowRunSettledStatus}"/> for serializing <see cref="WorkflowRunSettledStatus"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<FactoryRunSettledStatus>
+    public sealed class Converter : JsonConverter<WorkflowRunSettledStatus>
     {
         /// <inheritdoc />
-        public override FactoryRunSettledStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override WorkflowRunSettledStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, FactoryRunSettledStatus value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, WorkflowRunSettledStatus value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FactoryRunSettledStatus));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkflowRunSettledStatus));
         }
     }
 }
@@ -20322,13 +20806,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ExternalToolCompletedEvent))]
 [JsonSerializable(typeof(ExternalToolRequestedData))]
 [JsonSerializable(typeof(ExternalToolRequestedEvent))]
-[JsonSerializable(typeof(FactoryPermissionPhase))]
-[JsonSerializable(typeof(FactoryRunSettledData))]
-[JsonSerializable(typeof(FactoryRunSettledEvent))]
-[JsonSerializable(typeof(FactoryRunStartedData))]
-[JsonSerializable(typeof(FactoryRunStartedEvent))]
-[JsonSerializable(typeof(FactoryRunUpdatedData))]
-[JsonSerializable(typeof(FactoryRunUpdatedEvent))]
 [JsonSerializable(typeof(FusionAttribution))]
 [JsonSerializable(typeof(FusionFollowUpRecommendation))]
 [JsonSerializable(typeof(FusionPhasePlanStep))]
@@ -20402,13 +20879,13 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PermissionPromptRequestExtensionEnvAccess))]
 [JsonSerializable(typeof(PermissionPromptRequestExtensionManagement))]
 [JsonSerializable(typeof(PermissionPromptRequestExtensionPermissionAccess))]
-[JsonSerializable(typeof(PermissionPromptRequestFactory))]
 [JsonSerializable(typeof(PermissionPromptRequestHook))]
 [JsonSerializable(typeof(PermissionPromptRequestMcp))]
 [JsonSerializable(typeof(PermissionPromptRequestMemory))]
 [JsonSerializable(typeof(PermissionPromptRequestPath))]
 [JsonSerializable(typeof(PermissionPromptRequestRead))]
 [JsonSerializable(typeof(PermissionPromptRequestUrl))]
+[JsonSerializable(typeof(PermissionPromptRequestWorkflow))]
 [JsonSerializable(typeof(PermissionPromptRequestWrite))]
 [JsonSerializable(typeof(PermissionRecoveryAttempt))]
 [JsonSerializable(typeof(PermissionRecoveryData))]
@@ -20417,7 +20894,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PermissionRequestExtensionEnvAccess))]
 [JsonSerializable(typeof(PermissionRequestExtensionManagement))]
 [JsonSerializable(typeof(PermissionRequestExtensionPermissionAccess))]
-[JsonSerializable(typeof(PermissionRequestFactory))]
 [JsonSerializable(typeof(PermissionRequestHook))]
 [JsonSerializable(typeof(PermissionRequestMcp))]
 [JsonSerializable(typeof(PermissionRequestMemory))]
@@ -20427,6 +20903,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PermissionRequestShellCommandSegment))]
 [JsonSerializable(typeof(PermissionRequestShellPossibleUrl))]
 [JsonSerializable(typeof(PermissionRequestUrl))]
+[JsonSerializable(typeof(PermissionRequestWorkflow))]
 [JsonSerializable(typeof(PermissionRequestWrite))]
 [JsonSerializable(typeof(PermissionRequestedData))]
 [JsonSerializable(typeof(PermissionRequestedEvent))]
@@ -20632,15 +21109,15 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SystemNotificationAgentIdle))]
 [JsonSerializable(typeof(SystemNotificationData))]
 [JsonSerializable(typeof(SystemNotificationEvent))]
-[JsonSerializable(typeof(SystemNotificationFactoryCompleted))]
-[JsonSerializable(typeof(SystemNotificationFactoryPauseInfo))]
-[JsonSerializable(typeof(SystemNotificationFactoryPauseInfoCheckpoint))]
-[JsonSerializable(typeof(SystemNotificationFactoryPauseInfoUser))]
 [JsonSerializable(typeof(SystemNotificationInstructionDiscovered))]
 [JsonSerializable(typeof(SystemNotificationNewInboxMessage))]
 [JsonSerializable(typeof(SystemNotificationShellCompleted))]
 [JsonSerializable(typeof(SystemNotificationShellDetachedCompleted))]
 [JsonSerializable(typeof(SystemNotificationUnclassified))]
+[JsonSerializable(typeof(SystemNotificationWorkflowCompleted))]
+[JsonSerializable(typeof(SystemNotificationWorkflowPauseInfo))]
+[JsonSerializable(typeof(SystemNotificationWorkflowPauseInfoCheckpoint))]
+[JsonSerializable(typeof(SystemNotificationWorkflowPauseInfoUser))]
 [JsonSerializable(typeof(TaskBlocker))]
 [JsonSerializable(typeof(ToolExecutionCompleteContent))]
 [JsonSerializable(typeof(ToolExecutionCompleteContentAudio))]
@@ -20698,11 +21175,25 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(UserToolSessionApprovalExtensionEnvAccess))]
 [JsonSerializable(typeof(UserToolSessionApprovalExtensionManagement))]
 [JsonSerializable(typeof(UserToolSessionApprovalExtensionPermissionAccess))]
-[JsonSerializable(typeof(UserToolSessionApprovalFactory))]
 [JsonSerializable(typeof(UserToolSessionApprovalMcp))]
 [JsonSerializable(typeof(UserToolSessionApprovalMemory))]
 [JsonSerializable(typeof(UserToolSessionApprovalRead))]
+[JsonSerializable(typeof(UserToolSessionApprovalWorkflow))]
 [JsonSerializable(typeof(UserToolSessionApprovalWrite))]
+[JsonSerializable(typeof(WorkerAdmission))]
+[JsonSerializable(typeof(WorkerBridgeObservation))]
+[JsonSerializable(typeof(WorkerCausality))]
+[JsonSerializable(typeof(WorkerEventReference))]
+[JsonSerializable(typeof(WorkerInput))]
+[JsonSerializable(typeof(WorkerNotificationReference))]
+[JsonSerializable(typeof(WorkerSource))]
+[JsonSerializable(typeof(WorkflowPermissionPhase))]
+[JsonSerializable(typeof(WorkflowRunSettledData))]
+[JsonSerializable(typeof(WorkflowRunSettledEvent))]
+[JsonSerializable(typeof(WorkflowRunStartedData))]
+[JsonSerializable(typeof(WorkflowRunStartedEvent))]
+[JsonSerializable(typeof(WorkflowRunUpdatedData))]
+[JsonSerializable(typeof(WorkflowRunUpdatedEvent))]
 [JsonSerializable(typeof(WorkingDirectoryContext))]
 [JsonSerializable(typeof(JsonElement))]
 internal sealed partial class SessionEventsJsonContext : JsonSerializerContext;

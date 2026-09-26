@@ -1,0 +1,1739 @@
+{
+  "version": 1,
+  "producerEvidence": {
+    "kind": "runtime_actual_output_conformance",
+    "sourceTests": [
+      "src/runtime/src/subagents/orchestrator/worker_causality_tests.rs",
+      "src/runtime/src/session/session_notification_delivery/worker_causality_tests.rs",
+      "src/runtime/src/shared_api/tasks/tests.rs",
+      "test/cli/ahp/client/relaySession.test.ts"
+    ],
+    "vectors": [
+      "native_nested_user_message",
+      "queued_notification",
+      "two_source_assistant_turn_start",
+      "tasks_send_message_result",
+      "workflow_completed"
+    ],
+    "canonicalization": "volatile UUID envelope and identity values are replaced by a fixed token before structural comparison; fixed product content, placement, ordering and typed fields remain exact"
+  },
+  "valid": [
+    {
+      "name": "native_nested_user_message",
+      "event": {
+        "type": "user.message",
+        "data": {
+          "content": "test input",
+          "messageId": "bb61b7c0-bc90-4290-a1e4-79558dc35139",
+          "workerCausality": {
+            "version": 1,
+            "observationProvenance": "native",
+            "sources": [
+              {
+                "input": {
+                  "queueItemId": "2dbbe116-73b0-4011-bfa3-3b571b41404b",
+                  "agentId": "recipient",
+                  "sender": {
+                    "sessionId": "0187f098-31d3-4cdc-ab71-e6ab387e01b4",
+                    "eventId": "773e548e-64e5-4418-853b-aabf128ce858",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "senderBridges": [
+                    {
+                      "source": {
+                        "sessionId": "0187f098-31d3-4cdc-ab71-e6ab387e01b4",
+                        "eventId": "773e548e-64e5-4418-853b-aabf128ce858",
+                        "eventType": "tool.execution_start",
+                        "provenance": "native"
+                      },
+                      "reported": {
+                        "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                        "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                        "agentId": "leaf-agent",
+                        "eventType": "tool.execution_start",
+                        "provenance": "native"
+                      }
+                    },
+                    {
+                      "source": {
+                        "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                        "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                        "agentId": "leaf-agent",
+                        "eventType": "tool.execution_start",
+                        "provenance": "native"
+                      },
+                      "reported": {
+                        "sessionId": "ce52204a-54b0-4ebd-ba13-4854598c4399",
+                        "eventId": "69362832-885b-4787-ab3e-1a2f6c17c73b",
+                        "agentId": "leaf-agent",
+                        "eventType": "tool.execution_start",
+                        "provenance": "native"
+                      }
+                    },
+                    {
+                      "source": {
+                        "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                        "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                        "agentId": "leaf-agent",
+                        "eventType": "tool.execution_start",
+                        "provenance": "native"
+                      },
+                      "reported": {
+                        "sessionId": "f651ee35-bdb9-4c91-aa21-0057a9446269",
+                        "eventId": "b13511dc-0c7a-4d9c-9618-c04c1c50c4bc",
+                        "agentId": "leaf-agent",
+                        "eventType": "tool.execution_start",
+                        "provenance": "native"
+                      }
+                    }
+                  ]
+                },
+                "admissions": [
+                  {
+                    "kind": "queued_input",
+                    "messageId": "bb61b7c0-bc90-4290-a1e4-79558dc35139"
+                  }
+                ],
+                "captureComplete": true
+              }
+            ],
+            "captureComplete": true
+          }
+        },
+        "agentId": "recipient",
+        "id": "e31ee08e-c3ea-4720-b0d6-c7435b5a429c",
+        "timestamp": "2026-09-26T00:10:18.598Z",
+        "parentId": null
+      }
+    },
+    {
+      "name": "ahp_coordinator_user_message",
+      "event": {
+        "type": "user.message",
+        "data": {
+          "content": "first prompt",
+          "turnId": "ffcc4a93-3bc1-4f78-ac2b-c47f6948b20c",
+          "messageId": "efbe1be8-3082-45c5-8c02-8dd922db78c0",
+          "workerCausality": {
+            "version": 1,
+            "observationProvenance": "ahp_coordinator",
+            "sources": [
+              {
+                "input": {
+                  "queueItemId": "9ce2ac75-5062-457e-abe2-11f0f950e5b9",
+                  "agentId": "ahp-agent"
+                },
+                "admissions": [
+                  {
+                    "kind": "queued_input",
+                    "messageId": "efbe1be8-3082-45c5-8c02-8dd922db78c0",
+                    "ahpTurnId": "ffcc4a93-3bc1-4f78-ac2b-c47f6948b20c"
+                  }
+                ],
+                "captureComplete": true
+              }
+            ],
+            "captureComplete": true
+          }
+        },
+        "agentId": "ahp-agent",
+        "id": "9a2a348c-d403-4153-9554-3acc2ca61ed9",
+        "timestamp": "2026-09-26T00:10:18.610Z",
+        "parentId": null
+      }
+    },
+    {
+      "name": "queued_notification",
+      "event": {
+        "type": "system.notification",
+        "data": {
+          "content": "<system_notification>\nAgent \"worker\" (general-purpose) has finished processing and is now idle.\n</system_notification>",
+          "kind": {
+            "type": "agent_idle",
+            "agentId": "worker",
+            "agentType": "general-purpose"
+          },
+          "workerCausality": {
+            "version": 1,
+            "observationProvenance": "native",
+            "sources": [
+              {
+                "input": {
+                  "queueItemId": "bb31eee3-11b8-41bb-b392-b5d4f25061be",
+                  "agentId": "worker"
+                },
+                "admissions": [
+                  {
+                    "kind": "queued_input",
+                    "messageId": "c7b4146b-6a6a-40e7-873a-6e67438a7923",
+                    "event": {
+                      "sessionId": "b9230967-dd47-416e-bc03-c470afd2c87d",
+                      "eventId": "33db0052-4391-4418-a46e-26e9bac8d5a9",
+                      "agentId": "worker",
+                      "eventType": "user.message",
+                      "provenance": "native"
+                    }
+                  }
+                ],
+                "captureComplete": true,
+                "completion": {
+                  "sessionId": "b9230967-dd47-416e-bc03-c470afd2c87d",
+                  "eventId": "30f8471f-343a-44b8-ae95-86c8eed36afc",
+                  "agentId": "worker",
+                  "eventType": "subagent.completed",
+                  "provenance": "native"
+                },
+                "notification": {
+                  "deliveryId": "9cef2f54-c16f-49a8-a2cd-58da52108e60",
+                  "mode": "queued"
+                }
+              }
+            ],
+            "captureComplete": true
+          }
+        },
+        "id": "3943fdab-2f6a-4b52-9b1f-e23a449fa8bd",
+        "timestamp": "2026-09-26T00:01:00.730Z",
+        "parentId": "30f8471f-343a-44b8-ae95-86c8eed36afc"
+      }
+    },
+    {
+      "name": "immediate_notification",
+      "event": {
+        "type": "system.notification",
+        "data": {
+          "content": "<system_notification>\nAgent \"worker-b\" (general-purpose) has finished processing and is now idle.\n</system_notification>",
+          "kind": {
+            "type": "agent_idle",
+            "agentId": "worker-b",
+            "agentType": "general-purpose"
+          },
+          "workerCausality": {
+            "version": 1,
+            "observationProvenance": "native",
+            "sources": [
+              {
+                "input": {
+                  "queueItemId": "68c1fe08-f176-4fe9-acca-3e1714bee0d0",
+                  "agentId": "worker-b"
+                },
+                "admissions": [
+                  {
+                    "kind": "queued_input",
+                    "messageId": "f304b273-03ec-4de9-b7fb-c1c20c4a8b44",
+                    "event": {
+                      "sessionId": "804ee2d2-9d44-40be-bc3a-4276ede7a258",
+                      "eventId": "0be71b00-c858-49b6-b913-70ebd421f398",
+                      "agentId": "worker-b",
+                      "eventType": "user.message",
+                      "provenance": "native"
+                    }
+                  }
+                ],
+                "captureComplete": true,
+                "completion": {
+                  "sessionId": "804ee2d2-9d44-40be-bc3a-4276ede7a258",
+                  "eventId": "bff8358e-e988-4488-967f-5d66ae754df5",
+                  "agentId": "worker-b",
+                  "eventType": "subagent.completed",
+                  "provenance": "native"
+                },
+                "notification": {
+                  "deliveryId": "fdac777b-3e92-4b35-94ab-d3ec905b8d93",
+                  "mode": "immediate"
+                },
+                "admittedDuring": {
+                  "sessionId": "804ee2d2-9d44-40be-bc3a-4276ede7a258",
+                  "eventId": "3b105bff-0011-4658-9855-70d64f5d6eef",
+                  "eventType": "assistant.turn_start",
+                  "provenance": "native"
+                }
+              }
+            ],
+            "captureComplete": true
+          }
+        },
+        "id": "5d7a225b-b974-4acb-a701-c626dfc4292c",
+        "timestamp": "2026-09-26T00:01:00.735Z",
+        "parentId": "3b105bff-0011-4658-9855-70d64f5d6eef"
+      }
+    },
+    {
+      "name": "two_source_assistant_turn_start",
+      "event": {
+        "type": "assistant.turn_start",
+        "data": {
+          "turnId": "1",
+          "interactionId": "test-interaction",
+          "workerCausality": {
+            "version": 1,
+            "observationProvenance": "native",
+            "sources": [
+              {
+                "input": {
+                  "queueItemId": "68c1fe08-f176-4fe9-acca-3e1714bee0d0",
+                  "agentId": "worker-b"
+                },
+                "admissions": [
+                  {
+                    "kind": "queued_input",
+                    "messageId": "f304b273-03ec-4de9-b7fb-c1c20c4a8b44",
+                    "event": {
+                      "sessionId": "804ee2d2-9d44-40be-bc3a-4276ede7a258",
+                      "eventId": "0be71b00-c858-49b6-b913-70ebd421f398",
+                      "agentId": "worker-b",
+                      "eventType": "user.message",
+                      "provenance": "native"
+                    }
+                  }
+                ],
+                "captureComplete": true,
+                "completion": {
+                  "sessionId": "804ee2d2-9d44-40be-bc3a-4276ede7a258",
+                  "eventId": "bff8358e-e988-4488-967f-5d66ae754df5",
+                  "agentId": "worker-b",
+                  "eventType": "subagent.completed",
+                  "provenance": "native"
+                },
+                "notification": {
+                  "deliveryId": "fdac777b-3e92-4b35-94ab-d3ec905b8d93",
+                  "event": {
+                    "sessionId": "804ee2d2-9d44-40be-bc3a-4276ede7a258",
+                    "eventId": "5d7a225b-b974-4acb-a701-c626dfc4292c",
+                    "eventType": "system.notification",
+                    "provenance": "native"
+                  },
+                  "mode": "immediate"
+                },
+                "admittedDuring": {
+                  "sessionId": "804ee2d2-9d44-40be-bc3a-4276ede7a258",
+                  "eventId": "3b105bff-0011-4658-9855-70d64f5d6eef",
+                  "eventType": "assistant.turn_start",
+                  "provenance": "native"
+                }
+              },
+              {
+                "input": {
+                  "queueItemId": "845ea619-b3d7-4371-922f-fa6e2b459aec",
+                  "agentId": "worker-a"
+                },
+                "admissions": [
+                  {
+                    "kind": "queued_input",
+                    "messageId": "15fb0cf7-b9c0-4780-b220-eaec4394c2c4",
+                    "event": {
+                      "sessionId": "804ee2d2-9d44-40be-bc3a-4276ede7a258",
+                      "eventId": "81725409-6a40-4865-b7a6-8a28bb2a86b2",
+                      "agentId": "worker-a",
+                      "eventType": "user.message",
+                      "provenance": "native"
+                    }
+                  }
+                ],
+                "captureComplete": true,
+                "completion": {
+                  "sessionId": "804ee2d2-9d44-40be-bc3a-4276ede7a258",
+                  "eventId": "523256b3-a0fa-47dc-a20e-897532a63282",
+                  "agentId": "worker-a",
+                  "eventType": "subagent.completed",
+                  "provenance": "native"
+                },
+                "notification": {
+                  "deliveryId": "30a214f7-26e5-42d1-ac0a-907045470ce5",
+                  "event": {
+                    "sessionId": "804ee2d2-9d44-40be-bc3a-4276ede7a258",
+                    "eventId": "de0ae0b2-2b8a-4f8d-825c-9ffc8ce9717a",
+                    "eventType": "system.notification",
+                    "provenance": "native"
+                  },
+                  "mode": "immediate"
+                },
+                "admittedDuring": {
+                  "sessionId": "804ee2d2-9d44-40be-bc3a-4276ede7a258",
+                  "eventId": "3b105bff-0011-4658-9855-70d64f5d6eef",
+                  "eventType": "assistant.turn_start",
+                  "provenance": "native"
+                }
+              }
+            ],
+            "captureComplete": true
+          }
+        },
+        "id": "fa1ff4f8-da1b-4cd6-88cb-9ab17f9e2dd7",
+        "timestamp": "2026-09-26T00:01:00.739Z",
+        "parentId": "0473e682-62c4-4967-88ea-4ee0bc7b272f"
+      }
+    },
+    {
+      "name": "incomplete_no_completion_start",
+      "event": {
+        "type": "assistant.turn_start",
+        "data": {
+          "turnId": "0",
+          "interactionId": "e4ee7454-40c1-43a8-9f23-24ef9fb5dccf",
+          "workerCausality": {
+            "version": 1,
+            "observationProvenance": "native",
+            "sources": [
+              {
+                "input": {
+                  "queueItemId": "fe58ed76-866d-4c98-96f6-6991bb4c1d91",
+                  "agentId": "worker"
+                },
+                "admissions": [
+                  {
+                    "kind": "queued_input",
+                    "messageId": "a9b49f68-fd65-40ba-86dc-c5fae4fe62c3",
+                    "event": {
+                      "sessionId": "496e2310-08bb-4a12-9cf9-4d45250b9137",
+                      "eventId": "b3a0df0d-1cbd-4abe-b017-b3a8f61a2679",
+                      "agentId": "worker",
+                      "eventType": "user.message",
+                      "provenance": "native"
+                    }
+                  }
+                ],
+                "captureComplete": false,
+                "notification": {
+                  "deliveryId": "b28ffb50-7a63-4bd0-86dc-de1b8f2467a1",
+                  "event": {
+                    "sessionId": "496e2310-08bb-4a12-9cf9-4d45250b9137",
+                    "eventId": "78370a8b-9ffc-4a0f-ad16-057779fe6351",
+                    "eventType": "system.notification",
+                    "provenance": "native"
+                  },
+                  "mode": "queued"
+                }
+              }
+            ],
+            "captureComplete": false
+          }
+        },
+        "id": "041d5901-34b8-4b5e-a5c3-0567150caa75",
+        "timestamp": "2026-09-26T00:01:00.736Z",
+        "parentId": "4348bb60-8821-4af3-add3-22461951d959"
+      }
+    },
+    {
+      "name": "tasks_send_message_result",
+      "result": {
+        "sent": true,
+        "workerCausality": {
+          "version": 1,
+          "observationProvenance": "native",
+          "sources": [
+            {
+              "input": {
+                "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+                "agentId": "worker"
+              },
+              "admissions": [],
+              "captureComplete": true
+            }
+          ],
+          "captureComplete": true
+        }
+      }
+    },
+    {
+      "name": "session_id_256_multibyte",
+      "result": {
+        "sent": true,
+        "workerCausality": {
+          "version": 1,
+          "observationProvenance": "native",
+          "sources": [
+            {
+              "input": {
+                "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+                "agentId": "worker"
+              },
+              "admissions": [],
+              "captureComplete": true,
+              "completion": {
+                "sessionId": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+                "eventId": "44444444-4444-4444-8444-444444444444",
+                "agentId": "worker",
+                "eventType": "subagent.completed",
+                "provenance": "native"
+              }
+            }
+          ],
+          "captureComplete": true
+        }
+      }
+    },
+    {
+      "name": "agent_id_256_multibyte",
+      "result": {
+        "sent": true,
+        "workerCausality": {
+          "version": 1,
+          "observationProvenance": "native",
+          "sources": [
+            {
+              "input": {
+                "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+                "agentId": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+              },
+              "admissions": [],
+              "captureComplete": true
+            }
+          ],
+          "captureComplete": true
+        }
+      }
+    },
+    {
+      "name": "message_id_256_multibyte",
+      "result": {
+        "sent": true,
+        "workerCausality": {
+          "version": 1,
+          "observationProvenance": "native",
+          "sources": [
+            {
+              "input": {
+                "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+                "agentId": "worker"
+              },
+              "admissions": [
+                {
+                  "kind": "queued_input",
+                  "messageId": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+                }
+              ],
+              "captureComplete": true
+            }
+          ],
+          "captureComplete": true
+        }
+      }
+    },
+    {
+      "name": "implicit_self_wire_fits_but_expansion_exceeds_budget",
+      "event": {
+        "type": "user.message",
+        "data": {
+          "content": "test input",
+          "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+          "workerCausality": {
+            "version": 1,
+            "observationProvenance": "native",
+            "sources": [
+              {
+                "input": {
+                  "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+                  "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                },
+                "admissions": [
+                  {
+                    "kind": "queued_input",
+                    "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
+                  },
+                  {
+                    "kind": "queued_input",
+                    "messageId": "00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "event": {
+                      "sessionId": "source",
+                      "eventId": "33333333-3333-4333-8333-333333333333",
+                      "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                      "eventType": "user.message",
+                      "provenance": "native"
+                    }
+                  },
+                  {
+                    "kind": "queued_input",
+                    "messageId": "01xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "event": {
+                      "sessionId": "source",
+                      "eventId": "33333333-3333-4333-8333-333333333333",
+                      "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                      "eventType": "user.message",
+                      "provenance": "native"
+                    }
+                  },
+                  {
+                    "kind": "queued_input",
+                    "messageId": "02xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "event": {
+                      "sessionId": "source",
+                      "eventId": "33333333-3333-4333-8333-333333333333",
+                      "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                      "eventType": "user.message",
+                      "provenance": "native"
+                    }
+                  },
+                  {
+                    "kind": "queued_input",
+                    "messageId": "03xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "event": {
+                      "sessionId": "source",
+                      "eventId": "33333333-3333-4333-8333-333333333333",
+                      "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                      "eventType": "user.message",
+                      "provenance": "native"
+                    }
+                  }
+                ],
+                "captureComplete": true
+              }
+            ],
+            "captureComplete": true
+          }
+        },
+        "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "id": "22222222-2222-4222-8222-222222222222",
+        "timestamp": "2026-09-26T00:10:18.598Z",
+        "parentId": null
+      },
+      "placementValid": false,
+      "wireBytes": 3540,
+      "expandedBytes": 4188
+    }
+  ],
+  "invalid": [
+    {
+      "name": "null",
+      "value": null
+    },
+    {
+      "name": "non_object",
+      "value": true
+    },
+    {
+      "name": "unsupported_version",
+      "value": {
+        "version": 2,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "unknown_top_level_field",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true,
+        "future": true
+      }
+    },
+    {
+      "name": "unknown_source_field",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [],
+            "captureComplete": true,
+            "future": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "unknown_input_field",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker",
+              "future": true
+            },
+            "admissions": [],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "unknown_admission_field",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "2dbbe116-73b0-4011-bfa3-3b571b41404b",
+              "agentId": "recipient",
+              "sender": {
+                "sessionId": "0187f098-31d3-4cdc-ab71-e6ab387e01b4",
+                "eventId": "773e548e-64e5-4418-853b-aabf128ce858",
+                "eventType": "tool.execution_start",
+                "provenance": "native"
+              },
+              "senderBridges": [
+                {
+                  "source": {
+                    "sessionId": "0187f098-31d3-4cdc-ab71-e6ab387e01b4",
+                    "eventId": "773e548e-64e5-4418-853b-aabf128ce858",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  }
+                },
+                {
+                  "source": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "ce52204a-54b0-4ebd-ba13-4854598c4399",
+                    "eventId": "69362832-885b-4787-ab3e-1a2f6c17c73b",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  }
+                },
+                {
+                  "source": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "f651ee35-bdb9-4c91-aa21-0057a9446269",
+                    "eventId": "b13511dc-0c7a-4d9c-9618-c04c1c50c4bc",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  }
+                }
+              ]
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "bb61b7c0-bc90-4290-a1e4-79558dc35139",
+                "future": true
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "unknown_reference_field",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "2dbbe116-73b0-4011-bfa3-3b571b41404b",
+              "agentId": "recipient",
+              "sender": {
+                "sessionId": "0187f098-31d3-4cdc-ab71-e6ab387e01b4",
+                "eventId": "773e548e-64e5-4418-853b-aabf128ce858",
+                "eventType": "tool.execution_start",
+                "provenance": "native",
+                "future": true
+              },
+              "senderBridges": [
+                {
+                  "source": {
+                    "sessionId": "0187f098-31d3-4cdc-ab71-e6ab387e01b4",
+                    "eventId": "773e548e-64e5-4418-853b-aabf128ce858",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  }
+                },
+                {
+                  "source": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "ce52204a-54b0-4ebd-ba13-4854598c4399",
+                    "eventId": "69362832-885b-4787-ab3e-1a2f6c17c73b",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  }
+                },
+                {
+                  "source": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "f651ee35-bdb9-4c91-aa21-0057a9446269",
+                    "eventId": "b13511dc-0c7a-4d9c-9618-c04c1c50c4bc",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  }
+                }
+              ]
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "bb61b7c0-bc90-4290-a1e4-79558dc35139"
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "unknown_bridge_field",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "2dbbe116-73b0-4011-bfa3-3b571b41404b",
+              "agentId": "recipient",
+              "sender": {
+                "sessionId": "0187f098-31d3-4cdc-ab71-e6ab387e01b4",
+                "eventId": "773e548e-64e5-4418-853b-aabf128ce858",
+                "eventType": "tool.execution_start",
+                "provenance": "native"
+              },
+              "senderBridges": [
+                {
+                  "source": {
+                    "sessionId": "0187f098-31d3-4cdc-ab71-e6ab387e01b4",
+                    "eventId": "773e548e-64e5-4418-853b-aabf128ce858",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "future": true
+                },
+                {
+                  "source": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "ce52204a-54b0-4ebd-ba13-4854598c4399",
+                    "eventId": "69362832-885b-4787-ab3e-1a2f6c17c73b",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  }
+                },
+                {
+                  "source": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "f651ee35-bdb9-4c91-aa21-0057a9446269",
+                    "eventId": "b13511dc-0c7a-4d9c-9618-c04c1c50c4bc",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  }
+                }
+              ]
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "bb61b7c0-bc90-4290-a1e4-79558dc35139"
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "unknown_notification_field",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "bb31eee3-11b8-41bb-b392-b5d4f25061be",
+              "agentId": "worker"
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "c7b4146b-6a6a-40e7-873a-6e67438a7923",
+                "event": {
+                  "sessionId": "b9230967-dd47-416e-bc03-c470afd2c87d",
+                  "eventId": "33db0052-4391-4418-a46e-26e9bac8d5a9",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              }
+            ],
+            "captureComplete": true,
+            "completion": {
+              "sessionId": "b9230967-dd47-416e-bc03-c470afd2c87d",
+              "eventId": "30f8471f-343a-44b8-ae95-86c8eed36afc",
+              "agentId": "worker",
+              "eventType": "subagent.completed",
+              "provenance": "native"
+            },
+            "notification": {
+              "deliveryId": "9cef2f54-c16f-49a8-a2cd-58da52108e60",
+              "mode": "queued",
+              "future": true
+            }
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "malformed_queue_uuid",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "not-a-uuid",
+              "agentId": "worker"
+            },
+            "admissions": [],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "contradictory_complete_capture",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "fe58ed76-866d-4c98-96f6-6991bb4c1d91",
+              "agentId": "worker"
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "a9b49f68-fd65-40ba-86dc-c5fae4fe62c3",
+                "event": {
+                  "sessionId": "496e2310-08bb-4a12-9cf9-4d45250b9137",
+                  "eventId": "b3a0df0d-1cbd-4abe-b017-b3a8f61a2679",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              }
+            ],
+            "captureComplete": false,
+            "notification": {
+              "deliveryId": "b28ffb50-7a63-4bd0-86dc-de1b8f2467a1",
+              "event": {
+                "sessionId": "496e2310-08bb-4a12-9cf9-4d45250b9137",
+                "eventId": "78370a8b-9ffc-4a0f-ad16-057779fe6351",
+                "eventType": "system.notification",
+                "provenance": "native"
+              },
+              "mode": "queued"
+            }
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "missing_required_sources",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "captureComplete": false
+      }
+    },
+    {
+      "name": "session_id_257_bytes",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "2dbbe116-73b0-4011-bfa3-3b571b41404b",
+              "agentId": "recipient",
+              "sender": {
+                "sessionId": "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+                "eventId": "773e548e-64e5-4418-853b-aabf128ce858",
+                "eventType": "tool.execution_start",
+                "provenance": "native"
+              },
+              "senderBridges": [
+                {
+                  "source": {
+                    "sessionId": "0187f098-31d3-4cdc-ab71-e6ab387e01b4",
+                    "eventId": "773e548e-64e5-4418-853b-aabf128ce858",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  }
+                },
+                {
+                  "source": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "ce52204a-54b0-4ebd-ba13-4854598c4399",
+                    "eventId": "69362832-885b-4787-ab3e-1a2f6c17c73b",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  }
+                },
+                {
+                  "source": {
+                    "sessionId": "23ac4baf-eb8e-4fdc-b8e0-5633e4ed550b",
+                    "eventId": "8f608be4-c132-4e19-8bdd-82ff5ba9b0b8",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  },
+                  "reported": {
+                    "sessionId": "f651ee35-bdb9-4c91-aa21-0057a9446269",
+                    "eventId": "b13511dc-0c7a-4d9c-9618-c04c1c50c4bc",
+                    "agentId": "leaf-agent",
+                    "eventType": "tool.execution_start",
+                    "provenance": "native"
+                  }
+                }
+              ]
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "bb61b7c0-bc90-4290-a1e4-79558dc35139"
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "agent_id_257_bytes",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "admissions": [],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "message_id_257_bytes",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "event": {
+                  "sessionId": "source",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "01xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "event": {
+                  "sessionId": "source",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "02xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "event": {
+                  "sessionId": "source",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "03xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "event": {
+                  "sessionId": "source",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "session_id_257_multibyte",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [],
+            "captureComplete": true,
+            "completion": {
+              "sessionId": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééx",
+              "eventId": "44444444-4444-4444-8444-444444444444",
+              "agentId": "worker",
+              "eventType": "subagent.completed",
+              "provenance": "native"
+            }
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "agent_id_257_multibyte",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééx"
+            },
+            "admissions": [],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "message_id_257_multibyte",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééx"
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "session_id_control_character",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [],
+            "captureComplete": true,
+            "completion": {
+              "sessionId": "session\u0000id",
+              "eventId": "44444444-4444-4444-8444-444444444444",
+              "agentId": "worker",
+              "eventType": "subagent.completed",
+              "provenance": "native"
+            }
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "agent_id_control_character",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker\nagent"
+            },
+            "admissions": [],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    },
+    {
+      "name": "message_id_control_character",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "messageid"
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      }
+    }
+  ],
+  "boundaries": [
+    {
+      "name": "exact_4096_ascii",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      },
+      "accepted": true
+    },
+    {
+      "name": "4097_ascii",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      },
+      "accepted": false
+    },
+    {
+      "name": "exact_4096_utf8_and_escaping",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "é🐈\"\\Ωxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      },
+      "accepted": true
+    }
+  ],
+  "identityBoundaries": {
+    "utf8MaxBytes": 256,
+    "acceptedBytes": 256,
+    "rejectedBytes": 257,
+    "multibyteRejectedBytes": 257,
+    "multibyteAcceptedBytes": 256,
+    "multibyteAcceptedFields": [
+      "sessionId",
+      "agentId",
+      "messageId"
+    ],
+    "multibyteRejectedFields": [
+      "sessionId",
+      "agentId",
+      "messageId"
+    ],
+    "rejectUnicodeControlCharacters": true
+  },
+  "expandedGraphBudget": {
+    "maxBytes": 4096,
+    "wireBytes": 3540,
+    "expandedBytes": 4188,
+    "domain": "fully_materialized_workerCausality_field"
+  },
+  "workflowCompleted": {
+    "hostInput": {
+      "kind": "systemNotification",
+      "content": "Factory run completed",
+      "metadata": {
+        "type": "factory_completed",
+        "runId": "run-1",
+        "factoryName": "fix-ci",
+        "status": "completed",
+        "attempt": 2,
+        "elapsedMs": 500,
+        "consumedNanoAiu": 10,
+        "consumedSubagents": 1
+      }
+    },
+    "event": {
+      "type": "system.notification",
+      "data": {
+        "content": "Factory run completed",
+        "kind": {
+          "type": "workflow_completed",
+          "runId": "run-1",
+          "workflowName": "fix-ci",
+          "status": "completed",
+          "attempt": 2,
+          "elapsedMs": 500,
+          "consumedNanoAiu": 10,
+          "consumedSubagents": 1
+        }
+      },
+      "id": "55555555-5555-4555-8555-555555555555",
+      "timestamp": "2026-09-26T00:02:00.000Z",
+      "parentId": null
+    }
+  }
+}

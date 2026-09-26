@@ -31,6 +31,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.rpc.SessionSendParams;
+import com.github.copilot.generated.rpc.SessionSendMessagesParams;
 import com.github.copilot.rpc.AgentMode;
 import com.github.copilot.rpc.Attachment;
 import com.github.copilot.rpc.CopilotClientOptions;
@@ -181,6 +182,62 @@ class MessageSourceTest {
     }
 
     @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"01234567-89ab-4cde-8f01-23456789abcd", "01234567-89AB-4CDE-8F01-23456789ABCD",
+            "not-a-uuid", ""})
+    void admissionCorrelationIsOptionalAndDoesNotRewriteOptions(String correlation) throws Exception {
+        try (var server = new SendServer(Outcome.IDLE);
+                var client = server.createClient();
+                var session = client.createSession(sessionConfig()).get(5, TimeUnit.SECONDS)) {
+            var options = fullOptions().setSource(MessageSource.SYSTEM).setClientCorrelationId(correlation);
+            assertEquals(correlation, options.clone().getClientCorrelationId());
+            assertEquals("message-1", session.send(options).get(5, TimeUnit.SECONDS));
+            var wire = server.takeSendParams();
+            assertEquals("system", wire.get("source").asText());
+            assertEquals("display", wire.get("displayPrompt").asText());
+            assertEquals("trace-id", wire.get("requestHeaders").get("X-Trace").asText());
+            assertEquals(MAPPER.valueToTree(options.getAttachments()), wire.get("attachments"));
+            assertEquals(correlation, wire.path("clientCorrelationId").asText(null));
+            assertEquals(correlation != null, wire.has("clientCorrelationId"));
+
+            assertNull(session.sendAndWait(options).get(5, TimeUnit.SECONDS));
+            assertEquals(correlation, server.takeSendParams().path("clientCorrelationId").asText(null));
+
+            var params = MAPPER.createObjectNode().put("prompt", "hello");
+            if (correlation != null) {
+                params.put("clientCorrelationId", correlation);
+            }
+            var generated = MAPPER.treeToValue(params, SessionSendParams.class);
+            assertEquals("message-1", session.getRpc().send(generated).get(5, TimeUnit.SECONDS).messageId());
+            params.put("sessionId", "source-session");
+            assertEquals(params, server.takeSendParams());
+            options.setClientCorrelationId(null);
+            assertFalse(MAPPER.valueToTree(options).has("clientCorrelationId"));
+        }
+    }
+
+    @Test
+    void admissionCorrelationRemainsPerBatchItem() throws Exception {
+        try (var server = new SendServer(Outcome.IDLE);
+                var client = server.createClient();
+                var session = client.createSession(sessionConfig()).get(5, TimeUnit.SECONDS)) {
+            var json = MAPPER.readTree("""
+                    {"messages":[
+                        {"prompt":"context","clientCorrelationId":"01234567-89ab-4cde-8f01-23456789abcd"},
+                        {"prompt":"plain"},
+                        {"prompt":"reused","clientCorrelationId":"01234567-89ab-4cde-8f01-23456789abcd"}
+                    ]}
+                    """);
+            var params = MAPPER.treeToValue(json, SessionSendMessagesParams.class);
+            var result = session.getRpc().sendMessages(params).get(5, TimeUnit.SECONDS);
+            assertEquals(List.of("batch-0", "batch-1", "batch-2"), result.messageIds());
+            var wire = server.takeSendParams();
+            assertFalse(wire.has("clientCorrelationId"));
+            assertEquals(json.get("messages"), wire.get("messages"));
+        }
+    }
+
+    @ParameterizedTest
     @MethodSource("sourcesAndModes")
     void sendForwardsSourceWithoutChangingOtherOptions(MessageSource source, String mode) throws Exception {
         try (var server = new SendServer(Outcome.IDLE);
@@ -313,10 +370,12 @@ class MessageSourceTest {
                         case "connect" -> Map.of("ok", true, "protocolVersion", 3, "version", "test");
                         case "session.create" -> Map.of("sessionId", params.path("sessionId").asText());
                         case "session.send" -> Map.of("messageId", "message-1");
+                        case "session.sendMessages" -> Map.of("messageIds", java.util.stream.IntStream
+                                .range(0, params.path("messages").size()).mapToObj(index -> "batch-" + index).toList());
                         case "session.detach" -> Map.of("success", true);
                         default -> Map.of();
                     };
-                    boolean send = "session.send".equals(method);
+                    boolean send = "session.send".equals(method) || "session.sendMessages".equals(method);
                     if (send) {
                         sends.add(params);
                     }

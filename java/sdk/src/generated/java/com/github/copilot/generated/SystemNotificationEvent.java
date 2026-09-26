@@ -34,12 +34,19 @@ public final class SystemNotificationEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SystemNotificationEventData(
+        /** Optional owned worker notification observations; an omitted notification event refers only to this occurrence. */
+        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)
+        @JsonProperty("workerCausality") WorkerCausality workerCausality,
         /** The notification text, typically wrapped in <system_notification> XML tags */
         @JsonProperty("content") String content,
         /** Structured metadata identifying what triggered this notification */
-        @JsonProperty("kind") Object kind,
+        @JsonProperty("kind") SystemNotification kind,
         /** Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility */
         @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning
     ) {
+        /** Creates a value without optional worker diagnostics. */
+        public SystemNotificationEventData(String content, SystemNotification kind, ResponsesReasoning responsesReasoning) {
+            this(null, content, kind, responsesReasoning);
+        }
     }
 }

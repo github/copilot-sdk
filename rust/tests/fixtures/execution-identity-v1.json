@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "sdkVersion": "1.0.14",
+  "cliVersion": "1.0.85",
+  "sendResults": {
+    "user": {"messageId": "20000000-0000-4000-8000-000000000001"},
+    "system": {"messageId": "20000000-0000-4000-8000-000000000002"}
+  },
+  "pendingItems": {
+    "items": [
+      {
+        "agentMode": "interactive",
+        "displayText": "",
+        "id": "queue-batch-a",
+        "kind": "message",
+        "messageId": "20000000-0000-4000-8000-000000000001"
+      },
+      {
+        "agentMode": "interactive",
+        "displayText": "",
+        "id": "queue-batch-a",
+        "kind": "message",
+        "messageId": "20000000-0000-4000-8000-000000000002"
+      }
+    ],
+    "steeringMessages": []
+  },
+  "notifications": {
+    "user": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000001",
+          "timestamp": "2026-09-16T00:00:01Z",
+          "parentId": "10000000-0000-4000-8000-000000000000",
+          "type": "user.message",
+          "data": {
+            "content": "",
+            "delivery": "idle",
+            "source": "user",
+            "messageId": "20000000-0000-4000-8000-000000000001",
+            "turnId": "0",
+            "interactionId": "30000000-0000-4000-8000-000000000001"
+          }
+        }
+      }
+    },
+    "turnStart": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000002",
+          "timestamp": "2026-09-16T00:00:02Z",
+          "parentId": "10000000-0000-4000-8000-000000000001",
+          "type": "assistant.turn_start",
+          "data": {
+            "turnId": "0",
+            "interactionId": "30000000-0000-4000-8000-000000000001"
+          }
+        }
+      }
+    },
+    "assistant": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000003",
+          "timestamp": "2026-09-16T00:00:03Z",
+          "parentId": "10000000-0000-4000-8000-000000000002",
+          "type": "assistant.message",
+          "data": {
+            "content": "",
+            "messageId": "40000000-0000-4000-8000-000000000001",
+            "originatingMessageId": "20000000-0000-4000-8000-000000000001",
+            "turnId": "1",
+            "interactionId": "30000000-0000-4000-8000-000000000001"
+          }
+        }
+      }
+    },
+    "correctedAssistant": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000009",
+          "timestamp": "2026-09-16T00:00:03.500Z",
+          "parentId": "10000000-0000-4000-8000-000000000003",
+          "type": "assistant.message",
+          "data": {
+            "content": "",
+            "messageId": "40000000-0000-4000-8000-000000000003",
+            "originatingMessageId": "20000000-0000-4000-8000-000000000001",
+            "turnId": "0",
+            "interactionId": "30000000-0000-4000-8000-000000000003"
+          }
+        }
+      }
+    },
+    "system": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000004",
+          "timestamp": "2026-09-16T00:00:04Z",
+          "parentId": "10000000-0000-4000-8000-000000000003",
+          "type": "user.message",
+          "data": {
+            "content": "",
+            "delivery": "queued",
+            "source": "system",
+            "messageId": "20000000-0000-4000-8000-000000000002",
+            "turnId": "0",
+            "interactionId": "30000000-0000-4000-8000-000000000001"
+          }
+        }
+      }
+    },
+    "reusedTurnStart": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000011",
+          "timestamp": "2026-09-16T00:00:04.250Z",
+          "parentId": "10000000-0000-4000-8000-000000000004",
+          "type": "assistant.turn_start",
+          "data": {
+            "turnId": "0",
+            "interactionId": "30000000-0000-4000-8000-000000000001"
+          }
+        }
+      }
+    },
+    "workerStarted": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000010",
+          "timestamp": "2026-09-16T00:00:04.500Z",
+          "parentId": "10000000-0000-4000-8000-000000000004",
+          "agentId": "50000000-0000-4000-8000-000000000001",
+          "type": "subagent.started",
+          "data": {
+            "agentDescription": "",
+            "agentDisplayName": "",
+            "agentName": "",
+            "toolCallId": "tool-spawn-a"
+          }
+        }
+      }
+    },
+    "worker": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000005",
+          "timestamp": "2026-09-16T00:00:05Z",
+          "parentId": "10000000-0000-4000-8000-000000000004",
+          "agentId": "50000000-0000-4000-8000-000000000001",
+          "type": "assistant.message",
+          "data": {
+            "content": "",
+            "messageId": "40000000-0000-4000-8000-000000000002",
+            "originatingMessageId": "20000000-0000-4000-8000-000000000003",
+            "turnId": "0",
+            "interactionId": "30000000-0000-4000-8000-000000000002"
+          }
+        }
+      }
+    },
+    "otherSession": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-b",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000006",
+          "timestamp": "2026-09-16T00:00:06Z",
+          "parentId": "10000000-0000-4000-8000-000000000000",
+          "type": "user.message",
+          "data": {
+            "content": "",
+            "delivery": "idle",
+            "source": "user",
+            "messageId": "20000000-0000-4000-8000-000000000004",
+            "turnId": "0",
+            "interactionId": "30000000-0000-4000-8000-000000000001"
+          }
+        }
+      }
+    },
+    "legacy": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000007",
+          "timestamp": "2026-09-16T00:00:07Z",
+          "parentId": "10000000-0000-4000-8000-000000000006",
+          "type": "user.message",
+          "data": {"content": ""}
+        }
+      }
+    },
+    "resume": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "10000000-0000-4000-8000-000000000008",
+          "timestamp": "2026-09-16T00:00:08Z",
+          "parentId": "10000000-0000-4000-8000-000000000007",
+          "type": "session.resume",
+          "data": {
+            "eventCount": 7,
+            "resumeTime": "2026-09-16T00:00:08Z",
+            "continuePendingWork": true
+          }
+        }
+      }
+    }
+  }
+}

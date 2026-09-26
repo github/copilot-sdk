@@ -24,6 +24,8 @@ import javax.annotation.processing.Generated;
 public record SendMessageItem(
     /** The user message text */
     @JsonProperty("prompt") String prompt,
+    /** Optional caller-generated diagnostic UUID for this item only, with the same validation and opt-in native echo as session.send.clientCorrelationId. The batch has no request-level correlation value; each item retains its own value, including preceding context messages. Reused values do not deduplicate messages and remain ambiguous. */
+    @JsonProperty("clientCorrelationId") String clientCorrelationId,
     /** If provided, this is shown in the timeline instead of `prompt` */
     @JsonProperty("displayPrompt") String displayPrompt,
     /** Optional attachments (files, directories, selections, blobs, GitHub references) to include with this message */
@@ -35,4 +37,8 @@ public record SendMessageItem(
     /** Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent. */
     @JsonProperty("source") String source
 ) {
+    /** Creates a value without optional admission correlation metadata. */
+    public SendMessageItem(String prompt, String displayPrompt, List<Object> attachments, Boolean billable, String requiredTool, String source) {
+        this(prompt, null, displayPrompt, attachments, billable, requiredTool, source);
+    }
 }

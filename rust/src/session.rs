@@ -756,6 +756,9 @@ impl Session {
             "sessionId": self.id,
             "prompt": opts.prompt,
         });
+        if let Some(client_correlation_id) = opts.client_correlation_id {
+            params["clientCorrelationId"] = serde_json::to_value(client_correlation_id)?;
+        }
         if let Some(source) = opts.source {
             params["source"] = serde_json::to_value(source)?;
         }

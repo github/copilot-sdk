@@ -23,7 +23,7 @@ use github_copilot_sdk::rpc::{
     ConnectorCatalogStatus, ConnectorConnectRequest, ConnectorConnectResult,
     ConnectorContinueRequest, ConnectorDisconnectResult, ConnectorMcpStatus,
     ConnectorReconcileRequest, ConnectorStatus, ModelSetAllowedModelsRequest, OpenCanvasInstance,
-    SendAgentMode, SendMode, SendRequest, SessionRpcConnectors,
+    SendAgentMode, SendMessagesRequest, SendMode, SendRequest, SessionRpcConnectors,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -2281,6 +2281,207 @@ async fn send_injects_session_id() {
 
     server.respond(&request, serde_json::json!({})).await;
     timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn admission_correlation_is_opt_in_and_preserves_existing_send_options() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    for correlation in [
+        None,
+        Some("01234567-89ab-4cde-8f01-23456789abcd"),
+        Some("01234567-89AB-4CDE-8F01-23456789ABCD"),
+        Some("not-a-uuid"),
+        Some(""),
+    ] {
+        for typed_rpc in [false, true] {
+            let mut options = MessageOptions::new("hello");
+            assert!(options.client_correlation_id.is_none());
+            if let Some(value) = correlation {
+                options = options.with_client_correlation_id(value);
+            }
+            assert_eq!(
+                options.clone().client_correlation_id.as_deref(),
+                correlation
+            );
+            let mut expected = serde_json::json!({
+                "sessionId": server.session_id, "prompt": "hello", "source": "system",
+                "mode": "enqueue", "displayPrompt": "display", "agentMode": "plan",
+                "requestHeaders": {"X-Test": "preserved"},
+                "traceparent": "00-11111111111111111111111111111111-2222222222222222-01",
+                "tracestate": "vendor=preserved"
+            });
+            if let Some(value) = correlation {
+                expected["clientCorrelationId"] = serde_json::json!(value);
+            }
+            let handle = tokio::spawn({
+                let session = session.clone();
+                let mut request = expected.clone();
+                request.as_object_mut().unwrap().remove("sessionId");
+                async move {
+                    if typed_rpc {
+                        session
+                            .rpc()
+                            .send(serde_json::from_value(request).unwrap())
+                            .await
+                            .map(|result| result.message_id)
+                    } else {
+                        session
+                            .send(
+                                options
+                                    .with_source(MessageSource::System)
+                                    .with_mode(DeliveryMode::Enqueue)
+                                    .with_agent_mode(AgentMode::Plan)
+                                    .with_display_prompt("display")
+                                    .with_request_headers(HashMap::from([(
+                                        "X-Test".into(),
+                                        "preserved".into(),
+                                    )]))
+                                    .with_traceparent(
+                                        "00-11111111111111111111111111111111-2222222222222222-01",
+                                    )
+                                    .with_tracestate("vendor=preserved"),
+                            )
+                            .await
+                    }
+                }
+            });
+            let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+            assert_eq!(request["method"], "session.send");
+            assert_eq!(request["params"], expected);
+            server
+                .respond(
+                    &request,
+                    serde_json::json!({"messageId": "server-message-1", "future": true}),
+                )
+                .await;
+            assert_eq!(
+                timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap(),
+                "server-message-1"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn admission_correlation_stays_per_item_across_concurrent_sends_and_batch() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    const FIRST: &str = "01234567-89ab-4cde-8f01-23456789abcd";
+    const SECOND: &str = "abcdef01-2345-4678-9abc-def012345678";
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            let batch: SendMessagesRequest = serde_json::from_value(serde_json::json!({
+                "messages": [
+                    {"prompt": "context", "clientCorrelationId": SECOND},
+                    {"prompt": "plain"},
+                    {"prompt": "reused", "clientCorrelationId": FIRST}
+                ]
+            }))
+            .unwrap();
+            let rpc = session.rpc();
+            tokio::join!(
+                session.send(MessageOptions::new("first").with_client_correlation_id(FIRST)),
+                session.send(MessageOptions::new("second").with_client_correlation_id(SECOND)),
+                rpc.send_messages(batch)
+            )
+        }
+    });
+
+    let mut requests = Vec::new();
+    for _ in 0..3 {
+        requests.push(timeout(TIMEOUT, server.read_request()).await.unwrap());
+    }
+    for request in requests.into_iter().rev() {
+        let params = &request["params"];
+        assert_eq!(params["sessionId"], server.session_id);
+        if request["method"] == "session.sendMessages" {
+            assert!(params.get("clientCorrelationId").is_none());
+            assert_eq!(
+                params["messages"],
+                serde_json::json!([
+                    {"prompt": "context", "clientCorrelationId": SECOND},
+                    {"prompt": "plain"},
+                    {"prompt": "reused", "clientCorrelationId": FIRST}
+                ])
+            );
+            server
+                .respond(
+                    &request,
+                    serde_json::json!({"messageIds": ["context-id", "plain-id", "reused-id"]}),
+                )
+                .await;
+        } else {
+            assert_eq!(request["method"], "session.send");
+            let (correlation, message_id) = if params["prompt"] == "first" {
+                (FIRST, "first-id")
+            } else {
+                assert_eq!(params["prompt"], "second");
+                (SECOND, "second-id")
+            };
+            assert_eq!(params["clientCorrelationId"], correlation);
+            server
+                .respond(&request, serde_json::json!({"messageId": message_id}))
+                .await;
+        }
+    }
+    let (first, second, batch) = timeout(TIMEOUT, handle).await.unwrap().unwrap();
+    assert_eq!(first.unwrap(), "first-id");
+    assert_eq!(second.unwrap(), "second-id");
+    assert_eq!(
+        batch.unwrap().message_ids,
+        ["context-id", "plain-id", "reused-id"]
+    );
+}
+
+#[tokio::test]
+async fn admission_correlation_event_and_pending_rows_preserve_canonical_message_ids() {
+    use github_copilot_sdk::session_events::UserMessageData;
+
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let mut events = session.subscribe();
+    const CORRELATION: &str = "01234567-89ab-4cde-8f01-23456789abcd";
+    for correlation in [Some(CORRELATION), None] {
+        let mut data = serde_json::json!({
+            "content": "hello", "messageId": "canonical-id",
+            "interactionId": "agent-loop-id", "turnId": "0", "futureField": {"x": true}
+        });
+        if let Some(value) = correlation {
+            data["clientCorrelationId"] = serde_json::json!(value);
+        }
+        server.send_event("user.message", data.clone()).await;
+        let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+        assert_eq!(event.data, data);
+        let typed = event.typed_data::<UserMessageData>().unwrap();
+        assert_eq!(typed.client_correlation_id.as_deref(), correlation);
+        assert_eq!(typed.message_id.as_deref(), Some("canonical-id"));
+        assert_eq!(typed.interaction_id.as_deref(), Some("agent-loop-id"));
+        assert_ne!(event.id, "canonical-id");
+    }
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.rpc().queue().pending_items().await }
+    });
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "session.queue.pendingItems");
+    server.respond(&request, serde_json::json!({"steeringMessages": [], "items": [
+        {"id": "queue-id", "messageId": "canonical-id", "clientCorrelationId": CORRELATION,
+         "kind": "message", "displayText": "hello", "agentMode": "interactive", "futureField": true},
+        {"id": "legacy-queue-id", "kind": "message", "displayText": "older", "agentMode": "interactive"}
+    ]})).await;
+    let pending = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert_eq!(
+        pending.items[0].client_correlation_id.as_deref(),
+        Some(CORRELATION)
+    );
+    assert_eq!(pending.items[0].message_id.as_deref(), Some("canonical-id"));
+    assert_eq!(pending.items[0].id, "queue-id");
+    assert!(pending.items[1].client_correlation_id.is_none());
+    assert!(pending.items[1].message_id.is_none());
 }
 
 #[test]

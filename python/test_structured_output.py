@@ -67,11 +67,16 @@ def assert_clean(session):
 
 
 @pytest.mark.asyncio
-async def test_typed_output_buffers_pre_ack_events_and_infers_schema():
+@pytest.mark.parametrize("correlation", [None, "01234567-89ab-4cde-8f01-23456789abcd"])
+async def test_typed_output_buffers_pre_ack_events_and_infers_schema(correlation):
     session, client = fake_session([user(), assistant(), idle()])
-    result = await session.send_and_wait_typed("inventory", Inventory, timeout=1)
+    result = await session.send_and_wait_typed(
+        "inventory", Inventory, timeout=1, client_correlation_id=correlation
+    )
     assert result == Inventory(count=42, color="red")
     params = client.request.call_args.args[1]
+    assert params.get("clientCorrelationId") == correlation
+    assert ("clientCorrelationId" in params) == (correlation is not None)
     assert params["responseFormat"] == {
         "type": "json_schema",
         "jsonSchema": {"name": "response", "strict": True, "schema": Inventory.model_json_schema()},

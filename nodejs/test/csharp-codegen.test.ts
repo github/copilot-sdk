@@ -49,9 +49,82 @@ describe("C# root event payload unions", () => {
         expect(code).toContain("public sealed partial class SampleEmptyData");
         expect(code).not.toContain("public sealed partial class SampleUnionData { }");
     });
+
+    it("keeps optional worker converter attributes attached after XML documentation", () => {
+        const code = generateSessionEventsCode({
+            definitions: {
+                WorkerCausality: {
+                    type: "object",
+                    properties: { version: { type: "integer" } },
+                    required: ["version"],
+                },
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                type: { const: "user.message" },
+                                data: {
+                                    type: "object",
+                                    properties: {
+                                        content: { type: "string" },
+                                        workerCausality: {
+                                            $ref: "#/definitions/WorkerCausality",
+                                            description: "Optional worker diagnostics.",
+                                        },
+                                    },
+                                    required: ["content"],
+                                },
+                            },
+                            required: ["type", "data"],
+                        },
+                    ],
+                },
+            },
+        });
+        expect(code).toContain(
+            "/// <summary>Optional worker diagnostics.</summary>\n" +
+                "    [JsonConverter(typeof(WorkerCausalityConverter<WorkerCausality>))]\n" +
+                "    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]\n" +
+                '    [JsonPropertyName("workerCausality")]'
+        );
+    });
 });
 
 describe("C# RPC codegen", () => {
+    it("preserves positional send arguments and the existing CLR signature", () => {
+        const code = generateRpcCode({
+            session: {
+                send: {
+                    rpcMethod: "session.send",
+                    params: {
+                        title: "SendRequest",
+                        type: "object",
+                        properties: {
+                            sessionId: { type: "string" },
+                            prompt: { type: "string" },
+                            clientCorrelationId: { type: "string" },
+                            displayPrompt: { type: "string" },
+                            wait: { type: "boolean" },
+                        },
+                        required: ["sessionId", "prompt"],
+                    },
+                },
+            },
+        });
+
+        expect(code).toContain(
+            "SendAsync(string prompt, string? displayPrompt = null, bool? wait = null, string? clientCorrelationId = null, CancellationToken cancellationToken = default)"
+        );
+        expect(code).toContain("ClientCorrelationId = clientCorrelationId");
+        expect(code).toContain(
+            "SendAsync(string prompt, string? displayPrompt, bool? wait, CancellationToken cancellationToken)"
+        );
+        expect(code).toContain(
+            "=> SendAsync(prompt, displayPrompt, wait, clientCorrelationId: null, cancellationToken: cancellationToken);"
+        );
+    });
+
     it.each(["uninstall", "update"])(
         "separates the session wire envelope from the shared plugins %s request",
         (method) => {

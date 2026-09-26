@@ -4123,6 +4123,7 @@ public sealed class MessageOptions
         AgentMode = other.AgentMode;
         Source = other.Source;
         Prompt = other.Prompt;
+        ClientCorrelationId = other.ClientCorrelationId;
         DisplayPrompt = other.DisplayPrompt;
         ResponseSchema = other.ResponseSchema;
         RequestHeaders = other.RequestHeaders is not null
@@ -4134,6 +4135,13 @@ public sealed class MessageOptions
     /// The prompt text to send to the assistant.
     /// </summary>
     public string Prompt { get; set; } = string.Empty;
+    /// <summary>
+    /// Optional caller-owned diagnostic UUID for this RPC admission, sent unchanged.
+    /// Supported runtimes echo accepted values only with RUNTIME_ADMISSION_TRACE_CONTEXT
+    /// enabled. Not an idempotency key; the SDK never generates this value.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ClientCorrelationId { get; set; }
     /// <summary>
     /// File or data attachments to include with the message.
     /// </summary>

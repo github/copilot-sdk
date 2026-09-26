@@ -16,7 +16,7 @@ pub use super::session_events::{
     OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
     PermissionRule, ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode,
     ShutdownType, SkillSource, TaskBlocker, TaskCompletionOutcome, UserToolSessionApproval,
-    Verbosity,
+    Verbosity, WorkerCausality,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -16342,6 +16342,9 @@ pub struct QueueMoveItemResult {
 pub struct QueuePendingItems {
     /// Agent mode stored on this queued entry, as stamped when it was enqueued. Items without an explicit mode report interactive. This is not necessarily the mode that will constrain the turn: a plan or autopilot session applies its own write gate, continuation loop and permission posture to every drained item regardless of the mode stored here.
     pub agent_mode: SendAgentMode,
+    /// Caller-owned diagnostic UUID from the exact accepted native session.send or sendMessages item, when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted for unsupported or identity-less rows, including snapshot-only mirrors. Not an idempotency key, authorization, or permission to retry; repeated values remain ambiguous.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_correlation_id: Option<String>,
     /// Human-readable text to display for this queue entry in the UI
     pub display_text: String,
     /// Stable opaque id for the canonical queued item. Batch rows share one id.
@@ -17570,6 +17573,9 @@ pub struct SendMessageItem {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) billable: Option<bool>,
+    /// Optional caller-generated diagnostic UUID for this item only, with the same validation and opt-in native echo as session.send.clientCorrelationId. The batch has no request-level correlation value; each item retains its own value, including preceding context messages. Reused values do not deduplicate messages and remain ambiguous.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_correlation_id: Option<String>,
     /// If provided, this is shown in the timeline instead of `prompt`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_prompt: Option<String>,
@@ -17676,6 +17682,9 @@ pub struct SendRequest {
     /// If false, this message will not trigger a Premium Request Unit charge. User messages default to billable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub billable: Option<bool>,
+    /// Optional caller-generated diagnostic UUID for this single message. Native sessions with RUNTIME_ADMISSION_TRACE_CONTEXT enabled echo the exact lowercase, hyphenated 36-character UUID on user.message and its existing pending message row. Missing, invalid, disabled, or unsupported metadata is ignored without rejecting the send. Does not change messageId, deduplicate submissions, authorize work, or make an uncertain retry safe.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_correlation_id: Option<String>,
     /// If provided, this is shown in the timeline instead of `prompt`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_prompt: Option<String>,
@@ -22509,6 +22518,13 @@ pub struct TasksSendMessageResult {
     pub error: Option<String>,
     /// Whether the message was successfully delivered or steered
     pub sent: bool,
+    /// Optional exact queue admission receipt on sent=true only. No implicit event or execution-success claim.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::worker_causality::deserialize_optional"
+    )]
+    pub worker_causality: Option<WorkerCausality>,
 }
 
 /// Agent type, prompt, name, and optional description and model override for the new task.
@@ -28930,6 +28946,13 @@ pub struct SessionTasksSendMessageResult {
     pub error: Option<String>,
     /// Whether the message was successfully delivered or steered
     pub sent: bool,
+    /// Optional exact queue admission receipt on sent=true only. No implicit event or execution-success claim.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::worker_causality::deserialize_optional"
+    )]
+    pub worker_causality: Option<WorkerCausality>,
 }
 
 /// Identifies the target session.

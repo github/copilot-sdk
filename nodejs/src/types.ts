@@ -3400,6 +3400,13 @@ export interface MessageOptions {
     prompt: string;
 
     /**
+     * Optional caller-owned diagnostic UUID for this RPC admission, sent unchanged.
+     * Supported runtimes echo accepted values only with RUNTIME_ADMISSION_TRACE_CONTEXT
+     * enabled. Not an idempotency key; the SDK never generates this value.
+     */
+    clientCorrelationId?: string;
+
+    /**
      * Optional message provenance. Omitted by default to preserve the runtime's
      * default for user messages. Use "system" for application-generated context
      * or `agent-${id}` for messages originating from an identified agent.

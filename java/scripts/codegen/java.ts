@@ -245,6 +245,7 @@ interface JavaTypeResult {
 let currentDefinitions: Record<string, JSONSchema7> = {};
 const pendingStandaloneTypes = new Map<string, JSONSchema7>();
 const promotedNestedUnionTypes = new Set<string>();
+const SESSION_EVENT_PROMOTED_UNION_TYPES = new Set(["SystemNotification"]);
 const generatedSessionEventTypeNames = new Set<string>();
 
 // Cross-schema definitions: keyed by schema filename (e.g. "session-events.schema.json"),
@@ -373,43 +374,47 @@ function resolveAnyOfVariants(
         .filter((v) => v.type !== "null");
 }
 
+function localDefinitionName(schema: JSONSchema7): string | null {
+    return schema.$ref?.match(/^#\/definitions\/([^/]+)$/)?.[1] ?? null;
+}
+
+function closedDiscriminatedUnionVariants(
+    schema: JSONSchema7,
+    definitions: Record<string, JSONSchema7>
+): JSONSchema7[] | null {
+    const name = localDefinitionName(schema);
+    const resolved = name ? definitions[name] ?? null : schema;
+    if (!resolved?.anyOf || !Array.isArray(resolved.anyOf)) return null;
+    const variants = resolveAnyOfVariants(resolved.anyOf as JSONSchema7[], definitions);
+    return variants.length > 1
+        && findDiscriminator(variants)
+        && variants.every((variant) => variant.additionalProperties === false)
+        ? variants
+        : null;
+}
+
 export function collectNestedDiscriminatedUnionTypeNames(
     root: unknown,
     definitions: Record<string, JSONSchema7>
 ): Set<string> {
     const promotedTypes = new Set<string>();
-    const definitionName = (schema: JSONSchema7): string | null => {
-        return schema.$ref?.match(/^#\/definitions\/([^/]+)$/)?.[1] ?? null;
-    };
-    const resolveLocal = (schema: JSONSchema7): JSONSchema7 | null => {
-        const name = definitionName(schema);
-        return name ? definitions[name] ?? null : schema;
-    };
-    const closedDiscriminatedUnionVariants = (schema: JSONSchema7): JSONSchema7[] | null => {
-        const resolved = resolveLocal(schema);
-        if (!resolved?.anyOf || !Array.isArray(resolved.anyOf)) return null;
-        const variants = resolveAnyOfVariants(resolved.anyOf as JSONSchema7[], definitions);
-        return variants.length > 1
-            && findDiscriminator(variants)
-            && variants.every((variant) => variant.additionalProperties === false)
-            ? variants
-            : null;
-    };
-
     const rootSchema = typeof root === "object" && root !== null ? root as JSONSchema7 : null;
-    const rootVariants = rootSchema ? closedDiscriminatedUnionVariants(rootSchema) : null;
+    const rootVariants = rootSchema ? closedDiscriminatedUnionVariants(rootSchema, definitions) : null;
     if (!rootVariants) return promotedTypes;
 
     const nestedUnionItems: JSONSchema7[] = [];
     for (const variant of rootVariants) {
         for (const property of Object.values(variant.properties ?? {})) {
             if (!property || typeof property !== "object") continue;
-            const propertySchema = resolveLocal(property as JSONSchema7);
+            const propertyName = localDefinitionName(property as JSONSchema7);
+            const propertySchema = propertyName
+                ? definitions[propertyName] ?? null
+                : property as JSONSchema7;
             if (
                 propertySchema?.type === "array"
                 && propertySchema.items
                 && !Array.isArray(propertySchema.items)
-                && closedDiscriminatedUnionVariants(propertySchema.items as JSONSchema7)
+                && closedDiscriminatedUnionVariants(propertySchema.items as JSONSchema7, definitions)
             ) {
                 nestedUnionItems.push(propertySchema.items as JSONSchema7);
             }
@@ -418,13 +423,13 @@ export function collectNestedDiscriminatedUnionTypeNames(
 
     const visitedDefinitions = new Set<string>();
     const visit = (schema: JSONSchema7): void => {
-        const name = definitionName(schema);
+        const name = localDefinitionName(schema);
         if (name) {
             if (visitedDefinitions.has(name)) return;
             visitedDefinitions.add(name);
             const resolved = definitions[name];
             if (!resolved) return;
-            if (closedDiscriminatedUnionVariants(schema)) {
+            if (closedDiscriminatedUnionVariants(resolved, definitions)) {
                 promotedTypes.add(name);
             }
             visit(resolved);
@@ -450,6 +455,42 @@ export function collectNestedDiscriminatedUnionTypeNames(
     };
 
     for (const items of nestedUnionItems) visit(items);
+    return promotedTypes;
+}
+
+function collectReferencedDiscriminatedUnionTypeNames(
+    schema: JSONSchema7 | null,
+    definitions: Record<string, JSONSchema7>
+): Set<string> {
+    const promotedTypes = new Set<string>();
+    const visitedDefinitions = new Set<string>();
+    const visit = (candidate: JSONSchema7): void => {
+        const name = localDefinitionName(candidate);
+        if (name) {
+            if (visitedDefinitions.has(name)) return;
+            visitedDefinitions.add(name);
+            const resolved = definitions[name];
+            if (!resolved) return;
+            if (closedDiscriminatedUnionVariants(resolved, definitions)) promotedTypes.add(name);
+            visit(resolved);
+            return;
+        }
+        for (const property of Object.values(candidate.properties ?? {})) {
+            if (property && typeof property === "object") visit(property as JSONSchema7);
+        }
+        if (candidate.items && !Array.isArray(candidate.items)) visit(candidate.items as JSONSchema7);
+        if (candidate.additionalProperties && typeof candidate.additionalProperties === "object") {
+            visit(candidate.additionalProperties as JSONSchema7);
+        }
+        for (const branch of [
+            ...(candidate.anyOf ?? []),
+            ...(candidate.oneOf ?? []),
+            ...(candidate.allOf ?? []),
+        ]) {
+            if (branch && typeof branch === "object") visit(branch as JSONSchema7);
+        }
+    };
+    if (schema) visit(schema);
     return promotedTypes;
 }
 
@@ -534,7 +575,8 @@ async function generatePolymorphicResultClass(
     className: string,
     schema: JSONSchema7,
     packageName: string,
-    packageDir: string
+    packageDir: string,
+    headerComment = GENERATED_FROM_API
 ): Promise<void> {
     const anyOf = schema.anyOf as JSONSchema7[];
     const variants = resolveAnyOfVariants(anyOf);
@@ -563,7 +605,7 @@ async function generatePolymorphicResultClass(
         // Resolve fields now so nested/standalone unions participate in the same
         // ownership plan. Nothing is written until every membership is known.
         for (const variant of variantInfos) {
-            await generatePolymorphicVariantClass(variant.variantClassName, variant.schema, variant.discriminatorValue, discriminator.property, className, packageName, packageDir);
+            await generatePolymorphicVariantClass(variant.variantClassName, variant.schema, variant.discriminatorValue, discriminator.property, className, packageName, packageDir, headerComment);
         }
         return;
     }
@@ -580,7 +622,7 @@ async function generatePolymorphicResultClass(
     baseLines.push(COPYRIGHT);
     baseLines.push("");
     baseLines.push(AUTO_GENERATED_HEADER);
-    baseLines.push(GENERATED_FROM_API);
+    baseLines.push(headerComment);
     baseLines.push("");
     baseLines.push(`package ${packageName};`);
     baseLines.push("");
@@ -631,7 +673,7 @@ async function generatePolymorphicResultClass(
 
     // Generate each variant subclass
     for (const variant of variantInfos) {
-        await generatePolymorphicVariantClass(variant.variantClassName, variant.schema, variant.discriminatorValue, discriminator.property, className, packageName, packageDir);
+        await generatePolymorphicVariantClass(variant.variantClassName, variant.schema, variant.discriminatorValue, discriminator.property, className, packageName, packageDir, headerComment);
     }
 }
 
@@ -645,7 +687,8 @@ async function generatePolymorphicVariantClass(
     discriminatorProperty: string,
     baseClassName: string,
     packageName: string,
-    packageDir: string
+    packageDir: string,
+    headerComment = GENERATED_FROM_API
 ): Promise<void> {
     const experimental = isSchemaExperimental(schema);
     const allImports = new Set<string>([
@@ -688,7 +731,7 @@ async function generatePolymorphicVariantClass(
     lines.push(COPYRIGHT);
     lines.push("");
     lines.push(AUTO_GENERATED_HEADER);
-    lines.push(GENERATED_FROM_API);
+    lines.push(headerComment);
     lines.push("");
     lines.push(`package ${packageName};`);
     lines.push("");
@@ -960,6 +1003,31 @@ interface EventVariant {
     deprecated?: boolean;
 }
 
+const LEGACY_FACTORY_EVENT_VARIANTS: EventVariant[] = [
+    {
+        typeName: "factory.run_updated",
+        className: "FactoryRunUpdatedEvent",
+        dataSchema: null,
+    },
+    {
+        typeName: "factory.run_started",
+        className: "FactoryRunStartedEvent",
+        dataSchema: null,
+    },
+    {
+        typeName: "factory.run_settled",
+        className: "FactoryRunSettledEvent",
+        dataSchema: null,
+    },
+];
+
+const LEGACY_FACTORY_EVENT_FILES = [
+    "FactoryRunUpdatedEvent.java",
+    "FactoryRunStartedEvent.java",
+    "FactoryRunSettledEvent.java",
+    "FactoryRunSettledStatus.java",
+];
+
 function extractEventVariants(schema: JSONSchema7): EventVariant[] {
     const definitions = schema.definitions as Record<string, JSONSchema7>;
     const sessionEvent = definitions?.SessionEvent;
@@ -1004,17 +1072,35 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
     // Set module-level definitions for $ref resolution
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
     pendingStandaloneTypes.clear();
+    promotedNestedUnionTypes.clear();
 
     const variants = extractEventVariants(schema);
+    const legacyVariants = variants.some((variant) => variant.typeName === "workflow.run_updated")
+        ? LEGACY_FACTORY_EVENT_VARIANTS.filter(
+            (legacy) => !variants.some((variant) => variant.typeName === legacy.typeName)
+        )
+        : [];
+    for (const variant of variants) {
+        for (const typeName of collectReferencedDiscriminatedUnionTypeNames(variant.dataSchema, currentDefinitions)) {
+            if (SESSION_EVENT_PROMOTED_UNION_TYPES.has(typeName)) {
+                promotedNestedUnionTypes.add(typeName);
+            }
+        }
+    }
     const packageName = "com.github.copilot.generated";
     const packageDir = `sdk/src/generated/java/com/github/copilot/generated`;
 
     // Generate base SessionEvent class
-    await generateSessionEventBaseClass(variants, packageName, packageDir);
+    await generateSessionEventBaseClass([...variants, ...legacyVariants], packageName, packageDir);
 
     // Generate one class file per event variant
     for (const variant of variants) {
         await generateEventVariantClass(variant, packageName, packageDir);
+    }
+    for (const fileName of legacyVariants.length > 0 ? LEGACY_FACTORY_EVENT_FILES : []) {
+        const relativePath = `${packageDir}/${fileName}`;
+        const content = await fs.readFile(path.join(REPO_ROOT, relativePath), "utf-8");
+        await writeGeneratedFile(relativePath, content);
     }
 
     // Generate standalone types discovered via $ref resolution
@@ -1386,10 +1472,14 @@ export function renderEventVariantClass(variant: EventVariant, packageName: stri
                 if (field.description) {
                     lines.push(`        /** ${field.description} */`);
                 }
+                if (field.jsonName === "workerCausality") {
+                    lines.push(`        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)`);
+                }
                 lines.push(`        @JsonProperty("${field.jsonName}") ${field.javaType} ${field.javaName}${comma}`);
             }
             lines.push(`    ) {`);
         }
+        lines.push(...renderCompatibilityConstructors(`${variant.className}Data`, dataFields, "        "));
         // Render nested types inside Data record
         for (const [, nested] of nestedTypes) {
             lines.push(...renderNestedType(nested, 2, nestedTypes, allImports));
@@ -1442,7 +1532,7 @@ async function generatePendingStandaloneTypes(
             } else if (schema.anyOf && Array.isArray(schema.anyOf)) {
                 const variants = resolveAnyOfVariants(schema.anyOf as JSONSchema7[]);
                 if (variants.length > 1 && findDiscriminator(variants)) {
-                    await generatePolymorphicResultClass(name, schema, packageName, packageDir);
+                    await generatePolymorphicResultClass(name, schema, packageName, packageDir, headerComment);
                 } else {
                     console.warn(`[codegen] Cannot generate standalone type for ${name}: anyOf without discriminator`);
                 }
@@ -1610,6 +1700,49 @@ function schemaAllowsNull(schema: JSONSchema7): boolean {
     );
 }
 
+/** Preserve public record descriptors while adding optional diagnostic components. */
+function renderCompatibilityConstructors(
+    className: string,
+    fields: { javaName: string; javaType: string }[],
+    indent: string,
+): string[] {
+    const names = new Set(fields.map((field) => field.javaName));
+    let omissions: string[][] = [];
+    if (className === "UserMessageEventData") {
+        omissions = names.has("workerCausality")
+            ? [["workerCausality"], ["workerCausality", "clientCorrelationId"]]
+            : [["clientCorrelationId"]];
+    } else if (className === "QueuePendingItems") {
+        omissions = [["clientCorrelationId"], ["clientCorrelationId", "source"]];
+    } else if (["SessionSendParams", "SendMessageItem"].includes(className)) {
+        omissions = [["clientCorrelationId"]];
+    } else if ([
+        "SystemNotificationEventData",
+        "AssistantTurnStartEventData",
+        "SessionTasksSendMessageResult",
+    ].includes(className)) {
+        omissions = [["workerCausality"]];
+    }
+    return omissions.flatMap((omitted, index) => {
+        if (!omitted.every((field) => names.has(field))) return [];
+        const previous = fields.filter((field) => !omitted.includes(field.javaName));
+        const parameters = previous.map((field) => `${field.javaType} ${field.javaName}`).join(", ");
+        const arguments_ = fields
+            .map((field) => omitted.includes(field.javaName) ? "null" : field.javaName)
+            .join(", ");
+        const description = omitted.includes("workerCausality")
+            ? "Creates a value without optional worker diagnostics."
+            : "Creates a value without optional admission correlation metadata.";
+        return [
+            ...(index === 0 ? [] : [""]),
+            `${indent}/** ${description} */`,
+            `${indent}public ${className}(${parameters}) {`,
+            `${indent}    this(${arguments_});`,
+            `${indent}}`,
+        ];
+    });
+}
+
 /** Generate a Java record for a JSON Schema object type. Returns the class content. */
 export function generateRpcClass(
     className: string,
@@ -1656,10 +1789,15 @@ export function generateRpcClass(
             if (f.includeNull) {
                 lines.push(`    @JsonInclude(JsonInclude.Include.ALWAYS)`);
             }
+            if (f.propName === "workerCausality") {
+                lines.push(`    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)`);
+            }
             lines.push(`    @JsonProperty("${f.propName}") ${f.javaType} ${f.javaName}${comma}`);
         }
         lines.push(`) {`);
     }
+
+    lines.push(...renderCompatibilityConstructors(className, fields, "    "));
 
     // Add nested types as nested records/enums inside this record
     for (const [, nested] of localNestedTypes) {

@@ -34,6 +34,9 @@ public final class AssistantTurnStartEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AssistantTurnStartEventData(
+        /** Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty. */
+        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)
+        @JsonProperty("workerCausality") WorkerCausality workerCausality,
         /** Identifier for this turn within the agentic loop, typically a stringified turn number */
         @JsonProperty("turnId") String turnId,
         /** Model identifier used for this turn, when known */
@@ -41,5 +44,9 @@ public final class AssistantTurnStartEvent extends SessionEvent {
         /** CAPI interaction ID for correlating this turn with upstream telemetry */
         @JsonProperty("interactionId") String interactionId
     ) {
+        /** Creates a value without optional worker diagnostics. */
+        public AssistantTurnStartEventData(String turnId, String model, String interactionId) {
+            this(null, turnId, model, interactionId);
+        }
     }
 }

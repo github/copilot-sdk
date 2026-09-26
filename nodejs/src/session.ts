@@ -25,6 +25,7 @@ import type {
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
+import { withWorkerCausality, withWorkerCausalityEvents } from "./workerCausality.js";
 import { isResponseSchema, toJsonSchema } from "./schema.js";
 import { isAttributedPermissionResult } from "./types.js";
 import type {
@@ -910,11 +911,22 @@ export class CopilotSession {
                 signal.addEventListener("abort", onAbort, { once: true });
             }
 
-            unsubscribe = this.on("factory.run_updated", (event) => {
-                if (event.data.runId === runId) {
+            const subscribe = this.on.bind(this) as unknown as (
+                eventType: string,
+                handler: (event: SessionEvent) => void
+            ) => () => void;
+            const handleRunUpdated = (event: SessionEvent): void => {
+                const data = event.data as { runId?: unknown };
+                if (data.runId === runId) {
                     void read();
                 }
-            });
+            };
+            const unsubscribeFactory = subscribe("factory.run_updated", handleRunUpdated);
+            const unsubscribeWorkflow = subscribe("workflow.run_updated", handleRunUpdated);
+            unsubscribe = (): void => {
+                unsubscribeFactory();
+                unsubscribeWorkflow();
+            };
 
             pollHandle = setInterval(() => void read(), 5_000);
             // The re-read is a safety net, not work the process owes anyone: an
@@ -1001,11 +1013,22 @@ export class CopilotSession {
                 signal.addEventListener("abort", onAbort, { once: true });
             }
 
-            unsubscribe = this.on("factory.run_updated", (event) => {
-                if (event.data.runId === runId) {
+            const subscribe = this.on.bind(this) as unknown as (
+                eventType: string,
+                handler: (event: SessionEvent) => void
+            ) => () => void;
+            const handleRunUpdated = (event: SessionEvent): void => {
+                const data = event.data as { runId?: unknown };
+                if (data.runId === runId) {
                     void read();
                 }
-            });
+            };
+            const unsubscribeFactory = subscribe("factory.run_updated", handleRunUpdated);
+            const unsubscribeWorkflow = subscribe("workflow.run_updated", handleRunUpdated);
+            unsubscribe = (): void => {
+                unsubscribeFactory();
+                unsubscribeWorkflow();
+            };
 
             pollHandle = setInterval(() => void read(), 5_000);
             // The re-read is a safety net, not work the process owes anyone: an
@@ -1125,6 +1148,9 @@ export class CopilotSession {
             ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
             prompt: options.prompt,
+            ...(options.clientCorrelationId == null
+                ? {}
+                : { clientCorrelationId: options.clientCorrelationId }),
             source: options.source,
             displayPrompt: options.displayPrompt,
             attachments: options.attachments,
@@ -1516,6 +1542,13 @@ export class CopilotSession {
      * @internal This method is for internal use by the SDK.
      */
     _dispatchEvent(event: SessionEvent): void {
+        if (
+            event.type === "user.message" ||
+            event.type === "system.notification" ||
+            event.type === "assistant.turn_start"
+        ) {
+            event = { ...event, data: withWorkerCausality(event.data) } as SessionEvent;
+        }
         // Handle broadcast request events internally (fire-and-forget)
         this._handleBroadcastEvent(event);
 
@@ -2848,7 +2881,7 @@ export class CopilotSession {
             sessionId: this.sessionId,
         });
 
-        return (response as { events: SessionEvent[] }).events;
+        return withWorkerCausalityEvents(response as { events: SessionEvent[] }).events;
     }
 
     /**

@@ -10,7 +10,8 @@ use github_copilot_sdk::rpc::{
     ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
     ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest,
     ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
-    SandboxConfig, SendAgentMode, TasksStartAgentRequest, UnsupportedEnqueueCommandResult,
+    SandboxConfig, SendAgentMode, SendMessageItem, SendRequest, TasksStartAgentRequest,
+    UnsupportedEnqueueCommandResult,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
@@ -257,6 +258,7 @@ fn queue_pending_item_metadata_uses_camel_case_wire_names() {
         id: "batch-1".to_string(),
         kind: QueuePendingItemsKind::Message,
         message_id: Some("message-2".to_string()),
+        client_correlation_id: None,
         source: Some("api".to_string()),
     };
 
@@ -268,6 +270,48 @@ fn queue_pending_item_metadata_uses_camel_case_wire_names() {
     let deserialized: QueuePendingItems = serde_json::from_value(serialized).unwrap();
     assert_eq!(deserialized.message_id.as_deref(), Some("message-2"));
     assert_eq!(deserialized.source.as_deref(), Some("api"));
+}
+
+#[test]
+fn admission_correlation_has_optional_string_round_trip_semantics() {
+    fn check<T: serde::Serialize + serde::de::DeserializeOwned>(base: serde_json::Value) {
+        for value in [
+            None,
+            Some("01234567-89ab-4cde-8f01-23456789abcd"),
+            Some("01234567-89AB-4CDE-8F01-23456789ABCD"),
+            Some("not-a-uuid"),
+            Some(""),
+        ] {
+            let mut wire = base.clone();
+            if let Some(value) = value {
+                wire["clientCorrelationId"] = serde_json::json!(value);
+            }
+            let decoded: T = serde_json::from_value(wire.clone()).unwrap();
+            assert_eq!(serde_json::to_value(decoded).unwrap(), wire);
+            wire["futureField"] = serde_json::json!({"enabled": true});
+            let decoded: T = serde_json::from_value(wire.clone()).unwrap();
+            wire.as_object_mut().unwrap().remove("futureField");
+            assert_eq!(serde_json::to_value(decoded).unwrap(), wire);
+        }
+        let mut explicit_null = base.clone();
+        explicit_null["clientCorrelationId"] = serde_json::Value::Null;
+        let decoded: T = serde_json::from_value(explicit_null).unwrap();
+        assert_eq!(serde_json::to_value(decoded).unwrap(), base);
+        let mut invalid_type = base;
+        invalid_type["clientCorrelationId"] = serde_json::json!(42);
+        assert!(serde_json::from_value::<T>(invalid_type).is_err());
+    }
+
+    check::<SendRequest>(serde_json::json!({"prompt": "hello"}));
+    check::<SendMessageItem>(serde_json::json!({"prompt": "hello"}));
+    check::<QueuePendingItems>(serde_json::json!({
+        "id": "queue-1", "messageId": "server-message-1", "kind": "message",
+        "displayText": "hello", "agentMode": "interactive"
+    }));
+    check::<github_copilot_sdk::session_events::UserMessageData>(serde_json::json!({
+        "content": "hello", "messageId": "server-message-1",
+        "interactionId": "agent-loop-1", "turnId": "0"
+    }));
 }
 
 #[test]

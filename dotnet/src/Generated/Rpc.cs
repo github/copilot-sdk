@@ -6243,6 +6243,10 @@ internal sealed class SendRequest
     [JsonPropertyName("billable")]
     public bool? Billable { get; set; }
 
+    /// <summary>Optional caller-generated diagnostic UUID for this single message. Native sessions with RUNTIME_ADMISSION_TRACE_CONTEXT enabled echo the exact lowercase, hyphenated 36-character UUID on user.message and its existing pending message row. Missing, invalid, disabled, or unsupported metadata is ignored without rejecting the send. Does not change messageId, deduplicate submissions, authorize work, or make an uncertain retry safe.</summary>
+    [JsonPropertyName("clientCorrelationId")]
+    public string? ClientCorrelationId { get; set; }
+
     /// <summary>If provided, this is shown in the timeline instead of `prompt`.</summary>
     [JsonPropertyName("displayPrompt")]
     public string? DisplayPrompt { get; set; }
@@ -6315,6 +6319,10 @@ public sealed class SendMessageItem
     [JsonInclude]
     [JsonPropertyName("billable")]
     internal bool? Billable { get; set; }
+
+    /// <summary>Optional caller-generated diagnostic UUID for this item only, with the same validation and opt-in native echo as session.send.clientCorrelationId. The batch has no request-level correlation value; each item retains its own value, including preceding context messages. Reused values do not deduplicate messages and remain ambiguous.</summary>
+    [JsonPropertyName("clientCorrelationId")]
+    public string? ClientCorrelationId { get; set; }
 
     /// <summary>If provided, this is shown in the timeline instead of `prompt`.</summary>
     [JsonPropertyName("displayPrompt")]
@@ -12236,6 +12244,11 @@ public sealed class TasksSendMessageResult
     /// <summary>Whether the message was successfully delivered or steered.</summary>
     [JsonPropertyName("sent")]
     public bool Sent { get; set; }
+
+    /// <summary>Optional exact queue admission receipt on sent=true only. No implicit event or execution-success claim.</summary>
+    [JsonConverter(typeof(WorkerCausalityConverter<WorkerCausality>))]
+    [JsonPropertyName("workerCausality")]
+    public WorkerCausality? WorkerCausality { get; set; }
 }
 
 /// <summary>Identifier of the target agent task, message content, and optional sender agent ID.</summary>
@@ -20990,6 +21003,10 @@ public sealed class QueuePendingItems
     /// <summary>Agent mode stored on this queued entry, as stamped when it was enqueued. Items without an explicit mode report interactive. This is not necessarily the mode that will constrain the turn: a plan or autopilot session applies its own write gate, continuation loop and permission posture to every drained item regardless of the mode stored here.</summary>
     [JsonPropertyName("agentMode")]
     public SendAgentMode AgentMode { get; set; }
+
+    /// <summary>Caller-owned diagnostic UUID from the exact accepted native session.send or sendMessages item, when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted for unsupported or identity-less rows, including snapshot-only mirrors. Not an idempotency key, authorization, or permission to retry; repeated values remain ambiguous.</summary>
+    [JsonPropertyName("clientCorrelationId")]
+    public string? ClientCorrelationId { get; set; }
 
     /// <summary>Human-readable text to display for this queue entry in the UI.</summary>
     [JsonPropertyName("displayText")]
@@ -38869,17 +38886,39 @@ public sealed class SessionRpc
     /// <param name="traceparent">W3C Trace Context traceparent header for distributed tracing of this agent turn.</param>
     /// <param name="tracestate">W3C Trace Context tracestate header for distributed tracing.</param>
     /// <param name="wait">If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly.</param>
+    /// <param name="clientCorrelationId">Optional caller-generated diagnostic UUID for this single message. Native sessions with RUNTIME_ADMISSION_TRACE_CONTEXT enabled echo the exact lowercase, hyphenated 36-character UUID on user.message and its existing pending message row. Missing, invalid, disabled, or unsupported metadata is ignored without rejecting the send. Does not change messageId, deduplicate submissions, authorize work, or make an uncertain retry safe.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of sending a user message.</returns>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    public async Task<SendResult> SendAsync(string prompt, string? displayPrompt = null, IList<Attachment>? attachments = null, SendMode? mode = null, bool? prepend = null, bool? billable = null, string? requiredTool = null, string? source = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, ResponseFormat? responseFormat = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
+    public async Task<SendResult> SendAsync(string prompt, string? displayPrompt = null, IList<Attachment>? attachments = null, SendMode? mode = null, bool? prepend = null, bool? billable = null, string? requiredTool = null, string? source = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, ResponseFormat? responseFormat = null, string? traceparent = null, string? tracestate = null, bool? wait = null, string? clientCorrelationId = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(prompt);
         _session.ThrowIfDisposed();
 
-        var request = new SendRequest { SessionId = _session.SessionId, Prompt = prompt, DisplayPrompt = displayPrompt, Attachments = attachments, Mode = mode, Prepend = prepend, Billable = billable, RequiredTool = requiredTool, Source = source, AgentMode = agentMode, RequestHeaders = requestHeaders, ResponseFormat = responseFormat, Traceparent = traceparent, Tracestate = tracestate, Wait = wait };
+        var request = new SendRequest { SessionId = _session.SessionId, Prompt = prompt, ClientCorrelationId = clientCorrelationId, DisplayPrompt = displayPrompt, Attachments = attachments, Mode = mode, Prepend = prepend, Billable = billable, RequiredTool = requiredTool, Source = source, AgentMode = agentMode, RequestHeaders = requestHeaders, ResponseFormat = responseFormat, Traceparent = traceparent, Tracestate = tracestate, Wait = wait };
         return await CopilotClient.InvokeRpcAsync<SendResult>(_session.Rpc, "session.send", [request], cancellationToken);
     }
+
+    /// <summary>Sends a user message to the session and returns its message ID.</summary>
+    /// <param name="prompt">The user message text.</param>
+    /// <param name="displayPrompt">If provided, this is shown in the timeline instead of `prompt`.</param>
+    /// <param name="attachments">Optional attachments (files, directories, selections, blobs, GitHub references) to include with the message.</param>
+    /// <param name="mode">How to deliver the message. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.</param>
+    /// <param name="prepend">If true, adds the message to the front of the queue instead of the end.</param>
+    /// <param name="billable">If false, this message will not trigger a Premium Request Unit charge. User messages default to billable.</param>
+    /// <param name="requiredTool">If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange.</param>
+    /// <param name="source">Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, or `agent-&lt;agent-id&gt;` for prompts sent by another agent.</param>
+    /// <param name="agentMode">The UI mode the agent was in when this message was sent. Defaults to the session's current mode.</param>
+    /// <param name="requestHeaders">Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.</param>
+    /// <param name="responseFormat">Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.</param>
+    /// <param name="traceparent">W3C Trace Context traceparent header for distributed tracing of this agent turn.</param>
+    /// <param name="tracestate">W3C Trace Context tracestate header for distributed tracing.</param>
+    /// <param name="wait">If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of sending a user message.</returns>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    public Task<SendResult> SendAsync(string prompt, string? displayPrompt, IList<Attachment>? attachments, SendMode? mode, bool? prepend, bool? billable, string? requiredTool, string? source, SendAgentMode? agentMode, IDictionary<string, string>? requestHeaders, ResponseFormat? responseFormat, string? traceparent, string? tracestate, bool? wait, CancellationToken cancellationToken)
+        => SendAsync(prompt, displayPrompt, attachments, mode, prepend, billable, requiredTool, source, agentMode, requestHeaders, responseFormat, traceparent, tracestate, wait, clientCorrelationId: null, cancellationToken: cancellationToken);
 
     /// <summary>Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.</summary>
     /// <param name="messages">The user messages to append to the conversation, in order, before running one agent loop. When the batch starts a run, its final message is the primary initiating message; earlier messages provide context, not separate runs or replies. May be empty, in which case a single turn runs over the existing history with no new user message or originatingMessageId.</param>
@@ -44393,15 +44432,15 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ExternalToolCompletedEvent), TypeInfoPropertyName = "SessionEventsExternalToolCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ExternalToolRequestedData), TypeInfoPropertyName = "SessionEventsExternalToolRequestedData")]
 [JsonSerializable(typeof(GitHub.Copilot.ExternalToolRequestedEvent), TypeInfoPropertyName = "SessionEventsExternalToolRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryPermissionOperation), TypeInfoPropertyName = "SessionEventsFactoryPermissionOperation")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryPermissionPhase), TypeInfoPropertyName = "SessionEventsFactoryPermissionPhase")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunSettledData), TypeInfoPropertyName = "SessionEventsFactoryRunSettledData")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunSettledEvent), TypeInfoPropertyName = "SessionEventsFactoryRunSettledEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunSettledStatus), TypeInfoPropertyName = "SessionEventsFactoryRunSettledStatus")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunStartedData), TypeInfoPropertyName = "SessionEventsFactoryRunStartedData")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunStartedEvent), TypeInfoPropertyName = "SessionEventsFactoryRunStartedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunUpdatedData), TypeInfoPropertyName = "SessionEventsFactoryRunUpdatedData")]
-[JsonSerializable(typeof(GitHub.Copilot.FactoryRunUpdatedEvent), TypeInfoPropertyName = "SessionEventsFactoryRunUpdatedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowPermissionOperation), TypeInfoPropertyName = "SessionEventsWorkflowPermissionOperation")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowPermissionPhase), TypeInfoPropertyName = "SessionEventsWorkflowPermissionPhase")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunSettledData), TypeInfoPropertyName = "SessionEventsWorkflowRunSettledData")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunSettledEvent), TypeInfoPropertyName = "SessionEventsWorkflowRunSettledEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunSettledStatus), TypeInfoPropertyName = "SessionEventsWorkflowRunSettledStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunStartedData), TypeInfoPropertyName = "SessionEventsWorkflowRunStartedData")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunStartedEvent), TypeInfoPropertyName = "SessionEventsWorkflowRunStartedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunUpdatedData), TypeInfoPropertyName = "SessionEventsWorkflowRunUpdatedData")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkflowRunUpdatedEvent), TypeInfoPropertyName = "SessionEventsWorkflowRunUpdatedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionAttribution), TypeInfoPropertyName = "SessionEventsFusionAttribution")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionConversationScope), TypeInfoPropertyName = "SessionEventsFusionConversationScope")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionFollowUpAction), TypeInfoPropertyName = "SessionEventsFusionFollowUpAction")]
@@ -44507,7 +44546,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionEnvAccess), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionEnvAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestFactory), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestFactory")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestWorkflow), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestWorkflow")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestHook), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestHook")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMcp")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMemory")]
@@ -44530,7 +44569,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionEnvAccess), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionEnvAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestFactory), TypeInfoPropertyName = "SessionEventsPermissionRequestFactory")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestWorkflow), TypeInfoPropertyName = "SessionEventsPermissionRequestWorkflow")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestHook), TypeInfoPropertyName = "SessionEventsPermissionRequestHook")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionRequestMcp")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionRequestMemory")]
@@ -44631,9 +44670,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationAgentIdle), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentIdle")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationData), TypeInfoPropertyName = "SessionEventsSystemNotificationData")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationEvent), TypeInfoPropertyName = "SessionEventsSystemNotificationEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationFactoryCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationFactoryCompleted")]
-[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationFactoryCompletedStatus), TypeInfoPropertyName = "SessionEventsSystemNotificationFactoryCompletedStatus")]
-[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationFactoryPauseInfo), TypeInfoPropertyName = "SessionEventsSystemNotificationFactoryPauseInfo")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationWorkflowCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationWorkflowCompleted")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationWorkflowCompletedStatus), TypeInfoPropertyName = "SessionEventsSystemNotificationWorkflowCompletedStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationWorkflowPauseInfo), TypeInfoPropertyName = "SessionEventsSystemNotificationWorkflowPauseInfo")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationInstructionDiscovered), TypeInfoPropertyName = "SessionEventsSystemNotificationInstructionDiscovered")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationNewInboxMessage), TypeInfoPropertyName = "SessionEventsSystemNotificationNewInboxMessage")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationShellCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellCompleted")]
@@ -44700,12 +44739,23 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionEnvAccess), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionEnvAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionManagement), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalFactory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalFactory")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalWorkflow), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalWorkflow")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalMcp), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMcp")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalMemory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMemory")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalRead), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalRead")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalWrite), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalWrite")]
 [JsonSerializable(typeof(GitHub.Copilot.Verbosity), TypeInfoPropertyName = "SessionEventsVerbosity")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerAdmission), TypeInfoPropertyName = "SessionEventsWorkerAdmission")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerAdmissionKind), TypeInfoPropertyName = "SessionEventsWorkerAdmissionKind")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerBridgeObservation), TypeInfoPropertyName = "SessionEventsWorkerBridgeObservation")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerCausality), TypeInfoPropertyName = "SessionEventsWorkerCausality")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerEventReference), TypeInfoPropertyName = "SessionEventsWorkerEventReference")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerEventType), TypeInfoPropertyName = "SessionEventsWorkerEventType")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerInput), TypeInfoPropertyName = "SessionEventsWorkerInput")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerNotificationMode), TypeInfoPropertyName = "SessionEventsWorkerNotificationMode")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerNotificationReference), TypeInfoPropertyName = "SessionEventsWorkerNotificationReference")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerObservationProvenance), TypeInfoPropertyName = "SessionEventsWorkerObservationProvenance")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerSource), TypeInfoPropertyName = "SessionEventsWorkerSource")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContext), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContext")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContextHostType), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContextHostType")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkspaceFileChangedOperation), TypeInfoPropertyName = "SessionEventsWorkspaceFileChangedOperation")]

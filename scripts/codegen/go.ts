@@ -1138,7 +1138,7 @@ function pushGoStructUnmarshalJSON(lines: string[], typeName: string, fields: Go
     const unionFields = fields
         .map((field) => ({ field, unionField: goDiscriminatedUnionField(field.goType, ctx) }))
         .filter((entry): entry is { field: GoStructField; unionField: GoDiscriminatedUnionField } => entry.unionField !== undefined);
-    if (unionFields.length === 0) return;
+    if (unionFields.length === 0 && !fields.some((field) => field.propName === "workerCausality")) return;
 
     const blockLines: string[] = [];
     blockLines.push(`func (r *${typeName}) UnmarshalJSON(data []byte) error {`);
@@ -1146,6 +1146,7 @@ function pushGoStructUnmarshalJSON(lines: string[], typeName: string, fields: Go
     for (const field of fields) {
         const unionField = goDiscriminatedUnionField(field.goType, ctx);
         let rawType = field.goType;
+        if (field.propName === "workerCausality") rawType = "json.RawMessage";
         if (unionField?.kind === "single") rawType = "json.RawMessage";
         if (unionField?.kind === "slice") rawType = "[]json.RawMessage";
         if (unionField?.kind === "map") rawType = "map[string]json.RawMessage";
@@ -1159,6 +1160,12 @@ function pushGoStructUnmarshalJSON(lines: string[], typeName: string, fields: Go
 
     for (const field of fields) {
         const unionField = goDiscriminatedUnionField(field.goType, ctx);
+        if (field.propName === "workerCausality") {
+            blockLines.push(`\tif !diagnosticmetadata.ReadWorkerCausality(raw.${field.goName}, &r.${field.goName}) {`);
+            blockLines.push(`\t\tr.${field.goName} = nil`);
+            blockLines.push(`\t}`);
+            continue;
+        }
         if (!unionField) {
             blockLines.push(`\tr.${field.goName} = raw.${field.goName}`);
             continue;
@@ -3086,6 +3093,9 @@ function goGeneratedEncodingFileCode(schemaFileName: string, packageName: string
     if (generatedEncodingCode.includes("time.Time")) {
         imports.push(`"time"`);
     }
+    if (generatedEncodingCode.includes("diagnosticmetadata.")) {
+        imports.push(`"github.com/github/copilot-sdk/go/internal/diagnosticmetadata"`);
+    }
     if (packageName !== "rpc" && generatedEncodingCode.includes("rpc.")) {
         imports.push(`"github.com/github/copilot-sdk/go/rpc"`);
     }
@@ -3347,6 +3357,15 @@ export function generateGoSessionEventsCode(
                 .join(""),
             dataClassName: variant.dataClassName,
         }))
+        .concat(
+            variants.some((variant) => variant.typeName === "workflow.run_updated")
+                ? [
+                    { constName: "SessionEventTypeFactoryRunSettled", dataClassName: "FactoryRunSettledData" },
+                    { constName: "SessionEventTypeFactoryRunStarted", dataClassName: "FactoryRunStartedData" },
+                    { constName: "SessionEventTypeFactoryRunUpdated", dataClassName: "FactoryRunUpdatedData" },
+                ]
+                : []
+        )
         .sort((left, right) => left.constName.localeCompare(right.constName));
 
     // Type method

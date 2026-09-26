@@ -4,8 +4,9 @@
  */
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import { withWorkerCausality, withWorkerCausalityEvents } from "../workerCausality.js";
 
-import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity, WorkerCausality } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -18564,6 +18565,10 @@ export interface QueuePendingItems {
    * Stable identity of the queued user message. Present for message rows and absent for slash commands and model changes.
    */
   messageId?: string;
+  /**
+   * Caller-owned diagnostic UUID from the exact accepted native session.send or sendMessages item, when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted for unsupported or identity-less rows, including snapshot-only mirrors. Not an idempotency key, authorization, or permission to retry; repeated values remain ambiguous.
+   */
+  clientCorrelationId?: string;
   kind: QueuePendingItemsKind;
   /**
    * Human-readable text to display for this queue entry in the UI
@@ -19709,6 +19714,10 @@ export interface SendMessageItem {
    */
   prompt: string;
   /**
+   * Optional caller-generated diagnostic UUID for this item only, with the same validation and opt-in native echo as session.send.clientCorrelationId. The batch has no request-level correlation value; each item retains its own value, including preceding context messages. Reused values do not deduplicate messages and remain ambiguous.
+   */
+  clientCorrelationId?: string;
+  /**
    * If provided, this is shown in the timeline instead of `prompt`
    */
   displayPrompt?: string;
@@ -19796,6 +19805,10 @@ export interface SendRequest {
    * The user message text
    */
   prompt: string;
+  /**
+   * Optional caller-generated diagnostic UUID for this single message. Native sessions with RUNTIME_ADMISSION_TRACE_CONTEXT enabled echo the exact lowercase, hyphenated 36-character UUID on user.message and its existing pending message row. Missing, invalid, disabled, or unsupported metadata is ignored without rejecting the send. Does not change messageId, deduplicate submissions, authorize work, or make an uncertain retry safe.
+   */
+  clientCorrelationId?: string;
   /**
    * If provided, this is shown in the timeline instead of `prompt`
    */
@@ -24105,6 +24118,7 @@ export interface TasksSendMessageRequest {
  */
 /** @experimental */
 export interface TasksSendMessageResult {
+  workerCausality?: WorkerCausality;
   /**
    * Whether the message was successfully delivered or steered
    */
@@ -29003,7 +29017,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              * @returns Indicates whether the message was delivered, with an error message when delivery failed.
              */
             sendMessage: async (params: TasksSendMessageRequest): Promise<TasksSendMessageResult> =>
-                connection.sendRequest("session.tasks.sendMessage", { sessionId, ...params }),
+                connection.sendRequest<TasksSendMessageResult>("session.tasks.sendMessage", { sessionId, ...params }).then(withWorkerCausality),
         },
         /** @experimental */
         skills: {
@@ -30374,7 +30388,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              * @returns Batch of session events returned by a read, with cursor and continuation metadata.
              */
             read: async (params: EventLogReadRequest): Promise<EventsReadResult> =>
-                connection.sendRequest("session.eventLog.read", { sessionId, ...params }),
+                connection.sendRequest<EventsReadResult>("session.eventLog.read", { sessionId, ...params }).then(withWorkerCausalityEvents),
             /**
              * Returns a snapshot of the current tail cursor without consuming events.
              *

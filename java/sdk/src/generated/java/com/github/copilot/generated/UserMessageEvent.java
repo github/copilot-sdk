@@ -35,12 +35,17 @@ public final class UserMessageEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record UserMessageEventData(
+        /** Optional worker admission observations; self identity requires the matching enclosing message and agent. */
+        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)
+        @JsonProperty("workerCausality") WorkerCausality workerCausality,
         /** The user's message text as displayed in the timeline */
         @JsonProperty("content") String content,
         /** Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility */
         @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning,
         /** Stable identity of the logical user message, matching the ID returned by send and retained by pending queue snapshots */
         @JsonProperty("messageId") String messageId,
+        /** Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous. */
+        @JsonProperty("clientCorrelationId") String clientCorrelationId,
         /** Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching */
         @JsonProperty("transformedContent") String transformedContent,
         /** Files, selections, or GitHub references attached to the message */
@@ -61,8 +66,17 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("interactionId") String interactionId,
         /** The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it */
         @JsonProperty("turnId") String turnId,
-        /** Parent agent task ID for background telemetry correlated to this user turn */
+        /** Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id. */
         @JsonProperty("parentAgentTaskId") String parentAgentTaskId
     ) {
+        /** Creates a value without optional worker diagnostics. */
+        public UserMessageEventData(String content, ResponsesReasoning responsesReasoning, String messageId, String clientCorrelationId, String transformedContent, List<Object> attachments, List<String> supportedNativeDocumentMimeTypes, List<String> nativeDocumentPathFallbackPaths, String source, UserMessageDelivery delivery, UserMessageAgentMode agentMode, Boolean isAutopilotContinuation, String interactionId, String turnId, String parentAgentTaskId) {
+            this(null, content, responsesReasoning, messageId, clientCorrelationId, transformedContent, attachments, supportedNativeDocumentMimeTypes, nativeDocumentPathFallbackPaths, source, delivery, agentMode, isAutopilotContinuation, interactionId, turnId, parentAgentTaskId);
+        }
+
+        /** Creates a value without optional worker diagnostics. */
+        public UserMessageEventData(String content, ResponsesReasoning responsesReasoning, String messageId, String transformedContent, List<Object> attachments, List<String> supportedNativeDocumentMimeTypes, List<String> nativeDocumentPathFallbackPaths, String source, UserMessageDelivery delivery, UserMessageAgentMode agentMode, Boolean isAutopilotContinuation, String interactionId, String turnId, String parentAgentTaskId) {
+            this(null, content, responsesReasoning, messageId, null, transformedContent, attachments, supportedNativeDocumentMimeTypes, nativeDocumentPathFallbackPaths, source, delivery, agentMode, isAutopilotContinuation, interactionId, turnId, parentAgentTaskId);
+        }
     }
 }

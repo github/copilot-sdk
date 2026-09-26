@@ -1552,6 +1552,107 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("01234567-89ab-4cde-8f01-23456789abcd")]
+    [InlineData("01234567-89AB-4CDE-8F01-23456789ABCD")]
+    [InlineData("not-a-uuid")]
+    [InlineData("")]
+    public async Task RpcAdmissionCorrelation_Preserves_Send_Options(string? correlation)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var options = new MessageOptions
+        {
+            Prompt = "hello",
+            Source = MessageSource.System,
+            DisplayPrompt = "display",
+            RequestHeaders = new Dictionary<string, string> { ["X-Test"] = "preserved" },
+            ClientCorrelationId = correlation,
+        };
+        Assert.Equal(correlation, options.Clone().ClientCorrelationId);
+
+        using var activity = new Activity("rpc-admission-test").SetIdFormat(ActivityIdFormat.W3C);
+        activity.TraceStateString = "vendor=preserved";
+        activity.Start();
+        Assert.Equal("message-1", await session.SendAsync(options));
+        var request = Assert.Single(server.Requests, request => request.Method == "session.send").Params;
+        Assert.Equal(session.SessionId, request.GetProperty("sessionId").GetString());
+        Assert.Equal("system", request.GetProperty("source").GetString());
+        Assert.Equal("display", request.GetProperty("displayPrompt").GetString());
+        Assert.Equal("preserved", request.GetProperty("requestHeaders").GetProperty("X-Test").GetString());
+        Assert.Equal(activity.Id, request.GetProperty("traceparent").GetString());
+        Assert.Equal(activity.TraceStateString, request.GetProperty("tracestate").GetString());
+        AssertAdmissionCorrelation(request, correlation);
+
+        server.ClearRequests();
+        var result = await session.Rpc.SendAsync("hello", clientCorrelationId: correlation);
+        Assert.Equal("message-1", result.MessageId);
+        AssertAdmissionCorrelation(Assert.Single(server.Requests, request => request.Method == "session.send").Params, correlation);
+    }
+
+    [Fact]
+    public async Task RpcAdmissionCorrelation_Preserves_Positional_Send_Arguments()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        await session.Rpc.SendAsync("hello", "display", null, null, null, null, null, null, null, null, null, null, null, null, CancellationToken.None);
+        var request = Assert.Single(server.Requests, request => request.Method == "session.send").Params;
+        Assert.Equal("display", request.GetProperty("displayPrompt").GetString());
+        AssertAdmissionCorrelation(request, null);
+
+        server.ClearRequests();
+        await session.Rpc.SendAsync("hello", "display", null, null, null, null, null, null, null, null, null, null, null, null, default);
+        request = Assert.Single(server.Requests, request => request.Method == "session.send").Params;
+        Assert.Equal("display", request.GetProperty("displayPrompt").GetString());
+        AssertAdmissionCorrelation(request, null);
+    }
+
+    [Fact]
+    public async Task RpcAdmissionCorrelation_Is_Per_Input_Not_Per_Batch()
+    {
+        const string first = "01234567-89ab-4cde-8f01-23456789abcd";
+        const string second = "abcdef01-2345-4678-9abc-def012345678";
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.UniqueMessageIds = true;
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var ids = await Task.WhenAll(
+            session.SendAsync(new MessageOptions { Prompt = "first", ClientCorrelationId = first }),
+            session.SendAsync(new MessageOptions { Prompt = "second", ClientCorrelationId = second }));
+        Assert.Equal(2, ids.Distinct().Count());
+        foreach (var request in server.Requests.Where(request => request.Method == "session.send"))
+        {
+            AssertAdmissionCorrelation(request.Params, request.Params.GetProperty("prompt").GetString() == "first" ? first : second);
+        }
+        await session.Rpc.SendMessagesAsync([
+            new SendMessageItem { Prompt = "context", ClientCorrelationId = second },
+            new SendMessageItem { Prompt = "plain" },
+            new SendMessageItem { Prompt = "reused", ClientCorrelationId = first },
+        ]);
+        var batch = Assert.Single(server.Requests, request => request.Method == "session.sendMessages").Params;
+        AssertAdmissionCorrelation(batch, null);
+        var messages = batch.GetProperty("messages").EnumerateArray().ToArray();
+        Assert.Equal(3, messages.Length);
+        AssertAdmissionCorrelation(messages[0], second);
+        AssertAdmissionCorrelation(messages[1], null);
+        AssertAdmissionCorrelation(messages[2], first);
+    }
+
+    private static void AssertAdmissionCorrelation(JsonElement request, string? correlation)
+    {
+        if (correlation is null)
+        {
+            Assert.False(request.TryGetProperty("clientCorrelationId", out _));
+        }
+        else
+        {
+            Assert.Equal(correlation, request.GetProperty("clientCorrelationId").GetString());
+        }
+    }
+
+    [Theory]
     [MemberData(nameof(SerializationTests.MessageSources), MemberType = typeof(SerializationTests))]
     public async Task SendAsync_MessageSource_Preserves_Other_Options(MessageSource? source, string? wireSource)
     {
