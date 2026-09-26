@@ -2828,6 +2828,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
+        options.Converters.Add(SessionEventJsonConverter.Default);
+        options.TypeInfoResolverChain.Add(SessionEventJsonTypeInfoResolver.Default);
         options.TypeInfoResolverChain.Add(ClientJsonContext.Default);
         options.TypeInfoResolverChain.Add(TypesJsonContext.Default);
         options.TypeInfoResolverChain.Add(CopilotSession.SessionJsonContext.Default);

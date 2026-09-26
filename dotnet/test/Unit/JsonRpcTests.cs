@@ -377,11 +377,17 @@ public class JsonRpcTests
         private static readonly Type JsonRpcType =
             typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.JsonRpc", throwOnError: true)!;
 
-        private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
+        private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
+
+        private static JsonSerializerOptions CreateSerializerOptions()
         {
-            AllowOutOfOrderMetadataProperties = true,
-            TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
-        };
+            var property = typeof(CopilotClient).GetProperty(
+                "SerializerOptionsForMessageFormatter",
+                BindingFlags.Static | BindingFlags.NonPublic)!;
+            var options = new JsonSerializerOptions((JsonSerializerOptions)property.GetValue(null)!);
+            options.TypeInfoResolverChain.Add(new DefaultJsonTypeInfoResolver());
+            return options;
+        }
 
         private readonly object _instance;
 
