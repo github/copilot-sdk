@@ -1846,11 +1846,22 @@ Always include PINEAPPLE_COCONUT_42.
 
         expect(response.status).toBe(200);
         const parsed = JSON.parse(response.body) as {
-          data: Array<{ id: string; name: string }>;
+          data: Array<{
+            id: string;
+            name: string;
+            capabilities: {
+              limits: { vision: { max_prompt_images: number } };
+            };
+          }>;
         };
         expect(parsed.data).toHaveLength(2);
         expect(parsed.data[0].id).toBe("gpt-4o");
         expect(parsed.data[1].id).toBe("claude-sonnet-4");
+        expect(
+          parsed.data.map(
+            (model) => model.capabilities.limits.vision.max_prompt_images,
+          ),
+        ).toEqual([2, 2]);
       } finally {
         await proxy.stop();
       }
