@@ -8,14 +8,22 @@ import (
 	"errors"
 	"log"
 	"regexp"
+	"unicode"
 )
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$`)
-var sessionPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 func text(value any) bool {
 	s, ok := value.(string)
-	return ok && s != "" && len(s) <= 256
+	if !ok || s == "" || len(s) > 256 {
+		return false
+	}
+	for _, character := range s {
+		if unicode.IsControl(character) {
+			return false
+		}
+	}
+	return true
 }
 
 func uuid(value any) bool {
@@ -47,10 +55,9 @@ func reference(value any, eventType string) bool {
 	if !ok {
 		return false
 	}
-	session, ok := ref["sessionId"].(string)
 	agent, hasAgent := ref["agentId"]
 	return fields(ref, "sessionId", "eventId", "agentId", "eventType", "provenance") &&
-		ok && len(session) <= 256 && sessionPattern.MatchString(session) && uuid(ref["eventId"]) &&
+		text(ref["sessionId"]) && uuid(ref["eventId"]) &&
 		(!hasAgent || text(agent)) && ref["eventType"] == eventType &&
 		(ref["provenance"] == "native" || ref["provenance"] == "ahp_coordinator")
 }

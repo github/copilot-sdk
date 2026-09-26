@@ -1322,6 +1322,7 @@ export function generateSessionEventsCode(schema: JSONSchema7): string {
 		{
 			allowUntaggedUnions: true,
 			allowedUnionTypeNames: [
+				"SystemNotification",
 				"ToolExecutionCompleteContent",
 				"ToolExecutionCompleteContentResourceDetails",
 			],

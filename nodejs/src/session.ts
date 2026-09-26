@@ -911,11 +911,22 @@ export class CopilotSession {
                 signal.addEventListener("abort", onAbort, { once: true });
             }
 
-            unsubscribe = this.on("factory.run_updated", (event) => {
-                if (event.data.runId === runId) {
+            const subscribe = this.on.bind(this) as unknown as (
+                eventType: string,
+                handler: (event: SessionEvent) => void
+            ) => () => void;
+            const handleRunUpdated = (event: SessionEvent): void => {
+                const data = event.data as { runId?: unknown };
+                if (data.runId === runId) {
                     void read();
                 }
-            });
+            };
+            const unsubscribeFactory = subscribe("factory.run_updated", handleRunUpdated);
+            const unsubscribeWorkflow = subscribe("workflow.run_updated", handleRunUpdated);
+            unsubscribe = (): void => {
+                unsubscribeFactory();
+                unsubscribeWorkflow();
+            };
 
             pollHandle = setInterval(() => void read(), 5_000);
             // The re-read is a safety net, not work the process owes anyone: an
@@ -1002,11 +1013,22 @@ export class CopilotSession {
                 signal.addEventListener("abort", onAbort, { once: true });
             }
 
-            unsubscribe = this.on("factory.run_updated", (event) => {
-                if (event.data.runId === runId) {
+            const subscribe = this.on.bind(this) as unknown as (
+                eventType: string,
+                handler: (event: SessionEvent) => void
+            ) => () => void;
+            const handleRunUpdated = (event: SessionEvent): void => {
+                const data = event.data as { runId?: unknown };
+                if (data.runId === runId) {
                     void read();
                 }
-            });
+            };
+            const unsubscribeFactory = subscribe("factory.run_updated", handleRunUpdated);
+            const unsubscribeWorkflow = subscribe("workflow.run_updated", handleRunUpdated);
+            unsubscribe = (): void => {
+                unsubscribeFactory();
+                unsubscribeWorkflow();
+            };
 
             pollHandle = setInterval(() => void read(), 5_000);
             // The re-read is a safety net, not work the process owes anyone: an

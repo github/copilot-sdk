@@ -3,7 +3,9 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::rpc::TasksSendMessageResult;
-use github_copilot_sdk::session_events::TypedSessionEvent;
+use github_copilot_sdk::session_events::{
+    SystemNotification, SystemNotificationWorkflowCompletedStatus, TypedSessionEvent,
+};
 use serde_json::Value;
 
 fn corpus() -> Value {
@@ -75,4 +77,26 @@ fn worker_causality_exact_utf8_budget_and_unknown_fields() {
         );
         assert_eq!(decoded["data"]["content"], wire["data"]["content"]);
     }
+}
+
+#[test]
+fn canonical_workflow_completion_decodes_typed_fields() {
+    let corpus = corpus();
+    let event: TypedSessionEvent =
+        serde_json::from_value(corpus["workflowCompleted"]["event"].clone()).unwrap();
+    let github_copilot_sdk::session_events::SessionEventData::SystemNotification(notification) =
+        event.payload
+    else {
+        panic!("expected system.notification");
+    };
+    let SystemNotification::WorkflowCompleted(completion) = notification.kind else {
+        panic!("expected workflow_completed");
+    };
+    assert_eq!(completion.workflow_name, "fix-ci");
+    assert_eq!(completion.run_id, "run-1");
+    assert!(matches!(
+        completion.status,
+        SystemNotificationWorkflowCompletedStatus::Completed
+    ));
+    assert_eq!(completion.consumed_subagents, 1);
 }

@@ -69,4 +69,16 @@ public class WorkerCausalityTests
             Assert.Equal(Payload(wire, true)["content"]!.GetValue<string>(), observed["content"]!.GetValue<string>());
         }
     }
+
+    [Fact]
+    public void CanonicalWorkflowCompletionDecodesTypedFields()
+    {
+        var parsed = SessionEvent.FromJson(Corpus["workflowCompleted"]!["event"]!.ToJsonString());
+        var notification = Assert.IsType<SystemNotificationEvent>(parsed);
+        var completion = Assert.IsType<SystemNotificationWorkflowCompleted>(notification.Data.Kind);
+        Assert.Equal("fix-ci", completion.WorkflowName);
+        Assert.Equal("run-1", completion.RunId);
+        Assert.Equal(SystemNotificationWorkflowCompletedStatus.Completed, completion.Status);
+        Assert.Equal(1u, completion.ConsumedSubagents);
+    }
 }

@@ -49,3 +49,13 @@ def test_worker_causality_exact_utf8_budget_and_unknown_fields(case):
     result = decode(wire, True)
     assert ("workerCausality" in result["data"]) == case["accepted"]
     assert result["data"]["content"] == wire["data"]["content"]
+
+
+def test_canonical_workflow_completion_decodes_typed_fields():
+    event = session_event_from_dict(CORPUS["workflowCompleted"]["event"])
+    assert event.type.value == "system.notification"
+    assert event.data.kind.type == "workflow_completed"
+    assert event.data.kind.workflow_name == "fix-ci"
+    assert event.data.kind.run_id == "run-1"
+    assert event.data.kind.status.value == "completed"
+    assert event.data.kind.consumed_subagents == 1

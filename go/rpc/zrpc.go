@@ -17504,6 +17504,19 @@ func (UserToolSessionApprovalRead) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindRead
 }
 
+// Session-scoped workflow approval, optionally narrowed by approval key.
+// Experimental: UserToolSessionApprovalWorkflow is part of an experimental API and may
+// change or be removed.
+type UserToolSessionApprovalWorkflow struct {
+	// Optional workflow operation name or canonical approval key
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (UserToolSessionApprovalWorkflow) userToolSessionApproval() {}
+func (UserToolSessionApprovalWorkflow) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindWorkflow
+}
+
 // Session-scoped tool-approval rule for filesystem write operations.
 // Experimental: UserToolSessionApprovalWrite is part of an experimental API and may change
 // or be removed.
@@ -21121,6 +21134,8 @@ const (
 	// The runtime selected the model automatically, such as rate-limit recovery or refusal
 	// fallback.
 	ModelChangeSourceAutomatic ModelChangeSource = "automatic"
+	// The user accepted a CAPI-issued Auto tier recommendation.
+	ModelChangeSourceAutoTierRecommendation ModelChangeSource = "auto_tier_recommendation"
 	// The user selected the promoted model from the changeboarding card or its keyboard
 	// shortcut.
 	ModelChangeSourceChangeboardingShortcut ModelChangeSource = "changeboarding_shortcut"
@@ -22923,6 +22938,7 @@ const (
 	UserToolSessionApprovalKindMCP                       UserToolSessionApprovalKind = "mcp"
 	UserToolSessionApprovalKindMemory                    UserToolSessionApprovalKind = "memory"
 	UserToolSessionApprovalKindRead                      UserToolSessionApprovalKind = "read"
+	UserToolSessionApprovalKindWorkflow                  UserToolSessionApprovalKind = "workflow"
 	UserToolSessionApprovalKindWrite                     UserToolSessionApprovalKind = "write"
 )
 

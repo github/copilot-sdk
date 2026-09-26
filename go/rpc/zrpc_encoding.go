@@ -4378,6 +4378,12 @@ func unmarshalUserToolSessionApproval(data []byte) (UserToolSessionApproval, err
 			return nil, err
 		}
 		return &d, nil
+	case UserToolSessionApprovalKindWorkflow:
+		var d UserToolSessionApprovalWorkflow
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case UserToolSessionApprovalKindWrite:
 		var d UserToolSessionApprovalWrite
 		if err := json.Unmarshal(data, &d); err != nil {

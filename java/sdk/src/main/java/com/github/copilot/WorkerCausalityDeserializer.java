@@ -23,7 +23,6 @@ import java.util.regex.Pattern;
 public final class WorkerCausalityDeserializer extends JsonDeserializer<Object> implements ContextualDeserializer {
     private static final Logger LOG = Logger.getLogger(WorkerCausalityDeserializer.class.getName());
     private static final Pattern UUID = Pattern.compile("[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}");
-    private static final Pattern SESSION = Pattern.compile("[A-Za-z0-9_-]+");
     private final JavaType target;
 
     /** Creates the annotation's contextual decoder. */
@@ -139,7 +138,8 @@ public final class WorkerCausalityDeserializer extends JsonDeserializer<Object> 
 
     private static boolean text(JsonNode value) {
         return value.isTextual() && !value.textValue().isEmpty()
-                && value.textValue().getBytes(StandardCharsets.UTF_8).length <= 256;
+                && value.textValue().getBytes(StandardCharsets.UTF_8).length <= 256
+                && value.textValue().codePoints().noneMatch(Character::isISOControl);
     }
 
     private static boolean uuid(JsonNode value) {
@@ -152,8 +152,8 @@ public final class WorkerCausalityDeserializer extends JsonDeserializer<Object> 
 
     private static boolean reference(JsonNode value, String eventType) {
         return fields(value, "sessionId", "eventId", "agentId", "eventType", "provenance")
-                && text(value.path("sessionId")) && SESSION.matcher(value.path("sessionId").textValue()).matches()
-                && uuid(value.path("eventId")) && (!value.has("agentId") || text(value.path("agentId")))
+                && text(value.path("sessionId")) && uuid(value.path("eventId"))
+                && (!value.has("agentId") || text(value.path("agentId")))
                 && value.path("eventType").asText().equals(eventType)
                 && (value.path("provenance").asText().equals("native")
                         || value.path("provenance").asText().equals("ahp_coordinator"));

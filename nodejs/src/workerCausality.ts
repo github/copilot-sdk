@@ -11,7 +11,12 @@ function fields(value: Record<string, unknown>, allowed: readonly string[]): boo
 }
 
 function text(value: unknown): value is string {
-    return typeof value === "string" && value.length > 0 && Buffer.byteLength(value, "utf8") <= 256;
+    return (
+        typeof value === "string" &&
+        value.length > 0 &&
+        Buffer.byteLength(value, "utf8") <= 256 &&
+        !/\p{Cc}/u.test(value)
+    );
 }
 
 function small(value: unknown, budget: { remaining: number }, depth = 0): boolean {
@@ -33,7 +38,6 @@ function reference(value: unknown, type: string): boolean {
         object(value) &&
         fields(value, ["sessionId", "eventId", "agentId", "eventType", "provenance"]) &&
         text(value.sessionId) &&
-        /^[A-Za-z0-9_-]+$/.test(value.sessionId) &&
         typeof value.eventId === "string" &&
         /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(value.eventId) &&
         (!("agentId" in value) || text(value.agentId)) &&

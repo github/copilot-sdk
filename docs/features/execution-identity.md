@@ -131,12 +131,25 @@ real tool call. Subsequent worker events retain that worker scope on the root
 stream, without requiring an exposed native child-session ID.
 
 This initial relationship does not establish the cause of a worker follow-up.
-At this baseline, `session.tasks.sendMessage` returns no message ID and the internal
-queued-message identity is not retained in the later worker `user.message`.
-`source` identifies a sender, not its sending Turn. Never attribute all worker
-follow-ups to the spawn Turn or the parent's current interaction at delivery.
-Recovery with no primary message similarly has no `user.message` admission or
-`originatingMessageId`. These cases need an approved causal bridge.
+When the independent default-off `RUNTIME_WORKER_CAUSAL_CONTEXT` gate is
+enabled, optional version-1 `workerCausality` diagnostics can preserve the
+accepted queue input and its actual admission on worker `user.message`, owned
+`system.notification`, `assistant.turn_start`, and successful
+`session.tasks.sendMessage` results. Typed SDK decoding validates only that the
+optional graph is supported, closed-shape and within its limits. Consumers must
+still validate the graph against the enclosing placement and must not infer a
+Turn, successful submission, draft retention, recovery outcome, browser
+surface, physical dispatch or UI policy. `source` identifies a sender, not its
+sending Turn. Recovery with no primary message still has no `user.message`
+admission or `originatingMessageId`.
+
+Workflow completion notifications use the canonical public
+`system.notification.data.kind.type = "workflow_completed"` discriminator and
+typed `runId`, `workflowName`, status, usage and attempt fields. The AHP relay
+normalizes legacy host `factory_completed` input before public emission, while
+runtime history classification continues to recognize that legacy input. New
+schemas and SDK types expose `workflow_completed`; they do not silently rename
+the discriminator independently of the producer.
 
 Despite its name, `user.message.parentAgentTaskId` reflects the preparing
 `TurnIdentity`'s task identifier, not a parent interaction ID. Do not equate it

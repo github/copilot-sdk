@@ -26,6 +26,9 @@ type workerCausalityCorpus struct {
 		Value    any
 		Accepted bool
 	}
+	WorkflowCompleted struct {
+		Event json.RawMessage
+	}
 }
 
 func workerCorpus(t *testing.T) workerCausalityCorpus {
@@ -113,5 +116,26 @@ func TestWorkerCausalityExactUTF8Budget(t *testing.T) {
 				t.Fatal("product content changed")
 			}
 		})
+	}
+}
+
+func TestCanonicalWorkflowCompletionDecodesTypedFields(t *testing.T) {
+	corpus := workerCorpus(t)
+	var event rpc.SessionEvent
+	if err := json.Unmarshal(corpus.WorkflowCompleted.Event, &event); err != nil {
+		t.Fatal(err)
+	}
+	data, ok := event.Data.(*rpc.SystemNotificationData)
+	if !ok {
+		t.Fatalf("data type = %T", event.Data)
+	}
+	kind, ok := data.Kind.(*rpc.SystemNotificationWorkflowCompleted)
+	if !ok {
+		t.Fatalf("kind type = %T", data.Kind)
+	}
+	if kind.WorkflowName != "fix-ci" || kind.RunID != "run-1" ||
+		kind.Status != rpc.SystemNotificationWorkflowCompletedStatusCompleted ||
+		kind.ConsumedSubagents != 1 {
+		t.Fatalf("unexpected workflow completion: %+v", kind)
 	}
 }

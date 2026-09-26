@@ -20,6 +20,7 @@ const corpus = JSON.parse(
     valid: { name: string; event?: Wire; result?: Wire }[];
     invalid: { name: string; value: unknown }[];
     boundaries: { name: string; value: unknown; accepted: boolean }[];
+    workflowCompleted: { event: Wire };
 };
 
 function payload(value: Wire, event: boolean): Wire {
@@ -111,4 +112,18 @@ describe("worker causality public readers", () => {
             expect(data.content).toBe(payload(wire, true).content);
         }
     );
+
+    it("decodes the canonical workflow completion notification with typed fields", async () => {
+        const event = corpus.workflowCompleted.event as unknown as SessionEvent;
+        expect(event.type).toBe("system.notification");
+        if (event.type !== "system.notification") throw new Error("expected system.notification");
+        expect(event.data.kind.type).toBe("workflow_completed");
+        if (event.data.kind.type !== "workflow_completed") {
+            throw new Error("expected workflow_completed");
+        }
+        expect(event.data.kind.workflowName).toBe("fix-ci");
+        expect(event.data.kind.runId).toBe("run-1");
+        expect(event.data.kind.status).toBe("completed");
+        expect(event.data.kind.consumedSubagents).toBe(1);
+    });
 });

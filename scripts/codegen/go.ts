@@ -3357,6 +3357,15 @@ export function generateGoSessionEventsCode(
                 .join(""),
             dataClassName: variant.dataClassName,
         }))
+        .concat(
+            variants.some((variant) => variant.typeName === "workflow.run_updated")
+                ? [
+                    { constName: "SessionEventTypeFactoryRunSettled", dataClassName: "FactoryRunSettledData" },
+                    { constName: "SessionEventTypeFactoryRunStarted", dataClassName: "FactoryRunStartedData" },
+                    { constName: "SessionEventTypeFactoryRunUpdated", dataClassName: "FactoryRunUpdatedData" },
+                ]
+                : []
+        )
         .sort((left, right) => left.constName.localeCompare(right.constName));
 
     // Type method

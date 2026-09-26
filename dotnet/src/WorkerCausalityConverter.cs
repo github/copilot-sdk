@@ -114,7 +114,8 @@ internal sealed class WorkerCausalityConverter<T> : JsonConverter<T> where T : c
         value.TryGetProperty(property, out var text) &&
         text.ValueKind == JsonValueKind.String &&
         text.GetString()!.Length > 0 &&
-        Encoding.UTF8.GetByteCount(text.GetString()!) <= 256;
+        Encoding.UTF8.GetByteCount(text.GetString()!) <= 256 &&
+        text.GetString()!.All(character => !char.IsControl(character));
 
     private static bool Uuid(JsonElement value, string property) =>
         Text(value, property) && Guid.TryParseExact(value.GetProperty(property).GetString(), "D", out _);
@@ -126,7 +127,6 @@ internal sealed class WorkerCausalityConverter<T> : JsonConverter<T> where T : c
         value.ValueKind == JsonValueKind.Object &&
         Fields(value, "sessionId", "eventId", "agentId", "eventType", "provenance") &&
         Text(value, "sessionId") &&
-        value.GetProperty("sessionId").GetString()!.All(c => c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '_' or '-') &&
         Uuid(value, "eventId") && (!value.TryGetProperty("agentId", out _) || Text(value, "agentId")) &&
         Text(value, "eventType") && value.GetProperty("eventType").GetString() == eventType &&
         Text(value, "provenance") && value.GetProperty("provenance").GetString() is "native" or "ahp_coordinator";

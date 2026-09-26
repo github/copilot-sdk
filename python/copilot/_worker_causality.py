@@ -5,6 +5,7 @@
 import json
 import logging
 import re
+import unicodedata
 from collections.abc import Callable
 from typing import Any, TypeVar
 
@@ -18,7 +19,12 @@ def _uuid(value: Any) -> bool:
 
 
 def _text(value: Any) -> bool:
-    return isinstance(value, str) and bool(value) and len(value.encode("utf-8")) <= 256
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and len(value.encode("utf-8")) <= 256
+        and all(unicodedata.category(char) != "Cc" for char in value)
+    )
 
 
 def _fields(value: dict[str, Any], allowed: set[str]) -> bool:
@@ -30,7 +36,6 @@ def _reference(value: Any, event_type: str) -> bool:
         isinstance(value, dict)
         and _fields(value, {"sessionId", "eventId", "agentId", "eventType", "provenance"})
         and _text(value.get("sessionId"))
-        and re.fullmatch(r"[A-Za-z0-9_-]+", value["sessionId"]) is not None
         and _uuid(value.get("eventId"))
         and ("agentId" not in value or _text(value["agentId"]))
         and value.get("eventType") == event_type

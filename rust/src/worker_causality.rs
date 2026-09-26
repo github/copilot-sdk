@@ -26,9 +26,9 @@ impl Write for Budget {
 }
 
 fn text(value: &Value) -> bool {
-    value
-        .as_str()
-        .is_some_and(|value| !value.is_empty() && value.len() <= 256)
+    value.as_str().is_some_and(|value| {
+        !value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control)
+    })
 }
 
 fn uuid(value: &Value) -> bool {
@@ -54,12 +54,8 @@ fn reference(value: &Value, event_type: &str) -> bool {
     fields(
         value,
         &["sessionId", "eventId", "agentId", "eventType", "provenance"],
-    ) && value["sessionId"].as_str().is_some_and(|session| {
-        text(&value["sessionId"])
-            && session
-                .bytes()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-'))
-    }) && uuid(&value["eventId"])
+    ) && text(&value["sessionId"])
+        && uuid(&value["eventId"])
         && value.get("agentId").is_none_or(text)
         && value["eventType"] == event_type
         && matches!(

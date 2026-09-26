@@ -40,12 +40,12 @@ public final class SystemNotificationEvent extends SessionEvent {
         /** The notification text, typically wrapped in <system_notification> XML tags */
         @JsonProperty("content") String content,
         /** Structured metadata identifying what triggered this notification */
-        @JsonProperty("kind") Object kind,
-        /** Responses reasoning settings anchored before this model-facing message, for cache-stable history replay */
+        @JsonProperty("kind") SystemNotification kind,
+        /** Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility */
         @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning
     ) {
         /** Creates a value without optional worker diagnostics. */
-        public SystemNotificationEventData(String content, Object kind, ResponsesReasoning responsesReasoning) {
+        public SystemNotificationEventData(String content, SystemNotification kind, ResponsesReasoning responsesReasoning) {
             this(null, content, kind, responsesReasoning);
         }
     }

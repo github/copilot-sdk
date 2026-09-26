@@ -5,6 +5,7 @@
 package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 import java.nio.file.Path;
 
@@ -14,6 +15,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.generated.SystemNotificationEvent;
+import com.github.copilot.generated.SystemNotificationWorkflowCompleted;
+import com.github.copilot.generated.SystemNotificationWorkflowCompletedStatus;
 import com.github.copilot.generated.rpc.SessionTasksSendMessageResult;
 
 class WorkerCausalityTest {
@@ -62,5 +66,17 @@ class WorkerCausalityTest {
             assertEquals(test.get("accepted").asBoolean(), observed.has("workerCausality"), test.get("name").asText());
             assertEquals(payload(wire, true).get("content"), observed.get("content"));
         }
+    }
+
+    @Test
+    void canonicalWorkflowCompletionDecodesTypedFields() throws Exception {
+        SessionEvent parsed = MAPPER.treeToValue(corpus().path("workflowCompleted").path("event"), SessionEvent.class);
+        SystemNotificationEvent notification = assertInstanceOf(SystemNotificationEvent.class, parsed);
+        SystemNotificationWorkflowCompleted completion = assertInstanceOf(SystemNotificationWorkflowCompleted.class,
+                notification.getData().kind());
+        assertEquals("fix-ci", completion.getWorkflowName());
+        assertEquals("run-1", completion.getRunId());
+        assertEquals(SystemNotificationWorkflowCompletedStatus.COMPLETED, completion.getStatus());
+        assertEquals(1L, completion.getConsumedSubagents());
     }
 }
