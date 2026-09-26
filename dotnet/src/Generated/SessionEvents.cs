@@ -15374,10 +15374,10 @@ public readonly struct WorkerObservationProvenance : IEquatable<WorkerObservatio
     /// <summary>Gets the value associated with this <see cref="WorkerObservationProvenance"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>native</c> value.</summary>
+    /// <summary>Observed by the native runtime.</summary>
     public static WorkerObservationProvenance Native { get; } = new("native");
 
-    /// <summary>Gets the <c>ahp_coordinator</c> value.</summary>
+    /// <summary>Observed by the AHP coordinator.</summary>
     public static WorkerObservationProvenance AhpCoordinator { get; } = new("ahp_coordinator");
 
     /// <summary>Returns a value indicating whether two <see cref="WorkerObservationProvenance"/> instances are equivalent.</summary>
@@ -15435,19 +15435,19 @@ public readonly struct WorkerEventType : IEquatable<WorkerEventType>
     /// <summary>Gets the value associated with this <see cref="WorkerEventType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>tool.execution_start</c> value.</summary>
+    /// <summary>Observed tool execution start occurrence.</summary>
     public static WorkerEventType ToolExecutionStart { get; } = new("tool.execution_start");
 
-    /// <summary>Gets the <c>user.message</c> value.</summary>
+    /// <summary>Observed admitted user message occurrence.</summary>
     public static WorkerEventType UserMessage { get; } = new("user.message");
 
-    /// <summary>Gets the <c>subagent.completed</c> value.</summary>
+    /// <summary>Observed worker completion occurrence.</summary>
     public static WorkerEventType SubagentCompleted { get; } = new("subagent.completed");
 
-    /// <summary>Gets the <c>system.notification</c> value.</summary>
+    /// <summary>Observed worker notification occurrence.</summary>
     public static WorkerEventType SystemNotification { get; } = new("system.notification");
 
-    /// <summary>Gets the <c>assistant.turn_start</c> value.</summary>
+    /// <summary>Observed assistant turn start occurrence.</summary>
     public static WorkerEventType AssistantTurnStart { get; } = new("assistant.turn_start");
 
     /// <summary>Returns a value indicating whether two <see cref="WorkerEventType"/> instances are equivalent.</summary>
@@ -15505,10 +15505,10 @@ public readonly struct WorkerAdmissionKind : IEquatable<WorkerAdmissionKind>
     /// <summary>Gets the value associated with this <see cref="WorkerAdmissionKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>queued_input</c> value.</summary>
+    /// <summary>A queued worker input was admitted.</summary>
     public static WorkerAdmissionKind QueuedInput { get; } = new("queued_input");
 
-    /// <summary>Gets the <c>system_continuation</c> value.</summary>
+    /// <summary>A system continuation was admitted.</summary>
     public static WorkerAdmissionKind SystemContinuation { get; } = new("system_continuation");
 
     /// <summary>Returns a value indicating whether two <see cref="WorkerAdmissionKind"/> instances are equivalent.</summary>
@@ -15566,10 +15566,10 @@ public readonly struct WorkerNotificationMode : IEquatable<WorkerNotificationMod
     /// <summary>Gets the value associated with this <see cref="WorkerNotificationMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>queued</c> value.</summary>
+    /// <summary>The notification was consumed through the queued input path.</summary>
     public static WorkerNotificationMode Queued { get; } = new("queued");
 
-    /// <summary>Gets the <c>immediate</c> value.</summary>
+    /// <summary>The notification was consumed during an already-open iteration.</summary>
     public static WorkerNotificationMode Immediate { get; } = new("immediate");
 
     /// <summary>Returns a value indicating whether two <see cref="WorkerNotificationMode"/> instances are equivalent.</summary>

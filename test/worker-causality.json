@@ -6,14 +6,16 @@
       "src/runtime/src/subagents/orchestrator/worker_causality_tests.rs",
       "src/runtime/src/session/session_notification_delivery/worker_causality_tests.rs",
       "src/runtime/src/shared_api/tasks/tests.rs",
-      "test/cli/ahp/client/relaySession.test.ts"
+      "test/cli/ahp/client/relaySession.test.ts",
+      "src/runtime/src/support/events/tests.rs"
     ],
     "vectors": [
       "native_nested_user_message",
       "queued_notification",
       "two_source_assistant_turn_start",
       "tasks_send_message_result",
-      "workflow_completed"
+      "workflow_completed",
+      "legacy_factory_completed_history"
     ],
     "canonicalization": "volatile UUID envelope and identity values are replaced by a fixed token before structural comparison; fixed product content, placement, ordering and typed fields remain exact"
   },
@@ -1693,7 +1695,8 @@
       "agentId",
       "messageId"
     ],
-    "rejectUnicodeControlCharacters": true
+    "rejectUnicodeControlCharacters": true,
+    "requireValidUnicodeScalarValues": true
   },
   "expandedGraphBudget": {
     "maxBytes": 4096,
@@ -1715,6 +1718,63 @@
         "consumedNanoAiu": 10,
         "consumedSubagents": 1
       }
+    },
+    "event": {
+      "type": "system.notification",
+      "data": {
+        "content": "Factory run completed",
+        "kind": {
+          "type": "workflow_completed",
+          "runId": "run-1",
+          "workflowName": "fix-ci",
+          "status": "completed",
+          "attempt": 2,
+          "elapsedMs": 500,
+          "consumedNanoAiu": 10,
+          "consumedSubagents": 1
+        }
+      },
+      "id": "55555555-5555-4555-8555-555555555555",
+      "timestamp": "2026-09-26T00:02:00.000Z",
+      "parentId": null
+    }
+  },
+  "invalidRaw": [
+    {
+      "name": "session_id_unpaired_high_surrogate",
+      "field": "sessionId",
+      "json": "{\"version\":1,\"observationProvenance\":\"native\",\"sources\":[{\"input\":{\"queueItemId\":\"46fc3a43-7f19-4b0a-9e32-d5ef4dc25552\",\"agentId\":\"worker\"},\"admissions\":[],\"captureComplete\":true,\"completion\":{\"sessionId\":\"\\ud800\",\"eventId\":\"44444444-4444-4444-8444-444444444444\",\"agentId\":\"worker\",\"eventType\":\"subagent.completed\",\"provenance\":\"native\"}}],\"captureComplete\":true}"
+    },
+    {
+      "name": "agent_id_unpaired_low_surrogate",
+      "field": "agentId",
+      "json": "{\"version\":1,\"observationProvenance\":\"native\",\"sources\":[{\"input\":{\"queueItemId\":\"46fc3a43-7f19-4b0a-9e32-d5ef4dc25552\",\"agentId\":\"\\udc00\"},\"admissions\":[],\"captureComplete\":true}],\"captureComplete\":true}"
+    },
+    {
+      "name": "message_id_unpaired_high_surrogate",
+      "field": "messageId",
+      "json": "{\"version\":1,\"observationProvenance\":\"native\",\"sources\":[{\"input\":{\"queueItemId\":\"46fc3a43-7f19-4b0a-9e32-d5ef4dc25552\",\"agentId\":\"worker\"},\"admissions\":[{\"kind\":\"queued_input\",\"messageId\":\"\\ud800\"}],\"captureComplete\":true}],\"captureComplete\":true}"
+    }
+  ],
+  "legacyWorkflowCompleted": {
+    "persistedEvent": {
+      "type": "system.notification",
+      "data": {
+        "content": "Factory run completed",
+        "kind": {
+          "type": "factory_completed",
+          "runId": "run-1",
+          "status": "completed",
+          "attempt": 2,
+          "elapsedMs": 500,
+          "consumedNanoAiu": 10,
+          "consumedSubagents": 1,
+          "factoryName": "fix-ci"
+        }
+      },
+      "id": "55555555-5555-4555-8555-555555555555",
+      "timestamp": "2026-09-26T00:02:00.000Z",
+      "parentId": null
     },
     "event": {
       "type": "system.notification",

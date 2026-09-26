@@ -13,14 +13,15 @@ fn corpus() -> Value {
 }
 
 fn decode(value: &Value, event: bool) -> Value {
+    let wire = serde_json::to_string(value).unwrap();
     if event {
-        serde_json::to_value(serde_json::from_value::<TypedSessionEvent>(value.clone()).unwrap())
-            .unwrap()
+        let parsed =
+            serde_json::from_str::<TypedSessionEvent>(&wire).expect("deserialize typed event");
+        serde_json::to_value(parsed).expect("serialize typed event")
     } else {
-        serde_json::to_value(
-            serde_json::from_value::<TasksSendMessageResult>(value.clone()).unwrap(),
-        )
-        .unwrap()
+        let parsed =
+            serde_json::from_str::<TasksSendMessageResult>(&wire).expect("deserialize task result");
+        serde_json::to_value(parsed).expect("serialize task result")
     }
 }
 
@@ -82,21 +83,37 @@ fn worker_causality_exact_utf8_budget_and_unknown_fields() {
 #[test]
 fn canonical_workflow_completion_decodes_typed_fields() {
     let corpus = corpus();
-    let event: TypedSessionEvent =
-        serde_json::from_value(corpus["workflowCompleted"]["event"].clone()).unwrap();
-    let github_copilot_sdk::session_events::SessionEventData::SystemNotification(notification) =
-        event.payload
-    else {
-        panic!("expected system.notification");
-    };
-    let SystemNotification::WorkflowCompleted(completion) = notification.kind else {
-        panic!("expected workflow_completed");
-    };
-    assert_eq!(completion.workflow_name, "fix-ci");
-    assert_eq!(completion.run_id, "run-1");
-    assert!(matches!(
-        completion.status,
-        SystemNotificationWorkflowCompletedStatus::Completed
-    ));
-    assert_eq!(completion.consumed_subagents, 1);
+    for fixture_name in ["workflowCompleted", "legacyWorkflowCompleted"] {
+        let event: TypedSessionEvent =
+            serde_json::from_value(corpus[fixture_name]["event"].clone()).unwrap();
+        let github_copilot_sdk::session_events::SessionEventData::SystemNotification(notification) =
+            event.payload
+        else {
+            panic!("expected system.notification");
+        };
+        let SystemNotification::WorkflowCompleted(completion) = notification.kind else {
+            panic!("expected workflow_completed");
+        };
+        assert_eq!(completion.workflow_name, "fix-ci");
+        assert_eq!(completion.run_id, "run-1");
+        assert!(matches!(
+            completion.status,
+            SystemNotificationWorkflowCompletedStatus::Completed
+        ));
+        assert_eq!(completion.consumed_subagents, 1);
+    }
+}
+
+#[test]
+fn invalid_unicode_scalar_identities_are_unavailable() {
+    let corpus = corpus();
+    for case in corpus["invalidRaw"].as_array().unwrap() {
+        let wire = format!(
+            r#"{{"sent":true,"workerCausality":{}}}"#,
+            case["json"].as_str().unwrap()
+        );
+        let result: TasksSendMessageResult = serde_json::from_str(&wire).unwrap();
+        assert!(result.sent);
+        assert!(result.worker_causality.is_none(), "{}", case["name"]);
+    }
 }

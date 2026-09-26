@@ -70,13 +70,25 @@ class WorkerCausalityTest {
 
     @Test
     void canonicalWorkflowCompletionDecodesTypedFields() throws Exception {
-        SessionEvent parsed = MAPPER.treeToValue(corpus().path("workflowCompleted").path("event"), SessionEvent.class);
-        SystemNotificationEvent notification = assertInstanceOf(SystemNotificationEvent.class, parsed);
-        SystemNotificationWorkflowCompleted completion = assertInstanceOf(SystemNotificationWorkflowCompleted.class,
-                notification.getData().kind());
-        assertEquals("fix-ci", completion.getWorkflowName());
-        assertEquals("run-1", completion.getRunId());
-        assertEquals(SystemNotificationWorkflowCompletedStatus.COMPLETED, completion.getStatus());
-        assertEquals(1L, completion.getConsumedSubagents());
+        for (String fixtureName : new String[]{"workflowCompleted", "legacyWorkflowCompleted"}) {
+            SessionEvent parsed = MAPPER.treeToValue(corpus().path(fixtureName).path("event"), SessionEvent.class);
+            SystemNotificationEvent notification = assertInstanceOf(SystemNotificationEvent.class, parsed);
+            SystemNotificationWorkflowCompleted completion = assertInstanceOf(SystemNotificationWorkflowCompleted.class,
+                    notification.getData().kind());
+            assertEquals("fix-ci", completion.getWorkflowName());
+            assertEquals("run-1", completion.getRunId());
+            assertEquals(SystemNotificationWorkflowCompletedStatus.COMPLETED, completion.getStatus());
+            assertEquals(1L, completion.getConsumedSubagents());
+        }
+    }
+
+    @Test
+    void invalidUnicodeScalarIdentitiesAreUnavailable() throws Exception {
+        for (JsonNode test : corpus().path("invalidRaw")) {
+            String wire = "{\"sent\":true,\"workerCausality\":" + test.path("json").asText() + "}";
+            SessionTasksSendMessageResult result = MAPPER.readValue(wire, SessionTasksSendMessageResult.class);
+            assertEquals(true, result.sent(), test.path("name").asText());
+            assertEquals(null, result.workerCausality(), test.path("name").asText());
+        }
     }
 }

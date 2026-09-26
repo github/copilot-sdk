@@ -14,21 +14,21 @@ internal sealed class WorkerCausalityConverter<T> : JsonConverter<T> where T : c
 {
     public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        using var document = JsonDocument.ParseValue(ref reader);
-        var value = document.RootElement;
-        var remaining = 4096;
-        if (Small(value, ref remaining, 0) && Supported(value))
+        try
         {
-            try
+            using var document = JsonDocument.ParseValue(ref reader);
+            var value = document.RootElement;
+            var remaining = 4096;
+            if (Small(value, ref remaining, 0) && Supported(value))
             {
                 if (!WithinBudget(value))
                     throw new JsonException("optional worker metadata budget");
                 return JsonSerializer.Deserialize(value, (JsonTypeInfo<T>)options.GetTypeInfo(typeof(T)));
             }
-            catch (JsonException)
-            {
-                // Optional diagnostics do not change product event handling.
-            }
+        }
+        catch (Exception error) when (error is JsonException or InvalidOperationException)
+        {
+            // Optional diagnostics do not change product event handling.
         }
         Trace.TraceWarning("Ignoring invalid, unsupported or oversized workerCausality metadata");
         return null;
@@ -110,12 +110,29 @@ internal sealed class WorkerCausalityConverter<T> : JsonConverter<T> where T : c
         return true;
     }
 
-    private static bool Text(JsonElement value, string property) =>
-        value.TryGetProperty(property, out var text) &&
-        text.ValueKind == JsonValueKind.String &&
-        text.GetString()!.Length > 0 &&
-        Encoding.UTF8.GetByteCount(text.GetString()!) <= 256 &&
-        text.GetString()!.All(character => !char.IsControl(character));
+    private static bool Text(JsonElement value, string property)
+    {
+        if (!value.TryGetProperty(property, out var text) || text.ValueKind != JsonValueKind.String)
+            return false;
+        var content = text.GetString()!;
+        if (content.Length == 0)
+            return false;
+        for (var index = 0; index < content.Length; index++)
+        {
+            var character = content[index];
+            if (char.IsHighSurrogate(character))
+            {
+                if (index + 1 >= content.Length || !char.IsLowSurrogate(content[index + 1]))
+                    return false;
+                index++;
+            }
+            else if (char.IsLowSurrogate(character) || char.IsControl(character))
+            {
+                return false;
+            }
+        }
+        return Encoding.UTF8.GetByteCount(content) <= 256;
+    }
 
     private static bool Uuid(JsonElement value, string property) =>
         Text(value, property) && Guid.TryParseExact(value.GetProperty(property).GetString(), "D", out _);

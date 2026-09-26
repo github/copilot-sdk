@@ -7,6 +7,7 @@ use std::io::{self, Write};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer};
 use serde_json::Value;
+use serde_json::value::RawValue;
 
 struct Budget(usize);
 
@@ -171,13 +172,28 @@ pub(crate) fn deserialize_optional<'de, D: Deserializer<'de>, T: DeserializeOwne
     deserializer: D,
 ) -> Result<Option<T>, D::Error> {
     let value = Value::deserialize(deserializer)?;
+    Ok(decode_optional(value))
+}
+
+pub(crate) fn deserialize_optional_raw<'de, D: Deserializer<'de>, T: DeserializeOwned>(
+    deserializer: D,
+) -> Result<Option<T>, D::Error> {
+    let raw = Box::<RawValue>::deserialize(deserializer)?;
+    let Ok(value) = serde_json::from_str::<Value>(raw.get()) else {
+        tracing::warn!("Ignoring invalid, unsupported or oversized workerCausality metadata");
+        return Ok(None);
+    };
+    Ok(decode_optional(value))
+}
+
+fn decode_optional<T: DeserializeOwned>(value: Value) -> Option<T> {
     let field = std::collections::BTreeMap::from([("workerCausality", &value)]);
     if serde_json::to_writer(&mut Budget(0), &field).is_ok()
         && supported(&value)
         && let Ok(capture) = serde_json::from_value(value)
     {
-        return Ok(Some(capture));
+        return Some(capture);
     }
     tracing::warn!("Ignoring invalid, unsupported or oversized workerCausality metadata");
-    Ok(None)
+    None
 }

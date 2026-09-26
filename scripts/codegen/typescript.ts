@@ -1020,7 +1020,11 @@ function emitGroup(
             lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
             if (rpcMethod === "session.tasks.sendMessage") {
                 lines.push(`${indent}    connection.sendRequest<${resultType}>("${rpcMethod}", ${bodyArg}).then(withWorkerCausality),`);
-            } else if (rpcMethod === "session.getMessages" || rpcMethod === "session.eventLog.read") {
+            } else if (
+                rpcMethod === "session.getMessages" ||
+                rpcMethod === "session.eventLog.read" ||
+                rpcMethod === "sessions.readPersistedEvents"
+            ) {
                 lines.push(`${indent}    connection.sendRequest<${resultType}>("${rpcMethod}", ${bodyArg}).then(withWorkerCausalityEvents),`);
             } else {
                 lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);

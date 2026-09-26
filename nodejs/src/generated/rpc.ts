@@ -27835,7 +27835,7 @@ export function createServerRpc(connection: MessageConnection) {
              * @returns Batch of session events returned by a read, with cursor and continuation metadata.
              */
             readPersistedEvents: async (params: SessionsReadPersistedEventsRequest): Promise<EventsReadResult> =>
-                connection.sendRequest("sessions.readPersistedEvents", params),
+                connection.sendRequest<EventsReadResult>("sessions.readPersistedEvents", params).then(withWorkerCausalityEvents),
             /**
              * Finds the local session bound to a GitHub task ID, if any.
              *

@@ -10,10 +10,25 @@ function fields(value: Record<string, unknown>, allowed: readonly string[]): boo
     return Object.keys(value).every((key) => allowed.includes(key));
 }
 
+function scalarString(value: string): boolean {
+    for (let index = 0; index < value.length; index++) {
+        const unit = value.charCodeAt(index);
+        if (unit >= 0xd800 && unit <= 0xdbff) {
+            const next = value.charCodeAt(index + 1);
+            if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+            index++;
+        } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function text(value: unknown): value is string {
     return (
         typeof value === "string" &&
         value.length > 0 &&
+        scalarString(value) &&
         Buffer.byteLength(value, "utf8") <= 256 &&
         !/\p{Cc}/u.test(value)
     );
@@ -136,12 +151,23 @@ export function withWorkerCausality<T extends object>(data: T): T {
 }
 
 /** Apply the same diagnostic tolerance to historical events as live delivery. */
-export function withWorkerCausalityEvents<T extends { events: { data: object }[] }>(result: T): T {
-    const events = result.events.map((event) => {
+export function withWorkerCausalityEvents<T extends object>(result: T): T {
+    if (!("events" in result) || !Array.isArray(result.events)) return result;
+    const originalEvents = result.events;
+    const events = originalEvents.map((event) => {
+        if (
+            !object(event) ||
+            !["user.message", "system.notification", "assistant.turn_start"].includes(
+                String(event.type)
+            ) ||
+            !object(event.data)
+        ) {
+            return event;
+        }
         const data = withWorkerCausality(event.data);
         return data === event.data ? event : { ...event, data };
     });
-    return events.every((event, index) => event === result.events[index])
+    return events.every((event, index) => event === originalEvents[index])
         ? result
-        : { ...result, events };
+        : ({ ...result, events } as T);
 }

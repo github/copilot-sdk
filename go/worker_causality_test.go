@@ -4,6 +4,7 @@ package copilot
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -21,12 +22,19 @@ type workerCausalityCorpus struct {
 		Name  string
 		Value any
 	}
+	InvalidRaw []struct {
+		Name string
+		JSON string
+	}
 	Boundaries []struct {
 		Name     string
 		Value    any
 		Accepted bool
 	}
 	WorkflowCompleted struct {
+		Event json.RawMessage
+	}
+	LegacyWorkflowCompleted struct {
 		Event json.RawMessage
 	}
 }
@@ -121,21 +129,43 @@ func TestWorkerCausalityExactUTF8Budget(t *testing.T) {
 
 func TestCanonicalWorkflowCompletionDecodesTypedFields(t *testing.T) {
 	corpus := workerCorpus(t)
-	var event rpc.SessionEvent
-	if err := json.Unmarshal(corpus.WorkflowCompleted.Event, &event); err != nil {
-		t.Fatal(err)
+	for _, raw := range []json.RawMessage{
+		corpus.WorkflowCompleted.Event,
+		corpus.LegacyWorkflowCompleted.Event,
+	} {
+		var event rpc.SessionEvent
+		if err := json.Unmarshal(raw, &event); err != nil {
+			t.Fatal(err)
+		}
+		data, ok := event.Data.(*rpc.SystemNotificationData)
+		if !ok {
+			t.Fatalf("data type = %T", event.Data)
+		}
+		kind, ok := data.Kind.(*rpc.SystemNotificationWorkflowCompleted)
+		if !ok {
+			t.Fatalf("kind type = %T", data.Kind)
+		}
+		if kind.WorkflowName != "fix-ci" || kind.RunID != "run-1" ||
+			kind.Status != rpc.SystemNotificationWorkflowCompletedStatusCompleted ||
+			kind.ConsumedSubagents != 1 {
+			t.Fatalf("unexpected workflow completion: %+v", kind)
+		}
 	}
-	data, ok := event.Data.(*rpc.SystemNotificationData)
-	if !ok {
-		t.Fatalf("data type = %T", event.Data)
-	}
-	kind, ok := data.Kind.(*rpc.SystemNotificationWorkflowCompleted)
-	if !ok {
-		t.Fatalf("kind type = %T", data.Kind)
-	}
-	if kind.WorkflowName != "fix-ci" || kind.RunID != "run-1" ||
-		kind.Status != rpc.SystemNotificationWorkflowCompletedStatusCompleted ||
-		kind.ConsumedSubagents != 1 {
-		t.Fatalf("unexpected workflow completion: %+v", kind)
+}
+
+func TestInvalidUnicodeScalarIdentitiesAreUnavailable(t *testing.T) {
+	for _, test := range workerCorpus(t).InvalidRaw {
+		var result rpc.TasksSendMessageResult
+		wire := []byte(fmt.Sprintf(`{"sent":true,"workerCausality":%s}`, test.JSON))
+		if err := json.Unmarshal(wire, &result); err != nil {
+			t.Fatalf("%s rejected product result: %v", test.Name, err)
+		}
+		encoded, err := json.Marshal(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(encoded) != `{"sent":true}` {
+			t.Fatalf("%s preserved invalid metadata: %s", test.Name, encoded)
+		}
 	}
 }

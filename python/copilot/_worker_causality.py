@@ -23,7 +23,7 @@ def _text(value: Any) -> bool:
         isinstance(value, str)
         and bool(value)
         and len(value.encode("utf-8")) <= 256
-        and all(unicodedata.category(char) != "Cc" for char in value)
+        and all(unicodedata.category(char) not in ("Cc", "Cs") for char in value)
     )
 
 

@@ -23245,7 +23245,9 @@ const (
 type WorkerAdmissionKind string
 
 const (
-	WorkerAdmissionKindQueuedInput        WorkerAdmissionKind = "queued_input"
+	// A queued worker input was admitted.
+	WorkerAdmissionKindQueuedInput WorkerAdmissionKind = "queued_input"
+	// A system continuation was admitted.
 	WorkerAdmissionKindSystemContinuation WorkerAdmissionKind = "system_continuation"
 )
 
@@ -23254,11 +23256,16 @@ const (
 type WorkerEventType string
 
 const (
+	// Observed assistant turn start occurrence.
 	WorkerEventTypeAssistantTurnStart WorkerEventType = "assistant.turn_start"
-	WorkerEventTypeSubagentCompleted  WorkerEventType = "subagent.completed"
+	// Observed worker completion occurrence.
+	WorkerEventTypeSubagentCompleted WorkerEventType = "subagent.completed"
+	// Observed worker notification occurrence.
 	WorkerEventTypeSystemNotification WorkerEventType = "system.notification"
+	// Observed tool execution start occurrence.
 	WorkerEventTypeToolExecutionStart WorkerEventType = "tool.execution_start"
-	WorkerEventTypeUserMessage        WorkerEventType = "user.message"
+	// Observed admitted user message occurrence.
+	WorkerEventTypeUserMessage WorkerEventType = "user.message"
 )
 
 // How the owned notification was consumed.
@@ -23267,8 +23274,10 @@ const (
 type WorkerNotificationMode string
 
 const (
+	// The notification was consumed during an already-open iteration.
 	WorkerNotificationModeImmediate WorkerNotificationMode = "immediate"
-	WorkerNotificationModeQueued    WorkerNotificationMode = "queued"
+	// The notification was consumed through the queued input path.
+	WorkerNotificationModeQueued WorkerNotificationMode = "queued"
 )
 
 // Producer of an observation, not the execution location of every referenced source.
@@ -23277,8 +23286,10 @@ const (
 type WorkerObservationProvenance string
 
 const (
+	// Observed by the AHP coordinator.
 	WorkerObservationProvenanceAhpCoordinator WorkerObservationProvenance = "ahp_coordinator"
-	WorkerObservationProvenanceNative         WorkerObservationProvenance = "native"
+	// Observed by the native runtime.
+	WorkerObservationProvenanceNative WorkerObservationProvenance = "native"
 )
 
 // Execution-critical workflow storage operation.

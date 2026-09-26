@@ -9075,8 +9075,10 @@ pub enum UserMessageDelivery {
 /// Producer of an observation, not the execution location of every referenced source.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkerObservationProvenance {
+    /// Observed by the native runtime.
     #[serde(rename = "native")]
     Native,
+    /// Observed by the AHP coordinator.
     #[serde(rename = "ahp_coordinator")]
     AhpCoordinator,
     /// Unknown variant for forward compatibility.
@@ -9088,14 +9090,19 @@ pub enum WorkerObservationProvenance {
 /// Supported observed occurrences. Chronological parentId is not a causal reference.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkerEventType {
+    /// Observed tool execution start occurrence.
     #[serde(rename = "tool.execution_start")]
     ToolExecutionStart,
+    /// Observed admitted user message occurrence.
     #[serde(rename = "user.message")]
     UserMessage,
+    /// Observed worker completion occurrence.
     #[serde(rename = "subagent.completed")]
     SubagentCompleted,
+    /// Observed worker notification occurrence.
     #[serde(rename = "system.notification")]
     SystemNotification,
+    /// Observed assistant turn start occurrence.
     #[serde(rename = "assistant.turn_start")]
     AssistantTurnStart,
     /// Unknown variant for forward compatibility.
@@ -9107,8 +9114,10 @@ pub enum WorkerEventType {
 /// Why this exact worker admission was made.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkerAdmissionKind {
+    /// A queued worker input was admitted.
     #[serde(rename = "queued_input")]
     QueuedInput,
+    /// A system continuation was admitted.
     #[serde(rename = "system_continuation")]
     SystemContinuation,
     /// Unknown variant for forward compatibility.
@@ -9120,8 +9129,10 @@ pub enum WorkerAdmissionKind {
 /// How the owned notification was consumed.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkerNotificationMode {
+    /// The notification was consumed through the queued input path.
     #[serde(rename = "queued")]
     Queued,
+    /// The notification was consumed during an already-open iteration.
     #[serde(rename = "immediate")]
     Immediate,
     /// Unknown variant for forward compatibility.

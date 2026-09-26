@@ -41,6 +41,7 @@ rust_library(
     crate_features = [
         "alloc",
         "default",
+        "raw_value",
         "std",
     ],
     crate_root = "src/lib.rs",
@@ -102,6 +103,7 @@ cargo_build_script(
     crate_features = [
         "alloc",
         "default",
+        "raw_value",
         "std",
     ],
     crate_name = "build_script_build",

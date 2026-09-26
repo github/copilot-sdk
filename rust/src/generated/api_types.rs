@@ -22522,7 +22522,7 @@ pub struct TasksSendMessageResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(
         default,
-        deserialize_with = "crate::worker_causality::deserialize_optional"
+        deserialize_with = "crate::worker_causality::deserialize_optional_raw"
     )]
     pub worker_causality: Option<WorkerCausality>,
 }
@@ -28950,7 +28950,7 @@ pub struct SessionTasksSendMessageResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(
         default,
-        deserialize_with = "crate::worker_causality::deserialize_optional"
+        deserialize_with = "crate::worker_causality::deserialize_optional_raw"
     )]
     pub worker_causality: Option<WorkerCausality>,
 }

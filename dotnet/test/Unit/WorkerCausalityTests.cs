@@ -73,12 +73,29 @@ public class WorkerCausalityTests
     [Fact]
     public void CanonicalWorkflowCompletionDecodesTypedFields()
     {
-        var parsed = SessionEvent.FromJson(Corpus["workflowCompleted"]!["event"]!.ToJsonString());
-        var notification = Assert.IsType<SystemNotificationEvent>(parsed);
-        var completion = Assert.IsType<SystemNotificationWorkflowCompleted>(notification.Data.Kind);
-        Assert.Equal("fix-ci", completion.WorkflowName);
-        Assert.Equal("run-1", completion.RunId);
-        Assert.Equal(SystemNotificationWorkflowCompletedStatus.Completed, completion.Status);
-        Assert.Equal(1u, completion.ConsumedSubagents);
+        foreach (var fixtureName in new[] { "workflowCompleted", "legacyWorkflowCompleted" })
+        {
+            var parsed = SessionEvent.FromJson(Corpus[fixtureName]!["event"]!.ToJsonString());
+            var notification = Assert.IsType<SystemNotificationEvent>(parsed);
+            var completion = Assert.IsType<SystemNotificationWorkflowCompleted>(notification.Data.Kind);
+            Assert.Equal("fix-ci", completion.WorkflowName);
+            Assert.Equal("run-1", completion.RunId);
+            Assert.Equal(SystemNotificationWorkflowCompletedStatus.Completed, completion.Status);
+            Assert.Equal(1u, completion.ConsumedSubagents);
+        }
+    }
+
+    [Fact]
+    public void InvalidUnicodeScalarIdentitiesAreUnavailable()
+    {
+        foreach (var test in Corpus["invalidRaw"]!.AsArray())
+        {
+            var raw = test!["json"]!.GetValue<string>();
+            var wire = $"{{\"sent\":true,\"workerCausality\":{raw}}}";
+            var result = JsonSerializer.Deserialize<TasksSendMessageResult>(wire, RpcOptions);
+            Assert.NotNull(result);
+            Assert.Null(result.WorkerCausality);
+            Assert.True(result.Sent);
+        }
     }
 }

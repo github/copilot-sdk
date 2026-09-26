@@ -52,10 +52,19 @@ def test_worker_causality_exact_utf8_budget_and_unknown_fields(case):
 
 
 def test_canonical_workflow_completion_decodes_typed_fields():
-    event = session_event_from_dict(CORPUS["workflowCompleted"]["event"])
-    assert event.type.value == "system.notification"
-    assert event.data.kind.type == "workflow_completed"
-    assert event.data.kind.workflow_name == "fix-ci"
-    assert event.data.kind.run_id == "run-1"
-    assert event.data.kind.status.value == "completed"
-    assert event.data.kind.consumed_subagents == 1
+    for fixture in (CORPUS["workflowCompleted"], CORPUS["legacyWorkflowCompleted"]):
+        event = session_event_from_dict(fixture["event"])
+        assert event.type.value == "system.notification"
+        assert event.data.kind.type == "workflow_completed"
+        assert event.data.kind.workflow_name == "fix-ci"
+        assert event.data.kind.run_id == "run-1"
+        assert event.data.kind.status.value == "completed"
+        assert event.data.kind.consumed_subagents == 1
+
+
+@pytest.mark.parametrize("case", CORPUS["invalidRaw"], ids=lambda case: case["name"])
+def test_invalid_unicode_scalar_identities_are_unavailable(case):
+    result = TasksSendMessageResult.from_dict(
+        {"sent": True, "workerCausality": json.loads(case["json"])}
+    )
+    assert result.to_dict() == {"sent": True}

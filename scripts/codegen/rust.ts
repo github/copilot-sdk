@@ -191,6 +191,10 @@ const RUST_KEYWORDS = new Set([
 	"while",
 	"yield",
 ]);
+const RAW_WORKER_CAUSALITY_TYPES = new Set([
+	"TasksSendMessageResult",
+	"SessionTasksSendMessageResult",
+]);
 
 function safeRustFieldName(name: string): string {
 	const snake = toRustFieldName(name);
@@ -1060,7 +1064,10 @@ function emitRustStruct(
 		}
 
 		if (propName === "workerCausality" && !isReq) {
-			lines.push(`    #[serde(default, deserialize_with = "crate::worker_causality::deserialize_optional")]`);
+			const workerDeserializer = RAW_WORKER_CAUSALITY_TYPES.has(typeName)
+				? "deserialize_optional_raw"
+				: "deserialize_optional";
+			lines.push(`    #[serde(default, deserialize_with = "crate::worker_causality::${workerDeserializer}")]`);
 		} else if (prop.$ref && typeof prop.const === "string") {
 			lines.push(
 				`    #[serde(${isReq ? "" : "default, "}deserialize_with = "${typeName}::deserialize_${snakeField}")]`,

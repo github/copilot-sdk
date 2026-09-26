@@ -774,24 +774,41 @@ export type UserMessageDelivery =
 /**
  * Producer of an observation, not the execution location of every referenced source.
  */
-export type WorkerObservationProvenance = "native" | "ahp_coordinator";
+export type WorkerObservationProvenance =
+  /** Observed by the native runtime. */
+  | "native"
+  /** Observed by the AHP coordinator. */
+  | "ahp_coordinator";
 /**
  * Supported observed occurrences. Chronological parentId is not a causal reference.
  */
 export type WorkerEventType =
+  /** Observed tool execution start occurrence. */
   | "tool.execution_start"
+  /** Observed admitted user message occurrence. */
   | "user.message"
+  /** Observed worker completion occurrence. */
   | "subagent.completed"
+  /** Observed worker notification occurrence. */
   | "system.notification"
+  /** Observed assistant turn start occurrence. */
   | "assistant.turn_start";
 /**
  * Why this exact worker admission was made.
  */
-export type WorkerAdmissionKind = "queued_input" | "system_continuation";
+export type WorkerAdmissionKind =
+  /** A queued worker input was admitted. */
+  | "queued_input"
+  /** A system continuation was admitted. */
+  | "system_continuation";
 /**
  * How the owned notification was consumed.
  */
-export type WorkerNotificationMode = "queued" | "immediate";
+export type WorkerNotificationMode =
+  /** The notification was consumed through the queued input path. */
+  | "queued"
+  /** The notification was consumed during an already-open iteration. */
+  | "immediate";
 /**
  * Content-safe activity observed while a HydraFusion phase is running.
  */

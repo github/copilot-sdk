@@ -14789,28 +14789,39 @@ class Verbosity(Enum):
 
 class WorkerAdmissionKind(Enum):
     "Why this exact worker admission was made."
+    # A queued worker input was admitted.
     QUEUED_INPUT = "queued_input"
+    # A system continuation was admitted.
     SYSTEM_CONTINUATION = "system_continuation"
 
 
 class WorkerEventType(Enum):
     "Supported observed occurrences. Chronological parentId is not a causal reference."
+    # Observed tool execution start occurrence.
     TOOL_EXECUTION_START = "tool.execution_start"
+    # Observed admitted user message occurrence.
     USER_MESSAGE = "user.message"
+    # Observed worker completion occurrence.
     SUBAGENT_COMPLETED = "subagent.completed"
+    # Observed worker notification occurrence.
     SYSTEM_NOTIFICATION = "system.notification"
+    # Observed assistant turn start occurrence.
     ASSISTANT_TURN_START = "assistant.turn_start"
 
 
 class WorkerNotificationMode(Enum):
     "How the owned notification was consumed."
+    # The notification was consumed through the queued input path.
     QUEUED = "queued"
+    # The notification was consumed during an already-open iteration.
     IMMEDIATE = "immediate"
 
 
 class WorkerObservationProvenance(Enum):
     "Producer of an observation, not the execution location of every referenced source."
+    # Observed by the native runtime.
     NATIVE = "native"
+    # Observed by the AHP coordinator.
     AHP_COORDINATOR = "ahp_coordinator"
 
 

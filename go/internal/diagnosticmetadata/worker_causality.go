@@ -9,6 +9,7 @@ import (
 	"log"
 	"regexp"
 	"unicode"
+	"unicode/utf8"
 )
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$`)
@@ -29,6 +30,77 @@ func text(value any) bool {
 func uuid(value any) bool {
 	s, ok := value.(string)
 	return ok && uuidPattern.MatchString(s)
+}
+
+func hexQuad(value []byte) (uint16, bool) {
+	if len(value) < 4 {
+		return 0, false
+	}
+	var result uint16
+	for _, character := range value[:4] {
+		result <<= 4
+		switch {
+		case character >= '0' && character <= '9':
+			result += uint16(character - '0')
+		case character >= 'a' && character <= 'f':
+			result += uint16(character-'a') + 10
+		case character >= 'A' && character <= 'F':
+			result += uint16(character-'A') + 10
+		default:
+			return 0, false
+		}
+	}
+	return result, true
+}
+
+func validUnicodeScalarEscapes(raw []byte) bool {
+	if !utf8.Valid(raw) {
+		return false
+	}
+	inString := false
+	for index := 0; index < len(raw); index++ {
+		character := raw[index]
+		if !inString {
+			if character == '"' {
+				inString = true
+			}
+			continue
+		}
+		if character == '"' {
+			inString = false
+			continue
+		}
+		if character != '\\' {
+			continue
+		}
+		if index+1 >= len(raw) {
+			return false
+		}
+		if raw[index+1] != 'u' {
+			index++
+			continue
+		}
+		codeUnit, ok := hexQuad(raw[index+2:])
+		if !ok {
+			return false
+		}
+		if codeUnit >= 0xd800 && codeUnit <= 0xdbff {
+			if index+11 >= len(raw) || raw[index+6] != '\\' || raw[index+7] != 'u' {
+				return false
+			}
+			low, ok := hexQuad(raw[index+8:])
+			if !ok || low < 0xdc00 || low > 0xdfff {
+				return false
+			}
+			index += 11
+		} else {
+			if codeUnit >= 0xdc00 && codeUnit <= 0xdfff {
+				return false
+			}
+			index += 5
+		}
+	}
+	return !inString
 }
 
 func fields(value map[string]any, allowed ...string) bool {
@@ -181,7 +253,7 @@ func supported(value map[string]any) bool {
 
 // ReadWorkerCausality decodes availability only, not enclosing self identity or association.
 func ReadWorkerCausality(raw json.RawMessage, target any) bool {
-	if len(raw) == 0 {
+	if len(raw) == 0 || !validUnicodeScalarEscapes(raw) {
 		return false
 	}
 	var value map[string]any

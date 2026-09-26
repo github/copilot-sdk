@@ -143,6 +143,11 @@ surface, physical dispatch or UI policy. `source` identifies a sender, not its
 sending Turn. Recovery with no primary message still has no `user.message`
 admission or `originatingMessageId`.
 
+Worker identity strings contain valid Unicode scalar values, are non-empty,
+contain no Unicode control characters, and encode to at most 256 UTF-8 bytes.
+Printable non-ASCII values are supported; invalid surrogate code units are
+rejected rather than preserved through replacement encoding.
+
 Workflow completion notifications use the canonical public
 `system.notification.data.kind.type = "workflow_completed"` discriminator and
 typed `runId`, `workflowName`, status, usage and attempt fields. The AHP relay

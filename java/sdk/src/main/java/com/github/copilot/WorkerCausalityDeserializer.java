@@ -137,9 +137,22 @@ public final class WorkerCausalityDeserializer extends JsonDeserializer<Object> 
     }
 
     private static boolean text(JsonNode value) {
-        return value.isTextual() && !value.textValue().isEmpty()
-                && value.textValue().getBytes(StandardCharsets.UTF_8).length <= 256
-                && value.textValue().codePoints().noneMatch(Character::isISOControl);
+        if (!value.isTextual() || value.textValue().isEmpty()) {
+            return false;
+        }
+        String text = value.textValue();
+        for (int index = 0; index < text.length(); index++) {
+            char character = text.charAt(index);
+            if (Character.isHighSurrogate(character)) {
+                if (index + 1 >= text.length() || !Character.isLowSurrogate(text.charAt(index + 1))) {
+                    return false;
+                }
+                index++;
+            } else if (Character.isLowSurrogate(character) || Character.isISOControl(character)) {
+                return false;
+            }
+        }
+        return text.getBytes(StandardCharsets.UTF_8).length <= 256;
     }
 
     private static boolean uuid(JsonNode value) {

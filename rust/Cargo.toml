@@ -48,7 +48,7 @@ async-trait = "0.1"
 indexmap = { version = "2", features = ["serde"] }
 schemars = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["raw_value"] }
 tokio = { version = "1", features = ["io-util", "sync", "rt", "process", "net", "time", "macros"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", default-features = false }
@@ -128,7 +128,7 @@ required-features = ["test-support"]
 dirs = "5"
 flate2 = "1"
 native-tls = "0.2"
-serde_json = "1"
+serde_json = { version = "1", features = ["raw_value"] }
 # 0.11 adds a second digest/block-buffer stack beside the SDK's transitive 0.10.
 sha2 = "0.10"
 tar = "0.4"
